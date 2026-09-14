@@ -82,6 +82,23 @@ class MeasurementRunSummary(BaseModel):
     created_at: datetime
 
 
+class AdminMeasurementRunSummary(MeasurementRunSummary):
+    campaign_id: UUID
+    campaign_name: str
+    test_only: bool
+    reproducible: bool
+    superseded: bool
+    report_issuance_id: UUID | None = None
+    report_status: str | None = None
+
+
+class AdminMeasurementRunList(BaseModel):
+    items: list[AdminMeasurementRunSummary]
+    total: int
+    limit: int
+    offset: int
+
+
 class MeasurementPeriodRead(BaseModel):
     start_at: datetime
     end_at: datetime

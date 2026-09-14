@@ -2,6 +2,7 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
+import { SensitiveReview } from "./sensitive-review";
 import {
   reviewPersonPayeeAction,
   reviewPersonPayeeEvidenceAction,
@@ -104,16 +105,22 @@ export function PersonPayeeDecisionActions({
   return (
     <div className="flex min-w-72 flex-col gap-2">
       <p className="micro text-muted">Audited exact-version review</p>
-      <EvidenceRead kind="nin" id={submissionId} label="Reveal NIN" />
-      <EvidenceRead kind="account" id={bankAccountVersionId} label="Reveal account" />
+      <SensitiveReview purpose="Person and payee approval">
+        <EvidenceRead kind="nin" id={submissionId} label="Reveal NIN" />
+      </SensitiveReview>
+      <SensitiveReview purpose="Person and payee approval">
+        <EvidenceRead kind="account" id={bankAccountVersionId} label="Reveal account" />
+      </SensitiveReview>
       {Object.entries(documentFileIds).map(([name, fileId]) => (
-        <EvidenceRead
-          key={fileId}
-          kind="document"
-          id={fileId}
-          submissionId={submissionId}
-          label={`Review ${name.replaceAll("_", " ")}`}
-        />
+        <SensitiveReview key={fileId} purpose="Person and payee approval">
+          <EvidenceRead
+            key={fileId}
+            kind="document"
+            id={fileId}
+            submissionId={submissionId}
+            label={`Review ${name.replaceAll("_", " ")}`}
+          />
+        </SensitiveReview>
       ))}
       {bankAccountVerified ? (
         <p className="text-green text-xs">Exact account version is payout-verified.</p>

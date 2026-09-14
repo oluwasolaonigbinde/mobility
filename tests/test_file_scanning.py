@@ -297,6 +297,7 @@ def test_active_admin_read_is_purpose_scoped_and_inactive_admin_fails_in_service
         json={"purpose": "security_review", "reason": "Investigate scanner alert history"},
     )
     assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-store"
     wrong_purpose = db_client.post(
         f"/api/v1/admin/files/{stored['id']}/download",
         headers=admin_headers,

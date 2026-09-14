@@ -9,7 +9,9 @@ from app.api.v1.dependencies import (
     SessionDependency,
     SettingsDependency,
 )
+from app.core.errors import AppError
 from app.core.rate_limit import login_client_ip
+from app.models.driver_application import DriverApplication
 from app.models.user import UserRole, UserStatus
 from app.schemas.driver_applications import (
     DriverAccountSetupInitiate,
@@ -25,6 +27,7 @@ from app.schemas.driver_onboarding import (
 )
 from app.schemas.organizations import AdminOrganizationCreateResponse, AdvertiserOrganizationCreate
 from app.schemas.users import UserCreate, UserListResponse, UserRead, UserUpdate
+from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.driver_account_setup import initiate_driver_account_setup, setup_state
 from app.services.driver_applications import list_driver_applications
@@ -135,6 +138,7 @@ async def admin_list_users(
     offset: Annotated[int, Query(ge=0)] = 0,
     role: UserRole | None = None,
     status: UserStatus | None = None,
+    q: Annotated[str | None, Query(max_length=120)] = None,
 ) -> UserListResponse:
     del current_user
     users, total = await list_users(
@@ -143,6 +147,7 @@ async def admin_list_users(
         offset=offset,
         role=role,
         user_status=status,
+        q=q,
     )
     return UserListResponse(
         items=[UserRead.model_validate(user) for user in users],
@@ -162,12 +167,16 @@ async def admin_list_driver_applications(
     session: SessionDependency,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
+    q: Annotated[str | None, Query(max_length=120)] = None,
+    history: bool = False,
 ) -> DriverApplicationAdminListResponse:
     applications, total = await list_driver_applications(
         session,
         admin_user_id=current_user.id,
         limit=limit,
         offset=offset,
+        q=q,
+        history=history,
     )
     items = []
     for application in applications:
@@ -186,6 +195,25 @@ async def admin_list_driver_applications(
         total=total,
         limit=limit,
         offset=offset,
+    )
+
+
+@router.get("/driver-applications/{application_id}", response_model=DriverApplicationAdminRead)
+async def admin_get_driver_application(
+    application_id: UUID,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+) -> DriverApplicationAdminRead:
+    application = await session.get(DriverApplication, application_id)
+    if application is None:
+        raise AppError("DRIVER_APPLICATION_NOT_FOUND", "Application was not found", status_code=404)
+    person_payee = await application_person_payee_view(session, application=application)
+    vehicle = await application_vehicle_view(session, application=application)
+    return DriverApplicationAdminRead.model_validate(application).model_copy(
+        update={
+            "person_payee": _admin_person_payee_response(person_payee),
+            "vehicle": _admin_vehicle_response(vehicle),
+        }
     )
 
 
@@ -247,6 +275,14 @@ async def admin_initiate_driver_account_setup(
     session: SessionDependency,
     settings: SettingsDependency,
 ) -> DriverAccountSetupRead:
+    await require_active_admin(session, current_user.id)
+    application = await session.get(DriverApplication, application_id)
+    if application is None:
+        raise AppError(
+            "DRIVER_APPLICATION_NOT_FOUND",
+            "Application was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
     setup = await initiate_driver_account_setup(
         session,
         application_id=application_id,

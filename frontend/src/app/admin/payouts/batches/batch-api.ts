@@ -2,6 +2,7 @@ import "server-only";
 
 import { env } from "@/lib/env";
 import { getSessionToken } from "@/lib/auth/session";
+import { toApiError } from "@/lib/api/errors";
 
 export interface PayoutBatchLine {
   id: string;
@@ -29,10 +30,6 @@ export interface PayoutBatch {
   lines: PayoutBatchLine[];
 }
 
-interface ApiErrorBody {
-  error?: { message?: string };
-}
-
 export async function batchApi<T>(path: string, init?: RequestInit): Promise<T> {
   const token = await getSessionToken();
   const response = await fetch(`${env().API_BASE_URL}/api/v1/admin/payout-batches${path}`, {
@@ -45,8 +42,8 @@ export async function batchApi<T>(path: string, init?: RequestInit): Promise<T> 
     },
   });
   if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as ApiErrorBody;
-    throw new Error(body.error?.message ?? `Request failed (${response.status})`);
+    const body: unknown = await response.json().catch(() => ({}));
+    throw toApiError(response.status, body);
   }
   return (await response.json()) as T;
 }

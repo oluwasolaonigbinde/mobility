@@ -635,6 +635,177 @@
         "title": "AdminFraudFlagRead",
         "type": "object"
       },
+      "AdminMeasurementRunList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminMeasurementRunSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "AdminMeasurementRunList",
+        "type": "object"
+      },
+      "AdminMeasurementRunSummary": {
+        "properties": {
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "campaign_name": {
+            "title": "Campaign Name",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "formula_version": {
+            "title": "Formula Version",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "input_manifest_sha256": {
+            "title": "Input Manifest Sha256",
+            "type": "string"
+          },
+          "method_revision": {
+            "title": "Method Revision",
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/MeasurementRunMode"
+          },
+          "period_end_at": {
+            "format": "date-time",
+            "title": "Period End At",
+            "type": "string"
+          },
+          "period_start_at": {
+            "format": "date-time",
+            "title": "Period Start At",
+            "type": "string"
+          },
+          "proof_manifest_sha256": {
+            "title": "Proof Manifest Sha256",
+            "type": "string"
+          },
+          "reissue_of_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reissue Of Run Id"
+          },
+          "report_issuance_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Report Issuance Id"
+          },
+          "report_snapshot_sha256": {
+            "title": "Report Snapshot Sha256",
+            "type": "string"
+          },
+          "report_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Report Status"
+          },
+          "reproducible": {
+            "title": "Reproducible",
+            "type": "boolean"
+          },
+          "result_manifest_sha256": {
+            "title": "Result Manifest Sha256",
+            "type": "string"
+          },
+          "roi_method_revision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Roi Method Revision"
+          },
+          "superseded": {
+            "title": "Superseded",
+            "type": "boolean"
+          },
+          "test_only": {
+            "title": "Test Only",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "mode",
+          "formula_version",
+          "method_revision",
+          "roi_method_revision",
+          "period_start_at",
+          "period_end_at",
+          "input_manifest_sha256",
+          "result_manifest_sha256",
+          "proof_manifest_sha256",
+          "report_snapshot_sha256",
+          "reissue_of_run_id",
+          "created_at",
+          "campaign_id",
+          "campaign_name",
+          "test_only",
+          "reproducible",
+          "superseded"
+        ],
+        "title": "AdminMeasurementRunSummary",
+        "type": "object"
+      },
       "AdminOrganizationCreateResponse": {
         "properties": {
           "organization": {
@@ -2112,6 +2283,17 @@
       },
       "AssignmentDriverProfileSummary": {
         "properties": {
+          "full_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Full Name"
+          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -2132,6 +2314,41 @@
           "onboarding_status"
         ],
         "title": "AssignmentDriverProfileSummary",
+        "type": "object"
+      },
+      "AssignmentReadinessRead": {
+        "properties": {
+          "assignment_id": {
+            "format": "uuid",
+            "title": "Assignment Id",
+            "type": "string"
+          },
+          "blocker_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Blocker Code"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "ready": {
+            "title": "Ready",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "assignment_id",
+          "ready",
+          "message"
+        ],
+        "title": "AssignmentReadinessRead",
         "type": "object"
       },
       "AssignmentStatusCounts": {
@@ -4732,6 +4949,74 @@
         "title": "CampaignCreate",
         "type": "object"
       },
+      "CampaignDriverMoneyRead": {
+        "properties": {
+          "cash_paid": {
+            "description": "Economic ledger amount paid, counting each credit once.",
+            "title": "Cash Paid",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "driver_name": {
+            "title": "Driver Name",
+            "type": "string"
+          },
+          "driver_profile_id": {
+            "format": "uuid",
+            "title": "Driver Profile Id",
+            "type": "string"
+          },
+          "driver_wide_debt": {
+            "title": "Driver Wide Debt",
+            "type": "string"
+          },
+          "earned_net": {
+            "title": "Earned Net",
+            "type": "string"
+          },
+          "in_flight": {
+            "description": "Unresolved provider exposure across scoped payout-line chains, including replacements of paid credits.",
+            "title": "In Flight",
+            "type": "string"
+          },
+          "provider_verified_paid": {
+            "description": "Total amount of verified successful payout lines, including duplicate transfers in a replacement chain.",
+            "title": "Provider Verified Paid",
+            "type": "string"
+          },
+          "reserved": {
+            "description": "Active reserved payout instructions, independent of ledger payment status.",
+            "title": "Reserved",
+            "type": "string"
+          },
+          "terminal_failed": {
+            "title": "Terminal Failed",
+            "type": "string"
+          },
+          "unbatched_available": {
+            "title": "Unbatched Available",
+            "type": "string"
+          }
+        },
+        "required": [
+          "driver_profile_id",
+          "driver_name",
+          "currency",
+          "earned_net",
+          "unbatched_available",
+          "reserved",
+          "in_flight",
+          "terminal_failed",
+          "cash_paid",
+          "provider_verified_paid",
+          "driver_wide_debt"
+        ],
+        "title": "CampaignDriverMoneyRead",
+        "type": "object"
+      },
       "CampaignImpressionSummary": {
         "properties": {
           "average_confidence_score": {
@@ -4850,6 +5135,80 @@
           "offset"
         ],
         "title": "CampaignListResponse",
+        "type": "object"
+      },
+      "CampaignMoneyPositionRead": {
+        "properties": {
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "campaign_name": {
+            "title": "Campaign Name",
+            "type": "string"
+          },
+          "cancellation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CancellationPositionRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "external_blockers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "External Blockers",
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CampaignDriverMoneyRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "settlements": {
+            "items": {
+              "$ref": "#/components/schemas/RecordedSettlementRead"
+            },
+            "title": "Settlements",
+            "type": "array"
+          },
+          "settlements_total": {
+            "title": "Settlements Total",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campaign_id",
+          "campaign_name",
+          "items",
+          "total",
+          "limit",
+          "offset",
+          "cancellation",
+          "settlements",
+          "settlements_total",
+          "external_blockers"
+        ],
+        "title": "CampaignMoneyPositionRead",
         "type": "object"
       },
       "CampaignPayoutRuleCreate": {
@@ -6769,6 +7128,35 @@
         "title": "CampaignZoneUpdate",
         "type": "object"
       },
+      "CancellationPositionRead": {
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "cutoff_at": {
+            "format": "date-time",
+            "title": "Cutoff At",
+            "type": "string"
+          },
+          "disposition": {
+            "title": "Disposition",
+            "type": "string"
+          },
+          "refundable_amount": {
+            "title": "Refundable Amount",
+            "type": "string"
+          }
+        },
+        "required": [
+          "cutoff_at",
+          "disposition",
+          "currency",
+          "refundable_amount"
+        ],
+        "title": "CancellationPositionRead",
+        "type": "object"
+      },
       "ChangePasswordRequest": {
         "additionalProperties": false,
         "properties": {
@@ -8006,6 +8394,24 @@
         "title": "CrmUploadReferenceSourceCreate",
         "type": "object"
       },
+      "CurrencyAmountRead": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "amount"
+        ],
+        "title": "CurrencyAmountRead",
+        "type": "object"
+      },
       "CurrentTripResponse": {
         "properties": {
           "trip": {
@@ -9059,9 +9465,7 @@
             "title": "Service City"
           },
           "status": {
-            "const": "pending",
-            "title": "Status",
-            "type": "string"
+            "$ref": "#/components/schemas/DriverApplicationStatus"
           },
           "updated_at": {
             "format": "date-time",
@@ -9152,6 +9556,15 @@
         ],
         "title": "DriverApplicationCreate",
         "type": "object"
+      },
+      "DriverApplicationStatus": {
+        "enum": [
+          "pending",
+          "approved",
+          "rejected"
+        ],
+        "title": "DriverApplicationStatus",
+        "type": "string"
       },
       "DriverApplicationStatusResponse": {
         "properties": {
@@ -10730,6 +11143,144 @@
         ],
         "title": "EarningsLedgerEntryType",
         "type": "string"
+      },
+      "EligiblePaymentListRead": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EligiblePaymentRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "page_eligible_totals": {
+            "items": {
+              "$ref": "#/components/schemas/CurrencyAmountRead"
+            },
+            "title": "Page Eligible Totals",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset",
+          "page_eligible_totals"
+        ],
+        "title": "EligiblePaymentListRead",
+        "type": "object"
+      },
+      "EligiblePaymentRead": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "bank_account_version_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank Account Version Id"
+          },
+          "campaign_name": {
+            "title": "Campaign Name",
+            "type": "string"
+          },
+          "carry_forward_debt": {
+            "title": "Carry Forward Debt",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "debt_deducted": {
+            "title": "Debt Deducted",
+            "type": "string"
+          },
+          "destination_verified": {
+            "title": "Destination Verified",
+            "type": "boolean"
+          },
+          "driver_name": {
+            "title": "Driver Name",
+            "type": "string"
+          },
+          "driver_profile_id": {
+            "format": "uuid",
+            "title": "Driver Profile Id",
+            "type": "string"
+          },
+          "eligible": {
+            "title": "Eligible",
+            "type": "boolean"
+          },
+          "ineligibility_reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Ineligibility Reasons",
+            "type": "array"
+          },
+          "ledger_entry_id": {
+            "format": "uuid",
+            "title": "Ledger Entry Id",
+            "type": "string"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "payee_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payee Name"
+          }
+        },
+        "required": [
+          "ledger_entry_id",
+          "driver_profile_id",
+          "driver_name",
+          "payee_name",
+          "campaign_name",
+          "occurred_at",
+          "amount",
+          "currency",
+          "debt_deducted",
+          "carry_forward_debt",
+          "destination_verified",
+          "bank_account_version_id",
+          "eligible",
+          "ineligibility_reasons"
+        ],
+        "title": "EligiblePaymentRead",
+        "type": "object"
       },
       "EmailDeliveryReceiptCreate": {
         "additionalProperties": false,
@@ -14158,6 +14709,17 @@
             "title": "Created At",
             "type": "string"
           },
+          "driver_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driver Name"
+          },
           "driver_profile_id": {
             "format": "uuid",
             "title": "Driver Profile Id",
@@ -15534,12 +16096,59 @@
             "minLength": 3,
             "title": "Currency",
             "type": "string"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
           }
         },
         "required": [
           "currency"
         ],
         "title": "PayoutBatchCreate",
+        "type": "object"
+      },
+      "PayoutBatchDetailRead": {
+        "properties": {
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/PayoutOperationLineRead"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/PayoutBatchSummaryRead"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "summary",
+          "lines",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "PayoutBatchDetailRead",
         "type": "object"
       },
       "PayoutBatchLineRead": {
@@ -15859,6 +16468,146 @@
         ],
         "title": "PayoutBatchStatus",
         "type": "string"
+      },
+      "PayoutBatchSummaryListRead": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PayoutBatchSummaryRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "PayoutBatchSummaryListRead",
+        "type": "object"
+      },
+      "PayoutBatchSummaryRead": {
+        "properties": {
+          "approved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved At"
+          },
+          "approved_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Approved By User Id"
+          },
+          "checker_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checker Name"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "created_by_user_id": {
+            "format": "uuid",
+            "title": "Created By User Id",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "line_count": {
+            "title": "Line Count",
+            "type": "integer"
+          },
+          "maker_name": {
+            "title": "Maker Name",
+            "type": "string"
+          },
+          "outcomes": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Outcomes",
+            "type": "object"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PayoutBatchStatus"
+          },
+          "submitted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Submitted At"
+          },
+          "total_amount": {
+            "title": "Total Amount",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "currency",
+          "total_amount",
+          "created_by_user_id",
+          "approved_by_user_id",
+          "maker_name",
+          "checker_name",
+          "created_at",
+          "approved_at",
+          "submitted_at",
+          "line_count",
+          "outcomes"
+        ],
+        "title": "PayoutBatchSummaryRead",
+        "type": "object"
       },
       "PayoutCalculationListResponse": {
         "properties": {
@@ -16533,6 +17282,241 @@
           "currency"
         ],
         "title": "PayoutLedgerEntrySummary",
+        "type": "object"
+      },
+      "PayoutLineHistoryEventRead": {
+        "properties": {
+          "applied": {
+            "title": "Applied",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          },
+          "provider_occurred_at": {
+            "format": "date-time",
+            "title": "Provider Occurred At",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "outcome",
+          "source",
+          "applied",
+          "provider_occurred_at",
+          "created_at"
+        ],
+        "title": "PayoutLineHistoryEventRead",
+        "type": "object"
+      },
+      "PayoutLineHistoryRead": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PayoutLineHistoryEventRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "latest_submission_outcome": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Submission Outcome"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "latest_submission_outcome",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "PayoutLineHistoryRead",
+        "type": "object"
+      },
+      "PayoutOperationLineRead": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "bank_account_version_id": {
+            "format": "uuid",
+            "title": "Bank Account Version Id",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "driver_name": {
+            "title": "Driver Name",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "ledger_entry_id": {
+            "format": "uuid",
+            "title": "Ledger Entry Id",
+            "type": "string"
+          },
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          },
+          "payee_name": {
+            "title": "Payee Name",
+            "type": "string"
+          },
+          "provider_transfer_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Transfer Reference"
+          },
+          "reconciled_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reconciled At"
+          },
+          "reconciler_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reconciler Name"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "ledger_entry_id",
+          "driver_name",
+          "payee_name",
+          "bank_account_version_id",
+          "amount",
+          "currency",
+          "status",
+          "outcome",
+          "idempotency_key",
+          "provider_transfer_reference",
+          "reconciled_at",
+          "reconciler_name"
+        ],
+        "title": "PayoutOperationLineRead",
+        "type": "object"
+      },
+      "PayoutSelectionPreview": {
+        "additionalProperties": false,
+        "properties": {
+          "currency": {
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "type": "string"
+          },
+          "ledger_entry_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 1,
+            "title": "Ledger Entry Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "currency",
+          "ledger_entry_ids"
+        ],
+        "title": "PayoutSelectionPreview",
+        "type": "object"
+      },
+      "PayoutSelectionPreviewRead": {
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "ledger_entry_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Ledger Entry Ids",
+            "type": "array"
+          },
+          "total_amount": {
+            "title": "Total Amount",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "total_amount",
+          "ledger_entry_ids"
+        ],
+        "title": "PayoutSelectionPreviewRead",
         "type": "object"
       },
       "PersonPayeeReviewDecisionCreate": {
@@ -17224,10 +18208,32 @@
             ],
             "title": "Applied Batch Id"
           },
+          "campaign_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Name"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "driver_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driver Name"
           },
           "id": {
             "format": "uuid",
@@ -17290,6 +18296,17 @@
             "format": "uuid",
             "title": "Trip Session Id",
             "type": "string"
+          },
+          "vehicle_plate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle Plate"
           }
         },
         "required": [
@@ -18039,6 +19056,41 @@
           "reversal_count"
         ],
         "title": "RecomputePayoutDayResult",
+        "type": "object"
+      },
+      "RecordedSettlementRead": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "disposition": {
+            "title": "Disposition",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "recorded_at": {
+            "format": "date-time",
+            "title": "Recorded At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "disposition",
+          "currency",
+          "amount",
+          "recorded_at"
+        ],
+        "title": "RecordedSettlementRead",
         "type": "object"
       },
       "RefundCreate": {
@@ -23089,6 +24141,23 @@
               ],
               "title": "Vehicle Id"
             }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
           }
         ],
         "responses": {
@@ -23632,6 +24701,54 @@
         ]
       }
     },
+    "/api/v1/admin/campaign-assignments/{assignment_id}/readiness": {
+      "get": {
+        "operationId": "admin_assignment_readiness_api_v1_admin_campaign_assignments__assignment_id__readiness_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assignment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignmentReadinessRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Check activation prerequisites without changing work or money",
+        "tags": [
+          "Campaign Assignments"
+        ]
+      }
+    },
     "/api/v1/admin/campaign-change-requests/pending": {
       "get": {
         "operationId": "admin_list_pending_campaign_change_requests_api_v1_admin_campaign_change_requests_pending_get",
@@ -23833,6 +24950,23 @@
                 }
               ],
               "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
             }
           }
         ],
@@ -24177,6 +25311,77 @@
         "summary": "Admin Campaign Commercial",
         "tags": [
           "Commercial billing"
+        ]
+      }
+    },
+    "/api/v1/admin/campaigns/{campaign_id}/creatives": {
+      "get": {
+        "operationId": "admin_list_campaign_creatives_api_v1_admin_campaigns__campaign_id__creatives_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreativeListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin List Campaign Creatives",
+        "tags": [
+          "Campaigns"
         ]
       }
     },
@@ -25255,6 +26460,33 @@
               "title": "Offset",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "history",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "History",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -25285,6 +26517,54 @@
           }
         ],
         "summary": "List pending public driver applications",
+        "tags": [
+          "Admin Users"
+        ]
+      }
+    },
+    "/api/v1/admin/driver-applications/{application_id}": {
+      "get": {
+        "operationId": "admin_get_driver_application_api_v1_admin_driver_applications__application_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverApplicationAdminRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Get Driver Application",
         "tags": [
           "Admin Users"
         ]
@@ -25559,6 +26839,23 @@
                 }
               ],
               "title": "Service City"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
             }
           }
         ],
@@ -27416,6 +28713,16 @@
               "title": "Offset",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "history",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "History",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -27510,6 +28817,99 @@
       }
     },
     "/api/v1/admin/measurement-runs": {
+      "get": {
+        "operationId": "admin_list_measurement_runs_api_v1_admin_measurement_runs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "campaign_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campaign Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminMeasurementRunList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin List Measurement Runs",
+        "tags": [
+          "Measurement"
+        ]
+      },
       "post": {
         "operationId": "admin_issue_measurement_run_api_v1_admin_measurement_runs_post",
         "requestBody": {
@@ -28082,6 +29482,77 @@
         ]
       }
     },
+    "/api/v1/admin/payout-batches/campaigns/{campaign_id}/position": {
+      "get": {
+        "operationId": "admin_campaign_money_position_api_v1_admin_payout_batches_campaigns__campaign_id__position_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignMoneyPositionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Campaign Money Position",
+        "tags": [
+          "Admin payout batches"
+        ]
+      }
+    },
     "/api/v1/admin/payout-batches/debt-balances/{driver_profile_id}": {
       "get": {
         "operationId": "admin_get_driver_money_balance_api_v1_admin_payout_batches_debt_balances__driver_profile_id__get",
@@ -28199,6 +29670,166 @@
         ]
       }
     },
+    "/api/v1/admin/payout-batches/eligible": {
+      "get": {
+        "operationId": "admin_eligible_payment_entries_api_v1_admin_payout_batches_eligible_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "currency",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^[A-Za-z]{3}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Currency"
+            }
+          },
+          {
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "default": "",
+              "maxLength": 100,
+              "title": "Search",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EligiblePaymentListRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Eligible Payment Entries",
+        "tags": [
+          "Admin payout batches"
+        ]
+      }
+    },
+    "/api/v1/admin/payout-batches/lines/{line_id}/history": {
+      "get": {
+        "operationId": "admin_payout_line_history_api_v1_admin_payout_batches_lines__line_id__history_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "line_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Line Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutLineHistoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Payout Line History",
+        "tags": [
+          "Admin payout batches"
+        ]
+      }
+    },
     "/api/v1/admin/payout-batches/lines/{line_id}/poll": {
       "post": {
         "operationId": "admin_poll_payout_line_api_v1_admin_payout_batches_lines__line_id__poll_post",
@@ -28284,6 +29915,129 @@
           }
         },
         "summary": "Provider Payout Webhook",
+        "tags": [
+          "Admin payout batches"
+        ]
+      }
+    },
+    "/api/v1/admin/payout-batches/selection-preview": {
+      "post": {
+        "operationId": "admin_preview_payment_selection_api_v1_admin_payout_batches_selection_preview_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutSelectionPreview"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutSelectionPreviewRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Preview Payment Selection",
+        "tags": [
+          "Admin payout batches"
+        ]
+      }
+    },
+    "/api/v1/admin/payout-batches/summaries": {
+      "get": {
+        "operationId": "admin_payout_batch_summaries_api_v1_admin_payout_batches_summaries_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "batch_status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PayoutBatchStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Batch Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutBatchSummaryListRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Payout Batch Summaries",
         "tags": [
           "Admin payout batches"
         ]
@@ -28380,6 +30134,77 @@
           }
         ],
         "summary": "Admin Approve Payout Batch",
+        "tags": [
+          "Admin payout batches"
+        ]
+      }
+    },
+    "/api/v1/admin/payout-batches/{batch_id}/detail": {
+      "get": {
+        "operationId": "admin_payout_batch_detail_api_v1_admin_payout_batches__batch_id__detail_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "batch_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Batch Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutBatchDetailRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Payout Batch Detail",
         "tags": [
           "Admin payout batches"
         ]
@@ -31058,6 +32883,23 @@
               ],
               "title": "Status"
             }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
           }
         ],
         "responses": {
@@ -31287,6 +33129,23 @@
                 }
               ],
               "title": "Driver Profile Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
             }
           }
         ],

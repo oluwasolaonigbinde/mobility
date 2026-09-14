@@ -980,6 +980,72 @@ async def issue_advertiser_file_download(
     )
 
 
+async def _require_current_kyc_review_file(
+    session: AsyncSession,
+    *,
+    stored_file: StoredFile,
+) -> None:
+    from app.models.kyc import (
+        DriverKycDocument,
+        DriverKycSubmission,
+        VehicleEvidenceDocument,
+        VehicleEvidenceSubmission,
+    )
+    from app.models.vehicle import Vehicle
+
+    if stored_file.purpose == FilePurpose.DRIVER_KYC:
+        submission_model = DriverKycSubmission
+        document_model = DriverKycDocument
+        parent_model = DriverProfile
+        parent_column = DriverKycSubmission.driver_profile_id
+    else:
+        submission_model = VehicleEvidenceSubmission
+        document_model = VehicleEvidenceDocument
+        parent_model = Vehicle
+        parent_column = VehicleEvidenceSubmission.vehicle_id
+
+    parent_ids = list(
+        (
+            await session.scalars(
+                select(parent_column)
+                .join(document_model, document_model.submission_id == submission_model.id)
+                .where(document_model.stored_file_id == stored_file.id)
+                .distinct()
+            )
+        ).all()
+    )
+    if parent_ids:
+        locked_parent_ids = list(
+            (
+                await session.scalars(
+                    select(parent_model.id)
+                    .where(parent_model.id.in_(parent_ids))
+                    .order_by(parent_model.id)
+                    .with_for_update()
+                )
+            ).all()
+        )
+        for parent_id in locked_parent_ids:
+            current_submission_id = await session.scalar(
+                select(submission_model.id)
+                .where(parent_column == parent_id)
+                .order_by(submission_model.version.desc())
+                .limit(1)
+            )
+            if current_submission_id is not None and await session.scalar(
+                select(document_model.id).where(
+                    document_model.submission_id == current_submission_id,
+                    document_model.stored_file_id == stored_file.id,
+                )
+            ):
+                return
+    raise _error(
+        "KYC_REVIEW_STALE",
+        "Evidence changed. Reopen the current application before reviewing.",
+        status.HTTP_409_CONFLICT,
+    )
+
+
 async def issue_admin_file_download(
     session: AsyncSession,
     *,
@@ -1029,6 +1095,8 @@ async def issue_admin_file_download(
             "The requested file-access purpose does not match this file",
             status.HTTP_403_FORBIDDEN,
         )
+    if access_purpose == "kyc_review":
+        await _require_current_kyc_review_file(session, stored_file=stored_file)
     return await _issue_download(
         session,
         stored_file=stored_file,

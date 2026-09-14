@@ -14,6 +14,7 @@ from app.core.errors import AppError
 from app.core.security import hash_password, verify_password
 from app.models.user import User, UserRole, UserStatus
 from app.schemas.users import UserCreate, UserUpdate
+from app.services.operator_search import operator_search
 
 if TYPE_CHECKING:
     from app.core.rate_limit import LoginRateLimiter
@@ -176,9 +177,14 @@ async def list_users(
     offset: int,
     role: str | None,
     user_status: str | None,
+    q: str | None = None,
 ) -> tuple[list[User], int]:
     statement: Select[tuple[User]] = select(User)
     count_statement = select(func.count()).select_from(User)
+    if q and q.strip():
+        search = operator_search(q, User.full_name, User.email)
+        statement = statement.where(search)
+        count_statement = count_statement.where(search)
     if role is not None:
         statement = statement.where(User.role == role)
         count_statement = count_statement.where(User.role == role)

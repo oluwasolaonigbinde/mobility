@@ -143,7 +143,7 @@ export default async function AdminFraudPage({
         ) : null}
       </Panel>
 
-      <div className="mb-4 flex gap-1" role="group" aria-label="Filter by status">
+      <div className="mb-4 flex flex-wrap gap-1" role="group" aria-label="Filter by status">
         <Link
           href={href({})}
           className={cx(

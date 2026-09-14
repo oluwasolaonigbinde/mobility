@@ -140,8 +140,13 @@ async def list_admin_vehicles(
     vehicle_type: str | None,
     plate_country_code: str | None,
     driver_profile_id: UUID | None,
+    q: str | None = None,
 ) -> tuple[list[tuple[Vehicle, DriverProfile, User]], int]:
     filters = []
+    if q and q.strip():
+        from app.services.operator_search import operator_search
+
+        filters.append(operator_search(q, Vehicle.plate_number, Vehicle.make, Vehicle.model))
     if vehicle_status is not None:
         filters.append(Vehicle.status == vehicle_status)
     if vehicle_type is not None:

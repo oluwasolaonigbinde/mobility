@@ -34,7 +34,10 @@ def test_openapi_schema_generates(client) -> None:
     assert components["DriverApplicationStatusResponse"]["properties"]["status"]["const"] == (
         "pending"
     )
-    assert components["DriverApplicationAdminRead"]["properties"]["status"]["const"] == ("pending")
+    assert components["DriverApplicationAdminRead"]["properties"]["status"] == {
+        "$ref": "#/components/schemas/DriverApplicationStatus"
+    }
+    assert components["DriverApplicationStatus"]["enum"] == ["pending", "approved", "rejected"]
     campaign_trips = components["CampaignTripsResponse"]["properties"]
     assert "items" not in campaign_trips
     assert "CampaignTripSummary" not in components

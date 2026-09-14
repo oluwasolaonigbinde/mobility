@@ -1,6 +1,7 @@
 import hashlib
 import json
 from copy import deepcopy
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from uuid import UUID
@@ -79,6 +80,45 @@ from app.services.campaigns import get_required_advertiser_context
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
 
 MONEY_QUANTUM = Decimal("0.01")
+
+
+async def campaign_settlement_position(
+    session: AsyncSession, *, campaign_id: UUID, limit: int, offset: int
+) -> dict:
+    cancellation = await session.scalar(
+        select(CampaignCancellation).where(CampaignCancellation.campaign_id == campaign_id)
+    )
+    query = select(RefundSettlement).where(RefundSettlement.campaign_id == campaign_id)
+    total = await session.scalar(select(func.count()).select_from(query.subquery()))
+    settlements = (
+        await session.scalars(
+            query.order_by(RefundSettlement.recorded_at.desc(), RefundSettlement.id.desc())
+            .limit(limit)
+            .offset(offset)
+        )
+    ).all()
+    return {
+        "cancellation": None
+        if cancellation is None
+        else {
+            "cutoff_at": cancellation.cutoff_at,
+            "disposition": cancellation.disposition,
+            "currency": cancellation.currency,
+            "refundable_amount": cancellation.refundable_amount,
+        },
+        "settlements": [
+            {
+                "id": item.id,
+                "disposition": item.disposition,
+                "currency": item.currency,
+                "amount": item.amount,
+                "recorded_at": item.recorded_at,
+            }
+            for item in settlements
+        ],
+        "settlements_total": total,
+    }
+
 
 EXPEDITED_WAIVER_WORDING_VERSION = "advertiser-expedited-v1"
 EXPEDITED_WAIVER_WORDING = (
@@ -1890,40 +1930,29 @@ async def reserved_campaign_liability_total(
     return Decimal(assignment_total or 0) + Decimal(change_total or 0)
 
 
-async def reserve_assignment_liability(
-    session: AsyncSession,
-    *,
-    assignment_id: UUID,
-    actor_user_id: UUID,
-    require_admin: bool = True,
-) -> CampaignLiabilityReservation:
-    if not require_admin:
-        actor = await session.get(User, actor_user_id)
-        if actor is None or actor.status != UserStatus.ACTIVE:
-            raise AppError(
-                "ACTIVE_ACTOR_REQUIRED",
-                "An active user is required to reserve assignment liability",
-                status_code=status.HTTP_403_FORBIDDEN,
-            )
-    campaign_id = await session.scalar(
-        select(CampaignAssignment.campaign_id).where(CampaignAssignment.id == assignment_id)
-    )
-    if campaign_id is not None:
-        await acquire_campaign_terms_lock(session, campaign_id)
-    if require_admin:
-        await require_active_admin(session, actor_user_id)
-    assignment = await session.get(CampaignAssignment, assignment_id)
-    if assignment is None:
-        raise AppError("ASSIGNMENT_NOT_FOUND", "Assignment was not found", status_code=404)
-    assert campaign_id == assignment.campaign_id
-    await _campaign(session, assignment.campaign_id, lock=True)
-    from app.models.campaign_cancellation import CampaignCancellation
+@dataclass(frozen=True)
+class AssignmentLiabilityCalculation:
+    binding: AssignmentRuleBinding
+    authorization: CampaignFinancialAuthorization | None
+    covered_days: int
+    rate: Decimal
+    cap: Decimal
+    requested: Decimal
+    now: datetime
+    can_reserve: bool
 
-    if await session.scalar(
-        select(CampaignCancellation.id).where(
-            CampaignCancellation.campaign_id == assignment.campaign_id
+
+async def _assignment_liability_calculation(
+    session: AsyncSession, assignment: CampaignAssignment
+) -> AssignmentLiabilityCalculation:
+    if (
+        await session.scalar(
+            select(CampaignCancellation.id).where(
+                CampaignCancellation.campaign_id == assignment.campaign_id
+            )
         )
-    ) is not None:
+        is not None
+    ):
         raise AppError(
             "CAMPAIGN_FINANCIAL_CUTOFF",
             "Cancelled campaign liability cannot be reserved",
@@ -1932,7 +1961,12 @@ async def reserve_assignment_liability(
     binding = await session.scalar(
         select(AssignmentRuleBinding).where(AssignmentRuleBinding.assignment_id == assignment.id)
     )
-    if binding is None or binding.daily_payable_hours_cap is None:
+    if (
+        binding is None
+        or binding.daily_payable_hours_cap is None
+        or binding.campaign_window_start_at is None
+        or binding.campaign_window_end_at is None
+    ):
         raise AppError(
             "FROZEN_PAYOUT_BINDING_REQUIRED",
             "A frozen rate and daily cap are required before reserving liability",
@@ -1967,6 +2001,87 @@ async def reserve_assignment_liability(
         else Decimal("0.00")
     )
     can_reserve = authorization is not None and usable - reserved_total >= requested
+    return AssignmentLiabilityCalculation(
+        binding, authorization, covered_days, rate, cap, requested, now, can_reserve
+    )
+
+
+@dataclass(frozen=True)
+class AssignmentLiabilityReadiness:
+    eligible: bool
+    existing_reservation_id: UUID | None
+    reason: str | None
+
+
+async def assignment_liability_readiness(
+    session: AsyncSession, *, assignment_id: UUID
+) -> AssignmentLiabilityReadiness:
+    assignment = await session.get(CampaignAssignment, assignment_id)
+    if assignment is None:
+        raise AppError("ASSIGNMENT_NOT_FOUND", "Assignment was not found", status_code=404)
+    existing = await session.scalar(
+        select(CampaignLiabilityReservation).where(
+            CampaignLiabilityReservation.assignment_id == assignment_id
+        )
+    )
+    try:
+        calculation = await _assignment_liability_calculation(session, assignment)
+        if existing is not None and Decimal(existing.requested_amount) != calculation.requested:
+            return AssignmentLiabilityReadiness(False, existing.id, "Frozen liability changed")
+        if existing is not None and existing.status == "released":
+            return AssignmentLiabilityReadiness(False, existing.id, "Liability was released")
+        already_reserved = existing is not None and existing.status == "reserved"
+        if not already_reserved and not calculation.can_reserve:
+            return AssignmentLiabilityReadiness(
+                False,
+                existing.id if existing else None,
+                "Current funding cannot cover the assignment",
+            )
+        authorization = await assert_campaign_production_authorized(
+            session, campaign_id=assignment.campaign_id
+        )
+        await _assert_authorization_covers_liability(
+            session,
+            authorization,
+            campaign_id=assignment.campaign_id,
+            additional=Decimal("0.00") if already_reserved else calculation.requested,
+        )
+    except AppError as error:
+        return AssignmentLiabilityReadiness(False, existing.id if existing else None, error.message)
+    return AssignmentLiabilityReadiness(True, existing.id if existing else None, None)
+
+
+async def reserve_assignment_liability(
+    session: AsyncSession,
+    *,
+    assignment_id: UUID,
+    actor_user_id: UUID,
+    require_admin: bool = True,
+) -> CampaignLiabilityReservation:
+    if not require_admin:
+        actor = await session.get(User, actor_user_id)
+        if actor is None or actor.status != UserStatus.ACTIVE:
+            raise AppError(
+                "ACTIVE_ACTOR_REQUIRED",
+                "An active user is required to reserve assignment liability",
+                status_code=status.HTTP_403_FORBIDDEN,
+            )
+    campaign_id = await session.scalar(
+        select(CampaignAssignment.campaign_id).where(CampaignAssignment.id == assignment_id)
+    )
+    if campaign_id is not None:
+        await acquire_campaign_terms_lock(session, campaign_id)
+    if require_admin:
+        await require_active_admin(session, actor_user_id)
+    assignment = await session.get(CampaignAssignment, assignment_id)
+    if assignment is None:
+        raise AppError("ASSIGNMENT_NOT_FOUND", "Assignment was not found", status_code=404)
+    assert campaign_id == assignment.campaign_id
+    await _campaign(session, assignment.campaign_id, lock=True)
+    calculation = await _assignment_liability_calculation(session, assignment)
+    binding, authorization = calculation.binding, calculation.authorization
+    requested, now, can_reserve = calculation.requested, calculation.now, calculation.can_reserve
+    covered_days, rate, cap = calculation.covered_days, calculation.rate, calculation.cap
     assignment = await session.scalar(
         select(CampaignAssignment).where(CampaignAssignment.id == assignment_id).with_for_update()
     )
@@ -2267,12 +2382,22 @@ async def assert_new_work_authorized(
             "Production start and a funded assignment liability reserve are required",
             status_code=status.HTTP_409_CONFLICT,
         )
+    await _assert_authorization_covers_liability(session, authorization, campaign_id=campaign_id)
+
+
+async def _assert_authorization_covers_liability(
+    session: AsyncSession,
+    authorization: CampaignFinancialAuthorization,
+    *,
+    campaign_id: UUID,
+    additional: Decimal = Decimal("0.00"),
+) -> None:
     usable = await _authorization_usable_liability(session, authorization)
     reserved_total = await reserved_campaign_liability_total(
         session,
         campaign_id=campaign_id,
     )
-    if usable < reserved_total:
+    if usable < reserved_total + additional:
         raise AppError(
             "NEW_WORK_NOT_FINANCIALLY_AUTHORIZED",
             "Current financial authority no longer covers reserved driver liability",

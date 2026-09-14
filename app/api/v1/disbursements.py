@@ -7,16 +7,24 @@ from sqlalchemy import select
 from app.adapters.disbursement import DisabledDisbursementAdapter, DisbursementAdapter
 from app.api.v1.dependencies import AdminUserDependency, SessionDependency
 from app.core.errors import AppError
+from app.models.disbursement import PayoutBatchStatus
 from app.models.driver import DriverProfile
 from app.schemas.disbursements import (
+    CampaignMoneyPositionRead,
     DriverMoneyBalanceRead,
+    EligiblePaymentListRead,
     PayoutBatchCreate,
+    PayoutBatchDetailRead,
     PayoutBatchLineRead,
     PayoutBatchListRead,
     PayoutBatchRead,
     PayoutBatchReserve,
+    PayoutBatchSummaryListRead,
     PayoutDebtAllocate,
     PayoutDebtAllocationRead,
+    PayoutLineHistoryRead,
+    PayoutSelectionPreview,
+    PayoutSelectionPreviewRead,
 )
 from app.services.disbursements import (
     approve_payout_batch,
@@ -31,6 +39,14 @@ from app.services.disbursements import (
     void_payout_batch,
 )
 from app.services.payout_debt import allocate_available_credit_to_debt, driver_money_balance
+from app.services.payout_operations import (
+    campaign_money_position,
+    eligible_payment_entries,
+    payout_batch_detail,
+    payout_batch_summaries,
+    payout_line_history,
+    preview_payment_selection,
+)
 
 router = APIRouter(prefix="/admin/payout-batches", tags=["Admin payout batches"])
 
@@ -58,10 +74,94 @@ async def admin_create_payout_batch(
     session: SessionDependency,
 ) -> PayoutBatchRead:
     batch = await create_payout_batch_draft(
-        session, currency=payload.currency, actor_user_id=current_user.id
+        session,
+        currency=payload.currency,
+        actor_user_id=current_user.id,
+        request_id=payload.request_id,
     )
     await session.commit()
     return _response(batch)
+
+
+@router.get("/eligible", response_model=EligiblePaymentListRead)
+async def admin_eligible_payment_entries(
+    _: AdminUserDependency,
+    session: SessionDependency,
+    limit: int = Query(default=25, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    currency: str | None = Query(default=None, pattern=r"^[A-Za-z]{3}$"),
+    search: str = Query(default="", max_length=100),
+) -> EligiblePaymentListRead:
+    return EligiblePaymentListRead.model_validate(
+        await eligible_payment_entries(
+            session, limit=limit, offset=offset, currency=currency, search=search
+        )
+    )
+
+
+@router.post("/selection-preview", response_model=PayoutSelectionPreviewRead)
+async def admin_preview_payment_selection(
+    payload: PayoutSelectionPreview,
+    _: AdminUserDependency,
+    session: SessionDependency,
+) -> PayoutSelectionPreviewRead:
+    return PayoutSelectionPreviewRead.model_validate(
+        await preview_payment_selection(
+            session, currency=payload.currency, ledger_entry_ids=tuple(payload.ledger_entry_ids)
+        )
+    )
+
+
+@router.get("/summaries", response_model=PayoutBatchSummaryListRead)
+async def admin_payout_batch_summaries(
+    _: AdminUserDependency,
+    session: SessionDependency,
+    limit: int = Query(default=25, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    batch_status: PayoutBatchStatus | None = None,
+) -> PayoutBatchSummaryListRead:
+    return PayoutBatchSummaryListRead.model_validate(
+        await payout_batch_summaries(session, limit=limit, offset=offset, batch_status=batch_status)
+    )
+
+
+@router.get("/lines/{line_id}/history", response_model=PayoutLineHistoryRead)
+async def admin_payout_line_history(
+    line_id: UUID,
+    _: AdminUserDependency,
+    session: SessionDependency,
+    limit: int = Query(default=25, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> PayoutLineHistoryRead:
+    return PayoutLineHistoryRead.model_validate(
+        await payout_line_history(session, line_id=line_id, limit=limit, offset=offset)
+    )
+
+
+@router.get("/{batch_id}/detail", response_model=PayoutBatchDetailRead)
+async def admin_payout_batch_detail(
+    batch_id: UUID,
+    _: AdminUserDependency,
+    session: SessionDependency,
+    limit: int = Query(default=25, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> PayoutBatchDetailRead:
+    return PayoutBatchDetailRead.model_validate(
+        await payout_batch_detail(session, batch_id=batch_id, limit=limit, offset=offset)
+    )
+
+
+@router.get("/campaigns/{campaign_id}/position", response_model=CampaignMoneyPositionRead)
+async def admin_campaign_money_position(
+    campaign_id: UUID,
+    _: AdminUserDependency,
+    session: SessionDependency,
+    limit: int = Query(default=25, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> CampaignMoneyPositionRead:
+    return CampaignMoneyPositionRead.model_validate(
+        await campaign_money_position(session, campaign_id=campaign_id, limit=limit, offset=offset)
+    )
 
 
 @router.get(

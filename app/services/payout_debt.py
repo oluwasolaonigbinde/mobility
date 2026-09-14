@@ -437,9 +437,19 @@ async def record_reversal_obligation(
 
 
 async def driver_money_balance(
-    session: AsyncSession, *, driver_profile_id: UUID, currency: str
+    session: AsyncSession,
+    *,
+    driver_profile_id: UUID,
+    currency: str,
+    campaign_id: UUID | None = None,
 ) -> DriverMoneyBalance:
     normalized = currency.strip().upper()
+    ledger_scope = [
+        EarningsLedgerEntry.driver_profile_id == driver_profile_id,
+        EarningsLedgerEntry.currency == normalized,
+    ]
+    if campaign_id is not None:
+        ledger_scope.append(EarningsLedgerEntry.campaign_id == campaign_id)
     signed = case(
         (
             EarningsLedgerEntry.entry_type == EarningsLedgerEntryType.REVERSAL,
@@ -482,10 +492,7 @@ async def driver_money_balance(
                     ),
                     0,
                 ),
-            ).where(
-                EarningsLedgerEntry.driver_profile_id == driver_profile_id,
-                EarningsLedgerEntry.currency == normalized,
-            )
+            ).where(*ledger_scope)
         )
     ).one()
     debt = await session.scalar(
@@ -498,8 +505,7 @@ async def driver_money_balance(
         (
             await session.execute(
                 select(EarningsLedgerEntry.id, EarningsLedgerEntry.amount).where(
-                    EarningsLedgerEntry.driver_profile_id == driver_profile_id,
-                    EarningsLedgerEntry.currency == normalized,
+                    *ledger_scope,
                     EarningsLedgerEntry.status == EarningsLedgerEntryStatus.AVAILABLE,
                     EarningsLedgerEntry.entry_type != EarningsLedgerEntryType.REVERSAL,
                     ~exists(

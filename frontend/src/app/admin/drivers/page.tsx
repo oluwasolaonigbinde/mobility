@@ -7,6 +7,7 @@ import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Pagination } from "@/components/ui/pagination";
 import { DriverOnboardingMenu } from "./onboarding-menu";
+import { QueueSearch, QueueUnavailable } from "../queue-search";
 import type { components } from "@/lib/api/schema";
 
 export const metadata: Metadata = { title: "Drivers" };
@@ -24,16 +25,18 @@ const tone: Record<Onboarding, "green" | "amber" | "coral" | "default"> = {
 export default async function AdminDriversPage({
   searchParams,
 }: {
-  searchParams: Promise<{ offset?: string }>;
+  searchParams: Promise<{ offset?: string; q?: string }>;
 }) {
   const params = await searchParams;
   const rawOffset = Number(params.offset ?? 0);
   const offset = Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0;
 
   const api = createApiClient(await getSessionToken());
-  const { data } = await api.GET("/api/v1/admin/drivers", {
-    params: { query: { limit: PAGE_SIZE, offset } },
-  });
+  const { data } = await api
+    .GET("/api/v1/admin/drivers", {
+      params: { query: { limit: PAGE_SIZE, offset, q: params.q } },
+    })
+    .catch(() => ({ data: undefined }));
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
 
@@ -41,7 +44,11 @@ export default async function AdminDriversPage({
     <div className="animate-rise mx-auto max-w-6xl">
       <PageHeader
         title="Drivers"
-        eyebrow={`${total} driver profile${total === 1 ? "" : "s"}`}
+        eyebrow={
+          data
+            ? `${total} matching driver profile${total === 1 ? "" : "s"}`
+            : "Driver count unavailable"
+        }
         actions={
           <Link
             href="/admin/drivers/new"
@@ -52,6 +59,8 @@ export default async function AdminDriversPage({
         }
       />
 
+      <QueueSearch q={params.q} />
+      {!data ? <QueueUnavailable /> : null}
       <Panel className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-sm">
@@ -89,7 +98,9 @@ export default async function AdminDriversPage({
         total={total}
         limit={PAGE_SIZE}
         offset={offset}
-        hrefFor={(o) => (o ? `/admin/drivers?offset=${o}` : "/admin/drivers")}
+        hrefFor={(o) =>
+          `/admin/drivers?${new URLSearchParams({ q: params.q ?? "", offset: String(o) })}`
+        }
       />
     </div>
   );

@@ -49,9 +49,7 @@ AUDITED = {
     ("POST", "/api/v1/auth/register-driver"): "auth.driver_application.created",
     ("POST", "/api/v1/admin/users"): "admin.user.created",
     ("PATCH", "/api/v1/admin/users/{user_id}"): "admin.user.updated",
-    ("POST", "/api/v1/admin/advertiser-organizations"): (
-        "admin.advertiser_organization.created"
-    ),
+    ("POST", "/api/v1/admin/advertiser-organizations"): ("admin.advertiser_organization.created"),
     ("POST", "/api/v1/admin/drivers/{user_id}/profile"): "admin.driver_profile.created",
     ("PATCH", "/api/v1/admin/drivers/{driver_profile_id}"): "admin.driver_profile.updated",
     ("POST", "/api/v1/admin/drivers/{user_id}/vehicles"): "admin.vehicle.created",
@@ -185,9 +183,7 @@ AUDITED = {
     ("POST", "/api/v1/driver/campaign-assignments/{assignment_id}/deactivate"): (
         "driver.campaign_assignment.deactivated"
     ),
-    ("POST", "/api/v1/admin/operations/file-kyc-retention"): (
-        "file_kyc.retention_*"
-    ),
+    ("POST", "/api/v1/admin/operations/file-kyc-retention"): ("file_kyc.retention_*"),
     (
         "POST",
         "/api/v1/driver/vehicles/{vehicle_id}/evidence-submissions",
@@ -207,12 +203,8 @@ AUDITED = {
         "POST",
         "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}/submit",
     ): "advertiser.campaign_creative.submitted_for_review",
-    ("POST", "/api/v1/admin/creatives/{creative_id}/approve"): (
-        "admin.campaign_creative.approved"
-    ),
-    ("POST", "/api/v1/admin/creatives/{creative_id}/reject"): (
-        "admin.campaign_creative.rejected"
-    ),
+    ("POST", "/api/v1/admin/creatives/{creative_id}/approve"): ("admin.campaign_creative.approved"),
+    ("POST", "/api/v1/admin/creatives/{creative_id}/reject"): ("admin.campaign_creative.rejected"),
     ("POST", "/api/v1/advertiser/campaigns/{campaign_id}/zones"): (
         "advertiser.campaign_zone.created"
     ),
@@ -236,9 +228,7 @@ AUDITED = {
         "admin.payout_calculation.created"
     ),
     # MNY-06C maker-checker correction orders (Q22):
-    ("POST", "/api/v1/admin/payouts/correction-orders"): (
-        "admin.payout_correction_order.created"
-    ),
+    ("POST", "/api/v1/admin/payouts/correction-orders"): ("admin.payout_correction_order.created"),
     ("POST", "/api/v1/admin/payouts/correction-orders/{order_id}/submit"): (
         "admin.payout_correction_order.submitted"
     ),
@@ -269,15 +259,9 @@ AUDITED = {
     ("POST", "/api/v1/admin/fraud-flags/{flag_id}/review/acknowledge"): (
         "admin.fraud_flag.acknowledged"
     ),
-    ("POST", "/api/v1/admin/fraud-flags/{flag_id}/review/resolve"): (
-        "admin.fraud_flag.resolved"
-    ),
-    ("POST", "/api/v1/driver/fraud-holds/{flag_id}/disputes"): (
-        "driver.fraud_dispute.created"
-    ),
-    ("POST", "/api/v1/admin/fraud-disputes/{dispute_id}/reply"): (
-        "admin.fraud_dispute.replied"
-    ),
+    ("POST", "/api/v1/admin/fraud-flags/{flag_id}/review/resolve"): ("admin.fraud_flag.resolved"),
+    ("POST", "/api/v1/driver/fraud-holds/{flag_id}/disputes"): ("driver.fraud_dispute.created"),
+    ("POST", "/api/v1/admin/fraud-disputes/{dispute_id}/reply"): ("admin.fraud_dispute.replied"),
     ("POST", "/api/v1/admin/payees/drivers/{driver_profile_id}"): "admin.payee.created",
     ("POST", "/api/v1/admin/payees/{payee_id}/bank-account-versions"): (
         "admin.bank_account.verified"
@@ -293,30 +277,18 @@ AUDITED = {
         "POST",
         "/api/v1/admin/payout-batches/debt-balances/{driver_profile_id}/allocate",
     ): "admin.payout_debt.allocated",
-    ("POST", "/api/v1/admin/payout-batches/{batch_id}/reserve"): (
-        "admin.payout_batch.reserved"
-    ),
-    ("POST", "/api/v1/admin/payout-batches/{batch_id}/approve"): (
-        "admin.payout_batch.approved"
-    ),
-    ("POST", "/api/v1/admin/payout-batches/{batch_id}/submit"): (
-        "admin.payout_batch.submitted"
-    ),
-    ("POST", "/api/v1/admin/payout-batches/provider-webhook"): (
-        "provider.payout_line.reconciled"
-    ),
+    ("POST", "/api/v1/admin/payout-batches/{batch_id}/reserve"): ("admin.payout_batch.reserved"),
+    ("POST", "/api/v1/admin/payout-batches/{batch_id}/approve"): ("admin.payout_batch.approved"),
+    ("POST", "/api/v1/admin/payout-batches/{batch_id}/submit"): ("admin.payout_batch.submitted"),
+    ("POST", "/api/v1/admin/payout-batches/provider-webhook"): ("provider.payout_line.reconciled"),
     ("POST", "/api/v1/admin/payout-batches/lines/{line_id}/poll"): (
         "provider.payout_line.reconciled"
     ),
     ("POST", "/api/v1/admin/payout-batches/{batch_id}/retry-failed"): (
         "admin.payout_batch.failed_lines_retried"
     ),
-    ("POST", "/api/v1/admin/payout-batches/{batch_id}/void"): (
-        "admin.payout_batch.voided"
-    ),
-    ("POST", "/api/v1/admin/traffic-density-profiles"): (
-        "admin.traffic_density_profile.created"
-    ),
+    ("POST", "/api/v1/admin/payout-batches/{batch_id}/void"): ("admin.payout_batch.voided"),
+    ("POST", "/api/v1/admin/traffic-density-profiles"): ("admin.traffic_density_profile.created"),
     ("PATCH", "/api/v1/admin/traffic-density-profiles/{profile_id}"): (
         "admin.traffic_density_profile.updated"
     ),
@@ -337,16 +309,12 @@ AUDITED = {
     ("POST", "/api/v1/admin/quote-requests/{quote_request_id}/revisions"): (
         "commercial.quotation_revision.recorded"
     ),
-    ("POST", "/api/v1/advertiser/quotations/{revision_id}/accept"): (
-        "commercial.terms.accepted"
-    ),
+    ("POST", "/api/v1/advertiser/quotations/{revision_id}/accept"): ("commercial.terms.accepted"),
     ("POST", "/api/v1/admin/quotations/{revision_id}/accept-external"): (
         "commercial.terms.accepted"
     ),
     ("POST", "/api/v1/admin/billing/manual-transfers"): "billing.receipt.*",
-    ("POST", "/api/v1/admin/invoice-issuer-profiles"): (
-        "billing.invoice_issuer_profile.recorded"
-    ),
+    ("POST", "/api/v1/admin/invoice-issuer-profiles"): ("billing.invoice_issuer_profile.recorded"),
     ("POST", "/api/v1/admin/invoices"): "billing.invoice_draft.created",
     ("POST", "/api/v1/admin/invoices/{invoice_id}/issue"): "billing.invoice.issued",
     ("POST", "/api/v1/admin/campaigns/{campaign_id}/financial-authority"): (
@@ -358,16 +326,10 @@ AUDITED = {
     ("POST", "/api/v1/admin/campaigns/{campaign_id}/production-start"): (
         "billing.production.started"
     ),
-    ("POST", "/api/v1/admin/receipts/{receipt_id}/reverse"): (
-        "billing.receipt.reversed"
-    ),
-    ("POST", "/api/v1/admin/invoices/{invoice_id}/corrections"): (
-        "billing.invoice.corrected"
-    ),
+    ("POST", "/api/v1/admin/receipts/{receipt_id}/reverse"): ("billing.receipt.reversed"),
+    ("POST", "/api/v1/admin/invoices/{invoice_id}/corrections"): ("billing.invoice.corrected"),
     ("POST", "/api/v1/admin/refunds"): "billing.refund.recorded",
-    ("POST", "/api/v1/admin/credit-settlements"): (
-        "billing.credit_settlement.recorded"
-    ),
+    ("POST", "/api/v1/admin/credit-settlements"): ("billing.credit_settlement.recorded"),
     ("POST", "/api/v1/admin/campaigns/{campaign_id}/budget-policy-evaluation"): (
         "billing.budget_policy.*"
     ),
@@ -449,6 +411,12 @@ AUDITED = {
 }
 
 EXEMPT = {
+    ("POST", "/api/v1/admin/payout-batches/selection-preview"): (
+        "Read-only exact selection preview: immutable credit IDs remain in the request body; "
+        "only SELECTs check existing payment eligibility and return a Decimal/currency total. "
+        "It creates no draft, reservation, transfer or audit row; "
+        "reserve remains the audited command."
+    ),
     ("POST", "/api/v1/advertiser/campaigns/{campaign_id}/change-preview"): (
         "Read-only campaign-change preview: the proposal stays in the request body, while the "
         "service issues only SELECTs and returns a digest-bound projection. It creates no "
@@ -595,14 +563,10 @@ def test_trip_start_and_end_write_audit_events_and_pings_stay_exempt(
     recorded_at = recorded_at.replace(microsecond=recorded_at.microsecond // 1000 * 1000)
     payload = ping_payload(recorded_at)
     payload["batch_sequence"] = 0
-    first = db_client.post(
-        f"/api/v1/driver/trips/{trip_id}/pings", headers=headers, json=payload
-    )
+    first = db_client.post(f"/api/v1/driver/trips/{trip_id}/pings", headers=headers, json=payload)
     assert first.status_code == http_status.HTTP_200_OK
     assert first.json()["duplicate"] is False
-    replay = db_client.post(
-        f"/api/v1/driver/trips/{trip_id}/pings", headers=headers, json=payload
-    )
+    replay = db_client.post(f"/api/v1/driver/trips/{trip_id}/pings", headers=headers, json=payload)
     assert replay.status_code == http_status.HTTP_200_OK
     assert replay.json()["duplicate"] is True
     batch = first.json()
@@ -621,9 +585,7 @@ def test_trip_start_and_end_write_audit_events_and_pings_stay_exempt(
             "metadata": {},
             "evidence_manifest": {
                 "version": 2,
-                "root_sha256": manifest_root(
-                    trip_id=UUID(trip_id), entries=[entry], ping_count=1
-                ),
+                "root_sha256": manifest_root(trip_id=UUID(trip_id), entries=[entry], ping_count=1),
                 "ping_count": 1,
                 "complete": True,
                 "entries": [entry.model_dump()],
@@ -687,9 +649,7 @@ def test_analytics_recompute_and_impression_estimate_write_audit_events(
         started_at=started_at,
         ended_at=ended_at,
     )
-    headers = auth_headers(
-        db_client, "audit-runtime-admin@example.com", "long-secure-password"
-    )
+    headers = auth_headers(db_client, "audit-runtime-admin@example.com", "long-secure-password")
 
     # Zero pings -> insufficient-data path, dialect-neutral; the mutation
     # (analytics upsert) still happens and must be audited.
@@ -716,17 +676,13 @@ def test_analytics_recompute_and_impression_estimate_write_audit_events(
             )
             return {row[0] for row in result.all()}
 
-    assert asyncio.run(audited_entities("admin.trip_analytics.recomputed")) == {
-        analytics_id
-    }
+    assert asyncio.run(audited_entities("admin.trip_analytics.recomputed")) == {analytics_id}
     assert asyncio.run(audited_entities("admin.impression_estimate.computed")) == {
         estimate.json()["id"]
     }
 
 
-def test_traffic_density_profile_mutations_write_audit_events(
-    db_client, db_sessionmaker
-) -> None:
+def test_traffic_density_profile_mutations_write_audit_events(db_client, db_sessionmaker) -> None:
     from conftest import auth_headers, create_test_user
 
     create_test_user(

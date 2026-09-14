@@ -703,7 +703,7 @@ async def current_driver_contact_state(
 
 
 async def list_manual_driver_contact_tasks(
-    session: AsyncSession, *, limit: int, offset: int
+    session: AsyncSession, *, limit: int, offset: int, history: bool = False
 ) -> tuple[list[tuple[ManualDriverContactTask, DriverPhoneVersion]], int]:
     newer_phone = aliased(DriverPhoneVersion)
     has_newer_phone = (
@@ -731,14 +731,12 @@ async def list_manual_driver_contact_tasks(
         ManualDriverContactTask.status == ManualContactTaskStatus.COMPLETED.value,
         and_(current_authority, ~has_newer_phone, DriverPhoneVersion.verified_at.is_not(None)),
     )
-    base = (
-        select(ManualDriverContactTask, DriverPhoneVersion)
-        .join(
-            DriverPhoneVersion,
-            DriverPhoneVersion.id == ManualDriverContactTask.phone_version_id,
-        )
-        .where(visible)
+    base = select(ManualDriverContactTask, DriverPhoneVersion).join(
+        DriverPhoneVersion,
+        DriverPhoneVersion.id == ManualDriverContactTask.phone_version_id,
     )
+    if not history:
+        base = base.where(visible)
     total = int(await session.scalar(select(func.count()).select_from(base.subquery())) or 0)
     rows = list(
         (

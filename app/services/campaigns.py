@@ -591,8 +591,13 @@ async def list_admin_campaigns(
     organization_id: UUID | None,
     campaign_status: str | None,
     lock_campaigns: bool = False,
+    q: str | None = None,
 ) -> tuple[list[tuple[Campaign, AdvertiserOrganization]], int]:
     filters = []
+    if q and q.strip():
+        from app.services.operator_search import operator_search
+
+        filters.append(operator_search(q, Campaign.name))
     if organization_id is not None:
         filters.append(Campaign.organization_id == organization_id)
     if campaign_status is not None:

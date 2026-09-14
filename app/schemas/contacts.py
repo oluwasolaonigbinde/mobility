@@ -88,6 +88,7 @@ class ManualContactTaskComplete(BaseModel):
 
 
 class ManualContactTaskRead(BaseModel):
+    driver_name: str | None = None
     id: UUID
     driver_profile_id: UUID
     event_key: str

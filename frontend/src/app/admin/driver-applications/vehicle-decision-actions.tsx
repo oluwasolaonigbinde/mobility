@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { SensitiveReview } from "./sensitive-review";
 import {
   reviewVehicleAction,
   reviewVehicleEvidenceAction,
@@ -98,12 +99,14 @@ export function VehicleDecisionActions({
     <div className="flex min-w-72 flex-col gap-2">
       <p className="micro text-muted">Audited vehicle revision review</p>
       {Object.entries(documentFileIds).map(([name, fileId]) => (
-        <EvidenceRead
-          key={fileId}
-          fileId={fileId}
-          submissionId={submissionId}
-          label={`Review ${name.replaceAll("_", " ")}`}
-        />
+        <SensitiveReview key={fileId} purpose="Vehicle approval">
+          <EvidenceRead
+            key={fileId}
+            fileId={fileId}
+            submissionId={submissionId}
+            label={`Review ${name.replaceAll("_", " ")}`}
+          />
+        </SensitiveReview>
       ))}
       <form action={action} className="flex flex-col gap-2">
         <input type="hidden" name="application_id" value={applicationId} />

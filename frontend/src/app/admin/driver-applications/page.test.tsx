@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const get = vi.hoisted(() => vi.fn());
@@ -64,23 +64,17 @@ describe("AdminDriverApplicationsPage", () => {
 
     render(await AdminDriverApplicationsPage({ searchParams: Promise.resolve({}) }));
 
-    const row = screen.getByText("New Driver").closest("tr");
-    if (!row) throw new Error("expected application row");
-    expect(within(row).getByText("driver@example.com")).toBeInTheDocument();
-    expect(within(row).getByText("Lagos · NG")).toBeInTheDocument();
-    expect(within(row).getByText("pending")).toBeInTheDocument();
-    expect(within(row).getAllByText("pending review")).toHaveLength(2);
-    expect(within(row).getByText("v1 · *******8901")).toBeInTheDocument();
-    expect(within(row).getByText("v1 · ABC-123-XY")).toBeInTheDocument();
-    expect(within(row).getAllByRole("button", { name: "Approve" })).toHaveLength(2);
-    expect(within(row).getByRole("button", { name: "Reveal NIN" })).toBeInTheDocument();
-    expect(within(row).getByRole("button", { name: "Reveal account" })).toBeInTheDocument();
-    expect(within(row).getByRole("button", { name: "Review driver license" })).toBeInTheDocument();
-    expect(within(row).getByRole("button", { name: "Review registration" })).toBeInTheDocument();
-    expect(within(row).getByText("Exact account version is payout-verified.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /New Driver/ })).toHaveAttribute(
+      "href",
+      `/admin/driver-applications/${APPLICATION_ID}`,
+    );
+    expect(screen.getByText(/driver@example.com/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reveal NIN" })).not.toBeInTheDocument();
+    expect(screen.queryByText(/8901/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Approve" })).not.toBeInTheDocument();
     expect(screen.queryByText(/password|reference_sha|ratelimit/i)).not.toBeInTheDocument();
     expect(get).toHaveBeenCalledWith("/api/v1/admin/driver-applications", {
-      params: { query: { limit: 25, offset: 0 } },
+      params: { query: { limit: 25, offset: 0, q: undefined, history: false } },
     });
     expect(screen.getByRole("navigation", { name: "Pagination" })).toBeInTheDocument();
   });
@@ -90,7 +84,7 @@ describe("AdminDriverApplicationsPage", () => {
 
     render(await AdminDriverApplicationsPage({ searchParams: Promise.resolve({}) }));
 
-    expect(screen.getByText("No pending driver applications")).toBeInTheDocument();
+    expect(screen.getByText(/No matching applications/)).toBeInTheDocument();
     expect(get).toHaveBeenCalledOnce();
   });
 });

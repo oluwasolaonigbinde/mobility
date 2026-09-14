@@ -7,6 +7,7 @@ import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Pagination } from "@/components/ui/pagination";
 import { UserStatusMenu } from "./user-status-menu";
+import { QueueSearch, QueueUnavailable } from "../queue-search";
 import { cx } from "@/lib/cx";
 import type { components } from "@/lib/api/schema";
 
@@ -24,9 +25,10 @@ const statusTone: Record<UserStatus, "green" | "cyan" | "amber" | "coral"> = {
   disabled: "coral",
 };
 
-function href(params: { role?: string; offset?: number }): string {
+function href(params: { role?: string; offset?: number; q?: string }): string {
   const qs = new URLSearchParams();
   if (params.role) qs.set("role", params.role);
+  if (params.q) qs.set("q", params.q);
   if (params.offset) qs.set("offset", String(params.offset));
   const s = qs.toString();
   return s ? `/admin/users?${s}` : "/admin/users";
@@ -35,7 +37,7 @@ function href(params: { role?: string; offset?: number }): string {
 export default async function AdminUsersPage({
   searchParams,
 }: {
-  searchParams: Promise<{ role?: string; offset?: string }>;
+  searchParams: Promise<{ role?: string; offset?: string; q?: string }>;
 }) {
   const params = await searchParams;
   const role = ROLES.includes(params.role as Role) ? (params.role as Role) : undefined;
@@ -43,9 +45,11 @@ export default async function AdminUsersPage({
   const offset = Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0;
 
   const api = createApiClient(await getSessionToken());
-  const { data } = await api.GET("/api/v1/admin/users", {
-    params: { query: { limit: PAGE_SIZE, offset, ...(role ? { role } : {}) } },
-  });
+  const { data } = await api
+    .GET("/api/v1/admin/users", {
+      params: { query: { limit: PAGE_SIZE, offset, q: params.q, ...(role ? { role } : {}) } },
+    })
+    .catch(() => ({ data: undefined }));
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
 
@@ -53,7 +57,9 @@ export default async function AdminUsersPage({
     <div className="animate-rise mx-auto max-w-6xl">
       <PageHeader
         title="Users"
-        eyebrow={`${total} account${total === 1 ? "" : "s"} across the network`}
+        eyebrow={
+          data ? `${total} matching account${total === 1 ? "" : "s"}` : "Account count unavailable"
+        }
         actions={
           <Link
             href="/admin/users/new"
@@ -64,9 +70,13 @@ export default async function AdminUsersPage({
         }
       />
 
-      <div className="mb-4 flex gap-1" role="group" aria-label="Filter by role">
+      <QueueSearch q={params.q}>
+        {role ? <input type="hidden" name="role" value={role} /> : null}
+      </QueueSearch>
+      {!data ? <QueueUnavailable /> : null}
+      <div className="mb-4 flex flex-wrap gap-1" role="group" aria-label="Filter by role">
         <Link
-          href={href({})}
+          href={href({ q: params.q })}
           className={cx(
             "micro rounded-lg px-3 py-2 transition-colors",
             !role ? "bg-raised text-amber" : "text-muted hover:text-ink",
@@ -77,7 +87,7 @@ export default async function AdminUsersPage({
         {ROLES.map((r) => (
           <Link
             key={r}
-            href={href({ role: r })}
+            href={href({ role: r, q: params.q })}
             className={cx(
               "micro rounded-lg px-3 py-2 capitalize transition-colors",
               role === r ? "bg-raised text-amber" : "text-muted hover:text-ink",
@@ -123,7 +133,7 @@ export default async function AdminUsersPage({
         total={total}
         limit={PAGE_SIZE}
         offset={offset}
-        hrefFor={(o) => href({ role, offset: o })}
+        hrefFor={(o) => href({ role, offset: o, q: params.q })}
       />
     </div>
   );

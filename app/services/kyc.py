@@ -519,6 +519,13 @@ async def reveal_driver_nin(
 ) -> str:
     await require_active_admin(session, actor_user_id)
     purpose = _purpose(purpose)
+    driver_id = await session.scalar(
+        select(DriverKycSubmission.driver_profile_id).where(DriverKycSubmission.id == submission_id)
+    )
+    if driver_id is not None and purpose == "person_payee_approval":
+        await session.scalar(
+            select(DriverProfile).where(DriverProfile.id == driver_id).with_for_update()
+        )
     submission = await session.scalar(
         select(DriverKycSubmission)
         .where(DriverKycSubmission.id == submission_id)
@@ -527,6 +534,19 @@ async def reveal_driver_nin(
     )
     if submission is None:
         raise _error("KYC_NOT_FOUND", "KYC submission was not found", status.HTTP_404_NOT_FOUND)
+    if purpose == "person_payee_approval":
+        current_id = await session.scalar(
+            select(DriverKycSubmission.id)
+            .where(DriverKycSubmission.driver_profile_id == submission.driver_profile_id)
+            .order_by(DriverKycSubmission.version.desc())
+            .limit(1)
+        )
+        if current_id != submission.id:
+            raise _error(
+                "KYC_REVIEW_STALE",
+                "Evidence changed. Reopen the current application before reviewing.",
+                status.HTTP_409_CONFLICT,
+            )
     require_submission_payload(submission)
     profile = await session.get(DriverProfile, submission.driver_profile_id)
     if profile is None:  # pragma: no cover

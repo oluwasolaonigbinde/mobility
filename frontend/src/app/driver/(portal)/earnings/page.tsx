@@ -26,7 +26,7 @@ export default async function DriverEarningsPage({
   searchParams,
 }: {
   searchParams?: Promise<{ offset?: string | string[] }>;
-} = {}) {
+}) {
   const api = createApiClient(await getSessionToken());
   const offset = parseOffset((await searchParams)?.offset);
 

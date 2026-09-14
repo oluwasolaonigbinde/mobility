@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
+from sqlalchemy import select
 
 from app.api.v1.dependencies import (
     AdminUserDependency,
@@ -9,6 +10,11 @@ from app.api.v1.dependencies import (
     SettingsDependency,
     TripEnqueuerDependency,
 )
+from app.models.campaign import Campaign
+from app.models.driver import DriverProfile
+from app.models.trip import TripSession
+from app.models.user import User
+from app.models.vehicle import Vehicle
 from app.schemas.trips import (
     CurrentTripResponse,
     LocationPingBatchCreate,
@@ -356,8 +362,30 @@ async def admin_list_quarantined_batches(
         limit=limit,
         offset=offset,
     )
+    projected = []
+    for row in items:
+        context = (
+            await session.execute(
+                select(User.full_name, Campaign.name, Vehicle.plate_number)
+                .select_from(TripSession)
+                .join(DriverProfile, TripSession.driver_profile_id == DriverProfile.id)
+                .join(User, DriverProfile.user_id == User.id)
+                .join(Campaign, TripSession.campaign_id == Campaign.id)
+                .join(Vehicle, TripSession.vehicle_id == Vehicle.id)
+                .where(TripSession.id == row.trip_session_id)
+            )
+        ).one_or_none()
+        projected.append(
+            quarantine_response(row).model_copy(
+                update={
+                    "driver_name": context[0] if context else None,
+                    "campaign_name": context[1] if context else None,
+                    "vehicle_plate": context[2] if context else None,
+                }
+            )
+        )
     return QuarantinedPingBatchListResponse(
-        items=[quarantine_response(row) for row in items],
+        items=projected,
         total=total,
         limit=limit,
         offset=offset,

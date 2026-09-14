@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, status
+from fastapi import APIRouter, Response, status
 
 from app.api.v1.dependencies import (
     AdminUserDependency,
@@ -203,6 +203,7 @@ async def download_admin_file(
     session: SessionDependency,
     storage: StorageDependency,
     settings: SettingsDependency,
+    response: Response,
 ) -> FileDownloadRead:
     download = await issue_admin_file_download(
         session,
@@ -214,6 +215,7 @@ async def download_admin_file(
         settings=settings,
     )
     await session.commit()
+    response.headers["Cache-Control"] = "no-store"
     return FileDownloadRead(
         url=download.url,
         expires_in_seconds=download.expires_in_seconds,

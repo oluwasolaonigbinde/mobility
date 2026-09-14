@@ -102,9 +102,17 @@ class AssignmentCampaignSummary(BaseModel):
 
 
 class AssignmentDriverProfileSummary(BaseModel):
+    full_name: str | None = None
     id: UUID
     user_id: UUID
     onboarding_status: DriverOnboardingStatus
+
+
+class AssignmentReadinessRead(BaseModel):
+    assignment_id: UUID
+    ready: bool
+    blocker_code: str | None = None
+    message: str
 
 
 class AssignmentVehicleSummary(BaseModel):

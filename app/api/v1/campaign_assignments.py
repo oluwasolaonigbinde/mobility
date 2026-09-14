@@ -10,6 +10,7 @@ from app.api.v1.dependencies import (
     SessionDependency,
     SettingsDependency,
 )
+from app.core.errors import AppError
 from app.models.assignment_activity import AssignmentActivityFlag, AssignmentActivityFlagEvent
 from app.models.campaign import Campaign
 from app.models.campaign_assignment import (
@@ -18,12 +19,14 @@ from app.models.campaign_assignment import (
     CampaignAssignmentStatus,
 )
 from app.models.driver import DriverProfile
+from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.schemas.campaign_assignments import (
     ActiveCampaignAssignmentResponse,
     AssignmentActivityFlagRead,
     AssignmentCampaignSummary,
     AssignmentDriverProfileSummary,
+    AssignmentReadinessRead,
     AssignmentVehicleSummary,
     CampaignActivationEventRead,
     CampaignAssignmentCancel,
@@ -72,6 +75,7 @@ def campaign_summary(campaign: Campaign | None) -> AssignmentCampaignSummary | N
 
 def driver_profile_summary(
     driver_profile: DriverProfile | None,
+    full_name: str | None = None,
 ) -> AssignmentDriverProfileSummary | None:
     if driver_profile is None:
         return None
@@ -79,6 +83,7 @@ def driver_profile_summary(
         id=driver_profile.id,
         user_id=driver_profile.user_id,
         onboarding_status=driver_profile.onboarding_status,
+        full_name=full_name,
     )
 
 
@@ -152,7 +157,12 @@ async def assignment_response(
         created_at=assignment.created_at,
         updated_at=assignment.updated_at,
         campaign=campaign_summary(campaign),
-        driver_profile=driver_profile_summary(driver_profile),
+        driver_profile=driver_profile_summary(
+            driver_profile,
+            await session.scalar(select(User.full_name).where(User.id == driver_profile.user_id))
+            if driver_profile is not None
+            else None,
+        ),
         vehicle=vehicle_summary(vehicle),
         events=[event_response(event) for event in events] if events is not None else None,
         activity_flags=activity_flags,
@@ -247,6 +257,7 @@ async def admin_list_campaign_assignments(
     campaign_id: UUID | None = None,
     driver_profile_id: UUID | None = None,
     vehicle_id: UUID | None = None,
+    q: Annotated[str | None, Query(max_length=120)] = None,
 ) -> CampaignAssignmentListResponse:
     del current_user
     await expire_due_assignment_offers(session)
@@ -259,6 +270,7 @@ async def admin_list_campaign_assignments(
         campaign_id=campaign_id,
         driver_profile_id=driver_profile_id,
         vehicle_id=vehicle_id,
+        q=q,
     )
     return CampaignAssignmentListResponse(
         items=[
@@ -500,6 +512,42 @@ async def driver_decline_campaign_assignment(
         raise
     await session.commit()
     return await assignment_response(session, assignment, include_events=True)
+
+
+@router.get(
+    "/admin/campaign-assignments/{assignment_id}/readiness",
+    response_model=AssignmentReadinessRead,
+    summary="Check activation prerequisites without changing work or money",
+)
+async def admin_assignment_readiness(
+    assignment_id: UUID,
+    user: AdminUserDependency,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> AssignmentReadinessRead:
+    try:
+        await activate_admin_assignment(
+            session,
+            admin_user_id=user.id,
+            assignment_id=assignment_id,
+            payload=CampaignAssignmentTransition(),
+            settings=settings,
+            advisory_only=True,
+        )
+    except AppError as exc:
+        if exc.status_code in {401, 403, 404}:
+            raise
+        return AssignmentReadinessRead(
+            assignment_id=assignment_id, ready=False, blocker_code=exc.code, message=exc.message
+        )
+    return AssignmentReadinessRead(
+        assignment_id=assignment_id,
+        ready=True,
+        message=(
+            "Ready for administrator activation. "
+            "Every prerequisite is checked again when you activate."
+        ),
+    )
 
 
 @router.post(

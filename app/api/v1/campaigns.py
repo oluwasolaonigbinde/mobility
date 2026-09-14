@@ -3,6 +3,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
+from sqlalchemy import func, select
 
 from app.api.v1.dependencies import AdminUserDependency, AdvertiserUserDependency, SessionDependency
 from app.core.errors import AppError
@@ -582,9 +583,7 @@ async def admin_pending_creative_reviews(
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> AdminCreativeReviewListResponse:
     del current_user
-    rows, total = await list_pending_creative_reviews(
-        session, limit=limit, offset=offset
-    )
+    rows, total = await list_pending_creative_reviews(session, limit=limit, offset=offset)
     return AdminCreativeReviewListResponse(
         items=[
             AdminCreativeReviewItem(
@@ -612,6 +611,7 @@ async def admin_list_campaigns_endpoint(
     offset: Annotated[int, Query(ge=0)] = 0,
     organization_id: UUID | None = None,
     status: CampaignStatus | None = None,
+    q: Annotated[str | None, Query(max_length=120)] = None,
 ) -> AdminCampaignListResponse:
     del current_user
     campaigns, total = await list_admin_campaigns(
@@ -620,15 +620,41 @@ async def admin_list_campaigns_endpoint(
         offset=offset,
         organization_id=organization_id,
         campaign_status=status,
+        q=q,
     )
     return AdminCampaignListResponse(
         items=[
-            admin_campaign_response(campaign, organization)
-            for campaign, organization in campaigns
+            admin_campaign_response(campaign, organization) for campaign, organization in campaigns
         ],
         total=total,
         limit=limit,
         offset=offset,
+    )
+
+
+@router.get("/admin/campaigns/{campaign_id}/creatives", response_model=CreativeListResponse)
+async def admin_list_campaign_creatives(
+    campaign_id: UUID,
+    user: AdminUserDependency,
+    session: SessionDependency,
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> CreativeListResponse:
+    if await get_admin_campaign(session, campaign_id) is None:
+        raise AppError(
+            "CAMPAIGN_NOT_FOUND",
+            "Campaign was not found",
+            status_code=status.HTTP_404_NOT_FOUND,
+        )
+    query = select(CampaignCreative).where(CampaignCreative.campaign_id == campaign_id)
+    total = int(await session.scalar(select(func.count()).select_from(query.subquery())) or 0)
+    rows = await session.scalars(
+        query.order_by(CampaignCreative.created_at.desc(), CampaignCreative.id)
+        .limit(limit)
+        .offset(offset)
+    )
+    return CreativeListResponse(
+        items=[creative_response(row) for row in rows], total=total, limit=limit, offset=offset
     )
 
 
@@ -654,8 +680,7 @@ async def admin_list_pending_campaign_reviews(
     )
     return AdminCampaignListResponse(
         items=[
-            admin_campaign_response(campaign, organization)
-            for campaign, organization in campaigns
+            admin_campaign_response(campaign, organization) for campaign, organization in campaigns
         ],
         total=total,
         limit=limit,
@@ -740,6 +765,8 @@ async def admin_list_campaign_review_history(
         limit=limit,
         offset=offset,
     )
+
+
 @router.get(
     "/admin/campaigns/{campaign_id}",
     response_model=AdminCampaignRead,

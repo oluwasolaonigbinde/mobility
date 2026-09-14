@@ -150,6 +150,7 @@ async def admin_list_vehicles(
     vehicle_type: VehicleType | None = None,
     plate_country_code: Annotated[str | None, Query(min_length=2, max_length=2)] = None,
     driver_profile_id: UUID | None = None,
+    q: Annotated[str | None, Query(max_length=120)] = None,
 ) -> AdminVehicleListResponse:
     del current_user
     vehicles, total = await list_admin_vehicles(
@@ -160,6 +161,7 @@ async def admin_list_vehicles(
         vehicle_type=vehicle_type,
         plate_country_code=plate_country_code,
         driver_profile_id=driver_profile_id,
+        q=q,
     )
     return AdminVehicleListResponse(
         items=[

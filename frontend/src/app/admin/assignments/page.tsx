@@ -9,6 +9,7 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { Pagination } from "@/components/ui/pagination";
 import { CancelAssignmentButton } from "./cancel-button";
 import { ActivateAssignmentButton } from "./activate-button";
+import { QueueSearch, QueueUnavailable } from "../queue-search";
 import type { components } from "@/lib/api/schema";
 
 export const metadata: Metadata = { title: "Assignments" };
@@ -30,16 +31,18 @@ const tone: Record<AStatus, "green" | "amber" | "cyan" | "coral" | "default"> = 
 export default async function AdminAssignmentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ offset?: string }>;
+  searchParams: Promise<{ offset?: string; q?: string }>;
 }) {
   const params = await searchParams;
   const rawOffset = Number(params.offset ?? 0);
   const offset = Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0;
 
   const api = createApiClient(await getSessionToken());
-  const { data } = await api.GET("/api/v1/admin/campaign-assignments", {
-    params: { query: { limit: PAGE_SIZE, offset } },
-  });
+  const { data } = await api
+    .GET("/api/v1/admin/campaign-assignments", {
+      params: { query: { limit: PAGE_SIZE, offset, q: params.q } },
+    })
+    .catch(() => ({ data: undefined }));
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
 
@@ -47,7 +50,11 @@ export default async function AdminAssignmentsPage({
     <div className="animate-rise mx-auto max-w-6xl">
       <PageHeader
         title="Assignments"
-        eyebrow={`${total} campaign–vehicle pairing${total === 1 ? "" : "s"}`}
+        eyebrow={
+          data
+            ? `${total} matching campaign–vehicle pairing${total === 1 ? "" : "s"}`
+            : "Assignment count unavailable"
+        }
         actions={
           <Link
             href="/admin/assignments/new"
@@ -58,6 +65,8 @@ export default async function AdminAssignmentsPage({
         }
       />
 
+      <QueueSearch q={params.q} />
+      {!data ? <QueueUnavailable /> : null}
       <Panel className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] text-sm">
@@ -77,7 +86,7 @@ export default async function AdminAssignmentsPage({
                 <tr key={a.id} className="border-edge/60 border-b last:border-0">
                   <td className="px-5 py-3.5 font-medium">{a.campaign?.name ?? "—"}</td>
                   <td className="text-muted px-5 py-3.5 font-mono text-xs">
-                    {a.driver_profile ? `${a.driver_profile.id.slice(0, 8)}…` : "—"}
+                    {a.driver_profile?.full_name ?? "Driver name unavailable"}
                   </td>
                   <td className="px-5 py-3.5 font-mono text-xs">
                     {a.vehicle?.plate_number ?? "—"}
@@ -118,6 +127,12 @@ export default async function AdminAssignmentsPage({
                     {a.expires_at ? <div>Expires {formatDate(a.expires_at)}</div> : null}
                   </td>
                   <td className="px-5 py-3.5 text-right">
+                    <Link
+                      href={`/admin/assignments/${a.id}`}
+                      className="text-cyan block text-xs underline"
+                    >
+                      Readiness and details
+                    </Link>
                     {a.status === "accepted" || a.status === "deactivated" ? (
                       <ActivateAssignmentButton assignmentId={a.id} />
                     ) : null}
@@ -153,7 +168,9 @@ export default async function AdminAssignmentsPage({
         total={total}
         limit={PAGE_SIZE}
         offset={offset}
-        hrefFor={(o) => (o ? `/admin/assignments?offset=${o}` : "/admin/assignments")}
+        hrefFor={(o) =>
+          `/admin/assignments?${new URLSearchParams({ q: params.q ?? "", offset: String(o) })}`
+        }
       />
     </div>
   );

@@ -58,6 +58,8 @@ PUBLIC_ROUTES = frozenset(
         ("POST", "/api/v1/auth/login"),
         ("POST", "/api/v1/auth/password-reset/request"),
         ("POST", "/api/v1/auth/password-reset/complete"),
+        ("POST", "/api/v1/auth/driver-onboarding-access/request"),
+        ("POST", "/api/v1/auth/driver-account-setup/complete"),
         ("POST", "/api/v1/auth/register-driver"),
         ("GET", "/api/v1/auth/driver-application-status/{reference}"),
     }
@@ -158,6 +160,8 @@ def _principal(key: tuple[str, str], dependencies: frozenset[str]) -> Principal:
 
 
 def _action(method: str, path: str, principal: Principal) -> Action:
+    if method == "POST" and path == "/api/v1/admin/payout-batches/selection-preview":
+        return Action.READ
     if principal is Principal.MACHINE:
         return Action.CALLBACK
     final = path.rstrip("/").rsplit("/", 1)[-1]

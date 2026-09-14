@@ -2,6 +2,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Query
+from sqlalchemy import select
 
 from app.api.v1.dependencies import (
     AdminUserDependency,
@@ -10,6 +11,8 @@ from app.api.v1.dependencies import (
     SettingsDependency,
 )
 from app.models.contact import DriverPhoneVersion, ManualDriverContactTask, WhatsappConsent
+from app.models.driver import DriverProfile
+from app.models.user import User
 from app.schemas.contacts import (
     AdminPhoneChallengeListRead,
     AdminPhoneChallengeRead,
@@ -213,10 +216,21 @@ async def admin_contact_tasks(
     session: SessionDependency,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
+    history: bool = False,
 ) -> ManualContactTaskListRead:
-    rows, total = await list_manual_driver_contact_tasks(session, limit=limit, offset=offset)
+    rows, total = await list_manual_driver_contact_tasks(
+        session, limit=limit, offset=offset, history=history
+    )
+    items = []
+    for task, phone in rows:
+        name = await session.scalar(
+            select(User.full_name)
+            .join(DriverProfile, DriverProfile.user_id == User.id)
+            .where(DriverProfile.id == task.driver_profile_id)
+        )
+        items.append(task_read(task, phone).model_copy(update={"driver_name": name}))
     return ManualContactTaskListRead(
-        items=[task_read(task, phone) for task, phone in rows],
+        items=items,
         total=total,
         limit=limit,
         offset=offset,

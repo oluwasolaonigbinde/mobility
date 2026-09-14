@@ -83,6 +83,9 @@ export default async function AdminCampaignBillingPage({
           </Link>
         }
       />
+      <Link className="mb-4 inline-block underline" href={`/admin/billing/${campaignId}/closeout`}>
+        Review settlement and payout position
+      </Link>
       {notice.error ? <p className="text-coral mb-4 text-sm">{notice.error}</p> : null}
       <div className="grid gap-6 lg:grid-cols-2">
         <Panel className="p-6">

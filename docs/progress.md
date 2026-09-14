@@ -238,6 +238,201 @@ commands and atomic authority, use named human context instead of raw IDs,
 provide red/green and real-backend desktop/mobile evidence, and retain every
 external provider/legal/physical-operation gate.
 
+Phase-II independent Sol High plan review returned `FIX`; the controller adopts
+all four amendments before dispatch. Phase I is now the local baseline commit
+`f56d7fb`, excluding the pre-existing test-result/audit/archive artifacts that
+remain uncommitted. P3 initially holds the serialized lease on generated API/
+frontend/native contracts, API-router/model registration, migration numbering,
+architecture placement/changelog, authorization/audit-route inventories and
+admin shell/common search. P4 first builds contract-neutral payout queries,
+services and tests and submits exact route/schema needs. After P3 freezes and
+generates its contracts, the controller transfers this lease to P4; P4 then
+adds its route/schema surface, regenerates the aggregate once, and both owners
+verify their consumers. Shared seed helpers, `tests/conftest.py` and cross-
+domain closeout composition remain controller-leased.
+
+V03 is bounded to read-only closeout readiness and visibility of existing
+cancellation, settlement, report, contact and external physical/provider
+blockers. Neither owner may add a campaign/assignment `completed` transition,
+claim removal or cash completion, or infer missing operations policy. A new
+lifecycle command requires separate owner authority. Any composed closeout
+page waits until P3/P4 projections stabilize, receives one serial owner and
+must not duplicate money calculations.
+
+P3 acceptance additionally freezes a per-queue search/filter/order/pagination/
+history/action matrix; general search excludes national ID, bank, raw evidence
+and raw GPS. Sensitive reveal requires selected purpose/confirmation, no-store,
+auto-hide/DOM removal, exact-current-version audit and stale denial. Activation
+readiness is zero-write advisory composition from existing authorities; final
+activation rechecks under its existing lock, including ready-then-source-change
+denial. Quarantine apply/discard requires confirm, stale/double-submit safety
+and never reprices money or mutates/reissues reports. Measurement adds only
+list/status/read orchestration over the existing issuer and never renders
+absent/incomplete/suppressed/gated evidence as zero or complete. Contact work
+preserves verified phone, exact-purpose consent and D35 invalidation.
+
+P4 acceptance additionally requires an advisory eligible-payment projection
+with named driver/payee, masked destination, individual credits, debt
+deductions, exact currency totals and ineligibility reasons; reservation still
+uses immutable IDs and revalidates under existing locks. Paginated batch
+summary is separate from bounded responsive detail with maker/checker names and
+per-line outcome/history. Draft-create/reserve has durable lost-response and
+multi-tab recovery, exact retry convergence or explicit draft recovery,
+all-or-none reservation, stale hold/debt/eligibility denial and concurrent
+single-winner evidence. A two-admin browser journey proves maker self-approval
+denial, distinct-checker approval, queued-versus-submitted truth, provider-
+unavailable/unknown/partial outcomes, same-key retry and verified-line-only
+paid finality. Money closeout reports only recorded cancellation settlement,
+debt and unbatched/reserved/in-flight/paid facts plus external blockers.
+
+Initial Sol High P3/P4 dispatches failed before producing any work because the
+agent pool reported a usage limit. Workspace inspection confirms no Phase-II
+product mutation. The controller reassigns the unchanged, independently
+reviewed packets to GPT-6 Astra High owners: this is at least as capable for
+P3's cross-domain privacy/measurement authority and P4's money/concurrency
+boundary, preserves the same two-writer limit and leases, and is a dispatch
+recovery only—not a scope or acceptance change.
+
+P3 freezes its additive operator API contracts after OpenAPI drift,
+authorization-inventory and audit-route checks. No Phase-II migration/model
+registration was needed in P3. The serialized generated/router/schema/
+architecture/inventory lease now transfers to P4 for only its approved payout
+surface: optional draft request identity, eligible-payment advisory,
+paginated batch summaries/detail, bounded line history and an additive optional
+campaign scope on the existing money-balance projection with unchanged default.
+Static routes precede the batch-ID route; search is allowlisted human identity/
+reference only; every amount is a Decimal string with currency; page, filtered
+and selected totals are labelled distinctly and no client-computed sum becomes
+authority. General selection does not bulk-decrypt bank data; an explicit
+purpose-audited detail may return a mask only. P3 freezes all shared/generated
+files and continues only its UI/service/test domains. P4 regenerates the
+aggregate once after stabilization, signals P3 for consumer verification, then
+freezes the lease. Cross-domain closeout may consume the settled campaign-
+scoped balance later; it gains no lifecycle command or new money calculation.
+P3 readiness must not treat absence of a pre-existing assignment-liability
+reservation as a blocker because final activation may create it. P4 therefore
+owns one exact read-only reservation-eligibility projection extracted from the
+same calculation/checks used by `reserve_assignment_liability`, with parity and
+zero-write evidence. P3 consumes only its minimal result/reason; final
+activation remains the sole locked reservation/action authority.
+
+After the aggregate generated contract freeze, the controller grants P4 one
+final documentation-only lease on `docs/architecture.md`. P4 must retain its
+provider-neutral money placement and incorporate P3's exact operator placement
+packet: safe named search and focused current-evidence review; paginated
+creative/assignment preparation and zero-write readiness; existing-engine
+measurement discovery; late-data and current-consent contact consumers; and
+read-only closeout boundaries. The changelog must state that no new issuance or
+money engine, lifecycle completion, provider call, deployment or native-device
+evidence is added. This lease does not reopen generated contracts, schemas,
+router registration, migrations, inventories or either owner's product files.
+
+P4 browser verification resolves the packet's retry wording against existing
+authority: same-key idempotent retry applies to an ambiguous submission before
+terminal resolution. A terminal failed payout line is not retried in place; it
+requires a newer verified bank version and creates a new immutable replacement
+batch/line linked to its predecessor, while an unchanged destination remains
+denied. P4 must present and test both paths distinctly and consume the returned
+replacement identity; the existing payout engine is not weakened to satisfy an
+overbroad “failed-line same-key retry” phrase.
+
+Phase-II specialist review returns P3 to `FIX` before admission. Terminal
+application history/detail must use the full existing application-status type
+while the default queue remains pending-only; approved/rejected history must
+serialize without writes. Approval-document downloads must enforce current
+linked person/vehicle evidence from server authority rather than caller reason
+prefixes, deny stale/unlinked files before presign/audit, and return
+`Cache-Control: no-store`; separately authorized historical/security reads
+remain unchanged. Three named P3 admin pages require formatter-only cleanup.
+The review also could not audit the ephemeral `/tmp/mobility-p3-*` logs, so
+controller admission relies only on reproducible commands/results or retained
+evidence. A separate Phase-I D28 correction must make guessed nonexistent
+account-setup resources return the established 404 without changing real
+ineligible 409 or setup/idempotency semantics; its exact security plan requires
+independent PASS before editing.
+
+Phase-II money specialist review also returns P4 to `FIX`. Terminal replacement
+must compare canonical bank destination identity—not version UUID—so key rewrap
+or identical recapture cannot satisfy the changed-destination gate. Replacement
+creation must preflight every trip's current successful assessment before any
+line is built, retaining all-or-none behavior. Campaign closeout must derive
+active provider exposure from scoped payout-line chains independently of ledger
+availability: economic `cash_paid` remains separate, while an additive Decimal
+`provider_verified_paid` field exposes actual verified provider successes and
+reserved/in-flight values retain unresolved replacement exposure. P3 owns the
+generated/schema lane until its review fixes freeze; P4 implements contract-
+neutral corrections meanwhile, then receives one serialized aggregate contract
+lease. Rewrap/identical recapture, one-stale-trip multi-line rollback, late
+predecessor success with unresolved replacement and dual-success cases require
+red/green PostgreSQL evidence and independent re-review.
+
+**P4 takeover and Phase-II admission (14 Sep 2026):** The owner reassigned the
+interrupted P4 correction and remaining programme to one direct Claude Opus 5
+High controller in this checkout; the owner later lifted the no-subagent limit,
+so independent read-only reviewers ran on Opus 5 after the Fable reviewer pool
+reported a usage limit. The interrupted bytes were inspected rather than
+trusted. Each money finding was reproduced red on PostgreSQL by temporarily
+removing only its correction, then restored byte-identically: disabling the
+bank code/account-number comparison let rewrap, identical and name-only
+recapture replace a failed line; removing the preflight let a two-line
+replacement with one stale trip assessment succeed; ledger-derived exposure
+reported `in_flight` 0.00 instead of 100.00 after a late predecessor success.
+All pass with the corrections. Added explicit changed-destination success
+(new version and key, destination differs, convergent retry). Focused money and
+concurrency suites: 24 files, 235 PASS, zero skips; the six replacement-review
+tests PASS. Independent money re-review: PASS, all three findings closed; it
+notes that replacement identity needs the predecessor version's original key to
+remain in the keyring (fail-closed liveness only) and that all-or-none
+replacement applies per batch.
+
+Consolidated independent Phase-II review returned `FIX` with no authorization,
+tenant or sensitive-disclosure defect. Corrections: advisory readiness now
+reports `ASSIGNMENT_ALREADY_ACTIVE` before other prerequisite checks instead of
+inviting a second activation (red then green; final activation replay
+unchanged, DEACTIVATED reactivation unchanged); every administrator file
+download returns `Cache-Control: no-store` (red then green); formatter cleanup
+applies only to files clean at baseline plus new files, with `ruff check .`
+green. Controller disposition: current-version NIN/bank enforcement remains
+scoped to the approval purpose because other purpose-audited historical reads
+are preserved by this packet. Non-blocking notes retained without code change:
+readiness takes the same locks as final activation, detail-page 404s reach the
+generic error page, eligible-payment reads are per-row bounded queries,
+formatting-only hunks remain in two pre-dirty files, the fraud spot-check form
+still accepts raw assignment/trip IDs, and vehicle file checks bind to the
+vehicle's latest submission.
+
+Integrated real-backend evidence on the final source: an isolated Compose API,
+PostGIS, Redis and MinIO project migrated through `0089` with the demo seed,
+plus a production build of the current frontend. New read-only
+`frontend/e2e/operator-workflows.spec.ts` passes 8/8 on desktop and mobile: named
+driver/vehicle/assignment search, already-active readiness, preparation
+blockers without an activation control, non-zero empty evidence queues, payout
+ineligibility reasons and closeout facts, with no horizontal overflow. A
+synthetic two-admin money journey used a fake adapter injected only into a
+scratchpad harness server on a fresh migrated database, desktop maker with a
+390px checker. It passes selection with held/debt credits disabled, a masked
+destination, lost-response multi-tab recovery (one batch, two lines), maker
+self-approval denial, provider-unavailable and queued-not-submitted states,
+provider-unknown recovery with unchanged line keys, and a partial outcome. It
+also denies identical and name-only replacement with no new batch. A changed
+destination creates one convergent replacement needing independent approval.
+With the replacement still unresolved, a late predecessor success shows
+100.07 exposure, 125.10 verified and 125.10 ledger paid; after the replacement
+also succeeds it shows 0.00 exposure, 225.17 verified, 125.10 ledger paid and
+100.07 driver-wide debt, with no completion claim. Other checks: the combined
+P3, authorization, audit-route, OpenAPI, KYC/file, contact, measurement,
+setup and payout-projection PostgreSQL run passes 282 tests with zero skips.
+The full frontend Vitest run exposed load-dependent races in the new payout form
+tests, which queried async preview and recovery controls synchronously. After
+switching them to awaited queries with unchanged assertions, the full suite
+(127 files, 835 tests, including the R14-B tracker and queue fixtures) passes on
+three consecutive runs. ESLint, TypeScript and the production build pass; the
+OpenAPI check and regenerated client types are byte-identical. Consolidated
+re-review of these corrections: PASS. Evidence stays
+under the session scratchpad and is not committed. Stale-hold draft recovery was
+browser-proven by the interrupted owner before these corrections and is
+retained by the PostgreSQL reservation suites, not re-run in the browser.
+
 **CI submission-reference test correction (14 Sep 2026):** Owner “fix it pls” authorizes this bounded continuation in the existing master checkout after run `34842765201` on `e952341` failed only the ordinary desktop/mobile submission-history assertion. Sole writer is this CI task; controller is idle. Align the stale `Submitted snapshot SHA-256:` assertion with canonical `Submission reference:` while requiring a 64-character hexadecimal hash; retain approval, immutable history and all other gates. Scope: `frontend/e2e/campaign-flow.spec.ts` and this evidence entry only. Existing owned commit/non-force push authority applies; no product, coverage-floor, skip, provider or package-queue change. Independent Sol Medium plan review PASS. Both unchanged desktop/mobile journeys reproduced the exact missing-label failure locally (`/tmp/cardvert-label-red-real.log`); corrected complete campaign-flow file: 10 PASS, zero retries/skips (`/tmp/cardvert-label-green.log`). ESLint, progress validation and diff checks PASS. Initial existing-preview attempt was stopped because one-click login did not match the ordinary test harness; accepted verification used an exact-source temporary preview with regular login against the existing synthetic backend. Independent Sol Medium consolidated review PASS with no findings; exact pushed CI must finish before closure, with its terminal run linked in the owner/controller handoff without another evidence-only commit.
 
 Coverage follow-through: pushed `10bf582` / run `34850723035` passed frontend, all backend shards/aggregate and R59, then failed the unchanged global line floor: backend 25,289/28,518 versus adopted 25,291; frontend exactly 3,413/5,068 and branches above floors. No source instrumentation or floor changed in the label fix. Compared real artifacts show intermittent indirect async-service hits, including trip summary/count paths. Bounded verification amendment adds a real PostgreSQL trip summary/batch-count regression in `tests/test_trips.py`, asserting empty/populated/replayed counts, timestamps and cross-trip isolation directly in one async test context. No product, floor, policy or skip changes. Independent Sol Medium amendment plan PASS; temporary count-plus-one mutation failed the new empty-trip assertion and was immediately restored (`/tmp/cardvert-label-trip-red.log`). Full trip file: 29 PASS against configured integrations (`/tmp/cardvert-label-trip-green.log`), Ruff PASS. Local LCOV records six lines absent from the failed run; diagnostic union 25,295 exceeds unchanged 25,291 backend floor, but is not claimed as GitHub provenance. Independent Sol Medium consolidated amendment review PASS with no findings; fresh exact-SHA CI remains the completion gate.

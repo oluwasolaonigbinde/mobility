@@ -919,6 +919,7 @@ async def list_admin_assignments(
     campaign_id: UUID | None,
     driver_profile_id: UUID | None,
     vehicle_id: UUID | None,
+    q: str | None = None,
 ) -> tuple[list[CampaignAssignment], int]:
     query_now = await database_clock(session)
     due_offer = (
@@ -927,6 +928,23 @@ async def list_admin_assignments(
         & (CampaignAssignment.expires_at <= query_now)
     )
     filters = [~due_offer]
+    if q and q.strip():
+        from app.services.operator_search import operator_search
+
+        filters.append(
+            CampaignAssignment.id.in_(
+                select(CampaignAssignment.id)
+                .join(Campaign, CampaignAssignment.campaign_id == Campaign.id)
+                .join(DriverProfile, CampaignAssignment.driver_profile_id == DriverProfile.id)
+                .join(User, DriverProfile.user_id == User.id)
+                .join(Vehicle, CampaignAssignment.vehicle_id == Vehicle.id)
+                .where(
+                    operator_search(
+                        q, Campaign.name, User.full_name, User.email, Vehicle.plate_number
+                    )
+                )
+            )
+        )
     if assignment_status is not None:
         filters.append(CampaignAssignment.status == assignment_status)
     if campaign_id is not None:
@@ -1835,6 +1853,7 @@ async def activate_admin_assignment(
     assignment_id: UUID,
     payload: CampaignAssignmentTransition,
     settings: Settings | None = None,
+    advisory_only: bool = False,
 ) -> CampaignAssignment:
     settings = settings or get_settings()
     campaign_id = await session.scalar(
@@ -1878,6 +1897,12 @@ async def activate_admin_assignment(
             "INVALID_ASSIGNMENT_TRANSITION",
             "Only accepted, active or deactivated assignments can be activated",
             status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    if advisory_only and assignment.status == CampaignAssignmentStatus.ACTIVE.value:
+        raise AppError(
+            "ASSIGNMENT_ALREADY_ACTIVE",
+            "This assignment is already active. No activation is needed.",
+            status_code=status.HTTP_409_CONFLICT,
         )
     driver_profile = await session.scalar(
         select(DriverProfile)
@@ -1985,7 +2010,18 @@ async def activate_admin_assignment(
             "The payout binding is not linked to the accepted offer evidence",
             status_code=status.HTTP_409_CONFLICT,
         )
-    if assignment.status == CampaignAssignmentStatus.ACTIVE.value:
+    if advisory_only:
+        from app.services.billing import assignment_liability_readiness
+
+        readiness = await assignment_liability_readiness(session, assignment_id=assignment.id)
+        if not readiness.eligible:
+            raise AppError(
+                "ASSIGNMENT_FUNDING_REQUIRED",
+                readiness.reason or "Current funding does not cover this assignment",
+                status_code=status.HTTP_409_CONFLICT,
+            )
+        reservation = None
+    elif assignment.status == CampaignAssignmentStatus.ACTIVE.value:
         reservation = await session.scalar(
             select(CampaignLiabilityReservation)
             .where(CampaignLiabilityReservation.assignment_id == assignment.id)
@@ -1999,24 +2035,23 @@ async def activate_admin_assignment(
         reservation = await reserve_assignment_liability(
             session, assignment_id=assignment.id, actor_user_id=admin_user_id
         )
-    if reservation is None:
+    if reservation is None and not advisory_only:
         raise AppError(
             "ASSIGNMENT_FUNDING_REQUIRED",
             "Campaign funding must reserve this assignment before activation",
             status_code=status.HTTP_409_CONFLICT,
         )
-    if reservation.status != "reserved":
+    if reservation is not None and reservation.status != "reserved":
         raise AppError(
             "ASSIGNMENT_FUNDING_REQUIRED",
             "Campaign funding must reserve this assignment before activation",
             status_code=status.HTTP_409_CONFLICT,
         )
-    authorization = await assert_campaign_production_authorized(
-        session, campaign_id=campaign.id
-    )
-    await assert_new_work_authorized(
-        session, campaign_id=campaign.id, assignment_id=assignment.id
-    )
+    authorization = await assert_campaign_production_authorized(session, campaign_id=campaign.id)
+    if not advisory_only:
+        await assert_new_work_authorized(
+            session, campaign_id=campaign.id, assignment_id=assignment.id
+        )
     evidence = await ensure_current_approved_installation_evidence(
         session,
         assignment=assignment,
@@ -2038,6 +2073,8 @@ async def activate_admin_assignment(
         driver_profile_id=assignment.driver_profile_id,
         assignment_id=assignment.id,
     )
+    if advisory_only:
+        return assignment
     production_start = await activation_production_start(
         session,
         campaign_id=campaign.id,

@@ -515,6 +515,18 @@ async def _read_verified_bank_account_authorized(
             status_code=status.HTTP_404_NOT_FOUND,
         )
     account_version, account, payee = row
+    if purpose == "person_payee_approval":
+        await session.execute(select(Payee.id).where(Payee.id == payee.id).with_for_update())
+        await session.execute(
+            select(PayeeBankAccount.id).where(PayeeBankAccount.id == account.id).with_for_update()
+        )
+        current = await _current_bank_account_version(session, account.id)
+        if current.id != bank_account_version_id:
+            raise AppError(
+                "BANK_ACCOUNT_VERSION_STALE",
+                "The bank account changed. Refresh the application before reviewing it.",
+                status_code=status.HTTP_409_CONFLICT,
+            )
     envelope = _parse_envelope(account_version.encrypted_details)
     aad = AssociatedData(
         tenant_id=payee.tenant_id,

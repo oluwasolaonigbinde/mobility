@@ -123,8 +123,13 @@ async def list_driver_profiles(
     onboarding_status: str | None,
     country_code: str | None,
     service_city: str | None,
+    q: str | None = None,
 ) -> tuple[list[tuple[DriverProfile, User]], int]:
     filters = []
+    if q and q.strip():
+        from app.services.operator_search import operator_search
+
+        filters.append(operator_search(q, User.full_name, User.email, DriverProfile.service_city))
     if onboarding_status is not None:
         filters.append(DriverProfile.onboarding_status == onboarding_status)
     normalized_country_code = normalize_optional_country_code(country_code)
@@ -135,7 +140,9 @@ async def list_driver_profiles(
         filters.append(DriverProfile.service_city == normalized_service_city)
 
     statement = select(DriverProfile, User).join(User, DriverProfile.user_id == User.id)
-    count_statement = select(func.count()).select_from(DriverProfile)
+    count_statement = (
+        select(func.count()).select_from(DriverProfile).join(User, DriverProfile.user_id == User.id)
+    )
     for filter_expression in filters:
         statement = statement.where(filter_expression)
         count_statement = count_statement.where(filter_expression)

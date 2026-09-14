@@ -56,7 +56,7 @@ describe("DriverEarningsPage canonical settlement projection", () => {
       return { data: ledgerPage([]) };
     });
 
-    render(await DriverEarningsPage());
+    render(await DriverEarningsPage({}));
 
     expect(screen.getByText("Available for payment")).toBeInTheDocument();
     expect(screen.getByText("Owed, taken from your payouts")).toBeInTheDocument();
@@ -84,7 +84,7 @@ describe("DriverEarningsPage canonical settlement projection", () => {
       return { data: ledgerPage([]) };
     });
 
-    render(await DriverEarningsPage());
+    render(await DriverEarningsPage({}));
 
     expect(screen.getByText("Available for payment").nextElementSibling).toHaveTextContent("₦0.00");
     expect(screen.getByText("Owed, taken from your payouts").nextElementSibling).toHaveTextContent(
@@ -195,7 +195,7 @@ describe("DriverEarningsPage canonical settlement projection", () => {
       };
     });
 
-    render(await DriverEarningsPage());
+    render(await DriverEarningsPage({}));
 
     for (const label of ["Released", "Paid ledger", "Voided", "Owed, taken from your payouts"]) {
       expect(screen.getAllByText(label, { exact: true }).length).toBeGreaterThan(0);
@@ -217,7 +217,7 @@ describe("DriverEarningsPage canonical settlement projection", () => {
       return { data: { items: [] } };
     });
 
-    render(await DriverEarningsPage());
+    render(await DriverEarningsPage({}));
 
     expect(screen.getByRole("alert")).toHaveTextContent(
       /earnings and review status are unavailable/i,
@@ -254,7 +254,7 @@ describe("DriverEarningsPage canonical settlement projection", () => {
       return { data: ledgerPage([]) };
     });
 
-    render(await DriverEarningsPage());
+    render(await DriverEarningsPage({}));
 
     expect(screen.getByText("Campaign labels unavailable")).toBeInTheDocument();
     expect(screen.getByText("Available for payment").nextElementSibling).toHaveTextContent(

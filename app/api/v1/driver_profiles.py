@@ -128,6 +128,7 @@ async def admin_list_driver_profiles(
     onboarding_status: DriverOnboardingStatus | None = None,
     country_code: Annotated[str | None, Query(min_length=2, max_length=2)] = None,
     service_city: str | None = None,
+    q: Annotated[str | None, Query(max_length=120)] = None,
 ) -> DriverProfileListResponse:
     del current_user
     profiles, total = await list_driver_profiles(
@@ -137,6 +138,7 @@ async def admin_list_driver_profiles(
         onboarding_status=onboarding_status,
         country_code=country_code,
         service_city=service_city,
+        q=q,
     )
     return DriverProfileListResponse(
         items=[admin_driver_profile_response(profile, user) for profile, user in profiles],

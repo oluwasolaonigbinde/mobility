@@ -352,11 +352,24 @@ async def list_driver_applications(
     admin_user_id: UUID,
     limit: int,
     offset: int,
+    q: str | None = None,
+    history: bool = False,
 ) -> tuple[list[DriverApplication], int]:
     """Read the pending queue only after locking and validating the admin."""
 
     await require_active_admin(session, admin_user_id)
-    filters = [DriverApplication.status == DriverApplicationStatus.PENDING.value]
+    from app.services.operator_search import operator_search
+
+    filters = [] if history else [DriverApplication.status == DriverApplicationStatus.PENDING.value]
+    if q and q.strip():
+        filters.append(
+            operator_search(
+                q,
+                DriverApplication.full_name,
+                DriverApplication.email,
+                DriverApplication.service_city,
+            )
+        )
     total = await session.scalar(
         select(func.count()).select_from(DriverApplication).where(*filters)
     )

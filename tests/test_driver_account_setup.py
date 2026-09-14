@@ -5,10 +5,12 @@ from uuid import UUID, uuid4
 import pytest
 from conftest import create_test_user
 from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from test_driver_applications import PASSWORD
 from test_email_delivery import RecordingEmailAdapter
 from test_onboarding_approval_convergence import prepare
 
+from app.api.v1.dependencies import get_current_user
 from app.core.errors import AppError
 from app.core.security import create_access_token, verify_password
 from app.models.audit import AuditEvent
@@ -40,6 +42,101 @@ def _approve(client, maker, settings):
         response = client.post(path, json=body, headers=headers)
         assert response.status_code == 200, response.text
     return application, headers
+
+
+def test_setup_hides_missing_application_but_preserves_real_ineligible_conflict(
+    db_client, db_sessionmaker, settings
+) -> None:
+    application, admin_headers, _ = prepare(db_client, db_sessionmaker, settings)
+
+    async def setup_effect_counts() -> tuple[int, int, int]:
+        async with db_sessionmaker() as session:
+            return (
+                int(await session.scalar(select(func.count(DriverAccountSetupToken.id))) or 0),
+                int(
+                    await session.scalar(
+                        select(func.count(Notification.id)).where(
+                            Notification.type_key
+                            == NotificationType.DRIVER_ACCOUNT_SETUP_REQUESTED.value
+                        )
+                    )
+                    or 0
+                ),
+                int(
+                    await session.scalar(
+                        select(func.count(AuditEvent.id)).where(
+                            AuditEvent.action == "admin.driver_account_setup.initiated"
+                        )
+                    )
+                    or 0
+                ),
+            )
+
+    before_missing = asyncio.run(setup_effect_counts())
+
+    missing = db_client.post(
+        f"/api/v1/admin/driver-applications/{uuid4()}/account-setup",
+        headers=admin_headers,
+        json={"client_request_id": str(uuid4())},
+    )
+    ineligible = db_client.post(
+        f"/api/v1/admin/driver-applications/{application.id}/account-setup",
+        headers=admin_headers,
+        json={"client_request_id": str(uuid4())},
+    )
+
+    assert (missing.status_code, missing.json()["error"]["code"]) == (
+        404,
+        "DRIVER_APPLICATION_NOT_FOUND",
+    )
+    assert asyncio.run(setup_effect_counts()) == before_missing
+    assert (ineligible.status_code, ineligible.json()["error"]["code"]) == (
+        409,
+        "DRIVER_ACCOUNT_SETUP_NOT_READY",
+    )
+
+
+def test_setup_rechecks_active_admin_before_reading_application(
+    db_client, db_sessionmaker, settings, monkeypatch
+) -> None:
+    _application, _admin_headers, _ = prepare(db_client, db_sessionmaker, settings)
+
+    async def deactivate_but_keep_stale_principal() -> User:
+        async with db_sessionmaker() as session:
+            admin = await session.scalar(select(User).where(User.role == UserRole.ADMIN.value))
+            assert admin is not None
+            session.expunge(admin)
+            admin.status = UserStatus.ACTIVE.value
+
+        async with db_sessionmaker() as session:
+            stored = await session.get(User, admin.id)
+            assert stored is not None
+            stored.status = UserStatus.DISABLED.value
+            await session.commit()
+        return admin
+
+    stale_admin = asyncio.run(deactivate_but_keep_stale_principal())
+    original_get = AsyncSession.get
+
+    async def reject_application_read(self, entity, ident, *args, **kwargs):
+        if entity is DriverApplication:
+            raise AssertionError("application was read before active-admin revalidation")
+        return await original_get(self, entity, ident, *args, **kwargs)
+
+    monkeypatch.setattr(AsyncSession, "get", reject_application_read)
+    db_client.app.dependency_overrides[get_current_user] = lambda: stale_admin
+    try:
+        response = db_client.post(
+            f"/api/v1/admin/driver-applications/{uuid4()}/account-setup",
+            json={"client_request_id": str(uuid4())},
+        )
+    finally:
+        db_client.app.dependency_overrides.pop(get_current_user, None)
+
+    assert (response.status_code, response.json()["error"]["code"]) == (
+        403,
+        "FORBIDDEN_ROLE",
+    )
 
 
 def test_driver_account_setup_supersedes_replays_and_activates_atomically(

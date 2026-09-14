@@ -25,6 +25,7 @@ from conftest import (
     fetch_user_by_email,
 )
 from sqlalchemy import delete, func, select, update
+from sqlalchemy import event as sqlalchemy_event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status as http_status
 
@@ -2556,6 +2557,43 @@ def test_admin_activation_then_driver_trip_uses_real_synthetic_authorities(
             await session.commit()
 
     asyncio.run(install_activation_authorities())
+    readiness_headers = auth_headers(db_client, admin.email, PASSWORD)
+    before_readiness = [event.id for event in fetch_audit_events(db_sessionmaker)]
+    before_events = [event.id for event in fetch_activation_events(db_sessionmaker)]
+    readiness_writes = []
+
+    def observe_readiness_sql(_conn, _cursor, statement, _params, _context, _many):
+        if statement.lstrip().split(" ", 1)[0].upper() in {"INSERT", "UPDATE", "DELETE"}:
+            readiness_writes.append(statement)
+
+    readiness_engine = db_sessionmaker.kw["bind"].sync_engine
+    sqlalchemy_event.listen(readiness_engine, "before_cursor_execute", observe_readiness_sql)
+    ready = db_client.get(
+        f"/api/v1/admin/campaign-assignments/{assignment_id}/readiness", headers=readiness_headers
+    )
+    assert ready.status_code == 200 and ready.json()["ready"] is True, ready.text
+    sqlalchemy_event.remove(readiness_engine, "before_cursor_execute", observe_readiness_sql)
+    assert readiness_writes == []
+    assert [event.id for event in fetch_audit_events(db_sessionmaker)] == before_readiness
+    assert [event.id for event in fetch_activation_events(db_sessionmaker)] == before_events
+    assert asyncio.run(current_campaign_status()) == CampaignStatus.SCHEDULED.value
+
+    async def change_vehicle_status(value):
+        async with db_sessionmaker() as session:
+            current = await session.get(Vehicle, vehicle.id)
+            current.status = value
+            await session.commit()
+
+    asyncio.run(change_vehicle_status("suspended"))
+    stale_activation = db_client.post(
+        f"/api/v1/admin/campaign-assignments/{assignment_id}/activate",
+        headers=readiness_headers,
+        json={"metadata": {}},
+    )
+    assert stale_activation.status_code == 400
+    assert stale_activation.json()["error"]["code"] == "VEHICLE_NOT_ACTIVE"
+    assert [event.id for event in fetch_activation_events(db_sessionmaker)] == before_events
+    asyncio.run(change_vehicle_status("active"))
     activated = db_client.post(
         f"/api/v1/admin/campaign-assignments/{assignment_id}/activate",
         headers=auth_headers(db_client, admin.email, PASSWORD),
@@ -2570,6 +2608,12 @@ def test_admin_activation_then_driver_trip_uses_real_synthetic_authorities(
     )
     assert replay.status_code == http_status.HTTP_200_OK
     assert replay.json()["activated_at"] == activated.json()["activated_at"]
+    already_active = db_client.get(
+        f"/api/v1/admin/campaign-assignments/{assignment_id}/readiness", headers=readiness_headers
+    )
+    assert already_active.status_code == 200, already_active.text
+    assert already_active.json()["ready"] is False
+    assert already_active.json()["blocker_code"] == "ASSIGNMENT_ALREADY_ACTIVE"
     audit_actions = [event.action for event in fetch_audit_events(db_sessionmaker)]
     assert audit_actions.count("admin.campaign.scheduled") == 1
     assert audit_actions.count("admin.campaign.activated") == 1

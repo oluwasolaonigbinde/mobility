@@ -1,4 +1,6 @@
 import asyncio
+import base64
+import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
@@ -6,6 +8,7 @@ from uuid import uuid4
 import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
+from pydantic import SecretStr
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -25,7 +28,7 @@ from app.models.disbursement import (
     PayoutRecoveryIncident,
     PayoutSubmissionIntent,
 )
-from app.models.payee import Payee
+from app.models.payee import Payee, PayeeBankAccount, PayeeBankAccountVersion
 from app.models.payout import EarningsLedgerEntry
 from app.services.disbursements import (
     approve_payout_batch,
@@ -51,6 +54,19 @@ from tests.test_migration_0014_partitioning import (
 )
 
 NOW = datetime(2026, 9, 4, 12, 0, tzinfo=UTC)
+
+
+@pytest.fixture(autouse=True)
+def replacement_crypto_matches_synthetic_bank_capture(monkeypatch):
+    settings = disbursement_service.get_settings().model_copy(
+        update={
+            "payout_crypto_keyring_b64": SecretStr(
+                json.dumps({"1": base64.b64encode(b"e" * 32).decode()})
+            ),
+            "payout_crypto_key_version": 1,
+        }
+    )
+    monkeypatch.setattr(disbursement_service, "get_settings", lambda: settings)
 
 
 async def _poll(
@@ -79,12 +95,17 @@ async def _poll(
 
 async def _add_new_bank_version(session, graph) -> None:
     payee = await session.scalar(select(Payee).where(Payee.subject_id == graph.profile.id))
+    current_version = await session.scalar(
+        select(func.max(PayeeBankAccountVersion.version))
+        .join(PayeeBankAccount, PayeeBankAccount.id == PayeeBankAccountVersion.bank_account_id)
+        .where(PayeeBankAccount.payee_id == payee.id)
+    )
     await add_verified_bank_account_version(
         session,
         payee_id=payee.id,
         details=VerifiedBankAccountDetails(
             account_name="Ada Replacement",
-            account_number="9876543210",
+            account_number=f"{9_876_543_209 + current_version:010d}",
             bank_code="058",
         ),
         verification_reference=f"r22-replacement-{uuid4().hex}",

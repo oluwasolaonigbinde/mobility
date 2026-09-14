@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status
 
+from app.adapters.crypto import EnvelopeCryptoProvider
 from app.adapters.disbursement import (
     DisbursementAdapter,
     DisbursementInstruction,
@@ -59,6 +60,7 @@ from app.services.fraud_holds import (
     lock_fraud_hold_scope,
     lock_fraud_hold_scopes,
 )
+from app.services.payees import read_verified_bank_account
 from app.services.payout_debt import (
     activate_recovery_incident_debt,
     close_recovery_incident,
@@ -126,7 +128,7 @@ def _line_idempotency_key(
 
 
 async def create_payout_batch_draft(
-    session: AsyncSession, *, currency: str, actor_user_id: UUID
+    session: AsyncSession, *, currency: str, actor_user_id: UUID, request_id: UUID | None = None
 ) -> PayoutBatch:
     await require_active_admin(session, actor_user_id)
     normalized = currency.strip().upper()
@@ -136,14 +138,29 @@ async def create_payout_batch_draft(
             "Currency must be a three-letter code",
             http_status=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
+    if request_id is not None:
+        existing = await session.get(PayoutBatch, request_id)
+        if existing is not None:
+            if existing.created_by_user_id != actor_user_id or existing.currency != normalized:
+                raise _error("PAYOUT_DRAFT_RETRY_CONFLICT", "This draft reference cannot be reused")
+            return existing
     batch = PayoutBatch(
+        id=request_id or uuid4(),
         status=PayoutBatchStatus.DRAFT,
         currency=normalized,
         total_amount=Decimal("0"),
         created_by_user_id=actor_user_id,
     )
-    session.add(batch)
-    await session.flush()
+    try:
+        async with session.begin_nested():
+            session.add(batch)
+            await session.flush()
+    except IntegrityError as exc:
+        if request_id is None or integrity_constraint_name(exc) != "payout_batches_pkey":
+            raise
+        raise _error(
+            "PAYOUT_DRAFT_RETRY_CONFLICT", "This draft reference cannot be reused"
+        ) from exc
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,
@@ -223,14 +240,18 @@ async def reserve_payout_batch(
             "Payout batch was not found",
             http_status=status.HTTP_404_NOT_FOUND,
         )
-    if batch.status != PayoutBatchStatus.DRAFT:
-        raise _error("PAYOUT_BATCH_NOT_DRAFT", "Only a draft batch can be reserved")
     if batch.created_by_user_id != actor_user_id:
         raise _error(
             "PAYOUT_BATCH_MAKER_REQUIRED",
             "Only the batch maker can reserve it",
             http_status=status.HTTP_403_FORBIDDEN,
         )
+    if batch.status != PayoutBatchStatus.DRAFT:
+        _, existing_lines = await _locked_batch_with_lines(session, batch_id)
+        if {line.ledger_entry_id for line in existing_lines} == set(ledger_entry_ids):
+            _assert_frozen(batch, existing_lines)
+            return batch, existing_lines
+        raise _error("PAYOUT_BATCH_NOT_DRAFT", "Only a draft batch can be reserved")
 
     stubs = (
         await session.execute(
@@ -309,6 +330,14 @@ async def reserve_payout_batch(
         )
         if held:
             raise _error("PAYOUT_ENTRY_HELD", "A selected ledger entry has an active fraud hold")
+        assessment = await load_current_successful_assessment(
+            session, trip_id=entry.trip_session_id, settings=get_settings(), lock_rows=True
+        )
+        if not assessment.current:
+            raise _error(
+                "PAYOUT_ASSESSMENT_NOT_CURRENT",
+                "A selected entry lacks a current successful fraud assessment",
+            )
         if (
             entry.status != EarningsLedgerEntryStatus.AVAILABLE
             or entry.entry_type == EarningsLedgerEntryType.REVERSAL
@@ -2111,6 +2140,15 @@ async def retry_failed_payout_lines(
         ).all()
     )
     ledgers_by_id = {entry.id: entry for entry in ledgers}
+    for trip_id in sorted({entry.trip_session_id for entry in ledgers}, key=str):
+        assessment = await load_current_successful_assessment(
+            session, trip_id=trip_id, settings=get_settings(), lock_rows=True
+        )
+        if not assessment.current:
+            raise _error(
+                "PAYOUT_ASSESSMENT_NOT_CURRENT",
+                "A replacement entry lacks a current successful fraud assessment",
+            )
     payees = tuple(
         (
             await session.scalars(
@@ -2125,12 +2163,22 @@ async def retry_failed_payout_lines(
         ).all()
     )
     payees_by_subject = {(payee.subject_id, payee.tenant_id): payee for payee in payees}
+    await session.execute(
+        select(PayeeBankAccount.id)
+        .where(PayeeBankAccount.payee_id.in_([payee.id for payee in payees]))
+        .order_by(PayeeBankAccount.id)
+        .with_for_update()
+    )
     replacement = PayoutBatch(
         id=uuid4(),
         status=PayoutBatchStatus.RESERVED.value,
         currency=batch.currency,
         total_amount=Decimal("0.00"),
         created_by_user_id=actor_user_id,
+    )
+    settings = get_settings()
+    crypto = EnvelopeCryptoProvider(
+        keys=settings.payout_crypto_keys, active_key_version=settings.payout_crypto_key_version
     )
     replacement_lines: list[PayoutBatchLine] = []
     for predecessor in failed_lines:
@@ -2164,6 +2212,28 @@ async def retry_failed_payout_lines(
             raise _error(
                 "PAYOUT_RESOLVED_LINES_NOT_RETRYABLE",
                 "A replacement requires a newer verified bank-account version",
+            )
+        previous_destination = await read_verified_bank_account(
+            session,
+            bank_account_version_id=predecessor.bank_account_version_id,
+            actor_user_id=actor_user_id,
+            crypto=crypto,
+            purpose="payout_replacement_destination",
+        )
+        current_destination = await read_verified_bank_account(
+            session,
+            bank_account_version_id=account_version.id,
+            actor_user_id=actor_user_id,
+            crypto=crypto,
+            purpose="payout_replacement_destination",
+        )
+        if (previous_destination.bank_code, previous_destination.account_number) == (
+            current_destination.bank_code,
+            current_destination.account_number,
+        ):
+            raise _error(
+                "PAYOUT_RESOLVED_LINES_NOT_RETRYABLE",
+                "A replacement requires a different verified bank destination",
             )
         instruction = {
             "ledger_entry_id": str(entry.id),

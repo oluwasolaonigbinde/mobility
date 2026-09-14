@@ -228,6 +228,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/campaign-assignments/{assignment_id}/readiness": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Check activation prerequisites without changing work or money */
+        get: operations["admin_assignment_readiness_api_v1_admin_campaign_assignments__assignment_id__readiness_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/campaign-change-requests/pending": {
         parameters: {
             query?: never;
@@ -390,6 +407,23 @@ export interface paths {
         };
         /** Admin Campaign Commercial */
         get: operations["admin_campaign_commercial_api_v1_admin_campaigns__campaign_id__commercial_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaigns/{campaign_id}/creatives": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin List Campaign Creatives */
+        get: operations["admin_list_campaign_creatives_api_v1_admin_campaigns__campaign_id__creatives_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -648,6 +682,23 @@ export interface paths {
         };
         /** List pending public driver applications */
         get: operations["admin_list_driver_applications_api_v1_admin_driver_applications_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/driver-applications/{application_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Get Driver Application */
+        get: operations["admin_get_driver_application_api_v1_admin_driver_applications__application_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1194,7 +1245,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Admin List Measurement Runs */
+        get: operations["admin_list_measurement_runs_api_v1_admin_measurement_runs_get"];
         put?: never;
         /** Issue an immutable campaign measurement run */
         post: operations["admin_issue_measurement_run_api_v1_admin_measurement_runs_post"];
@@ -1358,6 +1410,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payout-batches/campaigns/{campaign_id}/position": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Campaign Money Position */
+        get: operations["admin_campaign_money_position_api_v1_admin_payout_batches_campaigns__campaign_id__position_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/payout-batches/debt-balances/{driver_profile_id}": {
         parameters: {
             query?: never;
@@ -1386,6 +1455,40 @@ export interface paths {
         put?: never;
         /** Admin Allocate Driver Debt */
         post: operations["admin_allocate_driver_debt_api_v1_admin_payout_batches_debt_balances__driver_profile_id__allocate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payout-batches/eligible": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Eligible Payment Entries */
+        get: operations["admin_eligible_payment_entries_api_v1_admin_payout_batches_eligible_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payout-batches/lines/{line_id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Payout Line History */
+        get: operations["admin_payout_line_history_api_v1_admin_payout_batches_lines__line_id__history_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1426,6 +1529,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payout-batches/selection-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Preview Payment Selection */
+        post: operations["admin_preview_payment_selection_api_v1_admin_payout_batches_selection_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payout-batches/summaries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Payout Batch Summaries */
+        get: operations["admin_payout_batch_summaries_api_v1_admin_payout_batches_summaries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/payout-batches/{batch_id}": {
         parameters: {
             query?: never;
@@ -1454,6 +1591,23 @@ export interface paths {
         put?: never;
         /** Admin Approve Payout Batch */
         post: operations["admin_approve_payout_batch_api_v1_admin_payout_batches__batch_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payout-batches/{batch_id}/detail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Payout Batch Detail */
+        get: operations["admin_payout_batch_detail_api_v1_admin_payout_batches__batch_id__detail_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4456,6 +4610,74 @@ export interface components {
              */
             vehicle_id: string;
         };
+        /** AdminMeasurementRunList */
+        AdminMeasurementRunList: {
+            /** Items */
+            items: components["schemas"]["AdminMeasurementRunSummary"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** AdminMeasurementRunSummary */
+        AdminMeasurementRunSummary: {
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /** Campaign Name */
+            campaign_name: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Formula Version */
+            formula_version: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Input Manifest Sha256 */
+            input_manifest_sha256: string;
+            /** Method Revision */
+            method_revision: string;
+            mode: components["schemas"]["MeasurementRunMode"];
+            /**
+             * Period End At
+             * Format: date-time
+             */
+            period_end_at: string;
+            /**
+             * Period Start At
+             * Format: date-time
+             */
+            period_start_at: string;
+            /** Proof Manifest Sha256 */
+            proof_manifest_sha256: string;
+            /** Reissue Of Run Id */
+            reissue_of_run_id: string | null;
+            /** Report Issuance Id */
+            report_issuance_id?: string | null;
+            /** Report Snapshot Sha256 */
+            report_snapshot_sha256: string;
+            /** Report Status */
+            report_status?: string | null;
+            /** Reproducible */
+            reproducible: boolean;
+            /** Result Manifest Sha256 */
+            result_manifest_sha256: string;
+            /** Roi Method Revision */
+            roi_method_revision: string | null;
+            /** Superseded */
+            superseded: boolean;
+            /** Test Only */
+            test_only: boolean;
+        };
         /** AdminOrganizationCreateResponse */
         AdminOrganizationCreateResponse: {
             organization: components["schemas"]["AdvertiserOrganizationRead"];
@@ -4993,6 +5215,8 @@ export interface components {
         };
         /** AssignmentDriverProfileSummary */
         AssignmentDriverProfileSummary: {
+            /** Full Name */
+            full_name?: string | null;
             /**
              * Id
              * Format: uuid
@@ -5004,6 +5228,20 @@ export interface components {
              * Format: uuid
              */
             user_id: string;
+        };
+        /** AssignmentReadinessRead */
+        AssignmentReadinessRead: {
+            /**
+             * Assignment Id
+             * Format: uuid
+             */
+            assignment_id: string;
+            /** Blocker Code */
+            blocker_code?: string | null;
+            /** Message */
+            message: string;
+            /** Ready */
+            ready: boolean;
         };
         /** AssignmentStatusCounts */
         AssignmentStatusCounts: {
@@ -5981,6 +6219,46 @@ export interface components {
             /** @default draft */
             status: components["schemas"]["CampaignStatus"];
         };
+        /** CampaignDriverMoneyRead */
+        CampaignDriverMoneyRead: {
+            /**
+             * Cash Paid
+             * @description Economic ledger amount paid, counting each credit once.
+             */
+            cash_paid: string;
+            /** Currency */
+            currency: string;
+            /** Driver Name */
+            driver_name: string;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /** Driver Wide Debt */
+            driver_wide_debt: string;
+            /** Earned Net */
+            earned_net: string;
+            /**
+             * In Flight
+             * @description Unresolved provider exposure across scoped payout-line chains, including replacements of paid credits.
+             */
+            in_flight: string;
+            /**
+             * Provider Verified Paid
+             * @description Total amount of verified successful payout lines, including duplicate transfers in a replacement chain.
+             */
+            provider_verified_paid: string;
+            /**
+             * Reserved
+             * @description Active reserved payout instructions, independent of ledger payment status.
+             */
+            reserved: string;
+            /** Terminal Failed */
+            terminal_failed: string;
+            /** Unbatched Available */
+            unbatched_available: string;
+        };
         /** CampaignImpressionSummary */
         CampaignImpressionSummary: {
             /** Average Confidence Score */
@@ -6015,6 +6293,31 @@ export interface components {
             limit: number;
             /** Offset */
             offset: number;
+            /** Total */
+            total: number;
+        };
+        /** CampaignMoneyPositionRead */
+        CampaignMoneyPositionRead: {
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /** Campaign Name */
+            campaign_name: string;
+            cancellation: components["schemas"]["CancellationPositionRead"] | null;
+            /** External Blockers */
+            external_blockers: string[];
+            /** Items */
+            items: components["schemas"]["CampaignDriverMoneyRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Settlements */
+            settlements: components["schemas"]["RecordedSettlementRead"][];
+            /** Settlements Total */
+            settlements_total: number;
             /** Total */
             total: number;
         };
@@ -6597,6 +6900,20 @@ export interface components {
             name?: string | null;
             zone_type?: components["schemas"]["CampaignZoneType"] | null;
         };
+        /** CancellationPositionRead */
+        CancellationPositionRead: {
+            /** Currency */
+            currency: string;
+            /**
+             * Cutoff At
+             * Format: date-time
+             */
+            cutoff_at: string;
+            /** Disposition */
+            disposition: string;
+            /** Refundable Amount */
+            refundable_amount: string;
+        };
         /** ChangePasswordRequest */
         ChangePasswordRequest: {
             /** Current Password */
@@ -7011,6 +7328,13 @@ export interface components {
              * @enum {string}
              */
             source_type: "CRM-upload-reference";
+        };
+        /** CurrencyAmountRead */
+        CurrencyAmountRead: {
+            /** Amount */
+            amount: string;
+            /** Currency */
+            currency: string;
         };
         /** CurrentTripResponse */
         CurrentTripResponse: {
@@ -7482,11 +7806,7 @@ export interface components {
             phone: string | null;
             /** Service City */
             service_city: string | null;
-            /**
-             * Status
-             * @constant
-             */
-            status: "pending";
+            status: components["schemas"]["DriverApplicationStatus"];
             /**
              * Updated At
              * Format: date-time
@@ -7512,6 +7832,11 @@ export interface components {
             /** Service City */
             service_city?: string | null;
         };
+        /**
+         * DriverApplicationStatus
+         * @enum {string}
+         */
+        DriverApplicationStatus: "pending" | "approved" | "rejected";
         /** DriverApplicationStatusResponse */
         DriverApplicationStatusResponse: {
             /** Message */
@@ -8064,6 +8389,59 @@ export interface components {
          * @enum {string}
          */
         EarningsLedgerEntryType: "trip_payout" | "adjustment" | "reversal" | "debt_remainder";
+        /** EligiblePaymentListRead */
+        EligiblePaymentListRead: {
+            /** Items */
+            items: components["schemas"]["EligiblePaymentRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Page Eligible Totals */
+            page_eligible_totals: components["schemas"]["CurrencyAmountRead"][];
+            /** Total */
+            total: number;
+        };
+        /** EligiblePaymentRead */
+        EligiblePaymentRead: {
+            /** Amount */
+            amount: string;
+            /** Bank Account Version Id */
+            bank_account_version_id: string | null;
+            /** Campaign Name */
+            campaign_name: string;
+            /** Carry Forward Debt */
+            carry_forward_debt: string;
+            /** Currency */
+            currency: string;
+            /** Debt Deducted */
+            debt_deducted: string;
+            /** Destination Verified */
+            destination_verified: boolean;
+            /** Driver Name */
+            driver_name: string;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /** Eligible */
+            eligible: boolean;
+            /** Ineligibility Reasons */
+            ineligibility_reasons: string[];
+            /**
+             * Ledger Entry Id
+             * Format: uuid
+             */
+            ledger_entry_id: string;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Payee Name */
+            payee_name: string | null;
+        };
         /** EmailDeliveryReceiptCreate */
         EmailDeliveryReceiptCreate: {
             /**
@@ -9500,6 +9878,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Driver Name */
+            driver_name?: string | null;
             /**
              * Driver Profile Id
              * Format: uuid
@@ -10124,6 +10504,20 @@ export interface components {
         PayoutBatchCreate: {
             /** Currency */
             currency: string;
+            /** Request Id */
+            request_id?: string | null;
+        };
+        /** PayoutBatchDetailRead */
+        PayoutBatchDetailRead: {
+            /** Limit */
+            limit: number;
+            /** Lines */
+            lines: components["schemas"]["PayoutOperationLineRead"][];
+            /** Offset */
+            offset: number;
+            summary: components["schemas"]["PayoutBatchSummaryRead"];
+            /** Total */
+            total: number;
         };
         /** PayoutBatchLineRead */
         PayoutBatchLineRead: {
@@ -10234,6 +10628,56 @@ export interface components {
          * @enum {string}
          */
         PayoutBatchStatus: "draft" | "reserved" | "submitted" | "reconciled" | "completed" | "failed" | "void";
+        /** PayoutBatchSummaryListRead */
+        PayoutBatchSummaryListRead: {
+            /** Items */
+            items: components["schemas"]["PayoutBatchSummaryRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** PayoutBatchSummaryRead */
+        PayoutBatchSummaryRead: {
+            /** Approved At */
+            approved_at: string | null;
+            /** Approved By User Id */
+            approved_by_user_id: string | null;
+            /** Checker Name */
+            checker_name: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Created By User Id
+             * Format: uuid
+             */
+            created_by_user_id: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Line Count */
+            line_count: number;
+            /** Maker Name */
+            maker_name: string;
+            /** Outcomes */
+            outcomes: {
+                [key: string]: number;
+            };
+            status: components["schemas"]["PayoutBatchStatus"];
+            /** Submitted At */
+            submitted_at: string | null;
+            /** Total Amount */
+            total_amount: string;
+        };
         /** PayoutCalculationListResponse */
         PayoutCalculationListResponse: {
             /** Items */
@@ -10488,6 +10932,97 @@ export interface components {
              */
             id: string;
             status: components["schemas"]["EarningsLedgerEntryStatus"];
+        };
+        /** PayoutLineHistoryEventRead */
+        PayoutLineHistoryEventRead: {
+            /** Applied */
+            applied: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Outcome */
+            outcome: string;
+            /**
+             * Provider Occurred At
+             * Format: date-time
+             */
+            provider_occurred_at: string;
+            /** Source */
+            source: string;
+        };
+        /** PayoutLineHistoryRead */
+        PayoutLineHistoryRead: {
+            /** Items */
+            items: components["schemas"]["PayoutLineHistoryEventRead"][];
+            /** Latest Submission Outcome */
+            latest_submission_outcome: string | null;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** PayoutOperationLineRead */
+        PayoutOperationLineRead: {
+            /** Amount */
+            amount: string;
+            /**
+             * Bank Account Version Id
+             * Format: uuid
+             */
+            bank_account_version_id: string;
+            /** Currency */
+            currency: string;
+            /** Driver Name */
+            driver_name: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Idempotency Key */
+            idempotency_key: string;
+            /**
+             * Ledger Entry Id
+             * Format: uuid
+             */
+            ledger_entry_id: string;
+            /** Outcome */
+            outcome: string;
+            /** Payee Name */
+            payee_name: string;
+            /** Provider Transfer Reference */
+            provider_transfer_reference: string | null;
+            /** Reconciled At */
+            reconciled_at: string | null;
+            /** Reconciler Name */
+            reconciler_name: string | null;
+            /** Status */
+            status: string;
+        };
+        /** PayoutSelectionPreview */
+        PayoutSelectionPreview: {
+            /** Currency */
+            currency: string;
+            /** Ledger Entry Ids */
+            ledger_entry_ids: string[];
+        };
+        /** PayoutSelectionPreviewRead */
+        PayoutSelectionPreviewRead: {
+            /** Currency */
+            currency: string;
+            /** Ledger Entry Ids */
+            ledger_entry_ids: string[];
+            /** Total Amount */
+            total_amount: string;
         };
         /** PersonPayeeReviewDecisionCreate */
         PersonPayeeReviewDecisionCreate: {
@@ -10782,11 +11317,15 @@ export interface components {
         QuarantinedPingBatchRead: {
             /** Applied Batch Id */
             applied_batch_id?: string | null;
+            /** Campaign Name */
+            campaign_name?: string | null;
             /**
              * Created At
              * Format: date-time
              */
             created_at: string;
+            /** Driver Name */
+            driver_name?: string | null;
             /**
              * Id
              * Format: uuid
@@ -10814,6 +11353,8 @@ export interface components {
              * Format: uuid
              */
             trip_session_id: string;
+            /** Vehicle Plate */
+            vehicle_plate?: string | null;
         };
         /** QuoteAccept */
         QuoteAccept: {
@@ -11156,6 +11697,25 @@ export interface components {
             reversal_count: number;
             /** Trips */
             trips: components["schemas"]["RecomputeDayTripResult"][];
+        };
+        /** RecordedSettlementRead */
+        RecordedSettlementRead: {
+            /** Amount */
+            amount: string;
+            /** Currency */
+            currency: string;
+            /** Disposition */
+            disposition: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Recorded At
+             * Format: date-time
+             */
+            recorded_at: string;
         };
         /** RefundCreate */
         RefundCreate: {
@@ -13037,6 +13597,7 @@ export interface operations {
                 campaign_id?: string | null;
                 driver_profile_id?: string | null;
                 vehicle_id?: string | null;
+                q?: string | null;
             };
             header?: never;
             path?: never;
@@ -13365,6 +13926,37 @@ export interface operations {
             };
         };
     };
+    admin_assignment_readiness_api_v1_admin_campaign_assignments__assignment_id__readiness_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignmentReadinessRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     admin_list_pending_campaign_change_requests_api_v1_admin_campaign_change_requests_pending_get: {
         parameters: {
             query?: never;
@@ -13471,6 +14063,7 @@ export interface operations {
                 offset?: number;
                 organization_id?: string | null;
                 status?: components["schemas"]["CampaignStatus"] | null;
+                q?: string | null;
             };
             header?: never;
             path?: never;
@@ -13676,6 +14269,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CampaignCommercialRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_list_campaign_creatives_api_v1_admin_campaigns__campaign_id__creatives_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreativeListResponse"];
                 };
             };
             /** @description Request validation failed */
@@ -14273,6 +14900,8 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
+                q?: string | null;
+                history?: boolean;
             };
             header?: never;
             path?: never;
@@ -14287,6 +14916,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DriverApplicationAdminListResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_get_driver_application_api_v1_admin_driver_applications__application_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverApplicationAdminRead"];
                 };
             };
             /** @description Request validation failed */
@@ -14415,6 +15075,7 @@ export interface operations {
                 onboarding_status?: components["schemas"]["DriverOnboardingStatus"] | null;
                 country_code?: string | null;
                 service_city?: string | null;
+                q?: string | null;
             };
             header?: never;
             path?: never;
@@ -15344,6 +16005,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
+                history?: boolean;
             };
             header?: never;
             path?: never;
@@ -15393,6 +16055,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ManualContactTaskRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_list_measurement_runs_api_v1_admin_measurement_runs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                campaign_id?: string | null;
+                q?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminMeasurementRunList"];
                 };
             };
             /** @description Request validation failed */
@@ -15770,6 +16466,40 @@ export interface operations {
             };
         };
     };
+    admin_campaign_money_position_api_v1_admin_payout_batches_campaigns__campaign_id__position_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignMoneyPositionRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     admin_get_driver_money_balance_api_v1_admin_payout_batches_debt_balances__driver_profile_id__get: {
         parameters: {
             query: {
@@ -15825,6 +16555,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PayoutDebtAllocationRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_eligible_payment_entries_api_v1_admin_payout_batches_eligible_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                currency?: string | null;
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EligiblePaymentListRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_payout_line_history_api_v1_admin_payout_batches_lines__line_id__history_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                line_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutLineHistoryRead"];
                 };
             };
             /** @description Request validation failed */
@@ -15900,6 +16698,72 @@ export interface operations {
             };
         };
     };
+    admin_preview_payment_selection_api_v1_admin_payout_batches_selection_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutSelectionPreview"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutSelectionPreviewRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_payout_batch_summaries_api_v1_admin_payout_batches_summaries_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                batch_status?: components["schemas"]["PayoutBatchStatus"] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutBatchSummaryListRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     admin_get_payout_batch_api_v1_admin_payout_batches__batch_id__get: {
         parameters: {
             query?: never;
@@ -15949,6 +16813,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PayoutBatchRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_payout_batch_detail_api_v1_admin_payout_batches__batch_id__detail_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutBatchDetailRead"];
                 };
             };
             /** @description Request validation failed */
@@ -17449,6 +18347,7 @@ export interface operations {
                 offset?: number;
                 role?: components["schemas"]["UserRole"] | null;
                 status?: components["schemas"]["UserStatus"] | null;
+                q?: string | null;
             };
             header?: never;
             path?: never;
@@ -17553,6 +18452,7 @@ export interface operations {
                 vehicle_type?: components["schemas"]["VehicleType"] | null;
                 plate_country_code?: string | null;
                 driver_profile_id?: string | null;
+                q?: string | null;
             };
             header?: never;
             path?: never;

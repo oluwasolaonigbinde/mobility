@@ -1557,7 +1557,34 @@ clawback; once cash has been paid, RM11's carry-forward debt contract applies.
   exact residual credit when debt clears. Debt creation, allocation,
   reservation and paid finality share one driver/currency lock order.
 
+**[BUILT — Cardvert product-completion P4] Operator payout views:**
+`services/payout_operations.py` provides bounded available-credit discovery,
+read-only exact selected-credit totals, named batch summaries, paginated line
+detail/history, and campaign-scoped money positions. General discovery never
+decrypts bank details; an explicit purpose-audited destination review returns
+only a mask to the browser. Draft creation accepts an optional caller UUID and
+converges on the existing maker/currency-bound primary key; reservation exact
+replays return the same frozen lines and new reservations recheck current
+assessment, hold, debt and payee authority under existing locks. Queued and
+unknown provider effects remain distinct from submitted and verified-paid
+lines. Terminal-failure replacement preflights every current trip assessment
+before constructing any replacement and compares canonical bank code/account
+number under payee/account locks through purpose-audited reads; re-encryption,
+identical recapture or a changed display name does not authorize a replacement.
+Campaign-scoped economic positions reuse the existing money-balance computation,
+while active provider exposure and verified transfer totals are independently
+aggregated over payout-line chains, including replacements of already-paid
+credits and duplicate successes. These overlapping facts are not added into a
+second ledger. Carry-forward debt remains explicitly driver-wide. Cancellation/settlement
+records never assert physical removal, lifecycle completion or unverified cash.
+
 ## 17. Fraud review & trust workflow (D5)
+
+**[BUILT — Cardvert Phase II operational discovery]:** shared
+`services/operator_search.py` supplies literal, allowlisted named `q` matching
+and filtered pagination for operator queues. Search remains scoped to safe
+names, email and operational references; it does not search sensitive bank or
+identity evidence or alter review authority.
 
 Q21 and Q22 are confirmed by D18. Shape fixed by D5 and RM8:
 **hold-and-review**. Automatic strike/suspension policy remains outside the
@@ -1632,6 +1659,14 @@ a manual operations channel, not the authoritative dispute record.
 nothing.
 
 ## 18. Approval workflows
+
+**[BUILT — Cardvert Phase II review context]:** focused application detail
+combines named review context and history without bulk sensitive disclosure.
+Approval-purpose NIN, document and bank reads reject superseded evidence;
+explicit sensitive review is purpose-audited and short-lived in the UI (including
+60-second clearing and unmount). Historical authorized financial/audit reads
+retain their existing purpose-specific authority. Final decisions still recheck
+the current submission under the existing locks.
 
 Q6, Q15, Q17 and Q18 are client-confirmed. Campaign and creative review,
 installation evidence, atomic assignment activation and governed mid-flight
@@ -1977,6 +2012,14 @@ claimed phone through a bounded manual-send/system-verify flow:
 
 ## 21. Matching & assignment evolution
 
+**[BUILT — Cardvert Phase II operator readiness]:** paginated named campaign,
+driver, vehicle and creative selectors preserve immutable selected IDs. The
+activation advisory reuses `billing.assignment_liability_readiness`, extracting
+the same frozen-window, current-authorization and headroom calculation as final
+reservation. A funded assignment need not already have a reservation to be
+advisory-ready. The projection performs no reservation, audit or business
+writes; final activation remains the sole locked activation/reservation command.
+
 Q7, Q8 and Q16 are client-confirmed by D18. Competitor-separation remains a tunable business
 policy; it does not block the recommendation/offer/assignment architecture.
 
@@ -2041,6 +2084,13 @@ policy; it does not block the recommendation/offer/assignment architecture.
   earnings, hold, payee, reservation or payout authority.
 
 ## 22. Retargeting & the audience privacy boundary (D6, D11, D20)
+
+**[BUILT — Cardvert Phase II measurement discovery]:** scoped, named
+`GET /admin/measurement-runs` exposes bounded summary and reproducibility
+context, current/superseded runs and existing report-issuance status. Consumers
+reuse the existing measurement and issuance authority; incomplete or suppressed
+results do not imply an issued report. Final report-UI verification remains a
+delivery-evidence obligation, not an architectural completion claim.
 
 Q11 is client-confirmed by D18/D20 as one governed model supporting anonymised
 exposure segments, controlled export **and direct ad-platform activation**.
@@ -2592,6 +2642,13 @@ them.
 
 ### 27.1 New surfaces (mapped to their backend sections)
 
+Cardvert Phase II adds bounded operator discovery and focused detail to the
+existing review, offer/readiness, measurement, late-data and contact surfaces.
+Late-data actions reuse quarantine apply/discard authority without recalculating
+money or issuing reports. Contact displays named driver/history context and
+reuses current-consent completion; D35 consent invalidation remains authoritative.
+These consumers do not add a second issuance, money or lifecycle engine.
+
 | Surface | Where | Backend |
 |---------|-------|---------|
 | Admin approvals queue (campaigns, creatives, activation evidence) | `app/admin/approvals/` | §18 |
@@ -2819,6 +2876,9 @@ The pre-flight table for any new work. **If your feature isn't here, add it
 | Durable client ping queue | §35 RM4/RM5 | `frontend/src/lib/trips/ping-queue.ts`, `trip-evidence.ts` + `(portal)/track/trip-tracker.tsx` | encrypted IndexedDB batch/receipt records | server contract beyond synchronized §9 baselines | [BUILT] D15 queue; D25 v2 descriptors/receipts |
 | Release scheduling | §16.2 | `jobs/` + `services/payouts.py` | ledger statuses | ledger edits (append-only) | Q22 confirmed; RM8 before release |
 | Automated disbursement | §16.3 | `adapters/disbursement/`, `services/payouts.py` | payout_batches (new) | direct vendor calls from services | Q27 confirmed; RM10/RM11; `EXT-DISBURSEMENT-PROVIDER` for live submission |
+| Operator payout selection, recovery and money position | §16.3/§15 | `services/payout_operations.py`, `services/disbursements.py`, `services/payout_debt.py` + admin payout/billing UI | existing payout and settlement projections; draft retry identity | bank plaintext in lists; batch-level cash finality; campaign/assignment completion | [BUILT provider-neutrally] P4; live provider gate unchanged |
+| Named operator discovery and focused review | §17/§18/§21 | `services/operator_search.py`, existing application/assignment services + admin queues/detail | bounded safe search; current evidence; shared zero-write liability readiness | sensitive bulk search/disclosure; advisory activation or reservation | [BUILT provider-neutrally] Phase II; final locked commands unchanged |
+| Measurement, late-data and manual contact consumers | §22/§27 | existing measurement/trip/contact services + admin measurement/late-data/contact UI | scoped run discovery; quarantine decisions; current-consent contact history | second issuance/money engine; stale-consent completion; inferred report finality | Phase II additive consumers; final UI evidence and external gates tracked in progress |
 | Fraud review workflow | §17 | `services/` + `api/v1/` fraud modules | fraud_flags lifecycle | detection engine internals | Q21 confirmed; RM8 |
 | Campaign/creative approval | §18 | `services/campaigns.py` + campaign/creative APIs and combined role surfaces [BUILT W2-03A/B] | campaign/creative status and append-only review evidence | parallel approval flags; scheduling/activation from review actions | Campaign and creative review [BUILT]; activation still requires W2-03C/D + Q6/Q18/RM13 |
 | File upload (any kind) | §19 | `adapters/storage/`, `services/files.py` | stored_files (new) | container FS, DB blobs | Q18/Q26 + provider |
@@ -2944,6 +3004,13 @@ direction and fail closed only on the named missing external artifact (P10).
 
 ## 35. Remediation register (independent review, 6 Aug 2026) **[TARGET]**
 
+Cardvert Phase II's operational discovery, current-evidence privacy checks and
+readiness reuse do not relax this register. Provider-neutral UI and synthetic
+verification do not establish live provider delivery, physical-device/native
+acceptance, deployment readiness, physical removal or campaign completion.
+Those external gates and the final integrated/report-UI evidence remain explicit
+in the active delivery ledger.
+
 Two independent reviews (broad architecture + money-path red team) were run on
 the doc packet, then **every code-checkable claim was verified against the
 implementation** before acceptance. This register is the authoritative
@@ -3023,6 +3090,8 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.93 | 2026-09-14 | **Additive operator discovery and authority reuse.** Phase II adds safe named queue search, focused application history with current approval-evidence guards, paginated offer selectors and zero-write activation readiness sharing the billing reservation calculation. Scoped measurement discovery distinguishes incomplete/suppressed and current/superseded results while reusing existing issuance. Late-data and contact consumers preserve quarantine decisions, no-money/no-report mutation and D35 consent invalidation. No new money/issuance engine, completion transition, provider, native or deployment claim; final integrated and report-UI verification remain delivery gates. |
+| v1.92 | 2026-09-14 | **Provider-neutral payout operations.** P4 adds advisory named credit discovery and exact server selection preview, bounded batch/line/history and campaign money-position reads, maker-bound durable draft/replay recovery, and current-assessment checks under existing reservation locks. Terminal replacements preflight all trips and require a semantically different bank/account destination, not merely a new encrypted version. Explicit bank review sends only a mask to the payout UI; person/payee approval bank reveal checks the current version under replacement locks. Campaign economic ledger totals remain separate from active provider exposure and verified transfer totals across complete replacement chains, including late or duplicate successes. Queued, unknown, submitted and verified paid outcomes remain separate; existing maker/checker/manual-reconciler separation, debt allocation and per-line provider finality remain authoritative. No migration, live provider call, lifecycle completion or live-use gate change. |
 | v1.91 | 2026-09-14 | **D28 approved-applicant activation delivered without claiming live email.** Migration `0089` adds digest-only, expiring, single-use and superseding driver setup authority plus onboarding-access invalidation. Active-admin initiation rechecks the approved application, invited driver, current person/payee evidence and reviewed current vehicle under locks; exact concurrent command retries converge. Public completion atomically consumes the authority, invalidates prior onboarding access, activates the invited user and rotates session authority; rejected, expired, superseded, stale and replayed attempts fail closed. Pending/invited drivers remain ineligible for password reset while active drivers use the existing non-enumerating recovery contract. The generic rate-limited onboarding-access renewal exposes the same response for known and unknown identities and queues only to the exact stored pending applicant. Synchronized API/client/native contracts and focused PostgreSQL migration/concurrency tests cover the provider-neutral authority. `EXT-EMAIL-PROVIDER` and configured public action delivery remain live gates; no provider, credential, deployment or live delivery is claimed. |
 | v1.90 | 2026-09-14 | **Integrated CI correction.** Provision cold-runner Caddy and ordinary E2E MinIO explicitly; bind each shard to an exact, zero-skip JUnit execution inventory. D33 v3 receipts retain identical-source metadata-only floors and verify later coverage against adopted exact ratios rather than identical hit counts. Campaign-change FK locking follows campaign-terms, organization, campaign order. Disclosure snapshots take the existing exclusive fraud reconciliation gate before parent/contributor locks, preserving privacy and money authority at the cost of global snapshot serialization. Regression and integrated evidence are recorded in the direct-owner continuation: software `932c2f7` is accepted by GitHub run `34789268818`, with 2812 backend tests, 656 frontend tests, R59 and ordinary real-stack E2E passing. External provider/legal/device/deployment gates remain unchanged. |
 | v1.89 | 2026-09-09 | **Coverage evidence bound to its producing runtime.** Exact-SHA run `34354263174` passed quality, the complete backend suite and R59, then exposed that the committed Python 3.14-derived coverage receipt cannot govern CI's Python 3.12 LCOV semantics and omitted seven same-commit font modules from its inventory. Backend artifacts now carry hash/SHA/runtime provenance; a reviewed, immutable-artifact-bound one-time v1/v2-to-v3 reconciliation records the complete inventory and CI measurements without changing D32 floors, eligibility, instrumentation or exclusions. Any later runtime mismatch fails closed. Exact-SHA coverage and E2E acceptance remain open. |

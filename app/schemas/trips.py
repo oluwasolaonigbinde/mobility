@@ -187,6 +187,9 @@ class TripEvidenceReconcileResponse(BaseModel):
 
 
 class QuarantinedPingBatchRead(BaseModel):
+    driver_name: str | None = None
+    campaign_name: str | None = None
+    vehicle_plate: str | None = None
     id: UUID
     trip_session_id: UUID
     idempotency_key: str
