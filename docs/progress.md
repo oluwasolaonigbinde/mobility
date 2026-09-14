@@ -433,6 +433,23 @@ under the session scratchpad and is not committed. Stale-hold draft recovery was
 browser-proven by the interrupted owner before these corrections and is
 retained by the PostgreSQL reservation suites, not re-run in the browser.
 
+**P5 client PRD (14 Sep 2026):** `docs/product-requirements.md` is the
+standalone client-readable requirements document. It reconciles the prior
+prompt-09 draft and its adversarial review with adopted decisions, architecture,
+the external prerequisite register and the final advertiser, driver, operator
+and money implementation. The GPT-6 product-completion blueprint text itself is
+not stored in the repository; its admitted scope is taken from this ledger's
+programme record. Main requirements carry no audit IDs or status notes and use
+four categories: implemented provider-neutral behaviour, conditional or
+external gates, pilot scope and post-pilot scope. Traceability to decisions and
+register entries sits in an appendix; claims that could not be confirmed in code
+are worded as not confirmed. The draft was written by an Opus 5 documentation
+worker. Independent review returned `FIX`: duplicate-success debt and
+already-active readiness were missing, and ten wording and scope items needed
+correction. The controller applied all twelve and independent re-review
+returned PASS. The PRD adds no product decision, invented value or live-use
+claim. Open owner decisions and external dependencies are listed in its §13.
+
 **CI submission-reference test correction (14 Sep 2026):** Owner “fix it pls” authorizes this bounded continuation in the existing master checkout after run `34842765201` on `e952341` failed only the ordinary desktop/mobile submission-history assertion. Sole writer is this CI task; controller is idle. Align the stale `Submitted snapshot SHA-256:` assertion with canonical `Submission reference:` while requiring a 64-character hexadecimal hash; retain approval, immutable history and all other gates. Scope: `frontend/e2e/campaign-flow.spec.ts` and this evidence entry only. Existing owned commit/non-force push authority applies; no product, coverage-floor, skip, provider or package-queue change. Independent Sol Medium plan review PASS. Both unchanged desktop/mobile journeys reproduced the exact missing-label failure locally (`/tmp/cardvert-label-red-real.log`); corrected complete campaign-flow file: 10 PASS, zero retries/skips (`/tmp/cardvert-label-green.log`). ESLint, progress validation and diff checks PASS. Initial existing-preview attempt was stopped because one-click login did not match the ordinary test harness; accepted verification used an exact-source temporary preview with regular login against the existing synthetic backend. Independent Sol Medium consolidated review PASS with no findings; exact pushed CI must finish before closure, with its terminal run linked in the owner/controller handoff without another evidence-only commit.
 
 Coverage follow-through: pushed `10bf582` / run `34850723035` passed frontend, all backend shards/aggregate and R59, then failed the unchanged global line floor: backend 25,289/28,518 versus adopted 25,291; frontend exactly 3,413/5,068 and branches above floors. No source instrumentation or floor changed in the label fix. Compared real artifacts show intermittent indirect async-service hits, including trip summary/count paths. Bounded verification amendment adds a real PostgreSQL trip summary/batch-count regression in `tests/test_trips.py`, asserting empty/populated/replayed counts, timestamps and cross-trip isolation directly in one async test context. No product, floor, policy or skip changes. Independent Sol Medium amendment plan PASS; temporary count-plus-one mutation failed the new empty-trip assertion and was immediately restored (`/tmp/cardvert-label-trip-red.log`). Full trip file: 29 PASS against configured integrations (`/tmp/cardvert-label-trip-green.log`), Ruff PASS. Local LCOV records six lines absent from the failed run; diagnostic union 25,295 exceeds unchanged 25,291 backend floor, but is not claimed as GitHub provenance. Independent Sol Medium consolidated amendment review PASS with no findings; fresh exact-SHA CI remains the completion gate.
@@ -4877,6 +4894,7 @@ only with demo/synthetic data until their owning checklist items land:
 | Product decisions + Q1–Q34 statuses | `docs/decisions-log.md` (Part 1 history, Part 2 statuses) |
 | What is authorised next and in what order | this file's package execution lock; checklist dependencies control internal checkpoints |
 | What has been delivered so far | this file (control summary) → architecture changelog + Git/test evidence for detail |
+| Client-readable product requirements and boundaries | `docs/product-requirements.md` (derived summary; decisions, architecture and this file win on conflict) |
 | How to operate it | `docs/runbook.md` |
 | Historical evidence | `docs/build-loop/` (closed backend ledger), `docs/archive/` |
 
