@@ -1112,3 +1112,49 @@ def test_location_pings_are_stored_as_postgis_points(
     assert srid == 4326
     assert x_lon == pytest.approx(3.39)
     assert y_lat == pytest.approx(6.45)
+
+
+def test_postgres_trip_summary_and_batch_count_preserve_replay_and_isolation(
+    postgis_db_client,
+    postgis_db_sessionmaker,
+) -> None:
+    _, _, _, _, _, assignment = create_trip_ready_graph(postgis_db_sessionmaker)
+    _, _, _, _, _, other_assignment = create_trip_ready_graph(
+        postgis_db_sessionmaker,
+        admin_email="summary-admin@example.com",
+        advertiser_email="summary-advertiser@example.com",
+        driver_email="summary-driver@example.com",
+        plate_number="SUMMARY-2",
+    )
+    started = start_trip(postgis_db_client, assignment.id)
+    other_started = start_trip(
+        postgis_db_client, other_assignment.id, "summary-driver@example.com"
+    )
+    assert started.status_code == other_started.status_code == http_status.HTTP_201_CREATED
+    trip_id = UUID(started.json()["id"])
+    other_trip_id = UUID(other_started.json()["id"])
+
+    async def summary_counts(identifier):
+        async with postgis_db_sessionmaker() as session:
+            trip = await session.get(TripSession, identifier)
+            assert trip is not None
+            summary = await trips_service.summarize_trip(session, trip)
+            batches = await trips_service.count_trip_batches(session, identifier)
+            return summary.ping_count, summary.first_ping_at, summary.last_ping_at, batches
+
+    assert asyncio.run(summary_counts(trip_id)) == (0, None, None, 0)
+    payload = ping_payload()
+    first_at = datetime.fromisoformat(payload["pings"][0]["recorded_at"])
+    last_at = first_at + timedelta(seconds=1)
+    payload["pings"].append(
+        payload["pings"][0] | {"recorded_at": last_at.isoformat(), "sequence_number": 2}
+    )
+    headers = driver_headers(postgis_db_client)
+    for replay in (False, True):
+        response = postgis_db_client.post(
+            f"/api/v1/driver/trips/{trip_id}/pings", headers=headers, json=payload
+        )
+        assert response.status_code == http_status.HTTP_200_OK
+        assert response.json()["duplicate"] is replay
+        assert asyncio.run(summary_counts(trip_id)) == (2, first_at, last_at, 1)
+        assert asyncio.run(summary_counts(other_trip_id)) == (0, None, None, 0)
