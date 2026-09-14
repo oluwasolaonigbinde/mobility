@@ -193,7 +193,7 @@ test("campaign submission and admin approval preserve immutable review history",
 
     await page.getByRole("button", { name: "Submit for review" }).click();
     await expect(page.getByText("Under admin review")).toBeVisible();
-    await expect(page.getByText("Submitted snapshot SHA-256:")).toBeVisible();
+    await expect(page.getByText(/^Submission reference: [a-f0-9]{64}$/)).toBeVisible();
 
     await loginAsAdmin(page);
     await page.goto("/admin/approvals");
