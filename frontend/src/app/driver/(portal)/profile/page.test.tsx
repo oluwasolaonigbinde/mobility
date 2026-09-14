@@ -10,6 +10,10 @@ vi.mock("@/lib/driver/load-campaign-journey", () => ({
   loadDriverCampaignJourney: loadJourney,
 }));
 vi.mock("./profile-form", () => ({ ProfileForm: () => <div>Profile form</div> }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 import DriverProfilePage from "./page";
 

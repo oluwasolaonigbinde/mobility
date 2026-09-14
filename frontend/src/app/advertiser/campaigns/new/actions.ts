@@ -4,7 +4,7 @@ import { z } from "zod";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createApiClient } from "@/lib/api/client";
-import { ApiError } from "@/lib/api/errors";
+import { publicActionError } from "@/lib/api/public-action-error";
 import { getSessionToken } from "@/lib/auth/session";
 import {
   campaignWizardSchema,
@@ -16,14 +16,20 @@ export interface CreateCampaignState {
   error?: string;
   /** Set when the campaign was created but a creative failed — the UI links to it. */
   createdCampaignId?: string;
+  /** Stable authority used to converge a retry when the create response is unknown. */
+  campaignRequestId?: string;
 }
 
 export async function createCampaignAction(
   input: CampaignWizardInput,
   existingCampaignId?: string,
+  campaignRequestId?: string,
 ): Promise<CreateCampaignState> {
   if (existingCampaignId !== undefined && !z.uuid().safeParse(existingCampaignId).success) {
     return { error: "The campaign recovery reference is invalid." };
+  }
+  if (campaignRequestId !== undefined && !z.uuid().safeParse(campaignRequestId).success) {
+    return { error: "The campaign request reference is invalid." };
   }
   // Server-side re-validation — the client schema is UX, this is the gate.
   const parsed = campaignWizardSchema.safeParse(input);
@@ -37,9 +43,11 @@ export async function createCampaignAction(
 
   let campaignId = existingCampaignId;
   if (!campaignId) {
+    const stableRequestId = campaignRequestId ?? crypto.randomUUID();
     try {
       const { data } = await api.POST("/api/v1/advertiser/campaigns", {
         body: {
+          client_request_id: stableRequestId,
           name: basics.name,
           description: basics.description ?? null,
           status: "draft",
@@ -49,11 +57,25 @@ export async function createCampaignAction(
           daily_budget_amount: basics.daily_budget_amount ?? null,
         },
       });
-      if (!data) return { error: "Unexpected empty response creating the campaign." };
+      if (!data) {
+        return {
+          error: "The campaign response was incomplete. Retry to safely check the same request.",
+          campaignRequestId: stableRequestId,
+        };
+      }
       campaignId = data.id;
     } catch (error) {
-      if (error instanceof ApiError) return { error: error.message };
-      return { error: "Could not reach the server. Please try again." };
+      return {
+        error: publicActionError(
+          error,
+          {
+            CAMPAIGN_CREATE_IDEMPOTENCY_CONFLICT:
+              "This saved campaign request no longer matches the form. Start a fresh campaign.",
+          },
+          "The campaign result is not yet confirmed. Retry to safely check the same request.",
+        ),
+        campaignRequestId: stableRequestId,
+      };
     }
   }
 
@@ -71,7 +93,15 @@ export async function createCampaignAction(
       });
     } catch (error) {
       // Campaign exists; be honest about exactly what failed.
-      const reason = error instanceof ApiError ? error.message : "server unreachable";
+      const reason = publicActionError(
+        error,
+        {
+          CREATIVE_FILE_ALREADY_BOUND: "that file is already attached elsewhere",
+          CREATIVE_FILE_NOT_CLEARED: "that file has not passed its security scan",
+          CREATIVE_TYPE_MISMATCH: "that file does not match the selected creative type",
+        },
+        "the attachment result is not yet confirmed",
+      );
       return {
         error: `Campaign created, but creative ${index + 1} ("${creative.name}") failed: ${reason}`,
         createdCampaignId: campaignId,

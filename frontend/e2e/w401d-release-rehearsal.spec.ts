@@ -3,11 +3,12 @@ import { expect, test, type BrowserContext } from "@playwright/test";
 const heldTrip = "20000000-0000-4000-8000-000000000006";
 
 async function installSession(context: BrowserContext, token: string) {
+  const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:34101";
   await context.addCookies([
     {
       name: "mobility_session",
       value: token,
-      url: "http://127.0.0.1:34101",
+      url: baseURL,
       httpOnly: true,
       sameSite: "Lax",
     },
@@ -27,9 +28,10 @@ test("W4-01D history, hold, dispute, outcome and fail-safe PWA rehearsal", async
   await expect(page.getByText("Completed", { exact: true }).first()).toBeVisible();
 
   await page.goto("/driver/earnings");
-  await expect(page.getByText(/Recent page: 1 held/)).toBeVisible();
+  await expect(page.getByText(/This page: 1 held/)).toBeVisible();
   await expect(page.getByText("Held", { exact: true })).toBeVisible();
-  await expect(page.getByText("Debt carried", { exact: true })).toBeVisible();
+  await page.getByText("Balance details", { exact: true }).click();
+  await expect(page.getByText("Owed, taken from your payouts", { exact: true })).toBeVisible();
   await expect(page.getByText("Voided", { exact: true }).first()).toBeVisible();
 
   await page.getByRole("link", { name: /Lagos Release Rehearsal.*1,250\.00.*Held/s }).click();
@@ -63,10 +65,10 @@ test("W4-01D history, hold, dispute, outcome and fail-safe PWA rehearsal", async
   await expect(page.getByText("Staff completed their review of a trip.")).toBeVisible();
 
   await page.goto("/driver/earnings");
-  await expect(page.getByText(/Recent page: 0 held/)).toBeVisible();
-  await expect(page.getByText(/Recent page:.*2 released/)).toBeVisible();
+  await expect(page.getByText(/This page: 0 held/)).toBeVisible();
+  await expect(page.getByText(/This page:.*2 released/)).toBeVisible();
   await page.reload();
-  await expect(page.getByText(/Recent page: 0 held/)).toBeVisible();
+  await expect(page.getByText(/This page: 0 held/)).toBeVisible();
 
   const manifest = await request.get("/driver/manifest.webmanifest");
   expect(manifest.ok()).toBeTruthy();
@@ -95,13 +97,11 @@ test("W4-01D history, hold, dispute, outcome and fail-safe PWA rehearsal", async
 
   if (testInfo.project.name === "chromium") {
     await context.setOffline(true);
-    await expect(page.getByText(/Recent page:/)).toHaveCount(0);
+    await expect(page.getByText(/This page:/)).toHaveCount(0);
     await expect(page.getByText("Current earnings hidden while offline")).toBeVisible();
     await context.setOffline(false);
-    await expect(page.getByText(/Recent page:/)).toHaveCount(0);
-    await expect(page.getByText("Current earnings hidden while offline")).toBeVisible();
-    await page.reload();
-    await expect(page.getByText(/Recent page: 0 held/)).toBeVisible();
+    await expect(page.getByText(/This page: 0 held/)).toBeVisible();
+    await expect(page.getByText("Current earnings hidden while offline")).toHaveCount(0);
 
     await context.setOffline(true);
     await page.goto("/driver/earnings");
@@ -130,10 +130,10 @@ test("W4-01D history, hold, dispute, outcome and fail-safe PWA rehearsal", async
   await page.goto("/driver/earnings");
   await expect(page).toHaveURL(/\/login/);
   await page.goBack();
-  await expect(page.getByText(/Recent page:/)).toHaveCount(0);
+  await expect(page.getByText(/This page:/)).toHaveCount(0);
 
   await installSession(context, `w401d-wrong-role-${scope}`);
   await page.goto("/driver/earnings");
   await expect(page).toHaveURL(/\/advertiser/);
-  await expect(page.getByText(/Recent page:/)).toHaveCount(0);
+  await expect(page.getByText(/This page:/)).toHaveCount(0);
 });

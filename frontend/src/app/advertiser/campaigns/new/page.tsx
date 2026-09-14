@@ -13,23 +13,28 @@ export const metadata: Metadata = { title: "New campaign" };
 export default async function NewCampaignPage({
   searchParams,
 }: {
-  searchParams: Promise<{ campaignId?: string }>;
+  searchParams: Promise<{ campaignId?: string; requestId?: string }>;
 }) {
   const me = await requireRole("advertiser");
-  const { campaignId } = await searchParams;
+  const { campaignId, requestId } = await searchParams;
+  if (requestId !== undefined && !z.uuid().safeParse(requestId).success) notFound();
   let existingCampaign;
-  if (campaignId !== undefined) {
-    if (!z.uuid().safeParse(campaignId).success) notFound();
+  const recoveryId = campaignId ?? requestId;
+  if (recoveryId !== undefined) {
+    if (!z.uuid().safeParse(recoveryId).success) notFound();
     try {
       const { data } = await createApiClient(await getSessionToken()).GET(
         "/api/v1/advertiser/campaigns/{campaign_id}",
-        { params: { path: { campaign_id: campaignId } } },
+        { params: { path: { campaign_id: recoveryId } } },
       );
-      if (!data) notFound();
-      existingCampaign = { id: data.id, name: data.name };
+      if (data) existingCampaign = { id: data.id, name: data.name };
+      else if (campaignId !== undefined) notFound();
     } catch (error) {
-      if (error instanceof ApiError && error.status === 404) notFound();
-      throw error;
+      if (error instanceof ApiError && error.status === 404) {
+        if (campaignId !== undefined) notFound();
+      } else {
+        throw error;
+      }
     }
   }
   const currency = me.advertiser_organization?.currency ?? "NGN";
@@ -44,7 +49,11 @@ export default async function NewCampaignPage({
             : "Set the basics — targeting zones come next"
         }
       />
-      <CampaignWizard currency={currency} existingCampaign={existingCampaign} />
+      <CampaignWizard
+        currency={currency}
+        existingCampaign={existingCampaign}
+        campaignRequestId={requestId}
+      />
     </div>
   );
 }

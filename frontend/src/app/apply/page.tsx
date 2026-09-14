@@ -28,13 +28,14 @@ export default function DriverApplicationPage() {
           <h2 id="application-journey-title" className="font-display mt-1 text-xl font-semibold">
             Application receipt is not work approval
           </h2>
-          <ol className="text-muted mt-4 grid gap-3 text-xs sm:grid-cols-5">
+          <ol className="text-muted mt-4 grid gap-3 text-xs sm:grid-cols-3 lg:grid-cols-6">
             {[
               "Submit contact details",
               "Use the expiring onboarding code",
               "Submit person/payee evidence",
               "Submit vehicle evidence",
-              "Wait for admin review and invitation",
+              "Wait for administrator review",
+              "Complete account setup when authorized",
             ].map((step, index) => (
               <li key={step} className="border-edge bg-raised rounded-lg border p-3">
                 <span className="text-amber font-mono">{index + 1}</span>
@@ -43,8 +44,9 @@ export default function DriverApplicationPage() {
             ))}
           </ol>
           <p className="text-muted mt-4 text-xs">
-            After admin review and invitation, sign in to the driver app. The status reference and
-            onboarding code never grant a session, campaign work, or tracking authority.
+            After both reviews pass, an administrator separately starts account setup. Choose your
+            password with that one-use setup link, then sign in. The status reference and onboarding
+            code never grant a session, campaign work, or tracking authority.
           </p>
         </Panel>
         <DriverApplicationForms />

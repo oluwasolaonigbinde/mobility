@@ -330,4 +330,8 @@ def request_payload(route: GovernedRoute) -> Any:
         )
     if route.path.endswith("/campaigns/{campaign_id}/change-requests"):
         payload["budget_amount"] = "1.00"
+        payload["source_sha256"] = "0" * 64
+        payload["preview_sha256"] = "0" * 64
+    if route.path.endswith("/campaigns/{campaign_id}/change-preview"):
+        payload["budget_amount"] = "1.00"
     return payload

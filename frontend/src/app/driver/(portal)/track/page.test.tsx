@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/api/errors";
 
 const get = vi.hoisted(() => vi.fn());
 const loadJourney = vi.hoisted(() => vi.fn());
@@ -68,5 +69,29 @@ describe("DriverTrackPage ledger statuses", () => {
 
     expect(screen.getByText("paid")).toHaveClass("text-green");
     expect(screen.getByText("pending")).toHaveClass("text-amber");
+  });
+
+  it("keeps the authority-bearing tracker when optional labels and history are unavailable", async () => {
+    loadJourney.mockResolvedValue({
+      journey: {
+        standing: "TRACKING",
+        summary: "A trip is in progress.",
+        canStart: false,
+        hasCurrentTrip: true,
+        steps: [],
+      },
+      activationAssignment: null,
+      currentTrip: { id: "trip-1" },
+      trackerAssignment: null,
+    });
+    get.mockRejectedValue(
+      new ApiError(503, { code: "OPTIONAL_UNAVAILABLE", message: "private detail" }),
+    );
+
+    render(await DriverTrackPage());
+
+    expect(screen.getByText("Trip tracker")).toBeInTheDocument();
+    expect(screen.getByText("Recent activity unavailable")).toBeInTheDocument();
+    expect(screen.queryByText("private detail")).not.toBeInTheDocument();
   });
 });

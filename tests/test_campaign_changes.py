@@ -17,15 +17,16 @@ from conftest import (
 from sqlalchemy import func, select
 
 from app.core.errors import AppError
+from app.models.audit import AuditEvent
 from app.models.billing import AcceptanceMethod, PaymentClass, QuoteRequestSource
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.campaign_assignment import CampaignAssignmentStatus
-from app.models.campaign_change import CampaignChangeRequest
+from app.models.campaign_change import CampaignChangeRequest, CampaignChangeRevision
 from app.models.driver import DriverOnboardingStatus
 from app.models.payout import AssignmentRuleBinding
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
-from app.schemas.campaign_changes import CampaignChangeCreate
+from app.schemas.campaign_changes import CampaignChangeCreate, CampaignChangePreviewCreate
 from app.services.billing import (
     accept_quotation_revision,
     record_approved_credit_authorization,
@@ -35,11 +36,182 @@ from app.services.billing import (
 )
 from app.services.campaign_changes import (
     decide_campaign_change,
+    preview_campaign_change,
     request_campaign_change,
     resolve_campaign_change_snapshot,
 )
 
 PASSWORD = "long-secure-password"
+
+
+def _preview_and_confirm(db_client, *, campaign_id, headers, payload):
+    preview = db_client.post(
+        f"/api/v1/advertiser/campaigns/{campaign_id}/change-preview",
+        headers=headers,
+        json={key: value for key, value in payload.items() if key != "client_request_id"},
+    )
+    assert preview.status_code == 200, preview.text
+    return preview, db_client.post(
+        f"/api/v1/advertiser/campaigns/{campaign_id}/change-requests",
+        headers=headers,
+        json={
+            **payload,
+            "source_sha256": preview.json()["source_sha256"],
+            "preview_sha256": preview.json()["preview_sha256"],
+        },
+    )
+
+
+async def _service_confirmation_payload(
+    session,
+    *,
+    advertiser_id,
+    campaign_id,
+    client_request_id,
+    **proposal,
+) -> CampaignChangeCreate:
+    preview = await preview_campaign_change(
+        session,
+        actor_user_id=advertiser_id,
+        campaign_id=campaign_id,
+        payload=CampaignChangePreviewCreate(**proposal),
+    )
+    return CampaignChangeCreate(
+        client_request_id=client_request_id,
+        source_sha256=preview.source_sha256,
+        preview_sha256=preview.preview_sha256,
+        **proposal,
+    )
+
+
+def test_change_preview_is_exact_and_creates_no_campaign_request_revision_or_audit_write(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    _, advertiser, campaign = change_graph(db_sessionmaker, "preview-read-only")
+    headers = auth_headers(db_client, advertiser.email, PASSWORD)
+
+    async def counts_and_campaign():
+        async with db_sessionmaker() as session:
+            return (
+                int(await session.scalar(select(func.count()).select_from(Campaign)) or 0),
+                int(
+                    await session.scalar(
+                        select(func.count()).select_from(CampaignChangeRequest)
+                    )
+                    or 0
+                ),
+                int(
+                    await session.scalar(
+                        select(func.count()).select_from(CampaignChangeRevision)
+                    )
+                    or 0
+                ),
+                int(await session.scalar(select(func.count()).select_from(AuditEvent)) or 0),
+                str((await session.get(Campaign, campaign.id)).budget_amount),
+            )
+
+    before = asyncio.run(counts_and_campaign())
+    preview = db_client.post(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/change-preview",
+        headers=headers,
+        json={
+            "budget_amount": "1200.00",
+            "reason": "Preview without writing",
+        },
+    )
+
+    assert preview.status_code == 200, preview.text
+    assert preview.json()["before"]["budget_amount"] == "1000.00"
+    assert preview.json()["after"]["budget_amount"] == "1200.00"
+    assert preview.json()["currency"] == "NGN"
+    assert preview.json()["classifications"] == ["expansion"]
+    assert preview.json()["requested_liability_amount"] == "0.00"
+    assert preview.json()["outcome"] == "apply_now"
+    assert len(preview.json()["source_sha256"]) == 64
+    assert len(preview.json()["preview_sha256"]) == 64
+    assert asyncio.run(counts_and_campaign()) == before
+
+
+def test_change_confirmation_rejects_stale_preview_and_duplicate_converges(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    _, advertiser, campaign = change_graph(db_sessionmaker, "confirm-contract")
+    headers = auth_headers(db_client, advertiser.email, PASSWORD)
+    payload = {
+        "client_request_id": str(uuid4()),
+        "budget_amount": "1200.00",
+        "reason": "Confirmed exact preview",
+    }
+    preview = db_client.post(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/change-preview",
+        headers=headers,
+        json={key: value for key, value in payload.items() if key != "client_request_id"},
+    )
+    assert preview.status_code == 200
+
+    async def change_source() -> None:
+        async with db_sessionmaker() as session:
+            current = await session.get(Campaign, campaign.id)
+            current.daily_budget_amount = 90
+            await session.commit()
+
+    asyncio.run(change_source())
+    stale = db_client.post(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/change-requests",
+        headers=headers,
+        json={
+            **payload,
+            "source_sha256": preview.json()["source_sha256"],
+            "preview_sha256": preview.json()["preview_sha256"],
+        },
+    )
+    assert stale.status_code == 409
+    assert stale.json()["error"]["code"] == "CAMPAIGN_CHANGE_STALE"
+
+    payload["client_request_id"] = str(uuid4())
+    fresh_preview, first = _preview_and_confirm(
+        db_client, campaign_id=campaign.id, headers=headers, payload=payload
+    )
+    replay = db_client.post(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/change-requests",
+        headers=headers,
+        json={
+            **payload,
+            "source_sha256": fresh_preview.json()["source_sha256"],
+            "preview_sha256": fresh_preview.json()["preview_sha256"],
+        },
+    )
+    assert first.status_code == replay.status_code == 201
+    assert first.json()["id"] == replay.json()["id"]
+
+    async def effect_counts():
+        async with db_sessionmaker() as session:
+            return (
+                int(
+                    await session.scalar(
+                        select(func.count()).select_from(CampaignChangeRequest)
+                    )
+                    or 0
+                ),
+                int(
+                    await session.scalar(
+                        select(func.count()).select_from(CampaignChangeRevision)
+                    )
+                    or 0
+                ),
+                int(
+                    await session.scalar(
+                        select(func.count())
+                        .select_from(AuditEvent)
+                        .where(AuditEvent.action == "campaign.change.applied")
+                    )
+                    or 0
+                ),
+            )
+
+    assert asyncio.run(effect_counts()) == (1, 1, 1)
 
 
 def change_graph(db_sessionmaker, suffix: str):
@@ -83,15 +255,17 @@ def test_safe_budget_expansion_applies_immediately_and_retry_converges(
         "reason": "Add approved media spend without changing driver scope",
     }
     headers = auth_headers(db_client, advertiser.email, PASSWORD)
-    created = db_client.post(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/change-requests",
-        headers=headers,
-        json=payload,
+    preview, created = _preview_and_confirm(
+        db_client, campaign_id=campaign.id, headers=headers, payload=payload
     )
     replay = db_client.post(
         f"/api/v1/advertiser/campaigns/{campaign.id}/change-requests",
         headers=headers,
-        json=payload,
+        json={
+            **payload,
+            "source_sha256": preview.json()["source_sha256"],
+            "preview_sha256": preview.json()["preview_sha256"],
+        },
     )
 
     assert created.status_code == 201, created.text
@@ -118,10 +292,12 @@ def test_reduction_and_date_change_require_reasoned_admin_decision_and_stale_fai
 ) -> None:
     admin, advertiser, campaign = change_graph(db_sessionmaker, "review")
     proposed_end = datetime.now(UTC) + timedelta(days=5)
-    created = db_client.post(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/change-requests",
-        headers=auth_headers(db_client, advertiser.email, PASSWORD),
-        json={
+    headers = auth_headers(db_client, advertiser.email, PASSWORD)
+    _, created = _preview_and_confirm(
+        db_client,
+        campaign_id=campaign.id,
+        headers=headers,
+        payload={
             "client_request_id": str(uuid4()),
             "budget_amount": "900.00",
             "end_at": proposed_end.isoformat(),
@@ -143,10 +319,11 @@ def test_reduction_and_date_change_require_reasoned_admin_decision_and_stale_fai
         "Approved reduction with preserved accepted history"
     )
 
-    stale = db_client.post(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/change-requests",
-        headers=auth_headers(db_client, advertiser.email, PASSWORD),
-        json={
+    _, stale = _preview_and_confirm(
+        db_client,
+        campaign_id=campaign.id,
+        headers=headers,
+        payload={
             "client_request_id": str(uuid4()),
             "daily_budget_amount": "80.00",
             "reason": "Second reduction",
@@ -178,19 +355,19 @@ def test_campaign_change_retry_conflict_and_tenant_isolation(
     _, other, _ = change_graph(db_sessionmaker, "tenant-b")
     request_id = uuid4()
     headers = auth_headers(db_client, advertiser.email, PASSWORD)
-    first = db_client.post(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/change-requests",
-        headers=headers,
-        json={
+    first_payload = {
             "client_request_id": str(request_id),
             "budget_amount": "1100.00",
             "reason": "First payload",
-        },
+        }
+    _, first = _preview_and_confirm(
+        db_client, campaign_id=campaign.id, headers=headers, payload=first_payload
     )
-    conflict = db_client.post(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/change-requests",
+    _, conflict = _preview_and_confirm(
+        db_client,
+        campaign_id=campaign.id,
         headers=headers,
-        json={
+        payload={
             "client_request_id": str(request_id),
             "budget_amount": "1300.00",
             "reason": "Changed payload",
@@ -215,10 +392,9 @@ def test_campaign_change_rejects_retroactive_date_and_resolves_effective_revisio
     admin, advertiser, campaign = change_graph(db_sessionmaker, "effective")
     headers = auth_headers(db_client, advertiser.email, PASSWORD)
     retroactive = db_client.post(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/change-requests",
+        f"/api/v1/advertiser/campaigns/{campaign.id}/change-preview",
         headers=headers,
         json={
-            "client_request_id": str(uuid4()),
             "end_at": (datetime.now(UTC) - timedelta(minutes=1)).isoformat(),
             "reason": "Attempt retroactive end date",
         },
@@ -227,10 +403,11 @@ def test_campaign_change_rejects_retroactive_date_and_resolves_effective_revisio
     assert retroactive.json()["error"]["code"] == "CAMPAIGN_CHANGE_RETROACTIVE_DATE"
 
     original_budget = str(campaign.budget_amount)
-    requested = db_client.post(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/change-requests",
+    _, requested = _preview_and_confirm(
+        db_client,
+        campaign_id=campaign.id,
         headers=headers,
-        json={
+        payload={
             "client_request_id": str(uuid4()),
             "budget_amount": "800.00",
             "reason": "Effective revision test",
@@ -291,10 +468,11 @@ def test_earlier_future_start_is_classified_as_an_expansion(
         budget_amount="1000.00",
         daily_budget_amount="100.00",
     )
-    response = db_client.post(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/change-requests",
+    _, response = _preview_and_confirm(
+        db_client,
+        campaign_id=campaign.id,
         headers=auth_headers(db_client, advertiser.email, PASSWORD),
-        json={
+        payload={
             "client_request_id": str(uuid4()),
             # The local clock text is later, but the represented instant is
             # thirty minutes earlier. Classification must compare instants.
@@ -419,15 +597,19 @@ def test_funding_and_change_approval_serialize_without_overauthorization_pg(
 
     async def create_change() -> CampaignChangeRequest:
         async with postgis_db_sessionmaker() as session:
+            payload = await _service_confirmation_payload(
+                session,
+                advertiser_id=advertiser.id,
+                campaign_id=campaign.id,
+                client_request_id=uuid4(),
+                end_at=requested_end,
+                reason="One funded additional service day",
+            )
             request = await request_campaign_change(
                 session,
                 actor_user_id=advertiser.id,
                 campaign_id=campaign.id,
-                payload=CampaignChangeCreate(
-                    client_request_id=uuid4(),
-                    end_at=requested_end,
-                    reason="One funded additional service day",
-                ),
+                payload=payload,
             )
             await session.commit()
             return request
@@ -564,9 +746,18 @@ def test_postgres_campaign_change_and_disclosure_snapshot_do_not_deadlock(
     from app.services.disclosure import lock_trip_disclosure_snapshot
 
     _, advertiser, campaign = change_graph(postgis_db_sessionmaker, "snapshot-overlap")
-    payload = CampaignChangeCreate(
-        client_request_id=uuid4(), budget_amount="1200.00", reason="Reviewed extra budget"
-    )
+    async def confirmed_payload():
+        async with postgis_db_sessionmaker() as session:
+            return await _service_confirmation_payload(
+                session,
+                advertiser_id=advertiser.id,
+                campaign_id=campaign.id,
+                client_request_id=uuid4(),
+                budget_amount="1200.00",
+                reason="Reviewed extra budget",
+            )
+
+    payload = asyncio.run(confirmed_payload())
 
     async def run():
         locked, reader_started = asyncio.Event(), asyncio.Event()
@@ -644,9 +835,18 @@ def test_postgres_campaign_change_waits_for_an_existing_disclosure_snapshot(
     from app.services.payout_rule_serialization import acquire_campaign_terms_lock
 
     _, advertiser, campaign = change_graph(postgis_db_sessionmaker, "snapshot-first")
-    payload = CampaignChangeCreate(
-        client_request_id=uuid4(), budget_amount="1200.00", reason="Extra approved budget"
-    )
+    async def confirmed_payload():
+        async with postgis_db_sessionmaker() as session:
+            return await _service_confirmation_payload(
+                session,
+                advertiser_id=advertiser.id,
+                campaign_id=campaign.id,
+                client_request_id=uuid4(),
+                budget_amount="1200.00",
+                reason="Extra approved budget",
+            )
+
+    payload = asyncio.run(confirmed_payload())
 
     async def run():
         started = asyncio.Event()

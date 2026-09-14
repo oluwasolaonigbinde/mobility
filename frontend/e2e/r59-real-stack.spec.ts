@@ -107,7 +107,7 @@ test("R59 real-stack release journey survives outages and converges exactly once
   stopService("api");
   await waitForService("api", "stopped");
   await page.getByRole("button", { name: "■ End trip" }).click();
-  await expect(page.getByRole("button", { name: "Reconcile trip" })).toBeVisible({
+  await expect(page.getByRole("button", { name: "Check trip status" })).toBeVisible({
     timeout: 30_000,
   });
   const uncertain = tripSnapshot(tripId);
@@ -122,12 +122,10 @@ test("R59 real-stack release journey survives outages and converges exactly once
   // the reload. The tracker deliberately keeps capture fenced and offers the
   // reconciliation affordance instead of a fresh End, so that pressing it
   // re-submits the identical frozen manifest rather than minting a new one.
-  const end = page.getByRole("button", { name: "Reconcile trip" });
+  const end = page.getByRole("button", { name: "Check trip status" });
   await expect(end).toBeEnabled({ timeout: 30_000 });
   await end.click();
-  await expect
-    .poll(() => tripSnapshot(tripId).status, { timeout: 30_000 })
-    .toBe("sealed");
+  await expect.poll(() => tripSnapshot(tripId).status, { timeout: 30_000 }).toBe("sealed");
 
   const sealed = tripSnapshot(tripId);
   expect(sealed.status).toBe("sealed");
@@ -138,7 +136,7 @@ test("R59 real-stack release journey survives outages and converges exactly once
   expect(sealed.counts.payout).toBe(0);
   await page.reload();
   await expect(page.getByRole("button", { name: "■ End trip" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Reconcile trip" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Check trip status" })).toHaveCount(0);
 
   if (process.env.R59_WITHHOLD_WORKER !== "1") {
     startService("worker");

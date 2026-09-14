@@ -8,12 +8,17 @@ describe("public driver application page", () => {
 
     expect(screen.getByText("Cardvert // driver network")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Start an application" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Submit your pilot vehicle" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Request a new onboarding code" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Submit or renew your pilot vehicle" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(/Vehicle approval never assigns campaign work automatically/),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/admin review and invitation.*sign in to the driver app/i),
+      screen.getByText(/administrator separately starts account setup.*then sign in/i),
     ).toBeInTheDocument();
   });
 });

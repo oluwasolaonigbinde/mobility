@@ -86,7 +86,9 @@ test("quotation acceptance and invoice facts survive role changes and reloads", 
   await expect(page.getByRole("heading", { name: campaignName })).toBeVisible();
   await page.getByLabel("Quotation notes").fill("Two vehicles for a commercial contract test");
   await page.getByRole("button", { name: "Request custom quotation" }).click();
-  await expect(page.getByText("In review", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Quotation requested\. Cardvert will post it here/)).toBeVisible({
+    timeout: 15_000,
+  });
 
   await page.context().clearCookies();
   await login(page, "admin@demo.mobility.local", "DemoAdmin12345!", "admin");
@@ -106,10 +108,22 @@ test("quotation acceptance and invoice facts survive role changes and reloads", 
   await login(page, "advertiser@demo.mobility.local", "DemoAdvertiser12345!", "advertiser");
   await page.goto("/advertiser/campaigns");
   await page.getByRole("link", { name: campaignName }).click();
-  await page.getByRole("button", { name: "Accept final terms" }).click();
+  const quotation = page.getByLabel("Latest quotation for review");
+  await expect(quotation.getByText(`${quoteReference} · revision 1`)).toBeVisible();
+  await expect(quotation.getByRole("cell", { name: "NGN 100000.00" })).toBeVisible();
+  await expect(
+    quotation.getByText("Production cost").locator("..").getByText("NGN 0.00"),
+  ).toBeVisible();
+  await expect(
+    quotation.getByText("Net", { exact: true }).locator("..").getByText("NGN 100000.00"),
+  ).toBeVisible();
+  await expect(quotation.getByText("NGN 7500.00")).toBeVisible();
+  await expect(quotation.getByText("NGN 107500.00")).toBeVisible();
+  await page.getByRole("checkbox", { name: /I reviewed the scope/ }).check();
+  await page.getByRole("button", { name: "Accept these exact terms" }).click();
   await expect(page.getByText("Accepted", { exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByText(new RegExp(quoteReference))).toBeVisible();
+  await expect(page.getByLabel("Accepted quotation receipt")).toContainText(quoteReference);
 
   await page.context().clearCookies();
   await login(page, "admin@demo.mobility.local", "DemoAdmin12345!", "admin");

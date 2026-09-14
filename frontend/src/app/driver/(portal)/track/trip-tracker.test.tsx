@@ -179,6 +179,7 @@ function installRuntime(overrides: { fetchStatus?: number } = {}) {
 
 beforeEach(() => {
   vi.restoreAllMocks();
+  Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
   for (const mock of Object.values(actions)) mock.mockReset();
   pingQueue.openPingQueue.mockReset();
   actions.endTripAction.mockResolvedValue({ outcome: "ended", status: "sealed" });
@@ -212,11 +213,32 @@ afterEach(() => {
   });
 });
 
+describe("plain evidence delivery status", () => {
+  it("says captured evidence is saved on this phone when buffered offline", async () => {
+    installRuntime();
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+    pingQueue.openPingQueue.mockResolvedValue(
+      fakeQueue({ unsyncedCount: vi.fn().mockResolvedValue(2) }),
+    );
+
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+
+    await waitFor(() =>
+      expect(screen.getByTestId("tracking-health")).toHaveTextContent("Saved on this phone"),
+    );
+    expect(screen.queryByText("Sending", { exact: true })).not.toBeInTheDocument();
+    expect(screen.queryByText("Pings synced")).not.toBeInTheDocument();
+    expect(screen.queryByText("Buffered")).not.toBeInTheDocument();
+    expect(screen.queryByText(/retained batches/i)).not.toBeInTheDocument();
+  });
+});
+
 describe("assignment activation authority", () => {
   it("tells the driver to wait for admin activation", () => {
     pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
     render(<TripTracker assignment={null} initialTrip={null} driverId={DRIVER_ID} />);
 
+    expect(screen.getByText("Set up this phone")).toBeInTheDocument();
     expect(screen.getByText(/wait for admin activation/i)).toBeInTheDocument();
     expect(screen.queryByText(/accept and activate/i)).not.toBeInTheDocument();
   });
@@ -287,6 +309,7 @@ describe("single-writer lock fail-closed (finding 6)", () => {
     await userEvent.click(await screen.findByRole("button", { name: /Start trip/ }));
     await waitFor(() => expect(actions.startTripAction).toHaveBeenCalledTimes(1));
     expect(order.slice(0, 2)).toEqual(["lock", "start"]);
+    expect(screen.getByTestId("tracking-health")).toHaveTextContent("Tracking");
   });
 
   it("does not continue Start after navigation releases the writer", async () => {
@@ -326,7 +349,7 @@ describe("single-writer lock fail-closed (finding 6)", () => {
     await userEvent.click(await screen.findByRole("button", { name: /Start trip/ }));
     await waitFor(() => expect(actions.getCurrentTripAction).toHaveBeenCalledTimes(1));
     expect(screen.getByRole("button", { name: /Ending|End trip/ })).toBeInTheDocument();
-    expect(screen.getByTestId("tracking-health")).toHaveTextContent("active");
+    expect(screen.getByTestId("tracking-health")).toHaveAttribute("data-runtime-health", "active");
     expect(actions.startTripAction).toHaveBeenCalledTimes(1);
   });
 
@@ -341,7 +364,7 @@ describe("single-writer lock fail-closed (finding 6)", () => {
     render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
 
     await userEvent.click(await screen.findByRole("button", { name: /Start trip/ }));
-    const reconcile = await screen.findByRole("button", { name: /Reconcile trip/ });
+    const reconcile = await screen.findByRole("button", { name: /Check trip status/ });
     await userEvent.click(reconcile);
 
     await waitFor(() => expect(actions.getCurrentTripAction).toHaveBeenCalledTimes(2));
@@ -378,7 +401,8 @@ describe("single-writer lock fail-closed (finding 6)", () => {
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent(/exclusive tracking lock/),
     );
-    expect(screen.getByTestId("tracking-health")).toHaveTextContent("stopped");
+    expect(screen.getByTestId("tracking-health")).toHaveTextContent("Needs attention");
+    expect(screen.getByTestId("tracking-health")).toHaveAttribute("data-runtime-health", "stopped");
     expect(screen.getByRole("button", { name: /End trip/ })).toBeDisabled();
   });
 
@@ -426,7 +450,12 @@ describe("live runtime truth", () => {
     grantWebLock();
     render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
 
-    await waitFor(() => expect(screen.getByTestId("tracking-health")).toHaveTextContent("stopped"));
+    await waitFor(() =>
+      expect(screen.getByTestId("tracking-health")).toHaveAttribute(
+        "data-runtime-health",
+        "stopped",
+      ),
+    );
     expect(screen.queryByText(/Tracking live/i)).not.toBeInTheDocument();
   });
 
@@ -458,7 +487,10 @@ describe("live runtime truth", () => {
     document.dispatchEvent(new Event("visibilitychange"));
 
     await waitFor(() => expect(runtime.clearWatch).toHaveBeenCalledWith(1));
-    expect(screen.getByTestId("tracking-health")).not.toHaveTextContent("active");
+    expect(screen.getByTestId("tracking-health")).not.toHaveAttribute(
+      "data-runtime-health",
+      "active",
+    );
   });
 
   it("stops capture when the held wake sentinel releases", async () => {
@@ -470,7 +502,7 @@ describe("live runtime truth", () => {
     runtime.sentinel.dispatchEvent(new Event("release"));
 
     await waitFor(() => expect(runtime.clearWatch).toHaveBeenCalledWith(1));
-    expect(screen.getByTestId("tracking-health")).toHaveTextContent("stopped");
+    expect(screen.getByTestId("tracking-health")).toHaveAttribute("data-runtime-health", "stopped");
   });
 
   it("closes driver-scoped storage and disables End on revoked keepalive", async () => {
@@ -520,7 +552,7 @@ describe("end watermark honesty (finding 5)", () => {
 
     await waitFor(() => expect(actions.reconcileTripEvidenceAction).toHaveBeenCalledWith(TRIP_ID));
     expect(queue.forgetTrip).not.toHaveBeenCalled();
-    expect(await screen.findByRole("button", { name: /Reconcile trip/ })).toBeEnabled();
+    expect(await screen.findByRole("button", { name: /Check trip status/ })).toBeEnabled();
   });
 
   it("finishes End without deleting retained evidence after terminal adjudication", async () => {
@@ -796,7 +828,7 @@ describe("end watermark honesty (finding 5)", () => {
 
     await waitFor(() => expect(actions.getCurrentTripAction).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
-    expect(screen.getByRole("button", { name: /Reconcile trip/ })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Check trip status/ })).toBeEnabled();
   });
 
   it("keeps capture stopped and offers reconciliation while End authority is unavailable", async () => {
@@ -816,10 +848,10 @@ describe("end watermark honesty (finding 5)", () => {
 
     await userEvent.click(endButton);
 
-    const reconcile = await screen.findByRole("button", { name: /Reconcile trip/ });
+    const reconcile = await screen.findByRole("button", { name: /Check trip status/ });
     expect(reconcile).toBeEnabled();
     expect(runtime.watchPosition).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("tracking-health")).toHaveTextContent("stopped");
+    expect(screen.getByTestId("tracking-health")).toHaveAttribute("data-runtime-health", "stopped");
   });
 
   it("does not submit a watermark after storage fails during the final drain", async () => {
@@ -1310,8 +1342,11 @@ describe("signed partial acknowledgement display", () => {
         coords: { latitude: 6.4, longitude: 3.4, accuracy: 5, speed: 2, heading: 90 },
       } as GeolocationPosition),
     );
-    await waitFor(() => expect(screen.getByTestId("pings-sent")).toHaveTextContent("2"));
-    expect(screen.getByText(/1 rejected samples/)).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.getByTestId("tracking-health")).toHaveTextContent("Needs attention"),
+    );
+    expect(screen.getByText("GPS speed exceeded the limit")).toBeInTheDocument();
+    expect(screen.queryByText(/rejected samples/i)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /End trip/ }));
     await waitFor(() => expect(queue.freezeEnd).toHaveBeenCalledWith(TRIP_ID, false));
     expect(queue.forgetTrip).not.toHaveBeenCalled();
@@ -1381,7 +1416,7 @@ it("restores a frozen End after reload without reopening capture and retries it 
   });
   pingQueue.openPingQueue.mockResolvedValue(queue);
   render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
-  const button = await screen.findByRole("button", { name: /Reconcile trip/ });
+  const button = await screen.findByRole("button", { name: /Check trip status/ });
   await waitFor(() => expect(button).toBeEnabled());
   expect(runtime.watchPosition).not.toHaveBeenCalled();
   await userEvent.click(button);
@@ -1446,7 +1481,7 @@ it.each([1, 2])(
         driverId={DRIVER_ID}
       />,
     );
-    const button = await screen.findByRole("button", { name: /Reconcile trip/ });
+    const button = await screen.findByRole("button", { name: /Check trip status/ });
     await waitFor(() => expect(button).toBeEnabled());
     await userEvent.click(button);
     const expectedAction = protocol === 2 ? actions.endTripAction : actions.endLegacyTripAction;
@@ -1463,7 +1498,7 @@ it.each([1, 2])(
     expect(queue.forgetTrip).not.toHaveBeenCalled();
     expect(runtime.watchPosition).not.toHaveBeenCalled();
     await waitFor(() =>
-      expect(screen.queryByRole("button", { name: /Reconcile trip/ })).not.toBeInTheDocument(),
+      expect(screen.queryByRole("button", { name: /Check trip status/ })).not.toBeInTheDocument(),
     );
   },
 );

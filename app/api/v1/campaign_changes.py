@@ -11,16 +11,34 @@ from app.schemas.campaign_changes import (
     CampaignChangeCreate,
     CampaignChangeDecision,
     CampaignChangeList,
+    CampaignChangePreviewCreate,
+    CampaignChangePreviewRead,
     CampaignChangeRead,
 )
 from app.services.campaign_changes import (
     decide_campaign_change,
     list_advertiser_campaign_changes,
     list_pending_campaign_changes,
+    preview_campaign_change,
     request_campaign_change,
 )
 
 router = APIRouter()
+
+
+@router.post(
+    "/advertiser/campaigns/{campaign_id}/change-preview",
+    response_model=CampaignChangePreviewRead,
+)
+async def advertiser_preview_campaign_change(
+    campaign_id: UUID,
+    payload: CampaignChangePreviewCreate,
+    user: AdvertiserUserDependency,
+    session: SessionDependency,
+) -> CampaignChangePreviewRead:
+    return await preview_campaign_change(
+        session, actor_user_id=user.id, campaign_id=campaign_id, payload=payload
+    )
 
 
 @router.post(

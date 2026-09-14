@@ -67,6 +67,7 @@ def test_every_subject_reachable_model_is_registered_or_explicitly_excluded() ->
     assert {
         "password_reset_attempts",
         "password_reset_tokens",
+        "driver_account_setup_tokens",
     } <= unclassified_subject_tables(
         Base.metadata,
         rules=without_recovery,
@@ -295,6 +296,7 @@ def test_subject_link_registry_counts_recovery_contact_and_trip_manifest_rows(
     assert classified_subject_tables() == {
         "password_reset_attempts",
         "password_reset_tokens",
+        "driver_account_setup_tokens",
         "driver_phone_versions",
         "phone_verification_challenges",
         "whatsapp_consents",

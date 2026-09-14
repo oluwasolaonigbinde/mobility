@@ -12,6 +12,8 @@ from app.api.v1.dependencies import (
 from app.core.rate_limit import login_client_ip
 from app.models.user import UserRole, UserStatus
 from app.schemas.driver_applications import (
+    DriverAccountSetupInitiate,
+    DriverAccountSetupRead,
     DriverApplicationAdminListResponse,
     DriverApplicationAdminRead,
 )
@@ -24,6 +26,7 @@ from app.schemas.driver_onboarding import (
 from app.schemas.organizations import AdminOrganizationCreateResponse, AdvertiserOrganizationCreate
 from app.schemas.users import UserCreate, UserListResponse, UserRead, UserUpdate
 from app.services.audit import create_audit_event
+from app.services.driver_account_setup import initiate_driver_account_setup, setup_state
 from app.services.driver_applications import list_driver_applications
 from app.services.driver_onboarding import (
     application_person_payee_view,
@@ -229,6 +232,35 @@ async def admin_review_driver_vehicle(
     )
     await session.commit()
     return _admin_vehicle_response(view)
+
+
+@router.post(
+    "/driver-applications/{application_id}/account-setup",
+    response_model=DriverAccountSetupRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Initiate approved driver account setup",
+)
+async def admin_initiate_driver_account_setup(
+    application_id: UUID,
+    payload: DriverAccountSetupInitiate,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> DriverAccountSetupRead:
+    setup = await initiate_driver_account_setup(
+        session,
+        application_id=application_id,
+        actor_user_id=current_user.id,
+        client_request_id=payload.client_request_id,
+        settings=settings,
+    )
+    await session.commit()
+    return DriverAccountSetupRead(
+        id=setup.id,
+        application_id=setup.application_id,
+        expires_at=setup.expires_at,
+        state=setup_state(setup),
+    )
 
 
 @router.patch("/users/{user_id}", response_model=UserRead, summary="Update a user")

@@ -170,7 +170,7 @@ export function MeasurementAuthorityPanel({ authority }: { authority: Measuremen
             {projection.period} · {projection.timezone} · figures shown exactly as issued
           </p>
         </div>
-        <StatusChip tone="green">reproducible</StatusChip>
+        <StatusChip tone="green">Verified report</StatusChip>
       </div>
 
       <div className="mt-5 grid gap-4 md:grid-cols-3">
@@ -340,9 +340,6 @@ export function GovernedAnalysisState({ code }: { code: string }) {
       <p className="micro text-amber">Campaign results</p>
       <h1 className="mt-2 text-xl font-semibold">{copy.title}</h1>
       <p className="text-muted mt-2 text-sm">{copy.body}</p>
-      <p className="micro text-faint mt-3">
-        Reference: <span className="font-mono">{code}</span>
-      </p>
     </Panel>
   );
 }

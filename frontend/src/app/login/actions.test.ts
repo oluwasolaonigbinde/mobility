@@ -18,6 +18,8 @@ vi.mock("@/lib/api/client", () => ({
 }));
 
 import { demoLoginAction } from "./actions";
+import { loginAction } from "./actions";
+import { ApiError } from "@/lib/api/errors";
 
 const roleCredentials = {
   advertiser: ["advertiser@example.com", "advertiser-password"],
@@ -69,5 +71,28 @@ describe("demoLoginAction", () => {
       error: "Sign-in is unavailable.",
     });
     expect(mocks.post).not.toHaveBeenCalled();
+  });
+});
+
+describe("loginAction", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.env.mockReturnValue({ LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER: false });
+  });
+
+  it("does not expose an unexpected backend message", async () => {
+    mocks.post.mockRejectedValue(
+      new ApiError(500, {
+        code: "INTERNAL_ERROR",
+        message: "database topology and private request details",
+      }),
+    );
+    const formData = new FormData();
+    formData.set("email", "advertiser@example.com");
+    formData.set("password", "valid-password");
+
+    await expect(loginAction({}, formData)).resolves.toEqual({
+      error: "Sign-in is temporarily unavailable. Please try again.",
+    });
   });
 });

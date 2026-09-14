@@ -117,6 +117,127 @@ CI-throughput continuation (12 Sep 2026): run `34690115628` on `2a3f7e0` failed 
 
 ## Direct owner requests outside the package queue
 
+**Cardvert product-completion programme (14 Sep 2026):** Owner directs “P0 is
+green, on to the rest, ASAP” and authorizes the GPT-6 product-completion
+blueprint reviewed at `e952341` on the accepted P0 lineage now at `533f62d`.
+This is a bounded direct-owner programme outside the executable package queue;
+the `PKG-03 / W2-01C` external-provider pause and every live-use gate remain
+unchanged. Source inventory is C02–C16 plus V01–V07 and E01–E07 from the
+blueprint: P1 owns advertiser quotation, change preview/confirmation, safe
+feedback, artwork recovery, preparation and report clarity; P2 owns driver
+application/access recovery, renewal, page resilience, phone setup, tracking
+recovery and earnings clarity. After both are independently verified and
+admitted, P3 owns non-money operator discovery/evidence/assignment/
+measurement/contact/closeout and P4 owns payout selection, debt, independent
+approval, provider-neutral submission and reconciliation. P5 then creates
+`docs/product-requirements.md`; P6 closes integrated browser/state,
+environment-isolation, dependency-security and exact-SHA CI acceptance.
+Maximum implementation concurrency is two. Phase I uses two Sol High owners
+because P1 crosses commercial/money and public-error boundaries while P2
+crosses security/privacy, tracking recovery and earnings presentation. P1
+holds the exclusive Phase-I lease on generated OpenAPI/schema fixtures, shared
+UI/error utilities and cross-cutting auth; P2 must report a needed shared
+contract and wait for serialized integration rather than editing those files.
+Controller alone edits this ledger. Independent aggregate plan review precedes
+product writes; money/security/privacy/tracking specialist review and one
+consolidated post-build review gate admission. No live provider call,
+deployment, production-data mutation, invented policy/legal/commercial value,
+background-tracking expansion, relaxed authority check, new skip or coverage
+floor change is authorized. P0 is accepted by exact-SHA GitHub run
+`34853561120`: all 12 jobs passed, including 753 frontend tests, 2,813 backend
+tests, R59, changed coverage, and 96 ordinary desktop/mobile E2E passes with
+the 18 existing justified skips.
+
+Phase-I independent Sol High plan review returned `FIX`; the controller adopts
+its four blocking amendments before dispatch. P2 additionally owns
+`frontend/src/components/driver/**`, `frontend/src/lib/driver/**`,
+`frontend/src/lib/trips/**` and driver-only PWA/E2E files, but neither owner may
+edit shared Playwright fixtures, seed helpers, `tests/conftest.py`, notification
+infrastructure, formatting utilities or contract baselines concurrently. Any
+driver auth/generated-contract need becomes a concrete P2 handoff: P2 pauses
+that mutation, P1 serially integrates it after synchronisation, and P2 then
+verifies the resulting driver flow. C03 is one read-only server preview (zero
+campaign/request/revision/allocation/audit writes) plus a separately confirmed
+command bound to previewed inputs/source digest, revalidated under existing
+locks; stale confirmation is denied and duplicate confirmation converges on one
+authoritative result. C05 localises only optional history/labels: current-trip,
+activation, ownership, earnings-summary, hold and debt authority continue to
+fail closed, and reconnect reveals actions/money only after a successful fresh
+read. C06 preserves four distinct authorities—public status reference,
+expiring onboarding-evidence access, administrator-authorised account setup,
+and post-activation password reset—plus terminal revocation, replay denial,
+duplicate conflicts, reviewed renewal, rate limits, recipient privacy and
+public non-enumeration. Per-item acceptance records focused red/green evidence,
+server-value parity, database/audit non-mutation where relevant, stale and
+double-submit outcomes, real-backend desktop/mobile proof, and named specialist
+review. Owners use separate browser ports and temporary test-output locations;
+existing dirty evidence remains untouched.
+
+P2's V01 intake proved the expected shared C06 gap: D28 setup remains
+`[TARGET]`, there is no public onboarding-access renewal command, and active
+drivers are excluded from password recovery. The controller therefore grants
+P1 a serialized shared-integration sub-lease after its current safe point:
+implement only (a) a public, non-enumerating, rate-limited onboarding-access
+renewal request using the exact stored recipient and existing provider-neutral
+outbox; (b) D28 digest-only, short-lived, single-use, superseding admin-issued
+setup authority whose completion rechecks approved/current evidence, consumes
+setup and prior onboarding authority, activates the invited driver and rotates
+session authority; and (c) password reset eligibility for active drivers only.
+This sub-lease includes the directly necessary migration/model, auth/admin
+routes and schemas, driver-application/onboarding service calls, existing typed
+notification builder/template wiring, generated contracts/native fixtures and
+focused tests. It does not authorize a notification redesign, provider call,
+new recipient source, new policy value, or changes to P2-owned UI/tracking/
+earnings files. P1 signals contract stability; P2 then owns driver-flow
+integration verification. Required evidence covers known/unknown request
+parity, exact-recipient and rate-limit behavior, rejected/expired/superseded/
+replayed setup denial, duplicate convergence, unchanged D30/D31 behavior,
+pending-driver reset denial, active-driver reset success, replay denial and old
+session revocation.
+
+P1 reports the C06 backend/generated contract stable after focused setup,
+renewal, OpenAPI, audit-route and frontend type checks. The controller now
+leases P2 only the public driver-facing `frontend/src/app/driver-account-setup/**`
+route and directly related apply/status entry points and tests to consume the
+settled contract. P1 retains backend/auth/generated ownership and must not edit
+that new frontend route concurrently. P2 must preserve generic renewal
+responses and provider-neutral/fail-closed delivery wording, then include the
+complete recovery flow in its real-backend desktop/mobile verification.
+
+**Phase-I admission (14 Sep 2026):** P1 and P2 are `COMPLETE` as uncommitted
+integrated candidates. P1 closes C02–C04, advertiser V01/V06, advertiser C14/
+C15 and the serialized C06 backend/generated/shared-recovery contract. P2
+closes C05–C08 and driver V01/V06. Evidence includes exact quotation and two-
+cycle campaign-change real-stack journeys, desktop/mobile driver recovery,
+209-test P2 and focused P1 frontend suites, PostgreSQL change/setup/migration/
+stored-file idempotency checks, type/lint/build/contract checks, and truthfully
+reported environment skips. Independent P2 specialist re-review and integrated
+Sol High consolidated money/security/privacy/tracking review both PASS after
+fixing concurrent setup initiation, offline queue wording, currency-neutral
+empty earnings, past-end pagination, lost artwork-confirm recovery, sequential
+change request identity and D28 architecture truth. P3/P4 may now plan against
+the settled Phase-I contracts; Phase-I files remain frozen except for a
+review-proven integration correction returned to their original owner.
+
+Phase II uses two Sol High owners after one independent aggregate plan review.
+P3 exclusively owns non-money operator discovery and workflow surfaces:
+admin shell/search, users/drivers/vehicles, applications, approvals,
+assignments, fraud/display/late-data, traffic, measurement, contact and
+non-money closeout views plus their scoped read projections and domain tests.
+P4 exclusively owns payout batches, eligible-line selection, debt/corrections,
+maker-checker approval, provider-neutral submission outcomes, reconciliation,
+billing settlement projections and money tests. P4 may consume the settled
+driver payment contract but must not edit Phase-I driver/apply files; P3 must
+not edit payout/billing/money services or screens. Shared generated contracts,
+admin shell/common search primitives, audit fixtures, seed/test harnesses and
+cross-domain closeout state serialize through a controller-recorded lease;
+neither owner may infer ownership from convenience. P3 resolves V02 and the
+non-money portion of V03/V06 before adding a new queue; P4 resolves the money
+portion of V03/V06 before extending payout flows. Both preserve existing
+commands and atomic authority, use named human context instead of raw IDs,
+provide red/green and real-backend desktop/mobile evidence, and retain every
+external provider/legal/physical-operation gate.
+
 **CI submission-reference test correction (14 Sep 2026):** Owner “fix it pls” authorizes this bounded continuation in the existing master checkout after run `34842765201` on `e952341` failed only the ordinary desktop/mobile submission-history assertion. Sole writer is this CI task; controller is idle. Align the stale `Submitted snapshot SHA-256:` assertion with canonical `Submission reference:` while requiring a 64-character hexadecimal hash; retain approval, immutable history and all other gates. Scope: `frontend/e2e/campaign-flow.spec.ts` and this evidence entry only. Existing owned commit/non-force push authority applies; no product, coverage-floor, skip, provider or package-queue change. Independent Sol Medium plan review PASS. Both unchanged desktop/mobile journeys reproduced the exact missing-label failure locally (`/tmp/cardvert-label-red-real.log`); corrected complete campaign-flow file: 10 PASS, zero retries/skips (`/tmp/cardvert-label-green.log`). ESLint, progress validation and diff checks PASS. Initial existing-preview attempt was stopped because one-click login did not match the ordinary test harness; accepted verification used an exact-source temporary preview with regular login against the existing synthetic backend. Independent Sol Medium consolidated review PASS with no findings; exact pushed CI must finish before closure, with its terminal run linked in the owner/controller handoff without another evidence-only commit.
 
 Coverage follow-through: pushed `10bf582` / run `34850723035` passed frontend, all backend shards/aggregate and R59, then failed the unchanged global line floor: backend 25,289/28,518 versus adopted 25,291; frontend exactly 3,413/5,068 and branches above floors. No source instrumentation or floor changed in the label fix. Compared real artifacts show intermittent indirect async-service hits, including trip summary/count paths. Bounded verification amendment adds a real PostgreSQL trip summary/batch-count regression in `tests/test_trips.py`, asserting empty/populated/replayed counts, timestamps and cross-trip isolation directly in one async test context. No product, floor, policy or skip changes. Independent Sol Medium amendment plan PASS; temporary count-plus-one mutation failed the new empty-trip assertion and was immediately restored (`/tmp/cardvert-label-trip-red.log`). Full trip file: 29 PASS against configured integrations (`/tmp/cardvert-label-trip-green.log`), Ruff PASS. Local LCOV records six lines absent from the failed run; diagnostic union 25,295 exceeds unchanged 25,291 backend floor, but is not claimed as GitHub provenance. Independent Sol Medium consolidated amendment review PASS with no findings; fresh exact-SHA CI remains the completion gate.

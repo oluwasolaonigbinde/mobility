@@ -56,6 +56,15 @@ SUBJECT_QUERIES: dict[str, tuple[str, str]] = {
         "driver_applications",
         "SELECT user_id FROM driver_applications WHERE id=:entity_id",
     ),
+    "driver_application_access_token": (
+        "driver_application_access_tokens",
+        "SELECT a.user_id FROM driver_application_access_tokens t "
+        "JOIN driver_applications a ON a.id=t.application_id WHERE t.id=:entity_id",
+    ),
+    "driver_account_setup_token": (
+        "driver_account_setup_tokens",
+        "SELECT user_id FROM driver_account_setup_tokens WHERE id=:entity_id",
+    ),
     "data_subject_request": (
         "data_subject_requests",
         "SELECT subject_user_id FROM data_subject_requests WHERE id=:entity_id",

@@ -32,6 +32,9 @@ vi.mock("./campaign-change-panel", () => ({
 vi.mock("./campaign-cancellation-panel", () => ({
   CampaignCancellationPanel: () => <button>Cancel campaign</button>,
 }));
+vi.mock("./campaign-preparation-summary", () => ({
+  CampaignPreparationSummary: () => <section>Campaign preparation</section>,
+}));
 vi.mock("./creative-status-actions", () => ({
   CreativeStatusActions: () => <button>Submit creative</button>,
 }));

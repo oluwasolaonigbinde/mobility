@@ -98,3 +98,41 @@ class DriverApplicationAdminListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class DriverOnboardingAccessRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: str = Field(min_length=3, max_length=255)
+
+    @field_validator("email")
+    @classmethod
+    def normalize_email_identity(cls, value: str) -> str:
+        normalized = normalize_email(value)
+        if "@" not in normalized or normalized.startswith("@") or normalized.endswith("@"):
+            raise ValueError("Enter a valid email address")
+        return normalized
+
+
+class DriverAccountSetupInitiate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    client_request_id: UUID
+
+
+class DriverAccountSetupRead(BaseModel):
+    id: UUID
+    application_id: UUID
+    expires_at: datetime
+    state: Literal["pending", "used", "superseded"]
+
+
+class DriverAccountSetupComplete(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    token: str = Field(min_length=1, max_length=512)
+    new_password: str = Field(min_length=1)
+
+
+class DriverPublicCommandResponse(BaseModel):
+    message: str

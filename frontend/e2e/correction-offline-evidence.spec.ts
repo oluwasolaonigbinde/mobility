@@ -96,7 +96,7 @@ async function prepare(page: Page, samples = 1) {
   page.on("dialog", (dialog) => dialog.accept());
   await page.goto("/driver/track");
   await page.getByRole("button", { name: "▶ Start trip" }).click();
-  await expect(page.getByTestId("tracking-health")).toHaveText("active");
+  await expect(page.getByTestId("tracking-health")).toHaveText("Tracking");
 }
 
 test("lost End response drains the current deferred batch before reconciliation", async ({

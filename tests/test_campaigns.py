@@ -1,6 +1,7 @@
 import asyncio
 import hashlib
 import json
+from uuid import UUID, uuid4
 
 import pytest
 from conftest import (
@@ -15,7 +16,7 @@ from starlette import status as http_status
 
 from app.core.errors import AppError
 from app.models.audit import AuditEvent
-from app.models.campaign import CampaignReviewEvent, CampaignStatus
+from app.models.campaign import Campaign, CampaignReviewEvent, CampaignStatus
 from app.models.organization import MembershipRole, MembershipStatus
 from app.models.user import UserRole, UserStatus
 from app.schemas.campaigns import CampaignUpdate
@@ -180,6 +181,62 @@ def test_advertiser_owner_can_create_campaign_with_inferred_org_and_audit(
 
     audit_events = fetch_audit_events(db_sessionmaker)
     assert [event.action for event in audit_events] == ["advertiser.campaign.created"]
+
+
+def test_campaign_create_request_replay_converges_without_duplicate_or_rounding(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    advertiser, _ = create_advertiser_with_org(
+        db_sessionmaker,
+        email="create-replay@example.com",
+    )
+    headers = auth_headers(db_client, advertiser.email, PASSWORD)
+    request_id = str(uuid4())
+    payload = campaign_payload(currency="ngn") | {
+        "client_request_id": request_id,
+        "start_at": "2026-10-01T08:15:00+01:00",
+        "end_at": "2026-10-31T18:45:00+01:00",
+        "budget_amount": "500000.19",
+        "daily_budget_amount": "25000.07",
+    }
+
+    first = db_client.post("/api/v1/advertiser/campaigns", headers=headers, json=payload)
+    replay = db_client.post(
+        "/api/v1/advertiser/campaigns",
+        headers=headers,
+        json=payload,
+    )
+    stale = db_client.post(
+        "/api/v1/advertiser/campaigns",
+        headers=headers,
+        json=payload | {"budget_amount": "500000.20"},
+    )
+
+    assert first.status_code == http_status.HTTP_201_CREATED, first.text
+    assert replay.status_code == http_status.HTTP_201_CREATED, replay.text
+    assert first.json()["id"] == replay.json()["id"] == request_id
+    assert replay.json()["budget_amount"] == "500000.19"
+    assert replay.json()["daily_budget_amount"] == "25000.07"
+    assert stale.status_code == http_status.HTTP_409_CONFLICT
+    assert stale.json()["error"]["code"] == "CAMPAIGN_CREATE_IDEMPOTENCY_CONFLICT"
+
+    async def counts() -> tuple[int, int]:
+        async with db_sessionmaker() as session:
+            campaigns = await session.scalar(
+                select(func.count()).select_from(Campaign).where(Campaign.id == UUID(request_id))
+            )
+            audits = await session.scalar(
+                select(func.count())
+                .select_from(AuditEvent)
+                .where(
+                    AuditEvent.action == "advertiser.campaign.created",
+                    AuditEvent.entity_id == request_id,
+                )
+            )
+            return int(campaigns or 0), int(audits or 0)
+
+    assert asyncio.run(counts()) == (1, 1)
 
 
 def test_advertiser_manager_can_create_campaign(db_client, db_sessionmaker) -> None:

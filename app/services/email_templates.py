@@ -51,9 +51,22 @@ def _driver_onboarding_access(payload: dict[str, Any]) -> RenderedEmail:
     )
 
 
+def _driver_account_setup(payload: dict[str, Any]) -> RenderedEmail:
+    action = payload.get("setup_action")
+    if not isinstance(action, str) or not action:
+        raise ValueError("driver_account_setup_action_missing")
+    body = f"Use this single-use action before it expires to set your Cardvert password: {action}"
+    return RenderedEmail(
+        subject="Set up your Cardvert driver account",
+        text_body=body,
+        html_body=f"<p>{escape(body)}</p>",
+    )
+
+
 _TEMPLATES: dict[NotificationType, Callable[[dict[str, Any]], RenderedEmail]] = {
     NotificationType.PASSWORD_RESET_REQUESTED: _password_reset,
     NotificationType.DRIVER_ONBOARDING_ACCESS_REQUESTED: _driver_onboarding_access,
+    NotificationType.DRIVER_ACCOUNT_SETUP_REQUESTED: _driver_account_setup,
     NotificationType.CAMPAIGN_APPROVED: _static(
         "Campaign approved", "Your campaign has been approved."
     ),

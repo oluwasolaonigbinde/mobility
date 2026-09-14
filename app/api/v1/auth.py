@@ -27,9 +27,12 @@ from app.schemas.auth import (
     PasswordResetResponse,
 )
 from app.schemas.driver_applications import (
+    DriverAccountSetupComplete,
     DriverApplicationCreate,
     DriverApplicationStatusResponse,
     DriverApplicationSubmitResponse,
+    DriverOnboardingAccessRequest,
+    DriverPublicCommandResponse,
 )
 from app.schemas.driver_onboarding import (
     ApplicantFileUploadConfirm,
@@ -56,6 +59,7 @@ from app.services.auth import (
     refresh_user_session,
     revoke_user_sessions,
 )
+from app.services.driver_account_setup import complete_driver_account_setup
 from app.services.driver_applications import (
     PUBLIC_APPLICATION_MESSAGE,
     PUBLIC_NOT_FOUND_MESSAGE,
@@ -63,6 +67,7 @@ from app.services.driver_applications import (
     application_from_access_token,
     application_status_exists,
     issue_driver_application_access,
+    renew_driver_application_access,
     submit_driver_application,
 )
 from app.services.driver_onboarding import (
@@ -182,6 +187,45 @@ async def reserve_driver_registration(
         raise AppError(
             "RATE_LIMITED",
             "Too many applications",
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            details={"retry_after_seconds": decision.retry_after_seconds},
+            headers={"Retry-After": str(max(decision.retry_after_seconds, 1))},
+        )
+
+
+async def reserve_onboarding_access_request(
+    *,
+    session: SessionDependency,
+    limiter: RegistrationRateLimiterDependency,
+    request: Request,
+    settings: Settings,
+    email: str,
+) -> None:
+    decision = await limiter.reserve(registration_client_ip(request, settings), email)
+    if decision.storage_available is False:
+        raise AppError(
+            "RATE_LIMIT_UNAVAILABLE",
+            "Application service is temporarily unavailable",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            headers={"Retry-After": str(max(decision.retry_after_seconds, 1))},
+        )
+    if not decision.allowed:
+        if decision.newly_blocked:
+            await create_audit_event(
+                session,
+                actor_user_id=None,
+                action="auth.driver_onboarding_access.rate_limited",
+                entity_type="authentication",
+                entity_id=None,
+                metadata={
+                    "bucket": decision.bucket,
+                    "retry_after_seconds": decision.retry_after_seconds,
+                },
+            )
+            await session.commit()
+        raise AppError(
+            "RATE_LIMITED",
+            "Too many access requests",
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             details={"retry_after_seconds": decision.retry_after_seconds},
             headers={"Retry-After": str(max(decision.retry_after_seconds, 1))},
@@ -339,6 +383,59 @@ async def register_driver(
         message=PUBLIC_APPLICATION_MESSAGE,
         application_reference=result.reference,
     )
+
+
+@router.post(
+    "/driver-onboarding-access/request",
+    response_model=DriverPublicCommandResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Request renewed driver-onboarding access",
+)
+async def request_driver_onboarding_access(
+    payload: DriverOnboardingAccessRequest,
+    session: SessionDependency,
+    settings: SettingsDependency,
+    request: Request,
+    limiter: RegistrationRateLimiterDependency,
+) -> DriverPublicCommandResponse:
+    require_driver_registration_enabled(settings)
+    await reserve_onboarding_access_request(
+        session=session,
+        limiter=limiter,
+        request=request,
+        settings=settings,
+        email=payload.email,
+    )
+    access = await renew_driver_application_access(
+        session,
+        email=payload.email,
+        settings=settings,
+    )
+    if access is not None:
+        await session.commit()
+    return DriverPublicCommandResponse(
+        message="If a pending application exists, access instructions will be sent."
+    )
+
+
+@router.post(
+    "/driver-account-setup/complete",
+    response_model=DriverPublicCommandResponse,
+    summary="Complete approved driver account setup",
+)
+async def complete_driver_setup(
+    payload: DriverAccountSetupComplete,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> DriverPublicCommandResponse:
+    await complete_driver_account_setup(
+        session,
+        token=payload.token,
+        new_password=payload.new_password,
+        settings=settings,
+    )
+    await session.commit()
+    return DriverPublicCommandResponse(message="Driver account setup completed. Sign in.")
 
 
 @router.get(

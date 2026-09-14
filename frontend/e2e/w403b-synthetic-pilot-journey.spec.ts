@@ -114,7 +114,7 @@ test("W4-03B Abuja PWA records only synthetic screen-on GPS evidence", async ({
   await page.goto("/driver/track");
   await page.getByRole("button", { name: "▶ Start trip" }).click();
   try {
-    await expect(page.getByTestId("tracking-health")).toContainText("active");
+    await expect(page.getByTestId("tracking-health")).toContainText("Tracking");
   } catch (error) {
     await testInfo.attach("start-capability-assessments", {
       body: JSON.stringify(blockedAssessments),

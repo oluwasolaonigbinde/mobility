@@ -194,15 +194,16 @@ async def advertiser_create_campaign(
     current_user: AdvertiserUserDependency,
     session: SessionDependency,
 ) -> CampaignRead:
-    campaign = await create_campaign(session, user_id=current_user.id, payload=payload)
-    await create_audit_event(
-        session,
-        actor_user_id=current_user.id,
-        action="advertiser.campaign.created",
-        entity_type="campaign",
-        entity_id=str(campaign.id),
-        metadata={"organization_id": str(campaign.organization_id), "status": campaign.status},
-    )
+    campaign, created = await create_campaign(session, user_id=current_user.id, payload=payload)
+    if created:
+        await create_audit_event(
+            session,
+            actor_user_id=current_user.id,
+            action="advertiser.campaign.created",
+            entity_type="campaign",
+            entity_id=str(campaign.id),
+            metadata={"organization_id": str(campaign.organization_id), "status": campaign.status},
+        )
     await session.commit()
     return campaign_response(campaign)
 
@@ -434,14 +435,15 @@ async def advertiser_update_campaign_creative(
         creative_id=creative_id,
         payload=payload,
     )
-    await create_audit_event(
-        session,
-        actor_user_id=current_user.id,
-        action="advertiser.campaign_creative.updated",
-        entity_type="campaign_creative",
-        entity_id=str(creative.id),
-        metadata={"changed_fields": changed_fields},
-    )
+    if changed_fields:
+        await create_audit_event(
+            session,
+            actor_user_id=current_user.id,
+            action="advertiser.campaign_creative.updated",
+            entity_type="campaign_creative",
+            entity_id=str(creative.id),
+            metadata={"changed_fields": changed_fields},
+        )
     await session.commit()
     return creative_response(creative)
 

@@ -139,6 +139,7 @@ export default async function DriverTripEarningsPage({
 
   return (
     <FreshDriverAuthority
+      refreshKey={crypto.randomUUID()}
       title="Current trip earnings hidden while offline"
       detail="Reconnect to see the latest pay, review and dispute status. Earlier review details and dispute actions are hidden while offline."
       retryHref={`/driver/earnings/trips/${tripId}`}

@@ -124,7 +124,7 @@ test.describe("W4-01C governed campaign journey", () => {
     await expect(start).toBeEnabled();
     await start.click();
     await expect(page.getByRole("button", { name: "■ End trip" })).toBeEnabled();
-    await expect(page.getByTestId("tracking-health")).toContainText("active");
+    await expect(page.getByTestId("tracking-health")).toContainText("Tracking");
 
     await page.getByRole("button", { name: "■ End trip" }).click();
     await expect(page.getByRole("button", { name: "▶ Start trip" })).toBeVisible();

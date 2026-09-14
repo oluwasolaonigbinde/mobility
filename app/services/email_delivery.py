@@ -11,6 +11,7 @@ from app.core.config import Settings
 from app.models.audit import AuditEvent
 from app.models.contact import PasswordResetToken
 from app.models.driver_application import (
+    DriverAccountSetupToken,
     DriverApplication,
     DriverApplicationAccessToken,
     DriverApplicationStatus,
@@ -43,13 +44,22 @@ async def _preference_allows_delivery(
     if notice.type_key in {
         NotificationType.PASSWORD_RESET_REQUESTED.value,
         NotificationType.DRIVER_ONBOARDING_ACCESS_REQUESTED.value,
+        NotificationType.DRIVER_ACCOUNT_SETUP_REQUESTED.value,
     }:
         user = await session.get(User, notice.recipient_user_id)
         password_reset_recipient = (
             notice.type_key == NotificationType.PASSWORD_RESET_REQUESTED.value
             and user is not None
-            and user.role in {UserRole.ADMIN.value, UserRole.ADVERTISER.value}
-            and user.status in {UserStatus.ACTIVE.value, UserStatus.INVITED.value}
+            and (
+                (
+                    user.role in {UserRole.ADMIN.value, UserRole.ADVERTISER.value}
+                    and user.status in {UserStatus.ACTIVE.value, UserStatus.INVITED.value}
+                )
+                or (
+                    user.role == UserRole.DRIVER.value
+                    and user.status == UserStatus.ACTIVE.value
+                )
+            )
         )
         onboarding_recipient = (
             notice.type_key == NotificationType.DRIVER_ONBOARDING_ACCESS_REQUESTED.value
@@ -57,7 +67,13 @@ async def _preference_allows_delivery(
             and user.role == UserRole.DRIVER.value
             and user.status == UserStatus.INVITED.value
         )
-        if not (password_reset_recipient or onboarding_recipient):
+        setup_recipient = (
+            notice.type_key == NotificationType.DRIVER_ACCOUNT_SETUP_REQUESTED.value
+            and user is not None
+            and user.role == UserRole.DRIVER.value
+            and user.status == UserStatus.INVITED.value
+        )
+        if not (password_reset_recipient or onboarding_recipient or setup_recipient):
             return False, "email_recipient_inactive"
         assert user is not None
         return True, user.email
@@ -204,6 +220,7 @@ async def process_email_notification(
                 access is None
                 or application is None
                 or user is None
+                or access.invalidated_at is not None
                 or application.user_id != user.id
                 or application.status != DriverApplicationStatus.PENDING.value
                 or _utc(access.expires_at) <= _utc(now)
@@ -219,6 +236,48 @@ async def process_email_notification(
                 )
             except RuntimeError:
                 raise ValueError("driver_onboarding_access_evidence_mismatch") from None
+        elif notice.type_key == NotificationType.DRIVER_ACCOUNT_SETUP_REQUESTED.value:
+            try:
+                setup_id = UUID(str(notice.payload["driver_account_setup_id"]))
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError("driver_account_setup_request_missing") from exc
+            async with sessionmaker() as session:
+                setup = await session.get(DriverAccountSetupToken, setup_id)
+                application = (
+                    await session.get(DriverApplication, setup.application_id)
+                    if setup is not None
+                    else None
+                )
+                user = await session.get(User, notice.recipient_user_id)
+            if (
+                setup is None
+                or application is None
+                or user is None
+                or setup.user_id != user.id
+                or application.user_id != user.id
+                or setup.used_at is not None
+                or setup.superseded_at is not None
+                or application.status != DriverApplicationStatus.APPROVED.value
+                or user.status != UserStatus.INVITED.value
+                or setup.session_version != user.session_version
+                or _utc(setup.expires_at) <= _utc(now)
+            ):
+                raise ValueError("driver_account_setup_request_inactive")
+            from app.services.driver_account_setup import driver_account_setup_token_for_delivery
+
+            try:
+                setup_token = driver_account_setup_token_for_delivery(setup, settings)
+            except RuntimeError:
+                raise ValueError("driver_account_setup_evidence_mismatch") from None
+            if settings.driver_account_setup_public_url:
+                separator = "&" if "?" in settings.driver_account_setup_public_url else "?"
+                runtime_payload["setup_action"] = (
+                    f"{settings.driver_account_setup_public_url}{separator}token={quote(setup_token)}"
+                )
+            elif settings.environment in {"local", "dev", "development", "test", "testing"}:
+                runtime_payload["setup_action"] = setup_token
+            else:
+                raise ValueError("driver_account_setup_public_url_missing")
         rendered = render_email_template(notice.type_key, notice.template_version, runtime_payload)
         submission = await email_adapter.send(
             EmailMessage(

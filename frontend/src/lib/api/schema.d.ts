@@ -656,6 +656,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/driver-applications/{application_id}/account-setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Initiate approved driver account setup */
+        post: operations["admin_initiate_driver_account_setup_api_v1_admin_driver_applications__application_id__account_setup_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/driver-applications/{application_id}/person-payee-decision": {
         parameters: {
             query?: never;
@@ -2310,6 +2327,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/advertiser/campaigns/{campaign_id}/change-preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Advertiser Preview Campaign Change */
+        post: operations["advertiser_preview_campaign_change_api_v1_advertiser_campaigns__campaign_id__change_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/advertiser/campaigns/{campaign_id}/change-requests": {
         parameters: {
             query?: never;
@@ -3070,6 +3104,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/driver-account-setup/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete approved driver account setup */
+        post: operations["complete_driver_setup_api_v1_auth_driver_account_setup_complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/driver-application-status/{reference}": {
         parameters: {
             query?: never;
@@ -3081,6 +3132,23 @@ export interface paths {
         get: operations["driver_application_status_api_v1_auth_driver_application_status__reference__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/driver-onboarding-access/request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Request renewed driver-onboarding access */
+        post: operations["request_driver_onboarding_access_api_v1_auth_driver_onboarding_access_request_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5748,8 +5816,12 @@ export interface components {
             daily_budget_amount?: number | string | null;
             /** End At */
             end_at?: string | null;
+            /** Preview Sha256 */
+            preview_sha256: string;
             /** Reason */
             reason: string;
+            /** Source Sha256 */
+            source_sha256: string;
             /** Start At */
             start_at?: string | null;
         };
@@ -5762,6 +5834,44 @@ export interface components {
         CampaignChangeList: {
             /** Items */
             items: components["schemas"]["CampaignChangeRead"][];
+        };
+        /** CampaignChangePreviewCreate */
+        CampaignChangePreviewCreate: {
+            /** Budget Amount */
+            budget_amount?: number | string | null;
+            /** Daily Budget Amount */
+            daily_budget_amount?: number | string | null;
+            /** End At */
+            end_at?: string | null;
+            /** Reason */
+            reason: string;
+            /** Start At */
+            start_at?: string | null;
+        };
+        /** CampaignChangePreviewRead */
+        CampaignChangePreviewRead: {
+            /** After */
+            after: {
+                [key: string]: unknown;
+            };
+            /** Available Liability Amount */
+            available_liability_amount: string;
+            /** Before */
+            before: {
+                [key: string]: unknown;
+            };
+            /** Classifications */
+            classifications: string[];
+            /** Currency */
+            currency: string;
+            /** Outcome */
+            outcome: string;
+            /** Preview Sha256 */
+            preview_sha256: string;
+            /** Requested Liability Amount */
+            requested_liability_amount: string;
+            /** Source Sha256 */
+            source_sha256: string;
         };
         /** CampaignChangeRead */
         CampaignChangeRead: {
@@ -5850,6 +5960,8 @@ export interface components {
         CampaignCreate: {
             /** Budget Amount */
             budget_amount?: number | string | null;
+            /** Client Request Id */
+            client_request_id?: string | null;
             /** Currency */
             currency?: string | null;
             /** Daily Budget Amount */
@@ -7293,6 +7405,44 @@ export interface components {
              */
             verified_at: string;
         };
+        /** DriverAccountSetupComplete */
+        DriverAccountSetupComplete: {
+            /** New Password */
+            new_password: string;
+            /** Token */
+            token: string;
+        };
+        /** DriverAccountSetupInitiate */
+        DriverAccountSetupInitiate: {
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+        };
+        /** DriverAccountSetupRead */
+        DriverAccountSetupRead: {
+            /**
+             * Application Id
+             * Format: uuid
+             */
+            application_id: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "pending" | "used" | "superseded";
+        };
         /** DriverApplicationAdminListResponse */
         DriverApplicationAdminListResponse: {
             /** Items */
@@ -7643,6 +7793,11 @@ export interface components {
             trip_session_id?: string | null;
             type_key: components["schemas"]["NotificationType"];
         };
+        /** DriverOnboardingAccessRequest */
+        DriverOnboardingAccessRequest: {
+            /** Email */
+            email: string;
+        };
         /**
          * DriverOnboardingStatus
          * @enum {string}
@@ -7758,6 +7913,11 @@ export interface components {
             license_number?: string | null;
             /** Service City */
             service_city?: string | null;
+        };
+        /** DriverPublicCommandResponse */
+        DriverPublicCommandResponse: {
+            /** Message */
+            message: string;
         };
         /** DriverTripAnalyticsSummary */
         DriverTripAnalyticsSummary: {
@@ -9874,7 +10034,7 @@ export interface components {
          * NotificationType
          * @enum {string}
          */
-        NotificationType: "assignment_offered" | "assignment_accepted" | "campaign_approved" | "funding_confirmed" | "budget_alert" | "campaign_budget_paused" | "campaign_budget_resumed" | "campaign_cancelled" | "evidence_challenge_created" | "evidence_verified" | "payout_released" | "password_reset_requested" | "driver_onboarding_access_requested" | "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied" | "activity_floor_breached" | "activity_floor_recovered" | "assignment_inactive" | "assignment_activity_recovered";
+        NotificationType: "assignment_offered" | "assignment_accepted" | "campaign_approved" | "funding_confirmed" | "budget_alert" | "campaign_budget_paused" | "campaign_budget_resumed" | "campaign_cancelled" | "evidence_challenge_created" | "evidence_verified" | "payout_released" | "password_reset_requested" | "driver_onboarding_access_requested" | "driver_account_setup_requested" | "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied" | "activity_floor_breached" | "activity_floor_recovered" | "assignment_inactive" | "assignment_activity_recovered";
         /** NotificationUnreadCountRead */
         NotificationUnreadCountRead: {
             /** Unread Count */
@@ -14140,6 +14300,41 @@ export interface operations {
             };
         };
     };
+    admin_initiate_driver_account_setup_api_v1_admin_driver_applications__application_id__account_setup_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                application_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DriverAccountSetupInitiate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverAccountSetupRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     admin_review_driver_person_payee_api_v1_admin_driver_applications__application_id__person_payee_decision_post: {
         parameters: {
             query?: never;
@@ -17649,6 +17844,41 @@ export interface operations {
             };
         };
     };
+    advertiser_preview_campaign_change_api_v1_advertiser_campaigns__campaign_id__change_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignChangePreviewCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignChangePreviewRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     advertiser_list_campaign_change_requests_api_v1_advertiser_campaigns__campaign_id__change_requests_get: {
         parameters: {
             query?: never;
@@ -19432,6 +19662,39 @@ export interface operations {
             };
         };
     };
+    complete_driver_setup_api_v1_auth_driver_account_setup_complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DriverAccountSetupComplete"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverPublicCommandResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     driver_application_status_api_v1_auth_driver_application_status__reference__get: {
         parameters: {
             query?: never;
@@ -19450,6 +19713,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DriverApplicationStatusResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    request_driver_onboarding_access_api_v1_auth_driver_onboarding_access_request_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DriverOnboardingAccessRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverPublicCommandResponse"];
                 };
             };
             /** @description Request validation failed */

@@ -3,13 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { components } from "@/lib/api/schema";
 import { ApiError } from "@/lib/api/errors";
 
-const { get, notFound } = vi.hoisted(() => ({ get: vi.fn(), notFound: vi.fn() }));
+const { get, notFound, refresh } = vi.hoisted(() => ({
+  get: vi.fn(),
+  notFound: vi.fn(),
+  refresh: vi.fn(),
+}));
 
 vi.mock("@/lib/api/client", () => ({
   createApiClient: () => ({ GET: get }),
 }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn() }));
-vi.mock("next/navigation", () => ({ notFound }));
+vi.mock("next/navigation", () => ({ notFound, useRouter: () => ({ refresh }) }));
 
 import DriverTripEarningsPage from "./page";
 

@@ -65,7 +65,7 @@ describe("PersonPayeeForm", () => {
     await user.click(screen.getByRole("button", { name: "Submit person & payee evidence" }));
 
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "Person/payee evidence version 1 is pending review. NIN projection: *******8901.",
+      "Person/payee evidence version 1 was sent for administrator review. NIN projection: *******8901.",
     );
     expect(screen.queryByText("12345678901")).not.toBeInTheDocument();
     expect(screen.queryByText("0123456789")).not.toBeInTheDocument();

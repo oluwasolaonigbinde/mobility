@@ -32,7 +32,7 @@ describe("CampaignReportPage fail-closed states", () => {
     expect(screen.getByText(/failed its integrity check/i)).toBeInTheDocument();
     expect(screen.getByText(/Cardvert needs to reissue the analysis/)).toBeInTheDocument();
     expect(screen.queryByText(/fail-closed/i)).not.toBeInTheDocument();
-    expect(screen.getByText("MEASUREMENT_RUN_INTEGRITY_FAILURE")).toBeInTheDocument();
+    expect(screen.queryByText("MEASUREMENT_RUN_INTEGRITY_FAILURE")).not.toBeInTheDocument();
     expect(screen.queryByText(/daily breakdown/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/modelled potential contacts/i)).not.toBeInTheDocument();
   });

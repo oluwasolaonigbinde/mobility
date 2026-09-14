@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any, Literal
 from uuid import UUID
@@ -31,7 +31,7 @@ def ensure_timezone_aware(value: datetime | None) -> datetime | None:
         return None
     if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
         raise ValueError("Datetime must include timezone information")
-    return value
+    return value.astimezone(UTC)
 
 
 class DecimalStringMixin(BaseModel):
@@ -45,6 +45,7 @@ class DecimalStringMixin(BaseModel):
 class CampaignCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    client_request_id: UUID | None = None
     name: str = Field(min_length=1)
     description: str | None = None
     status: CampaignStatus = CampaignStatus.DRAFT

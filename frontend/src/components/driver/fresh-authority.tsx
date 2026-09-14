@@ -1,40 +1,51 @@
 "use client";
 
-import { useCallback, useRef, useSyncExternalStore, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { DriverDataUnavailable } from "./data-unavailable";
 
-function useFreshNetworkAuthority() {
-  const stale = useRef(false);
-  const subscribe = useCallback((onChange: () => void) => {
-    const markStale = () => {
-      stale.current = true;
-      onChange();
-    };
-    window.addEventListener("offline", markStale);
-    window.addEventListener("online", onChange);
-    if (!navigator.onLine) stale.current = true;
-    return () => {
-      window.removeEventListener("offline", markStale);
-      window.removeEventListener("online", onChange);
-    };
-  }, []);
-  const getSnapshot = useCallback(() => navigator.onLine && !stale.current, []);
-  return useSyncExternalStore(subscribe, getSnapshot, () => true);
-}
-
-/** Hide server-rendered driver authority as soon as the browser loses the network. */
 export function FreshDriverAuthority({
   children,
+  refreshKey,
   title,
   detail,
   retryHref,
 }: {
   children: ReactNode;
+  refreshKey: string;
   title: string;
   detail: string;
   retryHref: string;
 }) {
-  const hasFreshNetworkAuthority = useFreshNetworkAuthority();
+  const router = useRouter();
+  const [hasFreshNetworkAuthority, setHasFreshNetworkAuthority] = useState(true);
+  const stale = useRef(false);
+  const acceptedRefreshKey = useRef(refreshKey);
+
+  useEffect(() => {
+    const markStale = () => {
+      stale.current = true;
+      setHasFreshNetworkAuthority(false);
+    };
+    const requestFreshAuthority = () => {
+      if (stale.current) router.refresh();
+    };
+    window.addEventListener("offline", markStale);
+    window.addEventListener("online", requestFreshAuthority);
+    if (!navigator.onLine) markStale();
+    return () => {
+      window.removeEventListener("offline", markStale);
+      window.removeEventListener("online", requestFreshAuthority);
+    };
+  }, [router]);
+
+  useEffect(() => {
+    if (stale.current && navigator.onLine && acceptedRefreshKey.current !== refreshKey) {
+      acceptedRefreshKey.current = refreshKey;
+      stale.current = false;
+      setHasFreshNetworkAuthority(true);
+    }
+  }, [refreshKey]);
 
   if (!hasFreshNetworkAuthority) {
     return <DriverDataUnavailable title={title} detail={detail} retryHref={retryHref} />;

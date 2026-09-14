@@ -219,6 +219,7 @@ describe("CampaignMapPage", () => {
     render(await CampaignMapPage({ params: Promise.resolve({ campaignId: CAMPAIGN_ID }) }));
 
     expect(governedMap).not.toHaveBeenCalled();
-    expect(screen.getByText("MEASUREMENT_RUN_INTEGRITY_FAILURE")).toBeInTheDocument();
+    expect(screen.getByText("This report failed its integrity check")).toBeInTheDocument();
+    expect(screen.queryByText("MEASUREMENT_RUN_INTEGRITY_FAILURE")).not.toBeInTheDocument();
   });
 });

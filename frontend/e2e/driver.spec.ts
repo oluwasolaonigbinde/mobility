@@ -16,7 +16,7 @@ async function loginAsDriver(page: Page) {
 test("driver home shows earnings and the active campaign with app chrome", async ({ page }) => {
   await loginAsDriver(page);
   await expect(page.getByText("Cardvert. DRIVER")).toBeVisible();
-  await expect(page.getByText("Available for next payout", { exact: true })).toBeVisible();
+  await expect(page.getByText("Available for payment", { exact: true })).toBeVisible();
   // Active-campaign card names the campaign; recent activity lists whichever
   // campaigns the enriched seed wrote most recently — so assert presence, not
   // an exact count tied to seed ordering.
@@ -55,8 +55,9 @@ test("earnings tab shows totals and a trip-traceable ledger", async ({ page }) =
     .getByRole("link", { name: "Earnings" })
     .click();
   await page.waitForURL("**/driver/earnings");
-  await expect(page.getByText("Pending", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Lifetime earned", { exact: true })).toBeVisible();
+  await expect(page.getByText("Available for payment", { exact: true })).toBeVisible();
+  await expect(page.getByText("Under review", { exact: true })).toBeVisible();
+  await expect(page.getByText("Paid", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Payout journey")).toBeVisible();
   // Ledger rows are links into the per-trip earnings breakdown.
   await expect(page.locator('a[href*="/driver/earnings/trips/"]').first()).toBeVisible();
@@ -70,7 +71,10 @@ test("track tab offers trip control for the active assignment", async ({ page })
     .click();
   await page.waitForURL("**/driver/track");
   // Either ready-to-start or already tracking — both are valid live states
-  await expect(page.getByRole("button", { name: /Start trip|End trip/ })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Start trip|End trip|Check trip status/ }),
+  ).toBeVisible();
+  await expect(page.getByText("Set up this phone")).toBeVisible();
   await expect(page.getByText("How a trip becomes earnings")).toBeVisible();
   await expect(page.getByText("Recent verified activity")).toBeVisible();
 });

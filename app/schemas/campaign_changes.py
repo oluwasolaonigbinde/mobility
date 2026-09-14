@@ -8,10 +8,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from app.schemas.campaigns import ensure_timezone_aware
 
 
-class CampaignChangeCreate(BaseModel):
+class CampaignChangeProposal(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    client_request_id: UUID
     budget_amount: Decimal | None = Field(default=None, ge=Decimal("0"))
     daily_budget_amount: Decimal | None = Field(default=None, ge=Decimal("0"))
     start_at: datetime | None = None
@@ -32,7 +31,7 @@ class CampaignChangeCreate(BaseModel):
         return normalized
 
     @model_validator(mode="after")
-    def at_least_one_change(self) -> "CampaignChangeCreate":
+    def at_least_one_change(self) -> "CampaignChangeProposal":
         change_fields = {"budget_amount", "daily_budget_amount", "start_at", "end_at"}
         selected = self.model_fields_set.intersection(change_fields)
         if not selected:
@@ -40,6 +39,28 @@ class CampaignChangeCreate(BaseModel):
         if any(getattr(self, field) is None for field in selected):
             raise ValueError("Campaign change values cannot be null")
         return self
+
+
+class CampaignChangePreviewCreate(CampaignChangeProposal):
+    pass
+
+
+class CampaignChangeCreate(CampaignChangeProposal):
+    client_request_id: UUID
+    source_sha256: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+    preview_sha256: str = Field(min_length=64, max_length=64, pattern=r"^[0-9a-f]{64}$")
+
+
+class CampaignChangePreviewRead(BaseModel):
+    before: dict[str, Any]
+    after: dict[str, Any]
+    source_sha256: str
+    preview_sha256: str
+    classifications: list[str]
+    requested_liability_amount: Decimal
+    available_liability_amount: Decimal
+    currency: str
+    outcome: str
 
 
 class CampaignChangeDecision(BaseModel):

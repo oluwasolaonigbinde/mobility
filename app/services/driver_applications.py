@@ -161,6 +161,7 @@ async def application_from_access_token(
     if (
         access is None
         or application is None
+        or access.invalidated_at is not None
         or application.status != DriverApplicationStatus.PENDING.value
         or datetime.now(UTC) >= _utc(access.expires_at)
         or not hmac.compare_digest(supplied_hash, access.token_sha256)
@@ -171,6 +172,35 @@ async def application_from_access_token(
             status_code=status.HTTP_404_NOT_FOUND,
         )
     return application
+
+
+async def renew_driver_application_access(
+    session: AsyncSession,
+    *,
+    email: str,
+    settings: Settings,
+) -> DriverApplicationAccessToken | None:
+    """Issue fresh evidence access only for the exact stored pending recipient."""
+
+    user = await get_user_by_email(session, email)
+    application = await _eligible_access_application(session, user)
+    if application is None:
+        return None
+    access = await issue_driver_application_access(
+        session,
+        application=application,
+        settings=settings,
+    )
+    if access is not None:
+        await create_audit_event(
+            session,
+            actor_user_id=None,
+            action="auth.driver_onboarding_access.renewed",
+            entity_type="driver_application_access_token",
+            entity_id=str(access.id),
+            metadata={"application_id": str(application.id)},
+        )
+    return access
 
 
 async def terminalize_driver_application(

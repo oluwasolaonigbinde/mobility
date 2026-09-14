@@ -59,11 +59,19 @@ def advertiser_with_org(db_sessionmaker, email: str):
     return user, organization
 
 
-def confirm_png(db_client, storage: FakeStorageProvider, email: str) -> dict:
+def confirm_png(
+    db_client,
+    storage: FakeStorageProvider,
+    email: str,
+    *,
+    client_request_id: str | None = None,
+) -> dict:
     content = b"\x89PNG\r\n\x1a\n" + b"scan-safe-content" * 4
     import hashlib
 
     payload = upload_payload(size_bytes=len(content), sha256=hashlib.sha256(content).hexdigest())
+    if client_request_id is not None:
+        payload["client_request_id"] = client_request_id
     created = db_client.post(
         "/api/v1/advertiser/files/uploads",
         headers=auth_headers(db_client, email, PASSWORD),

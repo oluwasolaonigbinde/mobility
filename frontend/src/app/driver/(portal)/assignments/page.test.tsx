@@ -9,6 +9,10 @@ vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token
 vi.mock("@/lib/driver/load-campaign-journey", () => ({
   loadDriverCampaignJourney: mocks.loadJourney,
 }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 
 import DriverAssignmentsPage from "./page";
 

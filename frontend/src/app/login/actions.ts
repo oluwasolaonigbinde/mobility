@@ -81,7 +81,7 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
     const api = createLoginApiClient(clientIp);
     const { data } = await api.POST("/api/v1/auth/login", { body: parsed.data });
     if (!data) {
-      return { error: "Unexpected empty response from the server." };
+      return { error: "Sign-in is temporarily unavailable. Please try again." };
     }
     await setSessionCookie(data.access_token, data.expires_in);
     home = data.user.must_change_password
@@ -96,7 +96,7 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
             ? `Too many attempts. Try again in ${String(error.details?.retry_after_seconds ?? "a few")} seconds.`
             : error.status === 401 || error.status === 403
               ? "Invalid email or password, or the account is not active."
-              : error.message,
+              : "Sign-in is temporarily unavailable. Please try again.",
       };
     }
     return { error: "Could not reach the server. Please try again." };

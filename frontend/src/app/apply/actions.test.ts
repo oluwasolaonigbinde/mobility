@@ -1,16 +1,35 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/errors";
 
-const mocks = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  post: vi.fn(),
+  get: vi.fn(),
+  createLoginClient: vi.fn(() => ({ POST: vi.fn() })),
+}));
+
+vi.mock("next/headers", () => ({
+  headers: vi.fn(async () => new Headers({ "x-client-ip": "203.0.113.4" })),
+}));
+vi.mock("@/lib/env", () => ({
+  env: () => ({ LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER: true }),
+}));
 
 vi.mock("@/lib/api/client", () => ({
   createApiClient: () => ({ POST: mocks.post, GET: mocks.get }),
+  createLoginApiClient: mocks.createLoginClient,
 }));
 
-import { checkDriverApplicationStatusAction, submitDriverApplicationAction } from "./actions";
+import {
+  checkDriverApplicationStatusAction,
+  requestDriverOnboardingAccessAction,
+  submitDriverApplicationAction,
+} from "./actions";
 
 describe("driver application actions", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.createLoginClient.mockReturnValue({ POST: mocks.post });
+  });
 
   it("submits the allowlisted fields and returns the reference", async () => {
     mocks.post.mockResolvedValue({
@@ -71,10 +90,45 @@ describe("driver application actions", () => {
       pending: true,
       reference: "reference-secret",
       personPayeeStatus: "rejected",
-      vehicleStatus: "pending review",
+      vehicleStatus: "pending_review",
     });
     expect(mocks.get).toHaveBeenCalledWith("/api/v1/auth/driver-application-status/{reference}", {
       params: { path: { reference: "reference-secret" } },
     });
+  });
+
+  it("requests renewed onboarding access without confirming an application exists", async () => {
+    mocks.post.mockResolvedValue({ data: { message: "private provider detail" } });
+    const form = new FormData();
+    form.set("email", " Driver@Example.com ");
+
+    await expect(requestDriverOnboardingAccessAction({}, form)).resolves.toEqual({
+      done: "If the application can continue, a new onboarding code will be sent.",
+      email: "driver@example.com",
+    });
+    expect(mocks.post).toHaveBeenCalledWith("/api/v1/auth/driver-onboarding-access/request", {
+      body: { email: "driver@example.com" },
+    });
+    expect(mocks.createLoginClient).toHaveBeenCalledWith("203.0.113.4");
+  });
+
+  it("does not expose renewal rate-limit, recipient, or provider details", async () => {
+    mocks.post.mockRejectedValue(
+      new ApiError(429, {
+        code: "DRIVER_ONBOARDING_ACCESS_RATE_LIMITED",
+        message: "recipient mailbox and provider detail",
+      }),
+    );
+    const form = new FormData();
+    form.set("email", "driver@example.com");
+
+    const result = await requestDriverOnboardingAccessAction({}, form);
+
+    expect(result).toEqual({
+      error: "Onboarding access is temporarily unavailable. Try again later.",
+      email: "driver@example.com",
+    });
+    expect(JSON.stringify(result)).not.toContain("mailbox");
+    expect(JSON.stringify(result)).not.toContain("provider");
   });
 });

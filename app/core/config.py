@@ -162,6 +162,8 @@ class Settings(BaseSettings):
     driver_registration_rate_limit_email_max_attempts: int = 3
     driver_registration_rate_limit_email_window_seconds: int = 3600
     driver_onboarding_access_ttl_seconds: int = 1800
+    driver_account_setup_ttl_seconds: int = 1800
+    driver_account_setup_public_url: str = ""
     driver_registration_rate_limit_trust_client_ip_header: bool = False
     driver_registration_rate_limit_trusted_proxy_cidrs: str = ""
     backend_cors_origins: CorsOrigins = Field(default_factory=list)
@@ -391,6 +393,7 @@ class Settings(BaseSettings):
         "phone_verification_request_window_seconds",
         "password_reset_ttl_seconds",
         "driver_onboarding_access_ttl_seconds",
+        "driver_account_setup_ttl_seconds",
         "password_reset_account_max_attempts",
         "password_reset_ip_max_attempts",
         "password_reset_rate_window_seconds",

@@ -24,6 +24,7 @@ import { CommercialPanel } from "./commercial-panel";
 import { CreativeStatusActions } from "./creative-status-actions";
 import { CampaignChangePanel } from "./campaign-change-panel";
 import { CampaignCancellationPanel } from "./campaign-cancellation-panel";
+import { CampaignPreparationSummary } from "./campaign-preparation-summary";
 
 export const metadata: Metadata = { title: "Campaign" };
 
@@ -153,6 +154,12 @@ export default async function CampaignDetailPage({
           </div>
         </div>
       </div>
+
+      <CampaignPreparationSummary
+        campaign={campaign}
+        commercial={commercialResult.available ? commercialResult.data : undefined}
+        creatives={creativesResult.available ? creativeItems : undefined}
+      />
 
       {summaryResult.available ? (
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-5">

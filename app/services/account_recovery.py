@@ -22,6 +22,22 @@ RECOVERY_ELIGIBLE_ROLES = frozenset({UserRole.ADVERTISER.value, UserRole.ADMIN.v
 RECOVERY_ELIGIBLE_STATUSES = frozenset({UserStatus.ACTIVE.value, UserStatus.INVITED.value})
 
 
+def _recovery_eligible(user: User | None) -> bool:
+    return bool(
+        user is not None
+        and (
+            (
+                user.role in RECOVERY_ELIGIBLE_ROLES
+                and user.status in RECOVERY_ELIGIBLE_STATUSES
+            )
+            or (
+                user.role == UserRole.DRIVER.value
+                and user.status == UserStatus.ACTIVE.value
+            )
+        )
+    )
+
+
 def _digest(value: str, settings: Settings, *, purpose: str) -> str:
     return hmac.new(
         settings.jwt_secret_key.encode(),
@@ -125,11 +141,7 @@ async def request_password_reset(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
         )
     user = await get_user_by_email(session, normalized_email)
-    eligible = (
-        user is not None
-        and user.role in RECOVERY_ELIGIBLE_ROLES
-        and user.status in RECOVERY_ELIGIBLE_STATUSES
-    )
+    eligible = _recovery_eligible(user)
     attempt = PasswordResetAttempt(
         email_digest=email_digest,
         ip_digest=ip_digest,
@@ -217,12 +229,11 @@ async def complete_password_reset(
         or now >= _utc(reset.expires_at)
         or reset.session_version != user.session_version
         or not hmac.compare_digest(supplied_hash, reset.token_hash)
-        or user.role not in RECOVERY_ELIGIBLE_ROLES
         # Eligibility is re-read live under this lock, never trusted from
         # issuance: a bearer minted before suspension must not survive it. The
         # token is deliberately left unconsumed, so a later reactivation still
         # requires a fresh request rather than silently burning the old one.
-        or user.status not in RECOVERY_ELIGIBLE_STATUSES
+        or not _recovery_eligible(user)
     ):
         raise AppError(
             "PASSWORD_RESET_INVALID",

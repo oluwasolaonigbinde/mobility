@@ -589,11 +589,13 @@ def test_confirmation_promotes_exact_object_once_and_keeps_it_private(
             assert await session.scalar(select(func.count()).select_from(StoredFile)) == 1
             intent = await session.get(FileUploadIntent, UUID(created["upload_id"]))
             assert intent is not None and intent.status == "confirmed"
-            audit = await session.scalar(
-                select(AuditEvent).where(AuditEvent.action == "stored_file.confirmed")
-            )
-            assert audit is not None
-            assert "filename" not in audit.event_metadata
+            audits = (
+                await session.scalars(
+                    select(AuditEvent).where(AuditEvent.action == "stored_file.confirmed")
+                )
+            ).all()
+            assert len(audits) == 1
+            assert "filename" not in audits[0].event_metadata
 
     asyncio.run(inspect())
 

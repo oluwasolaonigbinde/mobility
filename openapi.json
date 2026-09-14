@@ -4141,10 +4141,24 @@
             ],
             "title": "End At"
           },
+          "preview_sha256": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Preview Sha256",
+            "type": "string"
+          },
           "reason": {
             "maxLength": 1000,
             "minLength": 1,
             "title": "Reason",
+            "type": "string"
+          },
+          "source_sha256": {
+            "maxLength": 64,
+            "minLength": 64,
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Source Sha256",
             "type": "string"
           },
           "start_at": {
@@ -4161,8 +4175,10 @@
           }
         },
         "required": [
+          "reason",
           "client_request_id",
-          "reason"
+          "source_sha256",
+          "preview_sha256"
         ],
         "title": "CampaignChangeCreate",
         "type": "object"
@@ -4197,6 +4213,138 @@
           "items"
         ],
         "title": "CampaignChangeList",
+        "type": "object"
+      },
+      "CampaignChangePreviewCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "budget_amount": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Amount"
+          },
+          "daily_budget_amount": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Budget Amount"
+          },
+          "end_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End At"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "start_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start At"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "CampaignChangePreviewCreate",
+        "type": "object"
+      },
+      "CampaignChangePreviewRead": {
+        "properties": {
+          "after": {
+            "additionalProperties": true,
+            "title": "After",
+            "type": "object"
+          },
+          "available_liability_amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Available Liability Amount",
+            "type": "string"
+          },
+          "before": {
+            "additionalProperties": true,
+            "title": "Before",
+            "type": "object"
+          },
+          "classifications": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Classifications",
+            "type": "array"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          },
+          "preview_sha256": {
+            "title": "Preview Sha256",
+            "type": "string"
+          },
+          "requested_liability_amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Requested Liability Amount",
+            "type": "string"
+          },
+          "source_sha256": {
+            "title": "Source Sha256",
+            "type": "string"
+          }
+        },
+        "required": [
+          "before",
+          "after",
+          "source_sha256",
+          "preview_sha256",
+          "classifications",
+          "requested_liability_amount",
+          "available_liability_amount",
+          "currency",
+          "outcome"
+        ],
+        "title": "CampaignChangePreviewRead",
         "type": "object"
       },
       "CampaignChangeRead": {
@@ -4486,6 +4634,18 @@
               }
             ],
             "title": "Budget Amount"
+          },
+          "client_request_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Request Id"
           },
           "currency": {
             "anyOf": [
@@ -8733,6 +8893,79 @@
         "title": "DisplayProofRead",
         "type": "object"
       },
+      "DriverAccountSetupComplete": {
+        "additionalProperties": false,
+        "properties": {
+          "new_password": {
+            "minLength": 1,
+            "title": "New Password",
+            "type": "string"
+          },
+          "token": {
+            "maxLength": 512,
+            "minLength": 1,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "new_password"
+        ],
+        "title": "DriverAccountSetupComplete",
+        "type": "object"
+      },
+      "DriverAccountSetupInitiate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_request_id": {
+            "format": "uuid",
+            "title": "Client Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_request_id"
+        ],
+        "title": "DriverAccountSetupInitiate",
+        "type": "object"
+      },
+      "DriverAccountSetupRead": {
+        "properties": {
+          "application_id": {
+            "format": "uuid",
+            "title": "Application Id",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "used",
+              "superseded"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "application_id",
+          "expires_at",
+          "state"
+        ],
+        "title": "DriverAccountSetupRead",
+        "type": "object"
+      },
       "DriverApplicationAdminListResponse": {
         "properties": {
           "items": {
@@ -9659,6 +9892,22 @@
         "title": "DriverNotificationRead",
         "type": "object"
       },
+      "DriverOnboardingAccessRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "maxLength": 255,
+            "minLength": 3,
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "DriverOnboardingAccessRequest",
+        "type": "object"
+      },
       "DriverOnboardingStatus": {
         "enum": [
           "pending",
@@ -10019,6 +10268,19 @@
           }
         },
         "title": "DriverProfileSelfUpdate",
+        "type": "object"
+      },
+      "DriverPublicCommandResponse": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "DriverPublicCommandResponse",
         "type": "object"
       },
       "DriverTripAnalyticsSummary": {
@@ -15077,6 +15339,7 @@
           "payout_released",
           "password_reset_requested",
           "driver_onboarding_access_requested",
+          "driver_account_setup_requested",
           "fraud_hold_raised",
           "fraud_review_resolved",
           "fraud_dispute_replied",
@@ -25027,6 +25290,64 @@
         ]
       }
     },
+    "/api/v1/admin/driver-applications/{application_id}/account-setup": {
+      "post": {
+        "operationId": "admin_initiate_driver_account_setup_api_v1_admin_driver_applications__application_id__account_setup_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "application_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Application Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriverAccountSetupInitiate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverAccountSetupRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Initiate approved driver account setup",
+        "tags": [
+          "Admin Users"
+        ]
+      }
+    },
     "/api/v1/admin/driver-applications/{application_id}/person-payee-decision": {
       "post": {
         "operationId": "admin_review_driver_person_payee_api_v1_admin_driver_applications__application_id__person_payee_decision_post",
@@ -31460,6 +31781,61 @@
         "summary": "Advertiser Cancel Campaign"
       }
     },
+    "/api/v1/advertiser/campaigns/{campaign_id}/change-preview": {
+      "post": {
+        "operationId": "advertiser_preview_campaign_change_api_v1_advertiser_campaigns__campaign_id__change_preview_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampaignChangePreviewCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignChangePreviewRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Preview Campaign Change"
+      }
+    },
     "/api/v1/advertiser/campaigns/{campaign_id}/change-requests": {
       "get": {
         "operationId": "advertiser_list_campaign_change_requests_api_v1_advertiser_campaigns__campaign_id__change_requests_get",
@@ -34699,6 +35075,47 @@
         ]
       }
     },
+    "/api/v1/auth/driver-account-setup/complete": {
+      "post": {
+        "operationId": "complete_driver_setup_api_v1_auth_driver_account_setup_complete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriverAccountSetupComplete"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverPublicCommandResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "summary": "Complete approved driver account setup",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v1/auth/driver-application-status/{reference}": {
       "get": {
         "operationId": "driver_application_status_api_v1_auth_driver_application_status__reference__get",
@@ -34736,6 +35153,47 @@
           }
         },
         "summary": "Check a driver application status",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/driver-onboarding-access/request": {
+      "post": {
+        "operationId": "request_driver_onboarding_access_api_v1_auth_driver_onboarding_access_request_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriverOnboardingAccessRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverPublicCommandResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "summary": "Request renewed driver-onboarding access",
         "tags": [
           "Auth"
         ]

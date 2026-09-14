@@ -1,8 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import {
-  cleanupIsolatedCampaign,
-  createIsolatedActiveCampaign,
-} from "./support/campaign-fixture";
+import { cleanupIsolatedCampaign, createIsolatedActiveCampaign } from "./support/campaign-fixture";
 
 const ADVERTISER = {
   email: "advertiser@demo.mobility.local",
@@ -40,13 +37,20 @@ test("advertiser preview and reasoned admin decision complete a mid-flight chang
     await page
       .getByPlaceholder("Explain why this change is needed")
       .fill("Synthetic funded-scope expansion");
-    await page.getByRole("button", { name: "Preview and request change" }).click();
-    await expect(page.getByText("✓ Campaign change recorded.")).toBeVisible();
+    await page.getByRole("button", { name: "Preview change" }).click();
+    const expansionPreview = page.getByLabel("Change preview");
+    await expect(expansionPreview.getByText("Can apply now")).toBeVisible();
+    await expect(expansionPreview.getByText("NGN 0.00").first()).toBeVisible();
+    await expansionPreview.getByRole("button", { name: "Confirm this change" }).click();
+    await expect(page.getByText("✓ Campaign change confirmed.")).toBeVisible();
     await expect(page.getByText("applied", { exact: true }).first()).toBeVisible();
 
     await page.getByLabel("Total budget").fill("999999998.00");
     await page.getByPlaceholder("Explain why this change is needed").fill(reductionReason);
-    await page.getByRole("button", { name: "Preview and request change" }).click();
+    await page.getByRole("button", { name: "Preview change" }).click();
+    const reductionPreview = page.getByLabel("Change preview");
+    await expect(reductionPreview.getByText("Needs review")).toBeVisible();
+    await reductionPreview.getByRole("button", { name: "Confirm this change" }).click();
     await expect(page.getByText("pending admin", { exact: true }).first()).toBeVisible();
 
     await login(page, ADMIN, "admin");

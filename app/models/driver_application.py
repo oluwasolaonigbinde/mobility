@@ -7,6 +7,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    Integer,
     String,
     UniqueConstraint,
     func,
@@ -99,6 +100,49 @@ class DriverApplicationAccessToken(Base):
     )
     token_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    invalidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class DriverAccountSetupToken(Base):
+    """Digest-only administrator-issued authority for initial driver activation."""
+
+    __tablename__ = "driver_account_setup_tokens"
+    __table_args__ = (
+        CheckConstraint("length(token_sha256) = 64", name="ck_driver_setup_tokens_hash"),
+        CheckConstraint(
+            "length(evidence_sha256) = 64", name="ck_driver_setup_tokens_evidence_hash"
+        ),
+        CheckConstraint(
+            "length(request_fingerprint) = 64", name="ck_driver_setup_tokens_request_hash"
+        ),
+        CheckConstraint("session_version > 0", name="ck_driver_setup_tokens_session_version"),
+        CheckConstraint("expires_at > created_at", name="ck_driver_setup_tokens_expiry"),
+        UniqueConstraint("token_sha256", name="uq_driver_setup_tokens_hash"),
+        UniqueConstraint("client_request_id", name="uq_driver_setup_tokens_client_request"),
+        Index("ix_driver_setup_tokens_application_created", "application_id", "created_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    application_id: Mapped[UUID] = mapped_column(
+        ForeignKey("driver_applications.id", ondelete="RESTRICT"), nullable=False
+    )
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    issued_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    client_request_id: Mapped[UUID] = mapped_column(nullable=False)
+    request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    token_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    evidence_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    session_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

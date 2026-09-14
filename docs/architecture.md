@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.88 — 2026-09-08. Canonical source of truth: current state AND target state.**
+**Version 1.91 — 2026-09-14. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -2228,20 +2228,28 @@ aggregates only, k-floor rules of §22.2 apply to any zone-level display.
   sanitized service boundary revalidates an active admin. Operator-led
   onboarding remains available; W3-04B/C and their Package 4 secure-evidence
   dependencies still own approval and work eligibility.
-- **Approved-applicant activation (D28/ONB-009) [TARGET]:** approval of the
+- **Approved-applicant activation (D28/ONB-009) [BUILT — migration `0089`]:** approval of the
   current person/payee and vehicle evidence does not itself activate the user.
-  After both decisions pass, an active Cardvert admin initiates activation and
-  the driver receives a short-lived, single-use, digest-only setup authority.
-  The driver chooses the password; completion serializes the setup authority,
-  user and application, rejects rejected, expired, superseded or replayed
-  attempts, then atomically consumes the setup authority, invalidates every
-  prior onboarding-access capability, changes `invited → active` and rotates
-  `session_version`. No admin assigns a password, and implementation may not
-  claim live email/provider delivery. Current source has only the reusable
-  onboarding-access token and automatically projects approved evidence into
-  profile/application eligibility; it has no durable activation/setup-token
-  state, admin-initiation command or single-use completion fence, so this
-  requires a migration and synchronized API contracts in a follow-on slice.
+  After both decisions pass, an active Cardvert admin uses the idempotent
+  `POST /api/v1/admin/driver-applications/{application_id}/account-setup`
+  command. It locks and rechecks the approved application, invited driver user,
+  current approved person/payee evidence and at least one current reviewed
+  vehicle, then supersedes any earlier unused setup authority. Migration `0089`
+  stores only the short-lived single-use token digest, its frozen evidence and
+  session versions, issuer, expiry and client-request identity; concurrent
+  exact initiation retries converge to that one authority. Provider-neutral
+  outbox delivery resolves the configured public setup action only at dispatch.
+  The public `POST /api/v1/auth/driver-account-setup/complete` command lets the
+  driver choose the password and serializes the setup authority, application
+  and user. It rejects invalid, rejected, expired, superseded, evidence-stale or
+  replayed attempts, then atomically consumes the authority, invalidates prior
+  onboarding-access capabilities, changes `invited → active` and rotates
+  `session_version`. Pending/invited drivers cannot bypass this boundary through
+  password reset; only active drivers share the existing non-enumerating reset
+  flow. Onboarding-access renewal remains a generic rate-limited `202` for known
+  and unknown identities and sends only to the exact stored pending applicant.
+  No admin assigns a password. `EXT-EMAIL-PROVIDER` and configured public email
+  delivery remain required before any live-delivery claim.
 - **Advertiser membership at sign-in (D29/AUT-007) [TARGET]:** every advertiser
   login must resolve to exactly one active advertiser-organization membership;
   zero or multiple active memberships fail closed. Multi-company agency access
@@ -2832,9 +2840,10 @@ The pre-flight table for any new work. **If your feature isn't here, add it
 | Advertiser company profile | §6/§15/§27 | advertiser organization service + advertiser/admin pages | advertiser_organizations | invoice-company identity, tenant ownership | D11 proposal Module B |
 | Campaign cancellation / refunds and production authority | §15 | `services/billing.py` + campaign status | commercial terms, production-authority events, invoices, payments | mutable waivers; production before authority; ledger edits | Q24/D20 |
 | Driver bank account / BVN capture | §16.3 | `driver_profiles` + KYC flow (§19.3) | driver_profiles | plaintext storage of BVN — treat as sensitive PII (P7) | Q26, Q27 |
-| Password reset (advertiser/admin) | §23 | `services/auth.py` | users | — | post-F7; needs email channel (§20) |
+| Password reset (advertiser/admin/active driver) | §23 | `services/account_recovery.py`, auth API + `/forgot-password` and `/reset-password` | users, password_reset_tokens | invited/pending driver activation; role enumeration | [BUILT] provider-neutral authority; live delivery needs `EXT-EMAIL-PROVIDER` (§20) |
 | WhatsApp opt-in / phone verification | §20 | `services/notifications.py` | users/driver_profiles phone fields | — | Q34 |
 | Driver self-registration | §23 | `services/driver_onboarding.py`, `api/v1/auth.py` + `/apply` | users, driver applications, approval-gated onboarding records | enumeration; credential/work authority before approval | [BUILT W3-04A/B/C] Q13; legal/privacy artifacts remain a live-use gate |
+| Approved driver account setup | §23 | `services/driver_account_setup.py`, admin/auth APIs + `/driver-account-setup` | driver_account_setup_tokens, driver_application_access_tokens, invited driver user | plaintext setup tokens; admin-assigned passwords; activation before current approval | [BUILT `0089`] D28/ONB-009; live delivery needs `EXT-EMAIL-PROVIDER` |
 | Driver vehicle profile / evidence review | §19/§21/§23 | `services/driver_onboarding.py`, vehicle/KYC/evidence services + driver/admin APIs | vehicles, versioned vehicle evidence, stored_files | self-approval, mutable approved evidence, assignment bypass | [BUILT W3-04B/C] Q26 + proposal Module C; physical/legal evidence remains external |
 | Production driver PWA | §23 | existing Next.js driver surface + trip queue/seal/auth | IndexedDB/Web Locks, PWA manifest/service worker | public bearer API; native-only assumptions | D18: W4 pilot client |
 | Driver mobile app (native) | §23 | React Native/Flutter client + auth + notifications | refresh tokens/secure storage (new) | driver API contract breaks | D18: Phase 2 after pilot |
@@ -3014,6 +3023,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.91 | 2026-09-14 | **D28 approved-applicant activation delivered without claiming live email.** Migration `0089` adds digest-only, expiring, single-use and superseding driver setup authority plus onboarding-access invalidation. Active-admin initiation rechecks the approved application, invited driver, current person/payee evidence and reviewed current vehicle under locks; exact concurrent command retries converge. Public completion atomically consumes the authority, invalidates prior onboarding access, activates the invited user and rotates session authority; rejected, expired, superseded, stale and replayed attempts fail closed. Pending/invited drivers remain ineligible for password reset while active drivers use the existing non-enumerating recovery contract. The generic rate-limited onboarding-access renewal exposes the same response for known and unknown identities and queues only to the exact stored pending applicant. Synchronized API/client/native contracts and focused PostgreSQL migration/concurrency tests cover the provider-neutral authority. `EXT-EMAIL-PROVIDER` and configured public action delivery remain live gates; no provider, credential, deployment or live delivery is claimed. |
 | v1.90 | 2026-09-14 | **Integrated CI correction.** Provision cold-runner Caddy and ordinary E2E MinIO explicitly; bind each shard to an exact, zero-skip JUnit execution inventory. D33 v3 receipts retain identical-source metadata-only floors and verify later coverage against adopted exact ratios rather than identical hit counts. Campaign-change FK locking follows campaign-terms, organization, campaign order. Disclosure snapshots take the existing exclusive fraud reconciliation gate before parent/contributor locks, preserving privacy and money authority at the cost of global snapshot serialization. Regression and integrated evidence are recorded in the direct-owner continuation: software `932c2f7` is accepted by GitHub run `34789268818`, with 2812 backend tests, 656 frontend tests, R59 and ordinary real-stack E2E passing. External provider/legal/device/deployment gates remain unchanged. |
 | v1.89 | 2026-09-09 | **Coverage evidence bound to its producing runtime.** Exact-SHA run `34354263174` passed quality, the complete backend suite and R59, then exposed that the committed Python 3.14-derived coverage receipt cannot govern CI's Python 3.12 LCOV semantics and omitted seven same-commit font modules from its inventory. Backend artifacts now carry hash/SHA/runtime provenance; a reviewed, immutable-artifact-bound one-time v1/v2-to-v3 reconciliation records the complete inventory and CI measurements without changing D32 floors, eligibility, instrumentation or exclusions. Any later runtime mismatch fails closed. Exact-SHA coverage and E2E acceptance remain open. |
 | v1.88 | 2026-09-08 | **Owner correction P08 locally demonstrated.** File/access-bound upload retries, approval convergence, existing-campaign creative recovery, ordinary synthetic demo Start authority and durable email failure fairness pass focused red/green checks. Three browser workflows and seed/worker recovery pass. No new schema/public shape or live authority; integrated verification and the reserved final review remain open. |

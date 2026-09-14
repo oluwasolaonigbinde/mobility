@@ -19,7 +19,11 @@ from app.models.campaign_change import (
 )
 from app.models.organization import AdvertiserOrganization
 from app.models.payout import AssignmentRuleBinding
-from app.schemas.campaign_changes import CampaignChangeCreate
+from app.schemas.campaign_changes import (
+    CampaignChangeCreate,
+    CampaignChangePreviewCreate,
+    CampaignChangePreviewRead,
+)
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.billing import (
@@ -95,6 +99,7 @@ async def _additional_window_liability(
     campaign: Campaign,
     proposed_start_at: datetime | None,
     proposed_end_at: datetime | None,
+    lock_bindings: bool,
 ) -> Decimal:
     if campaign.start_at is None or campaign.end_at is None:
         return Decimal("0.00")
@@ -117,9 +122,8 @@ async def _additional_window_liability(
     )
     if extra_days <= 0:
         return Decimal("0.00")
-    bindings = list(
-        await session.scalars(
-            select(AssignmentRuleBinding)
+    binding_statement = (
+        select(AssignmentRuleBinding)
             .join(
                 CampaignAssignment,
                 CampaignAssignment.id == AssignmentRuleBinding.assignment_id,
@@ -135,9 +139,10 @@ async def _additional_window_liability(
                 ),
             )
             .order_by(AssignmentRuleBinding.assignment_id)
-            .with_for_update()
-        )
     )
+    if lock_bindings:
+        binding_statement = binding_statement.with_for_update()
+    bindings = list(await session.scalars(binding_statement))
     requested = Decimal("0.00")
     for binding in bindings:
         rate = max(
@@ -165,6 +170,140 @@ async def _locked_campaign(session: AsyncSession, campaign_id: UUID) -> Campaign
             "Mid-flight changes require a scheduled, active or paused campaign",
         )
     return campaign
+
+
+async def _campaign_for_preview(session: AsyncSession, campaign_id: UUID) -> Campaign:
+    campaign = await session.scalar(select(Campaign).where(Campaign.id == campaign_id))
+    if campaign is None:
+        raise _error("CAMPAIGN_NOT_FOUND", "Campaign was not found", 404)
+    if campaign.status not in {
+        CampaignStatus.SCHEDULED.value,
+        CampaignStatus.ACTIVE.value,
+        CampaignStatus.PAUSED.value,
+    }:
+        raise _error(
+            "CAMPAIGN_CHANGE_NOT_AVAILABLE",
+            "Mid-flight changes require a scheduled, active or paused campaign",
+        )
+    return campaign
+
+
+def _proposal_values(
+    payload: CampaignChangePreviewCreate | CampaignChangeCreate,
+) -> tuple[dict, str]:
+    raw = payload.model_dump(
+        exclude={"client_request_id", "source_sha256", "preview_sha256"},
+        exclude_unset=True,
+    )
+    reason = raw.pop("reason")
+    return raw, reason
+
+
+async def _build_change_preview(
+    session: AsyncSession,
+    *,
+    campaign: Campaign,
+    payload: CampaignChangePreviewCreate | CampaignChangeCreate,
+    lock_bindings: bool,
+) -> CampaignChangePreviewRead:
+    raw, reason = _proposal_values(payload)
+    requested_changes = {field: _json_value(value) for field, value in raw.items()}
+    before = campaign_change_snapshot(campaign)
+    proposed = {
+        field: value for field, value in requested_changes.items() if value != before[field]
+    }
+    if not proposed:
+        raise _error("CAMPAIGN_CHANGE_NOOP", "The request does not change campaign facts", 400)
+    now = await database_clock(session)
+    if "start_at" in raw and _aware(raw["start_at"]) < now:
+        raise _error(
+            "CAMPAIGN_CHANGE_RETROACTIVE_DATE",
+            "A campaign change cannot move its start into the past",
+            400,
+        )
+    if "end_at" in raw and _aware(raw["end_at"]) <= now:
+        raise _error(
+            "CAMPAIGN_CHANGE_RETROACTIVE_DATE",
+            "A campaign change cannot move its end into the past",
+            400,
+        )
+    after = before | proposed
+    start_at = datetime.fromisoformat(str(after["start_at"])) if after["start_at"] else None
+    end_at = datetime.fromisoformat(str(after["end_at"])) if after["end_at"] else None
+    if start_at is None or end_at is None or _aware(start_at) >= _aware(end_at):
+        raise _error("INVALID_CAMPAIGN_WINDOW", "Campaign start must remain before its end", 400)
+    budget = Decimal(str(after["budget_amount"])) if after["budget_amount"] is not None else None
+    daily_budget = (
+        Decimal(str(after["daily_budget_amount"]))
+        if after["daily_budget_amount"] is not None
+        else None
+    )
+    if budget is not None and daily_budget is not None and daily_budget > budget:
+        raise _error("INVALID_CAMPAIGN_BUDGET", "Daily budget cannot exceed the total budget", 400)
+    classifications = _classify(before, proposed)
+    requested_liability = await _additional_window_liability(
+        session,
+        campaign=campaign,
+        proposed_start_at=raw.get("start_at"),
+        proposed_end_at=raw.get("end_at"),
+        lock_bindings=lock_bindings,
+    )
+    available_liability = Decimal("0.00")
+    if requested_liability > 0:
+        authorization = await effective_financial_authorization(
+            session, campaign_id=campaign.id, effective_at=now
+        )
+        if authorization is not None:
+            usable = await _authorization_usable_liability(
+                session, authorization, effective_at=now
+            )
+            reserved = await reserved_campaign_liability_total(
+                session, campaign_id=campaign.id
+            )
+            available_liability = max(Decimal("0.00"), usable - reserved).quantize(MONEY)
+    needs_admin = bool({"reduction", "date_change"}.intersection(classifications))
+    outcome = (
+        "await_review"
+        if needs_admin
+        else "await_funding"
+        if requested_liability > available_liability
+        else "apply_now"
+    )
+    source_sha256 = _digest(before)
+    preview_facts = {
+        "before": before,
+        "after": after,
+        "source_sha256": source_sha256,
+        "classifications": classifications,
+        "requested_liability_amount": str(requested_liability),
+        "available_liability_amount": str(available_liability),
+        "currency": campaign.currency,
+        "outcome": outcome,
+        "request_reason": reason,
+    }
+    return CampaignChangePreviewRead(
+        **preview_facts,
+        preview_sha256=_digest(preview_facts),
+    )
+
+
+async def preview_campaign_change(
+    session: AsyncSession,
+    *,
+    actor_user_id: UUID,
+    campaign_id: UUID,
+    payload: CampaignChangePreviewCreate,
+) -> CampaignChangePreviewRead:
+    organization, _ = await get_required_advertiser_context(session, actor_user_id)
+    campaign = await _campaign_for_preview(session, campaign_id)
+    if campaign.organization_id != organization.id:
+        raise _error("CAMPAIGN_NOT_FOUND", "Campaign was not found", 404)
+    return await _build_change_preview(
+        session,
+        campaign=campaign,
+        payload=payload,
+        lock_bindings=False,
+    )
 
 
 async def _apply_if_funded(
@@ -311,15 +450,17 @@ async def request_campaign_change(
     campaign = await _locked_campaign(session, campaign_id)
     if campaign.organization_id != organization.id:
         raise _error("CAMPAIGN_NOT_FOUND", "Campaign was not found", 404)
-    raw = payload.model_dump(exclude_unset=True)
-    reason = raw.pop("reason")
-    client_request_id = raw.pop("client_request_id")
-    requested_changes = {field: _json_value(value) for field, value in raw.items()}
+    raw, reason = _proposal_values(payload)
+    client_request_id = payload.client_request_id
     fingerprint = _digest(
         {
-            "requested_changes": requested_changes,
+            "requested_changes": {
+                field: _json_value(value) for field, value in raw.items()
+            },
             "reason": reason,
             "client_request_id": str(client_request_id),
+            "source_sha256": payload.source_sha256,
+            "preview_sha256": payload.preview_sha256,
         }
     )
     existing = await session.scalar(
@@ -336,33 +477,27 @@ async def request_campaign_change(
             "CAMPAIGN_CHANGE_RETRY_CONFLICT",
             "The client request ID was already used for different changes",
         )
-    before = campaign_change_snapshot(campaign)
-    proposed = {
-        field: value for field, value in requested_changes.items() if value != before[field]
-    }
-    if not proposed:
-        raise _error("CAMPAIGN_CHANGE_NOOP", "The request does not change campaign facts", 400)
-    now = await database_clock(session)
-    if "start_at" in raw and _aware(raw["start_at"]) < now:
-        raise _error(
-            "CAMPAIGN_CHANGE_RETROACTIVE_DATE",
-            "A campaign change cannot move its start into the past",
-            400,
-        )
-    if "end_at" in raw and _aware(raw["end_at"]) <= now:
-        raise _error(
-            "CAMPAIGN_CHANGE_RETROACTIVE_DATE",
-            "A campaign change cannot move its end into the past",
-            400,
-        )
-    classifications = _classify(before, proposed)
-    requested_liability = await _additional_window_liability(
+    preview = await _build_change_preview(
         session,
         campaign=campaign,
-        proposed_start_at=raw.get("start_at"),
-        proposed_end_at=raw.get("end_at"),
+        payload=payload,
+        lock_bindings=True,
     )
-    needs_admin = bool({"reduction", "date_change"}.intersection(classifications))
+    if preview.source_sha256 != payload.source_sha256:
+        raise _error(
+            "CAMPAIGN_CHANGE_STALE",
+            "Campaign facts changed after this change was previewed",
+        )
+    if preview.preview_sha256 != payload.preview_sha256:
+        raise _error(
+            "CAMPAIGN_CHANGE_PREVIEW_STALE",
+            "Funding or classification facts changed after this change was previewed",
+        )
+    proposed = {
+        field: value
+        for field, value in preview.after.items()
+        if value != preview.before[field]
+    }
     request = CampaignChangeRequest(
         campaign_id=campaign.id,
         organization_id=campaign.organization_id,
@@ -370,16 +505,19 @@ async def request_campaign_change(
         client_request_id=client_request_id,
         request_fingerprint=fingerprint,
         proposed_changes=proposed,
-        classifications=classifications,
+        classifications=preview.classifications,
         impact_preview={
-            "before": before,
-            "after": before | proposed,
-            "before_sha256": _digest(before),
+            "before": preview.before,
+            "after": preview.after,
+            "before_sha256": preview.source_sha256,
+            "preview_sha256": preview.preview_sha256,
             "request_reason": reason,
-            "requested_liability_amount": str(requested_liability),
+            "requested_liability_amount": str(preview.requested_liability_amount),
+            "available_liability_amount": str(preview.available_liability_amount),
+            "outcome": preview.outcome,
         },
         status=CampaignChangeStatus.PENDING_ADMIN.value,
-        requested_liability_amount=requested_liability,
+        requested_liability_amount=preview.requested_liability_amount,
     )
     session.add(request)
     await session.flush()
@@ -389,9 +527,13 @@ async def request_campaign_change(
         action="advertiser.campaign_change.requested",
         entity_type="campaign_change_request",
         entity_id=str(request.id),
-        metadata={"campaign_id": str(campaign.id), "classifications": classifications},
+        metadata={
+            "campaign_id": str(campaign.id),
+            "classifications": preview.classifications,
+            "preview_sha256": preview.preview_sha256,
+        },
     )
-    if not needs_admin:
+    if preview.outcome != "await_review":
         return await _apply_if_funded(
             session,
             request=request,

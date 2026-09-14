@@ -30,7 +30,7 @@ from app.models.campaign import CampaignStatus
 from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.driver import DriverOnboardingStatus
 from app.models.impression import ImpressionEstimate
-from app.models.payout import CampaignPayoutRule
+from app.models.payout import CampaignPayoutRule, EarningsLedgerEntry
 from app.models.trip import TripSession, TripSessionStatus
 from app.models.trip_analytics import FraudFlag, FraudFlagStatus, TripAnalytics
 from app.models.user import UserRole
@@ -1446,6 +1446,56 @@ def test_driver_earnings_are_scoped_and_append_only(db_client, db_sessionmaker) 
     assert db_client.get("/api/v1/driver/earnings/ledger").status_code == (
         http_status.HTTP_401_UNAUTHORIZED
     )
+
+
+def test_driver_earnings_ledger_paginates_beyond_first_fifty(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    admin = create_test_user(db_sessionmaker, email="admin@example.com", password=PASSWORD)
+    _, driver, campaign, profile, vehicle, _, _, _, _ = create_payout_graph(
+        db_sessionmaker,
+        admin=admin,
+        advertiser_email="adv-driver-pagination@example.com",
+        driver_email="driver-pagination@example.com",
+        plate_number="LED-75",
+    )
+
+    async def create_entries() -> None:
+        async with db_sessionmaker() as session:
+            session.add_all(
+                [
+                    EarningsLedgerEntry(
+                        payout_calculation_id=None,
+                        driver_profile_id=profile.id,
+                        driver_user_id=driver.id,
+                        campaign_id=campaign.id,
+                        trip_session_id=None,
+                        vehicle_id=vehicle.id,
+                        entry_type="adjustment",
+                        status="available",
+                        amount=Decimal("1.00"),
+                        currency="NGN",
+                        description=f"Pagination entry {index + 1}",
+                        occurred_at=BASE_TIME + timedelta(seconds=index),
+                    )
+                    for index in range(75)
+                ]
+            )
+            await session.commit()
+
+    asyncio.run(create_entries())
+
+    response = db_client.get(
+        "/api/v1/driver/earnings/ledger?limit=50&offset=50",
+        headers=auth_headers(db_client, driver.email, PASSWORD),
+    )
+
+    assert response.status_code == http_status.HTTP_200_OK
+    assert response.json()["total"] == 75
+    assert response.json()["limit"] == 50
+    assert response.json()["offset"] == 50
+    assert len(response.json()["items"]) == 25
 
 
 def test_advertiser_cost_summary_is_scoped_and_aggregates_stored_calculations(

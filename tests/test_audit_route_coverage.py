@@ -36,6 +36,14 @@ AUDITED = {
     ("POST", "/api/v1/auth/change-password"): "auth.password.*",
     ("POST", "/api/v1/auth/password-reset/request"): "auth.password_reset.requested",
     ("POST", "/api/v1/auth/password-reset/complete"): "auth.password_reset.completed",
+    (
+        "POST",
+        "/api/v1/auth/driver-onboarding-access/request",
+    ): "auth.driver_onboarding_access.renewed",
+    (
+        "POST",
+        "/api/v1/auth/driver-account-setup/complete",
+    ): "auth.driver_account_setup.completed",
     ("POST", "/api/v1/auth/refresh"): "auth.session.refreshed",
     ("POST", "/api/v1/auth/logout"): "auth.session.revoked",
     ("POST", "/api/v1/auth/register-driver"): "auth.driver_application.created",
@@ -413,6 +421,10 @@ AUDITED = {
     ): "admin.driver_person_payee.*",
     (
         "POST",
+        "/api/v1/admin/driver-applications/{application_id}/account-setup",
+    ): "admin.driver_account_setup.initiated",
+    (
+        "POST",
         "/api/v1/admin/driver-applications/{application_id}/vehicles/{vehicle_id}"
         "/submissions/{submission_id}/decision",
     ): "admin.driver_vehicle.*|admin.driver_application.approved",
@@ -437,6 +449,12 @@ AUDITED = {
 }
 
 EXEMPT = {
+    ("POST", "/api/v1/advertiser/campaigns/{campaign_id}/change-preview"): (
+        "Read-only campaign-change preview: the proposal stays in the request body, while the "
+        "service issues only SELECTs and returns a digest-bound projection. It creates no "
+        "campaign, request, revision, allocation or audit row; the separately confirmed command "
+        "is the audited authority mutation."
+    ),
     ("POST", "/api/v1/notifications/email/delivery-receipts"): (
         "Provider-authenticated machine callback: the signed, fingerprinted, append-only "
         "notification_delivery_receipts row is the canonical delivery evidence."

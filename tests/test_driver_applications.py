@@ -23,6 +23,7 @@ from app.models.campaign_assignment import CampaignAssignment
 from app.models.driver import DriverProfile
 from app.models.driver_application import DriverApplication, DriverApplicationAccessToken
 from app.models.kyc import DriverKycSubmission
+from app.models.notification import Notification, NotificationType
 from app.models.payee import Payee
 from app.models.user import User, UserRole, UserStatus
 from app.models.vehicle import Vehicle
@@ -710,3 +711,117 @@ def test_explicit_public_applicant_rejection_is_terminal_and_revokes_access(
     assert terminal_public_status.json() == unknown_public_status.json()
     assert terminal_public_status.json()["status"] == "pending"
     assert terminal_audits == 1
+
+
+def test_onboarding_access_renewal_is_non_enumerating_and_uses_stored_recipient(
+    db_client, db_sessionmaker, settings
+) -> None:
+    enable_registration(db_client, settings)
+    registered = db_client.post(
+        "/api/v1/auth/register-driver",
+        json={"email": "renew-driver@example.com", "full_name": "Stored Recipient"},
+    )
+    assert registered.status_code == http_status.HTTP_202_ACCEPTED
+
+    known = db_client.post(
+        "/api/v1/auth/driver-onboarding-access/request",
+        json={"email": " RENEW-DRIVER@EXAMPLE.COM "},
+    )
+    unknown = db_client.post(
+        "/api/v1/auth/driver-onboarding-access/request",
+        json={"email": "unknown-renew@example.com"},
+    )
+    assert known.status_code == unknown.status_code == http_status.HTTP_202_ACCEPTED
+    assert known.json() == unknown.json()
+    assert set(known.json()) == {"message"}
+
+    async def evidence() -> tuple[int, int, set[str]]:
+        async with db_sessionmaker() as session:
+            user = await session.scalar(
+                select(User).where(User.email == "renew-driver@example.com")
+            )
+            assert user is not None
+            accesses = int(
+                await session.scalar(
+                    select(func.count(DriverApplicationAccessToken.id)).where(
+                        DriverApplicationAccessToken.application_id.in_(
+                            select(DriverApplication.id).where(
+                                DriverApplication.user_id == user.id
+                            )
+                        )
+                    )
+                )
+                or 0
+            )
+            notices = list(
+                (
+                    await session.scalars(
+                        select(Notification).where(
+                            Notification.type_key
+                            == NotificationType.DRIVER_ONBOARDING_ACCESS_REQUESTED.value
+                        )
+                    )
+                ).all()
+            )
+            return accesses, len(notices), {str(row.recipient_user_id) for row in notices}
+
+    accesses, notices, recipients = asyncio.run(evidence())
+    assert accesses == notices == 2
+    user = fetch_user_by_email(db_sessionmaker, "renew-driver@example.com")
+    assert user is not None
+    assert recipients == {str(user.id)}
+
+
+def test_onboarding_access_renewal_obeys_rate_limit_and_terminal_denial(
+    db_client, db_sessionmaker, settings
+) -> None:
+    enable_registration(db_client, settings)
+    assert (
+        db_client.post(
+            "/api/v1/auth/register-driver",
+            json={"email": "terminal-renew@example.com", "full_name": "Terminal Driver"},
+        ).status_code
+        == http_status.HTTP_202_ACCEPTED
+    )
+    db_client.app.dependency_overrides[get_registration_rate_limiter] = lambda: (
+        BlockingRegistrationLimiter()
+    )
+    limited = db_client.post(
+        "/api/v1/auth/driver-onboarding-access/request",
+        json={"email": "terminal-renew@example.com"},
+    )
+    assert limited.status_code == http_status.HTTP_429_TOO_MANY_REQUESTS
+    assert limited.headers["Retry-After"] == "37"
+
+    async def terminalize() -> tuple[int, int]:
+        async with db_sessionmaker() as session:
+            application = await session.scalar(
+                select(DriverApplication).where(
+                    DriverApplication.email == "terminal-renew@example.com"
+                )
+            )
+            assert application is not None
+            application.status = "rejected"
+            before = int(
+                await session.scalar(select(func.count(DriverApplicationAccessToken.id))) or 0
+            )
+            await session.commit()
+            return before, application.id
+
+    before, _ = asyncio.run(terminalize())
+    db_client.app.dependency_overrides[get_registration_rate_limiter] = lambda: (
+        InMemoryRegistrationRateLimiter()
+    )
+    terminal = db_client.post(
+        "/api/v1/auth/driver-onboarding-access/request",
+        json={"email": "terminal-renew@example.com"},
+    )
+    assert terminal.status_code == http_status.HTTP_202_ACCEPTED
+
+    async def access_count() -> int:
+        async with db_sessionmaker() as session:
+            return int(
+                await session.scalar(select(func.count(DriverApplicationAccessToken.id))) or 0
+            )
+
+    assert asyncio.run(access_count()) == before

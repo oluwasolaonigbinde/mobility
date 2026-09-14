@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import { useForm, useFieldArray, type FieldPath } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -49,16 +49,22 @@ const stepFields: Record<number, FieldPath<CampaignWizardInput>[]> = {
 export function CampaignWizard({
   currency,
   existingCampaign,
+  campaignRequestId: initialCampaignRequestId,
 }: {
   currency: string;
   existingCampaign?: { id: string; name: string };
+  campaignRequestId?: string;
 }) {
   const [campaignId, setCampaignId] = useState(existingCampaign?.id);
   const [step, setStep] = useState(existingCampaign ? 1 : 0);
   const [result, setResult] = useState<CreateCampaignState>({});
+  const [campaignRequestId, setCampaignRequestId] = useState(
+    initialCampaignRequestId ?? crypto.randomUUID(),
+  );
   const [uploadState, setUploadState] = useState<
     Record<string, { phase?: CreativeUploadPhase; error?: string }>
   >({});
+  const uploadRequests = useRef<Record<string, { fingerprint: string; id: string }>>({});
   const [submitting, startTransition] = useTransition();
 
   const form = useForm<CampaignWizardInput, unknown, CampaignWizardOutput>({
@@ -90,10 +96,16 @@ export function CampaignWizard({
     if (!file) return;
     form.setValue(`creatives.${index}.stored_file_id`, "", { shouldValidate: true });
     form.setValue(`creatives.${index}.original_filename`, file.name);
+    const fingerprint = `${file.name}:${file.type}:${file.size}:${file.lastModified}`;
+    if (uploadRequests.current[fieldId]?.fingerprint !== fingerprint) {
+      uploadRequests.current[fieldId] = { fingerprint, id: crypto.randomUUID() };
+    }
     setUploadState((current) => ({ ...current, [fieldId]: { phase: "hashing" } }));
     try {
-      const uploaded = await uploadCreativeFile(file, (phase) =>
-        setUploadState((current) => ({ ...current, [fieldId]: { phase } })),
+      const uploaded = await uploadCreativeFile(
+        file,
+        (phase) => setUploadState((current) => ({ ...current, [fieldId]: { phase } })),
+        { clientRequestId: uploadRequests.current[fieldId]?.id },
       );
       form.setValue(`creatives.${index}.stored_file_id`, uploaded.storedFileId, {
         shouldDirty: true,
@@ -119,7 +131,15 @@ export function CampaignWizard({
     const raw = form.getValues();
     setResult({});
     startTransition(async () => {
-      const state = await createCampaignAction(raw, campaignId);
+      const state = await createCampaignAction(raw, campaignId, campaignRequestId);
+      if (state.campaignRequestId) {
+        setCampaignRequestId(state.campaignRequestId);
+        window.history.replaceState(
+          null,
+          "",
+          `/advertiser/campaigns/new?requestId=${state.campaignRequestId}`,
+        );
+      }
       if (state.createdCampaignId) {
         setCampaignId(state.createdCampaignId);
         window.history.replaceState(

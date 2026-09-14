@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/api/errors";
 
 const get = vi.hoisted(() => vi.fn());
 const loadJourney = vi.hoisted(() => vi.fn());
@@ -11,6 +12,10 @@ vi.mock("@/lib/auth/current-user", () => ({
 }));
 vi.mock("@/lib/driver/load-campaign-journey", () => ({
   loadDriverCampaignJourney: loadJourney,
+}));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => ({ refresh: vi.fn() }),
 }));
 
 import DriverHomePage from "./page";
@@ -99,8 +104,8 @@ describe("DriverHomePage ledger statuses", () => {
 
     render(await DriverHomePage());
 
-    expect(screen.getByText("Available for next payout")).toBeInTheDocument();
-    expect(screen.getByText(/₦90\.00/)).toBeInTheDocument();
+    expect(screen.getByText("Available for payment")).toBeInTheDocument();
+    expect(screen.getAllByText(/₦90\.00/).length).toBeGreaterThan(0);
     expect(screen.getByText(/₦60\.00 owed, taken from your payouts/)).toBeInTheDocument();
     expect(screen.getByText("Can't start a trip yet")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View earnings →" })).toBeInTheDocument();
@@ -118,6 +123,64 @@ describe("DriverHomePage ledger statuses", () => {
 
     expect(screen.queryByText("READY")).not.toBeInTheDocument();
     expect(screen.queryByText("vehicle active")).not.toBeInTheDocument();
+  });
+
+  it("uses a currency-neutral empty earnings state when the backend returns no totals", async () => {
+    get.mockImplementation(async (path?: string) => {
+      if (path?.endsWith("/summary")) return { data: { totals_by_currency: [] } };
+      if (path?.endsWith("/campaign-assignments")) return { data: { items: [] } };
+      return { data: { items: [] } };
+    });
+
+    render(await DriverHomePage());
+
+    expect(screen.getByText("No earnings balance yet")).toBeInTheDocument();
+    expect(screen.queryByText("₦0")).not.toBeInTheDocument();
+  });
+
+  it("keeps safe current-trip and earnings authority visible when optional labels and history fail", async () => {
+    loadJourney.mockResolvedValue({
+      journey: {
+        standing: "TRACKING",
+        summary: "A trip is in progress.",
+        canStart: false,
+        hasCurrentTrip: true,
+        steps: [],
+      },
+      activationAssignment: {
+        id: "assignment-1",
+        campaignName: "Authoritative campaign",
+        plateNumber: "ABC-123",
+        vehicleId: "vehicle-1",
+      },
+      currentTrip: { id: "trip-1" },
+      trackerAssignment: null,
+    });
+    get.mockImplementation(async (path?: string) => {
+      if (path?.endsWith("/summary")) {
+        return {
+          data: {
+            totals_by_currency: [
+              {
+                currency: "NGN",
+                batch_payable_amount: "90.00",
+                carry_forward_debt_amount: "0.00",
+                lifetime_earned_amount: "90.00",
+                pending_amount: "0.00",
+              },
+            ],
+          },
+        };
+      }
+      throw new ApiError(503, { code: "OPTIONAL_UNAVAILABLE", message: "private detail" });
+    });
+
+    render(await DriverHomePage());
+
+    expect(screen.getByText("Trip in progress")).toBeInTheDocument();
+    expect(screen.getAllByText(/₦90\.00/).length).toBeGreaterThan(0);
+    expect(screen.getByText("Recent activity unavailable")).toBeInTheDocument();
+    expect(screen.queryByText("private detail")).not.toBeInTheDocument();
   });
 
   it.each([

@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { requireRole } from "@/lib/auth/current-user";
-import { ApiError } from "@/lib/api/errors";
 import { formatDate, formatMoney } from "@/lib/format";
 import { Panel } from "@/components/ui/panel";
+import { DriverDataUnavailable } from "@/components/driver/data-unavailable";
 import { TripTracker } from "./trip-tracker";
 import { CampaignJourneyPanel } from "@/components/driver/campaign-journey-panel";
+import { readDriverApi } from "@/lib/driver/api-read";
 import { loadDriverCampaignJourney } from "@/lib/driver/load-campaign-journey";
 
 export const metadata: Metadata = { title: "Track" };
@@ -17,22 +19,20 @@ export default async function DriverTrackPage() {
 
   const [campaignJourney, assignments, ledger] = await Promise.all([
     loadDriverCampaignJourney(),
-    api
-      .GET("/api/v1/driver/campaign-assignments", { params: { query: { limit: 50 } } })
-      .catch((e) => {
-        if (e instanceof ApiError && e.status === 404) return { data: undefined };
-        throw e;
-      }),
-    api.GET("/api/v1/driver/earnings/ledger", { params: { query: { limit: 4 } } }).catch((e) => {
-      if (e instanceof ApiError && e.status === 404) return { data: undefined };
-      throw e;
-    }),
+    readDriverApi(() =>
+      api.GET("/api/v1/driver/campaign-assignments", { params: { query: { limit: 50 } } }),
+    ),
+    readDriverApi(() =>
+      api.GET("/api/v1/driver/earnings/ledger", { params: { query: { limit: 4 } } }),
+    ),
   ]);
-  const assignmentItems = assignments.data?.items ?? [];
+  if (assignments.state === "auth" || ledger.state === "auth") redirect("/login");
+
+  const assignmentItems = assignments.state === "ready" ? assignments.data.items : [];
   const campaignNames = new Map(
     assignmentItems.map((item) => [item.campaign_id, item.campaign?.name ?? "Campaign"]),
   );
-  const recentEntries = ledger.data?.items ?? [];
+  const recentEntries = ledger.state === "ready" ? ledger.data.items : null;
 
   return (
     <div className="animate-rise flex flex-col gap-4">
@@ -44,6 +44,14 @@ export default async function DriverTrackPage() {
         driverId={me.user.id}
         startUnavailableMessage={campaignJourney.journey.summary}
       />
+
+      {assignments.state !== "ready" ? (
+        <DriverDataUnavailable
+          title="Campaign labels unavailable"
+          detail="Cardvert couldn't load optional campaign names. This does not change the current trip or its tracking authority."
+          retryHref="/driver/track"
+        />
+      ) : null}
 
       <Panel className="p-5">
         <p className="micro text-muted">How a trip becomes earnings</p>
@@ -71,7 +79,15 @@ export default async function DriverTrackPage() {
         <div className="border-edge border-b px-5 py-3.5">
           <p className="micro text-muted">Recent verified activity</p>
         </div>
-        {recentEntries.length === 0 ? (
+        {recentEntries === null ? (
+          <div className="px-5 py-5">
+            <DriverDataUnavailable
+              title="Recent activity unavailable"
+              detail="Cardvert couldn't load optional trip history. The current trip remains available above."
+              retryHref="/driver/track"
+            />
+          </div>
+        ) : recentEntries.length === 0 ? (
           <p className="text-muted px-5 py-8 text-center text-sm">No completed trips yet.</p>
         ) : (
           <ul className="divide-edge/60 divide-y">

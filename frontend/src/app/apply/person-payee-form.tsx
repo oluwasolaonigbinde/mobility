@@ -120,7 +120,9 @@ export function PersonPayeeForm() {
   return (
     <Panel className="mt-5 p-6">
       <p className="micro text-cyan mb-2">Person &amp; payee stage</p>
-      <h2 className="font-display text-2xl font-semibold">Submit protected onboarding evidence</h2>
+      <h2 className="font-display text-2xl font-semibold">
+        Submit or renew person and payee evidence
+      </h2>
       <p className="text-muted mt-2 mb-6 max-w-3xl text-sm">
         Documents are privately uploaded and malware-scanned. Identity and account values are
         encrypted; reviewers receive only masked details unless an authorized, audited review
@@ -201,8 +203,8 @@ export function PersonPayeeForm() {
         ) : null}
         {result ? (
           <p role="status" className="text-green text-sm">
-            Person/payee evidence version {result.version} is pending review. NIN projection:{" "}
-            {result.masked_nin}.
+            Person/payee evidence version {result.version} was sent for administrator review. NIN
+            projection: {result.masked_nin}.
           </p>
         ) : null}
         <Button type="submit" disabled={pending}>

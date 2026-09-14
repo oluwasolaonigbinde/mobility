@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { demoLoginAction, loginAction, type LoginState } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -50,6 +51,9 @@ export function LoginForm({ demoLoginRole }: { demoLoginRole?: DemoLoginRole }) 
         required
         error={state.fieldErrors?.password}
       />
+      <Link href="/forgot-password" className="text-amber -mt-3 self-end text-xs hover:underline">
+        Forgot password?
+      </Link>
       {state.error ? (
         <p
           role="alert"

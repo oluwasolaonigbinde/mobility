@@ -14,13 +14,21 @@ class SubjectLinkRule:
 ADDITIONAL_SUBJECT_LINK_RULES = (
     SubjectLinkRule(
         data_class="authentication_recovery",
-        counted_tables=frozenset({"password_reset_attempts", "password_reset_tokens"}),
+        counted_tables=frozenset(
+            {
+                "password_reset_attempts",
+                "password_reset_tokens",
+                "driver_account_setup_tokens",
+            }
+        ),
         path_tables=frozenset(),
         subject_path="direct user id",
         count_query=(
             "SELECT (SELECT count(*) FROM password_reset_attempts "
             "WHERE issued_user_id = :subject_user_id) + "
-            "(SELECT count(*) FROM password_reset_tokens WHERE user_id = :subject_user_id)"
+            "(SELECT count(*) FROM password_reset_tokens WHERE user_id = :subject_user_id) + "
+            "(SELECT count(*) FROM driver_account_setup_tokens "
+            "WHERE user_id = :subject_user_id)"
         ),
     ),
     SubjectLinkRule(

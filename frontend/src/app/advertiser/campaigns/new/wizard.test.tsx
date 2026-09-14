@@ -22,7 +22,13 @@ it("turns a partial creation into an attachment retry with a reload-safe target"
   expect(window.location.search).toBe(`?campaignId=${id}`);
   expect(screen.queryByRole("button", { name: "Create campaign" })).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Attach creatives" }));
-  await waitFor(() => expect(createCampaignAction).toHaveBeenLastCalledWith(expect.anything(), id));
+  await waitFor(() =>
+    expect(createCampaignAction).toHaveBeenLastCalledWith(
+      expect.anything(),
+      id,
+      expect.any(String),
+    ),
+  );
 });
 it("reload recovery opens only creative editing for the existing campaign", async () => {
   const user = userEvent.setup();
@@ -32,5 +38,7 @@ it("reload recovery opens only creative editing for the existing campaign", asyn
   expect(screen.queryByRole("button", { name: "← Back" })).not.toBeInTheDocument();
   await user.click(screen.getByRole("button", { name: "Continue →" }));
   await user.click(screen.getByRole("button", { name: "Attach creatives" }));
-  await waitFor(() => expect(createCampaignAction).toHaveBeenCalledWith(expect.anything(), id));
+  await waitFor(() =>
+    expect(createCampaignAction).toHaveBeenCalledWith(expect.anything(), id, expect.any(String)),
+  );
 });

@@ -98,7 +98,7 @@ async def create_campaign(
     *,
     user_id: UUID,
     payload: CampaignCreate,
-) -> Campaign:
+) -> tuple[Campaign, bool]:
     if payload.status != CampaignStatus.DRAFT:
         raise AppError(
             "CAMPAIGN_REVIEW_STATE_CONFLICT",
@@ -111,7 +111,58 @@ async def create_campaign(
         user_id,
         require_write=True,
     )
+    organization = await session.scalar(
+        select(AdvertiserOrganization)
+        .where(AdvertiserOrganization.id == organization.id)
+        .with_for_update()
+    )
+    assert organization is not None
+    currency = (payload.currency or organization.currency).upper()
+    if payload.client_request_id is not None:
+        existing = await session.scalar(
+            select(Campaign)
+            .where(Campaign.id == payload.client_request_id)
+            .with_for_update()
+        )
+        if existing is not None:
+            exact_match = (
+                existing.organization_id == organization.id
+                and existing.created_by_user_id == user_id
+                and existing.name == payload.name
+                and existing.description == payload.description
+                and existing.status == payload.status.value
+                and (
+                    (existing.start_at is None and payload.start_at is None)
+                    or (
+                        existing.start_at is not None
+                        and payload.start_at is not None
+                        and comparable_campaign_datetime(existing.start_at)
+                        == comparable_campaign_datetime(payload.start_at)
+                    )
+                )
+                and (
+                    (existing.end_at is None and payload.end_at is None)
+                    or (
+                        existing.end_at is not None
+                        and payload.end_at is not None
+                        and comparable_campaign_datetime(existing.end_at)
+                        == comparable_campaign_datetime(payload.end_at)
+                    )
+                )
+                and existing.budget_amount == payload.budget_amount
+                and existing.daily_budget_amount == payload.daily_budget_amount
+                and existing.currency == currency
+                and existing.campaign_metadata == payload.metadata
+            )
+            if not exact_match:
+                raise AppError(
+                    "CAMPAIGN_CREATE_IDEMPOTENCY_CONFLICT",
+                    "The campaign creation request no longer matches its original inputs",
+                    status_code=status.HTTP_409_CONFLICT,
+                )
+            return existing, False
     campaign = Campaign(
+        id=payload.client_request_id,
         organization_id=organization.id,
         created_by_user_id=user_id,
         name=payload.name,
@@ -121,13 +172,13 @@ async def create_campaign(
         end_at=payload.end_at,
         budget_amount=payload.budget_amount,
         daily_budget_amount=payload.daily_budget_amount,
-        currency=(payload.currency or organization.currency).upper(),
+        currency=currency,
         campaign_metadata=payload.metadata,
     )
     session.add(campaign)
     await session.flush()
     await session.refresh(campaign)
-    return campaign
+    return campaign, True
 
 
 async def list_advertiser_campaigns(
@@ -827,10 +878,14 @@ async def update_campaign_creative(
                 "Metadata must be an object",
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
-        creative.creative_metadata = metadata
+        if creative.creative_metadata == metadata:
+            changed_fields.remove("metadata")
+        else:
+            creative.creative_metadata = metadata
 
     if (
         "creative_type" in update_values
+        and "stored_file_id" not in update_values
         and creative.stored_file is not None
         and update_values["creative_type"].value
         != _creative_type_for_content_type(creative.stored_file.content_type)
@@ -893,15 +948,22 @@ async def update_campaign_creative(
                 "Creative type does not match the validated stored-file content type",
                 status_code=status.HTTP_409_CONFLICT,
             )
-        creative.stored_file_id = stored_file.id
-        creative.stored_file = stored_file
-        creative.asset_url = None
-        creative.mime_type = stored_file.content_type
-        creative.checksum = stored_file.checksum_sha256
-        creative.status = CreativeStatus.DRAFT.value
+        if creative.stored_file_id == stored_file.id:
+            changed_fields.remove("stored_file_id")
+        else:
+            creative.stored_file_id = stored_file.id
+            creative.stored_file = stored_file
+            creative.asset_url = None
+            creative.mime_type = stored_file.content_type
+            creative.checksum = stored_file.checksum_sha256
+            creative.status = CreativeStatus.DRAFT.value
 
     for field, value in update_values.items():
-        setattr(creative, field, value)
+        comparable = getattr(value, "value", value)
+        if getattr(creative, field) == comparable:
+            changed_fields.remove(field)
+        else:
+            setattr(creative, field, value)
 
     if creative.status == CreativeStatus.REJECTED.value and changed_fields:
         creative.status = CreativeStatus.DRAFT.value
@@ -1012,12 +1074,21 @@ async def submit_creative_for_review(
         campaign_id=campaign_id,
         creative_id=creative_id,
     )
-    prior_status = creative.status
-    if prior_status not in {CreativeStatus.DRAFT.value, CreativeStatus.REJECTED.value}:
-        raise creative_review_state_conflict(prior_status, CreativeStatus.PENDING_REVIEW.value)
     _assert_reviewable_file(campaign, creative, stored_file)
     snapshot = creative_review_snapshot(creative, campaign, stored_file)
     digest = creative_review_snapshot_digest(snapshot)
+    prior_status = creative.status
+    if prior_status == CreativeStatus.PENDING_REVIEW.value:
+        current_submission = await _current_creative_submission(session, creative.id)
+        if (
+            current_submission is not None
+            and current_submission.actor_user_id == user_id
+            and current_submission.reviewed_snapshot_sha256 == digest
+        ):
+            return creative
+        raise creative_review_state_conflict(prior_status, CreativeStatus.PENDING_REVIEW.value)
+    if prior_status not in {CreativeStatus.DRAFT.value, CreativeStatus.REJECTED.value}:
+        raise creative_review_state_conflict(prior_status, CreativeStatus.PENDING_REVIEW.value)
     creative.status = CreativeStatus.PENDING_REVIEW.value
     event = CreativeReviewEvent(
         creative_id=creative.id,

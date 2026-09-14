@@ -134,7 +134,7 @@ export function VehicleForm() {
   return (
     <Panel className="mt-5 p-6">
       <p className="micro text-amber mb-2">Vehicle approval stage</p>
-      <h2 className="font-display text-2xl font-semibold">Submit your pilot vehicle</h2>
+      <h2 className="font-display text-2xl font-semibold">Submit or renew your pilot vehicle</h2>
       <p className="text-muted mt-2 mb-6 max-w-3xl text-sm">
         Add the car you propose to drive. Any change to its identity or evidence creates a new
         review revision and immediately closes work eligibility until an administrator approves it.
@@ -197,8 +197,8 @@ export function VehicleForm() {
         ) : null}
         {result ? (
           <p role="status" className="text-green text-sm">
-            Vehicle evidence version {result.version} for {result.plate_number} is{" "}
-            {result.status.replaceAll("_", " ")}.
+            Vehicle evidence version {result.version} for {result.plate_number} was sent for
+            administrator review.
             {result.vehicle_id ? (
               <span className="mt-1 block">
                 Save vehicle ID <code className="font-mono">{result.vehicle_id}</code> for a later

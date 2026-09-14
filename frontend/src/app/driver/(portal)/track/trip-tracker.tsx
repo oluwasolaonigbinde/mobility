@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { DriverTrackerAssignment, DriverTrackerTrip } from "@/lib/driver/campaign-journey";
 import {
@@ -42,6 +43,109 @@ const MAX_BATCH_PINGS = 40;
 const KEEPALIVE_INTERVAL_MS = 10 * 60_000;
 const RECOVERY_INTERVAL_MS = 60_000;
 const TRACKING_LOCK = "cardvert-driver-trip-writer-v2";
+
+function trackingPresentation({
+  authorityUncertain,
+  bufferedCount,
+  error,
+  health,
+  hasEvidenceIssue,
+  isSending,
+  online,
+  queueHealthy,
+  session,
+  syncedCount,
+}: {
+  authorityUncertain: boolean;
+  bufferedCount: number;
+  error?: string;
+  health: "active" | "degraded" | "stopped";
+  hasEvidenceIssue: boolean;
+  isSending: boolean;
+  online: boolean;
+  queueHealthy: boolean;
+  session: CapabilitySnapshot["session"];
+  syncedCount: number;
+}) {
+  if (authorityUncertain) {
+    return {
+      label: "Check trip status",
+      detail: "Capture is stopped while Cardvert checks the same trip with the server.",
+      tone: "text-amber",
+      dot: "bg-amber",
+    } as const;
+  }
+  if (session === "invalid" || hasEvidenceIssue) {
+    return {
+      label: "Needs attention",
+      detail: "Some trip updates need attention. Follow the message below before continuing.",
+      tone: "text-coral",
+      dot: "bg-coral",
+    } as const;
+  }
+  if (bufferedCount > 0 && !online && queueHealthy) {
+    return {
+      label: "Saved on this phone",
+      detail: "Trip updates are safe on this phone and will wait here until Cardvert is online.",
+      tone: "text-amber",
+      dot: "bg-amber",
+    } as const;
+  }
+  if (error) {
+    return {
+      label: "Needs attention",
+      detail: "Some trip updates need attention. Follow the message below before continuing.",
+      tone: "text-coral",
+      dot: "bg-coral",
+    } as const;
+  }
+  if (bufferedCount > 0) {
+    if (isSending && session === "valid") {
+      return {
+        label: "Sending",
+        detail: "Saved trip updates are being sent with the same trip identity.",
+        tone: "text-cyan",
+        dot: "bg-cyan",
+      } as const;
+    }
+    return {
+      label: "Waiting to send",
+      detail: "Trip updates are saved and waiting while Cardvert checks the connection.",
+      tone: "text-amber",
+      dot: "bg-amber",
+    } as const;
+  }
+  if (health !== "active") {
+    return {
+      label: "Paused",
+      detail: "No new location is being recorded until the foreground checks recover.",
+      tone: "text-amber",
+      dot: "bg-amber",
+    } as const;
+  }
+  if (isSending) {
+    return {
+      label: "Sending",
+      detail: "Saved trip updates are being sent with the same trip identity.",
+      tone: "text-cyan",
+      dot: "bg-cyan",
+    } as const;
+  }
+  if (syncedCount > 0) {
+    return {
+      label: "Sent",
+      detail: "Everything saved for this trip has reached Cardvert. Tracking continues on screen.",
+      tone: "text-green",
+      dot: "bg-green animate-pulse-dot",
+    } as const;
+  }
+  return {
+    label: "Tracking",
+    detail: "Cardvert is recording this trip while the app stays open on screen.",
+    tone: "text-green",
+    dot: "bg-green animate-pulse-dot",
+  } as const;
+}
 
 function passiveSnapshot(activeTrip: boolean): CapabilitySnapshot {
   if (typeof window === "undefined") return { ...EMPTY_CAPABILITY_SNAPSHOT, activeTrip };
@@ -96,6 +200,7 @@ export function TripTracker({
   const [startUncertain, setStartUncertain] = useState(false);
   const [authorityUncertain, setAuthorityUncertain] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [isSending, setIsSending] = useState(false);
 
   const endPhaseRef = useRef<"capturing" | "preparing" | "submitted">("capturing");
   const captureGenerationRef = useRef(0);
@@ -126,6 +231,20 @@ export function TripTracker({
     return runtimeRef.current;
   }, []);
   const assessment = useMemo(() => assessPilotPwa(runtime), [runtime]);
+  const hasEvidenceIssue =
+    deadLetterCount > 0 || rejectedSampleCount > 0 || quarantinedSampleCount > 0;
+  const presentedTracking = trackingPresentation({
+    authorityUncertain,
+    bufferedCount,
+    error,
+    health: assessment.health,
+    hasEvidenceIssue,
+    isSending,
+    online: runtime.online,
+    queueHealthy: runtime.indexedDb === "pass" && runtime.durableQueue === "pass",
+    session: runtime.session,
+    syncedCount,
+  });
 
   const stopWatch = useCallback(() => {
     captureGenerationRef.current += 1;
@@ -369,6 +488,7 @@ export function TripTracker({
       while (flushPromiseRef.current) await flushPromiseRef.current;
       const queue = queueRef.current;
       if (!queue || !identityValidRef.current) return;
+      if (mountedRef.current) setIsSending(true);
       const operation = (async () => {
         try {
           let protocolVersion = protocolByTripRef.current.get(tripId);
@@ -455,8 +575,11 @@ export function TripTracker({
         await operation;
       } finally {
         if (flushPromiseRef.current === operation) flushPromiseRef.current = null;
+        if (mountedRef.current) {
+          await refreshCounts(tripId).catch(() => undefined);
+          setIsSending(false);
+        }
       }
-      if (mountedRef.current) await refreshCounts(tripId).catch(() => undefined);
     },
     [patchRuntime, refreshCounts, stopWatch],
   );
@@ -1091,13 +1214,25 @@ export function TripTracker({
 
   if (!assignment && !trip) {
     return (
-      <Panel className="p-6 text-center">
-        <p className="text-sm font-medium">No active campaign</p>
-        <p className="text-muted mt-1 text-xs">
-          {startUnavailableMessage ??
-            "Accept an offer and wait for admin activation — then your trips earn."}
-        </p>
-      </Panel>
+      <div className="flex flex-col gap-4">
+        <Panel className="p-5">
+          <p className="micro text-amber">Set up this phone</p>
+          <p className="text-muted mt-2 text-sm leading-6">
+            Add Cardvert Driver to your Home Screen from the browser menu. When a trip is ready,
+            keep the app open on screen and allow location after you press Start.
+          </p>
+          <Link href="/driver/capabilities" className="micro text-faint mt-3 inline-block">
+            Phone diagnostics →
+          </Link>
+        </Panel>
+        <Panel className="p-6 text-center">
+          <p className="text-sm font-medium">No active campaign</p>
+          <p className="text-muted mt-1 text-xs">
+            {startUnavailableMessage ??
+              "Accept an offer and wait for admin activation — then your trips earn."}
+          </p>
+        </Panel>
+      </div>
     );
   }
 
@@ -1105,26 +1240,21 @@ export function TripTracker({
     <div className="flex flex-col gap-4">
       {trip ? (
         <>
-          <Panel className={assessment.health === "active" ? "border-green/40 p-5" : "p-5"}>
-            <p className="micro flex items-center gap-1.5" data-testid="tracking-health">
-              <span
-                className={`inline-block size-1.5 rounded-full ${assessment.health === "active" ? "bg-green animate-pulse-dot" : assessment.health === "degraded" ? "bg-amber" : "bg-coral"}`}
-              />
-              {assessment.health}
+          <Panel
+            className={presentedTracking.tone === "text-green" ? "border-green/40 p-5" : "p-5"}
+          >
+            <p
+              className={`micro flex items-center gap-1.5 ${presentedTracking.tone}`}
+              data-testid="tracking-health"
+              data-runtime-health={assessment.health}
+            >
+              <span className={`inline-block size-1.5 rounded-full ${presentedTracking.dot}`} />
+              {presentedTracking.label}
             </p>
-            <div className="mt-4 grid grid-cols-2 gap-4">
+            <p className="text-muted mt-2 text-sm leading-6">{presentedTracking.detail}</p>
+            <div className="mt-4 flex items-end justify-between gap-4">
               <div>
-                <p className="micro text-faint">Pings synced</p>
-                <p className="font-display text-2xl font-semibold" data-testid="pings-sent">
-                  {syncedCount}
-                </p>
-              </div>
-              <div>
-                <p className="micro text-faint">Buffered</p>
-                <p className="font-display text-2xl font-semibold">{bufferedCount}</p>
-              </div>
-              <div>
-                <p className="micro text-faint">GPS</p>
+                <p className="micro text-faint">Location</p>
                 <p className="text-sm">
                   {gps === "granted" && lastFix
                     ? `±${Math.round(lastFix.coords.accuracy)}m fix`
@@ -1135,24 +1265,22 @@ export function TripTracker({
                         : "Waiting…"}
                 </p>
               </div>
-              <div>
-                <p className="micro text-faint">Diagnostics</p>
-                <p className="text-sm">{deadLetterCount} retained batches</p>
-                {rejectedSampleCount > 0 && (
-                  <p className="text-sm">{rejectedSampleCount} rejected samples</p>
-                )}
-                {quarantinedSampleCount > 0 && (
-                  <p className="text-sm">{quarantinedSampleCount} quarantined samples</p>
-                )}
-                {rejectionCodes.length > 0 && (
-                  <p className="text-muted text-xs">
+              <Link href="/driver/capabilities" className="micro text-faint">
+                Phone diagnostics →
+              </Link>
+            </div>
+            {hasEvidenceIssue ? (
+              <div className="border-coral/30 bg-coral/10 mt-4 rounded-lg border px-3.5 py-2.5">
+                <p className="text-coral text-sm">Some saved trip updates need attention.</p>
+                {rejectionCodes.length > 0 ? (
+                  <p className="text-muted mt-1 text-xs">
                     {rejectionCodes
-                      .map((code) => REJECTION_LABELS[code] ?? "GPS sample rejected")
+                      .map((code) => REJECTION_LABELS[code] ?? "A GPS update was not accepted")
                       .join("; ")}
                   </p>
-                )}
+                ) : null}
               </div>
-            </div>
+            ) : null}
           </Panel>
           <Button
             type="button"
@@ -1165,15 +1293,25 @@ export function TripTracker({
           >
             {busy
               ? authorityUncertain
-                ? "Reconciling…"
+                ? "Checking…"
                 : "Ending…"
               : authorityUncertain
-                ? "Reconcile trip"
+                ? "Check trip status"
                 : "■ End trip"}
           </Button>
         </>
       ) : (
         <>
+          <Panel className="p-5">
+            <p className="micro text-amber">Set up this phone</p>
+            <p className="text-muted mt-2 text-sm leading-6">
+              Add Cardvert Driver to your Home Screen from the browser menu. Keep it open and
+              visible while driving; tracking pauses whenever Cardvert is not on screen.
+            </p>
+            <Link href="/driver/capabilities" className="micro text-faint mt-3 inline-block">
+              Phone diagnostics →
+            </Link>
+          </Panel>
           <Panel className="p-5">
             <p className="micro text-muted">Ready to drive</p>
             <p className="mt-2 text-base font-medium">{assignment?.campaignName}</p>
@@ -1189,12 +1327,12 @@ export function TripTracker({
           >
             {busy
               ? startUncertain
-                ? "Reconciling…"
+                ? "Checking…"
                 : "Starting…"
               : storageReady === null
                 ? "Preparing…"
                 : startUncertain
-                  ? "Reconcile trip"
+                  ? "Check trip status"
                   : "▶ Start trip"}
           </Button>
           <p className="text-faint text-center text-xs">

@@ -1,7 +1,7 @@
 # ruff: noqa: F401, F811
 
 import asyncio
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from conftest import (
     auth_headers,
@@ -80,6 +80,69 @@ def test_creative_review_binds_snapshot_freezes_pending_and_audits_decision(
     actions = [event.action for event in fetch_audit_events(db_sessionmaker)]
     assert actions.count("advertiser.campaign_creative.submitted_for_review") == 1
     assert actions.count("admin.campaign_creative.approved") == 1
+
+
+def test_creative_replace_and_resubmit_replays_converge_without_duplicate_events(
+    db_client, db_sessionmaker, file_boundaries
+) -> None:
+    storage, scanner = file_boundaries
+    admin = create_test_user(
+        db_sessionmaker, email="creative-retry-admin@example.com", password=PASSWORD
+    )
+    advertiser, campaign, creative, _ = _managed_draft(
+        db_client,
+        db_sessionmaker,
+        file_boundaries,
+        email="creative-retry@example.com",
+    )
+    advertiser_headers = auth_headers(db_client, advertiser.email, PASSWORD)
+    admin_headers = auth_headers(db_client, admin.email, PASSWORD)
+    base = f"/api/v1/advertiser/campaigns/{campaign.id}/creatives/{creative['id']}"
+
+    first_submit = db_client.post(f"{base}/submit", headers=advertiser_headers)
+    lost_response_retry = db_client.post(f"{base}/submit", headers=advertiser_headers)
+    rejected = db_client.post(
+        f"/api/v1/admin/creatives/{creative['id']}/reject",
+        headers=admin_headers,
+        json={"reason": "Please replace the artwork"},
+    )
+    replacement = confirm_png(
+        db_client,
+        storage,
+        advertiser.email,
+        client_request_id=str(uuid4()),
+    )
+    scan_file(db_sessionmaker, replacement["id"], storage, scanner)
+    replace_payload = {"stored_file_id": replacement["id"], "creative_type": "image"}
+    first_replace = db_client.patch(base, headers=advertiser_headers, json=replace_payload)
+    replace_retry = db_client.patch(base, headers=advertiser_headers, json=replace_payload)
+    resubmit = db_client.post(f"{base}/submit", headers=advertiser_headers)
+    resubmit_retry = db_client.post(f"{base}/submit", headers=advertiser_headers)
+
+    assert first_submit.status_code == http_status.HTTP_200_OK, first_submit.text
+    assert lost_response_retry.status_code == http_status.HTTP_200_OK, lost_response_retry.text
+    assert rejected.status_code == http_status.HTTP_200_OK, rejected.text
+    assert first_replace.status_code == http_status.HTTP_200_OK, first_replace.text
+    assert replace_retry.status_code == http_status.HTTP_200_OK, replace_retry.text
+    assert first_replace.json()["id"] == replace_retry.json()["id"] == creative["id"]
+    assert replace_retry.json()["stored_file_id"] == replacement["id"]
+    assert resubmit.status_code == http_status.HTTP_200_OK, resubmit.text
+    assert resubmit_retry.status_code == http_status.HTTP_200_OK, resubmit_retry.text
+
+    actions = [event.action for event in fetch_audit_events(db_sessionmaker)]
+    assert actions.count("advertiser.campaign_creative.updated") == 1
+    assert actions.count("advertiser.campaign_creative.submitted_for_review") == 2
+
+    async def event_count() -> int:
+        async with db_sessionmaker() as session:
+            count = await session.scalar(
+                select(func.count())
+                .select_from(CreativeReviewEvent)
+                .where(CreativeReviewEvent.creative_id == UUID(creative["id"]))
+            )
+            return int(count or 0)
+
+    assert asyncio.run(event_count()) == 3
 
 
 def test_creative_approval_rechecks_scan_and_rejection_requires_reason(
