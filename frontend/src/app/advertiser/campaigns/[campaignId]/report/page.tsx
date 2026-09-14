@@ -151,13 +151,13 @@ export default async function CampaignReportPage({
           label="Trips analyzed"
           value={formatCount(report.trip_summary.ended)}
           tone="cyan"
-          hint={`${formatCount(report.trip_summary.total)} total sessions · ${formatCount(report.assignment_summary.active)} active vehicles`}
+          hint={`${formatCount(report.trip_summary.total)} trips recorded · ${formatCount(report.assignment_summary.active)} vehicles active`}
         />
         <Stat
           label="Driver campaign cost"
           value={costMetricDisplay(frozenCost)}
           tone="green"
-          hint={`${formatCount(frozenCost.completeness.covered_trip_count)} of ${formatCount(frozenCost.completeness.denominator_trip_count)} completed trips priced${
+          hint={`${formatCount(frozenCost.completeness.covered_trip_count)} of ${formatCount(frozenCost.completeness.denominator_trip_count)} completed trips priced · driver pay, not your advertising spend${
             frozenCost.completeness.complete ? "" : " · period incomplete"
           }`}
         />
@@ -178,19 +178,19 @@ export default async function CampaignReportPage({
       {/* Charts */}
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <FrozenDailyMetricChart
-          title="Modelled potential contacts · daily"
-          description="Modelled from verified vehicle movement · impressions_v1"
+          title="Estimated ad exposure · daily"
+          description="Model estimate from verified vehicle movement · formula impressions_v1"
           suppressed={!contactsDailyPublishable}
         >
           <AreaTimeseries
             points={impressionSeries}
             color="var(--color-amber)"
-            ariaLabel="Daily modelled potential contacts"
+            ariaLabel="Daily estimated ad exposure"
           />
         </FrozenDailyMetricChart>
         <FrozenDailyMetricChart
           title="Driver campaign cost · daily"
-          description="Driver payouts attributed to this campaign"
+          description="Driver pay for this campaign — not your advertising spend"
           suppressed={!costDailyPublishable}
         >
           <BarTimeseries
@@ -215,9 +215,9 @@ export default async function CampaignReportPage({
                   <th className="px-6 py-3 font-normal">Date</th>
                   <th className="px-4 py-3 text-right font-normal">Trips</th>
                   <th className="px-4 py-3 text-right font-normal">Distance</th>
-                  <th className="px-4 py-3 text-right font-normal">Modelled contacts</th>
-                  <th className="px-4 py-3 text-right font-normal">Model diagnostic</th>
-                  <th className="px-4 py-3 text-right font-normal">Quality</th>
+                  <th className="px-4 py-3 text-right font-normal">Estimated ad exposure</th>
+                  <th className="px-4 py-3 text-right font-normal">Estimate quality factor</th>
+                  <th className="px-4 py-3 text-right font-normal">GPS evidence quality</th>
                   <th className="px-4 py-3 text-right font-normal">Driver cost</th>
                   <th className="px-6 py-3 text-right font-normal">Flags</th>
                 </tr>

@@ -59,7 +59,7 @@ export function LoginForm({ demoLoginRole }: { demoLoginRole?: DemoLoginRole }) 
         </p>
       ) : null}
       <Button type="submit" disabled={pending} className="mt-1 w-full">
-        {pending ? "Signing in…" : "Enter the network"}
+        {pending ? "Signing in…" : "Sign in"}
       </Button>
     </form>
   );

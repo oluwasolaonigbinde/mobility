@@ -34,7 +34,7 @@ test("W4-01D history, hold, dispute, outcome and fail-safe PWA rehearsal", async
 
   await page.getByRole("link", { name: /Lagos Release Rehearsal.*1,250\.00.*Held/s }).click();
   await expect(page).toHaveURL(new RegExp(`/driver/earnings/trips/${heldTrip}$`));
-  await expect(page.getByText("Payout v3 · frozen base/premium terms")).toBeVisible();
+  await expect(page.getByText("Hourly pay · base and premium-zone rates fixed")).toBeVisible();
   await expect(page.getByText("Route pattern needs review")).toBeVisible();
 
   const message = "My signal dropped near the bridge; please review this trip.";

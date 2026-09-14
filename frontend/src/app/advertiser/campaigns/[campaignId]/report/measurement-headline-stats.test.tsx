@@ -30,13 +30,25 @@ describe("MeasurementHeadlineStats", () => {
       />,
     );
 
-    expect(screen.getByText("Exposure score")).toBeInTheDocument();
+    expect(screen.getByText("Campaign activity score")).toBeInTheDocument();
+    expect(screen.getByText(/named “Exposure score” in downloads/i)).toBeInTheDocument();
     expect(screen.getByText("84.00 / 100")).toBeInTheDocument();
-    expect(screen.getByText("Modelled potential contacts")).toBeInTheDocument();
+    expect(screen.getByText("Estimated ad exposure")).toBeInTheDocument();
+    expect(screen.getByText(/not a count of people or measured views/i)).toBeInTheDocument();
+    expect(screen.getByText(/not a statistical confidence level/i)).toBeInTheDocument();
+    expect(
+      screen.queryByText(/^(exposure score|modelled potential contacts|model diagnostic)$/i),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("500")).toBeInTheDocument();
     expect(screen.getByText(/not an impression estimate/i)).toBeInTheDocument();
-    expect(screen.getByText(/1 of 1 completed trips covered/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/not yet calibrated or approved as a live measurement method/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/1 of 1 completed trips included/i)).toBeInTheDocument();
     expect(screen.queryByText(/ROI/i)).not.toBeInTheDocument();
+    for (const summary of screen.getAllByText(/technical reference/i)) {
+      expect(summary.closest("details")).not.toHaveAttribute("open");
+    }
   });
 
   it("omits the headline total when the frozen run suppressed it", () => {
@@ -58,8 +70,8 @@ describe("MeasurementHeadlineStats", () => {
 
     expect(screen.getByText("Omitted - insufficient frozen evidence")).toBeInTheDocument();
     expect(screen.queryByText("0")).not.toBeInTheDocument();
-    expect(screen.getByText(/total omitted rather than zero-filled/i)).toBeInTheDocument();
-    expect(screen.getByText(/2 insufficient-data/i)).toBeInTheDocument();
+    expect(screen.getByText(/total not shown rather than counted as zero/i)).toBeInTheDocument();
+    expect(screen.getByText(/2 with too little data/i)).toBeInTheDocument();
     expect(screen.getByText(/1 excluded/i)).toBeInTheDocument();
   });
 });

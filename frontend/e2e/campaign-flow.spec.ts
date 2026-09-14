@@ -105,7 +105,7 @@ async function loginAsAdvertiser(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Email").fill(ADVERTISER.email);
   await page.getByLabel("Password").fill(ADVERTISER.password);
-  await page.getByRole("button", { name: "Enter the network" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL("**/advertiser");
 }
 
@@ -114,27 +114,27 @@ async function loginAsAdmin(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Email").fill(ADMIN.email);
   await page.getByLabel("Password").fill(ADMIN.password);
-  await page.getByRole("button", { name: "Enter the network" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL("**/admin");
 }
 
 test("advertiser can sign in and see the dashboard", async ({ page }) => {
   await loginAsAdvertiser(page);
   await expect(page.getByRole("heading", { name: /Demo Advertiser/ })).toBeVisible();
-  await expect(page.getByText("Modelled potential contacts", { exact: true })).toBeVisible();
+  await expect(page.getByText("Estimated ad exposure", { exact: true })).toBeVisible();
 });
 
 test("signed-out users are redirected to login", async ({ page }) => {
   await page.goto("/advertiser/campaigns");
   await page.waitForURL("**/login?from=%2Fadvertiser%2Fcampaigns");
-  await expect(page.getByRole("button", { name: "Enter the network" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
 });
 
 test("login rejects bad credentials without leaking detail", async ({ page }) => {
   await page.goto("/login");
   await page.getByLabel("Email").fill(ADVERTISER.email);
   await page.getByLabel("Password").fill("definitely-wrong-password");
-  await page.getByRole("button", { name: "Enter the network" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   // Filtered: Next.js's route announcer is also role="alert".
   await expect(
     page.getByRole("alert").filter({ hasText: /invalid email or password/i }),

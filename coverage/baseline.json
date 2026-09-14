@@ -6,11 +6,11 @@
   },
   "critical": {
     "backend": {
-      "branch_covered": 4623,
-      "branch_percent": 68.2866,
+      "branch_covered": 4632,
+      "branch_percent": 68.4195,
       "branch_total": 6770,
-      "line_covered": 25279,
-      "line_percent": 88.6423,
+      "line_covered": 25291,
+      "line_percent": 88.6843,
       "line_total": 28518,
       "paths": [
         "app/__init__.py",
@@ -254,18 +254,19 @@
       ]
     },
     "frontend": {
-      "branch_covered": 2736,
-      "branch_percent": 50.2756,
-      "branch_total": 5442,
-      "line_covered": 3247,
-      "line_percent": 65.2401,
-      "line_total": 4977,
+      "branch_covered": 3026,
+      "branch_percent": 54.6407,
+      "branch_total": 5538,
+      "line_covered": 3413,
+      "line_percent": 67.3441,
+      "line_total": 5068,
       "paths": [
         "frontend/src/app/admin/advertisers/[organizationId]/company/actions.ts",
         "frontend/src/app/admin/advertisers/[organizationId]/company/page.tsx",
         "frontend/src/app/admin/approvals/actions.ts",
         "frontend/src/app/admin/approvals/campaign-change-review-actions.tsx",
         "frontend/src/app/admin/approvals/creative-review-actions.tsx",
+        "frontend/src/app/admin/approvals/decision-buttons.tsx",
         "frontend/src/app/admin/approvals/installation-review-actions.tsx",
         "frontend/src/app/admin/approvals/page.tsx",
         "frontend/src/app/admin/approvals/review-actions.tsx",
@@ -446,6 +447,7 @@
         "frontend/src/components/shell/app-shell.tsx",
         "frontend/src/components/shell/sidebar-nav.tsx",
         "frontend/src/components/ui/button.tsx",
+        "frontend/src/components/ui/data-unavailable.tsx",
         "frontend/src/components/ui/empty-state.tsx",
         "frontend/src/components/ui/field.tsx",
         "frontend/src/components/ui/page-header.tsx",
@@ -464,6 +466,7 @@
         "frontend/src/fonts/families/poppins.ts",
         "frontend/src/instrumentation-client.ts",
         "frontend/src/instrumentation.ts",
+        "frontend/src/lib/advertiser/page-data.ts",
         "frontend/src/lib/api/client.ts",
         "frontend/src/lib/api/errors.ts",
         "frontend/src/lib/api/mutation-boundary.ts",
@@ -504,25 +507,29 @@
       ]
     }
   },
-  "eligible_inventory_sha256": "c0238ca05040c3aae72f4a819fc85a332a907b2b96d71a7dced9aeff2000a3f2",
+  "eligible_inventory_sha256": "9f652ad6659eb8b66fbec68c1bc35017a4c02f62a216c576d72752d453fd53a0",
   "global": {
-    "branch_covered": 7359,
-    "branch_percent": 60.2604,
-    "branch_total": 12212,
-    "line_covered": 28526,
-    "line_percent": 85.1649,
-    "line_total": 33495
+    "branch_covered": 7658,
+    "branch_percent": 62.2197,
+    "branch_total": 12308,
+    "line_covered": 28704,
+    "line_percent": 85.4642,
+    "line_total": 33586
   },
   "policy_sha256": "def9d95ba31eb70fbf92f8485fa50bbfda14ed238b95fea903d81ff612336a13",
   "refresh": {
     "inventory_changes": {
-      "added": [],
+      "added": [
+        "frontend/src/app/admin/approvals/decision-buttons.tsx",
+        "frontend/src/components/ui/data-unavailable.tsx",
+        "frontend/src/lib/advertiser/page-data.ts"
+      ],
       "removed": []
     },
-    "previous_baseline_sha256": "510dddea2da61639d5b3b2a38625d2dd80fdd5e7fd8891398524ccaa1f8b4c49",
-    "reason": "Reviewed CI execution integrity and campaign/disclosure/fraud lock ordering; unchanged D32 requirements and instrumentation"
+    "previous_baseline_sha256": "2da56c7c1a744fe0e40ece451470cc5afbef669418a88ba88ccaa3ce41c865ba",
+    "reason": "First-phase frontend source additions; retain all adopted coverage floors"
   },
-  "source_parent_sha": "13da317087aa5aa7b56bc51aad535bca90547aa3",
-  "source_sha256": "939346d80c39a4f8624922bca14818c8a8235bbc1001df6c9b280d481261ffe5",
+  "source_parent_sha": "1f9229cdfad0c8c3826667e712f9b701896a167e",
+  "source_sha256": "217275fa86834589f86aae32b3c44c454b0f5a376824ad7adcf1521f174b4e21",
   "version": 3
 }

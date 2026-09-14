@@ -1,13 +1,13 @@
 "use client";
 
 import { useActionState } from "react";
-import { Button } from "@/components/ui/button";
 import { reviewCreativeAction, type CampaignReviewActionState } from "./actions";
+import { DecisionButtons } from "./decision-buttons";
 
 const initialState: CampaignReviewActionState = {};
 
 export function CreativeReviewActions({ creativeId }: { creativeId: string }) {
-  const [state, formAction, pending] = useActionState(reviewCreativeAction, initialState);
+  const [state, formAction] = useActionState(reviewCreativeAction, initialState);
 
   return (
     <form action={formAction} className="flex w-full max-w-sm flex-col items-end gap-2">
@@ -22,27 +22,7 @@ export function CreativeReviewActions({ creativeId }: { creativeId: string }) {
           className="border-edge bg-raised text-ink focus:border-amber min-h-20 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none"
         />
       </label>
-      <div className="flex gap-2">
-        <Button
-          type="submit"
-          name="intent"
-          value="approve"
-          disabled={pending}
-          className="h-9 px-3 text-xs"
-        >
-          {pending ? "Reviewing…" : "Approve"}
-        </Button>
-        <Button
-          type="submit"
-          name="intent"
-          value="reject"
-          variant="danger"
-          disabled={pending}
-          className="h-9 px-3 text-xs"
-        >
-          Reject
-        </Button>
-      </div>
+      <DecisionButtons />
       <div aria-live="polite">
         {state.error ? (
           <p role="alert" className="text-coral text-right text-xs">

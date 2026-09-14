@@ -83,7 +83,7 @@ async function login(page: Page, account: (typeof accounts)[number]) {
   await page.goto("/login");
   await page.getByLabel("Email").fill(account.email);
   await page.getByLabel("Password").fill(account.password);
-  await page.getByRole("button", { name: "Enter the network" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL(`**/${account.role}`);
 }
 

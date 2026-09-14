@@ -5,7 +5,7 @@ async function login(page: Page, email: string, password: string, destination: s
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Enter the network" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL(`**/${destination}`);
 }
 
@@ -54,13 +54,13 @@ test("advertiser sees canonical company, billing and gated launch entries", asyn
   await expect(page.getByLabel("Legal or trading name")).toHaveValue("Demo Advertiser");
   await page.getByRole("link", { name: "Billing", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Billing history" })).toBeVisible();
-  await expect(page.getByText(/Online payment checkout is unavailable/i)).toBeVisible();
+  await expect(page.getByText(/Online payment isn.t available yet/i)).toBeVisible();
   await page.goto("/advertiser/campaigns");
   await page.getByRole("link", { name: "Demo Lagos Mobility Campaign" }).click();
   await expect(page.getByRole("heading", { name: "Commercial terms" })).toBeVisible();
   await expect(page.getByText("Accepted", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Request custom quotation" })).not.toBeVisible();
-  await expect(page.getByText("Driver campaign cost", { exact: true })).toBeVisible();
+  await expect(page.getByText("Driver pay to date", { exact: true })).toBeVisible();
 });
 
 test("quotation acceptance and invoice facts survive role changes and reloads", async ({
@@ -106,7 +106,7 @@ test("quotation acceptance and invoice facts survive role changes and reloads", 
   await login(page, "advertiser@demo.mobility.local", "DemoAdvertiser12345!", "advertiser");
   await page.goto("/advertiser/campaigns");
   await page.getByRole("link", { name: campaignName }).click();
-  await page.getByRole("button", { name: "Accept immutable terms" }).click();
+  await page.getByRole("button", { name: "Accept final terms" }).click();
   await expect(page.getByText("Accepted", { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByText(new RegExp(quoteReference))).toBeVisible();

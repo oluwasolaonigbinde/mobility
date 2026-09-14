@@ -6,10 +6,10 @@ import { StatusChip } from "@/components/ui/status-chip";
 type Insight = components["schemas"]["HighExposureZoneInsightsRead"];
 
 const stateCopy: Record<Exclude<Insight["state"], "ready">, string> = {
-  empty: "No issued zone aggregate is available for this measurement run.",
-  suppressed: "Zone rankings are withheld by the disclosure floor.",
-  stale: "The issued zone authority is stale. A new governed aggregate is required.",
-  unavailable: "The measurement run cannot produce a governed zone ranking.",
+  empty: "No zone ranking is available for this report yet.",
+  suppressed: "Zone rankings are not shown because there is too little data to protect privacy.",
+  stale: "This zone ranking is out of date. Cardvert needs to issue a new ranking.",
+  unavailable: "A zone ranking is unavailable for this report.",
 };
 
 export function HighExposureZoneInsights({
@@ -19,15 +19,14 @@ export function HighExposureZoneInsights({
   insight: Insight;
   surface: "map" | "report" | "admin";
 }) {
-  const ariaLabel =
-    surface === "map" ? "High-exposure zone map ranking" : "High-exposure zone ranking";
+  const ariaLabel = surface === "map" ? "Zone map ranking" : "Zone ranking";
 
   return (
     <Panel role="region" aria-label={ariaLabel} className="p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="micro text-amber">Governed zone insight</p>
-          <h2 className="mt-1 font-medium">High-exposure zones</h2>
+          <p className="micro text-amber">Zone ranking</p>
+          <h2 className="mt-1 font-medium">Top zones by estimated ad exposure</h2>
         </div>
         <StatusChip
           tone={
@@ -59,22 +58,23 @@ export function HighExposureZoneInsights({
                 </div>
                 <div className="text-right">
                   <p className="text-sm">
-                    {formatCount(item.modelled_potential_contacts)} modelled potential contacts
+                    {formatCount(item.modelled_potential_contacts)} estimated ad exposure
                   </p>
-                  <p className="micro text-faint mt-1">
-                    {formatCount(item.trip_count)} governed trips
-                  </p>
+                  <p className="micro text-faint mt-1">{formatCount(item.trip_count)} trips</p>
                 </div>
               </li>
             ))}
           </ol>
           <p className="micro text-muted mt-4">
-            Campaign exposure score: {insight.campaign_exposure_score ?? "—"} / 100 · separate
-            uncalibrated operational index
+            Campaign activity score: {insight.campaign_exposure_score ?? "—"} / 100 · a separate,
+            uncalibrated index (named “Exposure score” in downloads)
           </p>
           {insight.provenance ? (
-            <div className="micro text-faint mt-2 font-mono">
-              <p>
+            <details className="micro text-faint mt-2 font-mono break-all">
+              <summary className="cursor-pointer font-sans">
+                Zone ranking technical reference
+              </summary>
+              <p className="mt-2">
                 {insight.provenance.formula_version} · formula{" "}
                 {insight.provenance.formula_fingerprint.slice(0, 12)}… · run{" "}
                 {insight.provenance.measurement_run_id}
@@ -96,7 +96,7 @@ export function HighExposureZoneInsights({
                   ))}
                 </>
               ) : null}
-            </div>
+            </details>
           ) : null}
           {insight.uncertainty ? (
             <p className="micro text-faint mt-3">{insight.uncertainty}</p>
@@ -106,9 +106,9 @@ export function HighExposureZoneInsights({
         <p className="text-muted mt-4 text-sm">{stateCopy[insight.state]}</p>
       )}
       <p className="micro text-faint mt-3">
-        Ranks disclosure-cleared zones by frozen modelled potential contacts. Exposure score,
-        impressions, potential contacts and attribution remain separate measures. The ranking does
-        not represent observed people or guaranteed outcomes.
+        Ranks privacy-cleared zones by estimated opportunities to see (named “modelled potential
+        contacts” in downloads). The activity score, impressions and attribution are separate
+        measures. Rankings are not individual people, measured views or guaranteed outcomes.
       </p>
     </Panel>
   );

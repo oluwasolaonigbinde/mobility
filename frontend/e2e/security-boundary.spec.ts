@@ -185,7 +185,7 @@ test("deployed Next server rejects a cross-origin Server Action", async ({
   const sameOriginResponsePromise = page.waitForResponse(
     (response) => response.request().method() === "POST" && response.url().endsWith("/login"),
   );
-  await page.getByRole("button", { name: "Enter the network" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   const sameOriginResponse = await sameOriginResponsePromise;
   expect(sameOriginResponse.status()).toBeLessThan(500);
   expect(actionRequest).toBeDefined();
@@ -216,7 +216,7 @@ test("successful production login sets the host-only hardened session cookie", a
   await page.goto("/login");
   await page.getByLabel("Email").fill(email!);
   await page.getByLabel("Password").fill(password!);
-  await page.getByRole("button", { name: "Enter the network" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL((url) => url.pathname !== "/login");
   const cookie = (await page.context().cookies()).find(
     (value) => value.name === "__Host-cardvert_session",
@@ -254,7 +254,7 @@ test("cold production login keeps known-wrong and unknown identities timing-equi
   const warmResponsePromise = page.waitForResponse(
     (response) => response.request().method() === "POST" && response.url().endsWith("/login"),
   );
-  await page.getByRole("button", { name: "Enter the network" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   expect((await warmResponsePromise).status()).toBe(200);
   await expect(
     page.getByText("Invalid email or password, or the account is not active.", { exact: true }),
@@ -268,7 +268,7 @@ test("cold production login keeps known-wrong and unknown identities timing-equi
       .fill(unknown ? `r14-timing-${attempt}@example.com` : knownEmail!);
     await page.getByLabel("Password").fill("R14-Wrong-Password-Only!");
     const started = performance.now();
-    await page.getByRole("button", { name: "Enter the network" }).click();
+    await page.getByRole("button", { name: "Sign in" }).click();
     const response = await responsePromise;
     const duration = performance.now() - started;
     expect(response.status()).toBe(200);

@@ -9,24 +9,24 @@ engineering audit corpus.
 
 | # | Review | Status | Answer |
 | ---: | --- | --- | --- |
-| 1 | End-to-end system flow | Not run | — |
+| 1 | End-to-end system flow | Answered and reconciled | [captured answer](answers/prompt-01-system-flow.md) |
 | 2 | UI ergonomics and information architecture | Answered and normalized | [verbatim answer](answers/prompt-02-ui-ergonomics.md) |
 | 3 | Human-facing language and AI residue | Answered and normalized | [verbatim answer](answers/prompt-03-copy-voice.html) |
-| 4 | Admin and operations workflow | Not run | — |
+| 4 | Admin and operations workflow | Answered and reconciled | [captured answer](answers/prompt-04-admin-operations.md) |
 | 5 | Advertiser journey | Answered and normalized | [verbatim answer](answers/prompt-05-advertiser-journey.md) |
-| 6 | Driver journey | Not run by this programme | — |
-| 7 | Errors, gates and state transitions | Not run | — |
+| 6 | Driver journey | Answered and reconciled | [captured answer](answers/prompt-06-driver-journey.md) |
+| 7 | Errors, gates and state transitions | Answered and reconciled | [captured answer](answers/prompt-07-errors-states.md) |
 | 8 | Client-owned approvals versus system-owned UX | Answered and reconciled | [verbatim answer](answers/prompt-08-external-boundary.md) |
-| 9 | Client-facing PRD and visual-system guide | Waits for 1–8 | — |
-| 10 | Adversarial PRD review | Waits for 9 | — |
-| 11 | Consolidated implementation backlog | Waits for 10 | — |
+| 9 | Client-facing PRD and visual-system guide | Answered and reconciled | [captured answer](answers/prompt-09-client-prd.md) |
+| 10 | Adversarial PRD review | Answered and reconciled | [captured answer](answers/prompt-10-adversarial-prd-review.md) |
+| 11 | Consolidated implementation backlog | Ready — GPT-6 Pro via GitHub plus evidence packet | — |
 
 The complete, copyable wording for all eleven reviews is in [prompts.md](prompts.md).
 
-## What the three answers produced
+## What prompts 1–8 produced
 
-The three completed reports contain many overlapping observations. Normalization
-reduced them to 42 traceable outcomes:
+The first three completed reports reduced their overlapping observations to 42
+traceable outcomes:
 
 - 28 potentially buildable product/accessibility/copy candidates: 14 `FUX`,
   11 `ADV`, and 3 `CPY`;
@@ -44,6 +44,13 @@ reconciliation records PB-12 as a current `PRODUCT-DEFECT` and PB-13 as a
 partial duplicate of `CPY-002`; the six owner-question groups remain in the
 answer. This does not add to the 42-outcome set or authorize implementation.
 
+Prompts 1, 4, 6 and 7 were then run concurrently on accepted source
+`5f84194df6e9527fcdcbc25b3cb66c9c58697d07` with disjoint scopes. Their
+controller captures preserve the reports' material source-backed findings and
+severity calibration. The cross-report reconciliation in `outcomes.md` groups
+these additions by root cause and explicitly reuses the existing 42 outcomes
+where applicable; it does not treat every missing browser consumer as a defect.
+
 ## Proposed packets and execution authority
 
 [packets.md](packets.md) groups the 28 potentially buildable candidates into 14
@@ -55,15 +62,32 @@ Only `FU-06` has been separately authorized, implemented and accepted: mobile
 administrator/advertiser access to the existing password-change and sign-out
 controls, commit `a73556c`. All other proposed packets remain unimplemented.
 
+## Prompt 9 reconciliation
+
+Prompt 9 produced a substantial client-facing PRD/system-guide draft with all
+eight requested diagrams, a fifty-row evidence map, explicit truth labels and a
+twenty-four-item owner/external-input appendix. The controller accepted it as a
+useful synthesis source, not as a client-ready artifact. Its capture records ten
+targets for the adversarial pass, including a completed-state diagram/text
+contradiction, a stale mobile-access backlog item already closed by `FU-06`, and
+several claims that must be narrowed or reproduced before they reach a client.
+
+## Prompt 10 reconciliation
+
+The adversarial review returned `NEEDS REVISION` and a sealed Prompt 11 handoff.
+It accepted fifteen truth corrections, retired delivered `FUX-007`, promoted
+`ADV-006` from `VERIFY` to a confirmed P1 commercial-consent gap, confirmed the
+live naming contradiction while preserving the owner decision, and rejected
+several duplicates and design preferences. Its P0 labels concern client-document
+truthfulness; it found no new P0 software defect.
+
 ## Continuation order
 
-1. Finish prompts 1, 4, 6 and 7 against one stable accepted snapshot; Prompt 8 is
-   answered and reconciled.
-2. Reconcile later answers into this same folder and update the 42-outcome set rather
-   than creating a parallel register.
-3. Run prompt 9 using answers 1–8, then prompt 10 against that PRD.
-4. Run prompt 11 last to produce the consolidated backlog.
-5. Admit implementation packets only after the active R01–R60 remediation frontier
+1. Run Prompt 11 in GPT-6 Pro against GitHub commit `5f84194` and the exported
+   local evidence packet.
+2. Reconcile its proposed backlog into the existing outcome families before
+   admitting any implementation package.
+3. Admit implementation packets only after the active R01–R60 remediation frontier
    is stable and exact dependencies are revalidated.
 
 Raw audit claims are provenance, not product authority. Independently created user

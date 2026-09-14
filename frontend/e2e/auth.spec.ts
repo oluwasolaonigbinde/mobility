@@ -7,7 +7,7 @@ async function login(page: Page, email: string, password: string) {
   await page.goto("/login");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Enter the network" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
 }
 
 async function createUser(page: Page, role: "advertiser" | "driver", email: string) {
@@ -67,10 +67,10 @@ test("repeated login failures surface the 429 retry message", async ({ page }, t
   for (let attempt = 0; attempt <= maxFailures + 2; attempt += 1) {
     await page.getByLabel("Email").fill(email);
     await page.getByLabel("Password").fill("WrongPassword123!");
-    await page.getByRole("button", { name: "Enter the network" }).click();
+    await page.getByRole("button", { name: "Sign in" }).click();
     // The submit button re-enables only after the server action settles and
     // React has applied the returned form state, so the alert is current here.
-    await expect(page.getByRole("button", { name: "Enter the network" })).toBeEnabled({
+    await expect(page.getByRole("button", { name: "Sign in" })).toBeEnabled({
       timeout: 30_000,
     });
     if (await limitMessage.isVisible()) {

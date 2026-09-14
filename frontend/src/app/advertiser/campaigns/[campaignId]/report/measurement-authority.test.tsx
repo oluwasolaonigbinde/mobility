@@ -221,11 +221,18 @@ describe("frozen measurement authority", () => {
 
     render(<MeasurementAuthorityPanel authority={authority} />);
 
+    expect(screen.getByLabelText("Report basis")).toBeInTheDocument();
+    expect(screen.queryByText(/frozen measurement authority/i)).not.toBeInTheDocument();
     expect(screen.getByText("Verified vehicle movement")).toBeInTheDocument();
-    expect(screen.getByText("Modelled potential contacts")).toBeInTheDocument();
+    expect(screen.getByText("Estimated ad exposure")).toBeInTheDocument();
+    expect(
+      screen.getByText(/named “Modelled potential contacts” in downloads/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/not your advertising spend/i)).toBeInTheDocument();
+    expect(screen.queryByText(/governed trips|no client recalculation/i)).not.toBeInTheDocument();
     expect(screen.getByText("Driver campaign cost")).toBeInTheDocument();
     expect(screen.getByText(MOVEMENT_CAVEAT)).toBeInTheDocument();
-    expect(screen.getAllByText(/4 of 4 completed trips covered/i)).toHaveLength(3);
+    expect(screen.getAllByText(/4 of 4 completed trips included/i)).toHaveLength(3);
     expect(
       screen.getByText(/configured defaults; no independent field calibration/i),
     ).toBeInTheDocument();

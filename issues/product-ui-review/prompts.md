@@ -1,8 +1,7 @@
 # Cardvert UI and product-review prompt suite
 
-Status: **IN PROGRESS.** Prompts 2, 3 and 5 are answered and normalized. Prompts
-1, 4, 6, 7 and 8 remain independent review work; prompts 9–11 retain their
-documented sequential order.
+Status: **IN PROGRESS.** Prompts 1–8 are answered and reconciled. Prompt 9 is
+next; prompts 10 and 11 retain their documented sequential order.
 
 These eleven prompts are preserved from the 1 September 2026 planning
 conversation. Each prompt remains in its own fenced block for individual
@@ -556,7 +555,7 @@ OUTPUT:
 Remain read-only and do not provide legal conclusions.
 ```
 
-### 9. Client-facing PRD and visual system guide — GPT-5.6 Pro
+### 9. Client-facing PRD and visual system guide — Claude Opus 5 High (completed)
 
 Run this after prompts 1–8 and attach their outputs.
 
@@ -625,7 +624,7 @@ Separate:
 Deliver a document that can be handed to the client with minimal editing.
 ```
 
-### 10. Adversarial review of the PRD — Claude Opus
+### 10. Adversarial review of the PRD — Claude Opus 5 High (next)
 
 ```text
 MODEL: Claude Opus, highest available reasoning.
@@ -671,7 +670,7 @@ Then produce:
 Remain read-only.
 ```
 
-### 11. Consolidated implementation backlog — GPT-5.6 Pro
+### 11. Consolidated implementation backlog — GPT-6 Pro via GitHub (next)
 
 Run last, attaching all audit outputs and the reviewed PRD.
 

@@ -41,7 +41,7 @@ export default async function DriverEarningsPage() {
         <h1 className="font-display text-2xl font-semibold tracking-tight">Earnings</h1>
         <DriverDataUnavailable
           title="Earnings and review status are unavailable"
-          detail="Cardvert could not verify the current ledger, campaign history, or hold authority. No saved balance is shown as current."
+          detail="Cardvert couldn't load your latest earnings, campaigns or trip reviews, so no balance is shown. Try again shortly."
           retryHref="/driver/earnings"
         />
       </div>
@@ -82,13 +82,13 @@ export default async function DriverEarningsPage() {
 
         {totals.map((t) => {
           const values = [
-            ["Batch-payable", t.batch_payable_amount, "text-green"],
+            ["Available for next payout", t.batch_payable_amount, "text-green"],
             ["Pending", t.pending_amount, "text-amber"],
             ["Released", t.released_available_amount, "text-green"],
             ["Available ledger", t.available_amount, "text-green"],
             ["Cash paid", t.cash_paid_amount, "text-green"],
             ["Paid ledger", t.paid_amount, "text-green"],
-            ["Carried debt", t.carry_forward_debt_amount, "text-coral"],
+            ["Owed, taken from your payouts", t.carry_forward_debt_amount, "text-coral"],
             ["Voided", t.voided_amount, "text-faint"],
             ["Lifetime earned", t.lifetime_earned_amount, ""],
           ] as const;

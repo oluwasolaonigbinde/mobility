@@ -15,12 +15,16 @@ const CREATIVE_EVENT_ID = "00000000-0000-4000-8000-00000000000e";
 const EVIDENCE_ID = "00000000-0000-4000-8000-00000000000f";
 const CHANGE_ID = "00000000-0000-4000-8000-000000000020";
 
+function respond(responses: Record<string, unknown>) {
+  get.mockImplementation(async (path: string) => responses[path] ?? { data: { items: [] } });
+}
+
 describe("AdminApprovalsPage", () => {
   beforeEach(() => get.mockReset());
 
   it("loads the pending queue with each campaign's immutable review history", async () => {
-    get
-      .mockResolvedValueOnce({
+    respond({
+      "/api/v1/admin/campaigns/pending-review": {
         data: {
           items: [
             {
@@ -39,8 +43,8 @@ describe("AdminApprovalsPage", () => {
           limit: 25,
           offset: 0,
         },
-      })
-      .mockResolvedValueOnce({
+      },
+      "/api/v1/admin/creatives/pending-review": {
         data: {
           items: [
             {
@@ -61,8 +65,8 @@ describe("AdminApprovalsPage", () => {
           limit: 25,
           offset: 0,
         },
-      })
-      .mockResolvedValueOnce({
+      },
+      "/api/v1/admin/installation-evidence/pending": {
         data: {
           items: [
             {
@@ -91,8 +95,8 @@ describe("AdminApprovalsPage", () => {
             },
           ],
         },
-      })
-      .mockResolvedValueOnce({
+      },
+      "/api/v1/admin/campaign-change-requests/pending": {
         data: {
           items: [
             {
@@ -130,8 +134,8 @@ describe("AdminApprovalsPage", () => {
             },
           ],
         },
-      })
-      .mockResolvedValueOnce({
+      },
+      "/api/v1/admin/campaigns/{campaign_id}/review-history": {
         data: {
           items: [
             {
@@ -151,8 +155,8 @@ describe("AdminApprovalsPage", () => {
           limit: 10,
           offset: 0,
         },
-      })
-      .mockResolvedValueOnce({
+      },
+      "/api/v1/admin/creatives/{creative_id}/review-history": {
         data: {
           items: [
             {
@@ -172,9 +176,10 @@ describe("AdminApprovalsPage", () => {
           limit: 10,
           offset: 0,
         },
-      });
+      },
+    });
 
-    render(await AdminApprovalsPage());
+    render(await AdminApprovalsPage({ searchParams: Promise.resolve({}) }));
 
     const card = screen.getByTestId(`campaign-approval-${CAMPAIGN_ID}`);
     expect(within(card).getAllByText("Pending review", { exact: true })).toHaveLength(2);
@@ -219,9 +224,161 @@ describe("AdminApprovalsPage", () => {
   it("does not request history when the pending queue is empty", async () => {
     get.mockResolvedValue({ data: { items: [], total: 0, limit: 25, offset: 0 } });
 
-    render(await AdminApprovalsPage());
+    render(await AdminApprovalsPage({ searchParams: Promise.resolve({}) }));
 
     expect(screen.getByText("Nothing awaiting review")).toBeInTheDocument();
     expect(get).toHaveBeenCalledTimes(4);
+  });
+});
+
+function pendingCampaigns(offset: number, count: number) {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `00000000-0000-4000-8000-${String(1000 + offset + index).padStart(12, "0")}`,
+    name: `Campaign ${offset + index + 1}`,
+    description: null,
+    status: "pending_review",
+    organization: { name: "Acme Ads" },
+    start_at: "2026-09-01T08:00:00Z",
+    end_at: "2026-09-30T20:00:00Z",
+    budget_amount: "500000",
+    currency: "NGN",
+  }));
+}
+
+function pendingCreatives(offset: number, count: number) {
+  return Array.from({ length: count }, (_, index) => ({
+    creative: {
+      id: `00000000-0000-4000-8000-${String(5000 + offset + index).padStart(12, "0")}`,
+      campaign_id: CAMPAIGN_ID,
+      name: `Creative ${offset + index + 1}`,
+      creative_type: "image",
+      placement: "vehicle_exterior",
+      status: "pending_review",
+      mime_type: "image/png",
+    },
+    campaign_name: "Rainy season launch",
+    organization: { name: "Acme Ads" },
+  }));
+}
+
+/** Simulates the server's paginated queues, including offsets past the end. */
+function respondWithQueues(campaignTotal: number, creativeTotal: number) {
+  get.mockImplementation(
+    async (path: string, init?: { params?: { query?: { offset?: number } } }) => {
+      const offset = init?.params?.query?.offset ?? 0;
+      const page = (total: number) => Math.max(0, Math.min(25, total - offset));
+      if (path === "/api/v1/admin/campaigns/pending-review") {
+        return {
+          data: {
+            items: pendingCampaigns(offset, page(campaignTotal)),
+            total: campaignTotal,
+            limit: 25,
+            offset,
+          },
+        };
+      }
+      if (path === "/api/v1/admin/creatives/pending-review") {
+        return {
+          data: {
+            items: pendingCreatives(offset, page(creativeTotal)),
+            total: creativeTotal,
+            limit: 25,
+            offset,
+          },
+        };
+      }
+      return { data: { items: [], total: 0, limit: 10, offset: 0 } };
+    },
+  );
+}
+
+function queueCalls(path: string) {
+  return get.mock.calls.filter(([calledPath]) => calledPath === path).map(([, init]) => init);
+}
+
+describe("AdminApprovalsPage queue pagination", () => {
+  beforeEach(() => get.mockReset());
+
+  it("reaches later campaign and creative pages independently", async () => {
+    respondWithQueues(60, 40);
+
+    render(
+      await AdminApprovalsPage({
+        searchParams: Promise.resolve({ campaign_offset: "25", creative_offset: "25" }),
+      }),
+    );
+
+    expect(queueCalls("/api/v1/admin/campaigns/pending-review")).toEqual([
+      { params: { query: { limit: 25, offset: 25 } } },
+    ]);
+    expect(queueCalls("/api/v1/admin/creatives/pending-review")).toEqual([
+      { params: { query: { limit: 25, offset: 25 } } },
+    ]);
+    expect(screen.getByText("100 items awaiting review")).toBeInTheDocument();
+
+    const campaigns = screen.getByRole("region", { name: "Campaigns" });
+    expect(within(campaigns).getAllByTestId(/^campaign-approval-/)).toHaveLength(25);
+    expect(within(campaigns).getByText("Campaign 26")).toBeInTheDocument();
+    expect(within(campaigns).getByText("Page 2 of 3 · 60 total")).toBeInTheDocument();
+    expect(within(campaigns).getByRole("link", { name: "Next →" })).toHaveAttribute(
+      "href",
+      "/admin/approvals?campaign_offset=50&creative_offset=25#campaign-queue",
+    );
+    expect(within(campaigns).getByRole("link", { name: "← Prev" })).toHaveAttribute(
+      "href",
+      "/admin/approvals?creative_offset=25#campaign-queue",
+    );
+
+    const creatives = screen.getByRole("region", { name: "Managed creatives" });
+    expect(within(creatives).getAllByTestId(/^creative-approval-/)).toHaveLength(15);
+    expect(within(creatives).getByText("Creative 40")).toBeInTheDocument();
+    expect(within(creatives).getByText("Page 2 of 2 · 40 total")).toBeInTheDocument();
+    expect(within(creatives).getByRole("link", { name: "← Prev" })).toHaveAttribute(
+      "href",
+      "/admin/approvals?campaign_offset=25#creative-queue",
+    );
+  });
+
+  it("returns a stale offset to the last pending page instead of a false empty queue", async () => {
+    respondWithQueues(30, 0);
+
+    render(await AdminApprovalsPage({ searchParams: Promise.resolve({ campaign_offset: "50" }) }));
+
+    expect(queueCalls("/api/v1/admin/campaigns/pending-review")).toEqual([
+      { params: { query: { limit: 25, offset: 50 } } },
+      { params: { query: { limit: 25, offset: 25 } } },
+    ]);
+    expect(screen.queryByText("Nothing awaiting review")).toBeNull();
+    const campaigns = screen.getByRole("region", { name: "Campaigns" });
+    expect(within(campaigns).getAllByTestId(/^campaign-approval-/)).toHaveLength(5);
+    expect(within(campaigns).getByText("Page 2 of 2 · 30 total")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Managed creatives" })).toBeNull();
+  });
+
+  it("shows the empty state after the last pending item leaves a stale page", async () => {
+    respondWithQueues(0, 0);
+
+    render(await AdminApprovalsPage({ searchParams: Promise.resolve({ creative_offset: "25" }) }));
+
+    expect(screen.getByText("Nothing awaiting review")).toBeInTheDocument();
+    expect(queueCalls("/api/v1/admin/creatives/pending-review")).toHaveLength(1);
+  });
+
+  it("ignores malformed offsets", async () => {
+    respondWithQueues(3, 3);
+
+    render(
+      await AdminApprovalsPage({
+        searchParams: Promise.resolve({ campaign_offset: "-25", creative_offset: ["2.5", "25"] }),
+      }),
+    );
+
+    expect(queueCalls("/api/v1/admin/campaigns/pending-review")).toEqual([
+      { params: { query: { limit: 25, offset: 0 } } },
+    ]);
+    expect(queueCalls("/api/v1/admin/creatives/pending-review")).toEqual([
+      { params: { query: { limit: 25, offset: 0 } } },
+    ]);
+    expect(screen.queryByRole("navigation", { name: "Pagination" })).toBeNull();
   });
 });

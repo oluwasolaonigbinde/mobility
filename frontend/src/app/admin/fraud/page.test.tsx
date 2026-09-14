@@ -113,6 +113,10 @@ describe("AdminFraudPage disputes", () => {
     render(await AdminFraudPage({ searchParams: Promise.resolve({}) }));
 
     expect(screen.getByText(/No flags/)).toBeInTheDocument();
+    expect(
+      screen.getByText("Flagged trips appear here when they need review."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/watching every trip/i)).not.toBeInTheDocument();
     expect(get).toHaveBeenCalledTimes(2);
   });
 

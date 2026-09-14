@@ -57,11 +57,11 @@ function sameInstant(left: string, right: string): boolean {
 
 function completenessCopy(value: Completeness): string {
   const marker = value.suppressed
-    ? " · total omitted rather than zero-filled"
+    ? " · total not shown rather than counted as zero"
     : value.complete
       ? ""
       : " · period incomplete";
-  return `${formatCount(value.covered_trip_count)} of ${formatCount(value.denominator_trip_count)} completed trips covered · ${formatCount(value.insufficient_data_trip_count)} insufficient-data · ${formatCount(value.excluded_trip_count)} excluded · ${formatCount(value.in_progress_trip_count)} still in progress${marker}`;
+  return `${formatCount(value.covered_trip_count)} of ${formatCount(value.denominator_trip_count)} completed trips included · ${formatCount(value.insufficient_data_trip_count)} with too little data · ${formatCount(value.excluded_trip_count)} excluded · ${formatCount(value.in_progress_trip_count)} still in progress${marker}`;
 }
 
 export function validateMeasurementAuthority(report: Report): MeasurementAuthority {
@@ -161,13 +161,13 @@ export function MeasurementAuthorityPanel({ authority }: { authority: Measuremen
   const projection = frozenReportScreenProjection(run, result);
 
   return (
-    <Panel className="mt-6 p-6" aria-label="Frozen measurement authority">
+    <Panel className="mt-6 p-6" aria-label="Report basis">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="micro text-amber">Frozen measurement authority</p>
+          <p className="micro text-amber">Report basis</p>
           <h2 className="mt-1 font-medium">Verified and modelled results</h2>
           <p className="text-muted mt-1 text-sm">
-            {projection.period} · {projection.timezone} · no client recalculation
+            {projection.period} · {projection.timezone} · figures shown exactly as issued
           </p>
         </div>
         <StatusChip tone="green">reproducible</StatusChip>
@@ -185,10 +185,10 @@ export function MeasurementAuthorityPanel({ authority }: { authority: Measuremen
                     : `${exactFrozenValue(metric.distance_m)} metres`}
                 </p>
                 <p className="text-faint mt-1 text-xs">
-                  {formatCount(metric.trip_count)} governed trips ·{" "}
+                  {formatCount(metric.trip_count)} trips ·{" "}
                   {metric.active_tracking_seconds === null
-                    ? "tracking total omitted"
-                    : `${metric.active_tracking_seconds} s active tracking`}
+                    ? "tracking total not shown"
+                    : `${metric.active_tracking_seconds} seconds of active tracking`}
                 </p>
                 <p className="text-faint mt-2 text-xs">{completenessCopy(metric.completeness)}</p>
                 <p className="text-muted mt-2 text-xs">{metric.uncertainty}</p>
@@ -198,14 +198,18 @@ export function MeasurementAuthorityPanel({ authority }: { authority: Measuremen
           if (metric.id === "modelled_potential_contacts") {
             return (
               <div key={metric.id}>
-                <p className="micro text-muted">{metric.label}</p>
+                <p className="micro text-muted">Estimated ad exposure</p>
                 <p className="mt-1 text-lg font-medium">
                   {metric.value === null ? OMITTED_TOTAL_LABEL : exactFrozenValue(metric.value)}
+                </p>
+                <p className="text-faint mt-1 text-xs">
+                  Estimated opportunities to see the ad, based on routes and traffic. This is not a
+                  count of people or measured views. Named “{metric.label}” in downloads.
                 </p>
                 <p className="text-faint mt-1 text-xs">{metric.uncertainty}</p>
                 <p className="text-faint mt-2 text-xs">{completenessCopy(metric.completeness)}</p>
                 <details className="text-faint mt-2 text-xs">
-                  <summary>Density parameter provenance</summary>
+                  <summary>How this estimate was calculated</summary>
                   <p className="mt-1">Source: {metric.density_provenance.source}</p>
                   <p>Calibration: {metric.density_provenance.calibration}</p>
                   {metric.density_provenance.profiles.map((profile) => (
@@ -224,7 +228,10 @@ export function MeasurementAuthorityPanel({ authority }: { authority: Measuremen
             <div key={metric.id}>
               <p className="micro text-muted">{metric.label}</p>
               <p className="mt-1 text-lg font-medium">{costMetricDisplay(metric)}</p>
-              <p className="text-faint mt-1 text-xs">Measured campaign operating cost</p>
+              <p className="text-faint mt-1 text-xs">
+                Driver pay recorded for this campaign — not your advertising spend, revenue or
+                return.
+              </p>
               <p className="text-faint mt-2 text-xs">{completenessCopy(metric.completeness)}</p>
             </div>
           );
@@ -289,8 +296,9 @@ export function MeasurementAuthorityPanel({ authority }: { authority: Measuremen
         </div>
       ) : null}
 
-      <div className="border-edge mt-5 border-t pt-4 font-mono text-xs">
-        <p className="text-muted">Run {run.id}</p>
+      <details className="border-edge mt-5 border-t pt-4 font-mono text-xs">
+        <summary className="text-muted cursor-pointer font-sans">Technical reference</summary>
+        <p className="text-muted mt-2">Run {run.id}</p>
         <p className="text-faint mt-1">
           timezone {projection.timezone} · rounding {projection.rounding}
         </p>
@@ -298,41 +306,43 @@ export function MeasurementAuthorityPanel({ authority }: { authority: Measuremen
           input {projection.inputSha256} · result {projection.resultSha256} · proof{" "}
           {projection.proofSha256} · report {projection.reportSha256}
         </p>
-      </div>
+      </details>
     </Panel>
   );
 }
 
 const stateCopy: Record<string, { title: string; body: string }> = {
   SAFE_MEASUREMENT_RUN_REQUIRED: {
-    title: "No frozen analysis is available",
-    body: "An immutable measurement run must be issued before campaign results can be shown.",
+    title: "No report is available yet",
+    body: "Campaign results appear here once Cardvert issues a verified report for this campaign.",
   },
   MEASUREMENT_LIVE_ISSUANCE_BLOCKED: {
     title: "Live analysis is unavailable",
-    body: "The approved reporting method and live-use gates are not complete for this deployment.",
+    body: "Live campaign results can't be shown because the reporting method has not been approved for live use.",
   },
   MEASUREMENT_RUN_INTEGRITY_FAILURE: {
-    title: "Frozen analysis failed its integrity check",
-    body: "No campaign result is shown. Issue a new governed measurement run after correcting the source authority.",
+    title: "This report failed its integrity check",
+    body: "No campaign results are shown because the report data did not pass verification. Cardvert needs to reissue the analysis.",
   },
   EXPOSURE_SCORE_INTEGRITY_FAILURE: {
     title: "Exposure analysis failed its integrity check",
-    body: "No campaign result is shown because its score no longer agrees with the frozen run.",
+    body: "No campaign results are shown because the exposure score does not match this report. Cardvert needs to reissue the analysis.",
   },
 };
 
 export function GovernedAnalysisState({ code }: { code: string }) {
   const copy = stateCopy[code] ?? {
     title: "Campaign analysis is unavailable",
-    body: "No map or performance result is shown because the governed source could not be verified.",
+    body: "No map or performance results are shown because the report data could not be verified.",
   };
   return (
     <Panel role="status" className="border-amber/40 bg-amber/5 mx-auto max-w-3xl p-6">
-      <p className="micro text-amber">Fail-closed reporting state</p>
+      <p className="micro text-amber">Campaign results</p>
       <h1 className="mt-2 text-xl font-semibold">{copy.title}</h1>
       <p className="text-muted mt-2 text-sm">{copy.body}</p>
-      <p className="micro text-faint mt-3 font-mono">{code}</p>
+      <p className="micro text-faint mt-3">
+        Reference: <span className="font-mono">{code}</span>
+      </p>
     </Panel>
   );
 }

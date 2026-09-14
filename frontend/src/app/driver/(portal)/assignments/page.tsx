@@ -34,13 +34,13 @@ const statusMeta: Record<
 
 const statusExplanation: Record<AssignmentStatus, string> = {
   offered: "Decision required. This offer does not grant campaign work.",
-  accepted: "Accepted — waiting for the independent admin activation gate.",
+  accepted: "Accepted. Cardvert operations still need to activate this campaign.",
   declined: "Declined. This offer cannot be activated or tracked.",
   expired: "Expired. This offer cannot be accepted or tracked.",
-  active: "Admin activated. Start still rechecks current server and PWA authority.",
+  active: "Activated. Cardvert checks you're still ready each time you press Start.",
   deactivated: "Deactivated. New tracking is unavailable.",
   cancelled: "Cancelled. New campaign work is unavailable.",
-  completed: "Completed. This is historical campaign evidence only.",
+  completed: "Completed. This campaign is kept for your records only.",
 };
 
 export default async function DriverAssignmentsPage() {
@@ -59,7 +59,7 @@ export default async function DriverAssignmentsPage() {
         <h1 className="font-display text-2xl font-semibold tracking-tight">Campaign jobs</h1>
         <DriverDataUnavailable
           title="Campaign history is unavailable"
-          detail="Cardvert could not verify your current or completed jobs. No empty history or work authority is being inferred."
+          detail="Cardvert couldn't load your current or completed jobs. Try again shortly."
           retryHref="/driver/assignments"
         />
       </div>
@@ -78,7 +78,7 @@ export default async function DriverAssignmentsPage() {
         <h1 className="font-display text-2xl font-semibold tracking-tight">Campaign jobs</h1>
         <DriverDataUnavailable
           title="Campaign history is unavailable"
-          detail="Cardvert could not verify installation evidence and pending review authority. Job actions remain unavailable."
+          detail="Cardvert couldn't load your installation photos and pending checks, so job actions are unavailable. Try again shortly."
           retryHref="/driver/assignments"
         />
       </div>
@@ -106,7 +106,7 @@ export default async function DriverAssignmentsPage() {
         <h1 className="font-display text-2xl font-semibold tracking-tight">Campaign jobs</h1>
         <DriverDataUnavailable
           title="Campaign history is unavailable"
-          detail="Cardvert could not verify the current evidence history. Job actions remain unavailable."
+          detail="Cardvert couldn't load your installation photo history, so job actions are unavailable. Try again shortly."
           retryHref="/driver/assignments"
         />
       </div>
@@ -152,7 +152,7 @@ export default async function DriverAssignmentsPage() {
           <Panel className="p-6 text-center">
             <p className="text-sm font-medium">No jobs yet</p>
             <p className="text-muted mt-1 text-xs">
-              Campaign offers appear here once ops assigns your vehicle.
+              Campaign offers appear here once our team assigns your vehicle.
             </p>
           </Panel>
         ) : (

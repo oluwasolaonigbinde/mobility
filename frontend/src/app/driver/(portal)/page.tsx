@@ -77,7 +77,7 @@ export default async function DriverHomePage() {
             {campaignJourney.journey.standing}
           </p>
           <p className="text-muted mt-1 text-[11px]">
-            {campaignJourney.journey.canStart ? "server verified" : "not work-ready"}
+            {campaignJourney.journey.canStart ? "Can start a trip" : "Can't start a trip yet"}
           </p>
         </Panel>
       </div>
@@ -93,7 +93,7 @@ export default async function DriverHomePage() {
                 <span className="animate-pulse-dot bg-green inline-block size-1.5 rounded-full" />
                 Trip in progress
               </p>
-              <p className="mt-1 text-sm">Server trip confirmed — tap to manage tracking</p>
+              <p className="mt-1 text-sm">Confirmed by Cardvert — tap to manage your trip</p>
             </div>
             <span aria-hidden className="text-green text-xl">
               →
@@ -104,7 +104,7 @@ export default async function DriverHomePage() {
 
       {/* Earnings snapshot */}
       <Panel className="p-5">
-        <p className="micro text-muted">Batch-payable earnings</p>
+        <p className="micro text-muted">Available for next payout</p>
         {totals.length === 0 ? (
           <>
             <p className="font-display mt-1 text-3xl font-semibold">₦0</p>
@@ -120,14 +120,14 @@ export default async function DriverHomePage() {
               </p>
               <p className="text-muted mt-1 text-xs">
                 {formatMoney(t.pending_amount, t.currency)} pending ·{" "}
-                {formatMoney(t.carry_forward_debt_amount, t.currency)} carried debt ·{" "}
-                {formatMoney(t.lifetime_earned_amount, t.currency)} lifetime
+                {formatMoney(t.carry_forward_debt_amount, t.currency)} owed, taken from your payouts
+                · {formatMoney(t.lifetime_earned_amount, t.currency)} earned in total
               </p>
             </div>
           ))
         )}
         <Link href="/driver/earnings" className="micro text-amber mt-3 inline-block">
-          View ledger →
+          View earnings →
         </Link>
       </Panel>
 

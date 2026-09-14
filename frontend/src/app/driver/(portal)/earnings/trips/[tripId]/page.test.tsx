@@ -49,7 +49,11 @@ describe("DriverTripEarningsPage", () => {
 
     render(await DriverTripEarningsPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
 
-    expect(screen.getByText(/Payout v3 · frozen base\/premium terms/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Hourly pay · base and premium-zone rates fixed when you accepted this campaign",
+      ),
+    ).toBeInTheDocument();
     const panel = screen.getByRole("heading", { name: "Frozen tier breakdown" }).parentElement;
     if (!panel) throw new Error("expected tier breakdown panel");
     expect(within(panel).getByText("Base tier")).toBeInTheDocument();
@@ -197,6 +201,9 @@ describe("DriverTripEarningsPage", () => {
     );
 
     expect(screen.getByRole("alert")).toHaveTextContent(/trip review status is unavailable/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /couldn't check whether this trip is under review/i,
+    );
     expect(screen.queryByText("₦750.00")).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Dispute message")).not.toBeInTheDocument();
   });

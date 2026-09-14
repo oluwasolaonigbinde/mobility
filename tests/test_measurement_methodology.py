@@ -14,13 +14,21 @@ COPY_SOURCE_DIRS = (ADVERTISER_DIR, SHARED_COMPONENTS_DIR)
 COPY_SOURCE_SUFFIXES = {".ts", ".tsx"}
 
 
-def advertiser_reachable_copy() -> str:
-    return "\n".join(
-        path.read_text()
+HEADLINE_LABEL = "Estimated ad exposure"
+HEADLINE_DISCLAIMER = "not a count of people or measured views"
+HEADLINE_STAT_LABEL = f'label="{HEADLINE_LABEL}"'
+DIAGNOSTIC_PATTERN = re.compile(
+    r"model\s+(confidence|diagnostic)|confidence\s+(score|diagnostic)", re.IGNORECASE
+)
+
+
+def advertiser_reachable_copy_files() -> dict[Path, str]:
+    return {
+        path: path.read_text()
         for source_dir in COPY_SOURCE_DIRS
         for path in sorted(source_dir.rglob("*"))
         if path.suffix in COPY_SOURCE_SUFFIXES and ".test." not in path.name
-    )
+    }
 
 
 def prohibited_claim_pattern(claim: str) -> re.Pattern[str]:
@@ -170,12 +178,19 @@ def test_roi_fixture_is_complete_synthetic_evidence_only() -> None:
 
 def test_advertiser_copy_uses_safe_measurement_terms() -> None:
     contract = read_json(CONTRACT_PATH)
-    copy = advertiser_reachable_copy()
+    copy_files = advertiser_reachable_copy_files()
+    copy = "\n".join(copy_files.values())
 
     assert "Campaign Performance Analysis" in copy
-    assert "Modelled potential contacts" in copy
-    assert "Model confidence diagnostic" in copy
-    assert "not a statistical confidence interval" in copy
+    headline_stats = {
+        path: text for path, text in copy_files.items() if HEADLINE_STAT_LABEL in text
+    }
+    assert headline_stats
+    for path, text in headline_stats.items():
+        assert HEADLINE_DISCLAIMER in text, path
+    for path, text in copy_files.items():
+        if DIAGNOSTIC_PATTERN.search(text):
+            assert "not a statistical confidence interval" in text, path
     prohibited_claims = contract["prohibited_claims"]
     assert prohibited_claims
     for prohibited in prohibited_claims:

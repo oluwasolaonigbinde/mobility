@@ -170,7 +170,9 @@ export default async function AdminFraudPage({
       {items.length === 0 ? (
         <Panel className="p-10 text-center">
           <p className="font-medium">No {status ?? ""} flags</p>
-          <p className="text-muted mt-1 text-sm">The detection engine is watching every trip.</p>
+          <p className="text-muted mt-1 text-sm">
+            Flagged trips appear here when they need review.
+          </p>
         </Panel>
       ) : (
         <div className="flex flex-col gap-3">

@@ -207,8 +207,8 @@ export function ReportIssuancePanel({ measurementRunId }: { measurementRunId: st
         <div>
           <h2 className="font-display text-lg font-semibold">CSV and PDF report</h2>
           <p className="text-muted mt-1 max-w-2xl text-sm">
-            Create an immutable, privacy-cleared copy of this frozen analysis. Both formats use the
-            same metrics, disclosure rules and conditional-measure decision.
+            Get this report as a CSV spreadsheet and a PDF. Both files are a fixed copy of the
+            figures on this page, with the same privacy protections.
           </p>
         </div>
         {!request && current.isSuccess && !current.data && !create.isPending ? (
@@ -275,8 +275,7 @@ export function ReportIssuancePanel({ measurementRunId }: { measurementRunId: st
       {hiddenReadyParent ? (
         <div className="mt-5">
           <p className="text-muted text-sm">
-            Version {hiddenReadyParent.version} is the current report and can be replaced under the
-            latest report authority.
+            Version {hiddenReadyParent.version} is the current report. You can create a new version.
           </p>
           <button
             type="button"
@@ -291,15 +290,15 @@ export function ReportIssuancePanel({ measurementRunId }: { measurementRunId: st
 
       {status.data?.status === "ready" && !readyArtifacts ? (
         <p className="text-coral mt-4 text-sm" role="alert">
-          The complete artifact pair could not be verified. No download is available.
+          The CSV and PDF files could not be verified, so no download is available.
         </p>
       ) : null}
 
       {status.data?.status === "failed" || current.data?.status === "failed" || error ? (
         <div className="mt-4">
           <p className="text-coral text-sm" role="alert">
-            This report is unavailable. Create a new version or contact support with the report
-            status code.
+            This report is unavailable. Create a new version, or contact support if the problem
+            continues.
           </p>
           {failedIssuanceId ? (
             <button

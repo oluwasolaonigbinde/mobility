@@ -357,6 +357,9 @@ describe("ReportIssuancePanel", () => {
     renderPanel();
     const reissue = await screen.findByRole("button", { name: "Create a new version" });
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Version 1 is the current report. You can create a new version."),
+    ).toBeInTheDocument();
     await userEvent.click(reissue);
 
     await waitFor(() =>
@@ -367,5 +370,40 @@ describe("ReportIssuancePanel", () => {
         }),
       ).toBe(true),
     );
+  });
+  it("explains a failed report without referring to a code that is not shown", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      if (isCurrentRequest(input, init)) {
+        return new Response(
+          JSON.stringify({
+            id: ISSUANCE_ID,
+            measurement_run_id: RUN_ID,
+            version: 1,
+            status: "failed",
+          }),
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          id: ISSUANCE_ID,
+          measurement_run_id: RUN_ID,
+          version: 1,
+          status: "failed",
+          error_code: "REPORT_RENDER_FAILED",
+          artifacts: [],
+        }),
+      );
+    });
+
+    renderPanel();
+
+    expect(
+      await screen.findByText(
+        "This report is unavailable. Create a new version, or contact support if the problem continues.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/status code/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/Get this report as a CSV spreadsheet and a PDF/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create a new version" })).toBeInTheDocument();
   });
 });

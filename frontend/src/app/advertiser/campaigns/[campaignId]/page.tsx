@@ -3,7 +3,9 @@ import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
-import { ApiError } from "@/lib/api/errors";
+import { requireRole } from "@/lib/auth/current-user";
+import { loadAdvertiserPageData } from "@/lib/advertiser/page-data";
+import { DataUnavailable } from "@/components/ui/data-unavailable";
 import { getSessionToken } from "@/lib/auth/session";
 import {
   formatCount,
@@ -50,43 +52,58 @@ export default async function CampaignDetailPage({
 }) {
   const { campaignId } = await params;
   const query = await searchParams;
+  await requireRole("advertiser");
   const api = createApiClient(await getSessionToken());
+  const retryHref = `/advertiser/campaigns/${campaignId}`;
 
-  let campaign, summary, creatives, commercial, reviewHistory, campaignChanges;
-  try {
-    [
-      { data: campaign },
-      { data: summary },
-      { data: creatives },
-      { data: commercial },
-      { data: reviewHistory },
-      { data: campaignChanges },
-    ] = await Promise.all([
-      api.GET("/api/v1/advertiser/campaigns/{campaign_id}", {
-        params: { path: { campaign_id: campaignId } },
-      }),
-      api.GET("/api/v1/advertiser/campaigns/{campaign_id}/summary", {
-        params: { path: { campaign_id: campaignId } },
-      }),
-      api.GET("/api/v1/advertiser/campaigns/{campaign_id}/creatives", {
-        params: { path: { campaign_id: campaignId } },
-      }),
-      api.GET("/api/v1/advertiser/campaigns/{campaign_id}/commercial", {
-        params: { path: { campaign_id: campaignId } },
-      }),
-      api.GET("/api/v1/advertiser/campaigns/{campaign_id}/review-history", {
-        params: { path: { campaign_id: campaignId } },
-      }),
-      api.GET("/api/v1/advertiser/campaigns/{campaign_id}/change-requests", {
-        params: { path: { campaign_id: campaignId } },
-      }),
-    ]);
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 404) notFound();
-    throw error;
+  const campaignResult = await loadAdvertiserPageData(() =>
+    api.GET("/api/v1/advertiser/campaigns/{campaign_id}", {
+      params: { path: { campaign_id: campaignId } },
+    }),
+  );
+  if (!campaignResult.available) {
+    if (campaignResult.reason === "missing") notFound();
+    return (
+      <DataUnavailable
+        title="Campaign unavailable"
+        reason={campaignResult.reason}
+        retryHref={retryHref}
+      />
+    );
   }
-  if (!campaign) notFound();
+  const campaign = campaignResult.data;
+  const [summaryResult, creativesResult, commercialResult, historyResult, changesResult] =
+    await Promise.all([
+      loadAdvertiserPageData(() =>
+        api.GET("/api/v1/advertiser/campaigns/{campaign_id}/summary", {
+          params: { path: { campaign_id: campaignId } },
+        }),
+      ),
+      loadAdvertiserPageData(() =>
+        api.GET("/api/v1/advertiser/campaigns/{campaign_id}/creatives", {
+          params: { path: { campaign_id: campaignId } },
+        }),
+      ),
+      loadAdvertiserPageData(() =>
+        api.GET("/api/v1/advertiser/campaigns/{campaign_id}/commercial", {
+          params: { path: { campaign_id: campaignId } },
+        }),
+      ),
+      loadAdvertiserPageData(() =>
+        api.GET("/api/v1/advertiser/campaigns/{campaign_id}/review-history", {
+          params: { path: { campaign_id: campaignId } },
+        }),
+      ),
+      loadAdvertiserPageData(() =>
+        api.GET("/api/v1/advertiser/campaigns/{campaign_id}/change-requests", {
+          params: { path: { campaign_id: campaignId } },
+        }),
+      ),
+    ]);
 
+  const summary = summaryResult.available ? summaryResult.data : undefined;
+  const creatives = creativesResult.available ? creativesResult.data : undefined;
+  const reviewHistory = historyResult.available ? historyResult.data : undefined;
   const cost = summary?.costs.totals_by_currency[0];
   const creativeItems = creatives?.items ?? [];
 
@@ -101,7 +118,7 @@ export default async function CampaignDetailPage({
 
       <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <h1 className="font-display text-3xl font-semibold tracking-tight">{campaign.name}</h1>
             <StatusChip tone={statusTone[campaign.status]}>
               {statusLabel[campaign.status]}
@@ -131,112 +148,141 @@ export default async function CampaignDetailPage({
               href={`/advertiser/campaigns/${campaign.id}/zones`}
               className="micro border-edge bg-raised hover:border-edge-strong rounded-lg border px-3.5 py-2.5 transition-colors"
             >
-              🗺 Zones · {formatCount(summary?.zones.total)}
+              🗺 Zones{summary ? ` · ${formatCount(summary.zones.total)}` : ""}
             </Link>
           </div>
         </div>
       </div>
 
-      {/* Performance */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
-        <Stat
-          label="Modelled potential contacts"
-          value={formatCount(summary?.impressions.estimated_impressions)}
-          hint={`${formatCount(summary?.impressions.estimated_trip_count)} estimated trips`}
+      {summaryResult.available ? (
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-5">
+          <Stat
+            label="Distance covered"
+            value={formatKm(summary?.route_analytics.total_distance_m)}
+            hint={`${formatKm(summary?.route_analytics.target_zone_distance_m)} in target zones`}
+          />
+          <Stat
+            label="GPS evidence quality"
+            value={formatScore(summary?.route_analytics.average_quality_score)}
+            tone="amber"
+            hint="Average across analysed trips"
+          />
+          <Stat
+            label="Estimated ad exposure"
+            value={formatCount(summary?.impressions.estimated_impressions)}
+            tone="cyan"
+            hint="Estimated opportunities to see the ad, based on routes and traffic. This is not a count of people or measured views."
+          />
+          <Stat
+            label="Driver pay to date"
+            className="max-sm:[&>p:nth-child(2)]:text-2xl"
+            value={cost ? formatMoney(cost.final_payout_total, cost.currency) : "—"}
+            tone="green"
+            hint="Calculated driver pay; your invoice is shown in Billing."
+          />
+          <Stat
+            label="Fraud flags"
+            value={formatCount(summary?.fraud_flags.open)}
+            tone={(summary?.fraud_flags.open ?? 0) > 0 ? "coral" : "green"}
+            hint="Trip integrity checks awaiting Cardvert review"
+          />
+        </div>
+      ) : (
+        <DataUnavailable
+          title="Campaign results unavailable"
+          reason={summaryResult.reason}
+          retryHref={retryHref}
         />
-        <Stat
-          label="Model confidence diagnostic"
-          value={formatScore(summary?.impressions.average_confidence_score)}
-          hint="Formula diagnostic, not a statistical confidence interval"
-          tone="cyan"
-        />
-        <Stat
-          label="Distance covered"
-          value={formatKm(summary?.route_analytics.total_distance_m)}
-          hint={`${formatKm(summary?.route_analytics.target_zone_distance_m)} in target zones`}
-        />
-        <Stat
-          label="Quality score"
-          value={formatScore(summary?.route_analytics.average_quality_score)}
-          tone="amber"
-        />
-        <Stat
-          label="Driver campaign cost"
-          value={cost ? formatMoney(cost.final_payout_total, cost.currency) : "—"}
-          tone="green"
-          hint="Verified driver payout projection — not advertiser spend"
-        />
-        <Stat
-          label="Fraud flags"
-          value={formatCount(summary?.fraud_flags.open)}
-          tone={(summary?.fraud_flags.open ?? 0) > 0 ? "coral" : "green"}
-          hint="Open on this campaign"
-        />
-      </div>
+      )}
 
-      {commercial ? (
+      {commercialResult.available ? (
         <CommercialPanel
           campaignId={campaign.id}
-          commercial={commercial}
-          error={query.commercial_error}
+          commercial={commercialResult.data}
+          error={
+            query.commercial_error
+              ? "That request didn't go through. Check the current terms and try again."
+              : undefined
+          }
         />
-      ) : null}
+      ) : (
+        <DataUnavailable
+          className="mt-6"
+          title="Commercial terms unavailable"
+          reason={commercialResult.reason}
+          retryHref={retryHref}
+        />
+      )}
 
-      <CampaignChangePanel
-        campaignId={campaign.id}
-        clientRequestId={randomUUID()}
-        currency={campaign.currency}
-        requests={campaignChanges?.items ?? []}
-      />
+      {changesResult.available ? (
+        <CampaignChangePanel
+          campaignId={campaign.id}
+          clientRequestId={randomUUID()}
+          currency={campaign.currency}
+          requests={changesResult.data.items}
+        />
+      ) : (
+        <DataUnavailable
+          className="mt-6"
+          title="Campaign changes unavailable"
+          reason={changesResult.reason}
+          retryHref={retryHref}
+        />
+      )}
 
       {(["approved", "scheduled", "active", "paused"] as string[]).includes(campaign.status) ? (
         <CampaignCancellationPanel campaignId={campaign.id} clientRequestId={randomUUID()} />
       ) : null}
 
-      <Panel className="mt-6 overflow-hidden" aria-label="Review history">
-        <div className="border-edge border-b px-6 py-4">
-          <h2 className="micro text-muted">Review history</h2>
-          <p className="text-faint mt-1 text-xs">
-            Immutable server-recorded submission and decision history.
-          </p>
-        </div>
-        {(reviewHistory?.items ?? []).length === 0 ? (
-          <p className="text-muted px-6 py-6 text-sm">
-            This campaign has not been submitted for review.
-          </p>
-        ) : (
-          <ol className="divide-edge/60 divide-y">
-            {(reviewHistory?.items ?? []).map((event) => (
-              <li key={event.id} className="px-6 py-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <StatusChip tone={statusTone[event.new_status]}>
-                      {statusLabel[event.new_status]}
-                    </StatusChip>
-                    <p className="text-sm">
-                      {event.prior_status === "rejected" && event.new_status === "pending_review"
-                        ? "Resubmitted for review"
-                        : `${statusLabel[event.prior_status]} → ${statusLabel[event.new_status]}`}
-                    </p>
+      {historyResult.available ? (
+        <Panel className="mt-6 overflow-hidden" aria-label="Submission and review history">
+          <div className="border-edge border-b px-6 py-4">
+            <h2 className="micro text-muted">Submission and review history</h2>
+          </div>
+          {(reviewHistory?.items ?? []).length === 0 ? (
+            <p className="text-muted px-6 py-6 text-sm">
+              This campaign has not been submitted for review.
+            </p>
+          ) : (
+            <ol className="divide-edge/60 divide-y">
+              {(reviewHistory?.items ?? []).map((event) => (
+                <li key={event.id} className="px-6 py-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <StatusChip tone={statusTone[event.new_status]}>
+                        {statusLabel[event.new_status]}
+                      </StatusChip>
+                      <p className="text-sm">
+                        {event.prior_status === "rejected" && event.new_status === "pending_review"
+                          ? "Resubmitted for review"
+                          : `${statusLabel[event.prior_status]} → ${statusLabel[event.new_status]}`}
+                      </p>
+                    </div>
+                    <p className="micro text-faint">{formatDate(event.created_at)}</p>
                   </div>
-                  <p className="micro text-faint">{formatDate(event.created_at)}</p>
-                </div>
-                {event.rejection_reason ? (
-                  <p className="text-coral mt-2 text-sm">Reason: {event.rejection_reason}</p>
-                ) : null}
-                {event.reviewed_snapshot_sha256 ? (
-                  <p className="micro text-faint mt-2 font-mono break-all">
-                    Submitted snapshot SHA-256: {event.reviewed_snapshot_sha256}
-                  </p>
-                ) : null}
-              </li>
-            ))}
-          </ol>
-        )}
-      </Panel>
+                  {event.rejection_reason ? (
+                    <p className="text-coral mt-2 text-sm">Reason: {event.rejection_reason}</p>
+                  ) : null}
+                  {event.reviewed_snapshot_sha256 ? (
+                    <p className="micro text-faint mt-2 font-mono break-all">
+                      Submission reference: {event.reviewed_snapshot_sha256}
+                    </p>
+                  ) : null}
+                </li>
+              ))}
+            </ol>
+          )}
+        </Panel>
+      ) : (
+        <DataUnavailable
+          className="mt-6"
+          title="Submission and review history unavailable"
+          reason={historyResult.reason}
+          retryHref={retryHref}
+        />
+      )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
-        {/* Details */}
         <Panel className="p-6 lg:col-span-1">
           <h2 className="micro text-muted mb-4">Campaign details</h2>
           <dl className="flex flex-col gap-3 text-sm">
@@ -264,71 +310,81 @@ export default async function CampaignDetailPage({
                 {formatMoney(campaign.daily_budget_amount, campaign.currency)}
               </dd>
             </div>
-            <div>
-              <dt className="micro text-faint">Fleet</dt>
-              <dd className="mt-1 font-mono text-xs">
-                {formatCount(summary?.assignments.active)} active ·{" "}
-                {formatCount(summary?.assignments.total)} assigned vehicles
-              </dd>
-            </div>
+            {summary ? (
+              <div>
+                <dt className="micro text-faint">Fleet</dt>
+                <dd className="mt-1 font-mono text-xs">
+                  {formatCount(summary?.assignments.active)} active ·{" "}
+                  {formatCount(summary?.assignments.total)} assigned vehicles
+                </dd>
+              </div>
+            ) : null}
           </dl>
         </Panel>
 
-        {/* Creatives */}
-        <Panel className="overflow-hidden lg:col-span-2">
-          <div className="border-edge flex items-center justify-between border-b px-6 py-4">
-            <h2 className="micro text-muted">Creatives · {creativeItems.length}</h2>
-            <Link
-              href={`/advertiser/campaigns/new?campaignId=${campaign.id}`}
-              className="text-amber text-sm underline"
-            >
-              Add missing creatives
-            </Link>
-          </div>
-          {creativeItems.length === 0 ? (
-            <p className="text-muted px-6 py-10 text-center text-sm">
-              No creatives yet. Add a private creative file to this campaign.
-            </p>
-          ) : (
-            <ul className="divide-edge/60 divide-y">
-              {creativeItems.map((cr) => (
-                <li key={cr.id} className="flex items-center justify-between gap-4 px-6 py-4">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{cr.name}</p>
-                    <p className="micro text-faint mt-0.5">
-                      {creativeTypeLabel[cr.creative_type] ?? cr.creative_type} ·{" "}
-                      {placementLabel[cr.placement] ?? cr.placement}
-                      {cr.width_px && cr.height_px ? ` · ${cr.width_px}×${cr.height_px}` : ""}
-                      {cr.asset_source === "managed_file"
-                        ? ` · security scan: ${cr.scan_status ?? "unavailable"}`
-                        : " · legacy URL (not launch-authoritative)"}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-2">
-                    <StatusChip
-                      tone={
-                        cr.status === "approved"
-                          ? "green"
-                          : cr.status === "rejected"
-                            ? "coral"
-                            : cr.status === "archived" || cr.status === "ready"
-                              ? "default"
-                              : "amber"
-                      }
-                    >
-                      {cr.status.replace("_", " ")}
-                    </StatusChip>
-                    <CreativeStatusActions
-                      campaignId={campaign.id}
-                      creativeId={cr.id}
-                      status={cr.status}
-                    />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Panel>
+        {creativesResult.available ? (
+          <Panel className="overflow-hidden lg:col-span-2">
+            <div className="border-edge flex items-center justify-between border-b px-6 py-4">
+              <h2 className="micro text-muted">Creatives · {creativeItems.length}</h2>
+              <Link
+                href={`/advertiser/campaigns/new?campaignId=${campaign.id}`}
+                className="text-amber text-sm underline"
+              >
+                Add missing creatives
+              </Link>
+            </div>
+            {creativeItems.length === 0 ? (
+              <p className="text-muted px-6 py-10 text-center text-sm">
+                No creatives yet. Add a private creative file to this campaign.
+              </p>
+            ) : (
+              <ul className="divide-edge/60 divide-y">
+                {creativeItems.map((cr) => (
+                  <li key={cr.id} className="flex items-center justify-between gap-4 px-6 py-4">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{cr.name}</p>
+                      <p className="micro text-faint mt-0.5">
+                        {creativeTypeLabel[cr.creative_type] ?? cr.creative_type} ·{" "}
+                        {placementLabel[cr.placement] ?? cr.placement}
+                        {cr.width_px && cr.height_px ? ` · ${cr.width_px}×${cr.height_px}` : ""}
+                        {cr.asset_source === "managed_file"
+                          ? ` · security scan: ${cr.scan_status ?? "unavailable"}`
+                          : " · older linked file; a private upload is required before launch"}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-col items-end gap-2">
+                      <StatusChip
+                        tone={
+                          cr.status === "approved"
+                            ? "green"
+                            : cr.status === "rejected"
+                              ? "coral"
+                              : cr.status === "archived" || cr.status === "ready"
+                                ? "default"
+                                : "amber"
+                        }
+                      >
+                        {cr.status.replace("_", " ")}
+                      </StatusChip>
+                      <CreativeStatusActions
+                        campaignId={campaign.id}
+                        creativeId={cr.id}
+                        status={cr.status}
+                      />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Panel>
+        ) : (
+          <DataUnavailable
+            className="lg:col-span-2"
+            title="Creatives unavailable"
+            reason={creativesResult.reason}
+            retryHref={retryHref}
+          />
+        )}
       </div>
     </div>
   );

@@ -13,7 +13,7 @@ async function login(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Email").fill(ADVERTISER.email);
   await page.getByLabel("Password").fill(ADVERTISER.password);
-  await page.getByRole("button", { name: "Enter the network" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL("**/advertiser");
 }
 

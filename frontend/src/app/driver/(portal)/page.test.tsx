@@ -99,9 +99,11 @@ describe("DriverHomePage ledger statuses", () => {
 
     render(await DriverHomePage());
 
-    expect(screen.getByText("Batch-payable earnings")).toBeInTheDocument();
+    expect(screen.getByText("Available for next payout")).toBeInTheDocument();
     expect(screen.getByText(/₦90\.00/)).toBeInTheDocument();
-    expect(screen.getByText(/₦60\.00 carried debt/)).toBeInTheDocument();
+    expect(screen.getByText(/₦60\.00 owed, taken from your payouts/)).toBeInTheDocument();
+    expect(screen.getByText("Can't start a trip yet")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View earnings →" })).toBeInTheDocument();
   });
 
   it("does not claim the driver is ready when no server authority exists", async () => {

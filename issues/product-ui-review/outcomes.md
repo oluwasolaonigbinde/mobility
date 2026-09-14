@@ -29,7 +29,7 @@ non-executable.
 | FUX-004 | The payout-batch maker/checker action column is clipped at narrow widths because its fixed-width table is wrapped in `overflow-hidden` without a horizontal scroller. | CTL-CLD-01 F10 | The `overflow-hidden` panel and `min-w-[760px]` table remain. | OBSERVED |
 | FUX-005 | Operator screens use truncated/full UUIDs as the only actor, driver, vehicle, assignment, or organization identity, making the addressed record unrecognizable in-product. | CTL-CLD-01 S1, F8, F11, F13, F43; CTL-CLD-02 B4, D8 | Current admin surfaces still contain multiple `id.slice(0, 8)` renderers. | OBSERVED |
 | FUX-006 | Audited destructive actions use anonymous native confirms and a native prompt for a permanent reason, without record identity or reviewable structured validation. | CTL-CLD-01 S8, F9, F20 | Current admin assignment, user, driver, and vehicle actions still use `window.confirm`/`window.prompt`. | OBSERVED |
-| FUX-007 | Admin and advertiser logout and password-change controls are absent below the desktop breakpoint. | CTL-CLD-01 F37-F38 | Logout remains in the `md:flex` sidebar; the mobile header has no account control. | OBSERVED |
+| FUX-007 | Admin and advertiser logout and password-change controls were absent below the desktop breakpoint. | CTL-CLD-01 F37-F38; Prompt 10 RC-02 | FU-06 added the mobile Account disclosure with password change and sign-out; Prompt 10 confirmed it remains present at `5f84194`. | DELIVERED at `a73556c`; exclude from Prompt 11. |
 | FUX-008 | Driver assignments request installation history once per assignment and replace the whole page on partial-source failure. | CTL-CLD-01 F32 | Per-assignment installation-history requests remain in the page loader. | OBSERVED |
 | FUX-009 | Notification background refetch hides cached count/list data, making the badge and open list flicker; notifications also lack destinations. | CTL-CLD-01 F42; CTL-CLD-03 D15; CTL-CLD-02 E2, E5 | `isFetching` still forces count to zero and list to undefined; destination behavior needs API/UI verification. | OBSERVED / VERIFY |
 | FUX-010 | Audit filters rely on placeholders without programmatic labels and require raw event vocabulary. | CTL-CLD-01 F14; CTL-CLD-02 F4 | Requires current accessibility-tree and filter inspection. | VERIFY |
@@ -47,7 +47,7 @@ non-executable.
 | ADV-003 | Advertisers cannot see the creative rejection reason even though advertiser review-history authority exists. | CTL-CLD-03 D5 | Verify current campaign creative rendering and authorization before adding a consumer. | VERIFY |
 | ADV-004 | Campaign/creative rejection and quotation-ready events do not consistently notify the advertiser with campaign identity and a destination. | CTL-CLD-03 D6, D15; CTL-CLD-02 E1-E4, E6 | The current campaign-approved notification still contains a generic message; complete event coverage needs verification. | OBSERVED / VERIFY |
 | ADV-005 | Quote-request, quote-acceptance, and waiver redirects set success parameters that the campaign page does not read, so successful actions have no confirmation. | CTL-CLD-03 D7 | Redirects still set three success parameters while the page types only `commercial_error`. | OBSERVED |
-| ADV-006 | Quotation acceptance renders totals but omits returned line items, payment terms, production cost, and production scope. | CTL-CLD-03 D8 | Verify the current OpenAPI response and commercial panel together before changing presentation. | VERIFY |
+| ADV-006 | Quotation acceptance renders totals but omits returned line items, payment terms, production cost, and production scope. | CTL-CLD-03 D8; Prompt 10 RC-06 | Prompt 10 confirmed the response fields in `QuoteRevisionRead` and that the advertiser panel renders only reference, revision and three totals before immutable acceptance. | CONFIRMED — P1 commercial-consent gap. |
 | ADV-007 | “Preview and request change” immediately submits the request while the returned impact preview is not shown. | CTL-CLD-03 D9 | Server action still posts immediately and reports “Campaign change recorded”; admin consumes the preview. | OBSERVED |
 | ADV-008 | The advertiser “coverage map” claims vehicle movement but renders target-zone polygons rather than movement/heatmap data. | CTL-CLD-03 D11 | Verify current map data source and copy against the accepted reporting contract. | VERIFY |
 | ADV-009 | Advertisers cannot see a consolidated launch-readiness state for creative, funding, assignment, production, and installation gates. | CTL-CLD-03 journey stages 10-12 and flow §5.8 | Cross-service projection and product wording require current contract verification. | VERIFY |
@@ -58,7 +58,7 @@ non-executable.
 
 | ID | Atomic claim | Follow-up provenance | Current-state evidence | Status |
 | --- | --- | --- | --- | --- |
-| CPY-001 | Product, role, and destination names are inconsistent enough to misdirect users, including advertiser entry copy that refers to the driver app. | CTL-CLD-02 A1-A3 | Reconcile the canonical product/role naming decision before a mechanical replacement. | VERIFY |
+| CPY-001 | Product, role, and destination names are inconsistent enough to misdirect users, including platform-wide and driver-app-only uses of “Cardvert”. | CTL-CLD-02 A1-A3; Prompt 10 RC-08 | Prompt 10 confirmed both naming uses at the accepted source authority. The software cannot choose the canonical product/app/legal-entity relationship. | OBSERVED / OWNER DECISION. |
 | CPY-002 | User-facing surfaces expose internal state-machine, governance, cryptographic, deployment, and backend-job vocabulary instead of a state and next action. | CTL-CLD-01 S2, F22-F23, F34; CTL-CLD-02 B1, B3, B5-B8, C1-C3, C6-C11, C13-C15, D3, D5-D7, D9, D11-D12, E4-E5, F2-F3; CTL-CLD-03 fail-closed and planning-source findings | Current source still exposes raw report codes, SHA labels, “canonical receipts”, `Payout v3`, and deployment-oriented messages. Existing MET/REP boundaries are excluded below. | OBSERVED |
 | CPY-003 | Validation errors expose database/API field names instead of the user-visible field labels. | CTL-CLD-02 F1 | Reproduce each reported validation path and map only confirmed public messages. | VERIFY |
 
@@ -130,3 +130,45 @@ normalized register records only the requested current-base reconciliation:
 - `PB-20`, `PB-24`, `PB-29`, `PB-30`, `PB-41` and `PB-52` remain six unanswered
   `OWNER-DECISION` groups in the Prompt 8 answer. They are not new `FOD` IDs and
   do not authorize product, provider, legal or live-use changes.
+
+## Prompts 1, 4, 6 and 7 current-base reconciliation
+
+These four reports audited accepted source
+`5f84194df6e9527fcdcbc25b3cb66c9c58697d07`. Their structured captures are in
+`answers/prompt-01-system-flow.md`, `prompt-04-admin-operations.md`,
+`prompt-06-driver-journey.md`, and `prompt-07-errors-states.md`. The controller
+checked the highest-impact source claims and normalized repeated symptoms into
+the following root-cause groups. This is product-discovery evidence for Prompts
+9–11, not implementation authority.
+
+| Group | Reconciled claim | Disposition before Prompt 11 |
+| --- | --- | --- |
+| NX-01 account entry and recovery | Self-registered drivers lack a completed credential/invitation transition; password-reset APIs have no UI; expiring onboarding codes have no replacement path. | `FIX` candidate, P1. One root cause across Prompts 1 and 6; exact invitation ownership must preserve existing auth security. |
+| NX-02 PWA start readiness | Standalone mode is a hard Start prerequisite but the driver receives no install/setup journey. | `FIX` candidate, P1. Device-specific behavior requires manual verification. |
+| NX-03 screen-on capture safety | Hiding the app stops capture under the accepted foreground-only model without adequate pre-trip warning or a clear return summary. | `FIX` candidate, P1 safety/money trust. Preserve the no-background-tracking decision. |
+| NX-04 driver offline recovery | Offline capture is durable, but disabled End, offline reload and reconnect states do not clearly explain preserved evidence or the next safe action. | `FIX` candidate; the alleged permanent freshness latch remains `VERIFY`. |
+| NX-05 governed evidence renewal | Driver person/payee and vehicle revisions exist, but renewal/resubmission is absent or requires a saved UUID; application outcomes do not expose a normal rejection/resubmit path. | `FIX` candidate. Protect private-file and revision authority. |
+| NX-06 quarantine operations | Post-seal quarantine has durable audited apply/discard APIs but no admin worklist. | `FIX` candidate, P1 operational blocker. Do not claim a payout change until the sealed-money relationship is reproduced. |
+| NX-07 measurement operations | Admin measurement-run authority exists but no staffed product surface starts or monitors it. | `VERIFY` against the approved operating model; fix if browser operation is required for the pilot. |
+| NX-08 lifecycle completion | Production transitions into completed campaign/assignment state were not found; removal and final closeout are not joined in-product. | `VERIFY` plus owner/operations input for real-world removal. |
+| NX-09 creative-to-offer handoff | The approved creative disappears from admin discovery while offer creation requires its UUID. | `FIX` candidate, P1 critical-path blocker. Extends `FUX-005`. |
+| NX-10 payout-batch assembly | Staff must provide ledger UUIDs the admin product never exposes; debt-allocation IDs and existing debt/detail reads are discarded or unused. | `FIX` candidate, P1 money-operations blocker. Preserve maker/checker and provider gates. |
+| NX-11 staffed fallback queues | Manual-contact and phone-verification APIs exist for the current human fallback, but staff have no worklist. | `FIX` candidate if that fallback remains the approved pilot process; destination/provider values stay external. |
+| NX-12 activation readiness | Roughly fifteen valid activation gates surface one at a time as raw conflicts without a preflight projection or corrective route. | `FIX` candidate; builds on `PB-12`/`CPY-002`, never weakens a gate. |
+| NX-13 advertiser organization recovery | Partial user-plus-organization creation can leave an orphaned advertiser account and offers an impossible duplicate-email retry. | `FIX` candidate after deterministic failure reproduction. |
+| NX-14 money UI correctness | Invoice correction keys are minted at render, exact invoice figures are rounded, and local date-times can be interpreted in the server zone. | `FIX` candidates; money/time specialist review required. |
+| NX-15 sensitive reveal | NIN reveal supplies a fixed audit purpose and lacks meaningful confirmation or auto-hide behavior. | `FIX` candidate, privacy review required. Extends `FUX-006`; does not authorize changing retention or legal wording. |
+| NX-16 error-state contract | Typed API codes/details are commonly collapsed into raw messages or root crashes; auth expiry, permission gates, validation, conflicts and rate limits lack a consistent recoverable presentation. | `FIX` candidate, P1 shared frontend contract. Extends `PB-12`, `CPY-002`, and `CPY-003`; do not log every denial or expose unsafe details. |
+| NX-17 partial-page resilience | One failed dependent read can erase an otherwise usable admin or role page because section-level degradation is rare. | `FIX` candidate where partial data remains safe; otherwise preserve fail-closed behavior. |
+| NX-18 commercial error transport | Raw action error messages are placed in a campaign query string and rendered later. | `FIX` candidate: avoid history/referrer/log persistence while preserving a useful message. |
+| NX-19 driver money comprehension | Ledger labels conflict across pages; held/debt amounts lack a directly reachable reason; payout timing and destination are not explained. | Mixed: label/reason consistency is `FIX`; dispute scope and actual payout policy/destination require owner/external input. Extends `FUD-001`. |
+| NX-20 driver support and disclosures | The app lacks an approved support destination and sufficient pilot disclosure for location, NIN and bank processing. | `OWNER DECISION / EXTERNAL INPUT` under Prompt 8. The product must render approved truth but cannot invent contact or legal content. |
+| NX-21 operator task ergonomics | Admin queues lack human identity, useful filters/history and record-aware confirmations; dashboard totals do not prioritize work. | Reuse `FUX-003`–`FUX-006`, `FUX-010`, `FUX-014`, and `FUD-004`; no duplicate implementation family. |
+| NX-22 user-facing language | Raw enums, hashes, authority terms, provider codes and false success text remain widespread. | Reuse `CPY-002`/`CPY-003`; suggested reviewer copy is not automatically approved wording. |
+| NX-23 role and API-only policy | Seventeen documented responsibilities do not prove seventeen RBAC roles; DSR/API-only flows and every unconsumed endpoint do not automatically require a browser screen. | `OWNER DECISION / VERIFY`; excluded from automatic implementation. |
+
+Severity is calibrated to impact rather than reviewer labels: no newly reviewed
+group is accepted as P0 without a demonstrated immediate security, privacy,
+safety or irreversible-money failure. Missing pilot-critical journeys are P1;
+ordinary discoverability and language corrections are P2/P3 unless they block a
+required transition.

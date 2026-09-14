@@ -56,7 +56,7 @@ test("R59 real-stack release journey survives outages and converges exactly once
   await page.goto("/login");
   await page.getByLabel("Email").fill("driver@demo.mobility.local");
   await page.getByLabel("Password").fill("DemoDriver12345!");
-  await page.getByRole("button", { name: "Enter the network" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL("**/driver");
   await page.goto("/driver/track");
 

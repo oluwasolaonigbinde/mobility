@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
+import { Field } from "@/components/ui/field";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pagination } from "@/components/ui/pagination";
 import { Panel } from "@/components/ui/panel";
@@ -38,6 +39,10 @@ export default async function AdminAuditPage({
   });
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
+  const activeFilters = [
+    params.action ? `action “${params.action}”` : undefined,
+    params.entity_type ? `entity type “${params.entity_type}”` : undefined,
+  ].filter(Boolean);
 
   return (
     <div className="animate-rise mx-auto max-w-6xl">
@@ -45,22 +50,28 @@ export default async function AdminAuditPage({
         title="Audit trail"
         eyebrow={`${total} recorded event${total === 1 ? "" : "s"}`}
       />
-      <form className="mb-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
-        <input
+      <form className="mb-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
+        <Field
+          label="Action"
           name="action"
           defaultValue={params.action}
           placeholder="Action, e.g. auth.login.succeeded"
-          className="bg-raised border-edge h-11 rounded-lg border px-3.5 text-sm"
+          aria-describedby="audit-filter-hint"
         />
-        <input
+        <Field
+          label="Entity type"
           name="entity_type"
           defaultValue={params.entity_type}
           placeholder="Entity type"
-          className="bg-raised border-edge h-11 rounded-lg border px-3.5 text-sm"
+          aria-describedby="audit-filter-hint"
         />
         <button className="bg-amber text-bg h-11 rounded-lg px-5 text-sm font-medium">
           Filter
         </button>
+        <p id="audit-filter-hint" className="micro text-faint sm:col-span-3">
+          Each filter matches an exact action or entity type as shown in the table. Leave a field
+          empty to include every value.
+        </p>
       </form>
       {(params.action || params.entity_type) && (
         <Link href="/admin/audit" className="text-amber mb-4 inline-block text-sm">
@@ -107,9 +118,16 @@ export default async function AdminAuditPage({
           </table>
         </div>
         {items.length === 0 ? (
-          <p className="text-muted p-8 text-center">No matching events.</p>
+          <p className="text-muted p-8 text-center">
+            {activeFilters.length
+              ? "No events exactly match these filters."
+              : "No matching events."}
+          </p>
         ) : null}
       </Panel>
+      {activeFilters.length ? (
+        <p className="micro text-faint mt-3">Showing events with {activeFilters.join(" and ")}.</p>
+      ) : null}
       <Pagination
         total={total}
         limit={PAGE_SIZE}

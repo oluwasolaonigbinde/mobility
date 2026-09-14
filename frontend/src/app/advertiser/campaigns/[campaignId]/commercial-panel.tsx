@@ -31,9 +31,7 @@ export function CommercialPanel({
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="font-display text-xl font-semibold">Commercial terms</h2>
-            <p className="micro text-muted mt-1">
-              Immutable quotation, funding and production facts
-            </p>
+            <p className="micro text-muted mt-1">Your quotation, payment and production status</p>
           </div>
           <StatusChip tone={commercial.terms ? "green" : latest ? "amber" : "default"}>
             {commercial.terms
@@ -72,20 +70,21 @@ export function CommercialPanel({
               </div>
               {!commercial.terms && acceptAction ? (
                 <form action={acceptAction}>
-                  <Button type="submit">Accept immutable terms</Button>
+                  <Button type="submit">Accept final terms</Button>
                 </form>
               ) : null}
             </div>
           </div>
         ) : commercial.quote_request ? (
           <p className="text-muted text-sm">
-            Your request is recorded. Operations will add a structured revision.
+            Your request has been received. Our team will prepare a quotation for you to review
+            here.
           </p>
         ) : null}
         {commercial.terms ? (
           <div className="border-edge mt-5 grid gap-4 border-t pt-5 md:grid-cols-3">
             <div>
-              <p className="micro text-muted">Funding authority</p>
+              <p className="micro text-muted">Payment basis</p>
               <p className="mt-1 text-sm">
                 {commercial.financial_authority
                   ? `${commercial.financial_authority.authority_type.replaceAll("_", " ")} · ${formatMoney(commercial.financial_authority.authorized_amount, commercial.financial_authority.currency)}`

@@ -1,8 +1,8 @@
 "use client";
 
 import { useActionState } from "react";
-import { Button } from "@/components/ui/button";
 import { reviewCampaignChangeAction, type CampaignReviewActionState } from "./actions";
+import { DecisionButtons } from "./decision-buttons";
 
 const initialState: CampaignReviewActionState = {};
 
@@ -13,7 +13,7 @@ export function CampaignChangeReviewActions({
   requestId: string;
   initialReason?: string;
 }) {
-  const [state, formAction, pending] = useActionState(reviewCampaignChangeAction, initialState);
+  const [state, formAction] = useActionState(reviewCampaignChangeAction, initialState);
   return (
     <form action={formAction} className="flex w-full max-w-sm flex-col items-end gap-2">
       <input type="hidden" name="request_id" value={requestId} />
@@ -29,27 +29,7 @@ export function CampaignChangeReviewActions({
           placeholder="Record why this change is approved or rejected"
         />
       </label>
-      <div className="flex gap-2">
-        <Button
-          type="submit"
-          name="intent"
-          value="approve"
-          disabled={pending}
-          className="h-9 px-3 text-xs"
-        >
-          {pending ? "Reviewing…" : "Approve change"}
-        </Button>
-        <Button
-          type="submit"
-          name="intent"
-          value="reject"
-          variant="danger"
-          disabled={pending}
-          className="h-9 px-3 text-xs"
-        >
-          Reject change
-        </Button>
-      </div>
+      <DecisionButtons approveLabel="Approve change" rejectLabel="Reject change" />
       <div aria-live="polite">
         {state.error ? (
           <p role="alert" className="text-coral text-right text-xs">

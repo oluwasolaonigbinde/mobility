@@ -34,10 +34,43 @@ describe("DriverEarningsPage canonical settlement projection", () => {
 
     render(await DriverEarningsPage());
 
-    expect(screen.getByText("Batch-payable")).toBeInTheDocument();
-    expect(screen.getByText("Carried debt")).toBeInTheDocument();
+    expect(screen.getByText("Available for next payout")).toBeInTheDocument();
+    expect(screen.getByText("Owed, taken from your payouts")).toBeInTheDocument();
     expect(screen.getAllByText("₦90.00")).toHaveLength(1);
     expect(screen.getAllByText("₦60.00")).toHaveLength(1);
+  });
+
+  it("does not claim a larger debt was already covered by available earnings", async () => {
+    get.mockImplementation(async (path?: string) => {
+      if (path?.endsWith("/summary")) {
+        return {
+          data: {
+            totals_by_currency: [
+              {
+                currency: "NGN",
+                batch_payable_amount: "0.00",
+                carry_forward_debt_amount: "60.00",
+                released_available_amount: "50.00",
+                lifetime_earned_amount: "190.00",
+                pending_amount: "0.00",
+              },
+            ],
+          },
+        };
+      }
+      if (path?.endsWith("/campaign-assignments")) return { data: { items: [] } };
+      return { data: { items: [] } };
+    });
+
+    render(await DriverEarningsPage());
+
+    expect(screen.getByText("Available for next payout").nextElementSibling).toHaveTextContent(
+      "₦0.00",
+    );
+    expect(screen.getByText("Owed, taken from your payouts").nextElementSibling).toHaveTextContent(
+      "₦60.00",
+    );
+    expect(screen.queryByText(/already subtracted/i)).not.toBeInTheDocument();
   });
 
   it("renders every backend summary independently and distinguishes held from cleared pending rows", async () => {
@@ -147,7 +180,7 @@ describe("DriverEarningsPage canonical settlement projection", () => {
 
     render(await DriverEarningsPage());
 
-    for (const label of ["Released", "Cash paid", "Voided", "Carried debt"]) {
+    for (const label of ["Released", "Cash paid", "Voided", "Owed, taken from your payouts"]) {
       expect(screen.getAllByText(label, { exact: true }).length).toBeGreaterThan(0);
     }
     expect(screen.getByText("Held", { exact: true })).toBeInTheDocument();
@@ -167,6 +200,9 @@ describe("DriverEarningsPage canonical settlement projection", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent(
       /earnings and review status are unavailable/i,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /couldn't load your latest earnings, campaigns or trip reviews, so no balance is shown\. Try again shortly\./i,
     );
     expect(screen.queryByText(/No entries yet/)).not.toBeInTheDocument();
     expect(screen.queryByText(/₦/)).not.toBeInTheDocument();

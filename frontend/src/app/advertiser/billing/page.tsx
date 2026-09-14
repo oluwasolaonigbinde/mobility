@@ -10,6 +10,13 @@ import { CommercialHistory } from "@/lib/billing/commercial-history";
 
 export const metadata: Metadata = { title: "Billing history" };
 
+const receiptStatusLabel: Record<string, string> = {
+  observed: "Recorded – being checked",
+  reconciled: "Amount matched – awaiting confirmation",
+  confirmed: "Confirmed",
+  reversed: "Reversed",
+};
+
 export default async function AdvertiserBillingPage() {
   const api = createApiClient(await getSessionToken());
   const [{ data: history }, { data: campaigns }] = await Promise.all([
@@ -32,7 +39,7 @@ export default async function AdvertiserBillingPage() {
     <div className="animate-rise mx-auto max-w-6xl">
       <PageHeader
         title="Billing history"
-        eyebrow="Canonical receipts, lifecycle events and accepted-term allocations"
+        eyebrow="Payments recorded for your campaigns and how they were applied"
         actions={
           <Link
             href="/advertiser/company"
@@ -67,21 +74,24 @@ export default async function AdvertiserBillingPage() {
                             : "amber"
                       }
                     >
-                      {entry.current_status ?? "observed"}
+                      {receiptStatusLabel[entry.current_status ?? "observed"] ??
+                        entry.current_status}
                     </StatusChip>
                   </div>
                 </div>
                 <p className="micro text-muted mt-3">
-                  {entry.allocations.length
-                    ? `${entry.allocations.length} immutable allocation${entry.allocations.length === 1 ? "" : "s"}`
-                    : "Unapplied — does not authorize production"}
+                  {entry.current_status === "reversed"
+                    ? "Reversed – this payment no longer counts toward your campaign terms."
+                    : entry.allocations.length
+                      ? `Applied to your accepted campaign terms (${entry.allocations.length} allocation${entry.allocations.length === 1 ? "" : "s"})`
+                      : "Not yet applied – production cannot start from this payment."}
                 </p>
               </li>
             ))}
           </ul>
         ) : (
           <p className="text-muted px-6 py-12 text-center text-sm">
-            No canonical receipts have been recorded.
+            No payments have been recorded yet.
           </p>
         )}
       </Panel>
@@ -96,8 +106,7 @@ export default async function AdvertiserBillingPage() {
         ) : null,
       )}
       <p className="micro text-muted mt-4">
-        Online payment checkout is unavailable until an approved provider is configured. Manual
-        bank-transfer evidence remains the canonical supported path.
+        Online payment isn&apos;t available yet. Please pay by bank transfer.
       </p>
     </div>
   );

@@ -12,7 +12,7 @@ async function loginAsAdvertiser(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Email").fill("advertiser@demo.mobility.local");
   await page.getByLabel("Password").fill("DemoAdvertiser12345!");
-  await page.getByRole("button", { name: "Enter the network" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL("**/advertiser");
 }
 

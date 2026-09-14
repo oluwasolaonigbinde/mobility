@@ -41,40 +41,59 @@ export function MeasurementHeadlineStats({
 }) {
   return (
     <>
-      <Stat
-        label="Exposure score"
-        value={formatExposurePoints(exposureScore?.score ?? null)}
-        tone="amber"
-        hint={
-          exposureScore ? (
-            <>
-              {exposureScore.formulaVersion} · {formatCount(exposureScore.routeCount)} scored routes
-              · {formatCount(exposureScore.missingRouteCount)} missing · formula{" "}
-              {exposureScore.formulaFingerprint.slice(0, 12)}… · input{" "}
-              {exposureScore.inputFingerprint.slice(0, 12)}…<br />
-              Synthetic uncalibrated operational index; not an impression estimate, audience count,
-              statistical confidence interval or attribution result.
-            </>
-          ) : (
-            "No immutable exposure score has been issued for this measurement run."
-          )
-        }
-      />
-      <Stat
-        label="Modelled potential contacts"
-        value={
-          completeness.suppressed || modelledPotentialContacts === null
-            ? OMITTED_TOTAL_LABEL
-            : formatCount(modelledPotentialContacts)
-        }
-        hint={`${formatCount(completeness.coveredTripCount)} of ${formatCount(completeness.denominatorTripCount)} completed trips covered · ${formatCount(completeness.insufficientDataTripCount)} insufficient-data · ${formatCount(completeness.excludedTripCount)} excluded${
-          completeness.suppressed
-            ? " · total omitted rather than zero-filled"
-            : completeness.complete
-              ? ""
-              : " · period incomplete"
-        } · ${formatScore(modelDiagnostic)} model diagnostic (not a statistical confidence interval)`}
-      />
+      <div>
+        <Stat
+          label="Campaign activity score"
+          value={formatExposurePoints(exposureScore?.score ?? null)}
+          tone="amber"
+          hint={
+            exposureScore ? (
+              <>
+                0–100 index of distance, tracking time and GPS evidence quality (
+                {formatCount(exposureScore.routeCount)} routes scored,{" "}
+                {formatCount(exposureScore.missingRouteCount)} missing). Not yet calibrated or
+                approved as a live measurement method; not an impression estimate, audience count,
+                statistical confidence interval or attribution result.
+              </>
+            ) : (
+              "No activity score has been issued for this report."
+            )
+          }
+        />
+        {exposureScore ? (
+          <details className="text-faint mt-2 text-xs">
+            <summary className="cursor-pointer">Activity score technical reference</summary>
+            <p className="mt-2 break-all">
+              Named “Exposure score” in downloads · {exposureScore.formulaVersion} · formula{" "}
+              {exposureScore.formulaFingerprint} · input {exposureScore.inputFingerprint}
+            </p>
+          </details>
+        ) : null}
+      </div>
+      <div>
+        <Stat
+          label="Estimated ad exposure"
+          value={
+            completeness.suppressed || modelledPotentialContacts === null
+              ? OMITTED_TOTAL_LABEL
+              : formatCount(modelledPotentialContacts)
+          }
+          hint={`Estimated opportunities to see the ad, based on routes and traffic. This is not a count of people or measured views. ${formatCount(completeness.coveredTripCount)} of ${formatCount(completeness.denominatorTripCount)} completed trips included · ${formatCount(completeness.insufficientDataTripCount)} with too little data · ${formatCount(completeness.excludedTripCount)} excluded${
+            completeness.suppressed
+              ? " · total not shown rather than counted as zero"
+              : completeness.complete
+                ? ""
+                : " · period incomplete"
+          }`}
+        />
+        <details className="text-faint mt-2 text-xs">
+          <summary className="cursor-pointer">Exposure estimate technical reference</summary>
+          <p className="mt-2">
+            Named “Modelled potential contacts” in downloads · estimate quality factor{" "}
+            {formatScore(modelDiagnostic)} (not a statistical confidence level)
+          </p>
+        </details>
+      </div>
     </>
   );
 }

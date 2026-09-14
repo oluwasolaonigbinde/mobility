@@ -5,6 +5,7 @@ import { statusLabel, statusTone } from "@/lib/campaigns/status";
 import { formatDate, formatDateRange, formatMoney } from "@/lib/format";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { Pagination } from "@/components/ui/pagination";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { ReviewActions } from "./review-actions";
@@ -16,14 +17,59 @@ export const metadata: Metadata = { title: "Approvals" };
 
 const PAGE_SIZE = 25;
 
-export default async function AdminApprovalsPage() {
+type SearchParams = Record<string, string | string[] | undefined>;
+type QueueOffsets = { campaign: number; creative: number };
+
+function parseOffset(value: string | string[] | undefined): number {
+  const parsed = Number(Array.isArray(value) ? value[0] : value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : 0;
+}
+
+/**
+ * Loads one server-paginated queue page. When decisions have shrunk the queue
+ * below a bookmarked offset, re-reads the last remaining page once.
+ */
+async function loadQueuePage<T extends { items: unknown[]; total: number }>(
+  offset: number,
+  read: (offset: number) => Promise<{ data?: T }>,
+): Promise<{ data?: T; offset: number }> {
+  const { data } = await read(offset);
+  if (data && data.items.length === 0 && data.total > 0 && offset >= data.total) {
+    const lastOffset = Math.floor((data.total - 1) / PAGE_SIZE) * PAGE_SIZE;
+    return { data: (await read(lastOffset)).data, offset: lastOffset };
+  }
+  return { data, offset };
+}
+
+function queueHref(offsets: QueueOffsets, anchor: string): string {
+  const query = new URLSearchParams();
+  if (offsets.campaign) query.set("campaign_offset", String(offsets.campaign));
+  if (offsets.creative) query.set("creative_offset", String(offsets.creative));
+  return `/admin/approvals${query.size ? `?${query.toString()}` : ""}#${anchor}`;
+}
+
+export default async function AdminApprovalsPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const params = await searchParams;
   const api = createApiClient(await getSessionToken());
-  const { data: queue } = await api.GET("/api/v1/admin/campaigns/pending-review", {
-    params: { query: { limit: PAGE_SIZE, offset: 0 } },
-  });
-  const { data: creativeQueue } = await api.GET("/api/v1/admin/creatives/pending-review", {
-    params: { query: { limit: PAGE_SIZE, offset: 0 } },
-  });
+  const { data: queue, offset: campaignOffset } = await loadQueuePage(
+    parseOffset(params.campaign_offset),
+    (offset) =>
+      api.GET("/api/v1/admin/campaigns/pending-review", {
+        params: { query: { limit: PAGE_SIZE, offset } },
+      }),
+  );
+  const { data: creativeQueue, offset: creativeOffset } = await loadQueuePage(
+    parseOffset(params.creative_offset),
+    (offset) =>
+      api.GET("/api/v1/admin/creatives/pending-review", {
+        params: { query: { limit: PAGE_SIZE, offset } },
+      }),
+  );
+  const offsets: QueueOffsets = { campaign: campaignOffset, creative: creativeOffset };
   const { data: installationQueue } = await api.GET("/api/v1/admin/installation-evidence/pending");
   const { data: campaignChangeQueue } = await api.GET(
     "/api/v1/admin/campaign-change-requests/pending",
@@ -50,11 +96,10 @@ export default async function AdminApprovalsPage() {
   const historyByCreativeId = new Map(creativeHistories);
   const installationItems = installationQueue?.items ?? [];
   const campaignChangeItems = campaignChangeQueue?.items ?? [];
+  const campaignTotal = queue?.total ?? 0;
+  const creativeTotal = creativeQueue?.total ?? 0;
   const totalPending =
-    (queue?.total ?? 0) +
-    (creativeQueue?.total ?? 0) +
-    installationItems.length +
-    campaignChangeItems.length;
+    campaignTotal + creativeTotal + installationItems.length + campaignChangeItems.length;
 
   return (
     <div className="animate-rise mx-auto max-w-6xl">
@@ -63,8 +108,8 @@ export default async function AdminApprovalsPage() {
         eyebrow={`${totalPending} item${totalPending === 1 ? "" : "s"} awaiting review`}
       />
 
-      {items.length === 0 &&
-      creativeItems.length === 0 &&
+      {campaignTotal === 0 &&
+      creativeTotal === 0 &&
       installationItems.length === 0 &&
       campaignChangeItems.length === 0 ? (
         <EmptyState
@@ -134,133 +179,166 @@ export default async function AdminApprovalsPage() {
               </Panel>
             );
           })}
-          {items.length ? <h2 className="text-lg font-medium">Campaigns</h2> : null}
-          {items.map((campaign) => {
-            const history = historyByCampaignId.get(campaign.id) ?? [];
-            const submission = history.find((event) => event.new_status === "pending_review");
-            return (
-              <Panel
-                key={campaign.id}
-                className="p-5"
-                data-testid={`campaign-approval-${campaign.id}`}
-              >
-                <div className="flex flex-wrap items-start justify-between gap-5">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <StatusChip tone={statusTone[campaign.status]}>
-                        {statusLabel[campaign.status]}
-                      </StatusChip>
-                      <h2 className="font-medium">{campaign.name}</h2>
-                    </div>
-                    <p className="text-muted mt-2 text-sm">
-                      {campaign.description ?? "No description provided."}
-                    </p>
-                    <dl className="micro text-faint mt-3 grid gap-x-5 gap-y-1 sm:grid-cols-2">
-                      <div>
-                        <dt className="inline">Advertiser: </dt>
-                        <dd className="inline">{campaign.organization.name}</dd>
-                      </div>
-                      <div>
-                        <dt className="inline">Window: </dt>
-                        <dd className="inline">
-                          {formatDateRange(campaign.start_at, campaign.end_at)}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="inline">Budget: </dt>
-                        <dd className="inline">
-                          {formatMoney(campaign.budget_amount, campaign.currency)}
-                        </dd>
-                      </div>
-                      {submission ? (
-                        <div>
-                          <dt className="inline">Submitted: </dt>
-                          <dd className="inline">{formatDate(submission.created_at)}</dd>
-                        </div>
-                      ) : null}
-                    </dl>
-                    <section className="border-edge mt-4 border-t pt-4" aria-label="Review history">
-                      <h3 className="micro text-muted">Review history</h3>
-                      {history.map((event) => (
-                        <div key={event.id} className="mt-2 text-sm">
-                          <StatusChip tone={statusTone[event.new_status]}>
-                            {statusLabel[event.new_status]}
+          {campaignTotal ? (
+            <section
+              id="campaign-queue"
+              aria-labelledby="campaign-queue-heading"
+              className="flex flex-col gap-4"
+            >
+              <h2 id="campaign-queue-heading" className="text-lg font-medium">
+                Campaigns
+              </h2>
+              {items.map((campaign) => {
+                const history = historyByCampaignId.get(campaign.id) ?? [];
+                const submission = history.find((event) => event.new_status === "pending_review");
+                return (
+                  <Panel
+                    key={campaign.id}
+                    className="p-5"
+                    data-testid={`campaign-approval-${campaign.id}`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-5">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <StatusChip tone={statusTone[campaign.status]}>
+                            {statusLabel[campaign.status]}
                           </StatusChip>
-                          <span className="text-muted ml-2">
-                            {statusLabel[event.prior_status]} → {statusLabel[event.new_status]}
-                          </span>
-                          {event.rejection_reason ? (
-                            <p className="text-coral mt-1">Reason: {event.rejection_reason}</p>
-                          ) : null}
-                          {event.reviewed_snapshot_sha256 ? (
-                            <p className="micro text-faint mt-1 font-mono break-all">
-                              Snapshot SHA-256: {event.reviewed_snapshot_sha256}
-                            </p>
-                          ) : null}
+                          <h2 className="font-medium">{campaign.name}</h2>
                         </div>
-                      ))}
-                    </section>
-                  </div>
-                  <ReviewActions campaignId={campaign.id} />
-                </div>
-              </Panel>
-            );
-          })}
-          {creativeItems.length ? (
-            <h2 className="mt-4 text-lg font-medium">Managed creatives</h2>
-          ) : null}
-          {creativeItems.map(({ creative, campaign_name: campaignName, organization }) => {
-            const history = historyByCreativeId.get(creative.id) ?? [];
-            const submission = history.find((event) => event.new_status === "pending_review");
-            return (
-              <Panel
-                key={creative.id}
-                className="p-5"
-                data-testid={`creative-approval-${creative.id}`}
-              >
-                <div className="flex flex-wrap items-start justify-between gap-5">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <StatusChip tone="amber">Pending review</StatusChip>
-                      <h3 className="font-medium">{creative.name}</h3>
+                        <p className="text-muted mt-2 text-sm">
+                          {campaign.description ?? "No description provided."}
+                        </p>
+                        <dl className="micro text-faint mt-3 grid gap-x-5 gap-y-1 sm:grid-cols-2">
+                          <div>
+                            <dt className="inline">Advertiser: </dt>
+                            <dd className="inline">{campaign.organization.name}</dd>
+                          </div>
+                          <div>
+                            <dt className="inline">Window: </dt>
+                            <dd className="inline">
+                              {formatDateRange(campaign.start_at, campaign.end_at)}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="inline">Budget: </dt>
+                            <dd className="inline">
+                              {formatMoney(campaign.budget_amount, campaign.currency)}
+                            </dd>
+                          </div>
+                          {submission ? (
+                            <div>
+                              <dt className="inline">Submitted: </dt>
+                              <dd className="inline">{formatDate(submission.created_at)}</dd>
+                            </div>
+                          ) : null}
+                        </dl>
+                        <section
+                          className="border-edge mt-4 border-t pt-4"
+                          aria-label="Review history"
+                        >
+                          <h3 className="micro text-muted">Review history</h3>
+                          {history.map((event) => (
+                            <div key={event.id} className="mt-2 text-sm">
+                              <StatusChip tone={statusTone[event.new_status]}>
+                                {statusLabel[event.new_status]}
+                              </StatusChip>
+                              <span className="text-muted ml-2">
+                                {statusLabel[event.prior_status]} → {statusLabel[event.new_status]}
+                              </span>
+                              {event.rejection_reason ? (
+                                <p className="text-coral mt-1">Reason: {event.rejection_reason}</p>
+                              ) : null}
+                              {event.reviewed_snapshot_sha256 ? (
+                                <p className="micro text-faint mt-1 font-mono break-all">
+                                  Snapshot SHA-256: {event.reviewed_snapshot_sha256}
+                                </p>
+                              ) : null}
+                            </div>
+                          ))}
+                        </section>
+                      </div>
+                      <ReviewActions campaignId={campaign.id} />
                     </div>
-                    <dl className="micro text-faint mt-3 grid gap-x-5 gap-y-1 sm:grid-cols-2">
-                      <div>
-                        <dt className="inline">Advertiser: </dt>
-                        <dd className="inline">{organization.name}</dd>
-                      </div>
-                      <div>
-                        <dt className="inline">Campaign: </dt>
-                        <dd className="inline">{campaignName}</dd>
-                      </div>
-                      <div>
-                        <dt className="inline">Type: </dt>
-                        <dd className="inline">
-                          {creative.creative_type} · {creative.placement}
-                        </dd>
-                      </div>
-                      <div>
-                        <dt className="inline">Validated MIME: </dt>
-                        <dd className="inline">{creative.mime_type ?? "Unavailable"}</dd>
-                      </div>
-                      {submission ? (
-                        <div>
-                          <dt className="inline">Submitted: </dt>
-                          <dd className="inline">{formatDate(submission.created_at)}</dd>
+                  </Panel>
+                );
+              })}
+              <Pagination
+                total={campaignTotal}
+                limit={PAGE_SIZE}
+                offset={campaignOffset}
+                hrefFor={(offset) => queueHref({ ...offsets, campaign: offset }, "campaign-queue")}
+              />
+            </section>
+          ) : null}
+          {creativeTotal ? (
+            <section
+              id="creative-queue"
+              aria-labelledby="creative-queue-heading"
+              className="flex flex-col gap-4"
+            >
+              <h2 id="creative-queue-heading" className="mt-4 text-lg font-medium">
+                Managed creatives
+              </h2>
+              {creativeItems.map(({ creative, campaign_name: campaignName, organization }) => {
+                const history = historyByCreativeId.get(creative.id) ?? [];
+                const submission = history.find((event) => event.new_status === "pending_review");
+                return (
+                  <Panel
+                    key={creative.id}
+                    className="p-5"
+                    data-testid={`creative-approval-${creative.id}`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-5">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <StatusChip tone="amber">Pending review</StatusChip>
+                          <h3 className="font-medium">{creative.name}</h3>
                         </div>
-                      ) : null}
-                    </dl>
-                    {submission?.reviewed_snapshot_sha256 ? (
-                      <p className="micro text-faint mt-3 font-mono break-all">
-                        Snapshot SHA-256: {submission.reviewed_snapshot_sha256}
-                      </p>
-                    ) : null}
-                  </div>
-                  <CreativeReviewActions creativeId={creative.id} />
-                </div>
-              </Panel>
-            );
-          })}
+                        <dl className="micro text-faint mt-3 grid gap-x-5 gap-y-1 sm:grid-cols-2">
+                          <div>
+                            <dt className="inline">Advertiser: </dt>
+                            <dd className="inline">{organization.name}</dd>
+                          </div>
+                          <div>
+                            <dt className="inline">Campaign: </dt>
+                            <dd className="inline">{campaignName}</dd>
+                          </div>
+                          <div>
+                            <dt className="inline">Type: </dt>
+                            <dd className="inline">
+                              {creative.creative_type} · {creative.placement}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="inline">Validated MIME: </dt>
+                            <dd className="inline">{creative.mime_type ?? "Unavailable"}</dd>
+                          </div>
+                          {submission ? (
+                            <div>
+                              <dt className="inline">Submitted: </dt>
+                              <dd className="inline">{formatDate(submission.created_at)}</dd>
+                            </div>
+                          ) : null}
+                        </dl>
+                        {submission?.reviewed_snapshot_sha256 ? (
+                          <p className="micro text-faint mt-3 font-mono break-all">
+                            Snapshot SHA-256: {submission.reviewed_snapshot_sha256}
+                          </p>
+                        ) : null}
+                      </div>
+                      <CreativeReviewActions creativeId={creative.id} />
+                    </div>
+                  </Panel>
+                );
+              })}
+              <Pagination
+                total={creativeTotal}
+                limit={PAGE_SIZE}
+                offset={creativeOffset}
+                hrefFor={(offset) => queueHref({ ...offsets, creative: offset }, "creative-queue")}
+              />
+            </section>
+          ) : null}
           {installationItems.length ? (
             <h2 className="mt-4 text-lg font-medium">Vehicle installation evidence</h2>
           ) : null}

@@ -6,7 +6,7 @@ async function loginAsAdvertiser(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Email").fill("advertiser@demo.mobility.local");
   await page.getByLabel("Password").fill("DemoAdvertiser12345!");
-  await page.getByRole("button", { name: "Enter the network" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL("**/advertiser");
 }
 
@@ -25,7 +25,7 @@ test("report fails closed when the seeded campaign has no frozen measurement run
   await page.waitForURL(/\/report$/);
 
   await expect(
-    page.getByRole("heading", { name: "Frozen analysis failed its integrity check" }),
+    page.getByRole("heading", { name: "This report failed its integrity check" }),
   ).toBeVisible();
   await expect(page.getByText("MEASUREMENT_RUN_INTEGRITY_FAILURE")).toBeVisible();
   await expect(page.getByText("Daily breakdown")).not.toBeVisible();
@@ -38,7 +38,7 @@ test("coverage map fails closed without frozen measurement authority", async ({ 
   await page.waitForURL(/\/map$/);
 
   await expect(
-    page.getByRole("heading", { name: "Frozen analysis failed its integrity check" }),
+    page.getByRole("heading", { name: "This report failed its integrity check" }),
   ).toBeVisible();
   await expect(page.getByText("MEASUREMENT_RUN_INTEGRITY_FAILURE")).toBeVisible();
   await expect(page.getByTestId("heatmap-map")).not.toBeVisible();

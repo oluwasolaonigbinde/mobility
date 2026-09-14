@@ -9,14 +9,14 @@ async function loginAsDriver(page: Page) {
   await page.goto("/login");
   await page.getByLabel("Email").fill("driver@demo.mobility.local");
   await page.getByLabel("Password").fill("DemoDriver12345!");
-  await page.getByRole("button", { name: "Enter the network" }).click();
+  await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL("**/driver");
 }
 
 test("driver home shows earnings and the active campaign with app chrome", async ({ page }) => {
   await loginAsDriver(page);
   await expect(page.getByText("Cardvert. DRIVER")).toBeVisible();
-  await expect(page.getByText("Batch-payable earnings", { exact: true })).toBeVisible();
+  await expect(page.getByText("Available for next payout", { exact: true })).toBeVisible();
   // Active-campaign card names the campaign; recent activity lists whichever
   // campaigns the enriched seed wrote most recently — so assert presence, not
   // an exact count tied to seed ordering.

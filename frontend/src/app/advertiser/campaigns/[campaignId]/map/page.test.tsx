@@ -202,7 +202,9 @@ describe("CampaignMapPage", () => {
     render(await CampaignMapPage({ params: Promise.resolve({ campaignId: CAMPAIGN_ID }) }));
 
     expect(governedMap).not.toHaveBeenCalled();
-    expect(screen.getByText(/withheld by the disclosure floor/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/not shown because there is too little data to protect privacy/i),
+    ).toBeInTheDocument();
     expect(screen.queryByText("Central Abuja")).not.toBeInTheDocument();
   });
 

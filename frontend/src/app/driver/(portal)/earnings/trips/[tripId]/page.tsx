@@ -113,7 +113,7 @@ export default async function DriverTripEarningsPage({
         </div>
         <DriverDataUnavailable
           title="Trip review status is unavailable"
-          detail="Cardvert verified the trip calculation but could not verify current hold authority, so the amount is withheld from this view."
+          detail="Cardvert calculated this trip but couldn't check whether this trip is under review, so the amount isn't shown. Try again shortly."
           retryHref={`/driver/earnings/trips/${tripId}`}
         />
       </div>
@@ -140,7 +140,7 @@ export default async function DriverTripEarningsPage({
   return (
     <FreshDriverAuthority
       title="Current trip earnings hidden while offline"
-      detail="Reconnect to verify the latest payout, hold and dispute outcome. Previously loaded review details and mutation controls are hidden."
+      detail="Reconnect to see the latest pay, review and dispute status. Earlier review details and dispute actions are hidden while offline."
       retryHref={`/driver/earnings/trips/${tripId}`}
     >
       <div className="animate-rise flex flex-col gap-4">
@@ -158,7 +158,7 @@ export default async function DriverTripEarningsPage({
           </p>
           {isV3 ? (
             <p className="text-muted mt-2 text-sm">
-              Payout v3 · frozen base/premium terms from assignment acceptance
+              Hourly pay · base and premium-zone rates fixed when you accepted this campaign
             </p>
           ) : isHourly ? (
             <p className="text-muted mt-2 text-sm">
