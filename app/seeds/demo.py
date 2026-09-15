@@ -949,7 +949,13 @@ async def upsert_driver_story_campaigns(
             )
             session.add(assignment)
         else:
-            for field, value in assignment_values.items():
+            for field in (
+                "assigned_by_user_id",
+                "status",
+                "notes",
+                "assignment_metadata",
+            ):
+                value = assignment_values[field]
                 setattr(assignment, field, value)
         await session.flush()
 

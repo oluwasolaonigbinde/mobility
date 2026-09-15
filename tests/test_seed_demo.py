@@ -949,7 +949,10 @@ def test_demo_seed_runs_with_immutable_guards_from_alembic_head(
                 await session.commit()
 
         asyncio.run(seed())
-        assert fetch_seed_evidence_snapshot(sessionmaker, migrated_settings)
+        first_snapshot = fetch_seed_evidence_snapshot(sessionmaker, migrated_settings)
+        assert first_snapshot
+        asyncio.run(seed())
+        assert fetch_seed_evidence_snapshot(sessionmaker, migrated_settings) == first_snapshot
     finally:
         if engine is not None:
             asyncio.run(engine.dispose())
