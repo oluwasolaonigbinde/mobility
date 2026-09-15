@@ -439,3 +439,59 @@ def test_kyc_download_uses_current_vehicle_file_authority_not_reason_text(
     assert linked.headers["cache-control"] == "no-store"
     assert len(storage.presigned_gets) == 1
     assert [row.entity_id for row in _stored_file_reads(db_sessionmaker)] == [str(current_file_id)]
+
+
+def test_kyc_review_download_service_denies_stale_and_unlinked_person_files(
+    db_client, db_sessionmaker, settings
+):
+    from app.core.errors import AppError
+    from app.services.stored_files import issue_admin_file_download
+
+    admin, driver, _, bank, files = _seed_driver_authority(
+        db_sessionmaker, suffix="ops-person-file-service"
+    )
+    driver_headers = auth_headers(db_client, driver.email, PASSWORD)
+    first = db_client.post(
+        "/api/v1/driver/kyc/submissions", headers=driver_headers, json=_payload(bank, files)
+    )
+    assert first.status_code == 201
+    stale_file_id = files["driver_license"]
+    current_file_id = _clone_clean_file(db_sessionmaker, stale_file_id)
+    unlinked_file_id = _clone_clean_file(db_sessionmaker, stale_file_id)
+    current = db_client.post(
+        "/api/v1/driver/kyc/submissions",
+        headers=driver_headers,
+        json=_payload(
+            bank, files | {"driver_license": current_file_id}, client_request_id=str(uuid4())
+        ),
+    )
+    assert current.status_code == 201
+    storage = FakeStorageProvider()
+    for file_id in (stale_file_id, current_file_id, unlinked_file_id):
+        _seed_download_object(db_sessionmaker, storage, file_id)
+
+    async def download(file_id, purpose="kyc_review"):
+        async with db_sessionmaker() as session:
+            try:
+                await issue_admin_file_download(
+                    session,
+                    actor_user_id=admin.id,
+                    file_id=file_id,
+                    access_purpose=purpose,
+                    reason="Review applicant identity evidence",
+                    storage=storage,
+                    settings=settings,
+                )
+            except AppError as error:
+                await session.rollback()
+                return error.code
+            await session.commit()
+            return "issued"
+
+    assert asyncio.run(download(stale_file_id)) == "KYC_REVIEW_STALE"
+    assert asyncio.run(download(unlinked_file_id)) == "KYC_REVIEW_STALE"
+    assert storage.presigned_gets == []
+    assert _stored_file_reads(db_sessionmaker) == []
+    assert asyncio.run(download(current_file_id)) == "issued"
+    assert len(storage.presigned_gets) == 1
+    assert asyncio.run(download(stale_file_id, purpose="security_review")) == "issued"
