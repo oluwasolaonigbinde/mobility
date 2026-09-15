@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { updateUserStatusAction } from "./actions";
 import type { components } from "@/lib/api/schema";
 import { Field } from "@/components/ui/field";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 
 type UserStatus = components["schemas"]["UserStatus"];
 
@@ -23,6 +24,7 @@ export function UserStatusMenu({
   const [error, setError] = useState<string>();
   const [reauthenticating, setReauthenticating] = useState(false);
   const [confirmingSuspension, setConfirmingSuspension] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const target: UserStatus = status === "active" ? "suspended" : "active";
   const label = status === "active" ? "Suspend" : "Reactivate";
@@ -52,6 +54,7 @@ export function UserStatusMenu({
   return (
     <div className="flex flex-col items-end gap-1">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => run()}
         disabled={pending}
@@ -95,32 +98,17 @@ export function UserStatusMenu({
           {error}
         </p>
       ) : null}
-      {confirmingSuspension ? (
-        <div
-          role="alertdialog"
-          aria-modal="true"
-          aria-labelledby="user-status-confirmation-title"
-          className="bg-bg/80 fixed inset-0 z-50 grid place-items-center p-4 text-left backdrop-blur-sm"
-          onKeyDown={(event) => {
-            if (event.key === "Escape") setConfirmingSuspension(false);
-          }}
-        >
-          <div className="border-coral/40 bg-panel w-full max-w-sm rounded-xl border p-5 shadow-xl">
-            <h2 id="user-status-confirmation-title" className="font-display text-lg font-semibold">
-              Suspend {userLabel}?
-            </h2>
-            <p className="text-muted mt-2 text-sm">This account will lose access immediately.</p>
-            <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
-              <button type="button" autoFocus onClick={() => setConfirmingSuspension(false)}>
-                Keep account active
-              </button>
-              <button type="button" className="text-coral" onClick={() => run(undefined, true)}>
-                Confirm suspension
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <ConfirmationDialog
+        open={confirmingSuspension}
+        onOpenChange={setConfirmingSuspension}
+        title={`Suspend ${userLabel}?`}
+        description="This account will lose access immediately."
+        cancelLabel="Keep account active"
+        confirmLabel="Confirm suspension"
+        onConfirm={() => run(undefined, true)}
+        returnFocusRef={triggerRef}
+        pending={pending}
+      />
     </div>
   );
 }

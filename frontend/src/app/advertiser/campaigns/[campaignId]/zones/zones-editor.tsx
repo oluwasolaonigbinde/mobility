@@ -18,6 +18,7 @@ import { geometryBounds, type ZoneGeometry } from "@/lib/zones/geometry";
 import { formatCount } from "@/lib/format";
 import { Panel } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { StatusChip } from "@/components/ui/status-chip";
 import { createZoneAction, updateZoneAction, deleteZoneAction } from "./actions";
 import { cx } from "@/lib/cx";
@@ -57,6 +58,7 @@ export function ZonesEditor({ campaignId, zones }: { campaignId: string; zones: 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [confirmingZone, setConfirmingZone] = useState<Zone | null>(null);
+  const deleteTriggerRef = useRef<HTMLButtonElement>(null);
   const [error, setError] = useState<string | undefined>();
   const [saving, startTransition] = useTransition();
 
@@ -239,7 +241,8 @@ export function ZonesEditor({ campaignId, zones }: { campaignId: string; zones: 
     });
   }
 
-  function removeZone(zone: Zone) {
+  function removeZone(zone: Zone, trigger: HTMLButtonElement) {
+    deleteTriggerRef.current = trigger;
     setConfirmingZone(zone);
   }
 
@@ -353,41 +356,21 @@ export function ZonesEditor({ campaignId, zones }: { campaignId: string; zones: 
           </p>
         ) : null}
 
-        {confirmingZone ? (
-          <div
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="delete-zone-title"
-            className="bg-bg/80 fixed inset-0 z-50 grid place-items-center p-4 backdrop-blur-sm"
-            onKeyDown={(event) => {
-              if (event.key === "Escape") setConfirmingZone(null);
-            }}
-          >
-            <div className="border-coral/40 bg-panel w-full max-w-sm rounded-xl border p-5 shadow-xl">
-              <h2 id="delete-zone-title" className="font-display text-lg font-semibold">
-                Delete {confirmingZone.name}?
-              </h2>
-              <p className="text-muted mt-2 text-sm">This zone cannot be restored.</p>
-              <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  autoFocus
-                  onClick={() => setConfirmingZone(null)}
-                >
-                  Keep zone
-                </Button>
-                <Button
-                  type="button"
-                  variant="danger"
-                  onClick={() => confirmRemoveZone(confirmingZone)}
-                >
-                  Confirm deletion
-                </Button>
-              </div>
-            </div>
-          </div>
-        ) : null}
+        <ConfirmationDialog
+          open={Boolean(confirmingZone)}
+          onOpenChange={(open) => {
+            if (!open) setConfirmingZone(null);
+          }}
+          title={`Delete ${confirmingZone?.name ?? "zone"}?`}
+          description="This zone cannot be restored."
+          cancelLabel="Keep zone"
+          confirmLabel="Confirm deletion"
+          onConfirm={() => {
+            if (confirmingZone) confirmRemoveZone(confirmingZone);
+          }}
+          returnFocusRef={deleteTriggerRef}
+          pending={saving}
+        />
 
         <Panel className="overflow-hidden">
           <div className="border-edge border-b px-5 py-3.5">
@@ -455,7 +438,7 @@ export function ZonesEditor({ campaignId, zones }: { campaignId: string; zones: 
                         </button>
                         <button
                           type="button"
-                          onClick={() => removeZone(zone)}
+                          onClick={(event) => removeZone(zone, event.currentTarget)}
                           className="micro text-muted hover:text-coral"
                           aria-label={`Delete ${zone.name}`}
                         >

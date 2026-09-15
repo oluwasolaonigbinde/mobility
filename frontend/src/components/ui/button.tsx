@@ -1,4 +1,4 @@
-import { type ButtonHTMLAttributes } from "react";
+import { forwardRef, type ButtonHTMLAttributes } from "react";
 import { cx } from "@/lib/cx";
 
 type Variant = "primary" | "ghost" | "danger";
@@ -14,9 +14,13 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
 }
 
-export function Button({ variant = "primary", className, ...props }: ButtonProps) {
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
+  { variant = "primary", className, ...props },
+  ref,
+) {
   return (
     <button
+      ref={ref}
       className={cx(
         "inline-flex h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm transition-colors",
         "disabled:cursor-not-allowed disabled:opacity-50",
@@ -26,4 +30,4 @@ export function Button({ variant = "primary", className, ...props }: ButtonProps
       {...props}
     />
   );
-}
+});

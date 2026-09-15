@@ -1,4 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
+import { execFileSync } from "node:child_process";
+import path from "node:path";
 
 /**
  * Read-only operator workflows against the seeded real stack: named discovery,
@@ -25,6 +27,31 @@ async function search(page: Page, value: string) {
   await page.getByLabel("Search this work list").fill(value);
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await page.waitForURL(`**q=${encodeURIComponent(value)}*`);
+}
+
+function prepareApprovedApplicant(): { applicationId: string; applicantName: string } {
+  const output = execFileSync(
+    "docker",
+    [
+      "compose",
+      "exec",
+      "-T",
+      "api",
+      "python",
+      "frontend/e2e/support/prepare-account-setup-application.py",
+    ],
+    {
+      cwd: path.resolve(process.cwd(), ".."),
+      encoding: "utf8",
+      env: process.env,
+    },
+  );
+  const result = output
+    .trim()
+    .split("\n")
+    .findLast((line) => line.startsWith("{"));
+  if (!result) throw new Error(`Account-setup fixture did not return JSON: ${output}`);
+  return JSON.parse(result) as { applicationId: string; applicantName: string };
 }
 
 test("named search narrows driver, vehicle and assignment work lists", async ({ page }) => {
@@ -86,6 +113,33 @@ test("evidence queues state empty results without implying completion", async ({
   await page.goto("/admin/contact");
   await expect(page.getByText(/No automated message is sent here/)).toBeVisible();
   await expectNoHorizontalOverflow(page);
+});
+
+test("approved driver account setup stays provider-neutral through its visible terminal state", async ({
+  page,
+}) => {
+  const applicant = prepareApprovedApplicant();
+  await loginAsAdmin(page);
+
+  await page.goto(`/admin/driver-applications/${applicant.applicationId}`);
+  await expect(page.getByRole("heading", { name: applicant.applicantName })).toBeVisible();
+  await page.getByRole("button", { name: "Start account setup" }).click();
+
+  const confirmation = page.getByRole("alertdialog", {
+    name: `Start account setup for ${applicant.applicantName}?`,
+  });
+  await expect(confirmation).toContainText("replaces any earlier unused setup link");
+  await confirmation.getByRole("button", { name: "Issue one-use setup link" }).click();
+
+  await expect(
+    page.getByRole("status").filter({
+      hasText: "A one-use setup link was issued to the applicant's stored email.",
+    }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start account setup" })).toHaveCount(0);
+  await expect(page).toHaveURL(
+    new RegExp(`/admin/driver-applications/${applicant.applicationId}$`),
+  );
 });
 
 test("payout selection explains ineligible credits and closeout keeps paid facts separate", async ({

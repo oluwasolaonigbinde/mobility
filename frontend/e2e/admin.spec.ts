@@ -87,11 +87,20 @@ test("assignments section lists the seeded pairing", async ({ page }) => {
   await expect(page.getByText("Demo Lagos Mobility Campaign").first()).toBeVisible();
   await expect(page.getByRole("link", { name: "+ Offer assignment" })).toBeVisible();
   const row = page.getByRole("row", { name: /Demo Lagos Mobility Campaign/ }).first();
-  await row.getByRole("button", { name: "Cancel" }).click();
+  const trigger = row.getByRole("button", { name: "Cancel" });
+  await trigger.click();
   const confirmation = page.getByRole("alertdialog");
   await expect(confirmation).toContainText(/Demo Lagos Mobility Campaign for Demo Driver/);
-  await confirmation.getByRole("button", { name: "Keep assignment" }).click();
+  await expect(confirmation.getByRole("button", { name: "Keep assignment" })).toBeFocused();
+  for (let index = 0; index < 4; index += 1) {
+    await page.keyboard.press("Tab");
+    await expect
+      .poll(() => confirmation.evaluate((dialog) => dialog.contains(document.activeElement)))
+      .toBe(true);
+  }
+  await page.keyboard.press("Escape");
   await expect(confirmation).not.toBeVisible();
+  await expect(trigger).toBeFocused();
 });
 
 test("fraud console renders with status filters", async ({ page }) => {

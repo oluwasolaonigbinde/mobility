@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { assignmentAction } from "./actions";
 import { Button } from "@/components/ui/button";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import type { components } from "@/lib/api/schema";
 
 type Status = components["schemas"]["CampaignAssignmentStatus"];
@@ -34,6 +35,7 @@ export function AssignmentActions({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | undefined>();
   const [confirming, setConfirming] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const step = nextStep[status];
   if (!step && status === "accepted") {
     return <p className="text-muted mt-4 text-center text-xs">Awaiting admin activation.</p>;
@@ -56,6 +58,7 @@ export function AssignmentActions({
   return (
     <div className="mt-4 flex flex-col gap-2">
       <Button
+        ref={triggerRef}
         type="button"
         variant={step.variant}
         disabled={pending}
@@ -86,34 +89,17 @@ export function AssignmentActions({
           {error}
         </p>
       ) : null}
-      {confirming ? (
-        <div
-          role="alertdialog"
-          aria-modal="true"
-          aria-labelledby="deactivate-campaign-title"
-          className="bg-bg/80 fixed inset-0 z-50 grid place-items-center p-4 backdrop-blur-sm"
-          onKeyDown={(event) => {
-            if (event.key === "Escape") setConfirming(false);
-          }}
-        >
-          <div className="border-coral/40 bg-panel w-full max-w-sm rounded-xl border p-5 text-left shadow-xl">
-            <h2 id="deactivate-campaign-title" className="font-display text-lg font-semibold">
-              Deactivate {campaignName}?
-            </h2>
-            <p className="text-muted mt-2 text-sm">
-              Tracking stops for this campaign and you will stop earning from it.
-            </p>
-            <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
-              <Button type="button" variant="ghost" autoFocus onClick={() => setConfirming(false)}>
-                Keep campaign active
-              </Button>
-              <Button type="button" variant="danger" onClick={() => run(true)}>
-                Confirm deactivation
-              </Button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <ConfirmationDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={`Deactivate ${campaignName}?`}
+        description="Tracking stops for this campaign and you will stop earning from it."
+        cancelLabel="Keep campaign active"
+        confirmLabel="Confirm deactivation"
+        onConfirm={() => run(true)}
+        returnFocusRef={triggerRef}
+        pending={pending}
+      />
     </div>
   );
 }

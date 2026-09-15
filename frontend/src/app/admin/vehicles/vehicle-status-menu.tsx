@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { updateVehicleStatusAction } from "../fleet-actions";
 import type { components } from "@/lib/api/schema";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 
 type VStatus = components["schemas"]["VehicleStatus"];
 
@@ -28,6 +29,7 @@ export function VehicleStatusMenu({
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string>();
   const [confirming, setConfirming] = useState<VStatus>();
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   function run(to: VStatus, danger?: boolean, confirmed = false) {
     if (danger && !confirmed) {
@@ -47,6 +49,7 @@ export function VehicleStatusMenu({
       <div className="flex gap-3">
         {steps[status].map((s) => (
           <button
+            ref={s.danger ? triggerRef : undefined}
             key={s.to}
             type="button"
             disabled={pending}
@@ -65,41 +68,21 @@ export function VehicleStatusMenu({
           {error}
         </p>
       ) : null}
-      {confirming ? (
-        <div
-          role="alertdialog"
-          aria-modal="true"
-          aria-labelledby="vehicle-status-confirmation-title"
-          className="bg-bg/80 fixed inset-0 z-50 grid place-items-center p-4 text-left backdrop-blur-sm"
-          onKeyDown={(event) => {
-            if (event.key === "Escape") setConfirming(undefined);
-          }}
-        >
-          <div className="border-coral/40 bg-panel w-full max-w-sm rounded-xl border p-5 shadow-xl">
-            <h2
-              id="vehicle-status-confirmation-title"
-              className="font-display text-lg font-semibold"
-            >
-              Suspend {vehicleLabel}?
-            </h2>
-            <p className="text-muted mt-2 text-sm">
-              Campaign activity for this vehicle will stop immediately.
-            </p>
-            <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
-              <button type="button" autoFocus onClick={() => setConfirming(undefined)}>
-                Keep vehicle active
-              </button>
-              <button
-                type="button"
-                className="text-coral"
-                onClick={() => run(confirming, true, true)}
-              >
-                Confirm suspension
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <ConfirmationDialog
+        open={Boolean(confirming)}
+        onOpenChange={(open) => {
+          if (!open) setConfirming(undefined);
+        }}
+        title={`Suspend ${vehicleLabel}?`}
+        description="Campaign activity for this vehicle will stop immediately."
+        cancelLabel="Keep vehicle active"
+        confirmLabel="Confirm suspension"
+        onConfirm={() => {
+          if (confirming) run(confirming, true, true);
+        }}
+        returnFocusRef={triggerRef}
+        pending={pending}
+      />
     </div>
   );
 }
