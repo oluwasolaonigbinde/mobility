@@ -1418,6 +1418,76 @@ def test_driver_decline_is_idempotent_and_opposite_accept_conflicts(
     ) == 1
 
 
+def test_direct_driver_decisions_reject_opposite_state_and_expire_due_offer(
+    db_client,
+    db_sessionmaker,
+    settings,
+) -> None:
+    _, campaign, driver, profile, vehicle = create_assignment_ready_graph(db_sessionmaker)
+    assignment_id = UUID(post_assignment(db_client, campaign, profile, vehicle).json()["id"])
+
+    async def set_offer(status: CampaignAssignmentStatus, *, expires_at=FUTURE) -> None:
+        decided_at = datetime.now(UTC)
+        async with db_sessionmaker() as session:
+            await session.execute(
+                update(CampaignAssignment)
+                .where(CampaignAssignment.id == assignment_id)
+                .values(
+                    status=status.value,
+                    expires_at=expires_at,
+                    accepted_at=(
+                        decided_at if status == CampaignAssignmentStatus.ACCEPTED else None
+                    ),
+                    declined_at=(
+                        decided_at if status == CampaignAssignmentStatus.DECLINED else None
+                    ),
+                    expired_at=(
+                        decided_at if status == CampaignAssignmentStatus.EXPIRED else None
+                    ),
+                )
+            )
+            await session.commit()
+
+    async def verify_decisions() -> None:
+        await set_offer(CampaignAssignmentStatus.DECLINED)
+        async with db_sessionmaker() as session:
+            with pytest.raises(AppError) as accept_conflict:
+                await assignments_service.accept_driver_assignment(
+                    session,
+                    user_id=driver.id,
+                    assignment_id=assignment_id,
+                    payload=CampaignAssignmentTransition(),
+                    settings=settings,
+                )
+            assert accept_conflict.value.code == "ASSIGNMENT_DECISION_CONFLICT"
+
+        await set_offer(CampaignAssignmentStatus.ACCEPTED)
+        async with db_sessionmaker() as session:
+            with pytest.raises(AppError) as decline_conflict:
+                await assignments_service.decline_driver_assignment(
+                    session,
+                    user_id=driver.id,
+                    assignment_id=assignment_id,
+                    payload=CampaignAssignmentTransition(),
+                )
+            assert decline_conflict.value.code == "ASSIGNMENT_DECISION_CONFLICT"
+
+        await set_offer(
+            CampaignAssignmentStatus.OFFERED,
+            expires_at=datetime.now(UTC) - timedelta(seconds=1),
+        )
+        async with db_sessionmaker() as session:
+            with pytest.raises(assignments_service.OfferExpiredError):
+                await assignments_service.decline_driver_assignment(
+                    session,
+                    user_id=driver.id,
+                    assignment_id=assignment_id,
+                    payload=CampaignAssignmentTransition(),
+                )
+
+    asyncio.run(verify_decisions())
+
+
 def test_driver_deactivation_is_audited_atomically(db_client, db_sessionmaker) -> None:
     admin, campaign, driver, profile, vehicle = create_assignment_ready_graph(
         db_sessionmaker,

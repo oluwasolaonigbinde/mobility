@@ -149,14 +149,24 @@ def test_planning_links_follow_campaign_mutability_policy(db_sessionmaker) -> No
                     assert blocked.value.code == "RETARGETING_LINK_CAMPAIGN_READ_ONLY"
                     assert link.status == "active"
                 else:
+                    remove_key = f"campaign-policy-remove-{campaign_status.value}"
                     removed = await remove_retargeting_source_link(
                         session,
                         settings=settings,
                         actor_user_id=advertiser.id,
                         link_id=link.id,
-                        idempotency_key=f"campaign-policy-remove-{campaign_status.value}",
+                        idempotency_key=remove_key,
                     )
                     assert removed.status == "removed"
+                    replayed = await remove_retargeting_source_link(
+                        session,
+                        settings=settings,
+                        actor_user_id=advertiser.id,
+                        link_id=link.id,
+                        idempotency_key=remove_key,
+                    )
+                    assert replayed.id == removed.id
+                    assert replayed.status == "removed"
 
     asyncio.run(run())
 
