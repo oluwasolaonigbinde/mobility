@@ -1,7 +1,12 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ get: vi.fn(), person: vi.fn(), vehicle: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  get: vi.fn(),
+  person: vi.fn(),
+  vehicle: vi.fn(),
+  accountSetup: vi.fn(),
+}));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: mocks.get }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
 vi.mock("../person-payee-decision-actions", () => ({
@@ -16,11 +21,18 @@ vi.mock("../vehicle-decision-actions", () => ({
     return <div>Vehicle decision controls</div>;
   },
 }));
+vi.mock("../account-setup-action", () => ({
+  AccountSetupAction: (props: Record<string, unknown>) => {
+    mocks.accountSetup(props);
+    return <div>Account setup controls</div>;
+  },
+}));
 
 import ApplicationReview from "./page";
 
 const application = {
   id: "app-1",
+  user_id: "user-1",
   full_name: "Ada Applicant",
   email: "ada@example.com",
   status: "pending_review",
@@ -48,6 +60,7 @@ describe("driver application review detail", () => {
     mocks.get.mockReset();
     mocks.person.mockReset();
     mocks.vehicle.mockReset();
+    mocks.accountSetup.mockReset();
   });
 
   it("offers decisions only for current pending evidence with exact identities", async () => {
@@ -119,5 +132,38 @@ describe("driver application review detail", () => {
     mocks.get.mockResolvedValue({ data: undefined });
     render(await ApplicationReview(props));
     expect(screen.getByRole("alert")).toHaveTextContent("No empty or complete result");
+  });
+
+  it("offers account setup only after the application is approved", async () => {
+    mocks.get
+      .mockResolvedValueOnce({ data: { ...application, status: "approved" } })
+      .mockResolvedValueOnce({ data: { items: [{ id: "user-1", status: "invited" }] } });
+    const { unmount } = render(await ApplicationReview(props));
+    expect(screen.getByRole("heading", { name: "Driver account setup" })).toBeTruthy();
+    expect(mocks.accountSetup).toHaveBeenCalledWith({
+      applicationId: "app-1",
+      applicantName: "Ada Applicant",
+    });
+    unmount();
+
+    mocks.accountSetup.mockClear();
+    mocks.get.mockResolvedValue({ data: application });
+    render(await ApplicationReview(props));
+    expect(mocks.accountSetup).not.toHaveBeenCalled();
+  });
+
+  it("does not offer another setup action once the approved applicant is active", async () => {
+    mocks.get
+      .mockResolvedValueOnce({ data: { ...application, status: "approved" } })
+      .mockResolvedValueOnce({ data: { items: [{ id: "user-1", status: "active" }] } });
+
+    render(await ApplicationReview(props));
+
+    expect(mocks.accountSetup).not.toHaveBeenCalled();
+    expect(
+      screen.getByText(
+        "Account setup is already complete or is no longer available for this applicant.",
+      ),
+    ).toBeTruthy();
   });
 });

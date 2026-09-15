@@ -29,6 +29,11 @@ export interface VehicleEvidenceState {
   downloadUrl?: string;
 }
 
+export interface DriverAccountSetupState {
+  error?: string;
+  done?: string;
+}
+
 const evidenceSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("nin"), submission_id: z.string().uuid() }),
   z.object({ kind: z.literal("account"), bank_account_version_id: z.string().uuid() }),
@@ -336,4 +341,34 @@ export async function reviewVehicleAction(
   }
   revalidatePath("/admin/driver-applications");
   return { done: `Vehicle evidence ${decision}.` };
+}
+
+const accountSetupSchema = z.object({
+  application_id: z.string().uuid(),
+  client_request_id: z.string().uuid(),
+});
+
+export async function initiateDriverAccountSetupAction(
+  _previous: DriverAccountSetupState,
+  formData: FormData,
+): Promise<DriverAccountSetupState> {
+  const parsed = accountSetupSchema.safeParse({
+    application_id: String(formData.get("application_id") ?? ""),
+    client_request_id: String(formData.get("client_request_id") ?? ""),
+  });
+  if (!parsed.success) return { error: "The account setup request is incomplete." };
+  try {
+    await createApiClient(await getSessionToken()).POST(
+      "/api/v1/admin/driver-applications/{application_id}/account-setup",
+      {
+        params: { path: { application_id: parsed.data.application_id } },
+        body: { client_request_id: parsed.data.client_request_id },
+      },
+    );
+  } catch (error) {
+    if (error instanceof ApiError) return { error: error.message };
+    return { error: "Could not reach the driver account setup service." };
+  }
+  revalidatePath(`/admin/driver-applications/${parsed.data.application_id}`);
+  return { done: "A one-use setup link was issued to the applicant's stored email." };
 }

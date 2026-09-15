@@ -103,7 +103,7 @@ export function PersonPayeeDecisionActions({
 }) {
   const [state, action, pending] = useActionState(reviewPersonPayeeAction, initialState);
   return (
-    <div className="flex min-w-72 flex-col gap-2">
+    <div className="flex min-w-0 flex-col gap-2">
       <p className="micro text-muted">Audited exact-version review</p>
       <SensitiveReview purpose="Person and payee approval">
         <EvidenceRead kind="nin" id={submissionId} label="Reveal NIN" />

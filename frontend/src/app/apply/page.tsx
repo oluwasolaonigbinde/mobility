@@ -28,13 +28,14 @@ export default function DriverApplicationPage() {
           <h2 id="application-journey-title" className="font-display mt-1 text-xl font-semibold">
             Application receipt is not work approval
           </h2>
-          <ol className="text-muted mt-4 grid gap-3 text-xs sm:grid-cols-3 lg:grid-cols-6">
+          <ol className="text-muted mt-4 grid gap-3 text-xs sm:grid-cols-3 lg:grid-cols-7">
             {[
               "Submit contact details",
               "Use the expiring onboarding code",
               "Submit person/payee evidence",
-              "Submit vehicle evidence",
-              "Wait for administrator review",
+              "Wait for person/payee approval",
+              "Submit vehicle evidence after approval",
+              "Wait for vehicle approval",
               "Complete account setup when authorized",
             ].map((step, index) => (
               <li key={step} className="border-edge bg-raised rounded-lg border p-3">
@@ -44,9 +45,11 @@ export default function DriverApplicationPage() {
             ))}
           </ol>
           <p className="text-muted mt-4 text-xs">
-            After both reviews pass, an administrator separately starts account setup. Choose your
-            password with that one-use setup link, then sign in. The status reference and onboarding
-            code never grant a session, campaign work, or tracking authority.
+            Person and payee evidence is reviewed first. Vehicle evidence is accepted only after
+            person and payee approval. Once the vehicle review also passes, an administrator
+            separately starts account setup. Choose your password with that one-use setup link, then
+            sign in. The status reference and onboarding code never grant a session, campaign work,
+            or tracking authority.
           </p>
         </Panel>
         <DriverApplicationForms />

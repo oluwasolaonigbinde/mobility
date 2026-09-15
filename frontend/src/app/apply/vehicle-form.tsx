@@ -136,8 +136,9 @@ export function VehicleForm() {
       <p className="micro text-amber mb-2">Vehicle approval stage</p>
       <h2 className="font-display text-2xl font-semibold">Submit or renew your pilot vehicle</h2>
       <p className="text-muted mt-2 mb-6 max-w-3xl text-sm">
-        Add the car you propose to drive. Any change to its identity or evidence creates a new
-        review revision and immediately closes work eligibility until an administrator approves it.
+        This stage is available after an administrator approves your person and payee evidence. Add
+        the car you propose to drive. Any change to its identity or evidence creates a new review
+        revision and immediately closes work eligibility until an administrator approves it.
       </p>
       <form onSubmit={submit} onChange={changed} className="grid gap-4" noValidate>
         <Field

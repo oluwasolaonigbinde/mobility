@@ -20,7 +20,7 @@ export function SourceForm() {
     <form
       action={action}
       onSubmit={ensureOperationKey}
-      className="grid gap-4"
+      className="grid min-w-0 gap-4"
       data-testid="planning-source-form"
     >
       <input
@@ -35,7 +35,7 @@ export function SourceForm() {
           name="source_type"
           value={sourceType}
           onChange={(event) => setSourceType(event.target.value)}
-          className="border-edge bg-bg rounded-lg border px-3 py-2"
+          className="border-edge bg-bg max-w-full min-w-0 rounded-lg border px-3 py-2"
         >
           <option value="website-traffic">Website traffic</option>
           <option value="digital-campaign-audience">Digital campaign audience</option>
@@ -47,7 +47,10 @@ export function SourceForm() {
       {website || manual ? (
         <label className="grid gap-1 text-sm">
           <span className="text-muted">Category</span>
-          <select name="category" className="border-edge bg-bg rounded-lg border px-3 py-2">
+          <select
+            name="category"
+            className="border-edge bg-bg max-w-full min-w-0 rounded-lg border px-3 py-2"
+          >
             {(website
               ? ["site-visitor", "content-interest", "conversion-intent"]
               : ["area-demand", "time-pattern", "contextual-affinity"]
@@ -60,7 +63,10 @@ export function SourceForm() {
       {digital || utm ? (
         <label className="grid gap-1 text-sm">
           <span className="text-muted">Channel</span>
-          <select name="channel" className="border-edge bg-bg rounded-lg border px-3 py-2">
+          <select
+            name="channel"
+            className="border-edge bg-bg max-w-full min-w-0 rounded-lg border px-3 py-2"
+          >
             {["search", "social", "display", ...(utm ? ["email"] : [])].map((value) => (
               <option key={value}>{value}</option>
             ))}
@@ -70,7 +76,10 @@ export function SourceForm() {
       {digital || utm ? (
         <label className="grid gap-1 text-sm">
           <span className="text-muted">Stage</span>
-          <select name="stage" className="border-edge bg-bg rounded-lg border px-3 py-2">
+          <select
+            name="stage"
+            className="border-edge bg-bg max-w-full min-w-0 rounded-lg border px-3 py-2"
+          >
             {["awareness", "consideration", "conversion-intent"].map((value) => (
               <option key={value}>{value}</option>
             ))}
@@ -87,14 +96,17 @@ export function SourceForm() {
             max="365"
             defaultValue="30"
             required
-            className="border-edge bg-bg rounded-lg border px-3 py-2"
+            className="border-edge bg-bg max-w-full min-w-0 rounded-lg border px-3 py-2"
           />
         </label>
       ) : null}
       {crm ? (
         <label className="grid gap-1 text-sm">
           <span className="text-muted">Record-count band</span>
-          <select name="count_band" className="border-edge bg-bg rounded-lg border px-3 py-2">
+          <select
+            name="count_band"
+            className="border-edge bg-bg max-w-full min-w-0 rounded-lg border px-3 py-2"
+          >
             {["0-99", "100-999", "1000-plus"].map((value) => (
               <option key={value}>{value}</option>
             ))}
@@ -104,7 +116,10 @@ export function SourceForm() {
       {manual ? (
         <label className="grid gap-1 text-sm">
           <span className="text-muted">Confidence band</span>
-          <select name="confidence" className="border-edge bg-bg rounded-lg border px-3 py-2">
+          <select
+            name="confidence"
+            className="border-edge bg-bg max-w-full min-w-0 rounded-lg border px-3 py-2"
+          >
             {["low", "medium", "high"].map((value) => (
               <option key={value}>{value}</option>
             ))}
@@ -117,7 +132,7 @@ export function SourceForm() {
           name="expires_at"
           type="datetime-local"
           required
-          className="border-edge bg-bg rounded-lg border px-3 py-2"
+          className="border-edge bg-bg max-w-full min-w-0 rounded-lg border px-3 py-2"
         />
       </label>
       <p className="micro text-faint">

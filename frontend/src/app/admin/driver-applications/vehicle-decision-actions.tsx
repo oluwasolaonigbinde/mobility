@@ -66,7 +66,7 @@ export function VehicleDecisionActions({
   const [decisionRequestId] = useState(() => crypto.randomUUID());
   if (status === "approved") {
     return (
-      <form action={action} className="flex min-w-72 flex-col gap-2">
+      <form action={action} className="flex min-w-0 flex-col gap-2">
         <input type="hidden" name="application_id" value={applicationId} />
         <input type="hidden" name="vehicle_id" value={vehicleId} />
         <input type="hidden" name="submission_id" value={submissionId} />
@@ -96,7 +96,7 @@ export function VehicleDecisionActions({
     );
   }
   return (
-    <div className="flex min-w-72 flex-col gap-2">
+    <div className="flex min-w-0 flex-col gap-2">
       <p className="micro text-muted">Audited vehicle revision review</p>
       {Object.entries(documentFileIds).map(([name, fileId]) => (
         <SensitiveReview key={fileId} purpose="Vehicle approval">
@@ -133,6 +133,7 @@ export function VehicleDecisionActions({
           <input
             name="valid_until"
             type="datetime-local"
+            required
             className="border-edge bg-raised text-ink rounded-lg border px-2 py-2 text-xs"
           />
         </label>
@@ -166,6 +167,7 @@ export function VehicleDecisionActions({
             type="submit"
             name="intent"
             value="reject"
+            formNoValidate
             disabled={pending}
             variant="danger"
             className="h-8 px-2 text-xs"
@@ -176,6 +178,7 @@ export function VehicleDecisionActions({
             type="submit"
             name="intent"
             value="expire"
+            formNoValidate
             disabled={pending}
             variant="ghost"
             className="h-8 px-2 text-xs"

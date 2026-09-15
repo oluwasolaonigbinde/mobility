@@ -5,10 +5,10 @@ import * as Sentry from "@sentry/nextjs";
 
 export default function GlobalError({
   error,
-  unstable_retry,
+  retry,
 }: {
   error: Error & { digest?: string };
-  unstable_retry: () => void;
+  retry: () => void;
 }) {
   useEffect(() => {
     Sentry.captureException(error);
@@ -30,12 +30,8 @@ export default function GlobalError({
           <section style={{ maxWidth: "24rem", textAlign: "center" }}>
             <title>Something went wrong · Cardvert</title>
             <h1>That wasn&apos;t supposed to happen.</h1>
-            <p>
-              The error has been logged
-              {error.digest ? ` (ref ${error.digest})` : ""}. Try again, or contact ops if it
-              persists.
-            </p>
-            <button type="button" onClick={unstable_retry}>
+            <p>The error has been logged. Try again, or contact Cardvert support if it persists.</p>
+            <button type="button" onClick={retry}>
               Try again
             </button>
           </section>

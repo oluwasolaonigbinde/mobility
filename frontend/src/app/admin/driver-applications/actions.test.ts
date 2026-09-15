@@ -10,6 +10,7 @@ vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "admin
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ POST: mocks.post }) }));
 
 import {
+  initiateDriverAccountSetupAction,
   reviewPersonPayeeAction,
   reviewPersonPayeeEvidenceAction,
   reviewVehicleAction,
@@ -201,6 +202,26 @@ describe("reviewPersonPayeeAction", () => {
           documents_readable_confirmed: true,
         }),
       }),
+    );
+  });
+
+  it("starts approved driver account setup without exposing the one-use authority", async () => {
+    const data = new FormData();
+    data.set("application_id", APPLICATION_ID);
+    data.set("client_request_id", "00000000-0000-4000-8000-0000000000aa");
+    mocks.post.mockResolvedValueOnce({
+      data: { id: "private-setup-id", state: "pending" },
+    });
+
+    await expect(initiateDriverAccountSetupAction({}, data)).resolves.toEqual({
+      done: "A one-use setup link was issued to the applicant's stored email.",
+    });
+    expect(mocks.post).toHaveBeenLastCalledWith(
+      "/api/v1/admin/driver-applications/{application_id}/account-setup",
+      {
+        params: { path: { application_id: APPLICATION_ID } },
+        body: { client_request_id: "00000000-0000-4000-8000-0000000000aa" },
+      },
     );
   });
 });

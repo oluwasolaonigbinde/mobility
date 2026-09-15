@@ -10,31 +10,33 @@ type UserStatus = components["schemas"]["UserStatus"];
 /** One inverse action per state: suspend active users, reactivate the rest. */
 export function UserStatusMenu({
   userId,
+  userLabel,
   status,
   role,
 }: {
   userId: string;
+  userLabel: string;
   status: UserStatus;
   role: components["schemas"]["UserRole"];
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string>();
   const [reauthenticating, setReauthenticating] = useState(false);
+  const [confirmingSuspension, setConfirmingSuspension] = useState(false);
 
   const target: UserStatus = status === "active" ? "suspended" : "active";
   const label = status === "active" ? "Suspend" : "Reactivate";
 
-  function run(currentPassword?: string) {
+  function run(currentPassword?: string, confirmed = false) {
     if (role === "admin" && target === "active" && !currentPassword) {
       setReauthenticating(true);
       return;
     }
-    if (
-      target === "suspended" &&
-      !window.confirm("Suspend this account? They lose access immediately.")
-    ) {
+    if (target === "suspended" && !confirmed) {
+      setConfirmingSuspension(true);
       return;
     }
+    setConfirmingSuspension(false);
     setError(undefined);
     startTransition(async () => {
       const result = await updateUserStatusAction({
@@ -92,6 +94,32 @@ export function UserStatusMenu({
         <p role="alert" className="text-coral text-xs">
           {error}
         </p>
+      ) : null}
+      {confirmingSuspension ? (
+        <div
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="user-status-confirmation-title"
+          className="bg-bg/80 fixed inset-0 z-50 grid place-items-center p-4 text-left backdrop-blur-sm"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") setConfirmingSuspension(false);
+          }}
+        >
+          <div className="border-coral/40 bg-panel w-full max-w-sm rounded-xl border p-5 shadow-xl">
+            <h2 id="user-status-confirmation-title" className="font-display text-lg font-semibold">
+              Suspend {userLabel}?
+            </h2>
+            <p className="text-muted mt-2 text-sm">This account will lose access immediately.</p>
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+              <button type="button" autoFocus onClick={() => setConfirmingSuspension(false)}>
+                Keep account active
+              </button>
+              <button type="button" className="text-coral" onClick={() => run(undefined, true)}>
+                Confirm suspension
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   );

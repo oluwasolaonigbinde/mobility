@@ -165,7 +165,7 @@ export function CampaignWizard({
     // pill (fixed bottom-right) when the page is scrolled to its end.
     <form onSubmit={form.handleSubmit(submit)} noValidate className="pb-24">
       {/* Stepper */}
-      <ol className="mb-6 flex items-center gap-2" aria-label="Progress">
+      <ol className="mb-6 flex flex-wrap items-center gap-2" aria-label="Progress">
         {STEPS.map((label, i) =>
           campaignId && i === 0 ? null : (
             <li key={label} className="flex items-center gap-2">

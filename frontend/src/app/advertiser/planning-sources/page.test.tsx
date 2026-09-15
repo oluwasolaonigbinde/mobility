@@ -53,7 +53,7 @@ function mockReadyRecommendation(exportApprovalId: string | null) {
       return { data: { items: [{ id: CAMPAIGN_ID, name: "Campaign" }] } };
     }
     if (path === "/api/v1/advertiser/campaigns/{campaign_id}/zones") {
-      return { data: { items: [] } };
+      return { data: { items: [{ id: ZONE_ID, name: "Wuse II core" }] } };
     }
     return {
       data: {
@@ -165,5 +165,16 @@ describe("PlanningSourcesPage", () => {
 
     expect(screen.getByRole("button", { name: "Download controlled CSV" })).toBeInTheDocument();
     expect(container.querySelector('input[name="approval_id"]')).toHaveValue(APPROVAL_ID);
+  });
+
+  it("names linked campaigns and zones without exposing their internal identifiers", async () => {
+    mockReadyRecommendation(null);
+
+    render(await PlanningSourcesPage());
+
+    expect(screen.getByText("Campaign Campaign")).toBeInTheDocument();
+    expect(screen.getByText("Target zone Wuse II core")).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(CAMPAIGN_ID);
+    expect(document.body).not.toHaveTextContent(ZONE_ID);
   });
 });

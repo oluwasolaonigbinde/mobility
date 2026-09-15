@@ -137,7 +137,10 @@ export default async function AdminAssignmentsPage({
                       <ActivateAssignmentButton assignmentId={a.id} />
                     ) : null}
                     {["offered", "accepted", "active", "deactivated"].includes(a.status) ? (
-                      <CancelAssignmentButton assignmentId={a.id} />
+                      <CancelAssignmentButton
+                        assignmentId={a.id}
+                        assignmentLabel={`${a.campaign?.name ?? "Campaign"} for ${a.driver_profile?.full_name ?? "driver"} (${a.vehicle?.plate_number ?? "vehicle"})`}
+                      />
                     ) : null}
                     {a.offer_terms_sha256 ? (
                       <p

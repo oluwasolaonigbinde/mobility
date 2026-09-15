@@ -83,7 +83,11 @@ export default async function AdminVehiclesPage({
                     <StatusChip tone={tone[v.status]}>{v.status}</StatusChip>
                   </td>
                   <td className="px-5 py-3.5 text-right">
-                    <VehicleStatusMenu vehicleId={v.id} status={v.status} />
+                    <VehicleStatusMenu
+                      vehicleId={v.id}
+                      vehicleLabel={v.plate_number}
+                      status={v.status}
+                    />
                   </td>
                 </tr>
               ))}

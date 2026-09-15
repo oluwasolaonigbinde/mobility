@@ -278,7 +278,11 @@ export default async function DriverAssignmentsPage() {
                   This legacy assignment has no complete frozen offer terms.
                 </p>
               ) : null}
-              <AssignmentActions assignmentId={a.id} status={a.status} />
+              <AssignmentActions
+                assignmentId={a.id}
+                campaignName={a.campaign?.name ?? "this campaign"}
+                status={a.status}
+              />
               {evidencePolicy.data.configured && evidencePolicy.data.can_upload ? (
                 <InstallationEvidenceActions
                   assignmentId={a.id}

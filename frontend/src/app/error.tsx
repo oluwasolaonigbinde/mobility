@@ -8,7 +8,7 @@ import { Panel } from "@/components/ui/panel";
 /**
  * Root error boundary. Shown when a server component throws an unexpected
  * error (expected errors are handled at their call sites). No stack traces
- * or internals leak to the user — the digest is enough to find it in logs.
+ * or internals leak to the user. The captured exception remains available to operators.
  */
 export default function GlobalError({
   error,
@@ -30,8 +30,7 @@ export default function GlobalError({
           That wasn&apos;t supposed to happen.
         </h1>
         <p className="text-muted mt-3 text-sm">
-          The error has been logged{error.digest ? ` (ref ${error.digest})` : ""}. Try again — if it
-          persists, contact ops with the reference.
+          The error has been logged. Try again — if it persists, contact Cardvert support.
         </p>
         <Button type="button" onClick={reset} className="mt-6 w-full">
           Try again

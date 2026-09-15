@@ -45,7 +45,11 @@ test("jobs tab tells a three-campaign lifecycle story", async ({ page }) => {
   await expect(page.getByText("PalmPay Market Routes")).toBeVisible();
   await expect(page.getByText("DEMO-001 · car", { exact: true })).toHaveCount(3);
   // Seeded assignment is active → the one offered action is Deactivate
-  await expect(page.getByRole("button", { name: "Deactivate" })).toBeVisible();
+  await page.getByRole("button", { name: "Deactivate" }).click();
+  const confirmation = page.getByRole("alertdialog");
+  await expect(confirmation).toContainText("Deactivate Demo Lagos Mobility Campaign?");
+  await confirmation.getByRole("button", { name: "Keep campaign active" }).click();
+  await expect(confirmation).not.toBeVisible();
 });
 
 test("earnings tab shows totals and a trip-traceable ledger", async ({ page }) => {

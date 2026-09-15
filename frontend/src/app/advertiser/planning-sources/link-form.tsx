@@ -44,7 +44,7 @@ export function LinkForm({
     <form
       action={action}
       onSubmit={ensureOperationKey}
-      className="grid gap-4"
+      className="grid min-w-0 gap-4"
       data-testid="planning-source-link-form"
     >
       <input
@@ -55,7 +55,11 @@ export function LinkForm({
       />
       <label className="grid gap-1 text-sm">
         <span className="text-muted">Source</span>
-        <select name="source_id" required className="border-edge bg-bg rounded-lg border px-3 py-2">
+        <select
+          name="source_id"
+          required
+          className="border-edge bg-bg max-w-full min-w-0 rounded-lg border px-3 py-2"
+        >
           {sources.map((source) => (
             <option key={source.id} value={source.id}>
               {source.label}
@@ -70,7 +74,7 @@ export function LinkForm({
           required
           value={campaignId}
           onChange={(event) => setCampaignId(event.target.value)}
-          className="border-edge bg-bg rounded-lg border px-3 py-2"
+          className="border-edge bg-bg max-w-full min-w-0 rounded-lg border px-3 py-2"
         >
           {campaigns.map((campaign) => (
             <option key={campaign.id} value={campaign.id}>
@@ -81,7 +85,11 @@ export function LinkForm({
       </label>
       <label className="grid gap-1 text-sm">
         <span className="text-muted">Target zone</span>
-        <select name="zone_id" required className="border-edge bg-bg rounded-lg border px-3 py-2">
+        <select
+          name="zone_id"
+          required
+          className="border-edge bg-bg max-w-full min-w-0 rounded-lg border px-3 py-2"
+        >
           {targetZones.map((zone) => (
             <option key={zone.id} value={zone.id}>
               {zone.label}
@@ -95,7 +103,7 @@ export function LinkForm({
           name="start_at"
           type="datetime-local"
           required
-          className="border-edge bg-bg rounded-lg border px-3 py-2"
+          className="border-edge bg-bg max-w-full min-w-0 rounded-lg border px-3 py-2"
         />
       </label>
       <label className="grid gap-1 text-sm">
@@ -104,7 +112,7 @@ export function LinkForm({
           name="end_at"
           type="datetime-local"
           required
-          className="border-edge bg-bg rounded-lg border px-3 py-2"
+          className="border-edge bg-bg max-w-full min-w-0 rounded-lg border px-3 py-2"
         />
       </label>
       <p className="micro text-faint">

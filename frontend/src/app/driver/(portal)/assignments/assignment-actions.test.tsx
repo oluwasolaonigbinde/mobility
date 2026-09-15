@@ -17,7 +17,13 @@ describe("AssignmentActions", () => {
 
   it("lets the driver accept or decline an offer", async () => {
     const user = userEvent.setup();
-    render(<AssignmentActions assignmentId={ASSIGNMENT_ID} status="offered" />);
+    render(
+      <AssignmentActions
+        assignmentId={ASSIGNMENT_ID}
+        campaignName="Abuja Airport launch"
+        status="offered"
+      />,
+    );
 
     await user.click(screen.getByRole("button", { name: "Accept job" }));
     await waitFor(() =>
@@ -37,9 +43,33 @@ describe("AssignmentActions", () => {
   });
 
   it("shows accepted offers as awaiting admin activation", () => {
-    render(<AssignmentActions assignmentId={ASSIGNMENT_ID} status="accepted" />);
+    render(
+      <AssignmentActions
+        assignmentId={ASSIGNMENT_ID}
+        campaignName="Abuja Airport launch"
+        status="accepted"
+      />,
+    );
 
     expect(screen.getByText("Awaiting admin activation.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /activate/i })).not.toBeInTheDocument();
+  });
+
+  it("names the campaign in an on-page deactivation confirmation", async () => {
+    const user = userEvent.setup();
+    render(
+      <AssignmentActions
+        assignmentId={ASSIGNMENT_ID}
+        campaignName="Abuja Airport launch"
+        status="active"
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Deactivate" }));
+
+    expect(mocks.assignmentAction).not.toHaveBeenCalled();
+    expect(screen.getByRole("alertdialog")).toHaveTextContent("Abuja Airport launch");
+    await user.click(screen.getByRole("button", { name: "Keep campaign active" }));
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 });

@@ -22,12 +22,12 @@ export function CreateUserForm() {
     <form action={formAction} className="flex flex-col gap-5" noValidate>
       <fieldset>
         <legend className="micro text-muted mb-2">Role</legend>
-        <div className="flex gap-2">
+        <div className="grid gap-2 sm:grid-cols-3">
           {ROLES.map((r) => (
             <label
               key={r.value}
               className={cx(
-                "flex-1 cursor-pointer rounded-lg border p-3.5 transition-colors",
+                "min-w-0 cursor-pointer rounded-lg border p-3.5 transition-colors",
                 role === r.value
                   ? "border-amber/60 bg-amber/10"
                   : "border-edge bg-raised hover:border-edge-strong",

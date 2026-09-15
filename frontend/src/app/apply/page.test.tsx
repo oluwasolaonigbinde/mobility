@@ -20,5 +20,10 @@ describe("public driver application page", () => {
     expect(
       screen.getByText(/administrator separately starts account setup.*then sign in/i),
     ).toBeInTheDocument();
+    expect(screen.getByText("Wait for person/payee approval")).toBeInTheDocument();
+    expect(screen.getByText("Submit vehicle evidence after approval")).toBeInTheDocument();
+    expect(
+      screen.getByText(/vehicle evidence is accepted only after person and payee approval/i),
+    ).toBeInTheDocument();
   });
 });

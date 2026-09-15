@@ -50,11 +50,13 @@ export default async function PlanningSourcesPage() {
       }));
     }),
   );
+  const campaignNames = new Map(campaigns.map((campaign) => [campaign.id, campaign.name]));
+  const zoneNames = new Map(zoneGroups.flat().map((zone) => [zone.id, zone.label]));
   return (
-    <div className="animate-rise mx-auto max-w-6xl">
+    <div className="animate-rise mx-auto max-w-6xl min-w-0">
       <PageHeader title="Planning sources" eyebrow="Aggregate-only retargeting inputs" />
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div>
+        <div className="min-w-0">
           {items.length === 0 ? (
             <EmptyState
               title="No planning sources"
@@ -126,11 +128,11 @@ export default async function PlanningSourcesPage() {
                               <StatusChip tone="coral">stale parent state</StatusChip>
                             ) : null}
                           </div>
-                          <p className="micro text-faint mt-2 font-mono">
-                            Campaign {link.campaign_id}
+                          <p className="micro text-faint mt-2">
+                            Campaign {campaignNames.get(link.campaign_id) ?? "name unavailable"}
                           </p>
-                          <p className="micro text-faint mt-1 font-mono">
-                            Target zone {link.zone_id}
+                          <p className="micro text-faint mt-1">
+                            Target zone {zoneNames.get(link.zone_id) ?? "name unavailable"}
                           </p>
                           <p className="micro text-faint mt-1">
                             {formatDate(link.start_at)} → {formatDate(link.end_at)}
@@ -214,7 +216,7 @@ export default async function PlanningSourcesPage() {
             )}
           </section>
         </div>
-        <div className="grid h-fit gap-5">
+        <div className="grid h-fit min-w-0 gap-5">
           <Panel className="p-5">
             <h2 className="mb-4 font-medium">Record aggregate source</h2>
             <SourceForm />

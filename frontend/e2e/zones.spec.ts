@@ -35,4 +35,10 @@ test("zones page renders the seeded campaign's zones on a map", async ({ page })
   // Map mounted with a WebGL canvas and the draw affordance
   await expect(page.getByTestId("zones-map").locator("canvas")).toBeVisible();
   await expect(page.getByRole("button", { name: /Draw zone/ })).toBeVisible();
+
+  await page.getByRole("button", { name: "Delete Demo Lagos Target Zone" }).click();
+  const confirmation = page.getByRole("alertdialog");
+  await expect(confirmation).toContainText("Delete Demo Lagos Target Zone?");
+  await confirmation.getByRole("button", { name: "Keep zone" }).click();
+  await expect(confirmation).not.toBeVisible();
 });

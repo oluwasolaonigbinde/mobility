@@ -121,7 +121,12 @@ export default async function AdminUsersPage({
                     <StatusChip tone={statusTone[u.status]}>{u.status}</StatusChip>
                   </td>
                   <td className="px-5 py-3.5 text-right">
-                    <UserStatusMenu userId={u.id} status={u.status} role={u.role} />
+                    <UserStatusMenu
+                      userId={u.id}
+                      userLabel={u.full_name}
+                      status={u.status}
+                      role={u.role}
+                    />
                   </td>
                 </tr>
               ))}

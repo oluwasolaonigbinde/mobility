@@ -18,7 +18,16 @@ test("admin overview shows network counts and full nav", async ({ page }) => {
   await loginAsAdmin(page);
   await expect(page.getByRole("heading", { name: "Fleet & Trust Operations" })).toBeVisible();
   const nav = page.getByRole("navigation", { name: "Primary" }).first();
-  for (const item of ["Users", "Drivers", "Vehicles", "Assignments", "Fraud", "Payouts", "Billing", "Audit"]) {
+  for (const item of [
+    "Users",
+    "Drivers",
+    "Vehicles",
+    "Assignments",
+    "Fraud",
+    "Payouts",
+    "Billing",
+    "Audit",
+  ]) {
     await expect(nav.getByRole("link", { name: item })).toBeVisible();
   }
 });
@@ -42,14 +51,34 @@ test("users section lists accounts with role filter and create entry", async ({ 
     .click();
   await expect(main.getByText("Demo Driver")).toBeVisible();
   await expect(main.getByText("Demo Admin")).not.toBeVisible();
+  await main
+    .getByRole("row", { name: /Demo Driver driver@demo\.mobility\.local/ })
+    .getByRole("button", { name: "Suspend" })
+    .click();
+  const confirmation = page.getByRole("alertdialog");
+  await expect(confirmation).toContainText("Suspend Demo Driver?");
+  await confirmation.getByRole("button", { name: "Keep account active" }).click();
+  await expect(confirmation).not.toBeVisible();
 });
 
 test("drivers and vehicles sections show the seeded fleet", async ({ page }) => {
   await loginAsAdmin(page);
   await page.goto("/admin/drivers");
   await expect(page.getByText("Demo Driver")).toBeVisible();
+  await page
+    .getByRole("row", { name: /Demo Driver/ })
+    .getByRole("button", { name: "Suspend" })
+    .click();
+  await expect(page.getByRole("alertdialog")).toContainText("Suspend Demo Driver?");
+  await page.getByRole("alertdialog").getByRole("button", { name: "Keep driver active" }).click();
   await page.goto("/admin/vehicles");
   await expect(page.getByText("DEMO-001")).toBeVisible();
+  await page
+    .getByRole("row", { name: /DEMO-001/ })
+    .getByRole("button", { name: "Suspend" })
+    .click();
+  await expect(page.getByRole("alertdialog")).toContainText("Suspend DEMO-001?");
+  await page.getByRole("alertdialog").getByRole("button", { name: "Keep vehicle active" }).click();
 });
 
 test("assignments section lists the seeded pairing", async ({ page }) => {
@@ -57,6 +86,12 @@ test("assignments section lists the seeded pairing", async ({ page }) => {
   await page.goto("/admin/assignments");
   await expect(page.getByText("Demo Lagos Mobility Campaign").first()).toBeVisible();
   await expect(page.getByRole("link", { name: "+ Offer assignment" })).toBeVisible();
+  const row = page.getByRole("row", { name: /Demo Lagos Mobility Campaign/ }).first();
+  await row.getByRole("button", { name: "Cancel" }).click();
+  const confirmation = page.getByRole("alertdialog");
+  await expect(confirmation).toContainText(/Demo Lagos Mobility Campaign for Demo Driver/);
+  await confirmation.getByRole("button", { name: "Keep assignment" }).click();
+  await expect(confirmation).not.toBeVisible();
 });
 
 test("fraud console renders with status filters", async ({ page }) => {

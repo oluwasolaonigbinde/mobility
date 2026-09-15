@@ -86,7 +86,11 @@ export default async function AdminDriversPage({
                     <StatusChip tone={tone[d.onboarding_status]}>{d.onboarding_status}</StatusChip>
                   </td>
                   <td className="px-5 py-3.5 text-right">
-                    <DriverOnboardingMenu driverProfileId={d.id} status={d.onboarding_status} />
+                    <DriverOnboardingMenu
+                      driverProfileId={d.id}
+                      driverName={d.full_name}
+                      status={d.onboarding_status}
+                    />
                   </td>
                 </tr>
               ))}
