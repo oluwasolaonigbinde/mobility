@@ -28,6 +28,8 @@ from app.models.driver import DriverProfile
 from app.models.measurement import MeasurementRun
 from app.models.payout import EarningsLedgerEntry, PayoutCalculation
 from app.models.report_issuance import ReportArtifact, ReportIssuance
+from app.models.trip import TripSession
+from app.models.trip_analytics import TripAnalytics
 from app.models.user import User, UserRole
 from app.services.audience import materialize_exposure_segment
 from app.services.disbursements import (
@@ -35,11 +37,14 @@ from app.services.disbursements import (
     create_payout_batch_draft,
     reserve_payout_batch,
 )
+from app.services.fraud_assessments import assess_trip_fraud, load_current_detection_flags
 from app.services.payees import (
     VerifiedBankAccountDetails,
     add_verified_bank_account_version,
     create_pilot_payee,
 )
+from app.services.route_replay import detect_route_replay
+from app.services.trip_analytics import is_valid_ping, load_ordered_pings
 from scripts import evaluate_pilot_gates
 from scripts.run_w403b_synthetic_journey import (
     CORRELATION_ID,
@@ -134,12 +139,51 @@ async def _freeze_payout_instruction(
     campaign_id: UUID,
     admin: User,
     checker: User,
+    settings,
 ) -> tuple[UUID, str]:
     async with db_sessionmaker() as session:
         calculation = await session.scalar(
             select(PayoutCalculation).where(PayoutCalculation.campaign_id == campaign_id)
         )
         assert calculation is not None
+        trip = await session.get(TripSession, calculation.trip_session_id)
+        analytics = await session.scalar(
+            select(TripAnalytics).where(TripAnalytics.trip_session_id == trip.id)
+        )
+        assert trip is not None and analytics is not None
+        replay = await detect_route_replay(
+            session,
+            trip=trip,
+            analytics=analytics,
+            ordered_pings=[
+                ping
+                for ping in await load_ordered_pings(
+                    session, trip.id, recorded_through=analytics.ended_at
+                )
+                if is_valid_ping(ping)
+            ],
+            settings=settings,
+            now=analytics.computed_at,
+        )
+        signature = replay.signature
+        await assess_trip_fraud(
+            session,
+            analytics=analytics,
+            flags=await load_current_detection_flags(session, analytics=analytics),
+            settings=settings,
+            now=analytics.computed_at,
+            upstream_facts={
+                "route_replay": {
+                    "detector_version": signature.detector_version,
+                    "detector_config_fingerprint": signature.detector_config_fingerprint,
+                    "status": signature.status,
+                    "source_analytics_fingerprint": signature.source_analytics_fingerprint,
+                    "payload_fingerprint": signature.payload_fingerprint,
+                    "normalized_fingerprint": signature.normalized_fingerprint,
+                    "point_count": signature.point_count,
+                }
+            },
+        )
         profile = await session.get(DriverProfile, calculation.driver_profile_id)
         assert profile is not None
         driver = await session.get(User, profile.user_id)
@@ -410,6 +454,7 @@ def test_correlated_synthetic_pilot_journey(db_client, db_sessionmaker, settings
             campaign_id=campaign.id,
             admin=admin,
             checker=checker,
+            settings=settings,
         )
     )
     assert len(instruction_fingerprint) == 64
