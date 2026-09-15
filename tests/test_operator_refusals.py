@@ -7,6 +7,7 @@ from conftest import (
     auth_headers,
     create_test_campaign,
     create_test_campaign_assignment,
+    create_test_campaign_creative,
     create_test_driver_profile,
     create_test_organization,
     create_test_user,
@@ -15,12 +16,19 @@ from conftest import (
 from test_campaign_changes import PASSWORD, change_graph
 
 from app.core.errors import AppError
-from app.models.campaign import CampaignStatus
+from app.models.campaign import CampaignCreative, CampaignStatus, CreativeStatus
 from app.models.user import UserRole
 from app.schemas.campaign_changes import CampaignChangePreviewCreate
+from app.schemas.campaigns import CampaignCreate, CreativeUpdate
 from app.services import billing
 from app.services.campaign_assignments import list_admin_assignments
 from app.services.campaign_changes import preview_campaign_change
+from app.services.campaigns import (
+    create_campaign,
+    list_admin_campaigns,
+    submit_creative_for_review,
+    update_campaign_creative,
+)
 from app.services.disbursements import create_payout_batch_draft
 from app.services.driver_applications import (
     list_driver_applications,
@@ -279,3 +287,120 @@ def test_payout_draft_reference_cannot_be_reused_by_another_maker_or_currency(
     first_id, again_id, codes = asyncio.run(exercise())
     assert first_id == again_id == request_id
     assert codes == ["PAYOUT_DRAFT_RETRY_CONFLICT", "PAYOUT_DRAFT_RETRY_CONFLICT"]
+
+
+def _advertiser_campaign(db_sessionmaker, suffix):
+    advertiser = create_test_user(
+        db_sessionmaker,
+        email=f"campaign-service-{suffix}@example.com",
+        role=UserRole.ADVERTISER,
+    )
+    organization, _ = create_test_organization(db_sessionmaker, owner_user_id=advertiser.id)
+    campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=advertiser.id,
+        name=f"Service Campaign {suffix}",
+    )
+    return advertiser, organization, campaign
+
+
+def test_campaign_create_retry_converges_and_changed_retry_conflicts(db_sessionmaker) -> None:
+    advertiser, organization, _ = _advertiser_campaign(db_sessionmaker, "create-retry")
+    request_id = uuid4()
+    start = datetime(2027, 1, 1, tzinfo=UTC)
+
+    def payload(**changes):
+        values = {
+            "client_request_id": request_id,
+            "name": "Retry Safe Campaign",
+            "description": "Created once",
+            "start_at": start,
+            "end_at": start + timedelta(days=30),
+            "budget_amount": "5000.00",
+            "daily_budget_amount": "500.00",
+        }
+        return CampaignCreate(**(values | changes))
+
+    async def exercise():
+        async with db_sessionmaker() as session:
+            first, created = await create_campaign(
+                session, user_id=advertiser.id, payload=payload()
+            )
+            await session.commit()
+            replay, replay_created = await create_campaign(
+                session, user_id=advertiser.id, payload=payload()
+            )
+            codes = []
+            for changed in (
+                {"name": "Different name"},
+                {"start_at": None},
+                {"end_at": start + timedelta(days=31)},
+            ):
+                with pytest.raises(AppError) as conflict:
+                    await create_campaign(
+                        session, user_id=advertiser.id, payload=payload(**changed)
+                    )
+                codes.append(conflict.value.code)
+            campaigns, total = await list_admin_campaigns(
+                session,
+                limit=25,
+                offset=0,
+                organization_id=None,
+                campaign_status=None,
+                q="retry safe",
+            )
+            return first, created, replay, replay_created, codes, campaigns, total
+
+    first, created, replay, replay_created, codes, campaigns, total = asyncio.run(exercise())
+    assert created is True and replay_created is False
+    assert first.id == replay.id == request_id
+    assert first.organization_id == organization.id
+    assert codes == ["CAMPAIGN_CREATE_IDEMPOTENCY_CONFLICT"] * 3
+    assert total == 1 and campaigns[0][0].id == request_id
+
+
+def test_creative_update_metadata_and_pending_resubmission(db_sessionmaker) -> None:
+    advertiser, _, campaign = _advertiser_campaign(db_sessionmaker, "creative")
+    creative = create_test_campaign_creative(
+        db_sessionmaker,
+        campaign_id=campaign.id,
+        metadata={"panel": "left"},
+        creative_status=CreativeStatus.APPROVED,
+    )
+
+    async def exercise():
+        async with db_sessionmaker() as session:
+            row = await session.get(CampaignCreative, creative.id)
+            row.status = CreativeStatus.DRAFT.value
+            await session.commit()
+            with pytest.raises(AppError) as null_metadata:
+                await update_campaign_creative(
+                    session,
+                    user_id=advertiser.id,
+                    campaign_id=campaign.id,
+                    creative_id=creative.id,
+                    payload=CreativeUpdate(metadata=None),
+                )
+            await session.rollback()
+            _, unchanged = await update_campaign_creative(
+                session,
+                user_id=advertiser.id,
+                campaign_id=campaign.id,
+                creative_id=creative.id,
+                payload=CreativeUpdate(metadata={"panel": "left"}),
+            )
+            await session.commit()
+            submitted = await submit_creative_for_review(
+                session, user_id=advertiser.id, campaign_id=campaign.id, creative_id=creative.id
+            )
+            await session.commit()
+            replay = await submit_creative_for_review(
+                session, user_id=advertiser.id, campaign_id=campaign.id, creative_id=creative.id
+            )
+            return null_metadata.value.code, unchanged, submitted.status, replay.status
+
+    null_code, unchanged, submitted_status, replay_status = asyncio.run(exercise())
+    assert null_code == "INVALID_METADATA"
+    assert "metadata" not in unchanged
+    assert submitted_status == replay_status == "pending_review"
