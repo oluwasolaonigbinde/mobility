@@ -30,7 +30,7 @@ from app.models.trip import TripSession
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
 from app.schemas.campaign_assignments import CampaignAssignmentTransition
-from app.schemas.campaign_changes import CampaignChangeCreate
+from app.schemas.campaign_changes import CampaignChangeCreate, CampaignChangePreviewCreate
 from app.schemas.trips import TripStartRequest
 from app.services.billing import reserve_assignment_liability
 from app.services.payout_rule_serialization import database_clock
@@ -160,14 +160,25 @@ def test_campaign_extension_and_trip_start_serialize_on_frozen_assignment_window
 
     async def request_extension() -> UUID:
         async with postgis_db_sessionmaker() as session:
+            proposal = {
+                "end_at": requested_end,
+                "reason": "Extend funded campaign work by two days",
+            }
+            preview = await changes_service.preview_campaign_change(
+                session,
+                actor_user_id=advertiser.id,
+                campaign_id=campaign.id,
+                payload=CampaignChangePreviewCreate(**proposal),
+            )
             request = await changes_service.request_campaign_change(
                 session,
                 actor_user_id=advertiser.id,
                 campaign_id=campaign.id,
                 payload=CampaignChangeCreate(
                     client_request_id=uuid4(),
-                    end_at=requested_end,
-                    reason="Extend funded campaign work by two days",
+                    source_sha256=preview.source_sha256,
+                    preview_sha256=preview.preview_sha256,
+                    **proposal,
                 ),
             )
             await session.commit()

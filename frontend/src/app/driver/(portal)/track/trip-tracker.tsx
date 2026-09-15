@@ -99,15 +99,15 @@ function trackingPresentation({
       dot: "bg-coral",
     } as const;
   }
-  if (bufferedCount > 0) {
-    if (isSending && session === "valid") {
-      return {
-        label: "Sending",
-        detail: "Saved trip updates are being sent with the same trip identity.",
-        tone: "text-cyan",
-        dot: "bg-cyan",
-      } as const;
-    }
+  if (bufferedCount > 0 && isSending && session === "valid") {
+    return {
+      label: "Sending",
+      detail: "Saved trip updates are being sent with the same trip identity.",
+      tone: "text-cyan",
+      dot: "bg-cyan",
+    } as const;
+  }
+  if (bufferedCount > 0 && session !== "valid") {
     return {
       label: "Waiting to send",
       detail: "Trip updates are saved and waiting while Cardvert checks the connection.",
