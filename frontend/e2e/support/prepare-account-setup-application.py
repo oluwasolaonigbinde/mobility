@@ -8,12 +8,13 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from app.adapters.crypto import EnvelopeCryptoProvider
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.models.driver import DriverOnboardingStatus, DriverProfile
 from app.models.driver_application import DriverApplication
 from app.models.kyc import (
@@ -38,6 +39,35 @@ from app.services.driver_onboarding import submit_application_person_payee
 from app.services.vehicle_onboarding import submit_application_vehicle
 
 FIXTURE_EMAIL = "account-setup-e2e@example.com"
+ISOLATED_E2E_DATABASE = {
+    "drivername": "postgresql+asyncpg",
+    "host": "db",
+    "username": "mobility",
+    "password": "mobility",
+    "database": "mobility",
+    "port": 5432,
+}
+
+
+def validate_isolated_e2e_settings(settings: Settings) -> Settings:
+    error = "Account-setup fixture requires the isolated account-setup E2E database"
+    if settings.environment != "test" or settings.database_url is None:
+        raise RuntimeError(error)
+    try:
+        url = make_url(settings.database_url)
+    except Exception as exc:
+        raise RuntimeError(error) from exc
+    if (
+        url.drivername != ISOLATED_E2E_DATABASE["drivername"]
+        or url.host != ISOLATED_E2E_DATABASE["host"]
+        or url.username != ISOLATED_E2E_DATABASE["username"]
+        or url.password != ISOLATED_E2E_DATABASE["password"]
+        or url.database != ISOLATED_E2E_DATABASE["database"]
+        or (url.port or 5432) != ISOLATED_E2E_DATABASE["port"]
+        or bool(url.query)
+    ):
+        raise RuntimeError(error)
+    return settings
 
 
 async def clean_files(
@@ -228,14 +258,9 @@ async def create_fixture(sessionmaker, settings) -> DriverApplication:
 
 
 async def main() -> None:
-    settings = get_settings().model_copy(
-        update={
-            "environment": "test",
-            "privacy_collection_synthetic_test_mode": True,
-        }
-    )
-    if settings.database_url is None:
-        raise RuntimeError("Connected account-setup E2E requires DATABASE_URL")
+    original_settings = validate_isolated_e2e_settings(get_settings())
+    settings = original_settings.model_copy(update={"privacy_collection_synthetic_test_mode": True})
+    assert settings.database_url is not None
     engine = create_async_engine(settings.database_url)
     sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
     try:

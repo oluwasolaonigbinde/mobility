@@ -370,5 +370,7 @@ export async function initiateDriverAccountSetupAction(
     return { error: "Could not reach the driver account setup service." };
   }
   revalidatePath(`/admin/driver-applications/${parsed.data.application_id}`);
-  return { done: "A one-use setup link was issued to the applicant's stored email." };
+  return {
+    done: "A one-use setup link was created and queued for delivery to the applicant's stored email. Delivery is not confirmed.",
+  };
 }

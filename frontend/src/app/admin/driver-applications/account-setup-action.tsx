@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { initiateDriverAccountSetupAction, type DriverAccountSetupState } from "./actions";
 
 const initialState: DriverAccountSetupState = {};
@@ -16,10 +17,17 @@ export function AccountSetupAction({
   const [state, action, pending] = useActionState(initiateDriverAccountSetupAction, initialState);
   const [confirming, setConfirming] = useState(false);
   const [clientRequestId] = useState(() => crypto.randomUUID());
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const actionFormRef = useRef<HTMLFormElement>(null);
+  const statusRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    if (state.done) statusRef.current?.focus();
+  }, [state.done]);
 
   if (state.done) {
     return (
-      <p role="status" className="text-green text-sm">
+      <p ref={statusRef} role="status" tabIndex={-1} className="text-green text-sm outline-none">
         {state.done}
       </p>
     );
@@ -27,36 +35,26 @@ export function AccountSetupAction({
 
   return (
     <div>
-      <Button type="button" onClick={() => setConfirming(true)} disabled={pending}>
+      <Button ref={triggerRef} type="button" onClick={() => setConfirming(true)} disabled={pending}>
         Start account setup
       </Button>
-      {confirming ? (
-        <div
-          role="alertdialog"
-          aria-label={`Start account setup for ${applicantName}?`}
-          className="border-amber bg-raised mt-3 rounded-lg border p-4"
-          onKeyDown={(event) => {
-            if (event.key === "Escape") setConfirming(false);
-          }}
-        >
-          <p className="font-medium">Start account setup for {applicantName}?</p>
-          <p className="text-muted mt-1 text-sm">
-            A one-use link will be sent to the applicant&apos;s stored email. This replaces any
-            earlier unused setup link.
-          </p>
-          <form action={action} className="mt-3 flex flex-col gap-2 sm:flex-row">
-            <input type="hidden" name="application_id" value={applicationId} />
-            <input type="hidden" name="client_request_id" value={clientRequestId} />
-            <Button type="button" variant="ghost" autoFocus onClick={() => setConfirming(false)}>
-              Keep current setup state
-            </Button>
-            <Button type="submit" disabled={pending}>
-              {pending ? "Starting…" : "Issue one-use setup link"}
-            </Button>
-          </form>
-        </div>
-      ) : null}
-      {state.error ? (
+      <form ref={actionFormRef} action={action} className="hidden" aria-hidden="true">
+        <input type="hidden" name="application_id" value={applicationId} />
+        <input type="hidden" name="client_request_id" value={clientRequestId} />
+      </form>
+      <ConfirmationDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={`Start account setup for ${applicantName}?`}
+        description="This creates a one-use setup link and queues delivery to the applicant's stored email. Delivery is not confirmed. It replaces any earlier unused setup link."
+        cancelLabel="Keep current setup state"
+        confirmLabel="Create one-use setup link"
+        onConfirm={() => actionFormRef.current?.requestSubmit()}
+        returnFocusRef={triggerRef}
+        pending={pending}
+        error={state.error}
+      />
+      {!confirming && state.error ? (
         <p role="alert" className="text-coral mt-2 text-sm">
           {state.error}
         </p>

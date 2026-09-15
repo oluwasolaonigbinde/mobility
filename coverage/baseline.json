@@ -9,8 +9,8 @@
       "branch_covered": 4842,
       "branch_percent": 69.0334,
       "branch_total": 7014,
-      "line_covered": 26130,
-      "line_percent": 88.9169,
+      "line_covered": 26158,
+      "line_percent": 89.0121,
       "line_total": 29387,
       "paths": [
         "app/__init__.py",
@@ -257,12 +257,12 @@
       ]
     },
     "frontend": {
-      "branch_covered": 4125,
-      "branch_percent": 63.9436,
-      "branch_total": 6451,
-      "line_covered": 4298,
-      "line_percent": 74.5792,
-      "line_total": 5763,
+      "branch_covered": 4124,
+      "branch_percent": 63.9479,
+      "branch_total": 6449,
+      "line_covered": 4303,
+      "line_percent": 74.6142,
+      "line_total": 5767,
       "paths": [
         "frontend/src/app/admin/advertisers/[organizationId]/company/actions.ts",
         "frontend/src/app/admin/advertisers/[organizationId]/company/page.tsx",
@@ -546,12 +546,12 @@
   },
   "eligible_inventory_sha256": "6ac153c8361e5e3852bd22c73d3a5f603382f6716ab552cf4d2e34a331e950b8",
   "global": {
-    "branch_covered": 8967,
-    "branch_percent": 66.5949,
-    "branch_total": 13465,
-    "line_covered": 30428,
-    "line_percent": 86.5661,
-    "line_total": 35150
+    "branch_covered": 8966,
+    "branch_percent": 66.5973,
+    "branch_total": 13463,
+    "line_covered": 30461,
+    "line_percent": 86.6502,
+    "line_total": 35154
   },
   "policy_sha256": "8408761a7cb44e2be2f8092aa9b6200f4e29bf6db5bbd063a5c05b00999ff5f8",
   "refresh": {
@@ -563,9 +563,9 @@
       "removed": []
     },
     "previous_baseline_sha256": "84af416039960f7f44663c0bc3563cb201024a75d84558c193c72bcbbd66bc81",
-    "reason": "P6 integrated source inventory and dependency policy after stabilized passing changed coverage"
+    "reason": "P6 account-setup confirmation hardening with isolated fixture safety and stabilized passing coverage"
   },
   "source_parent_sha": "79a8995e5a70a0b3c979e489f69dcbf5cb1c879f",
-  "source_sha256": "f9d80e09a728ff99e5e700ef30ea67d864b209f0674463c0aa629c3a69bbfe44",
+  "source_sha256": "6ce373f0706f2259817908ed699805cdaf753f4daa375c0d96713eb7da235091",
   "version": 3
 }

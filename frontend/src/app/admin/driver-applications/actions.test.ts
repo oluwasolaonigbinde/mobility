@@ -214,7 +214,7 @@ describe("reviewPersonPayeeAction", () => {
     });
 
     await expect(initiateDriverAccountSetupAction({}, data)).resolves.toEqual({
-      done: "A one-use setup link was issued to the applicant's stored email.",
+      done: "A one-use setup link was created and queued for delivery to the applicant's stored email. Delivery is not confirmed.",
     });
     expect(mocks.post).toHaveBeenLastCalledWith(
       "/api/v1/admin/driver-applications/{application_id}/account-setup",

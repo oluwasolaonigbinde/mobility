@@ -3,9 +3,10 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 
 /**
- * Read-only operator workflows against the seeded real stack: named discovery,
- * activation readiness, evidence queues and money closeout visibility. Nothing
- * here activates work, reserves money or records a decision.
+ * Operator workflows against the seeded real stack. Most checks are read-only;
+ * the account-setup fixture performs controlled writes only after its helper
+ * proves the isolated E2E configuration. Nothing here activates work, reserves
+ * money or records a production decision.
  */
 
 async function loginAsAdmin(page: Page) {
@@ -129,11 +130,12 @@ test("approved driver account setup stays provider-neutral through its visible t
     name: `Start account setup for ${applicant.applicantName}?`,
   });
   await expect(confirmation).toContainText("replaces any earlier unused setup link");
-  await confirmation.getByRole("button", { name: "Issue one-use setup link" }).click();
+  await confirmation.getByRole("button", { name: "Create one-use setup link" }).click();
 
   await expect(
     page.getByRole("status").filter({
-      hasText: "A one-use setup link was issued to the applicant's stored email.",
+      hasText:
+        "A one-use setup link was created and queued for delivery to the applicant's stored email. Delivery is not confirmed.",
     }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Start account setup" })).toHaveCount(0);
