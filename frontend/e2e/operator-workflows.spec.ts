@@ -103,8 +103,9 @@ test("payout selection explains ineligible credits and closeout keeps paid facts
   await page.getByRole("link", { name: "Open billing" }).first().click();
   await page.getByRole("link", { name: "Review settlement and payout position" }).click();
   await expect(page.getByRole("heading", { name: "Settlement and payout position" })).toBeVisible();
-  await expect(page.getByText(/Economic ledger paid:/).first()).toBeVisible();
-  await expect(page.getByText(/Verified provider transfers:/).first()).toBeVisible();
+  await expect(page.getByText(/Economic ledger totals count each credit once/)).toBeVisible();
+  await expect(page.getByText("No campaign earnings on this page.")).toBeVisible();
+  await expect(page.getByText("No settlement has been recorded on this page.")).toBeVisible();
   await expect(
     page.getByText("Live transfers require an approved disbursement provider"),
   ).toBeVisible();

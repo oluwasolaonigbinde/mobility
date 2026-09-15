@@ -58,7 +58,7 @@ test("advertiser sees canonical company, billing and gated launch entries", asyn
   await page.goto("/advertiser/campaigns");
   await page.getByRole("link", { name: "Demo Lagos Mobility Campaign" }).click();
   await expect(page.getByRole("heading", { name: "Commercial terms" })).toBeVisible();
-  await expect(page.getByText("Accepted", { exact: true })).toBeVisible();
+  await expect(page.locator("span").filter({ hasText: /^Accepted$/ })).toBeVisible();
   await expect(page.getByRole("button", { name: "Request custom quotation" })).not.toBeVisible();
   await expect(page.getByText("Driver pay to date", { exact: true })).toBeVisible();
 });

@@ -27,7 +27,7 @@ test("report fails closed when the seeded campaign has no frozen measurement run
   await expect(
     page.getByRole("heading", { name: "This report failed its integrity check" }),
   ).toBeVisible();
-  await expect(page.getByText("MEASUREMENT_RUN_INTEGRITY_FAILURE")).toBeVisible();
+  await expect(page.getByText(/report data did not pass verification/i)).toBeVisible();
   await expect(page.getByText("Daily breakdown")).not.toBeVisible();
 });
 
@@ -40,6 +40,6 @@ test("coverage map fails closed without frozen measurement authority", async ({ 
   await expect(
     page.getByRole("heading", { name: "This report failed its integrity check" }),
   ).toBeVisible();
-  await expect(page.getByText("MEASUREMENT_RUN_INTEGRITY_FAILURE")).toBeVisible();
+  await expect(page.getByText(/report data did not pass verification/i)).toBeVisible();
   await expect(page.getByTestId("heatmap-map")).not.toBeVisible();
 });
