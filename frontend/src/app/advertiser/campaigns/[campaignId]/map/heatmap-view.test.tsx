@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mapConstructor = vi.hoisted(() => vi.fn());
 const handlers = vi.hoisted(() => new Map<string, () => void>());
 
-vi.mock("maplibre-gl", () => ({ default: { Map: mapConstructor } }));
+vi.mock("maplibre-gl", () => ({ Map: mapConstructor }));
 
 import { GovernedZoneMap, MAP_READY_TIMEOUT_MS } from "./heatmap-view";
 

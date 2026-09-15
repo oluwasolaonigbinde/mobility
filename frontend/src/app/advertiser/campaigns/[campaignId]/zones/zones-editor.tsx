@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
-import maplibregl from "maplibre-gl";
+import { Map as MapLibreMap, NavigationControl, type GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { TerraDraw, TerraDrawPolygonMode } from "terra-draw";
 import { TerraDrawMapLibreGLAdapter } from "terra-draw-maplibre-gl-adapter";
@@ -50,7 +50,7 @@ function zonesToFeatureCollection(zones: Zone[]) {
 
 export function ZonesEditor({ campaignId, zones }: { campaignId: string; zones: Zone[] }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<maplibregl.Map | null>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
   const drawRef = useRef<TerraDraw | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [drawing, setDrawing] = useState(false);
@@ -66,14 +66,14 @@ export function ZonesEditor({ campaignId, zones }: { campaignId: string; zones: 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    const map = new maplibregl.Map({
+    const map = new MapLibreMap({
       container: containerRef.current,
       style: activeMapStyleUrl(),
       center: DEFAULT_CENTER,
       zoom: DEFAULT_ZOOM,
       attributionControl: { compact: true },
     });
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
+    map.addControl(new NavigationControl({ showCompass: false }), "top-right");
     applyThemeMapTint(map);
     mapRef.current = map;
 
@@ -114,7 +114,7 @@ export function ZonesEditor({ campaignId, zones }: { campaignId: string; zones: 
     if (!map || !mapReady) return;
 
     const data = zonesToFeatureCollection(zones);
-    const existing = map.getSource(SOURCE_ID) as maplibregl.GeoJSONSource | undefined;
+    const existing = map.getSource(SOURCE_ID) as GeoJSONSource | undefined;
     if (existing) {
       existing.setData(data);
       return;

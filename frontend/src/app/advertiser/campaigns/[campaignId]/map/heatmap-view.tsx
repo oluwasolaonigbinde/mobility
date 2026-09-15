@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import maplibregl from "maplibre-gl";
+import { Map as MapLibreMap } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
   activeMapStyle,
@@ -24,7 +24,7 @@ export const MAP_READY_TIMEOUT_MS = 3_000;
 
 export function GovernedZoneMap({ zones }: { zones: GovernedZoneGeometry[] }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<maplibregl.Map | null>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [message, setMessage] = useState("Preparing the governed zone map…");
 
@@ -32,7 +32,7 @@ export function GovernedZoneMap({ zones }: { zones: GovernedZoneGeometry[] }) {
     if (!containerRef.current || mapRef.current) return;
     let failed = false;
     const timeout: { id: number | undefined } = { id: undefined };
-    let map: maplibregl.Map;
+    let map: MapLibreMap;
     const fail = (reason: string) => {
       if (failed) return;
       failed = true;
@@ -42,7 +42,7 @@ export function GovernedZoneMap({ zones }: { zones: GovernedZoneGeometry[] }) {
     };
 
     try {
-      map = new maplibregl.Map({
+      map = new MapLibreMap({
         container: containerRef.current,
         style: activeMapStyle(),
         center: DEFAULT_CENTER,
