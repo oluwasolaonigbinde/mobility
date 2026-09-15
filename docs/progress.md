@@ -450,6 +450,35 @@ correction. The controller applied all twelve and independent re-review
 returned PASS. The PRD adds no product decision, invented value or live-use
 claim. Open owner decisions and external dependencies are listed in its §13.
 
+**P6 acceptance preparation (15 Sep 2026):** Measured against origin
+`533f62d`, the push range would have failed the changed-code coverage gate:
+frontend 68.3% lines / 54.6% branches; a local backend run of 789 relevant
+PostgreSQL tests covered changed lines 90.5% / branches 76.4%. Behavioural
+tests were added for zero-coverage operator pages and actions, payout failure,
+debt and destination-mask paths, advertiser preparation/actions and password
+recovery pages, with no product, config, skip, timeout or floor change. Two Opus
+test workers stopped on a usage limit; the controller validated and completed
+their files. Independent review returned `FIX` for load-dependent races and
+four weak assertions, and all were corrected. Result: local changed coverage
+across the push range is frontend 92.2% / 87.4% and combined 91.4% lines /
+85.3% branches, above the 90/80 floors, with the local backend figure a lower
+bound. Full frontend Vitest runs 143 files / 980 tests: two stress runs were
+green; one had a single timeout in an unchanged driver-application upload
+test, which passes in isolation. Dependency triage: `next` and
+`eslint-config-next` move 16.2.10 → 16.3.5, fixing proxy-bypass,
+server-action, SSRF, cache-confusion and image-optimizer RCE advisories.
+Non-forced audit fixes clear all high findings. Residuals: `maplibre-gl` needs
+major v6 (no application HTML sink; revisit with the basemap gate), and
+dev-only Vitest 4.1.10 stays pinned to avoid coverage instrumentation drift.
+TypeScript, ESLint, production build, Ruff, OpenAPI drift and progress
+validation pass. Environment isolation: config, demo-seed, pre-production,
+health, CI-authority and R59 contract guards run without a database show one
+dependency-only gap. The 91 `test_w403a_release_preparation.py` failures there
+require the configured integration database, as CI provides; they are not
+claimed as local evidence. Full ordinary E2E with the upgraded framework was not
+re-run locally. Exact-SHA CI is the acceptance gate, and physical-device,
+provider, legal and deployment gates remain external.
+
 **CI submission-reference test correction (14 Sep 2026):** Owner “fix it pls” authorizes this bounded continuation in the existing master checkout after run `34842765201` on `e952341` failed only the ordinary desktop/mobile submission-history assertion. Sole writer is this CI task; controller is idle. Align the stale `Submitted snapshot SHA-256:` assertion with canonical `Submission reference:` while requiring a 64-character hexadecimal hash; retain approval, immutable history and all other gates. Scope: `frontend/e2e/campaign-flow.spec.ts` and this evidence entry only. Existing owned commit/non-force push authority applies; no product, coverage-floor, skip, provider or package-queue change. Independent Sol Medium plan review PASS. Both unchanged desktop/mobile journeys reproduced the exact missing-label failure locally (`/tmp/cardvert-label-red-real.log`); corrected complete campaign-flow file: 10 PASS, zero retries/skips (`/tmp/cardvert-label-green.log`). ESLint, progress validation and diff checks PASS. Initial existing-preview attempt was stopped because one-click login did not match the ordinary test harness; accepted verification used an exact-source temporary preview with regular login against the existing synthetic backend. Independent Sol Medium consolidated review PASS with no findings; exact pushed CI must finish before closure, with its terminal run linked in the owner/controller handoff without another evidence-only commit.
 
 Coverage follow-through: pushed `10bf582` / run `34850723035` passed frontend, all backend shards/aggregate and R59, then failed the unchanged global line floor: backend 25,289/28,518 versus adopted 25,291; frontend exactly 3,413/5,068 and branches above floors. No source instrumentation or floor changed in the label fix. Compared real artifacts show intermittent indirect async-service hits, including trip summary/count paths. Bounded verification amendment adds a real PostgreSQL trip summary/batch-count regression in `tests/test_trips.py`, asserting empty/populated/replayed counts, timestamps and cross-trip isolation directly in one async test context. No product, floor, policy or skip changes. Independent Sol Medium amendment plan PASS; temporary count-plus-one mutation failed the new empty-trip assertion and was immediately restored (`/tmp/cardvert-label-trip-red.log`). Full trip file: 29 PASS against configured integrations (`/tmp/cardvert-label-trip-green.log`), Ruff PASS. Local LCOV records six lines absent from the failed run; diagnostic union 25,295 exceeds unchanged 25,291 backend floor, but is not claimed as GitHub provenance. Independent Sol Medium consolidated amendment review PASS with no findings; fresh exact-SHA CI remains the completion gate.

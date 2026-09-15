@@ -292,3 +292,189 @@ describe("requestCampaignCancellationAction", () => {
     expect(mocks.post).not.toHaveBeenCalled();
   });
 });
+
+describe("campaign action failure and partial-input paths", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.patch.mockResolvedValue({ data: {} });
+    mocks.post.mockResolvedValue({ data: {} });
+  });
+
+  function changeForm(fields: Record<string, string>): FormData {
+    const form = submitForm();
+    form.set("client_request_id", CHANGE_REQUEST_ID);
+    for (const [name, value] of Object.entries(fields)) form.set(name, value);
+    return form;
+  }
+
+  it("maps a failed cancellation without refreshing views or exposing backend text", async () => {
+    mocks.post.mockRejectedValueOnce(
+      new ApiError(500, { code: "INTERNAL", message: "ledger host secret.internal" }),
+    );
+    const form = submitForm();
+    form.set("client_request_id", CANCELLATION_REQUEST_ID);
+    form.set("reason", "Stop");
+    form.set("confirmed", "on");
+
+    await expect(requestCampaignCancellationAction({}, form)).resolves.toEqual({
+      error: "Could not cancel the campaign. Try again.",
+    });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it("previews only the changed daily budget and Lagos start time", async () => {
+    mocks.post.mockResolvedValueOnce({ data: { preview_sha256: "c".repeat(64) } });
+    const result = await previewCampaignChangeAction(
+      {},
+      changeForm({
+        daily_budget_amount: "250.50",
+        start_at: "2026-10-01T08:30",
+        reason: "Move the start",
+      }),
+    );
+
+    expect(mocks.post).toHaveBeenCalledWith(
+      "/api/v1/advertiser/campaigns/{campaign_id}/change-preview",
+      {
+        params: { path: { campaign_id: CAMPAIGN_ID } },
+        body: {
+          daily_budget_amount: "250.50",
+          start_at: "2026-10-01T07:30:00.000Z",
+          reason: "Move the start",
+        },
+      },
+    );
+    expect(result).toEqual({
+      commandId: CHANGE_REQUEST_ID,
+      preview: { preview_sha256: "c".repeat(64) },
+      proposal: {
+        budgetAmount: undefined,
+        dailyBudgetAmount: "250.50",
+        startAt: "2026-10-01T08:30",
+        endAt: undefined,
+        reason: "Move the start",
+      },
+    });
+  });
+
+  it("requires at least one proposed change before previewing", async () => {
+    await expect(
+      previewCampaignChangeAction({}, changeForm({ reason: "Nothing changed" })),
+    ).resolves.toEqual({ error: "Enter at least one change." });
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+
+  it("does not present a preview when the response has no preview facts", async () => {
+    mocks.post.mockResolvedValueOnce({ data: undefined });
+    await expect(
+      previewCampaignChangeAction({}, changeForm({ budget_amount: "10", reason: "Grow" })),
+    ).resolves.toEqual({ error: "The preview is unavailable. Try again." });
+  });
+
+  it("maps a preview failure to its stable message or a generic fallback", async () => {
+    mocks.post.mockRejectedValueOnce(
+      new ApiError(409, { code: "INVALID_CAMPAIGN_BUDGET", message: "daily 900 > total 100" }),
+    );
+    await expect(
+      previewCampaignChangeAction({}, changeForm({ daily_budget_amount: "900", reason: "Grow" })),
+    ).resolves.toEqual({ error: "The daily budget cannot exceed the total budget." });
+
+    mocks.post.mockRejectedValueOnce(new TypeError("fetch failed to 10.0.0.4"));
+    await expect(
+      previewCampaignChangeAction({}, changeForm({ budget_amount: "10", reason: "Grow" })),
+    ).resolves.toEqual({ error: "Could not preview the change. Try again." });
+  });
+
+  it.each([
+    ["a missing form", () => new FormData()],
+    [
+      "a malformed source digest",
+      () =>
+        changeForm({
+          budget_amount: "10",
+          reason: "Grow",
+          source_sha256: "not-a-digest",
+          preview_sha256: "b".repeat(64),
+        }),
+    ],
+    [
+      "a malformed preview digest",
+      () =>
+        changeForm({
+          budget_amount: "10",
+          reason: "Grow",
+          source_sha256: "a".repeat(64),
+          preview_sha256: "B".repeat(64),
+        }),
+    ],
+  ])("refuses to confirm %s", async (_name, build) => {
+    await expect(confirmCampaignChangeAction({}, build())).resolves.toEqual({
+      error: "This preview is invalid. Preview the change again.",
+    });
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+
+  it("confirms digest-bound daily budget and start changes without an unconfirmed receipt", async () => {
+    mocks.post.mockResolvedValueOnce({ data: undefined });
+    const form = changeForm({
+      daily_budget_amount: "250.50",
+      start_at: "2026-10-01T08:30",
+      reason: "Move the start",
+      source_sha256: "a".repeat(64),
+      preview_sha256: "b".repeat(64),
+    });
+
+    await expect(confirmCampaignChangeAction({}, form)).resolves.toEqual({
+      error: "The confirmation result is unavailable. Preview again.",
+    });
+    expect(mocks.post).toHaveBeenCalledWith(
+      "/api/v1/advertiser/campaigns/{campaign_id}/change-requests",
+      {
+        params: { path: { campaign_id: CAMPAIGN_ID } },
+        body: {
+          client_request_id: CHANGE_REQUEST_ID,
+          source_sha256: "a".repeat(64),
+          preview_sha256: "b".repeat(64),
+          reason: "Move the start",
+          daily_budget_amount: "250.50",
+          start_at: "2026-10-01T07:30:00.000Z",
+        },
+      },
+    );
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["without a cleared stored file", { creative_type: "image" }],
+    ["with an unsupported creative type", { stored_file_id: CREATIVE_ID, creative_type: "html" }],
+    ["with no fields", {}],
+  ])("refuses replacement %s before any mutation", async (_name, fields) => {
+    const form = new FormData();
+    if (Object.keys(fields).length) {
+      form.set("campaign_id", CAMPAIGN_ID);
+      form.set("creative_id", CREATIVE_ID);
+    }
+    for (const [name, value] of Object.entries(fields)) form.set(name, value);
+
+    await expect(replaceCreativeAndSubmitAction({}, form)).resolves.toEqual({
+      error: "Upload and clear replacement artwork before submitting.",
+    });
+    expect(mocks.patch).not.toHaveBeenCalled();
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+
+  it("maps an uncleared replacement file and does not submit or refresh", async () => {
+    mocks.patch.mockRejectedValueOnce(
+      new ApiError(409, { code: "CREATIVE_FILE_NOT_CLEARED", message: "scan row pending" }),
+    );
+    const form = creativeSubmitForm();
+    form.set("stored_file_id", "00000000-0000-4000-8000-000000000099");
+    form.set("creative_type", "video");
+
+    await expect(replaceCreativeAndSubmitAction({}, form)).resolves.toEqual({
+      error: "The creative file is not ready for review.",
+    });
+    expect(mocks.post).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+});
