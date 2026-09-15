@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mapConstructor = vi.hoisted(() => vi.fn());
@@ -148,5 +148,32 @@ describe("ZonesEditor MapLibre compatibility", () => {
 
     expect(source.setData).toHaveBeenCalledOnce();
     expect(map.addSource).not.toHaveBeenCalled();
+  });
+
+  it("confirms deletion once and surfaces a refusal", async () => {
+    deleteZoneAction.mockResolvedValue({ error: "Zone changed elsewhere" });
+    const map = fakeMap();
+    mapConstructor.mockImplementation(function () {
+      return map;
+    });
+    drawConstructor.mockImplementation(function () {
+      return fakeDraw();
+    });
+
+    render(<ZonesEditor campaignId={zone.campaign_id} zones={[zone]} />);
+    act(() => mapHandlers.get("load")?.());
+
+    fireEvent.click(screen.getByRole("button", { name: "Delete Central Abuja" }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm deletion" }));
+
+    await waitFor(() =>
+      expect(deleteZoneAction).toHaveBeenCalledWith({
+        campaignId: zone.campaign_id,
+        zoneId: zone.id,
+      }),
+    );
+    expect(deleteZoneAction).toHaveBeenCalledOnce();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Zone changed elsewhere");
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 });

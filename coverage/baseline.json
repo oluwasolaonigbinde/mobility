@@ -6,12 +6,12 @@
   },
   "critical": {
     "backend": {
-      "branch_covered": 4825,
-      "branch_percent": 68.791,
+      "branch_covered": 4842,
+      "branch_percent": 69.0334,
       "branch_total": 7014,
-      "line_covered": 26101,
-      "line_percent": 88.8212,
-      "line_total": 29386,
+      "line_covered": 26130,
+      "line_percent": 88.9169,
+      "line_total": 29387,
       "paths": [
         "app/__init__.py",
         "app/adapters/ad_platforms/__init__.py",
@@ -257,12 +257,12 @@
       ]
     },
     "frontend": {
-      "branch_covered": 3980,
-      "branch_percent": 62.6279,
-      "branch_total": 6355,
-      "line_covered": 4090,
-      "line_percent": 72.236,
-      "line_total": 5662,
+      "branch_covered": 4125,
+      "branch_percent": 63.9436,
+      "branch_total": 6451,
+      "line_covered": 4298,
+      "line_percent": 74.5792,
+      "line_total": 5763,
       "paths": [
         "frontend/src/app/admin/advertisers/[organizationId]/company/actions.ts",
         "frontend/src/app/admin/advertisers/[organizationId]/company/page.tsx",
@@ -287,6 +287,7 @@
         "frontend/src/app/admin/billing/page.tsx",
         "frontend/src/app/admin/contact/page.tsx",
         "frontend/src/app/admin/driver-applications/[applicationId]/page.tsx",
+        "frontend/src/app/admin/driver-applications/account-setup-action.tsx",
         "frontend/src/app/admin/driver-applications/actions.ts",
         "frontend/src/app/admin/driver-applications/page.tsx",
         "frontend/src/app/admin/driver-applications/person-payee-decision-actions.tsx",
@@ -481,6 +482,7 @@
         "frontend/src/components/shell/app-shell.tsx",
         "frontend/src/components/shell/sidebar-nav.tsx",
         "frontend/src/components/ui/button.tsx",
+        "frontend/src/components/ui/confirmation-dialog.tsx",
         "frontend/src/components/ui/data-unavailable.tsx",
         "frontend/src/components/ui/empty-state.tsx",
         "frontend/src/components/ui/field.tsx",
@@ -542,61 +544,28 @@
       ]
     }
   },
-  "eligible_inventory_sha256": "10c45973c4a39fe3feacd2d9869e388ebd039ca99ef69b31384e4f6b09d5c1d1",
+  "eligible_inventory_sha256": "6ac153c8361e5e3852bd22c73d3a5f603382f6716ab552cf4d2e34a331e950b8",
   "global": {
-    "branch_covered": 8805,
-    "branch_percent": 65.8613,
-    "branch_total": 13369,
-    "line_covered": 30191,
-    "line_percent": 86.1419,
-    "line_total": 35048
+    "branch_covered": 8967,
+    "branch_percent": 66.5949,
+    "branch_total": 13465,
+    "line_covered": 30428,
+    "line_percent": 86.5661,
+    "line_total": 35150
   },
-  "policy_sha256": "ca94685d2d4525d685481886a0db002633304a2e9a935cc6168640cee82ac2df",
+  "policy_sha256": "8408761a7cb44e2be2f8092aa9b6200f4e29bf6db5bbd063a5c05b00999ff5f8",
   "refresh": {
     "inventory_changes": {
       "added": [
-        "app/services/driver_account_setup.py",
-        "app/services/operator_search.py",
-        "app/services/payout_operations.py",
-        "frontend/src/app/admin/assignments/[assignmentId]/page.tsx",
-        "frontend/src/app/admin/billing/[campaignId]/closeout/page.tsx",
-        "frontend/src/app/admin/contact/page.tsx",
-        "frontend/src/app/admin/driver-applications/[applicationId]/page.tsx",
-        "frontend/src/app/admin/driver-applications/sensitive-review.tsx",
-        "frontend/src/app/admin/late-data/page.tsx",
-        "frontend/src/app/admin/measurement/[runId]/page.tsx",
-        "frontend/src/app/admin/measurement/actions.ts",
-        "frontend/src/app/admin/measurement/issue-form.tsx",
-        "frontend/src/app/admin/measurement/page.tsx",
-        "frontend/src/app/admin/measurement/report-form.tsx",
-        "frontend/src/app/admin/operation-form.tsx",
-        "frontend/src/app/admin/operations-actions.ts",
-        "frontend/src/app/admin/payouts/batches/[batchId]/lines/[lineId]/page.tsx",
-        "frontend/src/app/admin/payouts/batches/[batchId]/page.tsx",
-        "frontend/src/app/admin/payouts/batches/draft-recovery.ts",
-        "frontend/src/app/admin/payouts/batches/operation-types.ts",
-        "frontend/src/app/admin/queue-options.ts",
-        "frontend/src/app/admin/queue-search.tsx",
-        "frontend/src/app/admin/search-select.tsx",
-        "frontend/src/app/advertiser/campaigns/[campaignId]/campaign-preparation-summary.tsx",
-        "frontend/src/app/apply/application-status.ts",
-        "frontend/src/app/driver-account-setup/actions.ts",
-        "frontend/src/app/driver-account-setup/page.tsx",
-        "frontend/src/app/driver-account-setup/setup-form.tsx",
-        "frontend/src/app/forgot-password/actions.ts",
-        "frontend/src/app/forgot-password/page.tsx",
-        "frontend/src/app/forgot-password/request-form.tsx",
-        "frontend/src/app/reset-password/actions.ts",
-        "frontend/src/app/reset-password/page.tsx",
-        "frontend/src/app/reset-password/reset-form.tsx",
-        "frontend/src/lib/api/public-action-error.ts"
+        "frontend/src/app/admin/driver-applications/account-setup-action.tsx",
+        "frontend/src/components/ui/confirmation-dialog.tsx"
       ],
       "removed": []
     },
-    "previous_baseline_sha256": "ffc31da81d39e63fa7b5a513f467c6a9bf7d31ace11e6e45bad99fd91a0d6d44",
-    "reason": "Cardvert product-completion phases add operator, payout, account-setup and page sources plus the Next.js 16.3.5 security lockfile; adopt measured exact-SHA run 34946893485 coverage at c47a0d3 without lowering any floor"
+    "previous_baseline_sha256": "84af416039960f7f44663c0bc3563cb201024a75d84558c193c72bcbbd66bc81",
+    "reason": "P6 integrated source inventory and dependency policy after stabilized passing changed coverage"
   },
-  "source_parent_sha": "c47a0d3ea256b8fa8e42dbe741f55373f6706ff6",
-  "source_sha256": "2373bf88265599cbdc1af1204d4b2904bca04ba2798f8e4621d65880b17ae0a6",
+  "source_parent_sha": "79a8995e5a70a0b3c979e489f69dcbf5cb1c879f",
+  "source_sha256": "f9d80e09a728ff99e5e700ef30ea67d864b209f0674463c0aa629c3a69bbfe44",
   "version": 3
 }
