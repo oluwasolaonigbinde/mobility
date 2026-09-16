@@ -43,16 +43,16 @@ export function ThemeSwitcher() {
   }, [open]);
 
   if (THEMES.length < 2) return null;
-  // Never on the driver PWA: the floating pill would sit on top of the
-  // bottom tab bar. The pitch/demo audience is the advertiser/admin desktop.
-  if (pathname?.startsWith("/driver")) return null;
+  // Keep the demo control inside the product. It is not marketing chrome, and
+  // on the driver PWA it would sit on top of the bottom tab bar.
+  if (pathname === "/" || pathname === "/landing" || pathname?.startsWith("/driver")) return null;
 
   const activeMeta = THEMES.find((t) => t.slug === active);
 
   return (
     // hidden below lg: on small screens the pill overlaps page-bottom
     // actions (verified via Playwright pointer-interception traces).
-    <div ref={rootRef} className="fixed right-4 bottom-4 z-50 hidden print:hidden lg:block">
+    <div ref={rootRef} className="fixed right-4 bottom-4 z-50 hidden lg:block print:hidden">
       {open ? (
         <div className="border-edge-strong bg-panel shadow-panel animate-rise absolute right-0 bottom-14 w-72 rounded-xl border p-2">
           <p className="micro text-faint px-2 pt-1 pb-2">Visual direction</p>

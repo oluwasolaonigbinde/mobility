@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" role="img" aria-label="">
+  <title>Simplified street grid with three unbranded vehicles travelling a shared corridor</title>
+  <!--
+    Neutral placeholder visual for the Cardvert slot.
+
+    Like the hero visual, it shows NO company name, wordmark, livery or campaign.
+    The three vehicles are plain glyphs with empty advertising panels, and the
+    map is abstract rather than a real city. Replace it with genuine imagery when
+    it exists — see src/content/media.ts and README.md.
+  -->
+  <defs>
+    <linearGradient id="corridor" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#F2C94C" stop-opacity="0.14"/>
+      <stop offset="50%" stop-color="#F2C94C" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#F2C94C" stop-opacity="0.14"/>
+    </linearGradient>
+    <radialGradient id="zone" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#C8F6D0" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#C8F6D0" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="1280" height="720" fill="#0A1C09"/>
+
+  <!-- coverage areas -->
+  <circle cx="286" cy="470" r="210" fill="url(#zone)"/>
+  <circle cx="960" cy="250" r="230" fill="url(#zone)"/>
+
+  <!-- street grid -->
+  <g stroke="#46543F" stroke-width="2" opacity="0.55">
+    <path d="M0 96h1280M0 216h1280M0 456h1280M0 576h1280"/>
+    <path d="M120 0v720M320 0v720M520 0v720M760 0v720M960 0v720M1160 0v720"/>
+  </g>
+  <g stroke="#46543F" stroke-width="6" opacity="0.4">
+    <path d="M0 336h1280"/>
+    <path d="M640 0v720"/>
+  </g>
+
+  <!-- the shared corridor the fleet is working -->
+  <rect y="300" width="1280" height="72" fill="url(#corridor)"/>
+  <path d="M0 336h1280" stroke="#F2C94C" stroke-width="3" stroke-dasharray="18 14" opacity="0.75"/>
+
+  <!-- branching routes -->
+  <path d="M170 576C300 576 340 470 470 430S700 372 800 336" fill="none" stroke="#EE2F41" stroke-width="3" stroke-dasharray="12 10" opacity="0.7" stroke-linecap="round"/>
+  <path d="M1120 130C1010 150 940 216 860 250S700 300 620 336" fill="none" stroke="#C8F6D0" stroke-width="3" stroke-dasharray="12 10" opacity="0.6" stroke-linecap="round"/>
+
+  <!-- route nodes -->
+  <g>
+    <circle cx="170" cy="576" r="9" fill="#EE2F41"/>
+    <circle cx="1120" cy="130" r="9" fill="#C8F6D0"/>
+    <circle cx="640" cy="336" r="11" fill="#F2C94C"/>
+    <circle cx="640" cy="336" r="22" fill="none" stroke="#F2C94C" stroke-width="2" opacity="0.5"/>
+  </g>
+
+  <!--
+    Three unbranded vehicle glyphs. Each side panel is drawn empty, with a
+    dashed outline, so none of them depicts a real campaign.
+  -->
+  <g>
+    <g transform="translate(190 288)">
+      <rect x="0" y="14" width="188" height="52" rx="12" fill="#F8F5ED"/>
+      <path d="M188 30h26l22 24v12h-48z" fill="#F8F5ED"/>
+      <rect x="14" y="26" width="150" height="28" rx="6" fill="#E3DCCB"/>
+      <rect x="14" y="26" width="150" height="28" rx="6" fill="none" stroke="#7A5230" stroke-width="2" stroke-dasharray="8 6" stroke-opacity="0.6"/>
+      <circle cx="46" cy="70" r="14" fill="#0A1C09"/><circle cx="46" cy="70" r="6" fill="#46543F"/>
+      <circle cx="196" cy="70" r="14" fill="#0A1C09"/><circle cx="196" cy="70" r="6" fill="#46543F"/>
+    </g>
+
+    <g transform="translate(560 288)">
+      <rect x="0" y="14" width="188" height="52" rx="12" fill="#F8F5ED"/>
+      <path d="M188 30h26l22 24v12h-48z" fill="#F8F5ED"/>
+      <rect x="14" y="26" width="150" height="28" rx="6" fill="#E3DCCB"/>
+      <rect x="14" y="26" width="150" height="28" rx="6" fill="none" stroke="#7A5230" stroke-width="2" stroke-dasharray="8 6" stroke-opacity="0.6"/>
+      <circle cx="46" cy="70" r="14" fill="#0A1C09"/><circle cx="46" cy="70" r="6" fill="#46543F"/>
+      <circle cx="196" cy="70" r="14" fill="#0A1C09"/><circle cx="196" cy="70" r="6" fill="#46543F"/>
+    </g>
+
+    <g transform="translate(930 288)">
+      <rect x="0" y="14" width="188" height="52" rx="12" fill="#F8F5ED"/>
+      <path d="M188 30h26l22 24v12h-48z" fill="#F8F5ED"/>
+      <rect x="14" y="26" width="150" height="28" rx="6" fill="#E3DCCB"/>
+      <rect x="14" y="26" width="150" height="28" rx="6" fill="none" stroke="#7A5230" stroke-width="2" stroke-dasharray="8 6" stroke-opacity="0.6"/>
+      <circle cx="46" cy="70" r="14" fill="#0A1C09"/><circle cx="46" cy="70" r="6" fill="#46543F"/>
+      <circle cx="196" cy="70" r="14" fill="#0A1C09"/><circle cx="196" cy="70" r="6" fill="#46543F"/>
+    </g>
+  </g>
+</svg>

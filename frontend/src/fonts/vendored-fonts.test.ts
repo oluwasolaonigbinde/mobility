@@ -47,8 +47,6 @@ describe("no build-time or runtime Google Fonts dependency", () => {
 describe("retained font variables stay wired", () => {
   const rootLayout = readFileSync(join(SRC, "app/layout.tsx"), "utf8");
   const productFonts = readFileSync(join(SRC, "lib/fonts.ts"), "utf8");
-  const landingLayout = readFileSync(join(SRC, "app/landing/layout.tsx"), "utf8");
-  const landingFonts = readFileSync(join(SRC, "app/landing/fonts.ts"), "utf8");
 
   it.each([
     "--font-clash",
@@ -69,15 +67,6 @@ describe("retained font variables stay wired", () => {
     expect(rootLayout).toMatch(/satoshi\.variable/);
     expect(rootLayout).toMatch(/style=\{productFontVariables\}/);
     expect(rootLayout).toMatch(/h-full antialiased/);
-  });
-
-  it.each(["--tx-font", "--tx-mono"])("the landing type system still declares %s", (variable) => {
-    expect(landingFonts).toContain(variable);
-  });
-
-  it("the landing layout applies its own variables on the tx-page wrapper", () => {
-    expect(landingLayout).toMatch(/className="tx-page"/);
-    expect(landingLayout).toMatch(/style=\{landingFontVariables\}/);
   });
 });
 

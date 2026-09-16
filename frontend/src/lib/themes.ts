@@ -82,6 +82,20 @@ export const THEMES: ThemeMeta[] = [
     colorScheme: "light",
     swatches: ["#efeee1", "#e4e2cf", "#9c352f", "#0b1f07"],
   },
+  {
+    slug: "dispatch",
+    name: "Direction 10",
+    tagline: "",
+    colorScheme: "light",
+    swatches: ["#f5f3ee", "#ffffff", "#8a5a10", "#0e2f14"],
+  },
+  {
+    slug: "ledger",
+    name: "Direction 11",
+    tagline: "",
+    colorScheme: "light",
+    swatches: ["#eeeae0", "#faf8f3", "#0f5c55", "#256f1a"],
+  },
 ];
 
 export function applyTheme(slug: string) {

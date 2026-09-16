@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1280" width="1024" height="1280" role="img" aria-label="">
+  <title>City street at golden hour with an unbranded vehicle carrying an empty advertising panel</title>
+  <!--
+    Neutral placeholder visual for the hero slot.
+
+    There is no Terrax Media vehicle photography in the repository, so this
+    stands in for one. It deliberately shows NO company name, wordmark, livery
+    or campaign of any kind: the vehicle's advertising panel is drawn empty,
+    with a dashed outline, so it reads as available space rather than as a real
+    Terrax campaign. Replace it with a genuine photograph when one exists —
+    see src/content/media.ts and README.md.
+
+    Palette is the Terrax Media brand palette only.
+  -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0E3A0A"/>
+      <stop offset="46%" stop-color="#7A5230"/>
+      <stop offset="74%" stop-color="#F2C94C"/>
+      <stop offset="100%" stop-color="#F8F5ED"/>
+    </linearGradient>
+    <linearGradient id="haze" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#F2C94C" stop-opacity="0"/>
+      <stop offset="100%" stop-color="#F2C94C" stop-opacity="0.45"/>
+    </linearGradient>
+    <clipPath id="frame">
+      <rect width="1024" height="1280"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#frame)">
+    <rect width="1024" height="1280" fill="url(#sky)"/>
+    <circle cx="726" cy="742" r="128" fill="#F2C94C" opacity="0.55"/>
+    <rect y="520" width="1024" height="300" fill="url(#haze)"/>
+
+    <!-- far skyline -->
+    <g fill="#0A1C09" opacity="0.34">
+      <rect x="26" y="556" width="96" height="266"/>
+      <rect x="140" y="606" width="70" height="216"/>
+      <rect x="228" y="518" width="112" height="304"/>
+      <rect x="358" y="592" width="84" height="230"/>
+      <rect x="462" y="540" width="104" height="282"/>
+      <rect x="586" y="620" width="76" height="202"/>
+      <rect x="682" y="566" width="120" height="256"/>
+      <rect x="822" y="600" width="88" height="222"/>
+      <rect x="928" y="548" width="76" height="274"/>
+    </g>
+
+    <!-- near buildings -->
+    <g fill="#0A1C09">
+      <rect x="-20" y="640" width="188" height="248"/>
+      <rect x="188" y="690" width="146" height="198"/>
+      <rect x="712" y="666" width="170" height="222"/>
+      <rect x="900" y="712" width="150" height="176"/>
+      <!-- windows, lit -->
+      <g fill="#F2C94C" opacity="0.5">
+        <rect x="16" y="676" width="26" height="34"/><rect x="62" y="676" width="26" height="34"/>
+        <rect x="108" y="676" width="26" height="34"/><rect x="16" y="736" width="26" height="34"/>
+        <rect x="108" y="736" width="26" height="34"/><rect x="62" y="796" width="26" height="34"/>
+        <rect x="216" y="726" width="24" height="30"/><rect x="262" y="726" width="24" height="30"/>
+        <rect x="216" y="782" width="24" height="30"/>
+        <rect x="740" y="702" width="26" height="32"/><rect x="786" y="702" width="26" height="32"/>
+        <rect x="832" y="702" width="26" height="32"/><rect x="740" y="762" width="26" height="32"/>
+        <rect x="832" y="762" width="26" height="32"/>
+        <rect x="928" y="748" width="24" height="30"/><rect x="976" y="748" width="24" height="30"/>
+      </g>
+      <!-- street awnings -->
+      <path d="M168 888h44l-14 34h-44z" opacity="0.85"/>
+      <path d="M882 888h44l14 34h-44z" opacity="0.85"/>
+    </g>
+
+    <!-- roadway -->
+    <rect y="888" width="1024" height="392" fill="#46543F"/>
+    <rect y="888" width="1024" height="12" fill="#0A1C09" opacity="0.45"/>
+    <g fill="#F8F5ED" opacity="0.32">
+      <rect x="40" y="1218" width="128" height="10" rx="5"/>
+      <rect x="248" y="1218" width="128" height="10" rx="5"/>
+      <rect x="456" y="1218" width="128" height="10" rx="5"/>
+      <rect x="664" y="1218" width="128" height="10" rx="5"/>
+      <rect x="872" y="1218" width="128" height="10" rx="5"/>
+    </g>
+
+    <!--
+      Unbranded vehicle in profile. The large side panel is intentionally blank:
+      it is the advertising surface, shown empty.
+    -->
+    <g>
+      <ellipse cx="512" cy="1146" rx="404" ry="26" fill="#0A1C09" opacity="0.3"/>
+
+      <!-- body -->
+      <path d="M146 1120V938c0-15 12-27 27-27h436c9 0 17 4 22 11l84 111h84c26 0 47 21 47 47v40c0 12-9 21-21 21H167c-12 0-21-9-21-21z" fill="#F8F5ED"/>
+      <!-- lower skirt -->
+      <path d="M146 1084h700v22c0 12-9 21-21 21H167c-12 0-21-9-21-21z" fill="#0A1C09" opacity="0.82"/>
+      <!-- cab windows -->
+      <path d="M622 934l70 92h-70z" fill="#0E3A0A"/>
+      <path d="M700 1026l-58-78c-4-6 0-14 7-14h30c5 0 9 2 12 6l58 78c4 6 0 14-7 14h-30c-5 0-9-2-12-6z" fill="#0E3A0A" opacity="0.55"/>
+      <!-- door seam -->
+      <path d="M604 946v138" stroke="#0A1C09" stroke-opacity="0.25" stroke-width="4"/>
+      <!-- headlamp -->
+      <rect x="806" y="1042" width="42" height="24" rx="8" fill="#F2C94C"/>
+
+      <!-- EMPTY advertising panel: the replaceable surface, deliberately blank -->
+      <rect x="188" y="948" width="378" height="120" rx="10" fill="#E3DCCB"/>
+      <rect x="188" y="948" width="378" height="120" rx="10" fill="none" stroke="#7A5230" stroke-width="4" stroke-dasharray="16 12" stroke-opacity="0.55"/>
+
+      <!-- wheels -->
+      <g>
+        <circle cx="300" cy="1118" r="62" fill="#0A1C09"/>
+        <circle cx="300" cy="1118" r="26" fill="#46543F"/>
+        <circle cx="740" cy="1118" r="62" fill="#0A1C09"/>
+        <circle cx="740" cy="1118" r="26" fill="#46543F"/>
+      </g>
+    </g>
+  </g>
+</svg>

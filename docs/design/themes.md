@@ -5,7 +5,10 @@ Client feedback on the 30 Jul demo: the product worked end-to-end but the UI rea
 themes — the client flips the real product (floating pill, bottom-right) and picks one.
 Directions 1–6 came from that round. Directions 7–9 were added 25–26 Aug 2026:
 Terra Grain and Coverage from the Terrax Media brand book, and Broadside from the
-working Terrax landing page.
+working Terrax landing page. Directions 10–11 were added 16 Sep 2026 after the
+client rejected all nine: they are deliberate *recombinations* rather than new
+inventions — each reuses the ideas that already work in the set and drops the one
+that sinks the direction it came from.
 
 Each direction was designed, adversarially reviewed (WCAG-computed accessibility audit +
 design critique), and reconciled. Full corrected token specs with contrast math:
@@ -41,6 +44,8 @@ routes, tarmac) — not just a palette:
 | Terra Grain | `terra-grain` | The Terrax Media brand book worn by the product: Poppins ExtraBold, "Rainforest Nights" #071e03 ground, the mark's wood grain as canvas texture, panels as the logo's rounded screen frame with its inner keyline, the logo gradient (green → brown → crimson) as the sidebar route rail, Golden Accent on every signal, Battle Cat green as surface-only |
 | Coverage | `coverage` | The product's 500m × 500m reporting cell as the layout system: a real mint lattice on the canvas, flat square map cells with zero elevation, Battle Cat survey crop ticks on opposite corners, chips as legend keys with a leading tone bar, IBM Plex Mono headings (no new face loaded) |
 | Broadside | `broadside` | The Terrax landing page turned into an application: Big Shoulders poster caps at 900/0.94, bone canvas with cards a step darker, 100px pill controls with 1.5px rules and an ink-filled CTA, the brand gradient growing as a nav underline, and the site's inverted forest band becoming the shell's navigation |
+| Dispatch | `dispatch` | A deep forest shell around a calm paper workspace: Broadside's inverted navigation band, Coverage's flat hairline panels, Terra Grain's Poppins set in **sentence case** rather than block caps, and Blue Hour's gold-on-dark accent. Golden Accent carries the shell; the paper side uses the same colour darkened to `#8a5a10`, because `#f2c94c` is 1.3:1 on paper and can never be text there |
+| Ledger | `ledger` | All light, no shell, nothing raised: Ivory Ledger's warm paper without the serif or the guilloché, Daylight Ops' legibility without the blueprint grid, Coverage's zero elevation without the clinical mint. Archivo at 600 in sentence case; deep teal acts, Battle Cat green confirms, Crimson Flame deepened warns. Its one gesture is the ruled line under the page header |
 
 The original dark theme remains the default (`night` — no data attribute).
 
@@ -95,6 +100,45 @@ book. Its design language, not its content:
 Colours are deepened only where the site's own values fail as text on a card:
 clay `#b4463f` is 4.1:1 on `#e4e2cf`, so `#9c352f` holds the accent slot while pure
 clay stays in the gradient and the focus ring, neither of which carries type.
+
+## Directions 10 and 11 · recombination, not invention
+
+The client rejected all nine fully-built directions, so these two are assembled
+from parts that already demonstrated they work, with the failure mode of each
+source removed. Nothing here is unique for its own sake.
+
+| Borrowed from | What was kept | What was dropped, and why |
+| --- | --- | --- |
+| **9 Broadside** | the inverted navigation band — an app has no sections to alternate, so the band becomes the shell | uppercase 900 poster type, and cards darker than the canvas, which together read shouty and muddy |
+| **7 Terra Grain** | Poppins, the brand face, and Golden Accent as the signal on a dark ground | block caps, the wood-grain canvas, and the near-black green ground |
+| **8 Coverage** | zero elevation and hairline separation | the mint palette, which reads clinical |
+| **3 Ivory Ledger** | warm paper, and a display face with actual personality | the Fraunces serif and the security-print texture, which read fussy |
+| **2 Daylight Ops** | legibility discipline on a light ground | the blueprint grid and the brandless cobalt |
+| **4 Blue Hour** | gold against a dark ground | glass panels and the drifting aurora |
+
+Both take their palette from `docs/brand/terrax-media/` and from the standalone
+company site in `sites/terrax-media/`: Battle Cat `#256f1a`, Crimson Flame
+`#ee2f41`, Golden Accent `#f2c94c` and the logo gradient's brown `#7a5230`,
+each darkened only as far as AA requires on the ground it sits on.
+
+**Measured, against every ground each token actually lands on** (bg, panel and
+raised — `text-faint` appears on all three):
+
+| | ink | muted | faint | accent | secondary | success | danger |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Dispatch (worst of 3 grounds) | 14.89 | 6.48 | 4.77 | 4.96 | 5.27 | 5.23 | 5.99 |
+| Ledger (worst of 3 grounds) | 14.48 | 6.66 | 5.29 | 6.52 | 5.68 | 5.19 | 5.94 |
+
+Dispatch's shell is measured separately against `#0e2f14`: ink 13.41, muted 8.68,
+faint 6.54, Golden Accent 9.22. A contrast probe walking the real rendered
+advertiser screens found **0 failures in 34 combinations (Dispatch) and 30
+(Ledger)**.
+
+Neither direction relies on `--shadow-panel`: per the plumbing limit below, that
+override is inert, so both remove elevation with a scoped `box-shadow: none` on
+`.rounded-panel.border-edge` rather than by declaring a token and hoping. Matching
+on the border utility — as Coverage already does — is deliberate: it leaves the
+panels that carry a coral, amber or green status border alone.
 
 ## Known plumbing limit (pre-existing, all directions)
 

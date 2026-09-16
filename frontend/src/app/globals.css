@@ -27,10 +27,24 @@
   /* text placed on the primary accent (buttons, filled chips) */
   --color-accent-ink: #0a0b0e;
 
+  /* Public Terrax landing palette. Namespaced so product themes cannot remap it. */
+  --color-terrax-paper: #ede6d6;
+  --color-terrax-card: #f8f5ed;
+  --color-terrax-ink: #0a1c09;
+  --color-terrax-ink-soft: #46543f;
+  --color-terrax-deep: #0e3a0a;
+  --color-terrax-green: #256f1a;
+  --color-terrax-crimson: #ee2f41;
+  --color-terrax-crimson-ink: #c4202f;
+  --color-terrax-gold: #f2c94c;
+  --color-terrax-gold-ink: #7a5230;
+  --color-terrax-mint: #c8f6d0;
+
   /* type */
   --font-display: var(--font-clash), ui-sans-serif, sans-serif;
   --font-sans: var(--font-satoshi), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), ui-monospace, monospace;
+  --font-terrax-display: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
 
   /* elevation & glow */
   --shadow-panel: 0 1px 0 0 rgb(255 255 255 / 0.03) inset, 0 8px 24px -12px rgb(0 0 0 / 0.6);
@@ -379,6 +393,70 @@
     --chart-grid: rgb(16 35 12 / 0.12);
     --chart-tick: var(--color-muted);
     --chart-area-alpha: 0.18;
+  }
+
+  /* 10 · Dispatch — a deep forest shell around a calm paper workspace. */
+  html[data-theme="dispatch"] {
+    color-scheme: light;
+    --font-display: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
+    --font-sans: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
+    --radius-panel: 0.625rem;
+    --color-bg: #f5f3ee;
+    --color-panel: #ffffff;
+    --color-raised: #eeebe3;
+    --color-edge: #e2ded2;
+    --color-edge-strong: #b5ae9c;
+    --color-ink: #131a12;
+    --color-muted: #4b5647;
+    --color-faint: #5f6a5b;
+    --color-amber: #8a5a10;
+    --color-amber-soft: #6f4809;
+    --color-cyan: #2f6b52;
+    --color-green: #256f1a;
+    --color-coral: #a8232e;
+    --color-accent-ink: #ffffff;
+    --selection: rgb(138 90 16 / 0.18);
+    --grid-line: rgb(19 26 18 / 0.05);
+    --atmosphere: var(--color-bg);
+    --shadow-panel: none;
+    --shadow-glow-amber: none;
+    --shadow-glow-cyan: none;
+    --shadow-glow-coral: none;
+    --chart-grid: rgb(19 26 18 / 0.1);
+    --chart-tick: var(--color-muted);
+    --chart-area-alpha: 0.16;
+  }
+
+  /* 11 · Ledger — all light, no shell, nothing raised. */
+  html[data-theme="ledger"] {
+    color-scheme: light;
+    --font-display: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+    --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+    --radius-panel: 0.25rem;
+    --color-bg: #eeeae0;
+    --color-panel: #faf8f3;
+    --color-raised: #ffffff;
+    --color-edge: #ded8c9;
+    --color-edge-strong: #aaa28d;
+    --color-ink: #1c1a14;
+    --color-muted: #535143;
+    --color-faint: #655f4f;
+    --color-amber: #0f5c55;
+    --color-amber-soft: #0b4a44;
+    --color-cyan: #7a5230;
+    --color-green: #256f1a;
+    --color-coral: #a8232e;
+    --color-accent-ink: #ffffff;
+    --selection: rgb(15 92 85 / 0.16);
+    --grid-line: rgb(28 26 20 / 0.05);
+    --atmosphere: var(--color-bg);
+    --shadow-panel: none;
+    --shadow-glow-amber: none;
+    --shadow-glow-cyan: none;
+    --shadow-glow-coral: none;
+    --chart-grid: rgb(28 26 20 / 0.1);
+    --chart-tick: var(--color-muted);
+    --chart-area-alpha: 0.14;
   }
 
   body {
@@ -1047,5 +1125,115 @@ html[data-theme="broadside"] :is(aside, nav) a.micro:hover::after {
 /* The site's focus ring: clay, 3px clear of the control. */
 html[data-theme="broadside"] :focus-visible {
   outline: 2px solid #b4463f;
+  outline-offset: 3px;
+}
+
+/* ── 10 · Dispatch — forest shell, paper workspace ────────────────────── */
+html[data-theme="dispatch"] :is(h1, h2, h3).font-display,
+html[data-theme="dispatch"] :is(h1, h2, h3) .font-display {
+  font-weight: 800;
+  line-height: 0.98;
+  letter-spacing: -0.021em;
+}
+html[data-theme="dispatch"] p.font-display {
+  font-weight: 600;
+  line-height: 1.12;
+  font-variant-numeric: tabular-nums;
+}
+html[data-theme="dispatch"] .rounded-panel.border-edge {
+  box-shadow: none;
+}
+html[data-theme="dispatch"] aside.bg-panel,
+html[data-theme="dispatch"] nav.bg-panel {
+  --color-ink: #f3f6f0;
+  --color-muted: #b9cdb4;
+  --color-faint: #9cb497;
+  --color-amber: #f2c94c;
+  --color-edge: #1b4a25;
+  --color-raised: #14401c;
+  background-color: #0e2f14;
+  border-color: #1b4a25;
+  color: #f3f6f0;
+}
+html[data-theme="dispatch"] :is(aside, nav) a.micro[aria-current="page"] {
+  position: relative;
+  color: #f2c94c;
+}
+html[data-theme="dispatch"] aside a.micro[aria-current="page"]::before {
+  position: absolute;
+  top: 50%;
+  left: -10px;
+  width: 3px;
+  height: 1.05em;
+  content: "";
+  background: #f2c94c;
+  border-radius: 2px;
+  translate: 0 -50%;
+}
+html[data-theme="dispatch"] h1.font-display + p.micro {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: var(--color-amber);
+}
+html[data-theme="dispatch"] h1.font-display + p.micro::before {
+  width: 22px;
+  height: 1px;
+  content: "";
+  background: currentColor;
+}
+html[data-theme="dispatch"] :focus-visible {
+  outline: 2px solid var(--color-amber);
+  outline-offset: 3px;
+}
+
+/* ── 11 · Ledger — light, flat, quiet ────────────────────────────────── */
+html[data-theme="ledger"] :is(h1, h2, h3).font-display,
+html[data-theme="ledger"] :is(h1, h2, h3) .font-display {
+  font-weight: 600;
+  line-height: 1.04;
+  letter-spacing: -0.014em;
+}
+html[data-theme="ledger"] p.font-display {
+  font-weight: 600;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+html[data-theme="ledger"] .rounded-panel.border-edge {
+  box-shadow: none;
+}
+html[data-theme="ledger"] aside.bg-panel,
+html[data-theme="ledger"] nav.bg-panel {
+  background-color: var(--color-bg);
+  border-color: var(--color-edge-strong);
+}
+html[data-theme="ledger"] :is(aside, nav) a.micro[aria-current="page"] {
+  position: relative;
+  color: var(--color-amber);
+  font-weight: 600;
+}
+html[data-theme="ledger"] div:has(> div > h1.font-display + p.micro) {
+  padding-bottom: 0.9rem;
+  border-bottom: 1px solid var(--color-edge-strong);
+}
+html[data-theme="ledger"] h1.font-display + p.micro {
+  color: var(--color-muted);
+  letter-spacing: 0.14em;
+}
+html[data-theme="ledger"] .rounded-panel table thead tr {
+  border-bottom: 1px solid var(--color-edge-strong);
+}
+html[data-theme="ledger"] aside a.micro[aria-current="page"]::before {
+  position: absolute;
+  top: 50%;
+  left: -10px;
+  width: 2px;
+  height: 1.05em;
+  content: "";
+  background: var(--color-amber);
+  translate: 0 -50%;
+}
+html[data-theme="ledger"] :focus-visible {
+  outline: 2px solid var(--color-amber);
   outline-offset: 3px;
 }

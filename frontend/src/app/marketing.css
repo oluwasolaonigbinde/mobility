@@ -1,0 +1,117 @@
+.terrax-site {
+  color-scheme: light;
+  font-family:
+    var(--font-poppins),
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.terrax-site section[id] {
+  scroll-margin-top: 5.5rem;
+}
+
+.terrax-site p {
+  text-wrap: pretty;
+}
+
+.terrax-site h1,
+.terrax-site h2,
+.terrax-site h3 {
+  text-wrap: balance;
+}
+
+.terrax-site .font-terrax-display {
+  font-feature-settings: "kern";
+  letter-spacing: -0.022em;
+}
+
+.terrax-site :focus-visible {
+  border-radius: 4px;
+  outline: 3px solid var(--color-terrax-crimson-ink);
+  outline-offset: 3px;
+  transition-property: none;
+}
+
+.terrax-site .terrax-on-dark :focus-visible {
+  outline-color: var(--color-terrax-gold);
+}
+
+.terrax-grain {
+  position: relative;
+}
+
+.terrax-grain::after {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background-image: radial-gradient(currentColor 1px, transparent 1px);
+  background-size: 22px 22px;
+  opacity: 0.035;
+}
+
+.terrax-reveal {
+  opacity: 0;
+}
+
+.terrax-reveal[data-visible="true"] {
+  animation: terrax-marketing-rise 0.7s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.terrax-route-dash {
+  stroke-dasharray: 10 8;
+  animation: terrax-marketing-dash 20s linear infinite;
+}
+
+.terrax-float-slow {
+  animation: terrax-marketing-float 6s ease-in-out infinite;
+}
+
+@keyframes terrax-marketing-rise {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes terrax-marketing-dash {
+  to {
+    stroke-dashoffset: -1000px;
+  }
+}
+
+@keyframes terrax-marketing-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .terrax-site *,
+  .terrax-site *::before,
+  .terrax-site *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
+
+  .terrax-site .terrax-reveal,
+  .terrax-site .terrax-reveal[data-visible="false"] {
+    animation: none;
+    opacity: 1;
+  }
+}

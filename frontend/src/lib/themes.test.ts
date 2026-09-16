@@ -11,6 +11,7 @@ import {
 } from "./themes";
 
 const globalsCss = readFileSync(path.resolve(__dirname, "../app/globals.css"), "utf8");
+const marketingCss = readFileSync(path.resolve(__dirname, "../app/marketing.css"), "utf8");
 
 // jsdom here runs without Node's --localstorage-file, so window.localStorage
 // is absent; applyTheme's persistence branch needs a real store to assert on.
@@ -32,10 +33,26 @@ describe("theme registry", () => {
     expect(slugs).toContain(DEFAULT_THEME);
   });
 
+  it("preserves the original nine directions in order", () => {
+    expect(THEMES.slice(0, 9).map((theme) => theme.slug)).toEqual([
+      "night",
+      "daylight-ops",
+      "ivory-ledger",
+      "blue-hour",
+      "danfo",
+      "hi-vis",
+      "terra-grain",
+      "coverage",
+      "broadside",
+    ]);
+  });
+
   it.each([
     ["terra-grain", "Direction 7", "dark"],
     ["coverage", "Direction 8", "light"],
     ["broadside", "Direction 9", "light"],
+    ["dispatch", "Direction 10", "light"],
+    ["ledger", "Direction 11", "light"],
   ])("registers %s as %s", (slug, name, colorScheme) => {
     const entry = THEMES.find((t) => t.slug === slug);
     expect(entry).toBeDefined();
@@ -55,7 +72,7 @@ describe("theme registry", () => {
 
   // A direction is more than a palette: each one must also ship scoped rules
   // (its design language) in the unlayered section, not just a token block.
-  it.each(["terra-grain", "coverage", "broadside"])(
+  it.each(["terra-grain", "coverage", "broadside", "dispatch", "ledger"])(
     "%s ships a design language beyond its token block",
     (slug) => {
       const scoped = globalsCss.match(new RegExp(`html\\[data-theme="${slug}"\\]`, "g"));
@@ -69,6 +86,17 @@ describe("theme registry", () => {
       for (const swatch of swatches) expect(swatch).toMatch(/^#[0-9a-f]{6}$/i);
     },
   );
+
+  it("keeps public landing tokens outside the product theme namespace", () => {
+    expect(globalsCss).toContain("--color-terrax-paper");
+    expect(marketingCss).toContain(".terrax-site");
+    expect(marketingCss).not.toMatch(
+      /--color-(?:bg|panel|raised|edge|ink|amber|cyan|green|coral):/,
+    );
+    expect(marketingCss).not.toContain("--font-display:");
+    expect(globalsCss).toContain('html[data-theme="dispatch"] .rounded-panel.border-edge');
+    expect(globalsCss).toContain('html[data-theme="ledger"] .rounded-panel.border-edge');
+  });
 });
 
 describe("applyTheme / currentTheme", () => {
