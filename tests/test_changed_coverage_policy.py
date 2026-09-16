@@ -28,6 +28,17 @@ def test_ci_routes_baseline_changes_through_the_reviewable_provenance_gate():
     assert "--refresh-baseline" not in coverage_job
 
 
+def test_ci_runs_when_the_coverage_receipt_changes() -> None:
+    workflow = (CHECKER.parents[1] / ".github/workflows/ci.yml").read_text()
+    push_paths = workflow.split("  push:\n", 1)[1].split("  pull_request:\n", 1)[0]
+    pull_request_paths = workflow.split("  pull_request:\n", 1)[1].split(
+        "\nconcurrency:", 1
+    )[0]
+
+    assert '- "coverage/**"' in push_paths
+    assert '- "coverage/**"' in pull_request_paths
+
+
 def test_exact_critical_paths_support_next_dynamic_segments() -> None:
     spec = importlib.util.spec_from_file_location("coverage_policy", CHECKER)
     module = importlib.util.module_from_spec(spec)

@@ -559,40 +559,16 @@
     "line_percent": 86.7755,
     "line_total": 35094
   },
-  "policy_sha256": "ffea0a3c9540f8fe981cf0cc781275bdcfc88cf98bb87033a919a244f3f737de",
+  "policy_sha256": "eef6d89863f8c5973a47377f27fb9b72b6373a8175332c887cdc5fd449fc39a7",
   "refresh": {
     "inventory_changes": {
-      "added": [
-        "frontend/src/components/marketing/cardvert-section.tsx",
-        "frontend/src/components/marketing/contact-band.tsx",
-        "frontend/src/components/marketing/hero.tsx",
-        "frontend/src/components/marketing/how-it-works.tsx",
-        "frontend/src/components/marketing/icon.tsx",
-        "frontend/src/components/marketing/pathways.tsx",
-        "frontend/src/components/marketing/reveal.tsx",
-        "frontend/src/components/marketing/site-footer.tsx",
-        "frontend/src/components/marketing/site-header.tsx",
-        "frontend/src/components/marketing/value-strip.tsx",
-        "frontend/src/components/marketing/why-terrax.tsx",
-        "frontend/src/components/marketing/wordmark.tsx",
-        "frontend/src/lib/marketing/media.ts",
-        "frontend/src/lib/marketing/site.ts"
-      ],
-      "removed": [
-        "frontend/src/app/landing/content.ts",
-        "frontend/src/app/landing/fonts.ts",
-        "frontend/src/app/landing/layout.tsx",
-        "frontend/src/app/landing/motifs.tsx",
-        "frontend/src/app/landing/pathways.tsx",
-        "frontend/src/app/landing/scroll-effects.tsx",
-        "frontend/src/app/landing/site-header.tsx",
-        "frontend/src/app/landing/steps.tsx"
-      ]
+      "added": [],
+      "removed": []
     },
-    "previous_baseline_sha256": "ab6559ef5a27c370a9662e48b57ff07d7e686b8318e2669a714377e347960aed",
-    "reason": "Adopt exact-SHA run 35084625711 after the Terrax root integration added marketing source and removed the superseded landing implementation; every adopted ratio remains at or above the prior baseline and no floor is lowered."
+    "previous_baseline_sha256": "df3fba05e6854eafed4af1eaad2b0228be462346d6c6cde140d9130e2d0a55d3",
+    "reason": "Make reviewed coverage-receipt changes trigger CI on push and pull request; bind exact-SHA run 35093510970 to parent 8e3ce9d with unchanged source inventory, instrumentation, runtime and coverage floors."
   },
-  "source_parent_sha": "327c96dc91088ac9a603339603749edda3449505",
+  "source_parent_sha": "8e3ce9d064110895b0e67b5c2102e2cafde5ccca",
   "source_sha256": "136e08ebb22146cd6825f59f62b4c6afbcee45e6f7e500d81421a767d74d4cb9",
   "version": 3
 }
