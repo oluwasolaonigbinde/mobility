@@ -553,19 +553,16 @@
     "line_percent": 86.6502,
     "line_total": 35154
   },
-  "policy_sha256": "8408761a7cb44e2be2f8092aa9b6200f4e29bf6db5bbd063a5c05b00999ff5f8",
+  "policy_sha256": "ffea0a3c9540f8fe981cf0cc781275bdcfc88cf98bb87033a919a244f3f737de",
   "refresh": {
     "inventory_changes": {
-      "added": [
-        "frontend/src/app/admin/driver-applications/account-setup-action.tsx",
-        "frontend/src/components/ui/confirmation-dialog.tsx"
-      ],
+      "added": [],
       "removed": []
     },
-    "previous_baseline_sha256": "84af416039960f7f44663c0bc3563cb201024a75d84558c193c72bcbbd66bc81",
-    "reason": "P6 account-setup confirmation hardening with isolated fixture safety and stabilized passing coverage"
+    "previous_baseline_sha256": "f7c7265c0edb7e5ff0912fe14fb8d6609f53254585e84dffcc0f76c40096376a",
+    "reason": "Adopt exact-SHA run 35074771398 after deterministic demo-seed safety tests made the existing coverage baseline reproducible; no floor lowered."
   },
-  "source_parent_sha": "79a8995e5a70a0b3c979e489f69dcbf5cb1c879f",
+  "source_parent_sha": "37589d4c98f6bd93eef994ea725d3bee7e6dc8ff",
   "source_sha256": "6ce373f0706f2259817908ed699805cdaf753f4daa375c0d96713eb7da235091",
   "version": 3
 }

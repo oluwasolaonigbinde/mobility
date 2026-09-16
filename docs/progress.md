@@ -533,6 +533,14 @@ exposed integration gaps, each reproduced locally before correction:
   simulated gate passed on the refresh commit.
 - CI path filters exclude `coverage/**`, so a baseline-only commit starts no
   run; exact-SHA acceptance must follow a docs, source or test change.
+- Exact-SHA run `35074771398` on `024a312` passed frontend checks, all six
+  backend shards, backend aggregate, R59 and desktop/mobile E2E. Its measured
+  coverage exceeded every adopted ratio after deterministic seed-command and
+  seed-safety tests replaced manual-only coverage; the gate then correctly
+  required a metadata refresh for the changed test inventory. The controlled
+  D33 receipt was regenerated from that run's backend/frontend artifacts under
+  Python 3.12 without lowering any floor. One final exact-SHA CI run remains
+  mandatory for acceptance.
 A separate concurrent CI-throughput edit to `ci.yml`, its authority test and
 this ledger belongs to another owner and is not included.
 
