@@ -253,7 +253,8 @@ def test_backend_job_limits_browser_dependencies_to_the_owning_shard(workflow: d
             assert matching_steps[0].get("if") == browser_condition
 
     plan = next(step for step in steps if step.get("id") == "shard_plan")
-    assert 'grep -Fxq "tests/test_storage_csp_origin.py"' in plan["run"]
+    assert 'grep -Fxq -e "tests/test_storage_csp_origin.py"' in plan["run"]
+    assert 'tests/test_w403b_synthetic_path.py' in plan["run"]
     assert 'echo "browser_stack=true" >> "$GITHUB_OUTPUT"' in plan["run"]
     assert "tests/test_preprod_operations.py" in plan["run"]
     assert 'echo "caddy=true" >> "$GITHUB_OUTPUT"' in plan["run"]

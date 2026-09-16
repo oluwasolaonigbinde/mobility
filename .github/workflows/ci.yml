@@ -183,7 +183,8 @@ jobs:
             --shard-count 6 \
             --files-output "$shard_dir/files.txt" \
             --manifest-output "$shard_dir/manifest.json"
-          if grep -Fxq "tests/test_storage_csp_origin.py" "$shard_dir/files.txt"; then
+          if grep -Fxq -e "tests/test_storage_csp_origin.py" \
+            -e "tests/test_w403b_synthetic_path.py" "$shard_dir/files.txt"; then
             echo "browser_stack=true" >> "$GITHUB_OUTPUT"
           else
             echo "browser_stack=false" >> "$GITHUB_OUTPUT"

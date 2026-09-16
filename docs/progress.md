@@ -134,14 +134,17 @@ external live-use gates remain unchanged.
 pipeline to retain all six authoritative backend shards, R59, changed-code
 coverage, and ordinary desktop/mobile E2E while removing provably unused repeated
 browser provisioning from backend shards and removing coverage as an execution
-prerequisite of E2E. Node/Chromium remains provisioned on the single deterministic
-backend shard that owns the storage-CSP browser test, while Caddy remains
+prerequisite of E2E. Node/Chromium remains provisioned only on deterministic
+backend shards that own the storage-CSP or W4-03B synthetic browser tests, while Caddy remains
 provisioned on the shards owning either live Caddy test;
 PostGIS, Redis, MinIO, ClamAV, exact-SHA binding, complete shard manifests and
 coverage aggregation remain unchanged on every applicable shard. E2E may start
 after `quality` while coverage independently remains fail-closed on `backend` and
 `quality`; all named checks remain required for acceptance. Evidence: workflow
 contract regressions plus YAML parse and focused CI-authority/coverage/R59 tests.
+Exact-SHA run `35064838661` exposed the omitted W4-03B browser owner after 480
+tests in shard 5 passed; commit following `38357f3` adds that owner to the same
+conditional provisioning contract before rerunning the full exact-SHA pipeline.
 
 **Cardvert product-completion programme (14 Sep 2026):** Owner directs “P0 is
 green, on to the rest, ASAP” and authorizes the GPT-6 product-completion
