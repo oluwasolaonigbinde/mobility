@@ -97,6 +97,22 @@ describe("resilient advertiser overview", () => {
     expect(screen.getByRole("heading", { name: "Recent campaigns" })).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/demo|synthetic/i);
   });
+  it("uses a deterministic morning or evening greeting", async () => {
+    const hours = vi.spyOn(Date.prototype, "getHours");
+    hours.mockReturnValueOnce(8);
+    const morning = render(await AdvertiserOverviewPage());
+    expect(
+      screen.getByRole("heading", { name: "Good morning, Healthy company" }),
+    ).toBeInTheDocument();
+    morning.unmount();
+
+    hours.mockReturnValueOnce(18);
+    render(await AdvertiserOverviewPage());
+    expect(
+      screen.getByRole("heading", { name: "Good evening, Healthy company" }),
+    ).toBeInTheDocument();
+    hours.mockRestore();
+  });
   it("labels measured and modelled results in plain language", async () => {
     render(await AdvertiserOverviewPage());
     expect(screen.getByText("Estimated ad exposure")).toBeInTheDocument();

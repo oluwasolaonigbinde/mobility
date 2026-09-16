@@ -2,6 +2,8 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, Mock
 from uuid import UUID
 
 import pytest
@@ -42,6 +44,7 @@ from app.schemas.trips import (
     LocationPingCreate,
     TripEvidenceManifestEntryCreate,
 )
+from app.seeds import demo
 from app.seeds.demo import (
     DEMO_BBOX,
     DEMO_PASSWORDS,
@@ -99,6 +102,176 @@ def test_demo_seed_allows_test_environment_without_override() -> None:
     )
 
     ensure_seed_allowed(settings)
+
+
+def test_demo_seed_refuses_unapproved_nonlocal_environment() -> None:
+    settings = SimpleNamespace(
+        environment="qa",
+        allow_demo_seed=False,
+        database_url="postgresql+asyncpg://example.invalid/mobility",
+    )
+
+    with pytest.raises(AppError) as exc:
+        ensure_seed_allowed(settings)  # type: ignore[arg-type]
+
+    assert exc.value.code == "DEMO_SEED_DISALLOWED"
+
+
+def test_demo_seed_requires_a_database_url() -> None:
+    settings = SimpleNamespace(environment="test", allow_demo_seed=False, database_url="")
+
+    with pytest.raises(AppError) as exc:
+        ensure_seed_allowed(settings)  # type: ignore[arg-type]
+
+    assert exc.value.code == "DATABASE_URL_REQUIRED"
+
+
+def test_demo_seed_requires_postgres() -> None:
+    session = SimpleNamespace(
+        get_bind=lambda: SimpleNamespace(dialect=SimpleNamespace(name="sqlite"))
+    )
+
+    with pytest.raises(AppError) as exc:
+        asyncio.run(demo.ensure_database_ready(session))
+
+    assert exc.value.code == "POSTGIS_REQUIRED"
+
+
+def test_demo_seed_requires_the_current_migration_head(monkeypatch: pytest.MonkeyPatch) -> None:
+    session = SimpleNamespace(
+        get_bind=lambda: SimpleNamespace(dialect=SimpleNamespace(name="postgresql")),
+        scalar=AsyncMock(return_value="old-head"),
+    )
+    monkeypatch.setattr(demo, "required_migration_head", lambda: "current-head")
+
+    with pytest.raises(AppError) as exc:
+        asyncio.run(demo.ensure_database_ready(session))
+
+    assert exc.value.code == "MIGRATION_HEAD_REQUIRED"
+    assert exc.value.details == {"current": "old-head", "required": "current-head"}
+
+
+def test_demo_seed_rejects_an_ambiguous_migration_head(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        demo.ScriptDirectory,
+        "from_config",
+        lambda _config: SimpleNamespace(get_current_head=lambda: None),
+    )
+
+    with pytest.raises(RuntimeError, match="migration head is missing or ambiguous"):
+        demo.required_migration_head()
+
+
+def test_demo_seed_command_runs_the_guarded_seed_and_prints_its_summary(
+    settings: Settings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    graph = SimpleNamespace(id="demo-graph")
+    session = SimpleNamespace(commit=AsyncMock())
+
+    class SessionContext:
+        async def __aenter__(self):
+            return session
+
+        async def __aexit__(self, *_args):
+            return None
+
+    class SessionFactory:
+        def __call__(self):
+            return SessionContext()
+
+    guard = Mock()
+    database_ready = AsyncMock()
+    build = AsyncMock(return_value=graph)
+    count_seeded_records = AsyncMock(return_value={"campaigns": 1})
+    summary = Mock()
+    engine = object()
+
+    monkeypatch.setattr(demo, "get_settings", lambda: settings)
+    monkeypatch.setattr(demo, "ensure_seed_allowed", guard)
+    monkeypatch.setattr(demo, "get_engine", lambda selected: engine)
+    monkeypatch.setattr(
+        demo,
+        "async_sessionmaker",
+        lambda selected, *, expire_on_commit: SessionFactory(),
+    )
+    monkeypatch.setattr(demo, "ensure_database_ready", database_ready)
+    monkeypatch.setattr(demo, "build_demo_graph", build)
+    monkeypatch.setattr(demo, "counts", count_seeded_records)
+    monkeypatch.setattr(demo, "print_summary", summary)
+
+    assert asyncio.run(demo.run_seed()) is graph
+    guard.assert_called_once_with(settings)
+    database_ready.assert_awaited_once_with(session)
+    build.assert_awaited_once_with(session, settings)
+    count_seeded_records.assert_awaited_once_with(session, graph)
+    session.commit.assert_awaited_once_with()
+    summary.assert_called_once_with(graph, {"campaigns": 1})
+
+
+def test_demo_seed_summary_is_human_readable(capsys: pytest.CaptureFixture[str]) -> None:
+    graph = SimpleNamespace(
+        organization=SimpleNamespace(name="Demo advertiser", id="organization-1"),
+        campaign=SimpleNamespace(name="Demo campaign", id="campaign-1"),
+        assignment=SimpleNamespace(id="assignment-1"),
+        trips=[
+            SimpleNamespace(
+                id="trip-1",
+                started_at=datetime(2026, 9, 15, 8, 30, tzinfo=UTC),
+            )
+        ],
+    )
+
+    demo.print_summary(graph, {"campaigns": 1, "trips": 1})
+
+    output = capsys.readouterr().out
+    assert "Demo seed complete." in output
+    assert "Demo advertiser (organization-1)" in output
+    assert "trip-1 started_at=2026-09-15T08:30:00+00:00" in output
+    assert '"campaigns": 1' in output
+    assert "advertiser@demo.mobility.local" in output
+    assert f"bbox={DEMO_BBOX}" in output
+
+
+@pytest.mark.parametrize(
+    ("error", "expected_error"),
+    [
+        (
+            AppError(
+                "DEMO_SEED_DISALLOWED",
+                "Demo seed is disabled",
+                details={"environment": "production"},
+            ),
+            'DEMO_SEED_DISALLOWED: Demo seed is disabled\n{"environment": "production"}',
+        ),
+        (
+            AppError("DEMO_SEED_NOT_CONFIRMED", "Explicit confirmation is required"),
+            "DEMO_SEED_NOT_CONFIRMED: Explicit confirmation is required",
+        ),
+        (RuntimeError("database unavailable"), "DEMO_SEED_FAILED: database unavailable"),
+    ],
+)
+def test_demo_seed_command_reports_failures(
+    error: Exception,
+    expected_error: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    async def fail() -> None:
+        raise error
+
+    monkeypatch.setattr(demo, "run_seed", fail)
+
+    assert demo.main() == 1
+    assert expected_error in capsys.readouterr().err
+
+
+def test_demo_seed_command_returns_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(demo, "run_seed", AsyncMock())
+
+    assert demo.main() == 0
 
 
 def test_demo_passwords_satisfy_policy(settings: Settings) -> None:
