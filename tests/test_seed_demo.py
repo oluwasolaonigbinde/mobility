@@ -44,7 +44,7 @@ from app.schemas.trips import (
     LocationPingCreate,
     TripEvidenceManifestEntryCreate,
 )
-from app.seeds import demo
+from app.seeds import demo, rich
 from app.seeds.demo import (
     DEMO_BBOX,
     DEMO_PASSWORDS,
@@ -162,6 +162,155 @@ def test_demo_seed_rejects_an_ambiguous_migration_head(
 
     with pytest.raises(RuntimeError, match="migration head is missing or ambiguous"):
         demo.required_migration_head()
+
+
+def test_demo_seed_refuses_an_existing_user_with_an_incompatible_role(
+    settings: Settings,
+) -> None:
+    session = SimpleNamespace(scalar=AsyncMock(return_value=SimpleNamespace(role="driver")))
+
+    with pytest.raises(AppError) as exc:
+        asyncio.run(
+            demo.upsert_user(
+                session,
+                email="advertiser@demo.mobility.local",
+                password=DEMO_PASSWORDS["advertiser@demo.mobility.local"],
+                full_name="Demo Advertiser",
+                role=demo.UserRole.ADVERTISER,
+                settings=settings,
+            )
+        )
+
+    assert exc.value.code == "DEMO_USER_CONFLICT"
+    assert exc.value.details["actual_role"] == "driver"
+
+
+def test_demo_seed_refuses_a_vehicle_owned_by_another_driver() -> None:
+    profile = SimpleNamespace(id=UUID("11111111-1111-4111-8111-111111111111"))
+    vehicle = SimpleNamespace(
+        driver_profile_id=UUID("22222222-2222-4222-8222-222222222222")
+    )
+    session = SimpleNamespace(scalar=AsyncMock(return_value=vehicle))
+
+    with pytest.raises(AppError) as exc:
+        asyncio.run(demo.upsert_vehicle(session, profile=profile))
+
+    assert exc.value.code == "DEMO_VEHICLE_CONFLICT"
+
+
+def test_demo_seed_refuses_conflicting_existing_trip_evidence(settings: Settings) -> None:
+    existing = SimpleNamespace(
+        id=UUID("33333333-3333-4333-8333-333333333333"),
+        batch_sequence=1,
+        payload_hash_version=2,
+        payload_hash="not-the-canonical-digest",
+        pings_submitted=1,
+        pings_accepted=1,
+        pings_rejected=0,
+        evidence_scope="manifest",
+    )
+    session = SimpleNamespace(scalar=AsyncMock(side_effect=[existing, 1]))
+    trip = SimpleNamespace(id=UUID("44444444-4444-4444-8444-444444444444"))
+
+    with pytest.raises(AppError) as exc:
+        asyncio.run(
+            demo.ensure_ping_batch(
+                session,
+                trip=trip,
+                coordinates=[(6.45, 3.39)],
+                started_at=datetime(2026, 9, 16, 8, tzinfo=UTC),
+                trip_key="conflict",
+                settings=settings,
+            )
+        )
+
+    assert exc.value.code == "DEMO_SEED_EVIDENCE_CONFLICT"
+
+
+@pytest.mark.parametrize("value", ["not-a-number", "-1"])
+def test_rich_demo_seed_refuses_invalid_density(
+    value: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", value)
+
+    with pytest.raises(AppError) as exc:
+        rich.max_trips_per_day()
+
+    assert exc.value.code == "INVALID_F7_SEED_DENSITY"
+
+
+def test_rich_demo_seed_handles_empty_and_unknown_campaign_windows() -> None:
+    today = datetime(2026, 9, 16, tzinfo=UTC)
+    campaign = SimpleNamespace(
+        start_at=today,
+        end_at=today + timedelta(days=1),
+    )
+
+    assert rich._date_range(today.date(), (today - timedelta(days=1)).date()) == []
+    assert rich._candidate_dates(campaign, "unknown", today) == []
+
+
+@pytest.mark.parametrize(
+    ("campaign", "trip", "assignment", "kind"),
+    [
+        (
+            SimpleNamespace(start_at=None, end_at=None, status="active"),
+            SimpleNamespace(started_at=datetime(2026, 9, 16, tzinfo=UTC), ended_at=None),
+            SimpleNamespace(status="active"),
+            "rolling",
+        ),
+        (
+            SimpleNamespace(
+                start_at=datetime(2026, 9, 16, tzinfo=UTC),
+                end_at=datetime(2026, 9, 17, tzinfo=UTC),
+                status="active",
+            ),
+            SimpleNamespace(
+                started_at=datetime(2026, 9, 15, tzinfo=UTC),
+                ended_at=datetime(2026, 9, 16, tzinfo=UTC),
+            ),
+            SimpleNamespace(status="active"),
+            "rolling",
+        ),
+        (
+            SimpleNamespace(
+                start_at=datetime(2026, 9, 16, tzinfo=UTC),
+                end_at=datetime(2026, 9, 17, tzinfo=UTC),
+                status="paused",
+            ),
+            SimpleNamespace(
+                started_at=datetime(2026, 9, 16, 1, tzinfo=UTC),
+                ended_at=datetime(2026, 9, 16, 2, tzinfo=UTC),
+            ),
+            SimpleNamespace(status="active"),
+            "rolling",
+        ),
+        (
+            SimpleNamespace(
+                start_at=datetime(2026, 9, 16, tzinfo=UTC),
+                end_at=datetime(2026, 9, 17, tzinfo=UTC),
+                status="active",
+            ),
+            SimpleNamespace(
+                started_at=datetime(2026, 9, 16, 1, tzinfo=UTC),
+                ended_at=datetime(2026, 9, 16, 2, tzinfo=UTC),
+            ),
+            SimpleNamespace(status="offered"),
+            "rolling",
+        ),
+    ],
+)
+def test_rich_demo_seed_refuses_invalid_trip_lifecycle(
+    campaign: SimpleNamespace,
+    trip: SimpleNamespace,
+    assignment: SimpleNamespace,
+    kind: str,
+) -> None:
+    with pytest.raises(AppError) as exc:
+        rich._assert_trip_lifecycle(trip, campaign, assignment, kind)
+
+    assert exc.value.code == "F7_SEED_INVALID_LIFECYCLE"
 
 
 def test_demo_seed_command_runs_the_guarded_seed_and_prints_its_summary(
