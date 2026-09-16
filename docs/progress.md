@@ -117,6 +117,32 @@ CI-throughput continuation (12 Sep 2026): run `34690115628` on `2a3f7e0` failed 
 
 ## Direct owner requests outside the package queue
 
+**Product-completion P6 local closure candidate (16 Sep 2026):** The approved
+P6 sequence is integrated locally through `1da0aee`: the PRD and P4 money
+verification are accepted; the non-money visual/state, dependency/isolation,
+MapLibre compatibility, changed-coverage and final account-setup corrections
+are committed; exact changed coverage passes at 94.1667% lines and 80.6202%
+branches; the final clean-context correction review returned `PASS`. Recorded
+local evidence includes 1,003 frontend tests, 2,871 backend tests, focused
+desktop/mobile real-stack browser flows, the 14-case fail-closed database
+fixture matrix, production build, type/lint/format checks and D33 provenance
+verification. This remains a local completion candidate until the final
+integrated commit is pushed and every required exact-SHA GitHub CI job passes;
+external live-use gates remain unchanged.
+
+**CI throughput correction (15 Sep 2026):** Owner directs the existing acceptance
+pipeline to retain all six authoritative backend shards, R59, changed-code
+coverage, and ordinary desktop/mobile E2E while removing provably unused repeated
+browser provisioning from backend shards and removing coverage as an execution
+prerequisite of E2E. Node/Chromium remains provisioned on the single deterministic
+backend shard that owns the storage-CSP browser test, while Caddy remains
+provisioned on the shards owning either live Caddy test;
+PostGIS, Redis, MinIO, ClamAV, exact-SHA binding, complete shard manifests and
+coverage aggregation remain unchanged on every applicable shard. E2E may start
+after `quality` while coverage independently remains fail-closed on `backend` and
+`quality`; all named checks remain required for acceptance. Evidence: workflow
+contract regressions plus YAML parse and focused CI-authority/coverage/R59 tests.
+
 **Cardvert product-completion programme (14 Sep 2026):** Owner directs “P0 is
 green, on to the rest, ASAP” and authorizes the GPT-6 product-completion
 blueprint reviewed at `e952341` on the accepted P0 lineage now at `533f62d`.

@@ -230,15 +230,17 @@ def test_backend_job_requires_real_integration_authority(workflow: dict) -> None
     assert env["ARQ_TEST_REDIS_URL"] == "redis://localhost:6379/8"
 
 
-def test_backend_job_installs_release_and_frontend_test_dependencies(workflow: dict) -> None:
+def test_backend_job_limits_browser_dependencies_to_the_owning_shard(workflow: dict) -> None:
     steps = workflow["jobs"]["backend_tests"]["steps"]
 
     setup_node = next(step for step in steps if step.get("uses") == "actions/setup-node@v4")
+    browser_condition = "steps.shard_plan.outputs.browser_stack == 'true'"
     assert setup_node["with"] == {
         "node-version-file": "frontend/.nvmrc",
         "cache": "npm",
         "cache-dependency-path": "frontend/package-lock.json",
     }
+    assert setup_node["if"] == browser_condition
     for command in (
         "sudo apt-get update && sudo apt-get install --yes jq",
         "npm ci",
@@ -248,6 +250,13 @@ def test_backend_job_installs_release_and_frontend_test_dependencies(workflow: d
         assert matching_steps, f"backend job does not provision {command!r}"
         if command.startswith(("npm", "npx")):
             assert matching_steps[0].get("working-directory") == "frontend"
+            assert matching_steps[0].get("if") == browser_condition
+
+    plan = next(step for step in steps if step.get("id") == "shard_plan")
+    assert 'grep -Fxq "tests/test_storage_csp_origin.py"' in plan["run"]
+    assert 'echo "browser_stack=true" >> "$GITHUB_OUTPUT"' in plan["run"]
+    assert "tests/test_preprod_operations.py" in plan["run"]
+    assert 'echo "caddy=true" >> "$GITHUB_OUTPUT"' in plan["run"]
 
 
 @pytest.mark.parametrize(
@@ -366,6 +375,17 @@ def test_backend_provisions_caddy_before_authoritative_tests(workflow):
     steps = workflow["jobs"]["backend_tests"]["steps"]
     commands = "\n".join(step.get("run", "") for step in steps)
     assert commands.index("docker pull caddy:2.8-alpine") < commands.index("coverage run -m pytest")
+    caddy = next(
+        step
+        for step in steps
+        if step.get("name") == "Provision Caddy for real CSP and browser checks"
+    )
+    assert caddy["if"] == "steps.shard_plan.outputs.caddy == 'true'"
+
+
+def test_e2e_runs_independently_of_coverage_after_quality(workflow):
+    assert workflow["jobs"]["e2e"]["needs"] == "quality"
+    assert set(workflow["jobs"]["coverage"]["needs"]) == {"backend", "quality"}
 
 
 def test_ordinary_e2e_provisions_its_implicit_minio_dependency(workflow):
