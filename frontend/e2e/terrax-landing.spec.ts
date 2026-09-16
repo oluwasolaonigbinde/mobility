@@ -4,8 +4,21 @@ import { expect, test } from "@playwright/test";
  * The Terrax Media landing page is a static public marketing route: unlike the
  * rest of this suite it needs no backend, no seed and no session.
  */
-const PATH = "/landing";
+const PATH = "/";
+const COMPATIBILITY_PATH = "/landing";
 const EMAIL = "terraxmediacompany@gmail.com";
+const TERRAX_ASSETS = [
+  "/brand/terrax/terrax-logo.png",
+  "/brand/terrax/terrax-logo-white.png",
+  "/marketing/terrax/hero-vehicle-placeholder.svg",
+  "/marketing/terrax/fleet-corridor-placeholder.svg",
+] as const;
+
+function decodedAssetPath(responseUrl: string) {
+  const url = new URL(responseUrl);
+  if (url.pathname !== "/_next/image") return url.pathname;
+  return url.searchParams.get("url") ?? "";
+}
 
 const VIEWPORTS = [
   { name: "mobile", width: 390, height: 844 },
@@ -30,7 +43,7 @@ test("every call to action resolves", async ({ page }) => {
   await page.goto(PATH);
 
   const hrefs = await page
-    .locator(".tx-page a[href]")
+    .locator(".terrax-site a[href]")
     .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href") ?? ""));
   expect(hrefs.length).toBeGreaterThan(10);
 
@@ -38,11 +51,17 @@ test("every call to action resolves", async ({ page }) => {
     if (href.startsWith("#")) {
       await expect(page.locator(href)).toHaveCount(1);
     } else if (href.startsWith("mailto:")) {
-      expect(href.startsWith(`mailto:${EMAIL}?`)).toBe(true);
+      expect(href.startsWith(`mailto:${EMAIL}`)).toBe(true);
     } else {
-      expect(href).toBe("/login");
+      expect(["/apply", "/login", "https://terraxmedia.com"]).toContain(href);
     }
   }
+});
+
+test("the legacy landing address redirects to the public root", async ({ page }) => {
+  await page.goto(COMPATIBILITY_PATH);
+  await expect(page).toHaveURL(/\/$/);
+  await expect(page.locator(".terrax-site")).toBeVisible();
 });
 
 test("the mobile menu opens, navigates and closes", async ({ page }) => {
@@ -52,21 +71,22 @@ test("the mobile menu opens, navigates and closes", async ({ page }) => {
   const toggle = page.getByRole("button", { name: /open menu/i });
   await toggle.click();
 
-  const menu = page.getByRole("navigation", { name: /mobile/i });
+  const menu = page.locator("#primary-menu");
   await expect(menu).toBeVisible();
 
-  await menu.getByRole("link", { name: "Reporting" }).click();
+  await menu.getByRole("link", { name: "Contact" }).click();
   await expect(page.getByRole("button", { name: /open menu/i })).toHaveAttribute(
     "aria-expanded",
     "false",
   );
-  await expect(page.locator("#reporting")).toBeInViewport();
+  await expect(menu).toHaveCount(0);
+  await expect(page.locator("#contact")).toBeInViewport();
 });
 
 test("a shared deep link lands on its section, clear of the sticky header", async ({ page }) => {
   await page.goto(`${PATH}#contact`);
 
-  const header = page.locator(".tx-header");
+  const header = page.getByRole("banner");
   await expect(header).toBeVisible();
   const headerHeight = (await header.boundingBox())?.height ?? 0;
 
@@ -81,25 +101,22 @@ test("a shared deep link lands on its section, clear of the sticky header", asyn
   expect(box!.y).toBeLessThan(headerHeight + 40);
 });
 
-test("the brand/driver tabs switch content", async ({ page }) => {
+test("brand and driver paths resolve to their distinct entry points", async ({ page }) => {
   await page.goto(PATH);
 
-  const panel = page.getByRole("tabpanel");
-  await expect(panel).toContainText(/Put your brand where/i);
-
-  await page.getByRole("tab", { name: "For drivers" }).click();
-  await expect(panel).toContainText(/Get paid for the driving/i);
-  await expect(panel.getByRole("link", { name: /apply to drive/i })).toHaveAttribute(
-    "href",
-    new RegExp(`^mailto:${EMAIL}\\?`),
-  );
+  await expect(
+    page.locator("#for-brands").getByRole("link", { name: "Advertise With Terrax" }),
+  ).toHaveAttribute("href", new RegExp(`^mailto:${EMAIL}\\?`));
+  await expect(
+    page.locator("#for-drivers").getByRole("link", { name: "Become a Driver Partner" }),
+  ).toHaveAttribute("href", "/apply");
 });
 
 test("reduced motion shows every section without animation", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto(PATH);
 
-  const reveals = page.locator("[data-tx-reveal]");
+  const reveals = page.locator(".terrax-reveal");
   const count = await reveals.count();
   expect(count).toBeGreaterThan(5);
 
@@ -112,7 +129,11 @@ test("reduced motion shows every section without animation", async ({ page }) =>
 test("the real logo assets load and none 404", async ({ page }) => {
   const failed: string[] = [];
   page.on("response", (response) => {
-    if (response.url().includes("/brand/terrax/") && response.status() >= 400) {
+    const assetPath = decodedAssetPath(response.url());
+    if (
+      (assetPath.startsWith("/brand/terrax/") || assetPath.startsWith("/marketing/terrax/")) &&
+      response.status() >= 400
+    ) {
       failed.push(`${response.status()} ${response.url()}`);
     }
   });
@@ -123,13 +144,13 @@ test("the real logo assets load and none 404", async ({ page }) => {
   await page.waitForLoadState("networkidle");
 
   expect(failed).toEqual([]);
-  await expect
-    .poll(async () =>
-      page
-        .locator(".tx-page img")
-        .evaluateAll(
-          (nodes) => nodes.filter((node) => (node as HTMLImageElement).naturalWidth > 0).length,
-        ),
-    )
-    .toBe(3);
+  const rendered = await page.locator(".terrax-site img").evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const image = node as HTMLImageElement;
+      return { source: image.currentSrc || image.src, naturalWidth: image.naturalWidth };
+    }),
+  );
+  const paths = rendered.map(({ source }) => decodedAssetPath(source));
+  expect(paths).toEqual(expect.arrayContaining([...TERRAX_ASSETS]));
+  for (const image of rendered) expect(image.naturalWidth).toBeGreaterThan(0);
 });

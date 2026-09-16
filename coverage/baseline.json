@@ -6,11 +6,11 @@
   },
   "critical": {
     "backend": {
-      "branch_covered": 4842,
-      "branch_percent": 69.0334,
+      "branch_covered": 4847,
+      "branch_percent": 69.1046,
       "branch_total": 7014,
-      "line_covered": 26158,
-      "line_percent": 89.0121,
+      "line_covered": 26166,
+      "line_percent": 89.0394,
       "line_total": 29387,
       "paths": [
         "app/__init__.py",
@@ -257,12 +257,12 @@
       ]
     },
     "frontend": {
-      "branch_covered": 4124,
-      "branch_percent": 63.9479,
-      "branch_total": 6449,
-      "line_covered": 4303,
-      "line_percent": 74.6142,
-      "line_total": 5767,
+      "branch_covered": 4114,
+      "branch_percent": 64.061,
+      "branch_total": 6422,
+      "line_covered": 4287,
+      "line_percent": 75.1183,
+      "line_total": 5707,
       "paths": [
         "frontend/src/app/admin/advertisers/[organizationId]/company/actions.ts",
         "frontend/src/app/admin/advertisers/[organizationId]/company/page.tsx",
@@ -449,15 +449,7 @@
         "frontend/src/app/forgot-password/page.tsx",
         "frontend/src/app/forgot-password/request-form.tsx",
         "frontend/src/app/global-error.tsx",
-        "frontend/src/app/landing/content.ts",
-        "frontend/src/app/landing/fonts.ts",
-        "frontend/src/app/landing/layout.tsx",
-        "frontend/src/app/landing/motifs.tsx",
         "frontend/src/app/landing/page.tsx",
-        "frontend/src/app/landing/pathways.tsx",
-        "frontend/src/app/landing/scroll-effects.tsx",
-        "frontend/src/app/landing/site-header.tsx",
-        "frontend/src/app/landing/steps.tsx",
         "frontend/src/app/layout.tsx",
         "frontend/src/app/login/actions.ts",
         "frontend/src/app/login/demo-role.ts",
@@ -478,6 +470,18 @@
         "frontend/src/components/driver/logout-button.tsx",
         "frontend/src/components/driver/sw-register.tsx",
         "frontend/src/components/driver/tab-bar.tsx",
+        "frontend/src/components/marketing/cardvert-section.tsx",
+        "frontend/src/components/marketing/contact-band.tsx",
+        "frontend/src/components/marketing/hero.tsx",
+        "frontend/src/components/marketing/how-it-works.tsx",
+        "frontend/src/components/marketing/icon.tsx",
+        "frontend/src/components/marketing/pathways.tsx",
+        "frontend/src/components/marketing/reveal.tsx",
+        "frontend/src/components/marketing/site-footer.tsx",
+        "frontend/src/components/marketing/site-header.tsx",
+        "frontend/src/components/marketing/value-strip.tsx",
+        "frontend/src/components/marketing/why-terrax.tsx",
+        "frontend/src/components/marketing/wordmark.tsx",
         "frontend/src/components/notifications/notification-center.tsx",
         "frontend/src/components/shell/app-shell.tsx",
         "frontend/src/components/shell/sidebar-nav.tsx",
@@ -532,6 +536,8 @@
         "frontend/src/lib/fonts.ts",
         "frontend/src/lib/format.ts",
         "frontend/src/lib/map/config.ts",
+        "frontend/src/lib/marketing/media.ts",
+        "frontend/src/lib/marketing/site.ts",
         "frontend/src/lib/observability.ts",
         "frontend/src/lib/payouts/corrections.ts",
         "frontend/src/lib/payouts/schema.ts",
@@ -544,25 +550,49 @@
       ]
     }
   },
-  "eligible_inventory_sha256": "6ac153c8361e5e3852bd22c73d3a5f603382f6716ab552cf4d2e34a331e950b8",
+  "eligible_inventory_sha256": "bf615ed79fa0aeef1fd69fa9a2851a39e677544505ef9f920e4fdc8bb1be8c1c",
   "global": {
-    "branch_covered": 8966,
-    "branch_percent": 66.5973,
-    "branch_total": 13463,
-    "line_covered": 30461,
-    "line_percent": 86.6502,
-    "line_total": 35154
+    "branch_covered": 8961,
+    "branch_percent": 66.694,
+    "branch_total": 13436,
+    "line_covered": 30453,
+    "line_percent": 86.7755,
+    "line_total": 35094
   },
   "policy_sha256": "ffea0a3c9540f8fe981cf0cc781275bdcfc88cf98bb87033a919a244f3f737de",
   "refresh": {
     "inventory_changes": {
-      "added": [],
-      "removed": []
+      "added": [
+        "frontend/src/components/marketing/cardvert-section.tsx",
+        "frontend/src/components/marketing/contact-band.tsx",
+        "frontend/src/components/marketing/hero.tsx",
+        "frontend/src/components/marketing/how-it-works.tsx",
+        "frontend/src/components/marketing/icon.tsx",
+        "frontend/src/components/marketing/pathways.tsx",
+        "frontend/src/components/marketing/reveal.tsx",
+        "frontend/src/components/marketing/site-footer.tsx",
+        "frontend/src/components/marketing/site-header.tsx",
+        "frontend/src/components/marketing/value-strip.tsx",
+        "frontend/src/components/marketing/why-terrax.tsx",
+        "frontend/src/components/marketing/wordmark.tsx",
+        "frontend/src/lib/marketing/media.ts",
+        "frontend/src/lib/marketing/site.ts"
+      ],
+      "removed": [
+        "frontend/src/app/landing/content.ts",
+        "frontend/src/app/landing/fonts.ts",
+        "frontend/src/app/landing/layout.tsx",
+        "frontend/src/app/landing/motifs.tsx",
+        "frontend/src/app/landing/pathways.tsx",
+        "frontend/src/app/landing/scroll-effects.tsx",
+        "frontend/src/app/landing/site-header.tsx",
+        "frontend/src/app/landing/steps.tsx"
+      ]
     },
-    "previous_baseline_sha256": "f7c7265c0edb7e5ff0912fe14fb8d6609f53254585e84dffcc0f76c40096376a",
-    "reason": "Adopt exact-SHA run 35074771398 after deterministic demo-seed safety tests made the existing coverage baseline reproducible; no floor lowered."
+    "previous_baseline_sha256": "ab6559ef5a27c370a9662e48b57ff07d7e686b8318e2669a714377e347960aed",
+    "reason": "Adopt exact-SHA run 35084625711 after the Terrax root integration added marketing source and removed the superseded landing implementation; every adopted ratio remains at or above the prior baseline and no floor is lowered."
   },
-  "source_parent_sha": "37589d4c98f6bd93eef994ea725d3bee7e6dc8ff",
-  "source_sha256": "6ce373f0706f2259817908ed699805cdaf753f4daa375c0d96713eb7da235091",
+  "source_parent_sha": "327c96dc91088ac9a603339603749edda3449505",
+  "source_sha256": "136e08ebb22146cd6825f59f62b4c6afbcee45e6f7e500d81421a767d74d4cb9",
   "version": 3
 }
