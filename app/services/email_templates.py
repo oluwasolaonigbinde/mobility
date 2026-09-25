@@ -70,6 +70,20 @@ _TEMPLATES: dict[NotificationType, Callable[[dict[str, Any]], RenderedEmail]] = 
     NotificationType.CAMPAIGN_APPROVED: _static(
         "Campaign approved", "Your campaign has been approved."
     ),
+    NotificationType.CAMPAIGN_REJECTED: _static(
+        "Campaign needs changes",
+        "Your campaign was not approved. Sign in to read the reason, update it and resubmit.",
+    ),
+    NotificationType.CREATIVE_APPROVED: _static(
+        "Campaign artwork approved", "Campaign artwork has been approved."
+    ),
+    NotificationType.CREATIVE_REJECTED: _static(
+        "Campaign artwork needs changes",
+        "Campaign artwork was not approved. Sign in to read the reason.",
+    ),
+    NotificationType.QUOTATION_READY: _static(
+        "Quotation ready for review", "A quotation is ready for your review. Sign in to review it."
+    ),
     NotificationType.FUNDING_CONFIRMED: _static(
         "Campaign funding confirmed", "Campaign funding has been confirmed."
     ),

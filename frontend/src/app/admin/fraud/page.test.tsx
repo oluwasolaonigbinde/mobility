@@ -99,8 +99,10 @@ describe("AdminFraudPage disputes", () => {
     expect(get).toHaveBeenNthCalledWith(1, "/api/v1/admin/fraud-flags", {
       params: { query: { limit: 25, offset: 0 } },
     });
+    // Pending physical checks are requested by type, so newer automatic renewals
+    // can never crowd them out of the bounded list.
     expect(get).toHaveBeenNthCalledWith(2, "/api/v1/admin/evidence-verifications", {
-      params: { query: { status: "pending" } },
+      params: { query: { status: "pending", verification_type: "physical_spot_check" } },
     });
     expect(get).toHaveBeenNthCalledWith(3, "/api/v1/admin/fraud-disputes", {
       params: { query: { flag_id: [FLAG_ID], limit: 25, offset: 0 } },

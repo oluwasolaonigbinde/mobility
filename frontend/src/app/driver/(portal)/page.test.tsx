@@ -183,6 +183,41 @@ describe("DriverHomePage ledger statuses", () => {
     expect(screen.queryByText("private detail")).not.toBeInTheDocument();
   });
 
+  it("counts campaigns and trip payouts from server totals, not limited pages", async () => {
+    get.mockImplementation(async (path?: string, options?: { params?: { query?: object } }) => {
+      const query = (options?.params?.query ?? {}) as Record<string, unknown>;
+      if (path?.endsWith("/summary")) return { data: { totals_by_currency: [] } };
+      if (path?.endsWith("/campaign-assignments")) {
+        return query.status === "completed"
+          ? { data: { items: [], total: 57, limit: 1, offset: 0 } }
+          : { data: { items: [], total: 73, limit: 50, offset: 0 } };
+      }
+      if (path?.endsWith("/earnings/ledger")) {
+        return query.entry_type === "trip_payout"
+          ? { data: { items: [], total: 312, limit: 1, offset: 0 } }
+          : {
+              data: {
+                items: [ledgerEntry("paid", "00000000-0000-4000-8000-000000000012")],
+                total: 400,
+                limit: 6,
+                offset: 0,
+              },
+            };
+      }
+      return { data: { items: [] } };
+    });
+
+    render(await DriverHomePage());
+
+    expect(screen.getByText("73")).toBeInTheDocument();
+    expect(screen.getByText("57 completed")).toBeInTheDocument();
+    expect(screen.getByText("Trip payouts")).toBeInTheDocument();
+    expect(screen.getByText("312")).toBeInTheDocument();
+    expect(get).toHaveBeenCalledWith("/api/v1/driver/earnings/ledger", {
+      params: { query: { entry_type: "trip_payout", limit: 1 } },
+    });
+  });
+
   it.each([
     [8, "Good morning"],
     [14, "Good afternoon"],

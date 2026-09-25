@@ -23,6 +23,50 @@ function exactMoney(currency: string, amount: string | number) {
   return `${currency} ${String(amount)}`;
 }
 
+function termLabel(key: string) {
+  const words = key.replaceAll("_", " ").trim();
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : key;
+}
+
+/**
+ * Render recorded quotation terms completely and readably: every key (as a
+ * readable label) and every value is shown, nothing is summarised, and nesting
+ * is preserved.
+ */
+function TermsValue({ value }: { value: unknown }) {
+  if (value === null || value === undefined || value === "") return <>Not specified</>;
+  if (typeof value === "boolean") return <>{value ? "Yes" : "No"}</>;
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <>None</>;
+    return (
+      <ul className="list-disc pl-4">
+        {value.map((item, index) => (
+          <li key={index}>
+            <TermsValue value={item} />
+          </li>
+        ))}
+      </ul>
+    );
+  }
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length === 0) return <>None</>;
+    return (
+      <dl className="grid gap-1.5">
+        {entries.map(([key, item]) => (
+          <div key={key}>
+            <dt className="text-faint text-xs">{termLabel(key)}</dt>
+            <dd className="text-sm">
+              <TermsValue value={item} />
+            </dd>
+          </div>
+        ))}
+      </dl>
+    );
+  }
+  return <>{String(value)}</>;
+}
+
 function QuotationFacts({ quotation, accepted }: { quotation: Quotation; accepted: boolean }) {
   const revisionNumber =
     "revision_number" in quotation
@@ -102,17 +146,19 @@ function QuotationFacts({ quotation, accepted }: { quotation: Quotation; accepte
         </div>
         <div>
           <p className="micro text-muted">Production scope</p>
-          <pre className="text-muted mt-1 overflow-x-auto text-xs whitespace-pre-wrap">
-            {JSON.stringify(quotation.production_scope, null, 2)}
-          </pre>
+          <div className="mt-1 break-words">
+            <TermsValue value={quotation.production_scope} />
+          </div>
         </div>
         <div>
           <p className="micro text-muted">Payment dates and conditions</p>
-          <pre className="text-muted mt-1 overflow-x-auto text-xs whitespace-pre-wrap">
-            {Object.keys(quotation.payment_terms).length
-              ? JSON.stringify(quotation.payment_terms, null, 2)
-              : "No additional conditions recorded"}
-          </pre>
+          <div className="mt-1 break-words">
+            {Object.keys(quotation.payment_terms).length ? (
+              <TermsValue value={quotation.payment_terms} />
+            ) : (
+              "No additional conditions recorded"
+            )}
+          </div>
         </div>
       </div>
     </div>

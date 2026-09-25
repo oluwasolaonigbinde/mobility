@@ -262,10 +262,16 @@ def test_billing_funding_alert_pause_reversal_and_audited_resume_converge(
             assert (
                 await session.scalar(select(func.count()).select_from(BudgetPolicyEvaluation)) == 3
             )
-            # Funding, alert, pause, and resume all share the existing outbox.
-            assert (
-                int(await session.scalar(select(func.count()).select_from(Notification)) or 0) == 10
-            )
+            # Funding, alert, pause, and resume all share the existing outbox; the
+            # in-platform quotation also told the advertiser to review it.
+            notice_types = list(await session.scalars(select(Notification.type_key)))
+            quotation_notices = [
+                type_key
+                for type_key in notice_types
+                if type_key == NotificationType.QUOTATION_READY.value
+            ]
+            assert len(quotation_notices) == 2
+            assert len(notice_types) - len(quotation_notices) == 10
 
             await fund(
                 session,

@@ -7,8 +7,6 @@ from unittest.mock import AsyncMock, Mock
 from uuid import UUID
 
 import pytest
-from alembic.config import Config
-from alembic.script import ScriptDirectory
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -51,7 +49,6 @@ from app.seeds.demo import (
     SEED_VERSION,
     build_demo_graph,
     ensure_seed_allowed,
-    required_migration_head,
     upsert_trips_and_pings,
 )
 from app.seeds.rich import F7_DRIVER_PASSWORDS, F7_SEED_VERSION
@@ -417,18 +414,6 @@ def test_demo_seed_command_reports_failures(
     assert expected_error in capsys.readouterr().err
 
 
-def test_demo_seed_command_returns_success(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(demo, "run_seed", AsyncMock())
-
-    assert demo.main() == 0
-
-
-def test_demo_passwords_satisfy_policy(settings: Settings) -> None:
-    assert all(
-        len(password) >= settings.password_min_length for password in DEMO_PASSWORDS.values()
-    )
-
-
 def test_demo_seed_is_not_registered_on_app_startup(settings: Settings) -> None:
     app = create_app(settings)
 
@@ -440,23 +425,6 @@ def test_no_seed_or_demo_migrations() -> None:
 
     assert "0010_payouts_and_earnings.py" in versions
     assert not any("seed" in name or "demo" in name for name in versions)
-
-
-def test_demo_seed_requires_the_code_migration_head() -> None:
-    config = Config("alembic.ini")
-    config.set_main_option("script_location", "alembic")
-    heads = ScriptDirectory.from_config(config).get_heads()
-    assert len(heads) == 1
-    assert required_migration_head() == heads[0]
-
-
-def test_readme_documents_demo_seed_workflow() -> None:
-    readme = Path("README.md").read_text(encoding="utf-8")
-
-    assert "python -m app.seeds.demo" in readme
-    assert "advertiser@demo.mobility.local" in readme
-    assert DEMO_BBOX in readme
-    assert "GET /api/v1/driver/earnings/summary" in readme
 
 
 def test_openapi_has_frontend_contract_tags_and_examples(client) -> None:

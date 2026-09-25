@@ -7,6 +7,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     String,
     Text,
     UniqueConstraint,
@@ -93,6 +94,14 @@ class OrganizationMembership(Base):
             name="ck_organization_memberships_status",
         ),
         UniqueConstraint("organization_id", "user_id", name="uq_organization_memberships_org_user"),
+        # D29: an advertiser login holds at most one active company membership.
+        Index(
+            "uq_organization_memberships_user_active",
+            "user_id",
+            unique=True,
+            sqlite_where=text("status = 'active'"),
+            postgresql_where=text("status = 'active'"),
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(

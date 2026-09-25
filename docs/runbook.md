@@ -232,6 +232,28 @@ docker compose exec -T api alembic current
 
 Apply migrations before starting newly deployed application code. A migration rollback is allowed only when its revision file documents a safe downgrade and no incompatible data has been written. Prefer restoring the pre-migration backup over improvising destructive SQL.
 
+### One active company per advertiser login (D29, migration 0090)
+
+Migration `0090_single_active_advertiser_membership` refuses to run while any
+login holds more than one active advertiser membership, because only an operator
+can decide which company that person keeps. List the conflicts with:
+
+```sql
+SELECT user_id, count(*) AS active_memberships
+FROM organization_memberships WHERE status = 'active'
+GROUP BY user_id HAVING count(*) > 1;
+```
+
+For each login, confirm with the advertiser which company is current, set every
+other membership for that `user_id` to `disabled` (never delete it), take a
+backup, then rerun the upgrade. The upgrade takes a `NOWAIT` table lock, so it
+fails at once if another session holds `organization_memberships`; retry in a
+quiet window rather than forcing it. The same rule applies after the upgrade: to move
+an advertiser to a new company, first disable the old membership, then create or
+attach the new company. The product has no screen for this yet (tracked as
+NX-13 in `issues/planning/current-state-reconciliation-2026-09-23.md`), so record
+the change in the operations log.
+
 ## Sessions, password changes, and logout
 
 - Access tokens slide in 60-minute windows during eligible GET navigation, up to an absolute 12-hour lifetime from the original login.

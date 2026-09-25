@@ -99,6 +99,22 @@ def notification_feed_response(notice: Notification) -> NotificationFeedItemRead
             "Campaign approved",
             "Your campaign has been approved.",
         ),
+        NotificationType.CAMPAIGN_REJECTED.value: (
+            "Campaign needs changes",
+            "Your campaign was not approved. Open it to read the reason, update it and resubmit.",
+        ),
+        NotificationType.CREATIVE_APPROVED.value: (
+            "Artwork approved",
+            "Campaign artwork has been approved.",
+        ),
+        NotificationType.CREATIVE_REJECTED.value: (
+            "Artwork needs changes",
+            "Campaign artwork was not approved. Open the campaign to read the reason.",
+        ),
+        NotificationType.QUOTATION_READY.value: (
+            "Quotation ready",
+            "A quotation is ready for your review in the campaign.",
+        ),
         NotificationType.FUNDING_CONFIRMED.value: (
             "Funding confirmed",
             "Campaign funding has been confirmed.",

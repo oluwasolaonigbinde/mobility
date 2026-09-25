@@ -176,12 +176,15 @@ export function TripTracker({
   initialTrip,
   driverId,
   startUnavailableMessage,
+  pausedCampaignName,
 }: {
   assignment: DriverTrackerAssignment | null;
   initialTrip: DriverTrackerTrip | null;
   /** Server-verified user id from the guarded driver page. */
   driverId: string;
   startUnavailableMessage?: string;
+  /** An activated campaign whose Start is currently not allowed (display only). */
+  pausedCampaignName?: string;
 }) {
   const router = useRouter();
   const [trip, setTrip] = useState<DriverTrackerTrip | null>(initialTrip);
@@ -1226,7 +1229,9 @@ export function TripTracker({
           </Link>
         </Panel>
         <Panel className="p-6 text-center">
-          <p className="text-sm font-medium">No active campaign</p>
+          <p className="text-sm font-medium">
+            {pausedCampaignName ? `${pausedCampaignName} can't start yet` : "No active campaign"}
+          </p>
           <p className="text-muted mt-1 text-xs">
             {startUnavailableMessage ??
               "Accept an offer and wait for admin activation — then your trips earn."}

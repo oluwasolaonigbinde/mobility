@@ -703,11 +703,16 @@ async def list_driver_pending_verifications(
 
 
 async def list_admin_verifications(
-    session: AsyncSession, *, verification_status: str | None = None
+    session: AsyncSession,
+    *,
+    verification_status: str | None = None,
+    verification_type: str | None = None,
 ) -> list[EvidenceVerification]:
     query = select(EvidenceVerification)
     if verification_status is not None:
         query = query.where(EvidenceVerification.status == verification_status)
+    if verification_type is not None:
+        query = query.where(EvidenceVerification.verification_type == verification_type)
     return list(
         (
             await session.scalars(

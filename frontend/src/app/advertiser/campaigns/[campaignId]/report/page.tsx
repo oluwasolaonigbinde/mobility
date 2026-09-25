@@ -17,6 +17,7 @@ import {
   costMetric,
   costMetricDisplay,
   GovernedAnalysisState,
+  isUnissued,
   MeasurementAuthorityPanel,
   modelledContactsMetric,
   movementMetric,
@@ -63,7 +64,9 @@ export default async function CampaignReportPage({
       />
     );
   }
-  if (!report) return <GovernedAnalysisState code="SAFE_MEASUREMENT_RUN_REQUIRED" />;
+  if (!report || isUnissued(report)) {
+    return <GovernedAnalysisState code="SAFE_MEASUREMENT_RUN_REQUIRED" />;
+  }
   const authority = validateMeasurementAuthority(report);
   if (!authority.ok) {
     return <GovernedAnalysisState code="MEASUREMENT_RUN_INTEGRITY_FAILURE" />;

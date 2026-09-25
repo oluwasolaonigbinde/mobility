@@ -1,6 +1,8 @@
+from collections import defaultdict
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from decimal import Decimal
+from functools import cached_property
 from uuid import UUID
 
 from sqlalchemy import or_, select
@@ -47,10 +49,17 @@ class ReportCohort:
             ledger=tuple(r for r in self.ledger or () if r.trip_session_id in ids),
         )
 
+    @cached_property
+    def _ledger_by_trip(self) -> dict[UUID, tuple[EarningsLedgerEntry, ...]]:
+        grouped: dict[UUID, list[EarningsLedgerEntry]] = defaultdict(list)
+        for row in self.ledger or ():
+            grouped[row.trip_session_id].append(row)
+        return {trip_id: tuple(rows) for trip_id, rows in grouped.items()}
+
     def final_cost(self, payout: PayoutCalculation) -> Decimal:
         if self.ledger is None:
             return payout.final_payout
-        rows = [r for r in self.ledger if r.trip_session_id == payout.trip_session_id]
+        rows = self._ledger_by_trip.get(payout.trip_session_id, ())
         if payout.status == "calculated" and not any(
             r.payout_calculation_id == payout.id for r in rows
         ):

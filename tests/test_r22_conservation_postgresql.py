@@ -21,6 +21,7 @@ import app.services.disbursements as disbursement_service
 from app.adapters.crypto import EnvelopeCryptoProvider
 from app.adapters.disbursement import FakeDisbursementAdapter
 from app.db.base import Base
+from app.models.audit import AuditEvent
 from app.models.disbursement import (
     DriverCurrencyDebtAccount,
     PayoutBatchLine,
@@ -668,6 +669,79 @@ def test_confirmed_fraud_failed_net_reopens_as_debt_on_late_success(
     assert late_cash.status == "debt_activated"
     assert len(incidents) == len(debts) == 2
     assert active_debt.outstanding_amount == account.outstanding_amount == Decimal("100.00")
+
+
+def test_recovery_incident_lookup_survives_an_inactive_batch_approver(
+    postgis_db_sessionmaker,
+) -> None:
+    graph = build_graph(postgis_db_sessionmaker, f"r22-fraud-inactive-{uuid4().hex[:8]}")
+    checker, _ = _admins(postgis_db_sessionmaker, "r22-fraud-inactive")
+
+    class AcceptedWithoutReceipt(FakeDisbursementAdapter):
+        lookups = 0
+
+        async def submit_batch(self, *, batch_id, instructions):
+            await super().submit_batch(batch_id=batch_id, instructions=instructions)
+            raise TimeoutError("provider accepted before response")
+
+        async def lookup_line(self, *, idempotency_key, instruction_fingerprint):
+            type(self).lookups += 1
+            return await super().lookup_line(
+                idempotency_key=idempotency_key,
+                instruction_fingerprint=instruction_fingerprint,
+            )
+
+    adapter = AcceptedWithoutReceipt()
+
+    async def prepare():
+        async with postgis_db_sessionmaker() as session:
+            _, lines, _ = await _submitted_batch(session, graph, checker, adapter)
+            return await session.scalar(
+                select(PayoutSubmissionIntent.id).where(
+                    PayoutSubmissionIntent.payout_batch_line_id == lines[0].id
+                )
+            )
+
+    intent_id = asyncio.run(prepare())
+    flag = create_flag(postgis_db_sessionmaker, graph)
+
+    async def confirm_suspend_and_lookup():
+        async with postgis_db_sessionmaker() as session:
+            await acknowledge_fraud_flag(
+                session, flag_id=flag.id, actor_user_id=graph.admin.id, now=NOW
+            )
+            await resolve_fraud_flag(
+                session,
+                flag_id=flag.id,
+                actor_user_id=graph.admin.id,
+                outcome="confirmed",
+                resolution_note="Confirmed fraud on an unknown payout.",
+                now=NOW + timedelta(seconds=1),
+            )
+            approver = await session.get(type(graph.admin), checker.id)
+            approver.status = "suspended"
+            await session.commit()
+            workers = async_sessionmaker(session.bind, expire_on_commit=False)
+            outcome = await process_payout_submission_intent(
+                workers, intent_id=intent_id, adapter=adapter
+            )
+            audit = await session.scalar(
+                select(AuditEvent)
+                .where(
+                    AuditEvent.action == "worker.payout_submission.authorized",
+                    AuditEvent.entity_id == str(intent_id),
+                )
+                .order_by(AuditEvent.created_at.desc())
+                .limit(1)
+            )
+            return outcome, audit.event_metadata
+
+    outcome, metadata = asyncio.run(confirm_suspend_and_lookup())
+    assert outcome == "resolved"
+    assert metadata["claim_scope"] == "provider_lookup_only"
+    assert metadata["inactive_batch_authority_user_ids"] == [str(checker.id)]
+    assert AcceptedWithoutReceipt.lookups == 1
+    assert len(adapter.calls) == 1  # only the original, receipt-less submission
 
 
 @pytest.mark.parametrize(

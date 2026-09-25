@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { campaignBasicsSchema, creativeSchema, toApiDatetime } from "./schema";
+import {
+  campaignBasicsSchema,
+  creativeSchema,
+  toApiDatetime,
+  toLagosDatetimeLocal,
+} from "./schema";
 
 const validBasics = {
   name: "Yello Season Q3",
@@ -83,10 +88,27 @@ describe("creativeSchema", () => {
 });
 
 describe("toApiDatetime", () => {
-  it("converts datetime-local to ISO and passes undefined through", () => {
+  it("reads datetime-local input as Lagos time whatever the runtime zone", () => {
     expect(toApiDatetime(undefined)).toBeUndefined();
-    const iso = toApiDatetime("2026-08-01T08:00");
-    expect(iso).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
-    expect(new Date(iso!).getTime()).toBe(new Date("2026-08-01T08:00").getTime());
+    expect(toApiDatetime("2026-08-01T08:00")).toBe("2026-08-01T07:00:00.000Z");
+    expect(toApiDatetime("2026-12-31T23:30:15")).toBe("2026-12-31T22:30:15.000Z");
+  });
+
+  it("round-trips a stored instant through the Lagos form default", () => {
+    expect(toLagosDatetimeLocal("2026-08-01T07:00:00Z")).toBe("2026-08-01T08:00");
+    expect(toApiDatetime(toLagosDatetimeLocal("2026-08-01T07:00:00Z"))).toBe(
+      "2026-08-01T07:00:00.000Z",
+    );
+    expect(toLagosDatetimeLocal(null)).toBe("");
+    expect(toLagosDatetimeLocal("not a date")).toBe("");
+  });
+
+  it("rejects zoned or offset strings that are not datetime-local values", () => {
+    const basics = { name: "Launch", description: "", budget_amount: "", daily_budget_amount: "" };
+    for (const value of ["2026-08-01T08:00Z", "2026-08-01T08:00+02:00", "2026-08-01"]) {
+      expect(
+        campaignBasicsSchema.safeParse({ ...basics, start_at: value, end_at: "" }).success,
+      ).toBe(false);
+    }
   });
 });

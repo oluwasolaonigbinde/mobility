@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { createApiClient } from "@/lib/api/client";
+import { isAdvertiserViewer, requireRole } from "@/lib/auth/current-user";
 import { getSessionToken } from "@/lib/auth/session";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -15,85 +16,94 @@ export default async function CompanyPage({
   searchParams: Promise<{ saved?: string; error?: string }>;
 }) {
   const notice = await searchParams;
+  const viewer = isAdvertiserViewer(await requireRole("advertiser"));
   const api = createApiClient(await getSessionToken());
   const { data: company } = await api.GET("/api/v1/advertiser/company");
   if (!company) return null;
 
   return (
     <div className="animate-rise mx-auto max-w-5xl">
-      <PageHeader title="Company profile" eyebrow="Canonical billing and operational contacts" />
+      <PageHeader
+        title="Company profile"
+        eyebrow="Your company's billing and operations contacts"
+      />
       {notice.saved ? <p className="text-green mb-4 text-sm">Company profile saved.</p> : null}
       {notice.error ? <p className="text-coral mb-4 text-sm">{notice.error}</p> : null}
+      <p className="text-muted mb-4 text-sm">
+        {viewer
+          ? "You have view-only access. Only company owners and managers can change these details."
+          : "These are contact details only. When email is switched on, campaign update emails go to each team member's sign-in email."}
+      </p>
       <Panel className="p-6">
-        <form action={updateCompanyAction} className="grid gap-5 md:grid-cols-2">
-          <Field name="name" label="Legal or trading name" defaultValue={company.name} required />
-          <Field
-            name="industry"
-            label="Industry"
-            defaultValue={company.industry ?? ""}
-          />
-          <Field
-            name="billing_email"
-            label="Billing email"
-            type="email"
-            defaultValue={company.billing_email ?? ""}
-          />
-          <Field
-            name="billing_contact_name"
-            label="Billing contact"
-            defaultValue={company.billing_contact_name ?? ""}
-          />
-          <Field
-            name="billing_contact_phone"
-            label="Billing phone"
-            defaultValue={company.billing_contact_phone ?? ""}
-          />
-          <Field
-            name="operational_contact_name"
-            label="Operations contact"
-            defaultValue={company.operational_contact_name ?? ""}
-          />
-          <Field
-            name="operational_contact_email"
-            label="Operations email"
-            type="email"
-            defaultValue={company.operational_contact_email ?? ""}
-          />
-          <Field
-            name="operational_contact_phone"
-            label="Operations phone"
-            defaultValue={company.operational_contact_phone ?? ""}
-          />
-          <Field
-            name="address_line_1"
-            label="Address line 1"
-            defaultValue={company.address_line_1 ?? ""}
-          />
-          <Field
-            name="address_line_2"
-            label="Address line 2"
-            defaultValue={company.address_line_2 ?? ""}
-          />
-          <Field name="address_city" label="City" defaultValue={company.address_city ?? ""} />
-          <Field
-            name="address_region"
-            label="State / region"
-            defaultValue={company.address_region ?? ""}
-          />
-          <Field
-            name="address_postal_code"
-            label="Postal code"
-            defaultValue={company.address_postal_code ?? ""}
-          />
-          <Field
-            name="address_country_code"
-            label="Country code"
-            maxLength={2}
-            defaultValue={company.address_country_code ?? ""}
-          />
-          <div className="md:col-span-2">
-            <Button type="submit">Save company profile</Button>
-          </div>
+        <form action={updateCompanyAction}>
+          <fieldset disabled={viewer} className="grid gap-5 md:grid-cols-2">
+            <Field name="name" label="Legal or trading name" defaultValue={company.name} required />
+            <Field name="industry" label="Industry" defaultValue={company.industry ?? ""} />
+            <Field
+              name="billing_email"
+              label="Billing email"
+              type="email"
+              defaultValue={company.billing_email ?? ""}
+            />
+            <Field
+              name="billing_contact_name"
+              label="Billing contact"
+              defaultValue={company.billing_contact_name ?? ""}
+            />
+            <Field
+              name="billing_contact_phone"
+              label="Billing phone"
+              defaultValue={company.billing_contact_phone ?? ""}
+            />
+            <Field
+              name="operational_contact_name"
+              label="Operations contact"
+              defaultValue={company.operational_contact_name ?? ""}
+            />
+            <Field
+              name="operational_contact_email"
+              label="Operations email"
+              type="email"
+              defaultValue={company.operational_contact_email ?? ""}
+            />
+            <Field
+              name="operational_contact_phone"
+              label="Operations phone"
+              defaultValue={company.operational_contact_phone ?? ""}
+            />
+            <Field
+              name="address_line_1"
+              label="Address line 1"
+              defaultValue={company.address_line_1 ?? ""}
+            />
+            <Field
+              name="address_line_2"
+              label="Address line 2"
+              defaultValue={company.address_line_2 ?? ""}
+            />
+            <Field name="address_city" label="City" defaultValue={company.address_city ?? ""} />
+            <Field
+              name="address_region"
+              label="State / region"
+              defaultValue={company.address_region ?? ""}
+            />
+            <Field
+              name="address_postal_code"
+              label="Postal code"
+              defaultValue={company.address_postal_code ?? ""}
+            />
+            <Field
+              name="address_country_code"
+              label="Country code"
+              maxLength={2}
+              defaultValue={company.address_country_code ?? ""}
+            />
+            {viewer ? null : (
+              <div className="md:col-span-2">
+                <Button type="submit">Save company profile</Button>
+              </div>
+            )}
+          </fieldset>
         </form>
       </Panel>
     </div>

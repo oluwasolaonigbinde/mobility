@@ -400,6 +400,22 @@ async def record_quotation_revision(
             "gross_amount": f"{revision.gross_amount:.2f}",
         },
     )
+    if quote_request.source == QuoteRequestSource.IN_PLATFORM:
+        # Externally recorded quotations are accepted by an administrator, so only
+        # an in-platform request leaves the advertiser something to act on.
+        from app.models.notification import NotificationType
+        from app.services.notifications import create_advertiser_business_notifications
+
+        await create_advertiser_business_notifications(
+            session,
+            advertiser_organization_id=campaign.organization_id,
+            type_key=NotificationType.QUOTATION_READY,
+            event_key=f"quotation:revision:v1:{revision.id}",
+            payload={
+                "campaign_id": str(campaign.id),
+                "quotation_revision_id": str(revision.id),
+            },
+        )
     return revision
 
 

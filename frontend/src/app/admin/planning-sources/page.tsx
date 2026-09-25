@@ -1,51 +1,75 @@
 import type { Metadata } from "next";
 import { createApiClient } from "@/lib/api/client";
+import { loadAdvertiserPageData } from "@/lib/advertiser/page-data";
 import { getSessionToken } from "@/lib/auth/session";
 import { formatDate } from "@/lib/format";
+import { DataUnavailable } from "@/components/ui/data-unavailable";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { HighExposureZoneInsights } from "@/components/analytics/high-exposure-zone-insights";
 
-export const metadata: Metadata = { title: "Campaign analysis governance" };
+export const metadata: Metadata = { title: "Planning sources" };
+
+const RETRY_HREF = "/admin/planning-sources";
 
 export default async function AdminPlanningSourcesPage() {
   const api = createApiClient(await getSessionToken());
-  const [{ data }, { data: linkData }] = await Promise.all([
-    api.GET("/api/v1/admin/retargeting-sources"),
-    api.GET("/api/v1/admin/retargeting-source-links"),
+  const [sourcesResult, linksResult] = await Promise.all([
+    loadAdvertiserPageData(() => api.GET("/api/v1/admin/retargeting-sources")),
+    loadAdvertiserPageData(() => api.GET("/api/v1/admin/retargeting-source-links")),
   ]);
-  const items = data?.items ?? [];
-  const links = linkData?.items ?? [];
+  if (!sourcesResult.available || !linksResult.available) {
+    const reason = !sourcesResult.available
+      ? sourcesResult.reason
+      : !linksResult.available
+        ? linksResult.reason
+        : "protocol";
+    return (
+      <div className="animate-rise mx-auto max-w-6xl">
+        <PageHeader title="Planning sources" eyebrow="Advertiser retargeting inputs" />
+        <DataUnavailable
+          title="Planning sources aren't available yet"
+          reason={reason}
+          retryHref={RETRY_HREF}
+        />
+      </div>
+    );
+  }
+  const data = sourcesResult.data;
+  const items = data.items;
+  const links = linksResult.data.items;
   const campaignIds = [...new Set(links.map((link) => link.campaign_id))];
   const zoneInsights = new Map(
     await Promise.all(
       campaignIds.map(async (campaignId) => {
-        const { data: insight } = await api.GET(
-          "/api/v1/admin/campaigns/{campaign_id}/zone-insights",
-          { params: { path: { campaign_id: campaignId } } },
+        const insight = await loadAdvertiserPageData(() =>
+          api.GET("/api/v1/admin/campaigns/{campaign_id}/zone-insights", {
+            params: { path: { campaign_id: campaignId } },
+          }),
         );
-        return [campaignId, insight] as const;
+        return [campaignId, insight.available ? insight.data : undefined] as const;
       }),
     ),
   );
   const recommendations = new Map(
     await Promise.all(
       links.map(async (link) => {
-        const { data: recommendation } = await api.GET(
-          "/api/v1/admin/retargeting-source-links/{link_id}/recommendations",
-          { params: { path: { link_id: link.id } } },
+        const recommendation = await loadAdvertiserPageData(() =>
+          api.GET("/api/v1/admin/retargeting-source-links/{link_id}/recommendations", {
+            params: { path: { link_id: link.id } },
+          }),
         );
-        return [link.id, recommendation] as const;
+        return [link.id, recommendation.available ? recommendation.data : undefined] as const;
       }),
     ),
   );
   return (
     <div className="animate-rise mx-auto max-w-6xl">
       <PageHeader
-        title="Campaign analysis governance"
-        eyebrow={`${data?.total ?? 0} aggregate source${data?.total === 1 ? "" : "s"}`}
+        title="Planning sources"
+        eyebrow={`${data.total} advertiser audience source${data.total === 1 ? "" : "s"}`}
       />
       {items.length === 0 ? (
         <EmptyState

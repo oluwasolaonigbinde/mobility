@@ -49,6 +49,14 @@ export async function requireRole(...roles: Role[]): Promise<MeResponse> {
   return me;
 }
 
+/**
+ * A read-only company member. UX only: the backend refuses viewer writes regardless
+ * (ADVERTISER_MEMBERSHIP_WRITE_FORBIDDEN), so an unknown role never hides controls.
+ */
+export function isAdvertiserViewer(me: MeResponse): boolean {
+  return me.advertiser_organization?.membership_role === "viewer";
+}
+
 export function changePasswordPath(role: Role): string {
   return role === "driver" ? "/driver/change-password" : "/change-password";
 }

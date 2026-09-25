@@ -597,3 +597,140 @@ def test_combined_status_and_admin_elevation_rotates_only_once(db_client, db_ses
     assert stored_user.role == UserRole.ADMIN
     assert stored_user.status == "suspended"
     assert stored_user.session_version == target_user.session_version + 1
+
+
+def _public_applicant(db_client, db_sessionmaker, settings, email: str):
+    from app.api.v1.dependencies import get_registration_rate_limiter
+    from app.core.config import get_settings
+    from app.core.rate_limit import InMemoryRegistrationRateLimiter
+
+    enabled = settings.model_copy(update={"driver_registration_enabled": True})
+    db_client.app.dependency_overrides[get_settings] = lambda: enabled
+    db_client.app.dependency_overrides[get_registration_rate_limiter] = lambda: (
+        InMemoryRegistrationRateLimiter()
+    )
+    response = db_client.post(
+        "/api/v1/auth/register-driver", json={"email": email, "full_name": "Public Applicant"}
+    )
+    assert response.status_code == http_status.HTTP_202_ACCEPTED
+    applicant = fetch_user_by_email(db_sessionmaker, email)
+    assert applicant is not None and applicant.status == UserStatus.INVITED
+    return applicant
+
+
+@pytest.mark.parametrize(
+    "steps",
+    [
+        pytest.param([{"status": "active"}], id="direct"),
+        pytest.param([{"role": "advertiser"}, {"status": "active"}], id="role-flip"),
+        pytest.param([{"status": "suspended"}, {"status": "active"}], id="suspend-first"),
+        pytest.param([{"role": "advertiser", "status": "active"}], id="combined"),
+    ],
+)
+def test_public_applicant_cannot_be_activated_outside_account_setup(
+    db_client, db_sessionmaker, settings, steps
+) -> None:
+    admin = create_test_user(db_sessionmaker, email="admin@example.com", password=PASSWORD)
+    applicant = _public_applicant(db_client, db_sessionmaker, settings, "applicant@example.com")
+    headers = auth_headers(db_client, admin.email, PASSWORD)
+
+    responses = [
+        db_client.patch(f"/api/v1/admin/users/{applicant.id}", headers=headers, json=step)
+        for step in steps
+    ]
+
+    refused = responses[-1]
+    assert refused.status_code == http_status.HTTP_409_CONFLICT
+    assert refused.json()["error"]["code"] == "DRIVER_ACTIVATION_REQUIRES_SETUP"
+    assert fetch_user_by_email(db_sessionmaker, applicant.email).status != UserStatus.ACTIVE
+
+
+@pytest.mark.parametrize("role", ["advertiser", "admin"])
+def test_public_applicant_role_cannot_change_before_setup(
+    db_client, db_sessionmaker, settings, role
+) -> None:
+    # Another role would make the invited applicant eligible for password recovery.
+    admin = create_test_user(db_sessionmaker, email="admin@example.com", password=PASSWORD)
+    applicant = _public_applicant(db_client, db_sessionmaker, settings, "flip@example.com")
+
+    response = db_client.patch(
+        f"/api/v1/admin/users/{applicant.id}",
+        headers=auth_headers(db_client, admin.email, PASSWORD),
+        json={"role": role, "current_password": PASSWORD},
+    )
+
+    assert response.status_code == http_status.HTTP_409_CONFLICT
+    # Elevation to admin is already refused for any inactive user.
+    expected = "USER_NOT_ACTIVE" if role == "admin" else "DRIVER_ACTIVATION_REQUIRES_SETUP"
+    assert response.json()["error"]["code"] == expected
+    stored = fetch_user_by_email(db_sessionmaker, applicant.email)
+    assert stored.role == UserRole.DRIVER and stored.status == UserStatus.INVITED
+
+
+def test_applicant_who_completed_setup_can_be_reactivated_after_suspension(
+    db_client, db_sessionmaker, settings
+) -> None:
+    import asyncio
+    from datetime import UTC, datetime, timedelta
+    from uuid import uuid4
+
+    from sqlalchemy import select, update
+
+    from app.models.driver_application import DriverAccountSetupToken, DriverApplication
+    from app.models.user import User
+
+    admin = create_test_user(db_sessionmaker, email="admin@example.com", password=PASSWORD)
+    applicant = _public_applicant(db_client, db_sessionmaker, settings, "set-up@example.com")
+
+    async def record_completed_setup() -> None:
+        # Stands in for complete_driver_account_setup, which is covered by its own suite.
+        now = datetime.now(UTC)
+        async with db_sessionmaker() as session:
+            application_id = await session.scalar(
+                select(DriverApplication.id).where(DriverApplication.user_id == applicant.id)
+            )
+            session.add(
+                DriverAccountSetupToken(
+                    application_id=application_id,
+                    user_id=applicant.id,
+                    issued_by_user_id=admin.id,
+                    client_request_id=uuid4(),
+                    request_fingerprint="a" * 64,
+                    token_sha256="b" * 64,
+                    evidence_sha256="c" * 64,
+                    session_version=1,
+                    created_at=now - timedelta(minutes=5),
+                    expires_at=now + timedelta(hours=1),
+                    used_at=now,
+                )
+            )
+            await session.execute(
+                update(User).where(User.id == applicant.id).values(status=UserStatus.ACTIVE)
+            )
+            await session.commit()
+
+    asyncio.run(record_completed_setup())
+    headers = auth_headers(db_client, admin.email, PASSWORD)
+    for target in ("suspended", "active"):
+        response = db_client.patch(
+            f"/api/v1/admin/users/{applicant.id}", headers=headers, json={"status": target}
+        )
+        assert response.status_code == http_status.HTTP_200_OK
+    assert fetch_user_by_email(db_sessionmaker, applicant.email).status == UserStatus.ACTIVE
+
+
+def test_operator_created_driver_can_still_be_suspended_and_reactivated(
+    db_client, db_sessionmaker
+) -> None:
+    admin = create_test_user(db_sessionmaker, email="admin@example.com", password=PASSWORD)
+    driver = create_test_user(
+        db_sessionmaker, email="driver@example.com", password=PASSWORD, role=UserRole.DRIVER
+    )
+    headers = auth_headers(db_client, admin.email, PASSWORD)
+
+    for target in ("suspended", "active"):
+        response = db_client.patch(
+            f"/api/v1/admin/users/{driver.id}", headers=headers, json={"status": target}
+        )
+        assert response.status_code == http_status.HTTP_200_OK
+    assert fetch_user_by_email(db_sessionmaker, driver.email).status == UserStatus.ACTIVE

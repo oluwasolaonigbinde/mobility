@@ -6,11 +6,12 @@ from uuid import uuid4
 
 import pytest
 from conftest import (
+    auth_headers,
     create_test_driver_profile,
     create_test_organization,
     create_test_user,
 )
-from sqlalchemy import func, select
+from sqlalchemy import event, func, select
 
 from app.adapters.messaging import EmailSubmission
 from app.core.errors import AppError
@@ -119,6 +120,64 @@ def test_manual_contact_requires_current_purpose_matched_authority(
             )
 
     asyncio.run(scenario())
+
+
+def test_admin_contact_queue_names_each_task_driver(db_client, db_sessionmaker, settings) -> None:
+    create_test_user(db_sessionmaker, email="contact-queue-admin@example.com")
+    drivers = [
+        create_test_user(
+            db_sessionmaker,
+            email=f"contact-queue-{name.lower()}@example.com",
+            full_name=f"{name} Driver",
+            role=UserRole.DRIVER,
+        )
+        for name in ("Ada", "Bola")
+    ]
+    profiles = [
+        create_test_driver_profile(db_sessionmaker, user_id=driver.id) for driver in drivers
+    ]
+
+    async def seed() -> None:
+        async with db_sessionmaker() as session:
+            for index, (driver, profile) in enumerate(zip(drivers, profiles, strict=True)):
+                phone = await set_driver_phone(
+                    session, user_id=driver.id, phone=f"+23480312345{index}0", settings=settings
+                )
+                phone.verified_at = datetime.now(UTC)
+                await session.flush()
+                await grant_whatsapp_consent(
+                    session,
+                    user_id=driver.id,
+                    purpose="campaign_assignment_offer",
+                    notice_version="synthetic-notice-v1",
+                )
+                assert await create_manual_driver_contact_task(
+                    session,
+                    driver_profile_id=profile.id,
+                    event_key=f"synthetic:offer:{index}",
+                    purpose="campaign_assignment_offer",
+                )
+            await session.commit()
+
+    asyncio.run(seed())
+    headers = auth_headers(db_client, "contact-queue-admin@example.com", "long-secure-password")
+    name_lookups: list[str] = []
+
+    def record(_conn, _cursor, statement, *_args) -> None:
+        if "full_name" in statement and "driver_profiles" in statement:
+            name_lookups.append(statement)
+
+    engine = db_sessionmaker.kw["bind"].sync_engine
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        response = db_client.get("/api/v1/admin/manual-driver-contact-tasks", headers=headers)
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+
+    assert response.status_code == 200
+    names = {item["driver_profile_id"]: item["driver_name"] for item in response.json()["items"]}
+    assert names == {str(profiles[0].id): "Ada Driver", str(profiles[1].id): "Bola Driver"}
+    assert len(name_lookups) == 1  # one lookup for the page, not one per task
 
 
 @pytest.mark.parametrize("withdraw_first", [False, True])

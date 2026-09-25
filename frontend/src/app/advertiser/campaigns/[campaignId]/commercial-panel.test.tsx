@@ -130,6 +130,38 @@ describe("CommercialPanel copy", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows every recorded scope and payment term as readable text, not JSON", () => {
+    render(
+      <CommercialPanel
+        campaignId={CAMPAIGN_ID}
+        commercial={commercial({
+          quote_request: { id: "q1" } as Commercial["quote_request"],
+          revisions: [
+            revision({
+              production_scope: {
+                vehicle_count: 4,
+                wrap: { finish: "matte", sides: ["left", "right"] },
+                removal_included: false,
+                notes: null,
+              },
+              payment_terms: { due: "before production", instalments: [] },
+            }),
+          ],
+        })}
+      />,
+    );
+
+    for (const text of ["Vehicle count", "4", "Wrap", "Finish", "matte", "left", "right"]) {
+      expect(screen.getByText(text)).toBeInTheDocument();
+    }
+    expect(screen.getByText("Removal included")).toBeInTheDocument();
+    expect(screen.getByText("No")).toBeInTheDocument();
+    expect(screen.getByText("Not specified")).toBeInTheDocument();
+    expect(screen.getByText("Instalments")).toBeInTheDocument();
+    expect(screen.getByText("None")).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/[{}"]/);
+  });
+
   it("keeps the accepted revision visible as an immutable receipt", () => {
     const accepted = {
       ...revision(),

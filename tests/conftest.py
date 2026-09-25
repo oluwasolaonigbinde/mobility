@@ -131,7 +131,9 @@ def real_integration_authority_required() -> bool:
 
 
 def _configured_database_url() -> str | None:
-    return os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL")
+    # Only the dedicated test variable counts. `DATABASE_URL` names the app's own
+    # database, and these fixtures create extensions, schemas and databases.
+    return os.environ.get("TEST_DATABASE_URL")
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -142,9 +144,9 @@ def pytest_configure(config: pytest.Config) -> None:
     database_url = _configured_database_url()
     if database_url is None or not database_url.startswith("postgresql+asyncpg://"):
         raise pytest.UsageError(
-            f"{REAL_INTEGRATION_AUTHORITY_ENV}=1 requires TEST_DATABASE_URL (or "
-            f"DATABASE_URL) to be a real postgresql+asyncpg:// database; got "
-            f"{database_url!r}. SQLite create_all evidence is not authoritative."
+            f"{REAL_INTEGRATION_AUTHORITY_ENV}=1 requires TEST_DATABASE_URL to be a "
+            f"real postgresql+asyncpg:// database; got {database_url!r}. SQLite "
+            f"create_all evidence is not authoritative."
         )
 
 

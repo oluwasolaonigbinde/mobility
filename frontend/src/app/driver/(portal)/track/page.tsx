@@ -43,6 +43,11 @@ export default async function DriverTrackPage() {
         initialTrip={campaignJourney.currentTrip}
         driverId={me.user.id}
         startUnavailableMessage={campaignJourney.journey.summary}
+        pausedCampaignName={
+          campaignJourney.trackerAssignment
+            ? undefined
+            : campaignJourney.activationAssignment?.campaignName
+        }
       />
 
       {assignments.state !== "ready" ? (
@@ -57,9 +62,9 @@ export default async function DriverTrackPage() {
         <p className="micro text-muted">How a trip becomes earnings</p>
         <div className="mt-4 grid grid-cols-3 gap-2 text-center">
           {[
-            ["1", "Drive", "Start tracking"],
-            ["2", "Verify", "Route analysed"],
-            ["3", "Earn", "Ledger updated"],
+            ["1", "Drive", "Press Start"],
+            ["2", "Check", "Trip is checked"],
+            ["3", "Earn", "Earnings added"],
           ].map(([step, label, detail]) => (
             <div key={step} className="bg-raised rounded-lg px-2 py-3">
               <span className="bg-amber/15 text-amber mx-auto flex size-6 items-center justify-center rounded-full font-mono text-xs">

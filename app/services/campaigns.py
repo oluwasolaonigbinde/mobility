@@ -533,17 +533,20 @@ async def decide_campaign_review(
             "rejection_reason": normalized_reason,
         },
     )
-    if target_status is CampaignStatus.APPROVED:
-        from app.models.notification import NotificationType
-        from app.services.notifications import create_advertiser_business_notifications
+    from app.models.notification import NotificationType
+    from app.services.notifications import create_advertiser_business_notifications
 
-        await create_advertiser_business_notifications(
-            session,
-            advertiser_organization_id=campaign.organization_id,
-            type_key=NotificationType.CAMPAIGN_APPROVED,
-            event_key=f"campaign:approved:v1:{event.id}",
-            payload={"campaign_id": str(campaign.id), "campaign_review_event_id": str(event.id)},
-        )
+    # The reason stays on the review event; notifications carry identifiers only.
+    approved = target_status is CampaignStatus.APPROVED
+    await create_advertiser_business_notifications(
+        session,
+        advertiser_organization_id=campaign.organization_id,
+        type_key=(
+            NotificationType.CAMPAIGN_APPROVED if approved else NotificationType.CAMPAIGN_REJECTED
+        ),
+        event_key=f"campaign:{'approved' if approved else 'rejected'}:v1:{event.id}",
+        payload={"campaign_id": str(campaign.id), "campaign_review_event_id": str(event.id)},
+    )
     await session.refresh(campaign)
     return campaign
 
@@ -1232,6 +1235,23 @@ async def decide_creative_review(
             "submission_event_id": str(submission.id),
             "reviewed_snapshot_sha256": submission.reviewed_snapshot_sha256,
             "rejection_reason": normalized_reason,
+        },
+    )
+    from app.models.notification import NotificationType
+    from app.services.notifications import create_advertiser_business_notifications
+
+    approved = target_status is CreativeStatus.APPROVED
+    await create_advertiser_business_notifications(
+        session,
+        advertiser_organization_id=campaign.organization_id,
+        type_key=(
+            NotificationType.CREATIVE_APPROVED if approved else NotificationType.CREATIVE_REJECTED
+        ),
+        event_key=f"creative:{'approved' if approved else 'rejected'}:v1:{event.id}",
+        payload={
+            "campaign_id": str(campaign.id),
+            "creative_id": str(creative.id),
+            "creative_review_event_id": str(event.id),
         },
     )
     await session.refresh(creative)

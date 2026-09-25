@@ -221,14 +221,19 @@ async def admin_contact_tasks(
     rows, total = await list_manual_driver_contact_tasks(
         session, limit=limit, offset=offset, history=history
     )
-    items = []
-    for task, phone in rows:
-        name = await session.scalar(
-            select(User.full_name)
-            .join(DriverProfile, DriverProfile.user_id == User.id)
-            .where(DriverProfile.id == task.driver_profile_id)
-        )
-        items.append(task_read(task, phone).model_copy(update={"driver_name": name}))
+    names = dict(
+        (
+            await session.execute(
+                select(DriverProfile.id, User.full_name)
+                .join(User, DriverProfile.user_id == User.id)
+                .where(DriverProfile.id.in_({task.driver_profile_id for task, _ in rows}))
+            )
+        ).all()
+    )
+    items = [
+        task_read(task, phone).model_copy(update={"driver_name": names.get(task.driver_profile_id)})
+        for task, phone in rows
+    ]
     return ManualContactTaskListRead(
         items=items,
         total=total,

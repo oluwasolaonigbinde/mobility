@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { components } from "@/lib/api/schema";
@@ -21,8 +21,15 @@ class NotificationRequestError extends Error {
   }
 }
 
+const PAGE_SIZE = 20;
+
 async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(path, { ...init, headers: { "content-type": "application/json" } });
+  // Only a request with a JSON body declares one; the BFF boundary refuses a media
+  // type on bodyless commands such as mark-read.
+  const response = await fetch(path, {
+    ...init,
+    ...(init?.body !== undefined ? { headers: { "content-type": "application/json" } } : {}),
+  });
   const body = (await response.json()) as T | { error?: { message?: string } };
   if (!response.ok) {
     throw new NotificationRequestError(
@@ -132,9 +139,15 @@ export function NotificationCenter({
       !(error instanceof NotificationRequestError && [401, 403].includes(error.status)) &&
       failureCount < 1,
   });
-  const notifications = useQuery({
+  const notifications = useInfiniteQuery({
     queryKey: listKey,
-    queryFn: () => scopedApiJson<NotificationList>("/api/notifications"),
+    queryFn: ({ pageParam }) =>
+      scopedApiJson<NotificationList>(`/api/notifications?limit=${PAGE_SIZE}&offset=${pageParam}`),
+    initialPageParam: 0,
+    getNextPageParam: (last) => {
+      const next = last.offset + last.items.length;
+      return last.items.length > 0 && next < last.total ? next : undefined;
+    },
     enabled: open && isOnline,
     retry: (failureCount, error) =>
       !(error instanceof NotificationRequestError && [401, 403].includes(error.status)) &&
@@ -181,14 +194,22 @@ export function NotificationCenter({
     },
     [queryClient, scopeKey],
   );
-  const unread =
-    isOnline && !count.isError && !count.isFetching ? (count.data?.unread_count ?? 0) : 0;
-  const showNotifications: NotificationList | undefined =
-    isOnline && !notifications.isError && !notifications.isFetching
-      ? notifications.data
-      : undefined;
+  // Cached data stays visible during a background refetch so the badge and list
+  // do not flicker on every poll; errors and offline still hide it (and offline
+  // purges the cache above).
+  const unread = isOnline && !count.isError ? (count.data?.unread_count ?? 0) : 0;
+  const loadedPages = isOnline && !notifications.isError ? notifications.data?.pages : undefined;
+  // Newer notices can shift offsets between pages; show each notice once.
+  const shownItems = loadedPages
+    ? [
+        ...new Map(
+          loadedPages.flatMap((page) => page.items).map((item) => [item.id, item]),
+        ).values(),
+      ]
+    : undefined;
+  const totalNotifications = loadedPages?.at(-1)?.total ?? 0;
   const showPreferences: Preferences | undefined =
-    isOnline && !preferences.isError && !preferences.isFetching ? preferences.data : undefined;
+    isOnline && !preferences.isError ? preferences.data : undefined;
 
   return (
     <div className="relative">
@@ -275,19 +296,37 @@ export function NotificationCenter({
               current while offline.
             </p>
           ) : null}
-          {showNotifications?.items?.length === 0 ? (
+          {shownItems?.length === 0 ? (
             <p className="text-muted py-6 text-sm">You are all caught up.</p>
           ) : null}
-          {showNotifications?.items?.length ? (
-            <ul className="mt-2 max-h-96 overflow-y-auto">
-              {showNotifications.items.map((notification) => (
-                <NotificationItemRow
-                  key={notification.id}
-                  notification={notification}
-                  onRead={(id) => markRead.mutate(id)}
-                />
-              ))}
-            </ul>
+          {shownItems?.length ? (
+            <>
+              <ul className="mt-2 max-h-96 overflow-y-auto">
+                {shownItems.map((notification) => (
+                  <NotificationItemRow
+                    key={notification.id}
+                    notification={notification}
+                    onRead={(id) => markRead.mutate(id)}
+                  />
+                ))}
+              </ul>
+              <div className="border-edge mt-2 flex items-center justify-between gap-3 border-t pt-2">
+                <p className="micro text-faint">
+                  Showing {shownItems.length} of {totalNotifications}
+                  {notifications.hasNextPage ? " · Mark all read includes older ones" : ""}
+                </p>
+                {notifications.hasNextPage ? (
+                  <button
+                    type="button"
+                    onClick={() => void notifications.fetchNextPage()}
+                    disabled={!isOnline || notifications.isFetchingNextPage}
+                    className="micro text-amber disabled:text-faint hover:text-amber/80 shrink-0"
+                  >
+                    {notifications.isFetchingNextPage ? "Loading…" : "Show older"}
+                  </button>
+                ) : null}
+              </div>
+            </>
           ) : null}
           {canManageAdvertiserPreferences ? (
             <div className="border-edge mt-3 border-t pt-3">

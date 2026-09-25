@@ -7,6 +7,7 @@ from starlette import status
 
 from app.core.config import Settings
 from app.core.errors import AppError
+from app.db.integrity import integrity_constraint_name
 from app.models.organization import (
     AdvertiserOrganization,
     AdvertiserOrganizationNotificationPreference,
@@ -222,14 +223,18 @@ async def create_advertiser_organization(
             role=MembershipRole.OWNER,
             status=MembershipStatus.ACTIVE,
         )
-        session.add(owner_membership)
+        # D29: the partial unique index is the race authority for one active
+        # company per advertiser login; the caller's transaction then rolls back.
         try:
-            await session.flush()
+            async with session.begin_nested():
+                session.add(owner_membership)
+                await session.flush()
         except IntegrityError as exc:
-            await session.rollback()
+            if integrity_constraint_name(exc) != "uq_organization_memberships_user_active":
+                raise
             raise AppError(
-                "DUPLICATE_MEMBERSHIP",
-                "User is already a member of this organization",
+                "ADVERTISER_COMPANY_EXISTS",
+                "This advertiser login already belongs to an active company",
                 status_code=status.HTTP_409_CONFLICT,
             ) from exc
 
@@ -240,6 +245,8 @@ async def get_advertiser_organization_for_user(
     session: AsyncSession,
     user_id: UUID,
 ) -> tuple[AdvertiserOrganization, OrganizationMembership] | None:
+    # D29 allows one active membership per login, so there is no newest-row
+    # choice to make; more than one row fails closed instead of picking a tenant.
     result = await session.execute(
         select(AdvertiserOrganization, OrganizationMembership)
         .join(
@@ -251,13 +258,8 @@ async def get_advertiser_organization_for_user(
             OrganizationMembership.status == MembershipStatus.ACTIVE,
             AdvertiserOrganization.status == OrganizationStatus.ACTIVE,
         )
-        .order_by(
-            OrganizationMembership.created_at.desc(),
-            OrganizationMembership.id.desc(),
-        )
-        .limit(1)
     )
-    row = result.first()
+    row = result.one_or_none()
     if row is None:
         return None
     return row[0], row[1]

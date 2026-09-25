@@ -19,6 +19,9 @@ const optionalMoney = z
   .transform((v) => (v === "" ? undefined : v))
   .pipe(moneyString.optional());
 
+/** The browser's datetime-local shape: a Lagos wall-clock time without a zone. */
+const DATETIME_LOCAL = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/;
+
 const optionalDatetime = z
   .string()
   .trim()
@@ -26,6 +29,7 @@ const optionalDatetime = z
   .pipe(
     z
       .string()
+      .regex(DATETIME_LOCAL, "Enter a valid date and time")
       .refine((v) => !Number.isNaN(Date.parse(v)), "Enter a valid date and time")
       .optional(),
   );
@@ -73,7 +77,23 @@ export type CreativeInput = z.input<typeof creativeSchema>;
 export type CampaignWizardInput = z.input<typeof campaignWizardSchema>;
 export type CampaignWizard = z.output<typeof campaignWizardSchema>;
 
-/** Convert a validated datetime-local string to the ISO-8601 the API expects. */
+/** Nigeria observes no daylight saving, so Lagos time is always UTC+01:00. */
+const LAGOS_OFFSET_MS = 60 * 60 * 1000;
+
+/**
+ * Convert a validated datetime-local value, entered as Lagos wall-clock time, to
+ * the instant the API expects. Server actions run in the server's own zone, so the
+ * offset is explicit rather than inferred from the runtime.
+ */
 export function toApiDatetime(value: string | undefined): string | undefined {
-  return value ? new Date(value).toISOString() : undefined;
+  if (!value) return undefined;
+  const withSeconds = value.length === 16 ? `${value}:00` : value;
+  return new Date(`${withSeconds}+01:00`).toISOString();
+}
+
+/** Render an API instant as a Lagos datetime-local value for a form default. */
+export function toLagosDatetimeLocal(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const time = Date.parse(iso);
+  return Number.isNaN(time) ? "" : new Date(time + LAGOS_OFFSET_MS).toISOString().slice(0, 16);
 }

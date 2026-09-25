@@ -152,8 +152,8 @@ describe("driver campaign journey authority projection", () => {
     const offer = journey.steps.find((step) => step.id === "offer");
 
     expect(journey.standing).toBe("PENDING");
-    expect(offer?.detail).toContain("2 awaiting your decision");
-    expect(offer?.detail).toContain("1 accepted and awaiting activation");
+    expect(offer?.detail).toContain("2 new offers to review");
+    expect(offer?.detail).toContain("1 accepted, waiting to start");
   });
 
   it("withholds Start when current-trip authority is unavailable", () => {

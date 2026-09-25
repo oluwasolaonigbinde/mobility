@@ -1,4 +1,5 @@
 import type { components } from "@/lib/api/schema";
+import { statusLabel, statusTone } from "@/lib/campaigns/status";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 
@@ -22,7 +23,20 @@ function artworkState(creatives: Creative[]): string {
   return "Not ready";
 }
 
+// Once a campaign is running or finished, its lifecycle — not a preparation step —
+// is the useful next action.
+const lifecycleAction: Partial<Record<Campaign["status"], string>> = {
+  active:
+    "This campaign is live. Results appear on the Campaign Performance Analysis page once Cardvert issues a report.",
+  paused: "This campaign is paused. Cardvert decides when it can resume.",
+  completed:
+    "This campaign has finished. Its report appears on the Campaign Performance Analysis page once issued.",
+  cancelled: "This campaign is cancelled; no new work can start.",
+};
+
 function nextAction(campaign: Campaign, commercial: Commercial, creatives: Creative[]): string {
+  const lifecycle = lifecycleAction[campaign.status];
+  if (lifecycle) return lifecycle;
   if (campaign.status === "rejected") return "Update the rejected campaign details, then resubmit.";
   if (!commercial.quote_request) return "Request the custom quotation for this campaign.";
   if (!commercial.revisions.length) return "Wait for Cardvert to post the quotation for review.";
@@ -38,18 +52,11 @@ function nextAction(campaign: Campaign, commercial: Commercial, creatives: Creat
     return "Wait for Cardvert to finish the artwork review.";
   }
   if (!commercial.financial_authority) {
-    return "Wait for Cardvert to record the applicable funding or approved credit authority.";
+    return "Wait for Cardvert to confirm your payment or agreed credit.";
   }
   if (campaign.status === "draft") return "Submit the completed campaign for Cardvert review.";
   if (campaign.status === "pending_review") return "Wait for Cardvert to finish campaign review.";
-  if (campaign.status === "active")
-    return "This campaign is active; review delivery results below.";
-  if (campaign.status === "paused")
-    return "This campaign is paused; Cardvert controls any approved resume.";
-  if (campaign.status === "completed")
-    return "This campaign is complete; review the issued analysis.";
-  if (campaign.status === "cancelled") return "This campaign is cancelled; no new work can start.";
-  return "Cardvert controls scheduling, assignment, installation evidence and activation.";
+  return "Cardvert now arranges drivers, installation and the start date.";
 }
 
 export function CampaignPreparationSummary({
@@ -83,14 +90,16 @@ export function CampaignPreparationSummary({
             Next action: {nextAction(campaign, commercial, creatives)}
           </p>
         </div>
-        <StatusChip tone={campaign.status === "active" ? "green" : "amber"}>
-          {campaign.status === "active" ? "Active" : "Preparation in progress"}
-        </StatusChip>
+        {lifecycleAction[campaign.status] ? (
+          <StatusChip tone={statusTone[campaign.status]}>{statusLabel[campaign.status]}</StatusChip>
+        ) : (
+          <StatusChip tone="amber">Preparation in progress</StatusChip>
+        )}
       </div>
       <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <dt className="micro text-muted">Campaign review</dt>
-          <dd className="mt-1">{campaign.status.replaceAll("_", " ")}</dd>
+          <dd className="mt-1">{statusLabel[campaign.status]}</dd>
         </div>
         <div>
           <dt className="micro text-muted">Quotation</dt>
@@ -108,8 +117,8 @@ export function CampaignPreparationSummary({
         </div>
       </dl>
       <p className="text-faint mt-4 text-xs">
-        This summary uses recorded campaign, quotation, artwork and funding facts only. It does not
-        authorize production, assignment, installation or launch.
+        This checklist shows what has been recorded so far. It does not authorize production,
+        assignment, installation or launch.
       </p>
     </Panel>
   );

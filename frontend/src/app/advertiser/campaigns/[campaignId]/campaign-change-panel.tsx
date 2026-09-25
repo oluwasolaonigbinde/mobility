@@ -22,6 +22,13 @@ const outcomeCopy = {
   await_funding: "After confirmation, this change will wait for enough recorded funding.",
 } as const;
 
+const fieldLabel: Record<string, string> = {
+  budget_amount: "Total budget",
+  daily_budget_amount: "Daily budget",
+  start_at: "Start",
+  end_at: "End",
+};
+
 function exactValue(value: unknown): string {
   if (value === null || value === undefined) return "Not set";
   return String(value);
@@ -32,11 +39,14 @@ export function CampaignChangePanel({
   clientRequestId,
   currency,
   requests,
+  editable = true,
 }: {
   campaignId: string;
   clientRequestId: string;
   currency: string;
   requests: ChangeRequest[];
+  /** False outside scheduled/active/paused, where the server refuses new changes. */
+  editable?: boolean;
 }) {
   const [commandId, setCommandId] = useState(clientRequestId);
   const [clearedPreviewCommandId, setClearedPreviewCommandId] = useState<string>();
@@ -82,76 +92,80 @@ export function CampaignChangePanel({
     <Panel className="mt-6 p-6" aria-label="Governed campaign changes">
       <div className="mb-5">
         <h2 className="font-display text-xl font-semibold">Campaign changes</h2>
-        <p className="micro text-muted mt-1">
-          Preview budget or date changes without repricing accepted driver terms.
+        <p className="text-muted mt-1 text-sm">
+          {editable
+            ? "Ask to change the budget or dates. You'll see the effect before anything changes, and drivers' agreed pay stays the same."
+            : "Changes can only be requested while a campaign is scheduled, live or paused. Earlier requests are listed below."}
         </p>
       </div>
-      <form key={commandId} action={previewAction} className="grid gap-3 md:grid-cols-2">
-        <input type="hidden" name="campaign_id" value={campaignId} />
-        <input type="hidden" name="client_request_id" value={commandId} />
-        <label className="text-sm">
-          <span className="micro text-muted">Total budget</span>
-          <input
-            name="budget_amount"
-            inputMode="decimal"
-            placeholder={`Amount in ${currency}`}
-            className="border-edge bg-raised mt-1 h-11 w-full rounded-lg border px-3.5"
-          />
-        </label>
-        <label className="text-sm">
-          <span className="micro text-muted">Daily budget</span>
-          <input
-            name="daily_budget_amount"
-            inputMode="decimal"
-            placeholder={`Amount in ${currency}`}
-            className="border-edge bg-raised mt-1 h-11 w-full rounded-lg border px-3.5"
-          />
-        </label>
-        <label className="text-sm">
-          <span className="micro text-muted">New start (Lagos time)</span>
-          <input
-            name="start_at"
-            type="datetime-local"
-            className="border-edge bg-raised mt-1 h-11 w-full rounded-lg border px-3.5"
-          />
-        </label>
-        <label className="text-sm">
-          <span className="micro text-muted">New end (Lagos time)</span>
-          <input
-            name="end_at"
-            type="datetime-local"
-            className="border-edge bg-raised mt-1 h-11 w-full rounded-lg border px-3.5"
-          />
-        </label>
-        <label className="text-sm md:col-span-2">
-          <span className="micro text-muted">Reason</span>
-          <textarea
-            name="reason"
-            required
-            maxLength={1000}
-            className="border-edge bg-raised mt-1 min-h-20 w-full rounded-lg border px-3.5 py-2"
-            placeholder="Explain why this change is needed"
-          />
-        </label>
-        <div className="flex items-center justify-between gap-3 md:col-span-2">
-          <div aria-live="polite" className="text-sm">
-            {previewState.error ? (
-              <p role="alert" className="text-coral">
-                {previewState.error}
-              </p>
-            ) : null}
+      {editable ? (
+        <form key={commandId} action={previewAction} className="grid gap-3 md:grid-cols-2">
+          <input type="hidden" name="campaign_id" value={campaignId} />
+          <input type="hidden" name="client_request_id" value={commandId} />
+          <label className="text-sm">
+            <span className="micro text-muted">Total budget</span>
+            <input
+              name="budget_amount"
+              inputMode="decimal"
+              placeholder={`Amount in ${currency}`}
+              className="border-edge bg-raised mt-1 h-11 w-full rounded-lg border px-3.5"
+            />
+          </label>
+          <label className="text-sm">
+            <span className="micro text-muted">Daily budget</span>
+            <input
+              name="daily_budget_amount"
+              inputMode="decimal"
+              placeholder={`Amount in ${currency}`}
+              className="border-edge bg-raised mt-1 h-11 w-full rounded-lg border px-3.5"
+            />
+          </label>
+          <label className="text-sm">
+            <span className="micro text-muted">New start (Lagos time)</span>
+            <input
+              name="start_at"
+              type="datetime-local"
+              className="border-edge bg-raised mt-1 h-11 w-full rounded-lg border px-3.5"
+            />
+          </label>
+          <label className="text-sm">
+            <span className="micro text-muted">New end (Lagos time)</span>
+            <input
+              name="end_at"
+              type="datetime-local"
+              className="border-edge bg-raised mt-1 h-11 w-full rounded-lg border px-3.5"
+            />
+          </label>
+          <label className="text-sm md:col-span-2">
+            <span className="micro text-muted">Reason</span>
+            <textarea
+              name="reason"
+              required
+              maxLength={1000}
+              className="border-edge bg-raised mt-1 min-h-20 w-full rounded-lg border px-3.5 py-2"
+              placeholder="Explain why this change is needed"
+            />
+          </label>
+          <div className="flex items-center justify-between gap-3 md:col-span-2">
+            <div aria-live="polite" className="text-sm">
+              {previewState.error ? (
+                <p role="alert" className="text-coral">
+                  {previewState.error}
+                </p>
+              ) : null}
+            </div>
+            <Button type="submit" disabled={previewPending}>
+              {previewPending ? "Checking…" : "Preview change"}
+            </Button>
           </div>
-          <Button type="submit" disabled={previewPending}>
-            {previewPending ? "Checking…" : "Preview change"}
-          </Button>
-        </div>
-      </form>
+        </form>
+      ) : null}
       {confirmState.done && !confirmState.error ? (
         <p role="status" className="text-green mt-4 text-sm">
           ✓ {confirmState.done}
         </p>
       ) : null}
-      {preview && proposal ? (
+      {editable && preview && proposal ? (
         <div
           className="border-amber/40 bg-amber/5 mt-5 rounded-lg border p-4"
           aria-label="Change preview"
@@ -177,20 +191,22 @@ export function CampaignChangePanel({
               .filter(([field, value]) => value !== preview.before[field])
               .map(([field, value]) => (
                 <div key={field}>
-                  <dt className="micro text-muted">{field.replaceAll("_", " ")}</dt>
+                  <dt className="micro text-muted">
+                    {fieldLabel[field] ?? field.replaceAll("_", " ")}
+                  </dt>
                   <dd className="mt-1 font-mono text-xs break-all">
                     {exactValue(preview.before[field])} → {exactValue(value)}
                   </dd>
                 </div>
               ))}
             <div>
-              <dt className="micro text-muted">Additional driver liability</dt>
+              <dt className="micro text-muted">Extra driver pay this could need</dt>
               <dd className="mt-1 font-mono text-xs">
                 {preview.currency} {preview.requested_liability_amount}
               </dd>
             </div>
             <div>
-              <dt className="micro text-muted">Recorded liability headroom</dt>
+              <dt className="micro text-muted">Driver pay your recorded funding still covers</dt>
               <dd className="mt-1 font-mono text-xs">
                 {preview.currency} {preview.available_liability_amount}
               </dd>

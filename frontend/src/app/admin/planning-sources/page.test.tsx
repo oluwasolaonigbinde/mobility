@@ -1,8 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/api/errors";
 
 const get = vi.hoisted(() => vi.fn());
 
+vi.mock("next/navigation", () => ({ redirect: vi.fn(), notFound: vi.fn() }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: get }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "admin-token") }));
 
@@ -14,7 +16,9 @@ const CAMPAIGN_ID = "00000000-0000-4000-8000-000000000013";
 const ZONE_ID = "00000000-0000-4000-8000-000000000014";
 
 describe("AdminPlanningSourcesPage", () => {
-  beforeEach(() => get.mockReset());
+  beforeEach(() => {
+    get.mockReset();
+  });
 
   it("does not render targeting cells from a stale recommendation", async () => {
     get.mockImplementation(async (path: string) => {
@@ -75,5 +79,22 @@ describe("AdminPlanningSourcesPage", () => {
 
     expect(screen.getAllByText("stale", { selector: "span" })).not.toHaveLength(0);
     expect(screen.queryByText("grid-500m:10:20")).not.toBeInTheDocument();
+  });
+
+  it("shows the privacy gate instead of crashing", async () => {
+    get.mockRejectedValue(
+      new ApiError(503, {
+        code: "PRIVACY_LIVE_USE_BLOCKED",
+        message: "Advertiser analytics are unavailable until privacy approval",
+        details: {},
+      }),
+    );
+
+    render(await AdminPlanningSourcesPage());
+
+    expect(
+      screen.getByRole("heading", { name: "Planning sources aren't available yet" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Available once privacy approval/)).toBeInTheDocument();
   });
 });

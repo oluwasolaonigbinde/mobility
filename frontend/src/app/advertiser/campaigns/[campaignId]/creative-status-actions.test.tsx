@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -187,6 +187,33 @@ describe("CreativeStatusActions", () => {
       { clientRequestId: FIRST_UPLOAD_ID },
       { clientRequestId: FIRST_UPLOAD_ID },
     ]);
+  });
+
+  it("keeps the last selected replacement when an earlier upload finishes later", async () => {
+    const SECOND_STORED_FILE_ID = "00000000-0000-4000-8000-00000000000d";
+    const releases: Array<(value: { storedFileId: string; creativeType: "image" }) => void> = [];
+    mocks.upload.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          releases.push(resolve);
+        }),
+    );
+    renderActions("rejected");
+
+    chooseReplacement(wrap("first.png", "first artwork"));
+    chooseReplacement(wrap("second.png", "second artwork"));
+    await waitFor(() => expect(mocks.upload).toHaveBeenCalledTimes(2));
+
+    releases[1]?.({ storedFileId: SECOND_STORED_FILE_ID, creativeType: "image" });
+    expect(await screen.findByText("✓ Replacement passed security scan")).toBeInTheDocument();
+    await act(async () => {
+      releases[0]?.({ storedFileId: STORED_FILE_ID, creativeType: "image" });
+    });
+
+    const storedFileInput = document.querySelector<HTMLInputElement>(
+      'input[name="stored_file_id"]',
+    );
+    expect(storedFileInput?.value).toBe(SECOND_STORED_FILE_ID);
   });
 
   it("binds a different file to a new upload identity and hides non-error failure details", async () => {

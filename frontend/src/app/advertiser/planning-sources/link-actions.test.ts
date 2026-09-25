@@ -36,7 +36,7 @@ describe("createSourceLinkAction", () => {
     const data = linkData();
 
     await expect(createSourceLinkAction({}, data)).resolves.toEqual({
-      success: "Planning source linked to the target zone.",
+      success: "Audience connected to the campaign area.",
       operationKey: OPERATION_KEY,
     });
     expect(mocks.post).toHaveBeenCalledWith(
@@ -65,7 +65,7 @@ describe("createSourceLinkAction", () => {
       operationKey: OPERATION_KEY,
     });
     await expect(createSourceLinkAction({}, data)).resolves.toEqual({
-      success: "Planning source linked to the target zone.",
+      success: "Audience connected to the campaign area.",
       operationKey: OPERATION_KEY,
     });
 
@@ -92,7 +92,7 @@ describe("createSourceLinkAction", () => {
       operationKey: OPERATION_KEY,
     });
     await expect(createSourceAction({}, data)).resolves.toEqual({
-      success: "Planning source recorded.",
+      success: "Audience saved.",
       operationKey: OPERATION_KEY,
     });
     expect(mocks.post.mock.calls.map((call) => call[1].params.header)).toEqual([
@@ -132,7 +132,7 @@ describe("createSourceLinkAction", () => {
       operationKey: "00000000-0000-4000-8000-000000000045",
     });
     await expect(deactivateSourceAction("source-1", {}, sourceData)).resolves.toEqual({
-      success: "Planning source deactivated.",
+      success: "Audience no longer used.",
       operationKey: "00000000-0000-4000-8000-000000000045",
     });
     await expect(removeSourceLinkAction("link-1", {}, linkData)).resolves.toEqual({
@@ -140,7 +140,7 @@ describe("createSourceLinkAction", () => {
       operationKey: "00000000-0000-4000-8000-000000000046",
     });
     await expect(removeSourceLinkAction("link-1", {}, linkData)).resolves.toEqual({
-      success: "Planning source link removed.",
+      success: "Audience disconnected from the campaign area.",
       operationKey: "00000000-0000-4000-8000-000000000046",
     });
     expect(mocks.post.mock.calls.map((call) => call[1].params.header)).toEqual([
@@ -158,7 +158,7 @@ describe("createSourceLinkAction", () => {
     data.set("end_at", "2026-09-01T10:00");
 
     expect(await createSourceLinkAction({}, data)).toEqual({
-      error: "Choose a valid linkage window with the start before the end.",
+      error: "Choose a start date and time before the end.",
       operationKey: OPERATION_KEY,
     });
     expect(mocks.post).not.toHaveBeenCalled();

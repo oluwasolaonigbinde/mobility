@@ -56,6 +56,37 @@ describe("createCampaignAction", () => {
     expect(mocks.redirect).toHaveBeenCalledWith(`/advertiser/campaigns/${CAMPAIGN_ID}`);
   });
 
+  it("tells a viewer they lack permission instead of offering an uncertain retry", async () => {
+    mocks.post.mockRejectedValueOnce(
+      new ApiError(403, {
+        code: "ADVERTISER_MEMBERSHIP_WRITE_FORBIDDEN",
+        message: "Advertiser organization membership does not allow this write",
+      }),
+    );
+
+    const state = await createCampaignAction(
+      {
+        basics: {
+          name: "Viewer attempt",
+          description: "",
+          start_at: "",
+          end_at: "",
+          budget_amount: "",
+          daily_budget_amount: "",
+        },
+        creatives: [],
+      },
+      undefined,
+      REQUEST_ID,
+    );
+
+    expect(state).toEqual({
+      error:
+        "Only company owners and managers can create campaigns. Ask one of them to create it or to change your access.",
+    });
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+
   it("binds creatives by managed file id and never sends a browser URL", async () => {
     await createCampaignAction(
       {

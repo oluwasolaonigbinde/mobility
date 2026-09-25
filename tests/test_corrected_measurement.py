@@ -215,6 +215,62 @@ def test_missing_ledger_blocks_new_issuance_instead_of_using_original_calculatio
     assert error.value.code == "MEASUREMENT_LEDGER_INCOMPLETE"
 
 
+def test_cohort_cost_reads_only_its_own_trip_ledger_rows():
+    from types import SimpleNamespace
+
+    from app.services.report_cohorts import ReportCohort
+
+    first_trip, second_trip = uuid4(), uuid4()
+
+    def payout(trip_id, currency="NGN"):
+        return SimpleNamespace(
+            id=uuid4(), trip_session_id=trip_id, status="calculated", currency=currency
+        )
+
+    first, second = payout(first_trip), payout(second_trip)
+
+    def row(trip_id, calculation, entry_type, amount, currency="NGN"):
+        return SimpleNamespace(
+            trip_session_id=trip_id,
+            payout_calculation_id=calculation.id if calculation else None,
+            entry_type=entry_type,
+            status="available",
+            amount=Decimal(amount),
+            currency=currency,
+        )
+
+    cohort = ReportCohort(
+        trips=(),
+        analytics=(),
+        impressions=(),
+        payouts=(first, second),
+        ledger=(
+            row(first_trip, first, "trip_payout", "100.00"),
+            row(second_trip, second, "trip_payout", "70.00"),
+            row(first_trip, None, "reversal", "15.00"),
+            row(second_trip, None, "adjustment", "5.00"),
+        ),
+        terminal_period=True,
+    )
+
+    assert cohort.final_cost(first) == Decimal("85.00")
+    assert cohort.final_cost(second) == Decimal("75.00")
+    with pytest.raises(AppError) as missing:
+        cohort.final_cost(payout(uuid4()))
+    assert missing.value.code == "MEASUREMENT_LEDGER_INCOMPLETE"
+    mixed = ReportCohort(
+        trips=(),
+        analytics=(),
+        impressions=(),
+        payouts=(first,),
+        ledger=(row(first_trip, first, "trip_payout", "100.00", currency="USD"),),
+        terminal_period=True,
+    )
+    with pytest.raises(AppError) as conflict:
+        mixed.final_cost(first)
+    assert conflict.value.code == "MEASUREMENT_LEDGER_CURRENCY_CONFLICT"
+
+
 def test_unknown_measurement_formula_cannot_be_reinterpreted_as_legacy():
     from test_measurement_runs import _disclosure_manifest
 

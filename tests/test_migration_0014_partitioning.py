@@ -57,7 +57,7 @@ EXPECTED_INDEXES = {
 
 
 def configured_postgres_url() -> str:
-    database_url = os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL")
+    database_url = os.environ.get("TEST_DATABASE_URL")
     if database_url is None or not database_url.startswith("postgresql+asyncpg://"):
         pytest.skip("PostGIS test database is not configured")
     return database_url

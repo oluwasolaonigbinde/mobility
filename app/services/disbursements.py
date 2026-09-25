@@ -940,8 +940,20 @@ async def claim_payout_submission_intent(
         admin_ids = requester_ids | {stub.created_by_user_id}
         if stub.approved_by_user_id is not None:
             admin_ids.add(stub.approved_by_user_id)
+        # Batch authority must still be active before any new provider effect, but
+        # a lookup only records what an earlier authorized submission already did.
+        # A lost response leaves the line without a transfer reference, so neither
+        # the webhook nor an admin poll can find it; the lookup is the only way to
+        # reconcile it after staff turnover. The refusal is therefore deferred
+        # until the action is known and raised only for SUBMIT.
+        inactive_authority_ids: list[UUID] = []
+        inactive_authority_error: AppError | None = None
         for admin_id in sorted(admin_ids, key=str):
-            await require_active_admin(session, admin_id)
+            try:
+                await require_active_admin(session, admin_id)
+            except AppError as exc:
+                inactive_authority_ids.append(admin_id)
+                inactive_authority_error = inactive_authority_error or exc
         trip_ids = tuple(
             await session.scalars(
                 select(EarningsLedgerEntry.trip_session_id)
@@ -1014,6 +1026,8 @@ async def claim_payout_submission_intent(
             action = PayoutSubmissionClaimAction.SUBMIT
         else:
             return None
+        if action == PayoutSubmissionClaimAction.SUBMIT and inactive_authority_error is not None:
+            raise inactive_authority_error
         recovery_incident_id = None
         if action == PayoutSubmissionClaimAction.QUERY:
             recovery_incident_id = await session.scalar(
@@ -1070,6 +1084,7 @@ async def claim_payout_submission_intent(
                 "claim_generation": intent.generation,
                 "claim_action": action.value,
                 "claim_expires_at": intent.claim_expires_at.isoformat(),
+                "inactive_batch_authority_user_ids": [str(item) for item in inactive_authority_ids],
             },
         )
         await session.commit()

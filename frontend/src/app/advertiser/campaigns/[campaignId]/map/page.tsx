@@ -9,11 +9,12 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { HighExposureZoneInsights } from "@/components/analytics/high-exposure-zone-insights";
 import {
   GovernedAnalysisState,
+  isUnissued,
   validateMeasurementAuthority,
 } from "../report/measurement-authority";
 import { GovernedZoneMap, type GovernedZoneGeometry } from "./heatmap-view";
 
-export const metadata: Metadata = { title: "Governed coverage map" };
+export const metadata: Metadata = { title: "Coverage map" };
 
 export default async function CampaignMapPage({
   params,
@@ -56,7 +57,9 @@ export default async function CampaignMapPage({
       />
     );
   }
-  if (!report) return <GovernedAnalysisState code="SAFE_MEASUREMENT_RUN_REQUIRED" />;
+  if (!report || isUnissued(report)) {
+    return <GovernedAnalysisState code="SAFE_MEASUREMENT_RUN_REQUIRED" />;
+  }
   const authority = validateMeasurementAuthority(report);
   if (!authority.ok) return <GovernedAnalysisState code="MEASUREMENT_RUN_INTEGRITY_FAILURE" />;
 
@@ -99,7 +102,7 @@ export default async function CampaignMapPage({
       <p className="micro text-amber mb-2">Campaign coverage map</p>
       <div className="mb-2 flex flex-wrap items-center gap-3">
         <h1 className="font-display text-3xl font-semibold tracking-tight">
-          Where campaign vehicles moved
+          Target zones by estimated exposure
         </h1>
         <StatusChip tone={statusTone[campaign.status]}>{statusLabel[campaign.status]}</StatusChip>
       </div>

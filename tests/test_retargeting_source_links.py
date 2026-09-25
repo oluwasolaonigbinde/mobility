@@ -549,6 +549,8 @@ def test_source_and_link_replays_are_bound_to_the_current_tenant(
             )
             by_org = {membership.organization_id: membership for membership in memberships}
             by_org[first_org.id].status = MembershipStatus.DISABLED
+            # D29 allows one active company per login: retire the first first.
+            await session.flush()
             by_org[second_org.id].status = second_status
             await session.commit()
 

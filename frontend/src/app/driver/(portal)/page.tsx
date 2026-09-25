@@ -19,18 +19,34 @@ export default async function DriverHomePage() {
   const me = await requireRole("driver");
   const api = createApiClient(await getSessionToken());
 
-  const [campaignJourney, earnings, assignments, ledger] = await Promise.all([
-    loadDriverCampaignJourney(),
-    readDriverApi(() => api.GET("/api/v1/driver/earnings/summary")),
-    readDriverApi(() =>
-      api.GET("/api/v1/driver/campaign-assignments", { params: { query: { limit: 50 } } }),
-    ),
-    readDriverApi(() =>
-      api.GET("/api/v1/driver/earnings/ledger", { params: { query: { limit: 6 } } }),
-    ),
-  ]);
+  const [campaignJourney, earnings, assignments, ledger, completed, tripPayouts] =
+    await Promise.all([
+      loadDriverCampaignJourney(),
+      readDriverApi(() => api.GET("/api/v1/driver/earnings/summary")),
+      readDriverApi(() =>
+        api.GET("/api/v1/driver/campaign-assignments", { params: { query: { limit: 50 } } }),
+      ),
+      readDriverApi(() =>
+        api.GET("/api/v1/driver/earnings/ledger", { params: { query: { limit: 6 } } }),
+      ),
+      // Counts come from server totals, never from the length of a limited page.
+      readDriverApi(() =>
+        api.GET("/api/v1/driver/campaign-assignments", {
+          params: { query: { status: "completed", limit: 1 } },
+        }),
+      ),
+      readDriverApi(() =>
+        api.GET("/api/v1/driver/earnings/ledger", {
+          params: { query: { entry_type: "trip_payout", limit: 1 } },
+        }),
+      ),
+    ]);
 
-  if ([earnings, assignments, ledger].some((source) => source.state === "auth")) {
+  if (
+    [earnings, assignments, ledger, completed, tripPayouts].some(
+      (source) => source.state === "auth",
+    )
+  ) {
     redirect("/login");
   }
 
@@ -42,8 +58,9 @@ export default async function DriverHomePage() {
   const campaignNames = new Map(
     (allAssignments ?? []).map((item) => [item.campaign_id, item.campaign?.name ?? "Campaign"]),
   );
-  const completedCampaigns = allAssignments?.filter((item) => item.status === "completed").length;
-  const tripCount = recentEntries?.filter((entry) => entry.trip_session_id).length;
+  const campaignCount = assignments.state === "ready" ? assignments.data.total : undefined;
+  const completedCampaigns = completed.state === "ready" ? completed.data.total : undefined;
+  const tripCount = tripPayouts.state === "ready" ? tripPayouts.data.total : undefined;
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
@@ -65,9 +82,7 @@ export default async function DriverHomePage() {
         <div className="grid grid-cols-3 gap-3">
           <Panel className="p-3.5">
             <p className="micro text-faint">Campaigns</p>
-            <p className="font-display mt-1 text-2xl font-semibold">
-              {allAssignments?.length ?? "—"}
-            </p>
+            <p className="font-display mt-1 text-2xl font-semibold">{campaignCount ?? "—"}</p>
             <p className="text-muted mt-0.5 text-[11px]">
               {completedCampaigns === undefined
                 ? "history unavailable"
@@ -75,10 +90,10 @@ export default async function DriverHomePage() {
             </p>
           </Panel>
           <Panel className="p-3.5">
-            <p className="micro text-faint">Trip entries</p>
+            <p className="micro text-faint">Trip payouts</p>
             <p className="font-display mt-1 text-2xl font-semibold">{tripCount ?? "—"}</p>
             <p className="text-muted mt-0.5 text-[11px]">
-              {tripCount === undefined ? "history unavailable" : "recent ledger"}
+              {tripCount === undefined ? "history unavailable" : "all time"}
             </p>
           </Panel>
           <Panel className="p-3.5">

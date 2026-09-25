@@ -14,7 +14,11 @@ from app.api.v1.dependencies import (
 from app.core.errors import AppError
 from app.models.campaign_assignment import CampaignAssignment
 from app.models.driver import DriverProfile
-from app.models.evidence_verification import EvidenceVerification, EvidenceVerificationStatus
+from app.models.evidence_verification import (
+    EvidenceVerification,
+    EvidenceVerificationStatus,
+    EvidenceVerificationType,
+)
 from app.models.installation_evidence import DisplayProof, InstallationEvidenceSubmission
 from app.models.stored_file import StoredFile
 from app.schemas.evidence_verification import (
@@ -473,10 +477,12 @@ async def admin_evidence_verifications(
     _user: AdminUserDependency,
     session: SessionDependency,
     verification_status: Annotated[EvidenceVerificationStatus | None, Query(alias="status")] = None,
+    verification_type: EvidenceVerificationType | None = None,
 ) -> EvidenceVerificationList:
     rows = await list_admin_verifications(
         session,
         verification_status=(verification_status.value if verification_status else None),
+        verification_type=(verification_type.value if verification_type else None),
     )
     return EvidenceVerificationList(items=[verification_response(row) for row in rows])
 

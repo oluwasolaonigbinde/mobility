@@ -11,6 +11,7 @@ vi.mock("@/components/auth/change-password-form", () => ({
   ChangePasswordForm: () => <form aria-label="Change password" />,
 }));
 vi.mock("@/lib/auth/actions", () => ({ signOutAction: vi.fn() }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/admin/users" }));
 
 const me = {
   user: {
@@ -40,5 +41,33 @@ describe("AppShell account controls", () => {
     expect(accountControls.closest("details")).toHaveClass("md:hidden");
     expect(within(accountControls).getByRole("form", { name: "Change password" })).toBeVisible();
     expect(within(accountControls).getByRole("button", { name: "Sign out" })).toBeEnabled();
+  });
+
+  it("groups the desktop sidebar and lets it scroll so sign-out stays reachable", () => {
+    render(
+      <AppShell
+        me={me}
+        nav={[
+          { href: "/admin", label: "Overview", exact: true },
+          { href: "/admin/users", label: "Users", group: "People & cars" },
+          { href: "/admin/drivers", label: "Drivers", group: "People & cars" },
+          { href: "/admin/payouts", label: "Payouts", group: "Trips & money" },
+        ]}
+      >
+        <p>Admin content</p>
+      </AppShell>,
+    );
+
+    const sidebar = document.querySelector("aside")!;
+    const nav = within(sidebar).getByRole("navigation", { name: "Primary" });
+    expect(nav).toHaveClass("overflow-y-auto", "min-h-0");
+    expect(within(nav).getAllByText("People & cars")).toHaveLength(1);
+    expect(within(nav).getByText("Trips & money")).toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: "Users" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    const mobileNav = document.querySelector("header ~ nav")!;
+    expect(mobileNav).not.toHaveTextContent("People & cars");
   });
 });

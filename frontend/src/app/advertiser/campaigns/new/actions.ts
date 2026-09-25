@@ -4,6 +4,7 @@ import { z } from "zod";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createApiClient } from "@/lib/api/client";
+import { ApiError } from "@/lib/api/errors";
 import { publicActionError } from "@/lib/api/public-action-error";
 import { getSessionToken } from "@/lib/auth/session";
 import {
@@ -11,6 +12,9 @@ import {
   toApiDatetime,
   type CampaignWizardInput,
 } from "@/lib/campaigns/schema";
+
+const VIEWER_WRITE_MESSAGE =
+  "Only company owners and managers can create campaigns. Ask one of them to create it or to change your access.";
 
 export interface CreateCampaignState {
   error?: string;
@@ -65,6 +69,10 @@ export async function createCampaignAction(
       }
       campaignId = data.id;
     } catch (error) {
+      // A definite permission refusal created nothing, so there is no request to recheck.
+      if (error instanceof ApiError && error.code === "ADVERTISER_MEMBERSHIP_WRITE_FORBIDDEN") {
+        return { error: VIEWER_WRITE_MESSAGE };
+      }
       return {
         error: publicActionError(
           error,

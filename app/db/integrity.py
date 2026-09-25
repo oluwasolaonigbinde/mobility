@@ -24,6 +24,7 @@ EXPECTED_UNIQUE_CONSTRAINTS = frozenset(
         "uq_payout_batch_lines_active_ledger_entry",
         "uq_payout_batch_lines_provider_transfer_reference",
         "uq_vehicles_plate_country_normalized",
+        "uq_organization_memberships_user_active",
     }
 )
 
@@ -86,6 +87,7 @@ _SQLITE_UNIQUE_COLUMNS = {
         "vehicles.plate_country_code",
         "vehicles.plate_number_normalized",
     ): "uq_vehicles_plate_country_normalized",
+    ("organization_memberships.user_id",): "uq_organization_memberships_user_active",
 }
 
 _QUOTED_CONSTRAINT_RE = re.compile(r'(?:constraint|index) ["\']([^"\']+)["\']', re.I)

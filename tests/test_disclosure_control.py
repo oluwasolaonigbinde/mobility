@@ -21,18 +21,19 @@ from conftest import (
     create_test_vehicle,
 )
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from starlette import status
 from test_heatmaps import BBOX, PASSWORD, RECORDED_AT, add_ping_batch, create_heatmap_graph
 
 from app.core.config import Settings, get_settings
 from app.core.errors import AppError
+from app.db.integrity import integrity_constraint_name
 from app.jobs.disclosure_retention import purge_expired_disclosure_query_history
 from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.disclosure import DisclosureQueryDecision
 from app.models.driver import DriverOnboardingStatus
 from app.models.organization import (
     AdvertiserOrganization,
-    MembershipRole,
     MembershipStatus,
     OrganizationMembership,
     OrganizationStatus,
@@ -271,50 +272,28 @@ def test_live_gate_runs_before_advertiser_membership_read() -> None:
     asyncio.run(run())
 
 
-def test_governed_output_selects_latest_active_membership_deterministically(
+def test_governed_output_resolves_the_single_active_company_membership(
     db_sessionmaker,
 ) -> None:
+    """D29 supersedes the former newest-membership rule: a login has one company."""
     advertiser = create_test_user(
         db_sessionmaker,
         email="disclosure-multi-membership@example.com",
         role=UserRole.ADVERTISER,
     )
-    first_org, _ = create_test_organization(
+    active_org, _ = create_test_organization(
         db_sessionmaker,
-        name="First disclosure org",
+        name="Active disclosure org",
         owner_user_id=advertiser.id,
     )
-    second_org, _ = create_test_organization(
+    create_test_organization(
         db_sessionmaker,
-        name="Second disclosure org",
+        name="Former disclosure org",
         owner_user_id=advertiser.id,
+        membership_status=MembershipStatus.DISABLED,
     )
 
     async def run() -> None:
-        async with db_sessionmaker() as session:
-            # Make the adopted deterministic rule explicit when timestamps tie.
-            memberships = list(
-                await session.scalars(
-                    select(OrganizationMembership)
-                    .where(OrganizationMembership.user_id == advertiser.id)
-                    .order_by(OrganizationMembership.created_at, OrganizationMembership.id)
-                )
-            )
-            assert {membership.organization_id for membership in memberships} == {
-                first_org.id,
-                second_org.id,
-            }
-            tied_created_at = datetime(2026, 1, 1, tzinfo=UTC)
-            for membership in memberships:
-                membership.created_at = tied_created_at
-            expected_organization_id = max(
-                memberships, key=lambda membership: membership.id
-            ).organization_id
-            for membership in memberships:
-                membership.status = MembershipStatus.ACTIVE
-                membership.role = MembershipRole.OWNER
-            await session.commit()
-
         async with db_sessionmaker() as session:
             selected = await require_governed_advertiser_output(
                 session,
@@ -323,7 +302,23 @@ def test_governed_output_selects_latest_active_membership_deterministically(
                 user_id=advertiser.id,
                 requires_measurement_run=False,
             )
-            assert selected == expected_organization_id
+            assert selected == active_org.id
+
+        async with db_sessionmaker() as session:
+            former = await session.scalar(
+                select(OrganizationMembership).where(
+                    OrganizationMembership.user_id == advertiser.id,
+                    OrganizationMembership.status == MembershipStatus.DISABLED,
+                )
+            )
+            assert former is not None
+            former.status = MembershipStatus.ACTIVE
+            with pytest.raises(IntegrityError) as conflict:
+                await session.commit()
+            assert (
+                integrity_constraint_name(conflict.value)
+                == "uq_organization_memberships_user_active"
+            )
 
     asyncio.run(run())
 
@@ -440,13 +435,16 @@ def test_advertiser_reads_keep_the_disclosure_authorized_tenant(
     )
     assert_authorized_reads()
 
-    asyncio.run(
-        set_membership_authority(
-            tied=False,
-            unauthorized_membership_status=MembershipStatus.ACTIVE,
-            unauthorized_organization_status=OrganizationStatus.DISABLED,
+    # D29: a second active membership is refused even when its company is disabled.
+    with pytest.raises(IntegrityError) as conflict:
+        asyncio.run(
+            set_membership_authority(
+                tied=False,
+                unauthorized_membership_status=MembershipStatus.ACTIVE,
+                unauthorized_organization_status=OrganizationStatus.DISABLED,
+            )
         )
-    )
+    assert integrity_constraint_name(conflict.value) == "uq_organization_memberships_user_active"
     assert_authorized_reads()
 
 

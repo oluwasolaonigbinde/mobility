@@ -27,20 +27,24 @@ export function AssignmentActions({
   assignmentId,
   campaignName,
   status,
+  canAccept = true,
 }: {
   assignmentId: string;
   campaignName: string;
   status: Status;
+  /** False when the offer lacks complete frozen pay terms; the server would refuse it. */
+  canAccept?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | undefined>();
   const [confirming, setConfirming] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const step = nextStep[status];
+  const step = status === "offered" && !canAccept ? undefined : nextStep[status];
   if (!step && status === "accepted") {
     return <p className="text-muted mt-4 text-center text-xs">Awaiting admin activation.</p>;
   }
-  if (!step) return null;
+  const blockedOffer = status === "offered" && !canAccept;
+  if (!step && !blockedOffer) return null;
 
   function run(confirmed = false) {
     if (step!.action === "deactivate" && !confirmed) {
@@ -57,16 +61,22 @@ export function AssignmentActions({
 
   return (
     <div className="mt-4 flex flex-col gap-2">
-      <Button
-        ref={triggerRef}
-        type="button"
-        variant={step.variant}
-        disabled={pending}
-        onClick={() => run()}
-        className="h-12 w-full"
-      >
-        {pending ? "Working…" : step.label}
-      </Button>
+      {step ? (
+        <Button
+          ref={triggerRef}
+          type="button"
+          variant={step.variant}
+          disabled={pending}
+          onClick={() => run()}
+          className="h-12 w-full"
+        >
+          {pending ? "Working…" : step.label}
+        </Button>
+      ) : (
+        <p className="text-muted text-xs">
+          This offer can&apos;t be accepted because its pay terms are incomplete.
+        </p>
+      )}
       {status === "offered" ? (
         <Button
           type="button"

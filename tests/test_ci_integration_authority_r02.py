@@ -71,6 +71,7 @@ def _run_probe(
     authority: bool,
     database_url: str | None,
     force_skip: bool = False,
+    app_database_url: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env.pop("DATABASE_URL", None)
@@ -81,6 +82,8 @@ def _run_probe(
         env[AUTHORITY_ENV] = "1"
     if database_url is not None:
         env["TEST_DATABASE_URL"] = database_url
+    if app_database_url is not None:
+        env["DATABASE_URL"] = app_database_url
     if force_skip:
         env[SKIP_PROBE_ENV] = "1"
 
@@ -152,6 +155,33 @@ def test_authority_mode_rejects_missing_or_non_postgresql_database(
 
     assert result.returncode == 4, result.stdout + result.stderr
     assert "SQLite create_all evidence is not authoritative" in result.stderr
+
+
+def test_postgis_fixture_probe(postgis_db_sessionmaker) -> None:
+    pass
+
+
+def test_app_database_url_is_never_used_as_a_test_database() -> None:
+    # A developer shell or app container exports the app's own DATABASE_URL.
+    app_database_url = "postgresql+asyncpg://app:app@127.0.0.1:9/app"
+
+    authority = _run_probe(
+        f"{__file__}::test_authority_skip_probe",
+        authority=True,
+        database_url=None,
+        app_database_url=app_database_url,
+    )
+    local = _run_probe(
+        f"{__file__}::test_postgis_fixture_probe",
+        authority=False,
+        database_url=None,
+        app_database_url=app_database_url,
+    )
+
+    assert authority.returncode == 4, authority.stdout + authority.stderr
+    assert "requires TEST_DATABASE_URL" in authority.stderr
+    assert local.returncode == 0, local.stdout + local.stderr
+    assert "1 skipped" in local.stdout
 
 
 def test_fast_local_sqlite_probe(db_sessionmaker) -> None:

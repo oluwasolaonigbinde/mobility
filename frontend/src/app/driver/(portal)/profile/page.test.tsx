@@ -81,6 +81,37 @@ describe("DriverProfilePage campaign authority", () => {
     });
   });
 
+  it("shows server totals rather than the length of each limited page", async () => {
+    const vehicle = {
+      id: "11111111-1111-4111-8111-111111111111",
+      plate_number: "ABC-123",
+      vehicle_type: "car",
+      status: "active",
+    };
+    get.mockImplementation(async (path: string, options?: { params?: { query?: object } }) => {
+      const query = (options?.params?.query ?? {}) as Record<string, unknown>;
+      if (path.endsWith("/profile")) {
+        return {
+          data: { full_name: "Ada Driver", email: "ada@example.com", onboarding_status: "active" },
+        };
+      }
+      if (path.endsWith("/vehicles")) return { data: { items: [vehicle], total: 23 } };
+      if (path.endsWith("/campaign-assignments")) return { data: { items: [], total: 64 } };
+      if (path.endsWith("/earnings/ledger")) {
+        expect(query).toEqual({ entry_type: "trip_payout", limit: 1 });
+        return { data: { items: [], total: 205 } };
+      }
+      return { data: { items: [] } };
+    });
+
+    render(await DriverProfilePage());
+
+    expect(screen.getByText("64")).toBeInTheDocument();
+    expect(screen.getByText("205")).toBeInTheDocument();
+    expect(screen.getByText("23")).toBeInTheDocument();
+    expect(screen.getByText("My vehicles · 23 (showing 1)")).toBeInTheDocument();
+  });
+
   it("does not publish a second readiness claim when canonical evidence is degraded", async () => {
     render(await DriverProfilePage());
 

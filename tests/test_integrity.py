@@ -72,6 +72,10 @@ def test_expected_postgres_constraint_names_are_classified(constraint_name: str)
             "vehicles.plate_number_normalized",
             "uq_vehicles_plate_country_normalized",
         ),
+        (
+            "UNIQUE constraint failed: organization_memberships.user_id",
+            "uq_organization_memberships_user_active",
+        ),
     ],
 )
 def test_expected_sqlite_unique_messages_are_classified(message: str, expected: str) -> None:

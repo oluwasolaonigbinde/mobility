@@ -12,6 +12,22 @@ function response(body: unknown) {
   return Promise.resolve(new Response(JSON.stringify(body), { status: 200 }));
 }
 
+function isList(path: string) {
+  return path.startsWith("/api/notifications?");
+}
+
+function notice(id: string, title = `Notice ${id}`) {
+  return {
+    id,
+    title,
+    body: "A sanitized account update.",
+    channel: "in_app",
+    type_key: "trip_verified",
+    created_at: "2026-08-24T12:00:00Z",
+    read_at: null,
+  };
+}
+
 function setVisibility(value: "visible" | "hidden") {
   Object.defineProperty(document, "visibilityState", { configurable: true, value });
   document.dispatchEvent(new Event("visibilitychange"));
@@ -46,11 +62,8 @@ describe("NotificationCenter", () => {
     renderCentre();
 
     await act(async () => undefined);
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/notifications/unread-count",
-      expect.objectContaining({ headers: { "content-type": "application/json" } }),
-    );
-    expect(fetchMock).not.toHaveBeenCalledWith("/api/notifications", expect.anything());
+    expect(fetchMock).toHaveBeenCalledWith("/api/notifications/unread-count", expect.anything());
+    expect(fetchMock.mock.calls.some(([path]) => isList(path))).toBe(false);
 
     await act(async () => vi.advanceTimersByTimeAsync(45_000));
     expect(
@@ -64,16 +77,114 @@ describe("NotificationCenter", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
     await act(async () => undefined);
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/notifications",
-      expect.objectContaining({ headers: { "content-type": "application/json" } }),
+    expect(fetchMock).toHaveBeenCalledWith("/api/notifications?limit=20&offset=0", {});
+  });
+
+  it("sends read commands without a body media type and JSON preferences with one", async () => {
+    const fetchMock = vi.fn((input: string, init?: RequestInit) => {
+      if (input === "/api/notifications/unread-count") return response({ unread_count: 1 });
+      if (isList(input)) return response({ items: [notice("n1")], total: 1, limit: 20, offset: 0 });
+      if (input === "/api/advertiser/notification-preferences" && init?.method === "PATCH") {
+        return response({ in_app_enabled: true, transactional_email_enabled: false });
+      }
+      if (input === "/api/advertiser/notification-preferences") {
+        return response({ in_app_enabled: true, transactional_email_enabled: true });
+      }
+      return response({ unread_count: 0, id: "n1", read_at: "2026-08-24T12:00:01Z" });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    renderCentre(true);
+
+    fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
+    await screen.findByText("Notice n1");
+    fireEvent.click(screen.getByRole("button", { name: "Mark read" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mark all read" }));
+    const email = screen.getByLabelText("Transactional email");
+    await waitFor(() => expect(email).toBeChecked());
+    fireEvent.click(email);
+
+    await waitFor(() => {
+      const byPath = new Map(fetchMock.mock.calls.map(([path, init]) => [path, init]));
+      expect(byPath.get("/api/notifications/n1/read")).toEqual({ method: "POST" });
+      expect(byPath.get("/api/notifications/read-all")).toEqual({ method: "POST" });
+      expect(
+        fetchMock.mock.calls.find(
+          ([path, init]) =>
+            path === "/api/advertiser/notification-preferences" && init?.method === "PATCH",
+        )?.[1],
+      ).toEqual({
+        method: "PATCH",
+        body: JSON.stringify({ transactional_email_enabled: false }),
+        headers: { "content-type": "application/json" },
+      });
+    });
+  });
+
+  it("reaches older notifications page by page and shows each once", async () => {
+    const all = Array.from({ length: 25 }, (_, index) => notice(`n${index + 1}`));
+    const fetchMock = vi.fn((input: string) => {
+      if (input === "/api/notifications/unread-count") return response({ unread_count: 25 });
+      const params = new URL(input, "http://localhost").searchParams;
+      const offset = Number(params.get("offset"));
+      const limit = Number(params.get("limit"));
+      // A newer notice arriving between pages would shift offsets; overlap by one here.
+      const start = offset === 0 ? 0 : offset - 1;
+      return response({ items: all.slice(start, offset + limit), total: 25, limit, offset });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    renderCentre();
+
+    fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
+    await screen.findByText("Notice n20");
+    expect(screen.queryByText("Notice n21")).not.toBeInTheDocument();
+    expect(screen.getByText(/Showing 20 of 25/)).toHaveTextContent(
+      "Mark all read includes older ones",
     );
+
+    fireEvent.click(screen.getByRole("button", { name: "Show older" }));
+    await screen.findByText("Notice n25");
+    expect(screen.getAllByText("Notice n20")).toHaveLength(1);
+    expect(screen.getByText("Showing 25 of 25")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Show older" })).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/notifications?limit=20&offset=20", {});
+  });
+
+  it("keeps the cached unread badge while a background poll is in flight", async () => {
+    vi.useFakeTimers();
+    let release: ((value: Response) => void) | undefined;
+    let polls = 0;
+    const fetchMock = vi.fn((input: string) => {
+      if (input === "/api/notifications/unread-count") {
+        polls += 1;
+        if (polls === 1) return response({ unread_count: 3 });
+        return new Promise<Response>((resolve) => {
+          release = resolve;
+        });
+      }
+      return response({ items: [], total: 0, limit: 50, offset: 0 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    renderCentre();
+
+    await act(async () => vi.advanceTimersByTimeAsync(10));
+    expect(screen.getByRole("button", { name: /notifications/i })).toHaveTextContent("3");
+
+    await act(async () => vi.advanceTimersByTimeAsync(45_000));
+    expect(polls).toBe(2);
+    expect(release).toBeDefined();
+    expect(screen.getByRole("button", { name: /notifications/i })).toHaveTextContent("3");
+
+    await act(async () => {
+      release?.(new Response(JSON.stringify({ unread_count: 4 }), { status: 200 }));
+      await vi.advanceTimersByTimeAsync(10);
+    });
+    expect(screen.getByRole("button", { name: /notifications/i })).toHaveTextContent("4");
   });
 
   it("invalidates the list and count after read mutations", async () => {
     const fetchMock = vi.fn((input: string, init?: RequestInit) => {
       if (input === "/api/notifications/unread-count") return response({ unread_count: 1 });
-      if (input === "/api/notifications") {
+      if (isList(input)) {
         return response({
           items: [
             {
@@ -109,9 +220,7 @@ describe("NotificationCenter", () => {
       ),
     );
     await waitFor(() =>
-      expect(fetchMock.mock.calls.filter(([path]) => path === "/api/notifications")).toHaveLength(
-        2,
-      ),
+      expect(fetchMock.mock.calls.filter(([path]) => isList(path))).toHaveLength(2),
     );
     expect(
       fetchMock.mock.calls.filter(([path]) => path === "/api/notifications/unread-count").length,
@@ -125,16 +234,14 @@ describe("NotificationCenter", () => {
       ),
     );
     await waitFor(() =>
-      expect(fetchMock.mock.calls.filter(([path]) => path === "/api/notifications")).toHaveLength(
-        3,
-      ),
+      expect(fetchMock.mock.calls.filter(([path]) => isList(path))).toHaveLength(3),
     );
   });
 
   it("renders the new activity notices with their truthful driver copy", async () => {
     const fetchMock = vi.fn((input: string) => {
       if (input === "/api/notifications/unread-count") return response({ unread_count: 1 });
-      if (input === "/api/notifications") {
+      if (isList(input)) {
         return response({
           items: [
             {
@@ -170,8 +277,7 @@ describe("NotificationCenter", () => {
   it("shows the organization-wide mandatory in-app setting and email toggle only to advertisers", async () => {
     const fetchMock = vi.fn((input: string, init?: RequestInit) => {
       if (input === "/api/notifications/unread-count") return response({ unread_count: 0 });
-      if (input === "/api/notifications")
-        return response({ items: [], total: 0, limit: 50, offset: 0 });
+      if (isList(input)) return response({ items: [], total: 0, limit: 50, offset: 0 });
       if (input === "/api/advertiser/notification-preferences" && init?.method === "PATCH") {
         return response({ in_app_enabled: true, transactional_email_enabled: false });
       }
@@ -203,7 +309,7 @@ describe("NotificationCenter", () => {
     let preferenceAttempts = 0;
     const fetchMock = vi.fn((input: string, init?: RequestInit) => {
       if (input === "/api/notifications/unread-count") return response({ unread_count: 1 });
-      if (input === "/api/notifications") {
+      if (isList(input)) {
         return response({
           items: [
             {

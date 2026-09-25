@@ -242,6 +242,22 @@ describe("assignment activation authority", () => {
     expect(screen.getByText(/wait for admin activation/i)).toBeInTheDocument();
     expect(screen.queryByText(/accept and activate/i)).not.toBeInTheDocument();
   });
+
+  it("names an activated campaign that cannot start yet instead of claiming none", () => {
+    pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
+    render(
+      <TripTracker
+        assignment={null}
+        initialTrip={null}
+        driverId={DRIVER_ID}
+        startUnavailableMessage="A few steps are still in progress before you can start trips."
+        pausedCampaignName="F7 Lagos Commuter Reach"
+      />,
+    );
+    expect(screen.getByText("F7 Lagos Commuter Reach can't start yet")).toBeInTheDocument();
+    expect(screen.queryByText(/No active campaign/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Start trip/ })).not.toBeInTheDocument();
+  });
 });
 
 describe("storage fail-closed (finding 5)", () => {

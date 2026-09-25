@@ -291,7 +291,7 @@ Current OpenAPI: **280 operations across 251 paths**; **279 operations under `/a
 | `/health` | 1 | 1 |
 
 SQLAlchemy metadata contains **123 mapped tables**.
-Alembic contains **89 linear revisions**, from base `0001_enable_extensions` to the single head `0089_driver_account_setup`.
+Alembic contains **90 linear revisions**, from base `0001_enable_extensions` to the single head `0090_single_active_advertiser_membership`.
 
 Required public driver-onboarding paths:
 
@@ -620,7 +620,7 @@ Notes:
 
 ### 7.2 Migration policy **[BUILT]**
 
-- Alembic has **89 linear revisions**, from base `0001_enable_extensions` to the single head `0089_driver_account_setup`.
+- Alembic has **90 linear revisions**, from base `0001_enable_extensions` to the single head `0090_single_active_advertiser_membership`.
   <!-- verified by scripts/update_architecture_inventory.py from Alembic's ScriptDirectory -->
 - `0001` enables `pgcrypto` + `postgis`.
 - Shipped migrations are frozen history: schema changes come as **new**
@@ -739,13 +739,13 @@ regenerates. See §9 for the drift gate.
 
 ### 8.5 Design system **[BUILT]**
 
-- Tokens are Tailwind v4 `@theme` variables in `src/app/globals.css` — "city at
-  night" palette (bg `#0a0b0e`, panel/raised/edge surfaces, amber/cyan/green/coral
-  signals), panel shadows/glows, `rise`/`pulse-dot` animations. **Single dark
-  theme by design** (ops surface). Use tokens, never raw hex in components.
-- Fonts (`src/lib/fonts.ts`): **Clash Display** (display) and **Satoshi**
-  (UI/body) self-hosted as woff2 in `src/fonts/`; **IBM Plex Mono**
-  (data/telemetry) loaded via `next/font/google` — not self-hosted.
+- Tokens are Tailwind v4 `@theme` variables in `src/app/globals.css`. Four
+  retained product directions use scoped overrides: Ivory Ledger (default),
+  Broadside, Dispatch and Ledger. The picker labels them Directions 1–4 and
+  rejects obsolete stored selections. Use tokens, never raw hex in components.
+- Fonts (`src/lib/fonts.ts`): Fraunces, Inter, Big Shoulders, Poppins, Archivo
+  and IBM Plex Mono are self-hosted. Public Terrax styling is namespaced apart
+  from the product directions.
 
 ### 8.6 Cardvert Driver PWA **[BUILT]**
 
@@ -1541,6 +1541,17 @@ clawback; once cash has been paid, RM11's carry-forward debt contract applies.
   worker records only an error code/class and emits an operational warning;
   inability to persist that failure remains a visible worker failure. Current
   claims, same-key recovery and every final authorization gate are unchanged.
+- **Historical batch authority and lookups:** a new provider submission still
+  requires the batch maker, approver and every requester to be active admins.
+  A lookup-only claim (expired claim, `query_only` intent or recovery-incident
+  lookup) does not, because a lost submission response leaves the line without
+  a transfer reference that a webhook or poll could match. The lookup records
+  which inactive actors were exempted in its authorization audit; a
+  `not_found` result returns the intent to `pending`, where the next submission
+  claim applies the full active-authority check again. The deferred
+  `FORBIDDEN_ROLE` is raised after the batch and intent consistency checks, so a
+  submission may instead be refused with `PAYOUT_BATCH_AUTHORITY_CHANGED` or
+  `DISBURSEMENT_PROVIDER_CHANGED`; every such outcome refuses the claim.
 - Q26/Q27 require verified bank-account capture for the pilot. The concrete
   bank-verification provider may share the approved provider contract or use a
   separate adapter, but it may not bypass the encrypted payee snapshot or
@@ -1975,9 +1986,11 @@ channel adapter; its concrete provider/account remains an external parameter.
   changes are audited with actor and before/after state; in-app cannot be
   disabled. W2-04B consults this preference before email delivery.
 - Built business triggers use stable source-event keys for assignment offered/
-  accepted, campaign approval, confirmed funding, budget alert/pause/resume,
+  accepted, campaign approval and rejection, creative approval and rejection,
+  in-platform quotation readiness, confirmed funding, budget alert/pause/resume,
   cancellation, evidence challenge/verification, fraud outcomes and payout
-  release. Advertiser events create mandatory in-app rows plus the existing
+  release. Review payloads carry identifiers only; rejection reasons stay on
+  the review event and are read in the product. Advertiser events create mandatory in-app rows plus the existing
   preference-governed email row; driver events create in-app rows and, only
   when current verified-phone consent permits it, a separate audited manual
   contact task. No business service contacts a provider inline.
@@ -2300,14 +2313,18 @@ aggregates only, k-floor rules of §22.2 apply to any zone-level display.
   and unknown identities and sends only to the exact stored pending applicant.
   No admin assigns a password. `EXT-EMAIL-PROVIDER` and configured public email
   delivery remain required before any live-delivery claim.
-- **Advertiser membership at sign-in (D29/AUT-007) [TARGET]:** every advertiser
-  login must resolve to exactly one active advertiser-organization membership;
-  zero or multiple active memberships fail closed. Multi-company agency access
-  and silent newest-membership selection are unsupported. Cardvert platform
-  admins are unaffected. Current source permits multiple active memberships and
-  several organization consumers select the newest row, so enforcement requires
-  a database invariant plus login/consumer reconciliation in the central
-  migration/contract lane.
+- **Advertiser membership at sign-in (D29/AUT-007) [BUILT — migration `0090`]:**
+  every advertiser login resolves to at most one active advertiser-organization
+  membership. The partial unique index `uq_organization_memberships_user_active`
+  (active status only, whatever the company's status) is the race authority;
+  admin company creation maps a violation to `409 ADVERTISER_COMPANY_EXISTS`
+  and rolls back the new company. The organization, audience and disclosure
+  consumers no longer choose the newest row and fail closed if more than one
+  exists. Migration `0090` refuses to upgrade while any login holds several
+  active memberships rather than choosing one; operators disable all but one
+  first. Moving an advertiser to a new company requires disabling the old
+  membership first (operator runbook). Multi-company agency access remains
+  unsupported; Cardvert platform admins are unaffected.
 - **Applicant review actor authority (D29/ONB-005) [BUILT — no product
   change]:** one active Cardvert admin may verify the bank account and approve
   the same driver's person/payee and vehicle evidence; there is no maker-checker
@@ -3091,6 +3108,8 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.96 | 2026-09-24 | Client direction reduction: remove former product directions 1, 2, 4–8 and their CSS/font/asset paths; retain former 3, 9, 10, 11 as Directions 1–4. Ivory Ledger is the default and obsolete persisted choices fall back to it. Public marketing styling and live-use gates are unchanged. |
+| v1.95 | 2026-09-23 | **Post-theft reconciliation fixes CV-01–CV-17.** D29 moves to BUILT with migration `0090`'s active-membership partial unique index, fail-closed membership consumers and a refusing upgrade for existing conflicts. Lookup-only disbursement claims no longer require historical batch actors to remain active admins, while new submissions still do. Admin evidence verifications accept an optional `verification_type` filter, and advertisers receive notifications for campaign rejection, creative decisions and in-platform quotations (additive enum values; all three §9 baselines moved together). Advertiser draft/rejected campaigns are editable through the existing PATCH, and campaign window inputs are interpreted as Lagos time at creation and edit, matching mid-flight changes. Report cohort costs index the ledger by trip with identical results. No provider call, deployment, live-use gate or product decision changes. |
 | v1.94 | 2026-09-16 | **Public-root and design-direction integration.** The reviewed Terrax company landing design becomes Cardvert's public `/` front door with isolated `terrax-*` tokens. Driver conversion enters `/apply`, existing users enter `/login`, and advertiser acquisition remains enquiry-led because public advertiser signup is out of scope. The former `/landing` URL redirects to `/`. Product Directions 10 Dispatch and 11 Ledger join the existing switcher without changing directions 1–9, auth/role homes, APIs or provider/live-use gates. |
 | v1.93 | 2026-09-14 | **Additive operator discovery and authority reuse.** Phase II adds safe named queue search, focused application history with current approval-evidence guards, paginated offer selectors and zero-write activation readiness sharing the billing reservation calculation. Scoped measurement discovery distinguishes incomplete/suppressed and current/superseded results while reusing existing issuance. Late-data and contact consumers preserve quarantine decisions, no-money/no-report mutation and D35 consent invalidation. No new money/issuance engine, completion transition, provider, native or deployment claim; final integrated and report-UI verification remain delivery gates. |
 | v1.92 | 2026-09-14 | **Provider-neutral payout operations.** P4 adds advisory named credit discovery and exact server selection preview, bounded batch/line/history and campaign money-position reads, maker-bound durable draft/replay recovery, and current-assessment checks under existing reservation locks. Terminal replacements preflight all trips and require a semantically different bank/account destination, not merely a new encrypted version. Explicit bank review sends only a mask to the payout UI; person/payee approval bank reveal checks the current version under replacement locks. Campaign economic ledger totals remain separate from active provider exposure and verified transfer totals across complete replacement chains, including late or duplicate successes. Queued, unknown, submitted and verified paid outcomes remain separate; existing maker/checker/manual-reconciler separation, debt allocation and per-line provider finality remain authoritative. No migration, live provider call, lifecycle completion or live-use gate change. |

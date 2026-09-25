@@ -76,91 +76,97 @@ function profileStep(source: DriverJourneyFacts["profile"]): DriverJourneyStep {
       ...base,
       state: "degraded",
       title: "Account status unavailable",
-      detail: "Cardvert could not verify the current driver profile.",
+      detail: "Cardvert couldn't check your driver account right now.",
     };
   if (source.state === "absent")
     return {
       ...base,
       state: "pending",
       title: "Invitation still pending",
-      detail: "An application receipt is not approval or work access.",
+      detail: "Your application was received. That isn't an approval yet.",
     };
   if (source.value === "active")
     return {
       ...base,
       state: "complete",
-      title: "Invited account active",
-      detail: "Your authenticated driver profile is active.",
+      title: "Account active",
+      detail: "Your driver account is set up.",
     };
   if (source.value === "pending")
     return {
       ...base,
       state: "current",
-      title: "Application review pending",
-      detail: "Operations has not activated this driver profile.",
+      title: "Application under review",
+      detail: "Cardvert hasn't approved your driver profile yet.",
     };
   return {
     ...base,
     state: "blocked",
     title: source.value === "rejected" ? "Application rejected" : "Account suspended",
-    detail: "Campaign work and tracking remain unavailable.",
+    detail: "You can't take campaign work or record trips right now.",
   };
 }
 
 function personPayeeStep(source: DriverJourneyFacts["personPayee"]): DriverJourneyStep {
-  const base = { id: "person_payee" as const, label: "Person & payee", href: "/driver/profile" };
+  const base = {
+    id: "person_payee" as const,
+    label: "Identity & bank details",
+    href: "/driver/profile",
+  };
   if (source.state === "unavailable")
     return {
       ...base,
       state: "degraded",
       title: "Review status unavailable",
-      detail: "Identity and payee approval could not be verified.",
+      detail: "Cardvert couldn't check your identity and bank details right now.",
     };
   if (source.state === "absent")
     return {
       ...base,
       state: "pending",
-      title: "Evidence not submitted",
-      detail: "Use the expiring onboarding code from the application email.",
+      title: "Details not sent yet",
+      detail: "Use the access code in your application email to send them.",
     };
   if (source.value === "approved")
     return {
       ...base,
       state: "complete",
-      title: "Person & payee approved",
-      detail: "The current protected submission is approved.",
+      title: "Identity and bank details approved",
+      detail: "Nothing more to do here.",
     };
   if (source.value === "pending_review")
     return {
       ...base,
       state: "current",
-      title: "Person & payee under review",
-      detail: "Approval is pending; this does not grant work eligibility.",
+      title: "Identity and bank details in review",
+      detail: "You can't take campaign work until they're approved.",
     };
   return {
     ...base,
     state: "blocked",
     title:
-      source.value === "expired" ? "Person & payee approval expired" : "Person & payee rejected",
-    detail: "Submit a new governed revision before campaign work.",
+      source.value === "expired"
+        ? "Identity and bank approval expired"
+        : "Identity and bank details rejected",
+    detail: "Updated details must be sent and approved before campaign work.",
   };
 }
 
 function vehicleStep(source: DriverJourneyFacts["vehicle"]): DriverJourneyStep {
-  const base = { id: "vehicle" as const, label: "Vehicle review", href: "/driver/profile" };
+  const base = { id: "vehicle" as const, label: "Car approval", href: "/driver/profile" };
   if (source.state === "unavailable")
     return {
       ...base,
       state: "degraded",
       title: "Vehicle status unavailable",
-      detail: "Cardvert cannot verify current vehicle evidence.",
+      detail: "Cardvert couldn't check your car's approval right now.",
     };
   if (source.state === "absent")
     return {
       ...base,
       state: "pending",
-      title: "Vehicle evidence not approved",
-      detail: "A current approved car and evidence revision are required.",
+      title: "Car not approved yet",
+      detail: "You need an approved car with current documents.",
     };
 
   const exact = source.value.assignmentVehicle;
@@ -174,7 +180,7 @@ function vehicleStep(source: DriverJourneyFacts["vehicle"]): DriverJourneyStep {
         ...base,
         state: "complete",
         title: `${exact.plateNumber} approved`,
-        detail: "The exact campaign vehicle has current approved evidence.",
+        detail: "The car for this campaign is approved.",
       };
     }
     if (
@@ -186,16 +192,16 @@ function vehicleStep(source: DriverJourneyFacts["vehicle"]): DriverJourneyStep {
         state: "blocked",
         title:
           exact.evidenceStatus === "expired"
-            ? `${exact.plateNumber} evidence expired`
+            ? `${exact.plateNumber} documents expired`
             : `${exact.plateNumber} is not approved`,
-        detail: "The assignment vehicle cannot be treated as work-ready.",
+        detail: "This car can't be used for campaign work until it's approved again.",
       };
     }
     return {
       ...base,
       state: exact.evidenceStatus === "approved" ? "degraded" : "current",
-      title: `${exact.plateNumber} review incomplete`,
-      detail: "Current vehicle and evidence authority must both pass.",
+      title: `${exact.plateNumber} review not finished`,
+      detail: "The car and its documents both need to be approved.",
     };
   }
 
@@ -204,32 +210,31 @@ function vehicleStep(source: DriverJourneyFacts["vehicle"]): DriverJourneyStep {
       ...base,
       state: "complete",
       title: `${source.value.approvedActiveCount} approved vehicle${source.value.approvedActiveCount === 1 ? "" : "s"}`,
-      detail: "A current active car has approved evidence.",
+      detail: "You have a car ready for campaign work.",
     };
   if (source.value.rejectedCount > 0 || source.value.expiredCount > 0)
     return {
       ...base,
       state: "blocked",
-      title:
-        source.value.expiredCount > 0 ? "Vehicle evidence expired" : "Vehicle evidence rejected",
-      detail: "A new governed evidence revision is required.",
+      title: source.value.expiredCount > 0 ? "Car documents expired" : "Car documents rejected",
+      detail: "Updated car documents must be sent and approved.",
     };
   return {
     ...base,
     state: "current",
-    title: "Vehicle review pending",
-    detail: "Operations has not approved a current active vehicle.",
+    title: "Car review in progress",
+    detail: "Cardvert hasn't approved a car yet.",
   };
 }
 
 function offerDetail(offers: OfferAuthority): string {
   const parts = [
-    offers.offered ? `${offers.offered} awaiting your decision` : "",
-    offers.accepted ? `${offers.accepted} accepted and awaiting activation` : "",
+    offers.offered ? `${offers.offered} new offer${offers.offered === 1 ? "" : "s"} to review` : "",
+    offers.accepted ? `${offers.accepted} accepted, waiting to start` : "",
     offers.expired ? `${offers.expired} expired` : "",
     offers.declined ? `${offers.declined} declined` : "",
   ].filter(Boolean);
-  return parts.length ? parts.join(" · ") : "No current offer is available.";
+  return parts.length ? parts.join(" · ") : "No offers right now.";
 }
 
 function offerStep(source: DriverJourneyFacts["offers"]): DriverJourneyStep {
@@ -239,28 +244,30 @@ function offerStep(source: DriverJourneyFacts["offers"]): DriverJourneyStep {
       ...base,
       state: "degraded",
       title: "Offer status unavailable",
-      detail: "Cardvert could not verify current offer decisions.",
+      detail: "Cardvert couldn't check your offers right now.",
     };
   if (source.state === "absent")
     return {
       ...base,
       state: "pending",
       title: "No campaign offers",
-      detail: "No driver profile offers are available.",
+      detail: "You don't have any offers yet.",
     };
   if (source.value.active > 1)
     return {
       ...base,
       state: "degraded",
-      title: "Offer authority conflict",
-      detail: "More than one active assignment was reported.",
+      title: "Job details conflict",
+      detail: "More than one campaign shows as running, so starting a trip is paused.",
     };
   if (source.value.active === 1)
     return {
       ...base,
       state: "complete",
       title: "Offer accepted",
-      detail: offerDetail(source.value),
+      detail: source.value.offered
+        ? `Your accepted job is running · ${offerDetail(source.value)}`
+        : "Your accepted job is running.",
     };
   if (source.value.accepted > 0)
     return {
@@ -273,7 +280,7 @@ function offerStep(source: DriverJourneyFacts["offers"]): DriverJourneyStep {
     return {
       ...base,
       state: "current",
-      title: "Offer decision needed",
+      title: "Offer waiting for your decision",
       detail: offerDetail(source.value),
     };
   return {
@@ -291,15 +298,15 @@ function activationStep(
 ): DriverJourneyStep {
   const base = {
     id: "activation" as const,
-    label: "Admin activation",
+    label: "Campaign start",
     href: "/driver/assignments",
   };
   if (activation.state === "unavailable")
     return {
       ...base,
       state: "degraded",
-      title: "Activation status unavailable",
-      detail: "A new trip cannot start until activation authority is verified.",
+      title: "Campaign start status unavailable",
+      detail: "A new trip can't start until this is checked.",
     };
   if (activation.state === "absent" || activation.value === null) {
     const accepted = offers.state === "available" ? offers.value.accepted : 0;
@@ -307,28 +314,30 @@ function activationStep(
       return {
         ...base,
         state: "degraded",
-        title: "Activation authority conflict",
-        detail: "Assignment history looks active but canonical activation is absent.",
+        title: "Job details conflict",
+        detail:
+          "Your job shows as running but its campaign start is missing, so starting a trip is paused.",
       };
     return {
       ...base,
       state: accepted > 0 ? "current" : "pending",
-      title: accepted > 0 ? "Waiting for admin activation" : "Not activated",
-      detail: "Offer acceptance alone does not grant campaign work.",
+      title: accepted > 0 ? "Waiting for Cardvert to start the campaign" : "Not started",
+      detail:
+        "Accepting an offer doesn't start campaign work. Cardvert starts it once installation is checked.",
     };
   }
   if (offers.state !== "available" || offers.value.active !== 1)
     return {
       ...base,
       state: "degraded",
-      title: "Activation authority conflict",
-      detail: "Assignment sources disagree; a new trip is withheld.",
+      title: "Job details conflict",
+      detail: "Your job details don't match, so starting a trip is paused.",
     };
   return {
     ...base,
     state: "complete",
     title: "Campaign activated",
-    detail: `${activation.value.campaignName} is active for ${activation.value.plateNumber}.`,
+    detail: `${activation.value.campaignName} is running on ${activation.value.plateNumber}.`,
   };
 }
 
@@ -348,36 +357,36 @@ export function projectDriverCampaignJourney(facts: DriverJourneyFacts): DriverC
     facts.trip.state === "unavailable"
       ? {
           id: "tracking",
-          label: "Screen-on tracking",
+          label: "Ready to drive",
           state: "degraded",
-          title: "Trip authority unavailable",
-          detail: "Cardvert cannot prove whether a trip is already active, so Start is withheld.",
+          title: "Trip status unavailable",
+          detail: "Cardvert can't tell whether a trip is already running, so Start is paused.",
           href: "/driver/track",
         }
       : hasCurrentTrip
         ? {
             id: "tracking",
-            label: "Screen-on tracking",
+            label: "Ready to drive",
             state: "current",
             title: "Trip in progress",
-            detail: "Open tracking to manage safe capture, reconciliation or End.",
+            detail: "Open Track to keep recording or to end the trip.",
             href: "/driver/track",
           }
         : canStart
           ? {
               id: "tracking",
-              label: "Screen-on tracking",
+              label: "Ready to drive",
               state: "current",
-              title: "Ready for explicit Start",
-              detail: "Start remains subject to the live PWA capability and server checks.",
+              title: "Ready to start",
+              detail: "Press Start on the Track page when you begin driving.",
               href: "/driver/track",
             }
           : {
               id: "tracking",
-              label: "Screen-on tracking",
+              label: "Ready to drive",
               state: "pending",
-              title: "Tracking locked",
-              detail: "Complete the governed stages above before a new trip can start.",
+              title: "Not ready yet",
+              detail: "Finish the steps above before you can start a trip.",
               href: "/driver/track",
             };
   const allSteps = [...steps, tracking];
@@ -385,7 +394,7 @@ export function projectDriverCampaignJourney(facts: DriverJourneyFacts): DriverC
   if (hasCurrentTrip)
     return {
       standing: "TRACKING",
-      summary: "A server-confirmed trip is in progress. Keep Cardvert visible on screen.",
+      summary: "A trip is in progress. Keep Cardvert open on screen while you drive.",
       canStart: false,
       hasCurrentTrip: true,
       steps: allSteps,
@@ -393,7 +402,8 @@ export function projectDriverCampaignJourney(facts: DriverJourneyFacts): DriverC
   if (allSteps.some((step) => step.state === "degraded"))
     return {
       standing: "DEGRADED",
-      summary: "Some authority could not be verified. Cardvert will not claim readiness.",
+      summary:
+        "Some details could not be verified, so starting a trip is paused. Refresh to try again.",
       canStart: false,
       hasCurrentTrip: false,
       steps: allSteps,
@@ -401,7 +411,7 @@ export function projectDriverCampaignJourney(facts: DriverJourneyFacts): DriverC
   if (allSteps.some((step) => step.state === "blocked"))
     return {
       standing: "BLOCKED",
-      summary: "A rejected, expired or suspended stage blocks campaign work.",
+      summary: "Something below needs attention before you can take campaign work.",
       canStart: false,
       hasCurrentTrip: false,
       steps: allSteps,
@@ -409,14 +419,14 @@ export function projectDriverCampaignJourney(facts: DriverJourneyFacts): DriverC
   if (canStart)
     return {
       standing: "READY",
-      summary: "Backend onboarding, vehicle, offer and activation authority are current.",
+      summary: "You're ready to drive.",
       canStart: true,
       hasCurrentTrip: false,
       steps: allSteps,
     };
   return {
     standing: "PENDING",
-    summary: "Campaign work remains unavailable until every server-governed stage completes.",
+    summary: "A few steps are still in progress before you can start trips.",
     canStart: false,
     hasCurrentTrip: false,
     steps: allSteps,

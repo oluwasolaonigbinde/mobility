@@ -31,24 +31,35 @@ export function CreativeStatusActions({
     error?: string;
   }>({});
   const uploadRequest = useRef<{ fingerprint: string; id: string } | undefined>(undefined);
+  // Only the most recently selected file may set the replacement; an earlier
+  // upload that finishes later must not swap in the artwork the user replaced.
+  const uploadGeneration = useRef(0);
 
   async function uploadReplacement(file: File | undefined) {
     if (!file) return;
+    const generation = ++uploadGeneration.current;
+    const current = () => generation === uploadGeneration.current;
     const fingerprint = `${file.name}:${file.type}:${file.size}:${file.lastModified}`;
     if (uploadRequest.current?.fingerprint !== fingerprint) {
       uploadRequest.current = { fingerprint, id: crypto.randomUUID() };
     }
     setReplacement({ phase: "hashing" });
     try {
-      const uploaded = await uploadCreativeFile(file, (phase) => setReplacement({ phase }), {
-        clientRequestId: uploadRequest.current.id,
-      });
+      const uploaded = await uploadCreativeFile(
+        file,
+        (phase) => {
+          if (current()) setReplacement({ phase });
+        },
+        { clientRequestId: uploadRequest.current.id },
+      );
+      if (!current()) return;
       setReplacement({
         phase: "clean",
         storedFileId: uploaded.storedFileId,
         creativeType: uploaded.creativeType,
       });
     } catch (error) {
+      if (!current()) return;
       setReplacement({
         error: error instanceof Error ? error.message : "The replacement upload failed. Retry it.",
       });

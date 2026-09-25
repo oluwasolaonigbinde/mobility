@@ -556,6 +556,226 @@ def test_inactive_admin_authority_blocks_final_claim_before_adapter(
     assert adapter.calls == []
 
 
+async def _suspend_batch_authority(sessionmaker, batch_id, intent_id, role, admin_type):
+    async with sessionmaker() as session:
+        batch = await session.get(PayoutBatch, batch_id)
+        intent = await session.get(PayoutSubmissionIntent, intent_id)
+        assert batch is not None and intent is not None
+        authority_ids = {
+            "maker": batch.created_by_user_id,
+            "checker": batch.approved_by_user_id,
+            "requester": intent.requested_by_user_id,
+        }
+        assert len(set(authority_ids.values())) == 3
+        authority = await session.get(admin_type, authority_ids[role])
+        assert authority is not None
+        authority.status = "suspended"
+        await session.commit()
+        return authority_ids[role]
+
+
+async def _expire_claim(sessionmaker, intent_id) -> None:
+    async with sessionmaker() as session:
+        await session.execute(
+            update(PayoutSubmissionIntent)
+            .where(PayoutSubmissionIntent.id == intent_id)
+            .values(claim_expires_at=datetime.now(UTC) - timedelta(seconds=1))
+        )
+        await session.commit()
+
+
+class _LookupCountingAdapter(FakeDisbursementAdapter):
+    def __init__(self, *, fail_submit_after_effect: bool = False):
+        super().__init__()
+        self.lookup_calls = 0
+        self.fail_submit_after_effect = fail_submit_after_effect
+
+    async def submit_batch(self, *, batch_id, instructions):
+        receipt = await super().submit_batch(batch_id=batch_id, instructions=instructions)
+        if self.fail_submit_after_effect:
+            raise TimeoutError("provider accepted the transfer but the response was lost")
+        return receipt
+
+    async def lookup_line(self, *, idempotency_key, instruction_fingerprint):
+        self.lookup_calls += 1
+        return await super().lookup_line(
+            idempotency_key=idempotency_key,
+            instruction_fingerprint=instruction_fingerprint,
+        )
+
+
+@pytest.mark.parametrize("inactive_authority", ("maker", "checker", "requester"))
+def test_lookup_after_lost_submission_survives_inactive_batch_authority(
+    postgis_db_sessionmaker,
+    settings,
+    inactive_authority,
+) -> None:
+    graph = build_graph(postgis_db_sessionmaker, f"r21-lookup-{uuid4().hex[:8]}")
+    seed_assessment_authority(postgis_db_sessionmaker, graph, settings)
+    adapter = _LookupCountingAdapter()
+
+    async def exercise():
+        batch_id, intent_ids = await _prepare_cross_trip_batch(
+            postgis_db_sessionmaker,
+            (graph,),
+            adapter,
+            distinct_requester=True,
+        )
+        claim = await claim_payout_submission_intent(
+            postgis_db_sessionmaker,
+            intent_id=intent_ids[0],
+            adapter=adapter,
+        )
+        assert claim is not None and claim.action == "submit"
+        # The provider executes the transfer, then the worker dies before recording it.
+        await adapter.submit_batch(
+            batch_id=str(claim.batch_id),
+            instructions=(
+                disbursements.DisbursementInstruction(
+                    line_id=str(claim.line_id),
+                    idempotency_key=claim.idempotency_key,
+                    instruction=claim.instruction,
+                    instruction_fingerprint=claim.instruction_fingerprint,
+                ),
+            ),
+        )
+        await _expire_claim(postgis_db_sessionmaker, intent_ids[0])
+        inactive_id = await _suspend_batch_authority(
+            postgis_db_sessionmaker,
+            batch_id,
+            intent_ids[0],
+            inactive_authority,
+            type(graph.admin),
+        )
+        outcome = await process_payout_submission_intent(
+            postgis_db_sessionmaker,
+            intent_id=intent_ids[0],
+            adapter=adapter,
+        )
+        async with postgis_db_sessionmaker() as session:
+            intent = await session.get(PayoutSubmissionIntent, intent_ids[0])
+            line = await session.get(PayoutBatchLine, intent.payout_batch_line_id)
+            lookup_audit = await session.scalar(
+                select(AuditEvent)
+                .where(
+                    AuditEvent.action == "worker.payout_submission.authorized",
+                    AuditEvent.entity_id == str(intent_ids[0]),
+                )
+                .order_by(AuditEvent.created_at.desc())
+                .limit(1)
+            )
+            return outcome, intent, line, lookup_audit, inactive_id
+
+    outcome, intent, line, lookup_audit, inactive_id = asyncio.run(exercise())
+    assert outcome == "resolved"
+    assert intent.state == "resolved"
+    assert line.status == "submitted"
+    assert line.provider_transfer_reference == f"fake-line-{line.id}"
+    assert len(adapter.calls) == 1  # only the lost original submission
+    assert adapter.lookup_calls == 1
+    assert lookup_audit.event_metadata["claim_action"] == "query"
+    assert lookup_audit.event_metadata["inactive_batch_authority_user_ids"] == [str(inactive_id)]
+
+
+def test_lookup_not_found_returns_to_pending_and_resubmission_stays_blocked(
+    postgis_db_sessionmaker,
+    settings,
+) -> None:
+    graph = build_graph(postgis_db_sessionmaker, f"r21-notfound-{uuid4().hex[:8]}")
+    seed_assessment_authority(postgis_db_sessionmaker, graph, settings)
+    adapter = _LookupCountingAdapter()
+
+    async def exercise():
+        batch_id, intent_ids = await _prepare_cross_trip_batch(
+            postgis_db_sessionmaker,
+            (graph,),
+            adapter,
+            distinct_requester=True,
+        )
+        claim = await claim_payout_submission_intent(
+            postgis_db_sessionmaker,
+            intent_id=intent_ids[0],
+            adapter=adapter,
+        )
+        assert claim is not None and claim.action == "submit"
+        # The worker dies before invoking the provider at all.
+        await _expire_claim(postgis_db_sessionmaker, intent_ids[0])
+        await _suspend_batch_authority(
+            postgis_db_sessionmaker, batch_id, intent_ids[0], "maker", type(graph.admin)
+        )
+        first = await process_payout_submission_intent(
+            postgis_db_sessionmaker,
+            intent_id=intent_ids[0],
+            adapter=adapter,
+        )
+        async with postgis_db_sessionmaker() as session:
+            state_after_lookup = (await session.get(PayoutSubmissionIntent, intent_ids[0])).state
+        with pytest.raises(AppError) as blocked:
+            await process_payout_submission_intent(
+                postgis_db_sessionmaker,
+                intent_id=intent_ids[0],
+                adapter=adapter,
+            )
+        async with postgis_db_sessionmaker() as session:
+            attempts = int(
+                await session.scalar(
+                    select(func.count(PayoutSubmissionAttempt.id)).where(
+                        PayoutSubmissionAttempt.intent_id == intent_ids[0]
+                    )
+                )
+                or 0
+            )
+        return first, state_after_lookup, blocked.value.code, attempts
+
+    first, state_after_lookup, code, attempts = asyncio.run(exercise())
+    assert first == "pending"
+    assert state_after_lookup == "pending"
+    assert code == "FORBIDDEN_ROLE"
+    assert attempts == 2  # the abandoned submit claim and the lookup; no new submission
+    assert adapter.calls == []
+    assert adapter.lookup_calls == 1
+
+
+def test_query_only_lookup_survives_inactive_batch_authority(
+    postgis_db_sessionmaker,
+    settings,
+) -> None:
+    graph = build_graph(postgis_db_sessionmaker, f"r21-queryonly-{uuid4().hex[:8]}")
+    seed_assessment_authority(postgis_db_sessionmaker, graph, settings)
+    adapter = _LookupCountingAdapter(fail_submit_after_effect=True)
+
+    async def exercise():
+        batch_id, intent_ids = await _prepare_cross_trip_batch(
+            postgis_db_sessionmaker,
+            (graph,),
+            adapter,
+            distinct_requester=True,
+        )
+        ambiguous = await process_payout_submission_intent(
+            postgis_db_sessionmaker,
+            intent_id=intent_ids[0],
+            adapter=adapter,
+        )
+        async with postgis_db_sessionmaker() as session:
+            state_after_ambiguous = (await session.get(PayoutSubmissionIntent, intent_ids[0])).state
+        await _suspend_batch_authority(
+            postgis_db_sessionmaker, batch_id, intent_ids[0], "checker", type(graph.admin)
+        )
+        resolved = await process_payout_submission_intent(
+            postgis_db_sessionmaker,
+            intent_id=intent_ids[0],
+            adapter=adapter,
+        )
+        return ambiguous, state_after_ambiguous, resolved
+
+    ambiguous, state_after_ambiguous, resolved = asyncio.run(exercise())
+    assert ambiguous == "query_only"
+    assert state_after_ambiguous == "query_only"
+    assert resolved == "resolved"
+    assert len(adapter.calls) == 1
+    assert adapter.lookup_calls == 1
+
+
 def test_expired_pre_invocation_claim_repeats_gate_before_lookup(
     postgis_db_sessionmaker,
     settings,

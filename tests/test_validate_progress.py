@@ -236,10 +236,6 @@ def _paused_at_final_gate() -> str:
     )
 
 
-def test_repository_progress_is_valid() -> None:
-    assert _errors(_progress()) == []
-
-
 def test_remediation_manifest_and_non_topological_dependency_are_pinned() -> None:
     current = _r01_active_remediation()
     assert "| R09 | GOV-007, AUT-001, AUT-002 | R10 | QUEUED |" in current

@@ -4,6 +4,12 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { CampaignWizard } from "./wizard";
 import { createCampaignAction } from "./actions";
 vi.mock("./actions", () => ({ createCampaignAction: vi.fn() }));
+vi.mock("@/lib/files/creative-upload", () => ({
+  uploadCreativeFile: vi.fn(async (_file: File, onPhase: (phase: string) => void) => {
+    onPhase("clean");
+    return { storedFileId: "00000000-0000-4000-8000-0000000000f1", creativeType: "image" };
+  }),
+}));
 const id = "00000000-0000-4000-8000-00000000000a";
 beforeEach(() => {
   window.history.replaceState(null, "", "/advertiser/campaigns/new");
@@ -11,17 +17,30 @@ beforeEach(() => {
     .mockReset()
     .mockResolvedValue({ error: "Attachment failed", createdCampaignId: id });
 });
+
+async function addCreative(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "+ Add creative" }));
+  await user.type(screen.getByLabelText("Creative name *"), "Full wrap");
+  await user.upload(
+    screen.getByLabelText("Creative file *"),
+    new File(["wrap"], "wrap.png", { type: "image/png" }),
+  );
+  await screen.findByText(/passed security scan/);
+}
+
 it("turns a partial creation into an attachment retry with a reload-safe target", async () => {
   const user = userEvent.setup();
   render(<CampaignWizard currency="NGN" />);
   await user.type(screen.getByLabelText("Campaign name *"), "Already created");
   await user.click(screen.getByRole("button", { name: "Continue →" }));
+  await addCreative(user);
   await user.click(screen.getByRole("button", { name: "Continue →" }));
   await user.click(screen.getByRole("button", { name: "Create campaign" }));
   await screen.findByRole("alert");
   expect(window.location.search).toBe(`?campaignId=${id}`);
+  // The retry button appears once the failed transition settles.
+  await user.click(await screen.findByRole("button", { name: "Attach creatives" }));
   expect(screen.queryByRole("button", { name: "Create campaign" })).not.toBeInTheDocument();
-  await user.click(screen.getByRole("button", { name: "Attach creatives" }));
   await waitFor(() =>
     expect(createCampaignAction).toHaveBeenLastCalledWith(
       expect.anything(),
@@ -30,15 +49,26 @@ it("turns a partial creation into an attachment retry with a reload-safe target"
     ),
   );
 });
+
 it("reload recovery opens only creative editing for the existing campaign", async () => {
   const user = userEvent.setup();
   render(<CampaignWizard currency="NGN" existingCampaign={{ id, name: "Already created" }} />);
   expect(screen.getByRole("button", { name: "+ Add creative" })).toBeInTheDocument();
   expect(screen.queryByLabelText("Campaign name *")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "← Back" })).not.toBeInTheDocument();
+  await addCreative(user);
   await user.click(screen.getByRole("button", { name: "Continue →" }));
   await user.click(screen.getByRole("button", { name: "Attach creatives" }));
   await waitFor(() =>
     expect(createCampaignAction).toHaveBeenCalledWith(expect.anything(), id, expect.any(String)),
   );
+});
+
+it("does not offer an attach action that would change nothing", async () => {
+  const user = userEvent.setup();
+  render(<CampaignWizard currency="NGN" existingCampaign={{ id, name: "Already created" }} />);
+  await user.click(screen.getByRole("button", { name: "Continue →" }));
+  expect(screen.getByRole("button", { name: "Attach creatives" })).toBeDisabled();
+  expect(screen.getByText(/nothing to attach/)).toBeInTheDocument();
+  expect(createCampaignAction).not.toHaveBeenCalled();
 });

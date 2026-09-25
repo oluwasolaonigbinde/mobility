@@ -111,12 +111,28 @@ describe("resilient campaign detail", () => {
     expect(screen.getByRole("button", { name: "Cancel campaign" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Commercial terms" })).toBeInTheDocument();
     expect(
-      screen.getByText("No creatives yet. Add a private creative file to this campaign."),
+      screen.getByText("No artwork yet. Add the files Cardvert should review for this campaign."),
     ).toBeInTheDocument();
     expect(screen.queryByText("Estimated ad exposure")).not.toBeInTheDocument();
     expect(screen.queryByText("Fleet")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Zones/ })).not.toHaveTextContent("42");
     expect(document.body).not.toHaveTextContent("Private backend detail");
+  });
+
+  it("offers no artwork or change requests on a finished campaign", async () => {
+    get.mockImplementation(async (path: string) =>
+      path.endsWith("campaign-1") || path.endsWith("{campaign_id}")
+        ? { data: { ...campaign, status: "completed" } }
+        : healthy(path),
+    );
+    render(await CampaignDetailPage(input));
+    expect(screen.queryByRole("link", { name: "Add artwork" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Request campaign change" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("No review history is recorded for this campaign."),
+    ).toBeInTheDocument();
   });
 
   it("does not mistake an optional 404 for a missing campaign", async () => {
@@ -127,7 +143,7 @@ describe("resilient campaign detail", () => {
     render(await CampaignDetailPage(input));
     expect(screen.getByRole("heading", { name: campaign.name })).toBeInTheDocument();
     expect(notFound).not.toHaveBeenCalled();
-    expect(screen.queryByRole("link", { name: "Add missing creatives" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Add artwork" })).not.toBeInTheDocument();
   });
 
   it.each([
@@ -135,13 +151,13 @@ describe("resilient campaign detail", () => {
     [
       "/creatives",
       "Creatives unavailable",
-      "No creatives yet. Add a private creative file to this campaign.",
+      "No artwork yet. Add the files Cardvert should review for this campaign.",
     ],
     ["/commercial", "Commercial terms unavailable", "Commercial terms"],
     [
       "/review-history",
       "Submission and review history unavailable",
-      "This campaign has not been submitted for review.",
+      "No review history is recorded for this campaign.",
     ],
     ["/change-requests", "Campaign changes unavailable", "Request campaign change"],
   ])(
@@ -156,9 +172,7 @@ describe("resilient campaign detail", () => {
       expect(screen.queryByText(absent, { exact: true })).not.toBeInTheDocument();
       expect(screen.getByText("Healthy details")).toBeInTheDocument();
       if (suffix === "/creatives")
-        expect(
-          screen.queryByRole("link", { name: "Add missing creatives" }),
-        ).not.toBeInTheDocument();
+        expect(screen.queryByRole("link", { name: "Add artwork" })).not.toBeInTheDocument();
       if (suffix === "/commercial")
         expect(screen.queryByRole("button", { name: "Request quotation" })).not.toBeInTheDocument();
     },
@@ -216,7 +230,7 @@ describe("resilient campaign detail", () => {
     expect(screen.getByText("Fleet")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Zones/ })).toHaveTextContent("42");
     expect(
-      screen.getByText("This campaign has not been submitted for review."),
+      screen.getByText("No review history is recorded for this campaign."),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Request campaign change" })).toBeInTheDocument();
   });
@@ -264,6 +278,20 @@ describe("resilient campaign detail", () => {
 
   it("preserves successful creative variants, cost and rejection provenance", async () => {
     get.mockImplementation(async (path: string) => {
+      if (path.endsWith("/creatives/{creative_id}/review-history"))
+        return {
+          data: {
+            items: [
+              {
+                id: "creative-review-1",
+                prior_status: "pending_review",
+                new_status: "rejected",
+                created_at: "2026-09-02T00:00:00Z",
+                rejection_reason: "Logo is cropped",
+              },
+            ],
+          },
+        };
       if (path.endsWith("/summary"))
         return {
           data: {
@@ -312,9 +340,52 @@ describe("resilient campaign detail", () => {
     render(await CampaignDetailPage(input));
     expect(screen.getByText("Resubmitted for review")).toBeInTheDocument();
     expect(screen.getByText("Reason: Revise artwork")).toBeInTheDocument();
+    expect(screen.getByText("Reason: Logo is cropped")).toBeInTheDocument();
+    expect(get).toHaveBeenCalledWith(
+      "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}/review-history",
+      {
+        params: {
+          path: { campaign_id: campaign.id, creative_id: "creative-1" },
+          query: { limit: 1 },
+        },
+      },
+    );
+    // Only the rejected creative needs its review history.
+    expect(
+      get.mock.calls.filter(([path]) => String(path).includes("/creatives/{creative_id}/")),
+    ).toHaveLength(1);
     expect(screen.getByText(/review-proof/)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cancel campaign" })).not.toBeInTheDocument();
     expect(screen.getByText("₦500.00")).toBeInTheDocument();
+  });
+
+  it("degrades only the creative reason when its history cannot be read", async () => {
+    get.mockImplementation(async (path: string) => {
+      if (path.endsWith("/creatives/{creative_id}/review-history")) throw failure();
+      if (path.endsWith("/creatives"))
+        return {
+          data: {
+            items: [
+              {
+                id: "creative-1",
+                name: "Rejected creative",
+                creative_type: "image",
+                placement: "vehicle_exterior",
+                status: "rejected",
+                asset_source: "managed_file",
+                scan_status: "clean",
+              },
+            ],
+          },
+        };
+      return healthy(path);
+    });
+    render(await CampaignDetailPage(input));
+    expect(
+      screen.getByText("The rejection reason could not be loaded. Refresh to try again."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Rejected creative")).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent("Private backend detail");
   });
 
   it("sanitizes a sensitive commercial error query at the page boundary", async () => {

@@ -16,15 +16,18 @@ export const metadata: Metadata = { title: "Profile" };
 export default async function DriverProfilePage() {
   const api = createApiClient(await getSessionToken());
 
+  // The summary tiles read server totals; limited pages are never counted.
   const [campaignJourney, profile, vehicles, assignments, ledger] = await Promise.all([
     readDriverApi(() => loadDriverCampaignJourney().then((data) => ({ data }))),
     readDriverApi(() => api.GET("/api/v1/driver/profile"), { notFoundIsMissing: true }),
     readDriverApi(() => api.GET("/api/v1/driver/vehicles", { params: { query: { limit: 20 } } })),
     readDriverApi(() =>
-      api.GET("/api/v1/driver/campaign-assignments", { params: { query: { limit: 50 } } }),
+      api.GET("/api/v1/driver/campaign-assignments", { params: { query: { limit: 1 } } }),
     ),
     readDriverApi(() =>
-      api.GET("/api/v1/driver/earnings/ledger", { params: { query: { limit: 50 } } }),
+      api.GET("/api/v1/driver/earnings/ledger", {
+        params: { query: { entry_type: "trip_payout", limit: 1 } },
+      }),
     ),
   ]);
 
@@ -54,8 +57,8 @@ export default async function DriverProfilePage() {
 
   const p = profile.state === "ready" ? profile.data : undefined;
   const vs = vehicles.data.items;
-  const assignmentItems = assignments.state === "ready" ? assignments.data.items : null;
-  const ledgerItems = ledger.state === "ready" ? ledger.data.items : null;
+  const campaignCount = assignments.state === "ready" ? assignments.data.total : null;
+  const tripPayoutCount = ledger.state === "ready" ? ledger.data.total : null;
 
   return (
     <FreshDriverAuthority
@@ -68,7 +71,7 @@ export default async function DriverProfilePage() {
         <h1 className="font-display text-2xl font-semibold tracking-tight">Profile</h1>
         <CampaignJourneyPanel journey={campaignJourney.data.journey} />
 
-        {assignmentItems === null || ledgerItems === null ? (
+        {campaignCount === null || tripPayoutCount === null ? (
           <DriverDataUnavailable
             title="Profile history unavailable"
             detail="Cardvert couldn't load optional campaign or trip counts. Your current profile and vehicle status remain available."
@@ -109,19 +112,15 @@ export default async function DriverProfilePage() {
             <div className="grid grid-cols-3 gap-3">
               <Panel className="p-3.5 text-center">
                 <p className="micro text-faint">Campaigns</p>
-                <p className="font-display mt-1 text-2xl font-semibold">
-                  {assignmentItems?.length ?? "—"}
-                </p>
+                <p className="font-display mt-1 text-2xl font-semibold">{campaignCount ?? "—"}</p>
               </Panel>
               <Panel className="p-3.5 text-center">
                 <p className="micro text-faint">Trip payouts</p>
-                <p className="font-display mt-1 text-2xl font-semibold">
-                  {ledgerItems?.filter((entry) => entry.trip_session_id).length ?? "—"}
-                </p>
+                <p className="font-display mt-1 text-2xl font-semibold">{tripPayoutCount ?? "—"}</p>
               </Panel>
               <Panel className="p-3.5 text-center">
                 <p className="micro text-faint">Vehicles</p>
-                <p className="font-display mt-1 text-2xl font-semibold">{vs.length}</p>
+                <p className="font-display mt-1 text-2xl font-semibold">{vehicles.data.total}</p>
               </Panel>
             </div>
 
@@ -138,7 +137,10 @@ export default async function DriverProfilePage() {
 
             <Panel className="overflow-hidden">
               <div className="border-edge border-b px-5 py-3.5">
-                <h2 className="micro text-muted">My vehicles · {vs.length}</h2>
+                <h2 className="micro text-muted">
+                  My vehicles · {vehicles.data.total}
+                  {vehicles.data.total > vs.length ? ` (showing ${vs.length})` : ""}
+                </h2>
               </div>
               {vs.length === 0 ? (
                 <p className="text-muted px-5 py-8 text-center text-sm">

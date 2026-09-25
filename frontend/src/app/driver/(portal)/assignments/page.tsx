@@ -197,7 +197,7 @@ export default async function DriverAssignmentsPage() {
               </div>
               {a.offer_terms ? (
                 <div className="bg-raised border-edge mt-4 rounded-lg border p-3">
-                  <p className="micro text-faint">Frozen offer terms</p>
+                  <p className="micro text-faint">Pay and job terms</p>
                   <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
                     <p>Currency: {String(a.offer_terms.currency ?? "—")}</p>
                     <p>
@@ -236,15 +236,10 @@ export default async function DriverAssignmentsPage() {
                       )}
                     </p>
                     <p className="col-span-2">
-                      Creative:{" "}
+                      Artwork:{" "}
                       {String(
                         (a.offer_terms.creative as Record<string, unknown> | null | undefined)
                           ?.name ?? "—",
-                      )}{" "}
-                      ·{" "}
-                      {String(
-                        (a.offer_terms.creative as Record<string, unknown> | null | undefined)
-                          ?.checksum ?? "no checksum",
                       )}
                     </p>
                     <p className="col-span-2">
@@ -256,15 +251,15 @@ export default async function DriverAssignmentsPage() {
                         : "—"}
                     </p>
                   </div>
-                  {a.offer_terms_sha256 ? (
-                    <p className="text-faint mt-2 truncate font-mono text-[10px]">
-                      Evidence {a.offer_terms_sha256}
-                    </p>
-                  ) : null}
                   <details className="mt-3">
                     <summary className="text-muted cursor-pointer text-[11px]">
-                      View complete frozen snapshot
+                      Technical reference
                     </summary>
+                    {a.offer_terms_sha256 ? (
+                      <p className="text-faint mt-2 font-mono text-[10px] break-all">
+                        Terms fingerprint {a.offer_terms_sha256}
+                      </p>
+                    ) : null}
                     <pre className="border-edge/60 bg-bg/50 mt-2 max-h-64 overflow-auto rounded border p-2 font-mono text-[10px] leading-4 whitespace-pre-wrap">
                       {JSON.stringify(a.offer_terms, null, 2)}
                     </pre>
@@ -273,15 +268,16 @@ export default async function DriverAssignmentsPage() {
               ) : null}
               {a.notes ? <p className="text-muted mt-3 text-xs leading-5">{a.notes}</p> : null}
               <p className="text-muted mt-3 text-xs leading-5">{statusExplanation[a.status]}</p>
-              {!a.offer_terms ? (
+              {!a.offer_terms && a.status !== "offered" ? (
                 <p className="text-faint mt-3 text-[11px]">
-                  This legacy assignment has no complete frozen offer terms.
+                  This older job doesn&apos;t have its pay terms saved in Cardvert.
                 </p>
               ) : null}
               <AssignmentActions
                 assignmentId={a.id}
                 campaignName={a.campaign?.name ?? "this campaign"}
                 status={a.status}
+                canAccept={Boolean(a.offer_terms && a.offer_terms_sha256)}
               />
               {evidencePolicy.data.configured && evidencePolicy.data.can_upload ? (
                 <InstallationEvidenceActions

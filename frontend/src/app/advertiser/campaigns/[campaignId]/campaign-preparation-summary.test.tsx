@@ -130,7 +130,7 @@ describe("CampaignPreparationSummary", () => {
       status: "draft",
       facts: accepted,
       creatives: approved,
-      action: "Wait for Cardvert to record the applicable funding or approved credit authority.",
+      action: "Wait for Cardvert to confirm your payment or agreed credit.",
       quote: "Accepted",
       artwork: "Approved",
     },
@@ -157,19 +157,30 @@ describe("CampaignPreparationSummary", () => {
   });
 
   it.each([
-    ["pending_review", "Wait for Cardvert to finish campaign review.", "pending review"],
-    ["active", "This campaign is active; review delivery results below.", "active"],
-    ["paused", "This campaign is paused; Cardvert controls any approved resume.", "paused"],
-    ["completed", "This campaign is complete; review the issued analysis.", "completed"],
-    ["cancelled", "This campaign is cancelled; no new work can start.", "cancelled"],
+    ["pending_review", "Wait for Cardvert to finish campaign review.", "Pending review", false],
+    [
+      "active",
+      "This campaign is live. Results appear on the Campaign Performance Analysis page once Cardvert issues a report.",
+      "Live",
+      true,
+    ],
+    ["paused", "This campaign is paused. Cardvert decides when it can resume.", "Paused", true],
+    [
+      "completed",
+      "This campaign has finished. Its report appears on the Campaign Performance Analysis page once issued.",
+      "Completed",
+      true,
+    ],
+    ["cancelled", "This campaign is cancelled; no new work can start.", "Cancelled", true],
     [
       "approved",
-      "Cardvert controls scheduling, assignment, installation evidence and activation.",
-      "approved",
+      "Cardvert now arranges drivers, installation and the start date.",
+      "Approved",
+      false,
     ],
   ])(
     "reports the recorded %s campaign lifecycle once preparation facts are complete",
-    (status, action, review) => {
+    (status, action, review, lifecycle) => {
       render(
         <CampaignPreparationSummary
           campaign={{ ...campaign, status } as Campaign}
@@ -180,9 +191,27 @@ describe("CampaignPreparationSummary", () => {
       expect(screen.getByText(`Next action: ${action}`)).toBeInTheDocument();
       expect(fact("Campaign review")).toHaveTextContent(review);
       expect(fact("Funding / credit")).toHaveTextContent("Recorded");
-      expect(
-        screen.getByText(status === "active" ? "Active" : "Preparation in progress"),
-      ).toHaveClass(status === "active" ? "text-green" : "text-amber");
+      if (lifecycle) {
+        expect(screen.getAllByText(review)).toHaveLength(2);
+        expect(screen.queryByText("Preparation in progress")).not.toBeInTheDocument();
+      } else {
+        expect(screen.getByText("Preparation in progress")).toHaveClass("text-amber");
+      }
+    },
+  );
+
+  it.each(["active", "completed"])(
+    "does not ask for a quotation on a %s campaign recorded without one",
+    (status) => {
+      render(
+        <CampaignPreparationSummary
+          campaign={{ ...campaign, status } as Campaign}
+          commercial={commercial}
+          creatives={[]}
+        />,
+      );
+      expect(screen.queryByText(/Request the custom quotation/)).not.toBeInTheDocument();
+      expect(fact("Quotation")).toHaveTextContent("Not requested");
     },
   );
 });

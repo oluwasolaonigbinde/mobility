@@ -137,6 +137,7 @@ it("covers every custom BFF unsafe entry point with the shared boundary", async 
     ];
     for (const [, method] of methods) {
       const url = file
+        .replaceAll("\\", "/")
         .replace("src/app", "")
         .replace("/route.ts", "")
         .replace(/\[[^\]]+\]/g, "test-id");

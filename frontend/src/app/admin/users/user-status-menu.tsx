@@ -29,6 +29,12 @@ export function UserStatusMenu({
   const target: UserStatus = status === "active" ? "suspended" : "active";
   const label = status === "active" ? "Suspend" : "Reactivate";
 
+  // D28: an invited driver is still an applicant. Their account is activated by
+  // driver account setup after the application is approved, never from here.
+  if (role === "driver" && status === "invited") {
+    return <p className="micro text-faint">Activated through driver account setup</p>;
+  }
+
   function run(currentPassword?: string, confirmed = false) {
     if (role === "admin" && target === "active" && !currentPassword) {
       setReauthenticating(true);

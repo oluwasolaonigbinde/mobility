@@ -85,7 +85,7 @@ export default async function AdminFraudPage({
       params: { query: { limit: PAGE_SIZE, offset, ...(status ? { status } : {}) } },
     }),
     api.GET("/api/v1/admin/evidence-verifications", {
-      params: { query: { status: "pending" } },
+      params: { query: { status: "pending", verification_type: "physical_spot_check" } },
     }),
   ]);
   const items = data?.items ?? [];
@@ -119,25 +119,26 @@ export default async function AdminFraudPage({
         <div className="mt-4">
           <SpotCheckQueueForm />
         </div>
-        {(verificationData?.items ?? []).filter(
-          (item) => item.verification_type === "physical_spot_check",
-        ).length > 0 ? (
+        {(verificationData?.items ?? []).length > 0 ? (
           <div className="border-edge mt-5 border-t pt-4">
             <h3 className="micro text-muted">Pending physical checks</h3>
+            {(verificationData?.items ?? []).length >= 100 ? (
+              <p className="text-muted mt-1 text-xs">
+                Showing the newest 100 pending checks. Resolve these to see older ones.
+              </p>
+            ) : null}
             <div className="mt-3 grid gap-3 md:grid-cols-2">
-              {(verificationData?.items ?? [])
-                .filter((item) => item.verification_type === "physical_spot_check")
-                .map((item) => (
-                  <div key={item.id} className="border-edge rounded-lg border p-3 text-xs">
-                    <p className="font-medium">Assignment {item.assignment_id.slice(0, 8)}</p>
-                    <p className="text-muted mt-1 font-mono">
-                      trip {item.source_trip_session_id.slice(0, 8)} · queued{" "}
-                      {formatDate(item.issued_at)}
-                    </p>
-                    <p className="text-muted mt-2">{item.result_note}</p>
-                    <SpotCheckResultForm verificationId={item.id} />
-                  </div>
-                ))}
+              {(verificationData?.items ?? []).map((item) => (
+                <div key={item.id} className="border-edge rounded-lg border p-3 text-xs">
+                  <p className="font-medium">Assignment {item.assignment_id.slice(0, 8)}</p>
+                  <p className="text-muted mt-1 font-mono">
+                    trip {item.source_trip_session_id.slice(0, 8)} · queued{" "}
+                    {formatDate(item.issued_at)}
+                  </p>
+                  <p className="text-muted mt-2">{item.result_note}</p>
+                  <SpotCheckResultForm verificationId={item.id} />
+                </div>
+              ))}
             </div>
           </div>
         ) : null}

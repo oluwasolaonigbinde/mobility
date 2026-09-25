@@ -117,6 +117,284 @@ CI-throughput continuation (12 Sep 2026): run `34690115628` on `2a3f7e0` failed 
 
 ## Direct owner requests outside the package queue
 
+**Client visual-direction reduction (24 Sep 2026):** The owner reports the
+client rejected former directions 1, 2, 4, 5, 6, 7 and 8 and directs their
+implementation traces and dedicated assets removed. Retain former directions
+3 (`ivory-ledger`), 9 (`broadside`), 10 (`dispatch`) and 11 (`ledger`) as new
+Directions 1–4, in that order. The frontend theme registry, default and
+persisted-theme bootstrap, scoped CSS, unused theme-only fonts/assets, picker
+tests and current design documentation are owned by this bounded request.
+Former Direction 3 becomes the default; stale stored selections fall back to
+it. Preserve the unrelated uncommitted work, public Terrax marketing styling,
+historical decision records, API contracts and the paused package queue.
+Verify registry/CSS parity, selection, stale persistence and a frontend build.
+Verification: 118 focused theme/font tests passed, TypeScript passed, the
+production frontend build passed, and a fresh production preview on port 3002
+showed exactly four picker choices, Ivory Ledger default colour `#efe9d8`,
+Direction 4 selection/persistence, and fallback to Ivory Ledger from an obsolete
+stored choice. The existing port-3000 service served an older build during
+verification and requires restart to display this checkout. The controller
+remains `PAUSED — EXT-PAYMENT-PROVIDER`.
+
+**Human-journey UX audit and bounded copy/flow fixes (24 Sep 2026):** The owner
+directs a first-time-user review of the advertiser, driver, Terrax Media admin
+and public journeys, a comparison of the client guide *How Cardvert Works*
+(generated 17 Sep 2026) with observed behaviour, and bounded fixes for
+confusing copy, navigation, error handling and discoverability. Evidence comes
+from a separate main-checkout stack (`cardvertmain`, ports 3001/8001, migrated
+to `0090`, demo seed, default pre-approval privacy configuration) plus the
+existing `21a5981` livecheck stack for synthetic-mode comparison. This is a
+bounded direct-owner batch outside the executable queue: the controller stays
+`PAUSED — EXT-PAYMENT-PROVIDER`, no package is promoted or reordered, and no
+external or live-use gate changes. Single writer: this Claude Opus 5.5 session;
+reviewers are read-only. Admitted batch (IDs `UX-01…`): UX-01 notification
+read actions send no body media type and older notifications are reachable
+(issues.md QA-17/QA-18); UX-02 advertiser planning-source page renamed and
+rewritten in plain language, with a gated state instead of a crash when privacy
+approval is absent, and support hashes collapsed behind a labelled disclosure
+(G-37 remains an owner decision; nothing is deleted); UX-03 admin planning page
+gated state instead of a crash; UX-04 report and map show "no report yet" when
+no run exists and a privacy-approval state when gated (QA-02); UX-05 campaign
+page shows only actions the server accepts for the campaign's status, human
+status and artwork labels, and a terminal-aware preparation summary; UX-06
+campaign form wording ("Daily budget", wizard/recovery guidance, QA-09/QA-11);
+UX-07 viewer role sees read-only company and campaign surfaces and a permission
+message instead of an uncertain-result retry (QA-03); UX-08 driver journey and
+tracking copy without engineering vocabulary, and Track distinguishes a paused
+eligibility from "no campaign" (QA-13); UX-09 admin navigation grouped and
+scrollable at laptop heights (QA-04); UX-10 an invited driver applicant cannot be
+activated through the generic user-status control, server and UI (QA-15,
+security review required); UX-11 an offer without complete frozen terms cannot
+be accepted from the UI and says why (QA-16). Not admitted and recorded in the
+audit: notification record links (API contract change), physical-check pickers
+(QA-05), driver evidence renewal (NX-05), payment instructions (G-19), demo seed
+coherence (QA-10), campaign completeness rule (QA-01), naming/time-zone wording
+(G-30), capability page exposure (G-35). Gates: one independent plan review
+before product edits; security review for UX-10; one consolidated post-build
+review. No provider call, deployment, production-data mutation, invented
+policy/legal/payment/support value, relaxed authority check, new skip,
+coverage-floor change, commit or push is authorized. The uncommitted CV-01–CV-17
+and test-audit work is preserved; overlapping files are edited in place.
+
+Independent plan review (read-only reviewer) returned `FIX`; all seven blocking
+amendments are adopted before any product edit. (1) UX-10 evaluates the
+post-update role: `invited → active` is refused when either the current or the
+requested role is driver, and an invited driver's role cannot change, closing a
+role-flip bypass; `create_user` creating an already-active driver is recorded as
+residual risk for the security review. (2) UX-01 updates the existing
+notification and BFF route tests, and malformed `limit`/`offset` return 400.
+(3) UX-02/UX-03 load every read (lists, per-link recommendations, per-campaign
+zones, admin insights) through the existing `loadAdvertiserPageData` /
+`DataUnavailable` contract, render no write form when gated, keep explicit
+option `value`s, and keep hashes inside the ready-state branch under the
+existing "Technical reference" label. (4) Signed-in copy keeps "Cardvert"
+(G-30 stays an owner decision), and UX-11 promises no operations process.
+(5) UX-05 keeps A-13's campaign-review state and non-authorization statement in
+plainer words. (6) UX-06 rewrites the two QA-11 wizard tests and keeps the
+currency label dynamic. (7) E2E selectors and unit tests named by the reviewer
+change in the same batch; the UX-09 admin nav relabels are cut (grouping and
+reachability only).
+
+Post-build record (24 Sep 2026, uncommitted working tree). Security review of
+UX-10 returned `FIX`: an admin could flip an invited applicant to advertiser
+(recoverable while invited), let them reset a password, and flip back to
+driver. Adopted: `update_user` refuses both activation and any role change while
+the user has a driver application and no completed setup token
+(`DRIVER_ACTIVATION_REQUIRES_SETUP`); residuals recorded are that non-admin role
+changes never revoke sessions, and that an applicant activated through the old
+bypass cannot be reactivated after suspension. The consolidated post-build
+review returned `FIX` with three blocking items, all adopted: live evidence for
+UX-03/UX-06/UX-09, QA-03 wording (campaign-detail and edit write controls stay
+visible to viewers — residual, server still refuses), and changed-line coverage
+with added tests. Most non-blocking points were adopted, including restoring
+the lawful-basis status line on the retargeting form in plainer words, neutral
+fallback report copy, and `aria-describedby` on the disabled Attach/Connect
+buttons. Evidence: `tsc`, ESLint and Prettier (explicit file list) pass; full
+Vitest with coverage 156 files / 1,024 tests pass (the font inventory tests
+need a longer timeout on the Windows bind mount; they pass with 60 s). Changed
+lines of the 30 touched frontend files against `21a5981` (also counting CV
+hunks in shared files): 94.6% lines, 82.8% branches, computed directly from
+LCOV, not by the official D32 checker, which needs a full backend LCOV. Backend:
+`ruff` passes; `test_admin_users.py` 33/33 and with `test_driver_account_setup.py`
+40/40; `users.py` new lines fully covered including branches; red checks fail
+the four activation-bypass cases and the role-change case with the guard
+removed. Live on the main stack: notification paging (20 of 35 → 35) and both
+read actions (200, previously 415), retargeting and admin planning gated states,
+report/map privacy and no-run states, finished-campaign summary, viewer
+read-only screens, wizard copy and empty-attach guard, driver journey and Track
+copy, offer without terms, and the admin sidebar at 1366×695 (sign-out
+reachable). Not run: `analytics`, `campaign-flow` and `w401c` E2E specs (updated
+selectors only). No OpenAPI/§9 baseline, migration, provider, seed or coverage
+baseline changed. Findings, guide corrections and the open/owner/client lists
+are in `issues/product-ui-review/human-journey-audit-2026-09-24.md`; the
+`issues.md` recheck marks QA-02/03(partial)/04/09/11/13/15/16/17/18 fixed and
+adds QA-19–QA-23. Nothing committed or pushed.
+
+**Low-signal unit-test audit (24 Sep 2026):** The owner directs a repository-wide
+comparison of backend and frontend unit tests with the existing E2E journeys,
+and deletion of tests that cannot detect a realistic regression beyond those
+journeys. Preserve tests for distinct failure modes, contract boundaries,
+security/privacy/money invariants, concurrency, offline recovery, and CI
+authority. This is a bounded test-only maintenance request outside the package
+queue; it does not promote PKG-03, alter product behavior, lower D32/D33/D36
+coverage authority, or overwrite the uncommitted 23 Sep CV-01–CV-17 work.
+Use focused verification of changed suites and the existing test-inventory
+gate; record actual deletions and remaining limits here after the audit.
+The audit inventoried 246 backend test files, 153 frontend unit-test files and
+22 browser specs. The clear E2E overlap was the public landing CTA, anchor,
+namespace and legacy-redirect assertions, mobile-menu destination assertions,
+and the basic credential-form presence check: the existing real-browser
+landing and login journeys cover those outcomes. Five frontend cases were
+removed net, while a distinct keyboard skip-link/main-landmark assertion was
+retained. Six backend cases were removed: a snapshot path-set comparison that
+`test_openapi_matches_committed_json_artifacts` supersedes; mocked demo seed
+success, password-length and migration-head checks exercised by the real-stack
+E2E seed command; a README keyword check that could pass with incorrect
+instructions; and the repository-progress self-check duplicated by CI's
+standalone `validate_progress.py` invocation. The BFF route-inventory test was
+kept and made Windows-path-safe after the first complete frontend run exposed
+its separator-dependent failure. No product, E2E, coverage-policy or baseline
+file changed. Final frontend verification: 152 files / 1,016 tests passed;
+TypeScript and the progress validator passed. Frontend line coverage is
+4,377/5,789 (75.6089%) against the committed 75.1183% floor; branch coverage
+is 4,214/6,521 (64.622%) against 64.061%. Local backend pytest execution was
+unavailable because this checkout has no installed pytest/application test
+environment; the affected backend tests were checked against their stronger
+gates and syntax-compiled. The existing CV-01–CV-17 candidate remains
+uncommitted.
+
+**Post-theft current-state reconciliation and bounded fixes (23 Sep 2026):**
+The owner's laptop was stolen; local `master` is a fresh clone of
+`origin/master` at `21a5981` (last push 16 Sep 2026, exact-SHA CI green per
+owner). Owner directs: establish the current Cardvert issue state from every
+local source plus the four 21 Sep review leads, distinguish missing code from
+never-implemented recommendations, then fix confirmed issues the delivery rules
+permit. The complete coverage matrix is
+`issues/planning/current-state-reconciliation-2026-09-23.md`; it finds no
+evidence of code newer than `21a5981` in the clone or on GitHub (laptop-only
+work can be neither confirmed nor ruled out). This is a bounded direct-owner
+batch outside the executable queue: the controller remains
+`PAUSED — EXT-PAYMENT-PROVIDER`, no package is promoted or reordered, and every
+external/live-use gate is unchanged. Single writer: this Claude Opus 5.5
+session; read-only independent reviewers only. Admitted batch:
+CV-01 lookup-only disbursement reconciliation must not require historical
+batch actors to remain active admins (SUBMIT keeps that authority);
+CV-02 D29/AUT-007 one active advertiser membership per login (index violation
+mapped to a 409 in the company service, additive migration `0090` partial unique index that refuses, rather than
+repairs, existing conflicts, and fail-closed resolution);
+CV-03 admin physical spot checks no longer hidden behind the mixed 100-row
+verification cap (additive `verification_type` filter);
+CV-04 per-trip ledger index in `ReportCohort.final_cost` (identical results);
+CV-05 contact-task driver names in one query;
+CV-06 creative replacement upload race;
+CV-07 advertiser edit of draft/rejected campaigns through the existing PATCH;
+CV-08 creative rejection reasons visible to the owning advertiser;
+CV-09 driver home/profile counts from server totals;
+CV-10 tests use only `TEST_DATABASE_URL`, never the app `DATABASE_URL`;
+CV-11 complete readable quotation scope/payment terms in place of raw JSON;
+CV-12 advertiser notifications for campaign rejection, creative decisions and
+new quotation revisions through the existing typed outbox and D24 preference;
+CV-13 scrollable theme picker; CV-14 Dispatch sidebar hover contrast (only if
+measured below WCAG AA); CV-15 notification badge/list kept during background
+refetch; CV-16 truthful advertiser map heading; CV-17 campaign window inputs at creation
+and edit interpreted as Lagos time, matching the existing change panel (found
+during CV-07 preparation). Explicitly not admitted and
+recorded open in the matrix: D30/ONB-003 duplicate identity (dedicated
+privacy/migration packet; public non-enumeration conflict), driver
+renewal/phone-verification/WhatsApp-consent journeys (privacy packet and
+`EXT-MESSAGE-COPY`/`EXT-LEGAL-PRIVACY`), NX-13 advertiser-organization
+recovery, Argon2 offload, ping-queue and shard changes (measurement first),
+and every owner/external decision. Gates: one independent plan review before
+edits; money specialist review (CV-01); security/database/privacy specialist
+review (CV-02, CV-08, CV-10, CV-12); one consolidated post-build review.
+CV-03/CV-12 move all three §9 baselines together and rerun the frontend
+tracker/queue fixtures. No provider call, deployment, production-data
+mutation, invented policy/copy/legal value, relaxed authority check, new skip
+or coverage-floor change is authorized. No commit or push without separate
+owner approval.
+
+Independent plan review (read-only Opus 5.5 reviewer) returned `FIX` with three
+blocking amendments, all adopted before any product edit. (1) CV-02 sweeps
+fixtures that hold two active memberships for one login: the Package 5
+newest-membership test becomes a D29 invariant test, the retargeting fixture
+flushes its disable before the replacement activation, and the 25 Aug Package 5
+receipt that "governed advertiser output deterministically selects the newest
+active organization membership" is superseded by D29. (2) The three membership
+consumers (`organizations.py`, `audience.py`, `disclosure.py`) stop selecting
+the newest row and fail closed on more than one, matching architecture §23's
+D29 target. (3) CV-17 owns `lib/campaigns/schema.ts`, `campaigns/new/actions.ts`
+and `wizard.tsx`: one shared Lagos converter, datetime-local shape validation,
+"(Lagos time)" labels, and the edit form sends only changed fields; runtime-zone
+display formatting is recorded as a separate residue. Non-blocking amendments
+also adopted: CV-01 re-raises the deferred authority error immediately after
+the action is chosen, records exempted inactive actors in the authorization
+audit, adds a `QUERY_ONLY` case and a §16.3 note; CV-02 removes the unreachable
+duplicate-membership branch and documents the operator runbook for moving an
+advertiser between companies (linked to NX-13); CV-03 states the newest-100
+bound; CV-10 points README at a dedicated test database; CV-12 updates §20.2;
+CV-07 adds a PostgreSQL PATCH-then-resubmit API test; D32 changed-code and
+baseline coverage is checked against base `21a5981`.
+
+Post-build record (23 Sep 2026, uncommitted working tree on `21a5981`).
+Specialist reviews: money (CV-01) `PASS`, adopting the §16.3 error-precedence
+note and a recovery-incident lookup test; security/database/privacy (CV-02,
+CV-08, CV-10, CV-12) `PASS`, adopting constraint-name assertions and the
+runbook `NOWAIT` retry line. The consolidated post-build review returned `FIX`.
+All of its items were adopted: this record and the D32 figures; a matrix
+follow-up row for the existing advertiser review-history schema breadth; the
+edit form keeping the advertiser's input after a failed save; and direct
+service tests for the CV-02 conflict and CV-12 creative notices. CV-11 is
+described as complete readable terms, not lossless. The CV-12 exact-retry
+dedupe claim is withdrawn as untested. The `.codex` plan-ledger decision states
+are superseded by the matrix.
+
+Red/green evidence came from temporarily removing the product change with the
+new test kept. It covers CV-01 (5 R21 cases plus the recovery incident),
+CV-02 (3), CV-03/05/10/12 (6), CV-04 (by mutation), the frontend (23) and the
+edit-form input retention (1).
+
+Local verification used Docker with PostGIS 16 and Redis, without MinIO,
+ClamAV, Caddy or Docker-in-Docker. Fixed-baseline results:
+- Full backend suite in four shards: 2,851 passed, 60 failed plus 6 errors,
+  12 skipped. Each failure was attributed to the environment: missing
+  docker/npm binaries, CRLF shell scripts, and memory or import timeouts under
+  parallel load. The load failures pass on rerun, and three failures reproduce
+  identically on a clean `21a5981` export.
+- Adjacent money suites: 61/61.
+- Final reruns of the R21, R22 and notification suites (44), and the
+  organization, notification and disclosure suites (50).
+- `ruff check` passes. CI runs only `ruff check`; the changed Python files that
+  `ruff format` would still reformat were already unformatted at `21a5981`.
+- OpenAPI `--check` and `validate_progress` pass.
+- Frontend: Prettier on the changed files, ESLint and tsc pass; the full Vitest
+  run passes 153 files and 1,021 tests, which includes the R14-B fixtures; and
+  `next build` passes.
+- A fresh database migrates 0001→0090 and seeds. A desktop and mobile
+  Playwright journey creates a campaign, edits it, saves and edits it again;
+  09:00/18:00 Lagos time is stored as 08:00Z/17:00Z.
+
+D32 changed-line coverage against `21a5981` is 96.05% of lines (243/253) and
+81.17% of branches (181/223). This is local LCOV: the full-suite run merged
+with the direct service tests. The new eligible files change the D33
+inventory, so after an owner-approved push the first exact-SHA CI run must be
+followed by a controlled `coverage/baseline.json` refresh from that run's
+artifacts. Until that run is green, this batch is a local candidate only.
+
+Measurements that decided the non-admitted leads are below.
+- Dispatch sign-out hover contrast was 2.05:1 and is now 5.32:1; the other
+  sidebar pairs measure 6.5–13.4:1.
+- Argon2 verify takes about 21 ms median (25 ms p95), and moving it off the
+  event loop gave no measurable benefit. It stays open for load evidence.
+
+Incident disclosure: a container-side `prettier --write` misread CRLF
+checkouts and rewrote about 440 unrelated files. All of them were restored with
+`git checkout --` before any further edit, and formatting afterwards used an
+explicit file list. `frontend/src/app/globals.css` was already not
+Prettier-clean at `21a5981` and carries only the CV-14 two-line change.
+
+An untracked root `issues.md` was created by a separate session; this batch
+does not own it. Nothing is committed or pushed; that awaits owner approval.
+
 **Product-completion P6 local closure candidate (16 Sep 2026):** The approved
 P6 sequence is integrated locally through `1da0aee`: the PRD and P4 money
 verification are accepted; the non-money visual/state, dependency/isolation,
@@ -703,6 +981,7 @@ owned commit and fast-forward push; no new approval gate is inferred.
 
 | Date | Item | Authority | Scope boundary | Queue effect |
 | --- | --- | --- | --- | --- |
+| 23 Sep 2026 | **Reconcile current Cardvert issue state after the laptop theft and fix confirmed, admissible issues CV-01–CV-17.** | Direct project-owner request in this session, 23 Sep 2026 | Matrix `issues/planning/current-state-reconciliation-2026-09-23.md`. Owns only the CV-01–CV-17 surfaces named in the narrative above: disbursement claim authority; organization membership service/model, migration `0090` and integrity registration; evidence-verification list filter; report cohort cost indexing; contact-task list query; notification types/feed/email templates and their campaign/creative/quotation triggers; the three §9 contract baselines; the named advertiser campaign files plus `lib/campaigns/schema.ts`, `campaigns/new/actions.ts` and `wizard.tsx`; the `audience.py`/`disclosure.py` membership consumers and the two conflicting membership fixtures; driver home/profile, admin fraud, theme-switcher, Dispatch CSS and notification-centre frontend files; `tests/conftest.py` and migration-test database helpers; README test instructions; the runbook D29 company-move section; architecture placement/changelog; this ledger and the matrix; and, only after the first exact-SHA CI run of the owner-approved push, the controlled D33 refresh of `coverage/baseline.json` from that run's artifacts. | Review-Required bounded batch outside the 71-item queue. Does not move the `PKG-03 / W2-01C` external-provider pause, clear any external gate or change any owner decision. |
 | 16 Sep 2026 | **Integrate the owner-approved Terrax company landing design at the Cardvert public root and admit visual directions 10 “Dispatch” and 11 “Ledger” into the live product theme switcher.** | Direct project-owner request in the active integration task, 16 Sep 2026: make the Claude landing page the actual system landing page, connect its CTAs to Cardvert, and make both new directions live | May replace the root redirect with a public, CSS-isolated landing surface; make `/landing` a compatibility redirect; map driver conversion to `/apply`, existing-user access to `/login`, and advertiser acquisition to the official Terrax contact address; integrate only the reviewed Dispatch/Ledger registry, scoped CSS, tests and design documentation. `sites/terrax-media/**` is source-only and must not be shipped as a duplicate app. Existing role homes, auth authority, directions 1–9, status borders, APIs, data models and provider/live-use gates remain unchanged. Owns `frontend/src/app/page.tsx`, the compatibility `/landing` route, a namespaced landing component/style/asset surface, theme registry/CSS/tests, `docs/design/**`, architecture placement/changelog and this row. | Review-Required bounded frontend integration outside the 71-item queue. It does not move the `PKG-03 / W2-01C` external-provider pause or clear any external gate. Exact-SHA run `35093510970` passed frontend/static checks, all six backend shards and aggregate, R59, and ordinary desktop/mobile E2E; its sole failure was the coverage receipt's stale parent binding. The reviewed metadata-only receipt now binds that unchanged evidence to parent `8e3ce9d`; final exact-SHA CI remains required. |
 | 14 Sep 2026 | **Five-stream product build, first phase: shared resilient pages/demo foundations alongside bounded Claude admin UX.** | Owner: “just orchestrate the firsty phase of the work”; two disjoint owners approved | Sol High owns shared unavailable-state/error presentation and advertiser section-level resilience using existing APIs/demo capabilities; Claude Opus 5 High exclusively owns admin approvals and audit pages. No auth, backend, contracts, CI, coverage-policy, live-use gate bypass, provider calls, commit/push or new branch/worktree. Controller obtains one independent plan review and consolidated post-build/privacy-boundary review; red/green and real browser evidence required. User supplies Claude completion; no Claude polling. CI freeze released by terminal owner callback at `1f9229c`. Exact shared owner file lease is fixed after read-only preparation before product edits. | First phase ACTIVE outside the package queue; PKG-03 external pause unchanged. Later advertiser, driver and specialist streams remain pending, not dispatched. |
 | 13 Sep 2026 | **Bounded admin-UX delivery through Claude Opus 5 High alongside CI diagnosis.** | Direct owner approval “go ahead, pass it through opus 5” | Opus 5 High prepares and reviews approval pagination/action-pending states, installation evidence viewing, and audit-filter labels using existing APIs. Product writes wait for the controller-confirmed exclusive lease with CI owner `01a09cdc-9ae6-70e0-b967-93d3da979bdc`; no shared primitives, backend, contracts, CI, coverage-policy, payout logic, commit or push authority. Preserve unrelated files and freeze product writes during exact-SHA acceptance. | Bounded side delivery; no reprioritization of the package queue. Controller owns ledger updates and final admission. |

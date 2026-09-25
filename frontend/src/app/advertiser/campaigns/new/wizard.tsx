@@ -154,6 +154,8 @@ export function CampaignWizard({
   }
 
   const values = form.watch();
+  // QA-11: attaching to an existing campaign with no creatives would change nothing.
+  const attachBlocked = Boolean(campaignId) && values.creatives.length === 0;
 
   const inputClass =
     "h-11 w-full rounded-lg border border-edge bg-raised px-3.5 text-sm text-ink placeholder:text-faint transition-colors focus:border-amber focus:outline-none";
@@ -222,7 +224,7 @@ export function CampaignWizard({
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="c-start" className={labelClass}>
-                  Starts
+                  Starts (Lagos time)
                 </label>
                 <input
                   id="c-start"
@@ -236,7 +238,7 @@ export function CampaignWizard({
               </div>
               <div>
                 <label htmlFor="c-end" className={labelClass}>
-                  Ends
+                  Ends (Lagos time)
                 </label>
                 <input
                   id="c-end"
@@ -268,7 +270,7 @@ export function CampaignWizard({
               </div>
               <div>
                 <label htmlFor="c-daily" className={labelClass}>
-                  Daily cap ({currency})
+                  Daily budget ({currency})
                 </label>
                 <input
                   id="c-daily"
@@ -284,10 +286,10 @@ export function CampaignWizard({
             </div>
 
             <div className="border-amber/30 bg-amber/10 rounded-lg border p-3.5 text-sm">
-              <p className="font-medium">Created as a draft</p>
+              <p className="font-medium">Saved as a draft</p>
               <p className="text-muted mt-1">
-                Submit the completed campaign for admin review from its detail page. Scheduling and
-                activation are not available here.
+                Nothing is sent for review yet. On the campaign page you can add campaign areas
+                (zones), request a quotation, and press Submit for review when it&apos;s ready.
               </p>
             </div>
           </div>
@@ -413,7 +415,9 @@ export function CampaignWizard({
               + Add creative
             </button>
             <p className="micro text-faint">
-              Optional — you can create the campaign without creatives and add them later.
+              {campaignId
+                ? "Add at least one creative file to attach it to this campaign."
+                : "Optional — you can add creatives later from the campaign page."}
             </p>
           </div>
         ) : null}
@@ -438,7 +442,7 @@ export function CampaignWizard({
                     : "not set",
                 ],
                 [
-                  "Daily cap",
+                  "Daily budget",
                   values.basics.daily_budget_amount
                     ? `${currency} ${values.basics.daily_budget_amount}`
                     : "not set",
@@ -458,6 +462,12 @@ export function CampaignWizard({
                 </div>
               ))}
             </dl>
+            {attachBlocked ? (
+              <p id="attach-blocked" className="text-muted text-sm">
+                No creatives were added, so there is nothing to attach. Go back to add one, or
+                return to the campaign.
+              </p>
+            ) : null}
             {result.error ? (
               <div
                 role="alert"
@@ -503,7 +513,11 @@ export function CampaignWizard({
             Continue →
           </Button>
         ) : (
-          <Button type="submit" disabled={submitting}>
+          <Button
+            type="submit"
+            disabled={submitting || attachBlocked}
+            aria-describedby={attachBlocked && step === 2 ? "attach-blocked" : undefined}
+          >
             {submitting ? "Saving…" : campaignId ? "Attach creatives" : "Create campaign"}
           </Button>
         )}

@@ -4,10 +4,12 @@ import { ApiError } from "@/lib/api/errors";
 const mocks = vi.hoisted(() => ({
   patch: vi.fn(),
   post: vi.fn(),
+  redirect: vi.fn(),
   revalidatePath: vi.fn(),
 }));
 
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
+vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
 vi.mock("@/lib/api/client", () => ({
   createApiClient: () => ({ PATCH: mocks.patch, POST: mocks.post }),
@@ -20,6 +22,7 @@ import {
   requestCampaignCancellationAction,
   submitCampaignForReviewAction,
   submitCreativeForReviewAction,
+  updateCampaignDetailsAction,
 } from "./actions";
 
 const CAMPAIGN_ID = "00000000-0000-4000-8000-00000000000a";
@@ -39,6 +42,86 @@ function creativeSubmitForm(campaignId = CAMPAIGN_ID, creativeId = CREATIVE_ID):
   form.set("creative_id", creativeId);
   return form;
 }
+
+describe("updateCampaignDetailsAction", () => {
+  const ORIGINAL = {
+    name: "Launch",
+    description: "Old copy",
+    start_at: "2026-10-01T09:00",
+    end_at: "2026-10-31T18:00",
+    budget_amount: "500000.00",
+    daily_budget_amount: "",
+  };
+
+  function editForm(changes: Partial<typeof ORIGINAL>, campaignId = CAMPAIGN_ID): FormData {
+    const form = new FormData();
+    form.set("campaign_id", campaignId);
+    for (const [field, value] of Object.entries(ORIGINAL)) {
+      form.set(`original_${field}`, value);
+      form.set(field, changes[field as keyof typeof ORIGINAL] ?? value);
+    }
+    return form;
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.patch.mockResolvedValue({ data: {} });
+  });
+
+  it("sends only changed details, reading window times as Lagos time", async () => {
+    await updateCampaignDetailsAction(
+      {},
+      editForm({ name: "Launch v2", start_at: "2026-10-02T09:00", description: "" }),
+    );
+
+    expect(mocks.patch).toHaveBeenCalledWith("/api/v1/advertiser/campaigns/{campaign_id}", {
+      params: { path: { campaign_id: CAMPAIGN_ID } },
+      body: { name: "Launch v2", description: null, start_at: "2026-10-02T08:00:00.000Z" },
+    });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(`/advertiser/campaigns/${CAMPAIGN_ID}`);
+    expect(mocks.redirect).toHaveBeenCalledWith(`/advertiser/campaigns/${CAMPAIGN_ID}`);
+  });
+
+  it("refuses an unchanged form without calling the API", async () => {
+    await expect(updateCampaignDetailsAction({}, editForm({}))).resolves.toEqual({
+      error: "Change at least one detail before saving.",
+      values: ORIGINAL,
+    });
+    expect(mocks.patch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [{ start_at: "2026-10-02T09:00Z" }, "Enter a valid date and time"],
+    [{ name: "  " }, "Campaign name is required"],
+    [{ end_at: "2026-09-01T09:00" }, "End must be after start"],
+  ])("validates %o before sending", async (changes, message) => {
+    // The submitted values come back with the error so the form keeps the edits.
+    await expect(updateCampaignDetailsAction({}, editForm(changes))).resolves.toEqual({
+      error: message,
+      values: { ...ORIGINAL, ...changes },
+    });
+    expect(mocks.patch).not.toHaveBeenCalled();
+  });
+
+  it("does not send a malformed campaign reference", async () => {
+    await expect(
+      updateCampaignDetailsAction({}, editForm({ name: "New" }, "not-a-uuid")),
+    ).resolves.toEqual({ error: "This campaign reference is invalid." });
+    expect(mocks.patch).not.toHaveBeenCalled();
+  });
+
+  it("explains when the campaign left an editable state", async () => {
+    mocks.patch.mockRejectedValue(
+      new ApiError(409, { code: "CAMPAIGN_REVIEW_STATE_CONFLICT", message: "raw" }),
+    );
+
+    await expect(updateCampaignDetailsAction({}, editForm({ name: "New" }))).resolves.toEqual({
+      error: "This campaign can no longer be edited. Open it again to see its current status.",
+      values: { ...ORIGINAL, name: "New" },
+    });
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
+});
 
 describe("submitCampaignForReviewAction", () => {
   beforeEach(() => {

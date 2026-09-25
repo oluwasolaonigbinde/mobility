@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 from uuid import UUID
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, exists, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
@@ -12,6 +12,7 @@ from starlette import status
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.core.security import hash_password, verify_password
+from app.models.driver_application import DriverAccountSetupToken, DriverApplication
 from app.models.user import User, UserRole, UserStatus
 from app.schemas.users import UserCreate, UserUpdate
 from app.services.operator_search import operator_search
@@ -206,6 +207,22 @@ class UserUpdateResult:
     sessions_revoked: bool
 
 
+async def _driver_setup_outstanding(session: AsyncSession, user_id: UUID) -> bool:
+    """True when the user applied publicly and has never completed account setup."""
+    applied = await session.scalar(select(exists().where(DriverApplication.user_id == user_id)))
+    if not applied:
+        return False
+    completed = await session.scalar(
+        select(
+            exists().where(
+                DriverAccountSetupToken.user_id == user_id,
+                DriverAccountSetupToken.used_at.is_not(None),
+            )
+        )
+    )
+    return not completed
+
+
 async def update_user(
     session: AsyncSession,
     user_id: UUID,
@@ -242,6 +259,17 @@ async def update_user(
         raise AppError(
             "USER_NOT_ACTIVE",
             "Only an active user can be elevated to administrator",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    # D28: a publicly applied driver becomes active only through reviewed account
+    # setup. Keyed to the application, not the role or prior status. Role changes
+    # are refused too: another role could use password recovery while invited.
+    activates = status_changed and update_values["status"] == UserStatus.ACTIVE
+    if (activates or role_changed) and await _driver_setup_outstanding(session, user.id):
+        raise AppError(
+            "DRIVER_ACTIVATION_REQUIRES_SETUP",
+            "This applicant's account is activated through driver account setup after "
+            "their application is approved; its status and role can't be changed here",
             status_code=status.HTTP_409_CONFLICT,
         )
     if enters_admin_role or activates_admin:

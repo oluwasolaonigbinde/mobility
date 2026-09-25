@@ -42,6 +42,28 @@ describe("AssignmentActions", () => {
     );
   });
 
+  it("offers only Decline when the offer lacks complete pay terms", async () => {
+    const user = userEvent.setup();
+    render(
+      <AssignmentActions
+        assignmentId={ASSIGNMENT_ID}
+        campaignName="Abuja Airport launch"
+        status="offered"
+        canAccept={false}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Accept job" })).not.toBeInTheDocument();
+    expect(screen.getByText(/pay terms are incomplete/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Decline offer" }));
+    await waitFor(() =>
+      expect(mocks.assignmentAction).toHaveBeenCalledWith({
+        assignmentId: ASSIGNMENT_ID,
+        action: "decline",
+      }),
+    );
+  });
+
   it("shows accepted offers as awaiting admin activation", () => {
     render(
       <AssignmentActions

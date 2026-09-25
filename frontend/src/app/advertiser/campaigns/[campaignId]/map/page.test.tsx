@@ -187,6 +187,11 @@ describe("CampaignMapPage", () => {
     expect(screen.getByTestId("governed-zone-map")).toHaveTextContent("Central Abuja,Airport Road");
     expect(governedMap.mock.calls[0]?.[0].zones.map((zone) => zone.rank)).toEqual([1, 2]);
     expect(screen.queryByText("Hidden exclusion")).not.toBeInTheDocument();
+    // The page shows ranked target zones, not vehicle movement.
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Target zones by estimated exposure" }),
+    ).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/vehicles moved/i);
   });
 
   it("serializes no geometry for a suppressed frozen projection", async () => {
@@ -221,5 +226,43 @@ describe("CampaignMapPage", () => {
     expect(governedMap).not.toHaveBeenCalled();
     expect(screen.getByText("This report failed its integrity check")).toBeInTheDocument();
     expect(screen.queryByText("MEASUREMENT_RUN_INTEGRITY_FAILURE")).not.toBeInTheDocument();
+  });
+
+  it("says no report exists yet when no frozen run has been issued", async () => {
+    get
+      .mockResolvedValueOnce({ data: { id: CAMPAIGN_ID, name: "Abuja", status: "active" } })
+      .mockResolvedValueOnce({ data: { items: [] } })
+      .mockResolvedValueOnce({ data: { measurement_run: null, measurement_result: null } });
+
+    render(await CampaignMapPage({ params: Promise.resolve({ campaignId: CAMPAIGN_ID }) }));
+
+    expect(governedMap).not.toHaveBeenCalled();
+    expect(screen.getByText("No report is available yet")).toBeInTheDocument();
+    expect(screen.queryByText(/integrity check/i)).not.toBeInTheDocument();
+  });
+
+  it("explains a report without an area breakdown", async () => {
+    const report = { ...reportWithState("ready"), high_exposure_zone_insights: null };
+    get
+      .mockResolvedValueOnce({ data: { id: CAMPAIGN_ID, name: "Abuja", status: "active" } })
+      .mockResolvedValueOnce({ data: { items: [] } })
+      .mockResolvedValueOnce({ data: report });
+
+    render(await CampaignMapPage({ params: Promise.resolve({ campaignId: CAMPAIGN_ID }) }));
+
+    expect(governedMap).not.toHaveBeenCalled();
+    expect(screen.getByText("The area map isn't available for this report")).toBeInTheDocument();
+  });
+
+  it("refuses an area breakdown that no longer matches the campaign's zones", async () => {
+    get
+      .mockResolvedValueOnce({ data: { id: CAMPAIGN_ID, name: "Abuja", status: "active" } })
+      .mockResolvedValueOnce({ data: { items: [] } })
+      .mockResolvedValueOnce({ data: reportWithState("ready") });
+
+    render(await CampaignMapPage({ params: Promise.resolve({ campaignId: CAMPAIGN_ID }) }));
+
+    expect(governedMap).not.toHaveBeenCalled();
+    expect(screen.getByText("The area map doesn't match this report")).toBeInTheDocument();
   });
 });

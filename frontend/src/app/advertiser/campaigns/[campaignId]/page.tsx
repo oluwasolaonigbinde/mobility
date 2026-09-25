@@ -44,6 +44,28 @@ const placementLabel: Record<string, string> = {
   other: "Other",
 };
 
+// Mid-flight changes are accepted only in these states (server: campaign_changes.py).
+const CHANGEABLE_STATUSES: string[] = ["scheduled", "active", "paused"];
+const TERMINAL_STATUSES: string[] = ["completed", "cancelled"];
+
+const creativeStatusLabel: Record<string, string> = {
+  draft: "Not submitted",
+  pending_review: "In review",
+  approved: "Approved",
+  rejected: "Changes needed",
+  // Legacy pre-review state: readable, but never launch authority.
+  ready: "Older file",
+  archived: "Archived",
+};
+
+const scanLabel: Record<string, string> = {
+  pending: "file check in progress",
+  clean: "file check passed",
+  infected: "file failed the safety check",
+  rejected: "file type or size not accepted",
+  error: "file check couldn't finish; upload again",
+};
+
 export default async function CampaignDetailPage({
   params,
   searchParams,
@@ -107,6 +129,31 @@ export default async function CampaignDetailPage({
   const reviewHistory = historyResult.available ? historyResult.data : undefined;
   const cost = summary?.costs.totals_by_currency[0];
   const creativeItems = creatives?.items ?? [];
+  // The newest review event of a rejected creative is its rejection; `undefined`
+  // marks a reason that could not be read, so only that line degrades.
+  const rejectionReasons = new Map(
+    await Promise.all(
+      creativeItems
+        .filter((creative) => creative.status === "rejected")
+        .map(async (creative) => {
+          const history = await loadAdvertiserPageData(() =>
+            api.GET(
+              "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}/review-history",
+              {
+                params: {
+                  path: { campaign_id: campaignId, creative_id: creative.id },
+                  query: { limit: 1 },
+                },
+              },
+            ),
+          );
+          return [
+            creative.id,
+            history.available ? (history.data.items[0]?.rejection_reason ?? null) : undefined,
+          ] as const;
+        }),
+    ),
+  );
 
   return (
     <div className="animate-rise mx-auto max-w-6xl">
@@ -137,19 +184,19 @@ export default async function CampaignDetailPage({
               href={`/advertiser/campaigns/${campaign.id}/report`}
               className="micro border-edge bg-raised hover:border-edge-strong rounded-lg border px-3.5 py-2.5 transition-colors"
             >
-              📊 Campaign Performance Analysis
+              Campaign Performance Analysis
             </Link>
             <Link
               href={`/advertiser/campaigns/${campaign.id}/map`}
               className="micro border-edge bg-raised hover:border-edge-strong rounded-lg border px-3.5 py-2.5 transition-colors"
             >
-              🔥 Coverage map
+              Coverage map
             </Link>
             <Link
               href={`/advertiser/campaigns/${campaign.id}/zones`}
               className="micro border-edge bg-raised hover:border-edge-strong rounded-lg border px-3.5 py-2.5 transition-colors"
             >
-              🗺 Zones{summary ? ` · ${formatCount(summary.zones.total)}` : ""}
+              Zones{summary ? ` · ${formatCount(summary.zones.total)}` : ""}
             </Link>
           </div>
         </div>
@@ -222,12 +269,15 @@ export default async function CampaignDetailPage({
       )}
 
       {changesResult.available ? (
-        <CampaignChangePanel
-          campaignId={campaign.id}
-          clientRequestId={randomUUID()}
-          currency={campaign.currency}
-          requests={changesResult.data.items}
-        />
+        CHANGEABLE_STATUSES.includes(campaign.status) || changesResult.data.items.length > 0 ? (
+          <CampaignChangePanel
+            campaignId={campaign.id}
+            clientRequestId={randomUUID()}
+            currency={campaign.currency}
+            requests={changesResult.data.items}
+            editable={CHANGEABLE_STATUSES.includes(campaign.status)}
+          />
+        ) : null
       ) : (
         <DataUnavailable
           className="mt-6"
@@ -248,7 +298,9 @@ export default async function CampaignDetailPage({
           </div>
           {(reviewHistory?.items ?? []).length === 0 ? (
             <p className="text-muted px-6 py-6 text-sm">
-              This campaign has not been submitted for review.
+              {campaign.status === "draft"
+                ? "This campaign has not been submitted for review."
+                : "No review history is recorded for this campaign."}
             </p>
           ) : (
             <ol className="divide-edge/60 divide-y">
@@ -332,17 +384,19 @@ export default async function CampaignDetailPage({
         {creativesResult.available ? (
           <Panel className="overflow-hidden lg:col-span-2">
             <div className="border-edge flex items-center justify-between border-b px-6 py-4">
-              <h2 className="micro text-muted">Creatives · {creativeItems.length}</h2>
-              <Link
-                href={`/advertiser/campaigns/new?campaignId=${campaign.id}`}
-                className="text-amber text-sm underline"
-              >
-                Add missing creatives
-              </Link>
+              <h2 className="micro text-muted">Artwork · {creativeItems.length}</h2>
+              {TERMINAL_STATUSES.includes(campaign.status) ? null : (
+                <Link
+                  href={`/advertiser/campaigns/new?campaignId=${campaign.id}`}
+                  className="text-amber text-sm underline"
+                >
+                  Add artwork
+                </Link>
+              )}
             </div>
             {creativeItems.length === 0 ? (
               <p className="text-muted px-6 py-10 text-center text-sm">
-                No creatives yet. Add a private creative file to this campaign.
+                No artwork yet. Add the files Cardvert should review for this campaign.
               </p>
             ) : (
               <ul className="divide-edge/60 divide-y">
@@ -355,9 +409,20 @@ export default async function CampaignDetailPage({
                         {placementLabel[cr.placement] ?? cr.placement}
                         {cr.width_px && cr.height_px ? ` · ${cr.width_px}×${cr.height_px}` : ""}
                         {cr.asset_source === "managed_file"
-                          ? ` · security scan: ${cr.scan_status ?? "unavailable"}`
-                          : " · older linked file; a private upload is required before launch"}
+                          ? ` · ${scanLabel[cr.scan_status ?? ""] ?? "file check status unavailable"}`
+                          : " · older file link; upload the file again before launch"}
                       </p>
+                      {cr.status === "rejected" ? (
+                        rejectionReasons.get(cr.id) === undefined ? (
+                          <p className="text-muted mt-1 text-sm">
+                            The rejection reason could not be loaded. Refresh to try again.
+                          </p>
+                        ) : rejectionReasons.get(cr.id) ? (
+                          <p className="text-coral mt-1 text-sm">
+                            Reason: {rejectionReasons.get(cr.id)}
+                          </p>
+                        ) : null
+                      ) : null}
                     </div>
                     <div className="flex shrink-0 flex-col items-end gap-2">
                       <StatusChip
@@ -371,7 +436,7 @@ export default async function CampaignDetailPage({
                                 : "amber"
                         }
                       >
-                        {cr.status.replace("_", " ")}
+                        {creativeStatusLabel[cr.status] ?? cr.status.replace("_", " ")}
                       </StatusChip>
                       <CreativeStatusActions
                         campaignId={campaign.id}

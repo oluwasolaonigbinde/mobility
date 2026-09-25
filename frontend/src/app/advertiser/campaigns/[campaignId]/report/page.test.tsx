@@ -22,8 +22,35 @@ describe("CampaignReportPage fail-closed states", () => {
     notFound.mockClear();
   });
 
-  it("withholds the complete legacy report when frozen authority is missing", async () => {
+  it("says no report exists yet when no frozen run has been issued", async () => {
     get.mockResolvedValue({ data: { measurement_run: null, measurement_result: null } });
+    render(
+      await CampaignReportPage({
+        params: Promise.resolve({ campaignId: "00000000-0000-4000-8000-000000000001" }),
+      }),
+    );
+    expect(screen.getByText("No report is available yet")).toBeInTheDocument();
+    expect(screen.queryByText(/integrity check/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/daily breakdown/i)).not.toBeInTheDocument();
+  });
+
+  it("explains the privacy gate rather than implying corrupted data", async () => {
+    get.mockRejectedValue(
+      new ApiError(503, { code: "PRIVACY_LIVE_USE_BLOCKED", message: "blocked" }),
+    );
+    render(
+      await CampaignReportPage({
+        params: Promise.resolve({ campaignId: "00000000-0000-4000-8000-000000000001" }),
+      }),
+    );
+    expect(screen.getByText("Campaign results aren't switched on yet")).toBeInTheDocument();
+    expect(screen.queryByText(/could not be verified|integrity/i)).not.toBeInTheDocument();
+  });
+
+  it("withholds a half-issued report as an integrity failure", async () => {
+    get.mockResolvedValue({
+      data: { measurement_run: { id: "run-1" }, measurement_result: null },
+    });
     render(
       await CampaignReportPage({
         params: Promise.resolve({ campaignId: "00000000-0000-4000-8000-000000000001" }),

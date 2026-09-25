@@ -115,7 +115,7 @@ test.describe("W4-01C governed campaign journey", () => {
     await page.goto("/driver/profile");
     await expect(page.getByRole("heading", { name: "Your campaign journey" })).toBeVisible();
     await expect(page.getByText("READY", { exact: true })).toBeVisible();
-    await expect(page.getByText("Person & payee approved")).toBeVisible();
+    await expect(page.getByText("Identity and bank details approved")).toBeVisible();
     await expect(page.getByText("SYN-001 approved")).toBeVisible();
     await expect(page.getByText("Campaign activated")).toBeVisible();
 

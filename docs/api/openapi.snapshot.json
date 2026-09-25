@@ -15891,6 +15891,10 @@
           "assignment_offered",
           "assignment_accepted",
           "campaign_approved",
+          "campaign_rejected",
+          "creative_approved",
+          "creative_rejected",
+          "quotation_ready",
           "funding_confirmed",
           "budget_alert",
           "campaign_budget_paused",
@@ -27130,6 +27134,22 @@
                 }
               ],
               "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "verification_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/EvidenceVerificationType"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Verification Type"
             }
           }
         ],

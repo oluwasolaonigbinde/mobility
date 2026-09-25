@@ -1,8 +1,10 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/api/errors";
 
 const get = vi.hoisted(() => vi.fn());
 
+vi.mock("next/navigation", () => ({ redirect: vi.fn(), notFound: vi.fn() }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: get }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
 
@@ -71,7 +73,40 @@ function mockReadyRecommendation(exportApprovalId: string | null) {
 }
 
 describe("PlanningSourcesPage", () => {
-  beforeEach(() => get.mockReset());
+  beforeEach(() => {
+    get.mockReset();
+  });
+
+  it("explains the privacy gate instead of crashing and offers no forms", async () => {
+    get.mockImplementation(async (path: string) => {
+      if (path === "/api/v1/advertiser/campaigns") return { data: { items: [] } };
+      throw new ApiError(503, {
+        code: "PRIVACY_LIVE_USE_BLOCKED",
+        message: "Advertiser analytics are unavailable until privacy approval",
+        details: {},
+      });
+    });
+
+    render(await PlanningSourcesPage());
+
+    expect(
+      screen.getByRole("heading", { name: "Retargeting isn't available yet" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Available once privacy approval/)).toBeInTheDocument();
+    expect(screen.queryByTestId("planning-source-form")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("planning-source-link-form")).not.toBeInTheDocument();
+  });
+
+  it("describes a declared audience in plain words and keeps its fingerprint collapsed", async () => {
+    mockReadyRecommendation(null);
+
+    render(await PlanningSourcesPage());
+
+    expect(screen.getByRole("heading", { name: "Other insight you describe" })).toBeInTheDocument();
+    expect(screen.getByText("In use")).toBeInTheDocument();
+    const fingerprint = screen.getByText(/Record fingerprint a{64}/);
+    expect(fingerprint.closest("details")).not.toHaveAttribute("open");
+  });
 
   it("does not render stale targeting cells or governed provenance", async () => {
     get.mockImplementation(async (path: string) => {
@@ -138,7 +173,7 @@ describe("PlanningSourcesPage", () => {
     render(await PlanningSourcesPage());
 
     expect(
-      screen.getByText("The issued aggregate is stale and cannot be exported."),
+      screen.getByText("These suggestions are out of date, so they can't be downloaded."),
     ).toBeInTheDocument();
     expect(screen.queryByText(/grid-500m:10:20/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Segment v7/)).not.toBeInTheDocument();
@@ -151,10 +186,10 @@ describe("PlanningSourcesPage", () => {
     render(await PlanningSourcesPage());
 
     expect(
-      screen.getByText("Awaiting current privacy approval for controlled export."),
+      screen.getByText("Downloads stay off until privacy approval is in place."),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: "Download controlled CSV" }),
+      screen.queryByRole("button", { name: "Download suggestions (CSV)" }),
     ).not.toBeInTheDocument();
   });
 
@@ -163,7 +198,7 @@ describe("PlanningSourcesPage", () => {
 
     const { container } = render(await PlanningSourcesPage());
 
-    expect(screen.getByRole("button", { name: "Download controlled CSV" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Download suggestions (CSV)" })).toBeInTheDocument();
     expect(container.querySelector('input[name="approval_id"]')).toHaveValue(APPROVAL_ID);
   });
 
@@ -172,8 +207,8 @@ describe("PlanningSourcesPage", () => {
 
     render(await PlanningSourcesPage());
 
-    expect(screen.getByText("Campaign Campaign")).toBeInTheDocument();
-    expect(screen.getByText("Target zone Wuse II core")).toBeInTheDocument();
+    expect(screen.getByText("Campaign: Campaign")).toBeInTheDocument();
+    expect(screen.getByText("Area: Wuse II core")).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(CAMPAIGN_ID);
     expect(document.body).not.toHaveTextContent(ZONE_ID);
   });

@@ -64,6 +64,14 @@ function completenessCopy(value: Completeness): string {
   return `${formatCount(value.covered_trip_count)} of ${formatCount(value.denominator_trip_count)} completed trips included · ${formatCount(value.insufficient_data_trip_count)} with too little data · ${formatCount(value.excluded_trip_count)} excluded · ${formatCount(value.in_progress_trip_count)} still in progress${marker}`;
 }
 
+/**
+ * No analysis has been issued yet: neither half of a frozen run exists. Only a
+ * present but disagreeing run/result is an integrity failure.
+ */
+export function isUnissued(report: Report): boolean {
+  return !report.measurement_run && !report.measurement_result;
+}
+
 export function validateMeasurementAuthority(report: Report): MeasurementAuthority {
   const run = report.measurement_run;
   const result = report.measurement_result;
@@ -316,6 +324,18 @@ const stateCopy: Record<string, { title: string; body: string }> = {
     title: "No report is available yet",
     body: "Campaign results appear here once Cardvert issues a verified report for this campaign.",
   },
+  PRIVACY_LIVE_USE_BLOCKED: {
+    title: "Campaign results aren't switched on yet",
+    body: "Results, maps and reports become available once privacy approval for campaign results is complete.",
+  },
+  ZONE_PROJECTION_UNAVAILABLE: {
+    title: "The area map isn't available for this report",
+    body: "The Campaign Performance Analysis page still shows the rest of the results.",
+  },
+  ZONE_PROJECTION_INTEGRITY_FAILURE: {
+    title: "The area map doesn't match this report",
+    body: "No map is shown because the area data doesn't match the issued report. Cardvert needs to reissue the analysis.",
+  },
   MEASUREMENT_LIVE_ISSUANCE_BLOCKED: {
     title: "Live analysis is unavailable",
     body: "Live campaign results can't be shown because the reporting method has not been approved for live use.",
@@ -332,8 +352,8 @@ const stateCopy: Record<string, { title: string; body: string }> = {
 
 export function GovernedAnalysisState({ code }: { code: string }) {
   const copy = stateCopy[code] ?? {
-    title: "Campaign analysis is unavailable",
-    body: "No map or performance results are shown because the report data could not be verified.",
+    title: "Campaign results can't be shown",
+    body: "No results are shown for this campaign at the moment.",
   };
   return (
     <Panel role="status" className="border-amber/40 bg-amber/5 mx-auto max-w-3xl p-6">

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import type { CampaignStatus } from "@/lib/campaigns/status";
@@ -36,16 +37,28 @@ export function StatusActions({
   return (
     <form action={formAction} className="flex flex-col items-end gap-2">
       <input type="hidden" name="campaign_id" value={campaignId} />
-      <Button type="submit" disabled={pending} className="h-10 px-4 text-xs">
-        {pending
-          ? "Submitting…"
-          : status === "rejected"
-            ? "Resubmit for review"
-            : "Submit for review"}
-      </Button>
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        <Link
+          href={`/advertiser/campaigns/${campaignId}/edit`}
+          className="micro text-amber underline"
+        >
+          Edit details
+        </Link>
+        <Button type="submit" disabled={pending} className="h-10 px-4 text-xs">
+          {pending
+            ? "Submitting…"
+            : status === "rejected"
+              ? "Resubmit for review"
+              : "Submit for review"}
+        </Button>
+      </div>
       {status === "rejected" ? (
         <p className="micro text-coral max-w-xs text-right">
-          Update the requested details, then resubmit.
+          Read the reason below,{" "}
+          <Link href={`/advertiser/campaigns/${campaignId}/edit`} className="underline">
+            edit the details
+          </Link>
+          , then resubmit.
         </p>
       ) : null}
       {state.error ? (

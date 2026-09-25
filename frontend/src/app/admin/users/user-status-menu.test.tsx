@@ -37,6 +37,14 @@ it("keeps ordinary driver reactivation free of elevation proof", async () => {
   expect(update).toHaveBeenCalledWith({ userId: "driver", status: "active" });
 });
 
+it("offers no activation for an invited driver applicant", () => {
+  render(
+    <UserStatusMenu userId="applicant" userLabel="New Driver" role="driver" status="invited" />,
+  );
+  expect(screen.queryByRole("button")).not.toBeInTheDocument();
+  expect(screen.getByText("Activated through driver account setup")).toBeInTheDocument();
+});
+
 it("names the account in an on-page suspension confirmation", async () => {
   const user = userEvent.setup();
   render(<UserStatusMenu userId="driver" userLabel="Tunde Driver" role="driver" status="active" />);

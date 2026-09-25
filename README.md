@@ -384,12 +384,15 @@ reuses deterministic natural keys on repeated runs.
 python -m pytest
 ```
 
-Plain host tests use SQLite for speed and may skip PostGIS-specific checks unless a
-PostGIS database URL is configured. To run the PostGIS-backed trip and analytics
-verification:
+Plain host tests use SQLite for speed and skip PostGIS-specific checks unless
+`TEST_DATABASE_URL` names a PostGIS database. Tests never read the app's
+`DATABASE_URL`: they create extensions, schemas and throwaway databases, so point
+`TEST_DATABASE_URL` at a dedicated test database, never the development
+`mobility` database. To run the PostGIS-backed trip and analytics verification:
 
 ```powershell
-$env:DATABASE_URL = "postgresql+asyncpg://mobility:mobility@localhost:5433/mobility"
+docker compose exec db createdb -U mobility mobility_test
+$env:TEST_DATABASE_URL = "postgresql+asyncpg://mobility:mobility@localhost:5433/mobility_test"
 python -m pytest tests/test_trips.py tests/test_trip_analytics.py tests/test_impression_estimates.py tests/test_heatmaps.py -q
 ```
 

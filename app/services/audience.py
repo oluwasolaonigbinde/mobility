@@ -196,20 +196,20 @@ async def _privacy_gate(settings: Settings) -> None:
 async def _advertiser_membership(
     session: AsyncSession, *, actor_user_id: UUID, write: bool
 ) -> OrganizationMembership:
-    membership = await session.scalar(
-        select(OrganizationMembership)
-        .join(
-            AdvertiserOrganization,
-            AdvertiserOrganization.id == OrganizationMembership.organization_id,
+    membership = (
+        await session.execute(
+            select(OrganizationMembership)
+            .join(
+                AdvertiserOrganization,
+                AdvertiserOrganization.id == OrganizationMembership.organization_id,
+            )
+            .where(
+                OrganizationMembership.user_id == actor_user_id,
+                OrganizationMembership.status == MembershipStatus.ACTIVE,
+                AdvertiserOrganization.status == OrganizationStatus.ACTIVE,
+            )
         )
-        .where(
-            OrganizationMembership.user_id == actor_user_id,
-            OrganizationMembership.status == MembershipStatus.ACTIVE,
-            AdvertiserOrganization.status == OrganizationStatus.ACTIVE,
-        )
-        .order_by(OrganizationMembership.created_at.desc(), OrganizationMembership.id.desc())
-        .limit(1)
-    )
+    ).scalar_one_or_none()
     if membership is None:
         raise AppError(
             "ADVERTISER_ORGANIZATION_NOT_FOUND",

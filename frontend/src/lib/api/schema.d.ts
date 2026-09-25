@@ -10414,7 +10414,7 @@ export interface components {
          * NotificationType
          * @enum {string}
          */
-        NotificationType: "assignment_offered" | "assignment_accepted" | "campaign_approved" | "funding_confirmed" | "budget_alert" | "campaign_budget_paused" | "campaign_budget_resumed" | "campaign_cancelled" | "evidence_challenge_created" | "evidence_verified" | "payout_released" | "password_reset_requested" | "driver_onboarding_access_requested" | "driver_account_setup_requested" | "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied" | "activity_floor_breached" | "activity_floor_recovered" | "assignment_inactive" | "assignment_activity_recovered";
+        NotificationType: "assignment_offered" | "assignment_accepted" | "campaign_approved" | "campaign_rejected" | "creative_approved" | "creative_rejected" | "quotation_ready" | "funding_confirmed" | "budget_alert" | "campaign_budget_paused" | "campaign_budget_resumed" | "campaign_cancelled" | "evidence_challenge_created" | "evidence_verified" | "payout_released" | "password_reset_requested" | "driver_onboarding_access_requested" | "driver_account_setup_requested" | "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied" | "activity_floor_breached" | "activity_floor_recovered" | "assignment_inactive" | "assignment_activity_recovered";
         /** NotificationUnreadCountRead */
         NotificationUnreadCountRead: {
             /** Unread Count */
@@ -15243,6 +15243,7 @@ export interface operations {
         parameters: {
             query?: {
                 status?: components["schemas"]["EvidenceVerificationStatus"] | null;
+                verification_type?: components["schemas"]["EvidenceVerificationType"] | null;
             };
             header?: never;
             path?: never;

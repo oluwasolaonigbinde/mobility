@@ -43,7 +43,9 @@ describe("notification BFF routes", () => {
       .mockResolvedValueOnce({ data: { unread_count: 0 } })
       .mockResolvedValueOnce({ data: { id: "notice-1", read_at: "2026-08-24T12:00:00Z" } });
 
-    expect(await (await notificationList()).json()).toMatchObject({ items: [] });
+    expect(
+      await (await notificationList(new Request("http://localhost/api/notifications"))).json(),
+    ).toMatchObject({ items: [] });
     expect(await (await unreadCount()).json()).toEqual({ unread_count: 2 });
     expect(await (await markAllRead()).json()).toEqual({ unread_count: 0 });
     expect(
@@ -61,6 +63,27 @@ describe("notification BFF routes", () => {
     expect(mocks.post).toHaveBeenNthCalledWith(2, "/api/v1/notifications/{notification_id}/read", {
       params: { path: { notification_id: "notice-1" } },
     });
+  });
+
+  it("forwards only valid paging integers and rejects malformed ones", async () => {
+    mocks.get.mockResolvedValue({ data: { items: [], total: 70, limit: 20, offset: 40 } });
+
+    const page = await notificationList(
+      new Request("http://localhost/api/notifications?limit=20&offset=40&role=admin"),
+    );
+    expect(page.status).toBe(200);
+    expect(mocks.get).toHaveBeenCalledWith("/api/v1/notifications", {
+      params: { query: { limit: 20, offset: 40 } },
+    });
+
+    for (const bad of ["limit=0", "limit=101", "limit=2.5", "offset=-1", "offset=abc"]) {
+      const response = await notificationList(
+        new Request(`http://localhost/api/notifications?${bad}`),
+      );
+      expect(response.status).toBe(400);
+      expect((await response.json()).error.code).toBe("INVALID_PAGE");
+    }
+    expect(mocks.get).toHaveBeenCalledTimes(1);
   });
 
   it("preserves backend error envelopes and proxies advertiser preferences", async () => {

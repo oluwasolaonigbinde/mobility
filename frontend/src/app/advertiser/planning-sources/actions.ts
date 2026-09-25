@@ -33,7 +33,10 @@ export async function createSourceAction(
   const sourceType = text(formData, "source_type");
   const expiresAt = new Date(text(formData, "expires_at"));
   if (!Number.isFinite(expiresAt.getTime()) || expiresAt <= new Date()) {
-    return { error: "Choose a future expiry date and time.", operationKey: idempotencyKey };
+    return {
+      error: "Choose a future date and time to stop using it.",
+      operationKey: idempotencyKey,
+    };
   }
   const common = {
     source_type: sourceType,
@@ -78,7 +81,7 @@ export async function createSourceAction(
       confidence_band: text(formData, "confidence"),
     };
   } else {
-    return { error: "Choose an allowed planning source type.", operationKey: idempotencyKey };
+    return { error: "Choose what kind of audience this is.", operationKey: idempotencyKey };
   }
   try {
     const api = createApiClient(await getSessionToken());
@@ -93,7 +96,7 @@ export async function createSourceAction(
     };
   }
   revalidatePath("/advertiser/planning-sources");
-  return { success: "Planning source recorded.", operationKey: idempotencyKey };
+  return { success: "Audience saved.", operationKey: idempotencyKey };
 }
 
 export async function deactivateSourceAction(
@@ -121,7 +124,7 @@ export async function deactivateSourceAction(
   }
   revalidatePath("/advertiser/planning-sources");
   revalidatePath("/admin/planning-sources");
-  return { success: "Planning source deactivated.", operationKey: idempotencyKey };
+  return { success: "Audience no longer used.", operationKey: idempotencyKey };
 }
 
 export async function createSourceLinkAction(
@@ -140,7 +143,7 @@ export async function createSourceLinkAction(
     startAt >= endAt
   ) {
     return {
-      error: "Choose a valid linkage window with the start before the end.",
+      error: "Choose a start date and time before the end.",
       operationKey: idempotencyKey,
     };
   }
@@ -165,7 +168,7 @@ export async function createSourceLinkAction(
   revalidatePath("/advertiser/planning-sources");
   revalidatePath("/admin/planning-sources");
   return {
-    success: "Planning source linked to the target zone.",
+    success: "Audience connected to the campaign area.",
     operationKey: idempotencyKey,
   };
 }
@@ -195,5 +198,5 @@ export async function removeSourceLinkAction(
   }
   revalidatePath("/advertiser/planning-sources");
   revalidatePath("/admin/planning-sources");
-  return { success: "Planning source link removed.", operationKey: idempotencyKey };
+  return { success: "Audience disconnected from the campaign area.", operationKey: idempotencyKey };
 }

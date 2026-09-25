@@ -466,6 +466,65 @@ def test_admin_spot_check_api_and_driver_pending_api_are_role_scoped(
     assert resolved.json()["status"] == "passed"
 
 
+def test_admin_can_list_physical_checks_behind_a_backlog_of_newer_renewals(
+    db_client, db_sessionmaker
+) -> None:
+    graph = build_graph(db_sessionmaker, "verification-backlog")
+    activate_and_add_earning(db_sessionmaker, graph)
+    admin_headers = auth_headers(db_client, "admin-verification-backlog@example.com", PASSWORD)
+    queued = db_client.post(
+        "/api/v1/admin/evidence-verifications/physical-spot-checks",
+        headers=admin_headers,
+        json={
+            "assignment_id": str(graph.assignment.id),
+            "trip_session_id": str(graph.trip.id),
+            "client_request_id": str(uuid4()),
+            "note": "Queued before a renewal backlog.",
+            "metadata": {},
+        },
+    )
+    assert queued.status_code == 201
+
+    async def add_newer_renewals() -> None:
+        # The automatic sweep can issue one renewal per trip; source trips only
+        # need distinct identities for this list query.
+        async with db_sessionmaker() as session:
+            later = datetime.now(UTC) + timedelta(minutes=5)
+            session.add_all(
+                EvidenceVerification(
+                    assignment_id=graph.assignment.id,
+                    campaign_id=graph.campaign.id,
+                    driver_profile_id=graph.profile.id,
+                    vehicle_id=graph.vehicle.id,
+                    source_trip_session_id=uuid4(),
+                    verification_type="high_earner_renewal",
+                    status=EvidenceVerificationStatus.PENDING.value,
+                    due_at=later + timedelta(hours=24),
+                    issued_at=later + timedelta(seconds=index),
+                )
+                for index in range(101)
+            )
+            await session.commit()
+
+    asyncio.run(add_newer_renewals())
+
+    mixed = db_client.get(
+        "/api/v1/admin/evidence-verifications",
+        headers=admin_headers,
+        params={"status": "pending"},
+    )
+    assert {item["verification_type"] for item in mixed.json()["items"]} == {
+        "high_earner_renewal"
+    }
+    physical = db_client.get(
+        "/api/v1/admin/evidence-verifications",
+        headers=admin_headers,
+        params={"status": "pending", "verification_type": "physical_spot_check"},
+    )
+    assert physical.status_code == 200
+    assert [item["id"] for item in physical.json()["items"]] == [queued.json()["id"]]
+
+
 def test_worker_reports_unconfigured_high_earner_policy_without_inventing_work(
     db_sessionmaker, settings
 ) -> None:

@@ -88,4 +88,32 @@ describe("CampaignChangePanel", () => {
     );
     expect(submittedIds).toEqual([FIRST_REQUEST_ID, SECOND_REQUEST_ID]);
   });
+
+  it("lists earlier requests without a form once changes are no longer accepted", () => {
+    render(
+      <CampaignChangePanel
+        campaignId={CAMPAIGN_ID}
+        clientRequestId={FIRST_REQUEST_ID}
+        currency="NGN"
+        editable={false}
+        requests={[
+          {
+            classifications: ["budget_increase"],
+            client_request_id: FIRST_REQUEST_ID,
+            created_at: "2026-09-14T12:00:00Z",
+            id: FIRST_REQUEST_ID,
+            requested_liability_amount: "100.00",
+            status: "applied",
+          } as never,
+        ]}
+      />,
+    );
+
+    expect(screen.queryByRole("button", { name: "Preview change" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Reason")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(/only be requested while a campaign is scheduled, live or paused/),
+    ).toBeInTheDocument();
+    expect(screen.getByText("applied")).toBeInTheDocument();
+  });
 });

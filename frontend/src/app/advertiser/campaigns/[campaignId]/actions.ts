@@ -1,11 +1,13 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { publicActionError } from "@/lib/api/public-action-error";
 import { getSessionToken } from "@/lib/auth/session";
+import { campaignBasicsSchema, toApiDatetime } from "@/lib/campaigns/schema";
 
 const submitSchema = z.object({
   campaignId: z.string().uuid(),
@@ -92,9 +94,82 @@ function safeCampaignError(error: unknown, fallback: string) {
   return publicActionError(error, campaignActionErrors, fallback);
 }
 
-function lagosDateTime(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  return new Date(`${value}:00+01:00`).toISOString();
+export interface CampaignEditState {
+  error?: string;
+  /** The submitted values, returned with an error so a failed save keeps the edits. */
+  values?: Record<string, string>;
+}
+
+const EDITABLE_FIELDS = [
+  "name",
+  "description",
+  "start_at",
+  "end_at",
+  "budget_amount",
+  "daily_budget_amount",
+] as const;
+
+const campaignEditErrors = {
+  CAMPAIGN_REVIEW_STATE_CONFLICT:
+    "This campaign can no longer be edited. Open it again to see its current status.",
+  ORGANIZATION_WRITE_FORBIDDEN: "Only company owners and managers can edit campaigns.",
+  INVALID_CAMPAIGN_BUDGET: "The daily budget cannot exceed the total budget.",
+  INVALID_CAMPAIGN_DATES: "The campaign start must be before its end.",
+  INVALID_CAMPAIGN_UPDATE: "Check the campaign details and try again.",
+} as const;
+
+/**
+ * Save changed details of a draft or rejected campaign. Only fields that differ
+ * from the values the form was rendered with are sent, so an untouched window
+ * keeps its exact stored instant (datetime-local inputs drop seconds).
+ */
+export async function updateCampaignDetailsAction(
+  _previous: CampaignEditState,
+  formData: FormData,
+): Promise<CampaignEditState> {
+  const campaignId = String(formData.get("campaign_id") ?? "");
+  if (!z.uuid().safeParse(campaignId).success) {
+    return { error: "This campaign reference is invalid." };
+  }
+  const submitted = Object.fromEntries(
+    EDITABLE_FIELDS.map((field) => [field, String(formData.get(field) ?? "")]),
+  ) as Record<(typeof EDITABLE_FIELDS)[number], string>;
+  const parsed = campaignBasicsSchema.safeParse(submitted);
+  if (!parsed.success) {
+    return {
+      error: parsed.error.issues[0]?.message ?? "Check the campaign details.",
+      values: submitted,
+    };
+  }
+  const changed = EDITABLE_FIELDS.filter(
+    (field) => submitted[field].trim() !== String(formData.get(`original_${field}`) ?? "").trim(),
+  );
+  if (changed.length === 0) {
+    return { error: "Change at least one detail before saving.", values: submitted };
+  }
+  const values = parsed.data;
+  const body: Record<string, string | null> = {};
+  for (const field of changed) {
+    if (field === "name") body.name = values.name;
+    else if (field === "start_at" || field === "end_at")
+      body[field] = toApiDatetime(values[field]) ?? null;
+    else body[field] = values[field] ?? null;
+  }
+  try {
+    const api = createApiClient(await getSessionToken());
+    await api.PATCH("/api/v1/advertiser/campaigns/{campaign_id}", {
+      params: { path: { campaign_id: campaignId } },
+      body: body as components["schemas"]["CampaignUpdate"],
+    });
+  } catch (error) {
+    return {
+      error: publicActionError(error, campaignEditErrors, "Could not save the changes. Try again."),
+      values: submitted,
+    };
+  }
+  revalidatePath(`/advertiser/campaigns/${campaignId}`);
+  revalidatePath("/advertiser/campaigns");
+  redirect(`/advertiser/campaigns/${campaignId}`);
 }
 
 export async function requestCampaignCancellationAction(
@@ -151,8 +226,8 @@ export async function previewCampaignChangeAction(
     ...(parsed.data.dailyBudgetAmount
       ? { daily_budget_amount: parsed.data.dailyBudgetAmount }
       : {}),
-    ...(parsed.data.startAt ? { start_at: lagosDateTime(parsed.data.startAt) } : {}),
-    ...(parsed.data.endAt ? { end_at: lagosDateTime(parsed.data.endAt) } : {}),
+    ...(parsed.data.startAt ? { start_at: toApiDatetime(parsed.data.startAt) } : {}),
+    ...(parsed.data.endAt ? { end_at: toApiDatetime(parsed.data.endAt) } : {}),
   };
   try {
     const api = createApiClient(await getSessionToken());
@@ -208,8 +283,8 @@ export async function confirmCampaignChangeAction(
     ...(parsed.data.dailyBudgetAmount
       ? { daily_budget_amount: parsed.data.dailyBudgetAmount }
       : {}),
-    ...(parsed.data.startAt ? { start_at: lagosDateTime(parsed.data.startAt) } : {}),
-    ...(parsed.data.endAt ? { end_at: lagosDateTime(parsed.data.endAt) } : {}),
+    ...(parsed.data.startAt ? { start_at: toApiDatetime(parsed.data.startAt) } : {}),
+    ...(parsed.data.endAt ? { end_at: toApiDatetime(parsed.data.endAt) } : {}),
   };
   try {
     const api = createApiClient(await getSessionToken());
