@@ -49,12 +49,9 @@ describe("retained font variables stay wired", () => {
   const productFonts = readFileSync(join(SRC, "lib/fonts.ts"), "utf8");
 
   it.each([
-    "--font-clash",
-    "--font-satoshi",
     "--font-plex-mono",
     "--font-inter",
     "--font-fraunces",
-    "--font-bricolage",
     "--font-archivo",
     "--font-poppins",
     "--font-big-shoulders",
@@ -62,11 +59,9 @@ describe("retained font variables stay wired", () => {
     expect(productFonts).toContain(variable);
   });
 
-  it("the root layout applies both the local classes and the vendored variables", () => {
-    expect(rootLayout).toMatch(/clashDisplay\.variable/);
-    expect(rootLayout).toMatch(/satoshi\.variable/);
+  it("the root layout applies the retained font variables and default direction", () => {
     expect(rootLayout).toMatch(/style=\{productFontVariables\}/);
-    expect(rootLayout).toMatch(/h-full antialiased/);
+    expect(rootLayout).toMatch(/data-theme="ivory-ledger"/);
   });
 });
 
@@ -109,7 +104,6 @@ describe("family declarations keep the approved fallback and preload shape", () 
   const EXPECTED_FALLBACKS: Record<string, number> = {
     "archivo.ts": 1,
     "big-shoulders.ts": 0,
-    "bricolage-grotesque.ts": 1,
     "fraunces.ts": 1,
     "ibm-plex-mono.ts": 1,
     "inter.ts": 1,
@@ -131,8 +125,7 @@ describe("family declarations keep the approved fallback and preload shape", () 
     // next/font derives the @font-face `font-family` from the JS const name and
     // the emitted stylesheet is global, so a duplicated name silently merges two
     // typefaces into one family. Scan every localFont declaration under src,
-    // not just the family modules, because clashDisplay and satoshi share the
-    // same namespace.
+    // not just a single family module: declarations share a global namespace.
     const names = sources
       .filter((file) => readFileSync(file, "utf8").includes("localFont({"))
       .flatMap((file) => calls(readFileSync(file, "utf8")).map((call) => call.name));

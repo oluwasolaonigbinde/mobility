@@ -54,7 +54,7 @@ export function ThemeSwitcher() {
     // actions (verified via Playwright pointer-interception traces).
     <div ref={rootRef} className="fixed right-4 bottom-4 z-50 hidden lg:block print:hidden">
       {open ? (
-        <div className="border-edge-strong bg-panel shadow-panel animate-rise absolute right-0 bottom-14 w-72 rounded-xl border p-2">
+        <div className="border-edge-strong bg-panel shadow-panel animate-rise absolute right-0 bottom-14 max-h-[calc(100dvh-6rem)] w-72 overflow-y-auto overscroll-contain rounded-xl border p-2">
           <p className="micro text-faint px-2 pt-1 pb-2">Visual direction</p>
           <ul role="listbox" aria-label="Visual direction" className="flex flex-col gap-1">
             {THEMES.map((t) => {

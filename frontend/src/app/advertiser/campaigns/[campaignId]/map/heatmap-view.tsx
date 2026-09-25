@@ -5,7 +5,6 @@ import { Map as MapLibreMap } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
   activeMapStyle,
-  applyThemeMapTint,
   basemapMode,
   DEFAULT_CENTER,
   DEFAULT_ZOOM,
@@ -64,7 +63,6 @@ export function GovernedZoneMap({ zones }: { zones: GovernedZoneGeometry[] }) {
     map.once("load", () => {
       if (failed) return;
       try {
-        applyThemeMapTint(map);
         const data = {
           type: "FeatureCollection" as const,
           features: zones.map((zone) => ({

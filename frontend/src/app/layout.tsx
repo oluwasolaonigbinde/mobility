@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { clashDisplay, productFontVariables, satoshi } from "@/lib/fonts";
+import { productFontVariables } from "@/lib/fonts";
 import { THEME_BOOT_SCRIPT } from "@/lib/themes";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
 import { Providers } from "./providers";
@@ -23,7 +23,8 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${clashDisplay.variable} ${satoshi.variable} h-full antialiased`}
+      className="h-full antialiased"
+      data-theme="ivory-ledger"
       style={productFontVariables}
     >
       <body className="flex min-h-full flex-col">

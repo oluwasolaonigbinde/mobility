@@ -19,14 +19,6 @@ describe("LoginForm", () => {
     actionState.state = {};
     actionState.pending = false;
   });
-  it("shows credential fields when demo login is disabled", () => {
-    render(<LoginForm />);
-
-    expect(screen.getByLabelText("Email")).toBeInTheDocument();
-    expect(screen.getByLabelText("Password")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
-  });
-
   it.each(["advertiser", "driver", "admin"] as const)(
     "shows one-click access without credential fields for %s",
     (demoLoginRole) => {

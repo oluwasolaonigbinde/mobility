@@ -33,26 +33,25 @@ describe("theme registry", () => {
     expect(slugs).toContain(DEFAULT_THEME);
   });
 
-  it("preserves the original nine directions in order", () => {
-    expect(THEMES.slice(0, 9).map((theme) => theme.slug)).toEqual([
-      "night",
-      "daylight-ops",
-      "ivory-ledger",
-      "blue-hour",
-      "danfo",
-      "hi-vis",
-      "terra-grain",
-      "coverage",
-      "broadside",
+  it("contains only the four retained directions in their new order", () => {
+    expect(THEMES.map((theme) => [theme.slug, theme.name])).toEqual([
+      ["ivory-ledger", "Direction 1"],
+      ["broadside", "Direction 2"],
+      ["dispatch", "Direction 3"],
+      ["ledger", "Direction 4"],
     ]);
   });
 
+  it("defines token blocks only for registered directions", () => {
+    const blocks = [...globalsCss.matchAll(/  html\[data-theme="([^"]+)"\] \{/g)].map((match) => match[1]);
+    expect(blocks).toEqual(THEMES.map((theme) => theme.slug));
+  });
+
   it.each([
-    ["terra-grain", "Direction 7", "dark"],
-    ["coverage", "Direction 8", "light"],
-    ["broadside", "Direction 9", "light"],
-    ["dispatch", "Direction 10", "light"],
-    ["ledger", "Direction 11", "light"],
+    ["ivory-ledger", "Direction 1", "light"],
+    ["broadside", "Direction 2", "light"],
+    ["dispatch", "Direction 3", "light"],
+    ["ledger", "Direction 4", "light"],
   ])("registers %s as %s", (slug, name, colorScheme) => {
     const entry = THEMES.find((t) => t.slug === slug);
     expect(entry).toBeDefined();
@@ -63,7 +62,7 @@ describe("theme registry", () => {
 
   // The registry and the stylesheet are two halves of one contract: a theme
   // with no token block silently renders as the default.
-  it.each(THEMES.filter((t) => t.slug !== DEFAULT_THEME).map((t) => t.slug))(
+  it.each(THEMES.map((t) => t.slug))(
     "globals.css defines a token block for %s",
     (slug) => {
       expect(globalsCss).toContain(`html[data-theme="${slug}"] {`);
@@ -72,7 +71,7 @@ describe("theme registry", () => {
 
   // A direction is more than a palette: each one must also ship scoped rules
   // (its design language) in the unlayered section, not just a token block.
-  it.each(["terra-grain", "coverage", "broadside", "dispatch", "ledger"])(
+  it.each(["ivory-ledger", "broadside", "dispatch", "ledger"])(
     "%s ships a design language beyond its token block",
     (slug) => {
       const scoped = globalsCss.match(new RegExp(`html\\[data-theme="${slug}"\\]`, "g"));
@@ -106,25 +105,37 @@ describe("applyTheme / currentTheme", () => {
   });
 
   it("sets the attribute and persists a non-default theme", () => {
-    applyTheme("terra-grain");
-    expect(document.documentElement.dataset.theme).toBe("terra-grain");
-    expect(currentTheme()).toBe("terra-grain");
-    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("terra-grain");
+    applyTheme("broadside");
+    expect(document.documentElement.dataset.theme).toBe("broadside");
+    expect(currentTheme()).toBe("broadside");
+    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("broadside");
   });
 
-  it("clears the attribute for the default theme", () => {
-    applyTheme("terra-grain");
+  it("applies the default theme attribute", () => {
+    applyTheme("broadside");
     applyTheme(DEFAULT_THEME);
-    expect(document.documentElement.dataset.theme).toBeUndefined();
+    expect(document.documentElement.dataset.theme).toBe(DEFAULT_THEME);
     expect(currentTheme()).toBe(DEFAULT_THEME);
+  });
+
+  it("rejects obsolete or unknown choices", () => {
+    applyTheme("retired-choice");
+    expect(currentTheme()).toBe(DEFAULT_THEME);
+    expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe(DEFAULT_THEME);
   });
 });
 
 describe("boot script", () => {
   it("restores a persisted theme before paint", () => {
     delete document.documentElement.dataset.theme;
-    window.localStorage.setItem(THEME_STORAGE_KEY, "terra-grain");
+    window.localStorage.setItem(THEME_STORAGE_KEY, "broadside");
     new Function(THEME_BOOT_SCRIPT)();
-    expect(document.documentElement.dataset.theme).toBe("terra-grain");
+    expect(document.documentElement.dataset.theme).toBe("broadside");
+  });
+
+  it("falls back before paint when storage holds a rejected direction", () => {
+    window.localStorage.setItem(THEME_STORAGE_KEY, "retired-choice");
+    new Function(THEME_BOOT_SCRIPT)();
+    expect(document.documentElement.dataset.theme).toBe(DEFAULT_THEME);
   });
 });

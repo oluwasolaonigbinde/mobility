@@ -26,17 +26,19 @@ describe("ThemeSwitcher", () => {
 
     const options = screen.getAllByRole("option");
     expect(options).toHaveLength(THEMES.length);
+    // The popover stays reachable at short viewport heights.
+    const popover = screen.getByRole("listbox").parentElement;
+    expect(popover).toHaveClass("overflow-y-auto", "max-h-[calc(100dvh-6rem)]");
     for (const theme of THEMES) {
       expect(screen.getByRole("option", { name: exactName(theme.name) })).toBeInTheDocument();
     }
   });
 
   it.each([
-    ["Direction 7", "terra-grain"],
-    ["Direction 8", "coverage"],
-    ["Direction 9", "broadside"],
-    ["Direction 10", "dispatch"],
-    ["Direction 11", "ledger"],
+    ["Direction 1", "ivory-ledger"],
+    ["Direction 2", "broadside"],
+    ["Direction 3", "dispatch"],
+    ["Direction 4", "ledger"],
   ])("applies %s and marks it selected", async (name, slug) => {
     const user = userEvent.setup();
     const exact = exactName(name);

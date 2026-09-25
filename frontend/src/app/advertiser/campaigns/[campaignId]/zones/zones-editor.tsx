@@ -8,7 +8,6 @@ import { TerraDrawMapLibreGLAdapter } from "terra-draw-maplibre-gl-adapter";
 import type { components } from "@/lib/api/schema";
 import {
   activeMapStyleUrl,
-  applyThemeMapTint,
   DEFAULT_CENTER,
   DEFAULT_ZOOM,
   ZONE_COLOR_VARS,
@@ -74,7 +73,6 @@ export function ZonesEditor({ campaignId, zones }: { campaignId: string; zones: 
       attributionControl: { compact: true },
     });
     map.addControl(new NavigationControl({ showCompass: false }), "top-right");
-    applyThemeMapTint(map);
     mapRef.current = map;
 
     // Terra Draw needs the style fully loaded before it can attach layers.

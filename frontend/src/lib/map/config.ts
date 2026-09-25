@@ -17,7 +17,7 @@ const LOCAL_SCHEMATIC_STYLE: StyleSpecification = {
     {
       id: "local-background",
       type: "background",
-      paint: { "background-color": "#151827" },
+      paint: { "background-color": "#efe9d8" },
     },
   ],
 };
@@ -39,49 +39,14 @@ export function basemapMode(): "configured-provider" | "local" {
   return process.env.NEXT_PUBLIC_MAP_STYLE_URL ? "configured-provider" : "local";
 }
 
-/**
- * Themes whose ground is dark but not graphite retint the basemap: stock dark
- * tiles are graphite-black, which reintroduces the exact "all black" those
- * themes exist to escape. Data layers (heatmap, zones, markers) are untouched.
- */
-const MAP_TINTS: Record<string, { background: string; water: string; land: string }> = {
-  "blue-hour": { background: "#1a2450", water: "#101940", land: "#202b5c" },
-  "terra-grain": { background: "#123309", water: "#06180d", land: "#173f10" },
-};
-
-/** Retints the base layers for the active theme. No-op on other themes. */
-export function applyThemeMapTint(map: import("maplibre-gl").Map) {
-  if (typeof document === "undefined") return;
-  const tint = MAP_TINTS[document.documentElement.dataset.theme ?? ""];
-  if (!tint) return;
-  let done = false;
-  const retint = () => {
-    if (done) return;
-    const layers = map.getStyle()?.layers;
-    if (!layers?.length) return;
-    done = true;
-    for (const layer of layers) {
-      if (layer.type === "background") {
-        map.setPaintProperty(layer.id, "background-color", tint.background);
-      } else if (layer.type === "fill" && /water|ocean/i.test(layer.id)) {
-        map.setPaintProperty(layer.id, "fill-color", tint.water);
-      } else if (layer.type === "fill" && /land|park|green/i.test(layer.id)) {
-        map.setPaintProperty(layer.id, "fill-color", tint.land);
-      }
-    }
-  };
-  if (map.isStyleLoaded()) retint();
-  else map.once("load", retint);
-}
-
 /** Abuja, Federal Capital Territory — the network's flagship city. */
 export const DEFAULT_CENTER: [number, number] = [7.4913, 9.0643];
 export const DEFAULT_ZOOM = 11;
 
 export const ZONE_COLORS = {
-  target: "#ffa62b", // amber
-  bonus: "#34e5d0", // cyan
-  exclusion: "#ff5c5c", // coral
+  target: "#a63d17", // accent
+  bonus: "#1e5f5a", // secondary
+  exclusion: "#a3271c", // danger
 } as const satisfies Record<string, string>;
 
 /** CSS-var forms for DOM elements (legend chips) — track the active theme. */
@@ -96,7 +61,7 @@ export const ZONE_COLOR_VARS = {
  * variables). Falls back to the static palette during SSR.
  */
 export function zoneColors(): Record<keyof typeof ZONE_COLORS, string> & { neutral: string } {
-  const fallback = { ...ZONE_COLORS, neutral: "#8a90a0" };
+  const fallback = { ...ZONE_COLORS, neutral: "#5c5449" };
   if (typeof document === "undefined") return fallback;
   const styles = getComputedStyle(document.documentElement);
   const read = (name: string, fb: string) => styles.getPropertyValue(name).trim() || fb;

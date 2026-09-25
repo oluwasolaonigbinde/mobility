@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { Panel } from "./panel";
 import { cx } from "@/lib/cx";
 
-/** KPI tile — mono eyebrow, Clash Display numeral, optional signal accent. */
+/** KPI tile — mono eyebrow, display numeral, optional signal accent. */
 export function Stat({
   label,
   value,

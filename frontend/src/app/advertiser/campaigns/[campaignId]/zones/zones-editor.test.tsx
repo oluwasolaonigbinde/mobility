@@ -21,7 +21,6 @@ vi.mock("terra-draw-maplibre-gl-adapter", () => ({
 }));
 vi.mock("@/lib/map/config", () => ({
   activeMapStyleUrl: () => ({ version: 8, sources: {}, layers: [] }),
-  applyThemeMapTint: vi.fn(),
   DEFAULT_CENTER: [7.49, 9.07],
   DEFAULT_ZOOM: 11,
   ZONE_COLOR_VARS: {

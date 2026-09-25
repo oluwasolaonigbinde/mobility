@@ -4,7 +4,7 @@
  * Mechanics: every theme is a set of CSS custom-property overrides scoped to
  * `html[data-theme="<slug>"]` in globals.css. Components never branch on the
  * theme; they wear token classes and the variables re-map underneath them.
- * The default ("night") is the base :root token set and uses no attribute.
+ * The default is Ivory Ledger; all four retained directions use an attribute.
  */
 export interface ThemeMeta {
   slug: string;
@@ -15,83 +15,34 @@ export interface ThemeMeta {
   swatches: [string, string, string, string];
 }
 
-export const DEFAULT_THEME = "night";
+export const DEFAULT_THEME = "ivory-ledger";
 export const THEME_STORAGE_KEY = "cardvert-theme";
 
 export const THEMES: ThemeMeta[] = [
   {
-    slug: "night",
-    name: "Direction 1",
-    tagline: "",
-    colorScheme: "dark",
-    swatches: ["#0a0b0e", "#121419", "#ffa62b", "#34e5d0"],
-  },
-  {
-    slug: "daylight-ops",
-    name: "Direction 2",
-    tagline: "",
-    colorScheme: "light",
-    swatches: ["#f3f5f8", "#ffffff", "#1e50d2", "#0f766e"],
-  },
-  {
     slug: "ivory-ledger",
-    name: "Direction 3",
+    name: "Direction 1",
     tagline: "",
     colorScheme: "light",
     swatches: ["#efe9d8", "#fbf8f0", "#a63d17", "#1e5f5a"],
   },
   {
-    slug: "blue-hour",
-    name: "Direction 4",
-    tagline: "",
-    colorScheme: "dark",
-    swatches: ["#161f47", "#1d2a58", "#ffb648", "#7ad1ff"],
-  },
-  {
-    slug: "danfo",
-    name: "Direction 5",
-    tagline: "",
-    colorScheme: "light",
-    swatches: ["#f5f1e6", "#ffffff", "#f7c400", "#17150f"],
-  },
-  {
-    slug: "hi-vis",
-    name: "Direction 6",
-    tagline: "",
-    colorScheme: "light",
-    swatches: ["#e7e5e0", "#f6f5f2", "#e04e00", "#1747d1"],
-  },
-  {
-    slug: "terra-grain",
-    name: "Direction 7",
-    tagline: "",
-    colorScheme: "dark",
-    swatches: ["#071e03", "#0e2a09", "#f2c94c", "#c8f6d0"],
-  },
-  {
-    slug: "coverage",
-    name: "Direction 8",
-    tagline: "",
-    colorScheme: "light",
-    swatches: ["#eef6ee", "#ffffff", "#256f1a", "#7a5230"],
-  },
-  {
     slug: "broadside",
-    name: "Direction 9",
+    name: "Direction 2",
     tagline: "",
     colorScheme: "light",
     swatches: ["#efeee1", "#e4e2cf", "#9c352f", "#0b1f07"],
   },
   {
     slug: "dispatch",
-    name: "Direction 10",
+    name: "Direction 3",
     tagline: "",
     colorScheme: "light",
     swatches: ["#f5f3ee", "#ffffff", "#8a5a10", "#0e2f14"],
   },
   {
     slug: "ledger",
-    name: "Direction 11",
+    name: "Direction 4",
     tagline: "",
     colorScheme: "light",
     swatches: ["#eeeae0", "#faf8f3", "#0f5c55", "#256f1a"],
@@ -100,20 +51,18 @@ export const THEMES: ThemeMeta[] = [
 
 export function applyTheme(slug: string) {
   const root = document.documentElement;
-  if (slug === DEFAULT_THEME) {
-    delete root.dataset.theme;
-  } else {
-    root.dataset.theme = slug;
-  }
+  const selected = THEMES.some((theme) => theme.slug === slug) ? slug : DEFAULT_THEME;
+  root.dataset.theme = selected;
   try {
-    window.localStorage.setItem(THEME_STORAGE_KEY, slug);
+    window.localStorage.setItem(THEME_STORAGE_KEY, selected);
   } catch {
     /* storage unavailable (private mode) — theme still applies for the session */
   }
 }
 
 export function currentTheme(): string {
-  return document.documentElement.dataset.theme ?? DEFAULT_THEME;
+  const slug = document.documentElement.dataset.theme;
+  return THEMES.some((theme) => theme.slug === slug) ? slug! : DEFAULT_THEME;
 }
 
 /**
@@ -121,6 +70,4 @@ export function currentTheme(): string {
  * first paint so a non-default theme never flashes dark. Must stay ES5-safe
  * and self-contained (it is serialized into the HTML).
  */
-export const THEME_BOOT_SCRIPT = `(function(){try{var t=localStorage.getItem(${JSON.stringify(
-  THEME_STORAGE_KEY,
-)});if(t&&t!==${JSON.stringify(DEFAULT_THEME)})document.documentElement.dataset.theme=t;}catch(e){}})();`;
+export const THEME_BOOT_SCRIPT = `(function(){var t=${JSON.stringify(DEFAULT_THEME)};try{var s=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)});if(${JSON.stringify(THEMES.map((theme) => theme.slug))}.indexOf(s)!==-1)t=s;}catch(e){}document.documentElement.dataset.theme=t;})();`;
