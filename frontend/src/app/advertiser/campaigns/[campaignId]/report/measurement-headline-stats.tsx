@@ -62,11 +62,8 @@ export function MeasurementHeadlineStats({
         />
         {exposureScore ? (
           <details className="text-faint mt-2 text-xs">
-            <summary className="cursor-pointer">Activity score technical reference</summary>
-            <p className="mt-2 break-all">
-              Named “Exposure score” in downloads · {exposureScore.formulaVersion} · formula{" "}
-              {exposureScore.formulaFingerprint} · input {exposureScore.inputFingerprint}
-            </p>
+            <summary className="cursor-pointer">About this score</summary>
+            <p className="mt-2">Named “Exposure score” in downloads.</p>
           </details>
         ) : null}
       </div>
@@ -87,7 +84,7 @@ export function MeasurementHeadlineStats({
           }`}
         />
         <details className="text-faint mt-2 text-xs">
-          <summary className="cursor-pointer">Exposure estimate technical reference</summary>
+          <summary className="cursor-pointer">About this estimate</summary>
           <p className="mt-2">
             Named “Modelled potential contacts” in downloads · estimate quality factor{" "}
             {formatScore(modelDiagnostic)} (not a statistical confidence level)

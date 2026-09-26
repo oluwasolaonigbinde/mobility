@@ -63,7 +63,7 @@ function mockReadyRecommendation(exportApprovalId: string | null) {
         segment_id: SEGMENT_ID,
         campaign_id: CAMPAIGN_ID,
         recommendations: [],
-        provenance: null,
+        provenance: { segment_version: 3, segment_snapshot_sha256: "c".repeat(64) },
         disclaimer: "Aggregate disclaimer",
         uncertainty: "Model uncertainty",
         export_approval_id: exportApprovalId,
@@ -97,15 +97,14 @@ describe("PlanningSourcesPage", () => {
     expect(screen.queryByTestId("planning-source-link-form")).not.toBeInTheDocument();
   });
 
-  it("describes a declared audience in plain words and keeps its fingerprint collapsed", async () => {
+  it("describes a declared audience in plain words without showing its fingerprint", async () => {
     mockReadyRecommendation(null);
 
-    render(await PlanningSourcesPage());
+    const { container } = render(await PlanningSourcesPage());
 
     expect(screen.getByRole("heading", { name: "Other insight you describe" })).toBeInTheDocument();
     expect(screen.getByText("In use")).toBeInTheDocument();
-    const fingerprint = screen.getByText(/Record fingerprint a{64}/);
-    expect(fingerprint.closest("details")).not.toHaveAttribute("open");
+    expect(container.textContent).not.toMatch(/a{64}|c{64}|fingerprint|Technical reference/i);
   });
 
   it("does not render stale targeting cells or governed provenance", async () => {

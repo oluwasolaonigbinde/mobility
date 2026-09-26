@@ -125,7 +125,7 @@ describe("resilient advertiser overview", () => {
     expect(
       screen.getByText("Calculated driver pay; your invoice is shown in Billing."),
     ).toBeInTheDocument();
-    expect(screen.getByText("Trip integrity checks awaiting Cardvert review")).toBeInTheDocument();
+    expect(screen.getByText("Trip checks waiting for Terrax Media to review")).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(
       /potential contacts|confidence|diagnostic|aggregate measurement|billable inventory/i,
     );

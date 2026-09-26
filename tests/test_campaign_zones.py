@@ -8,6 +8,7 @@ from conftest import (
     create_test_organization,
     create_test_user,
     fetch_audit_events,
+    make_test_campaign_reviewable,
 )
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -692,6 +693,10 @@ def test_zone_mutation_lock_precedes_submission_snapshot(
         postgis_db_sessionmaker,
         email=f"zone-lock-{operation}@example.com",
     )
+    # D38(d): an existing target area, dates and budget make the campaign reviewable.
+    make_test_campaign_reviewable(
+        postgis_db_sessionmaker, campaign_id=campaign.id, created_by_user_id=advertiser.id
+    )
 
     async def seed_zone() -> UUID | None:
         if operation == "create":
@@ -798,7 +803,7 @@ def test_zone_mutation_lock_precedes_submission_snapshot(
                     CampaignZone.campaign_id == campaign.id
                 )
             )
-            assert zone_count == (1 if operation in {"create", "update"} else 0)
+            assert zone_count == (2 if operation in {"create", "update"} else 1)
             if operation == "update":
                 updated = await session.get(CampaignZone, zone_id)
                 assert updated is not None and updated.name == "Admitted update"
@@ -815,6 +820,10 @@ def test_submission_winner_freezes_zone_mutation_without_zone_change(
     advertiser, _, campaign = create_advertiser_campaign(
         postgis_db_sessionmaker,
         email=f"zone-frozen-{operation}@example.com",
+    )
+    # D38(d): an existing target area, dates and budget make the campaign reviewable.
+    make_test_campaign_reviewable(
+        postgis_db_sessionmaker, campaign_id=campaign.id, created_by_user_id=advertiser.id
     )
 
     async def scenario() -> UUID | None:
@@ -885,9 +894,9 @@ def test_submission_winner_freezes_zone_mutation_without_zone_change(
                     )
                 ).all()
             )
-            assert len(zones) == (0 if operation == "create" else 1)
+            assert len(zones) == (1 if operation == "create" else 2)
             if operation != "create":
-                assert zone_id is not None and zones[0].id == zone_id
-                assert zones[0].name == "Lagos Island Target Zone"
+                seeded = next(zone for zone in zones if zone.id == zone_id)
+                assert seeded.name == "Lagos Island Target Zone"
 
     asyncio.run(verify())

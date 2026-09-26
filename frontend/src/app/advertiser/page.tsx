@@ -67,7 +67,7 @@ export default async function AdvertiserOverviewPage() {
             label="Open fraud flags"
             value={formatCount(openFlags)}
             tone={openFlags !== undefined && openFlags > 0 ? "coral" : "green"}
-            hint="Trip integrity checks awaiting Cardvert review"
+            hint="Trip checks waiting for Terrax Media to review"
           />
         </div>
       ) : (

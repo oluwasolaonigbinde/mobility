@@ -45,6 +45,59 @@ describe("CampaignPreparationSummary", () => {
     expect(screen.getByText("Changes required")).toBeInTheDocument();
   });
 
+  it("lists what an unsubmitted campaign still needs before review (D38d)", () => {
+    const { rerender } = render(
+      <CampaignPreparationSummary
+        campaign={campaign}
+        commercial={commercial}
+        creatives={[]}
+        targetAreas={0}
+      />,
+    );
+    expect(
+      screen.getByText(
+        "Before you can submit for review, add start and end dates, a total budget and a target area.",
+      ),
+    ).toBeInTheDocument();
+
+    const complete = {
+      ...campaign,
+      start_at: "2026-10-01T08:00:00Z",
+      end_at: "2026-10-31T17:00:00Z",
+      budget_amount: "5000.00",
+    } as Campaign;
+    rerender(
+      <CampaignPreparationSummary
+        campaign={complete}
+        commercial={commercial}
+        creatives={[]}
+        targetAreas={1}
+      />,
+    );
+    expect(screen.queryByText(/Before you can submit/)).not.toBeInTheDocument();
+
+    // An unreadable area count is not reported as missing; submitted campaigns show nothing.
+    rerender(
+      <CampaignPreparationSummary
+        campaign={{ ...complete, budget_amount: "0" } as Campaign}
+        commercial={commercial}
+        creatives={[]}
+      />,
+    );
+    expect(
+      screen.getByText("Before you can submit for review, add a total budget."),
+    ).toBeInTheDocument();
+    rerender(
+      <CampaignPreparationSummary
+        campaign={{ ...campaign, status: "pending_review" } as Campaign}
+        commercial={commercial}
+        creatives={[]}
+        targetAreas={0}
+      />,
+    );
+    expect(screen.queryByText(/Before you can submit/)).not.toBeInTheDocument();
+  });
+
   it("withholds a readiness conclusion when one source is unavailable", () => {
     render(<CampaignPreparationSummary campaign={campaign} commercial={commercial} />);
     expect(screen.getByText(/not showing a readiness conclusion/)).toBeInTheDocument();
@@ -85,7 +138,7 @@ describe("CampaignPreparationSummary", () => {
       status: "draft",
       facts: { ...commercial, quote_request: { id: "q1" } } as unknown as Commercial,
       creatives: [],
-      action: "Wait for Cardvert to post the quotation for review.",
+      action: "Wait for Terrax Media to post the quotation for review.",
       quote: "Being prepared",
       artwork: "Not added",
     },
@@ -112,7 +165,7 @@ describe("CampaignPreparationSummary", () => {
       status: "draft",
       facts: accepted,
       creatives: [{ status: "approved" }, { status: "draft" }] as Creative[],
-      action: "Submit each draft artwork file for Cardvert review.",
+      action: "Submit each draft artwork file for Terrax Media to review.",
       quote: "Accepted",
       artwork: "Submit for review",
     },
@@ -121,7 +174,7 @@ describe("CampaignPreparationSummary", () => {
       status: "draft",
       facts: accepted,
       creatives: [{ status: "pending_review" }] as Creative[],
-      action: "Wait for Cardvert to finish the artwork review.",
+      action: "Wait for Terrax Media to finish the artwork review.",
       quote: "Accepted",
       artwork: "Under review",
     },
@@ -130,7 +183,7 @@ describe("CampaignPreparationSummary", () => {
       status: "draft",
       facts: accepted,
       creatives: approved,
-      action: "Wait for Cardvert to confirm your payment or agreed credit.",
+      action: "Wait for Terrax Media to confirm your payment or agreed credit.",
       quote: "Accepted",
       artwork: "Approved",
     },
@@ -139,7 +192,7 @@ describe("CampaignPreparationSummary", () => {
       status: "draft",
       facts: funded,
       creatives: [{ status: "approved" }, { status: "archived" }] as Creative[],
-      action: "Submit the completed campaign for Cardvert review.",
+      action: "Submit the completed campaign for Terrax Media to review.",
       quote: "Accepted",
       artwork: "Not ready",
     },
@@ -157,14 +210,19 @@ describe("CampaignPreparationSummary", () => {
   });
 
   it.each([
-    ["pending_review", "Wait for Cardvert to finish campaign review.", "Pending review", false],
+    [
+      "pending_review",
+      "Wait for Terrax Media to finish the campaign review.",
+      "Pending review",
+      false,
+    ],
     [
       "active",
-      "This campaign is live. Results appear on the Campaign Performance Analysis page once Cardvert issues a report.",
+      "This campaign is live. Results appear on the Campaign Performance Analysis page once Terrax Media issues a report.",
       "Live",
       true,
     ],
-    ["paused", "This campaign is paused. Cardvert decides when it can resume.", "Paused", true],
+    ["paused", "This campaign is paused. Terrax Media decides when it can resume.", "Paused", true],
     [
       "completed",
       "This campaign has finished. Its report appears on the Campaign Performance Analysis page once issued.",
@@ -174,7 +232,7 @@ describe("CampaignPreparationSummary", () => {
     ["cancelled", "This campaign is cancelled; no new work can start.", "Cancelled", true],
     [
       "approved",
-      "Cardvert now arranges drivers, installation and the start date.",
+      "Terrax Media now arranges drivers, installation and the start date.",
       "Approved",
       false,
     ],

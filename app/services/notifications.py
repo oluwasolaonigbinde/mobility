@@ -429,24 +429,46 @@ async def create_driver_business_notification(
 async def create_budget_policy_notices(
     session: AsyncSession, *, campaign: Campaign, evaluation: BudgetPolicyEvaluation
 ) -> list[Notification]:
-    if evaluation.state == "alert_threshold":
-        type_key = NotificationType.BUDGET_ALERT
-    elif evaluation.state == "pause_threshold":
-        type_key = NotificationType.CAMPAIGN_BUDGET_PAUSED
-    else:
+    type_key = {
+        "alert_threshold": NotificationType.BUDGET_ALERT,
+        "urgent_threshold": NotificationType.BUDGET_URGENT_ALERT,
+        "pause_threshold": NotificationType.CAMPAIGN_BUDGET_PAUSED,
+    }.get(evaluation.state)
+    if type_key is None:
         return []
-    return await create_advertiser_business_notifications(
+    event_key = f"budget:{evaluation.state}:v1:{evaluation.id}"
+    payload = {
+        "campaign_id": str(campaign.id),
+        "budget_evaluation_id": str(evaluation.id),
+        "budget_state": evaluation.state,
+        "currency": evaluation.currency,
+    }
+    notices = await create_advertiser_business_notifications(
         session,
         advertiser_organization_id=campaign.organization_id,
         type_key=type_key,
-        event_key=f"budget:{evaluation.state}:v1:{evaluation.id}",
-        payload={
-            "campaign_id": str(campaign.id),
-            "budget_evaluation_id": str(evaluation.id),
-            "budget_state": evaluation.state,
-            "currency": evaluation.currency,
-        },
+        event_key=event_key,
+        payload=payload,
     )
+    # Terrax Media admins are told too (client answer #3), in the app only.
+    admins = list(
+        await session.scalars(
+            select(User.id)
+            .where(User.role == UserRole.ADMIN.value, User.status == UserStatus.ACTIVE.value)
+            .order_by(User.id)
+        )
+    )
+    for admin_id in admins:
+        notices.append(
+            await create_notification(
+                session,
+                recipient_user_id=admin_id,
+                type_key=type_key,
+                payload=payload,
+                dedupe_key=f"{event_key}:in_app",
+            )
+        )
+    return notices
 
 
 async def create_budget_resume_notices(

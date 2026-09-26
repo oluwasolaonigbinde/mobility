@@ -33,6 +33,7 @@ class NotificationType(StrEnum):
     QUOTATION_READY = "quotation_ready"
     FUNDING_CONFIRMED = "funding_confirmed"
     BUDGET_ALERT = "budget_alert"
+    BUDGET_URGENT_ALERT = "budget_urgent_alert"
     CAMPAIGN_BUDGET_PAUSED = "campaign_budget_paused"
     CAMPAIGN_BUDGET_RESUMED = "campaign_budget_resumed"
     CAMPAIGN_CANCELLED = "campaign_cancelled"

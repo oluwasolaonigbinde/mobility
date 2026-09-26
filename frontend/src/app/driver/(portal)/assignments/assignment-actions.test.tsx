@@ -64,7 +64,7 @@ describe("AssignmentActions", () => {
     );
   });
 
-  it("shows accepted offers as awaiting admin activation", () => {
+  it("shows accepted offers as waiting for Terrax Media to start them", () => {
     render(
       <AssignmentActions
         assignmentId={ASSIGNMENT_ID}
@@ -73,7 +73,7 @@ describe("AssignmentActions", () => {
       />,
     );
 
-    expect(screen.getByText("Awaiting admin activation.")).toBeInTheDocument();
+    expect(screen.getByText("Waiting for Terrax Media to start this job.")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /activate/i })).not.toBeInTheDocument();
   });
 

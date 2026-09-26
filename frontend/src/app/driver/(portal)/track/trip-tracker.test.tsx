@@ -234,12 +234,12 @@ describe("plain evidence delivery status", () => {
 });
 
 describe("assignment activation authority", () => {
-  it("tells the driver to wait for admin activation", () => {
+  it("tells the driver to wait for Terrax Media to start the job", () => {
     pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
     render(<TripTracker assignment={null} initialTrip={null} driverId={DRIVER_ID} />);
 
     expect(screen.getByText("Set up this phone")).toBeInTheDocument();
-    expect(screen.getByText(/wait for admin activation/i)).toBeInTheDocument();
+    expect(screen.getByText(/wait for Terrax Media to start it/i)).toBeInTheDocument();
     expect(screen.queryByText(/accept and activate/i)).not.toBeInTheDocument();
   });
 

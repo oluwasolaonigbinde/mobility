@@ -124,6 +124,15 @@ export default async function CampaignDetailPage({
       ),
     ]);
 
+  // D38(d): count target areas directly — the summary can be privacy-gated.
+  const targetAreasResult =
+    campaign.status === "draft" || campaign.status === "rejected"
+      ? await loadAdvertiserPageData(() =>
+          api.GET("/api/v1/advertiser/campaigns/{campaign_id}/zones", {
+            params: { path: { campaign_id: campaignId }, query: { zone_type: "target", limit: 1 } },
+          }),
+        )
+      : undefined;
   const summary = summaryResult.available ? summaryResult.data : undefined;
   const creatives = creativesResult.available ? creativesResult.data : undefined;
   const reviewHistory = historyResult.available ? historyResult.data : undefined;
@@ -206,6 +215,7 @@ export default async function CampaignDetailPage({
         campaign={campaign}
         commercial={commercialResult.available ? commercialResult.data : undefined}
         creatives={creativesResult.available ? creativeItems : undefined}
+        targetAreas={targetAreasResult?.available ? targetAreasResult.data.total : undefined}
       />
 
       {summaryResult.available ? (
@@ -238,7 +248,7 @@ export default async function CampaignDetailPage({
             label="Fraud flags"
             value={formatCount(summary?.fraud_flags.open)}
             tone={(summary?.fraud_flags.open ?? 0) > 0 ? "coral" : "green"}
-            hint="Trip integrity checks awaiting Cardvert review"
+            hint="Trip checks waiting for Terrax Media to review"
           />
         </div>
       ) : (
@@ -322,11 +332,6 @@ export default async function CampaignDetailPage({
                   {event.rejection_reason ? (
                     <p className="text-coral mt-2 text-sm">Reason: {event.rejection_reason}</p>
                   ) : null}
-                  {event.reviewed_snapshot_sha256 ? (
-                    <p className="micro text-faint mt-2 font-mono break-all">
-                      Submission reference: {event.reviewed_snapshot_sha256}
-                    </p>
-                  ) : null}
                 </li>
               ))}
             </ol>
@@ -396,7 +401,7 @@ export default async function CampaignDetailPage({
             </div>
             {creativeItems.length === 0 ? (
               <p className="text-muted px-6 py-10 text-center text-sm">
-                No artwork yet. Add the files Cardvert should review for this campaign.
+                No artwork yet. Add the files Terrax Media should review for this campaign.
               </p>
             ) : (
               <ul className="divide-edge/60 divide-y">

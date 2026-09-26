@@ -291,7 +291,7 @@ Current OpenAPI: **280 operations across 251 paths**; **279 operations under `/a
 | `/health` | 1 | 1 |
 
 SQLAlchemy metadata contains **123 mapped tables**.
-Alembic contains **90 linear revisions**, from base `0001_enable_extensions` to the single head `0090_single_active_advertiser_membership`.
+Alembic contains **91 linear revisions**, from base `0001_enable_extensions` to the single head `0091_budget_urgent_threshold`.
 
 Required public driver-onboarding paths:
 
@@ -620,7 +620,7 @@ Notes:
 
 ### 7.2 Migration policy **[BUILT]**
 
-- Alembic has **90 linear revisions**, from base `0001_enable_extensions` to the single head `0090_single_active_advertiser_membership`.
+- Alembic has **91 linear revisions**, from base `0001_enable_extensions` to the single head `0091_budget_urgent_threshold`.
   <!-- verified by scripts/update_architecture_inventory.py from Alembic's ScriptDirectory -->
 - `0001` enables `pgcrypto` + `postgis`.
 - Shipped migrations are frozen history: schema changes come as **new**
@@ -1987,13 +1987,14 @@ channel adapter; its concrete provider/account remains an external parameter.
   disabled. W2-04B consults this preference before email delivery.
 - Built business triggers use stable source-event keys for assignment offered/
   accepted, campaign approval and rejection, creative approval and rejection,
-  in-platform quotation readiness, confirmed funding, budget alert/pause/resume,
+  in-platform quotation readiness, confirmed funding, budget warning/urgent/pause/resume,
   cancellation, evidence challenge/verification, fraud outcomes and payout
   release. Review payloads carry identifiers only; rejection reasons stay on
   the review event and are read in the product. Advertiser events create mandatory in-app rows plus the existing
   preference-governed email row; driver events create in-app rows and, only
   when current verified-phone consent permits it, a separate audited manual
-  contact task. No business service contacts a provider inline.
+  contact task. Budget warning, urgent and pause notices also create in-app rows for
+  every active admin (v1.97). No business service contacts a provider inline.
 
 ### 20.3 Pilot phone verification and WhatsApp consent
 
@@ -2358,7 +2359,8 @@ aggregates only, k-floor rules of §22.2 apply to any zone-level display.
   contract:** ADR 014 (`docs/adr/014-production-pwa-capability-contract.md`)
   freezes the `r14-a-v1` capability contract, candidate device matrix,
   fail-closed Start/capture/End gates and `active|degraded|stopped`
-  vocabulary, with the executable authenticated `/driver/capabilities` probe;
+  vocabulary, with the executable authenticated `/driver/capabilities?view=support`
+  probe (drivers see a plain Phone check at `/driver/capabilities`, D38(b));
   probe evidence is capability-only (`activeTrip`/held-lock state gate any
   runtime claim). D23 separates this executable build contract from still-unrun
   real-world validation: R14-A closes only when its automated capability,
@@ -3108,6 +3110,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.97 | 2026-09-26 | **Batch A: D38 product fixes and client-answered configuration (direct-owner pass, 25 Sep 2026).** D38(a) signed-in copy names Terrax Media for person actions and uses "Nigeria time (WAT)"; D38(b) `/driver/capabilities` is a plain driver Phone check, with the unchanged R14-A probe on the unlinked `?view=support`; D38(c) hashes, run IDs and fingerprints leave advertiser and driver screens (staff screens and downloads keep them); D38(d) `submit_campaign_for_review` refuses a campaign without start/end dates, a positive total budget or a target zone (`CAMPAIGN_INCOMPLETE_FOR_REVIEW`, 409, `details.missing`); D38(e) the admin home is a "Waiting for you" queue grouped by department over existing list endpoints (no new role or API). Budget enforcement gains an optional urgent level between warning and pause (migration `0091`, `urgent_threshold_amount`, state `urgent_threshold`, `BUDGET_URGENT_RATIO` in the complete fail-closed set; two-level evaluation keys unchanged) and budget notices also reach active admins in the app. The client photo policy (front/back/left/right/close-up, driver or admin, 168 h) is in the release templates, and the driver photo policy no longer waits for the separate display-proof windows. Uploads follow a per-purpose policy (identity 10 MB; vehicle documents and photos 20 MB; installation photos 20 MB; artwork 25 MB) replacing the shared 25 MB rule. All three §9 baselines moved together. |
 | v1.96 | 2026-09-24 | Client direction reduction: remove former product directions 1, 2, 4–8 and their CSS/font/asset paths; retain former 3, 9, 10, 11 as Directions 1–4. Ivory Ledger is the default and obsolete persisted choices fall back to it. Public marketing styling and live-use gates are unchanged. |
 | v1.95 | 2026-09-23 | **Post-theft reconciliation fixes CV-01–CV-17.** D29 moves to BUILT with migration `0090`'s active-membership partial unique index, fail-closed membership consumers and a refusing upgrade for existing conflicts. Lookup-only disbursement claims no longer require historical batch actors to remain active admins, while new submissions still do. Admin evidence verifications accept an optional `verification_type` filter, and advertisers receive notifications for campaign rejection, creative decisions and in-platform quotations (additive enum values; all three §9 baselines moved together). Advertiser draft/rejected campaigns are editable through the existing PATCH, and campaign window inputs are interpreted as Lagos time at creation and edit, matching mid-flight changes. Report cohort costs index the ledger by trip with identical results. No provider call, deployment, live-use gate or product decision changes. |
 | v1.94 | 2026-09-16 | **Public-root and design-direction integration.** The reviewed Terrax company landing design becomes Cardvert's public `/` front door with isolated `terrax-*` tokens. Driver conversion enters `/apply`, existing users enter `/login`, and advertiser acquisition remains enquiry-led because public advertiser signup is out of scope. The former `/landing` URL redirects to `/`. Product Directions 10 Dispatch and 11 Ledger join the existing switcher without changing directions 1–9, auth/role homes, APIs or provider/live-use gates. |

@@ -94,6 +94,7 @@ class BudgetPolicyEvaluationState(StrEnum):
     BLOCKED_EXTERNAL_POLICY = "blocked_external_policy"
     WITHIN_BUDGET = "within_budget"
     ALERT_THRESHOLD = "alert_threshold"
+    URGENT_THRESHOLD = "urgent_threshold"
     PAUSE_THRESHOLD = "pause_threshold"
 
 
@@ -990,8 +991,17 @@ class BudgetPolicyEvaluation(Base):
     __table_args__ = (
         CheckConstraint(
             "state IN ('blocked_external_policy', 'within_budget', "
-            "'alert_threshold', 'pause_threshold')",
+            "'alert_threshold', 'urgent_threshold', 'pause_threshold')",
             name="ck_budget_policy_evaluations_state",
+        ),
+        CheckConstraint(
+            "(state = 'blocked_external_policy' AND urgent_threshold_amount IS NULL) OR "
+            "(state NOT IN ('blocked_external_policy', 'urgent_threshold') "
+            "AND urgent_threshold_amount IS NULL) OR "
+            "(state <> 'blocked_external_policy' AND urgent_threshold_amount IS NOT NULL "
+            "AND urgent_threshold_amount > alert_threshold_amount "
+            "AND urgent_threshold_amount < pause_threshold_amount)",
+            name="ck_budget_policy_evaluations_urgent",
         ),
         CheckConstraint(
             "(state = 'blocked_external_policy' AND external_gate = 'EXT-BUDGET-POLICY') OR "
@@ -1044,6 +1054,7 @@ class BudgetPolicyEvaluation(Base):
     billing_fact_source: Mapped[str | None] = mapped_column(String(32))
     billing_spend_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     alert_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    urgent_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     pause_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     resume_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     alert_applied: Mapped[bool] = mapped_column(

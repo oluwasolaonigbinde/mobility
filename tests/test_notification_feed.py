@@ -31,7 +31,7 @@ PASSWORD = "long-secure-password"
             NotificationType.ACTIVITY_FLOOR_BREACHED,
             "Verified activity below floor",
             "Your verified activity was below the configured weekly floor. "
-            "Operations will review the assignment.",
+            "Terrax Media will review the assignment.",
         ),
         (
             NotificationType.ACTIVITY_FLOOR_RECOVERED,
@@ -42,13 +42,23 @@ PASSWORD = "long-secure-password"
             NotificationType.ASSIGNMENT_INACTIVE,
             "Assignment inactive",
             "No verified activity was recorded for this assignment for seven "
-            "consecutive days. Operations will review it.",
+            "consecutive days. Terrax Media will review it.",
         ),
         (
             NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED,
             "Assignment activity resumed",
-            "Verified activity resumed for this assignment. The operations flag "
-            "has been recovered.",
+            "Verified activity resumed for this assignment, so the activity flag "
+            "has been cleared.",
+        ),
+        (
+            NotificationType.BUDGET_URGENT_ALERT,
+            "Campaign budget nearly used",
+            "A campaign has almost used its budget and will pause when it runs out.",
+        ),
+        (
+            NotificationType.CAMPAIGN_BUDGET_RESUMED,
+            "Campaign resumed",
+            "Terrax Media resumed a campaign that was paused for budget.",
         ),
     ],
 )

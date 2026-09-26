@@ -13,7 +13,7 @@ export const correctionOrderFormSchema = z.object({
   lagos_day: z
     .string()
     .trim()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, "Pick the Lagos day to correct"),
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "Pick the day to correct"),
   reason: z.string().trim(),
 });
 

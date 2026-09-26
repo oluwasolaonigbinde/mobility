@@ -404,6 +404,7 @@ class BudgetEvaluationRead(ORMRead):
     billing_fact_source: str | None
     billing_spend_amount: Decimal | None
     alert_threshold_amount: Decimal | None
+    urgent_threshold_amount: Decimal | None
     pause_threshold_amount: Decimal | None
     resume_threshold_amount: Decimal | None
     alert_applied: bool

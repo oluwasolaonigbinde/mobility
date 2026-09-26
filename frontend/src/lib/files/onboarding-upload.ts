@@ -38,12 +38,24 @@ async function waitForClean(accessToken: string, fileId: string): Promise<void> 
   throw new Error("Document security checks are still pending. Try again shortly.");
 }
 
+// Mirrors the server's per-purpose upload policy (client answer #12).
+const ONBOARDING_UPLOAD_POLICY = {
+  driver_kyc: { maxBytes: 10 * 1024 * 1024, label: "Identity documents" },
+  vehicle_evidence: { maxBytes: 20 * 1024 * 1024, label: "Vehicle documents and photos" },
+} as const;
+const DOCUMENT_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
+
 export async function uploadOnboardingFile(
   accessToken: string,
   file: File,
   clientRequestId: string,
   purpose: "driver_kyc" | "vehicle_evidence",
 ): Promise<string> {
+  const policy = ONBOARDING_UPLOAD_POLICY[purpose];
+  if (!DOCUMENT_TYPES.has(file.type)) throw new Error("Choose a PDF, JPEG, PNG or WebP file.");
+  if (file.size <= 0 || file.size > policy.maxBytes) {
+    throw new Error(`${policy.label} must be no bigger than ${policy.maxBytes / 1024 / 1024} MB.`);
+  }
   const response = await fetch("/api/apply/onboarding/uploads", {
     method: "POST",
     headers: { "content-type": "application/json" },

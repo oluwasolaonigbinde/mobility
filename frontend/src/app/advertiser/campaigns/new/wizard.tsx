@@ -224,7 +224,7 @@ export function CampaignWizard({
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="c-start" className={labelClass}>
-                  Starts (Lagos time)
+                  Starts, Nigeria time (WAT)
                 </label>
                 <input
                   id="c-start"
@@ -238,7 +238,7 @@ export function CampaignWizard({
               </div>
               <div>
                 <label htmlFor="c-end" className={labelClass}>
-                  Ends (Lagos time)
+                  Ends, Nigeria time (WAT)
                 </label>
                 <input
                   id="c-end"
@@ -290,6 +290,10 @@ export function CampaignWizard({
               <p className="text-muted mt-1">
                 Nothing is sent for review yet. On the campaign page you can add campaign areas
                 (zones), request a quotation, and press Submit for review when it&apos;s ready.
+              </p>
+              <p className="text-muted mt-1">
+                To submit for review, the campaign needs start and end dates, a total budget and at
+                least one target area. You can save a draft without them.
               </p>
             </div>
           </div>

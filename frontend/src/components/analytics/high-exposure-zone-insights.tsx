@@ -8,7 +8,7 @@ type Insight = components["schemas"]["HighExposureZoneInsightsRead"];
 const stateCopy: Record<Exclude<Insight["state"], "ready">, string> = {
   empty: "No zone ranking is available for this report yet.",
   suppressed: "Zone rankings are not shown because there is too little data to protect privacy.",
-  stale: "This zone ranking is out of date. Cardvert needs to issue a new ranking.",
+  stale: "This zone ranking is out of date. Terrax Media needs to issue a new ranking.",
   unavailable: "A zone ranking is unavailable for this report.",
 };
 
@@ -69,7 +69,8 @@ export function HighExposureZoneInsights({
             Campaign activity score: {insight.campaign_exposure_score ?? "—"} / 100 · a separate,
             uncalibrated index (named “Exposure score” in downloads)
           </p>
-          {insight.provenance ? (
+          {/* D38(c): run and fingerprint references appear on staff screens only. */}
+          {insight.provenance && surface === "admin" ? (
             <details className="micro text-faint mt-2 font-mono break-all">
               <summary className="cursor-pointer font-sans">
                 Zone ranking technical reference
@@ -79,23 +80,19 @@ export function HighExposureZoneInsights({
                 {insight.provenance.formula_fingerprint.slice(0, 12)}… · run{" "}
                 {insight.provenance.measurement_run_id}
               </p>
-              {surface === "admin" ? (
-                <>
-                  <p className="mt-1">
-                    score {insight.provenance.exposure_score_id} · exposure{" "}
-                    {insight.provenance.exposure_formula_version} · formula{" "}
-                    {insight.provenance.exposure_formula_fingerprint.slice(0, 12)}… · input{" "}
-                    {insight.provenance.exposure_input_fingerprint.slice(0, 12)}…
-                  </p>
-                  {insight.provenance.source_segments.map((segment) => (
-                    <p key={segment.segment_id} className="mt-1">
-                      segment {segment.segment_id} · version {segment.segment_version} · snapshot{" "}
-                      {segment.segment_snapshot_sha256.slice(0, 12)}… · reissue of{" "}
-                      {segment.reissue_of_segment_id ?? "original"}
-                    </p>
-                  ))}
-                </>
-              ) : null}
+              <p className="mt-1">
+                score {insight.provenance.exposure_score_id} · exposure{" "}
+                {insight.provenance.exposure_formula_version} · formula{" "}
+                {insight.provenance.exposure_formula_fingerprint.slice(0, 12)}… · input{" "}
+                {insight.provenance.exposure_input_fingerprint.slice(0, 12)}…
+              </p>
+              {insight.provenance.source_segments.map((segment) => (
+                <p key={segment.segment_id} className="mt-1">
+                  segment {segment.segment_id} · version {segment.segment_version} · snapshot{" "}
+                  {segment.segment_snapshot_sha256.slice(0, 12)}… · reissue of{" "}
+                  {segment.reissue_of_segment_id ?? "original"}
+                </p>
+              ))}
             </details>
           ) : null}
           {insight.uncertainty ? (

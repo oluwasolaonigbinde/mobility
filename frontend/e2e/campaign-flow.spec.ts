@@ -142,7 +142,9 @@ test("login rejects bad credentials without leaking detail", async ({ page }) =>
   expect(page.url()).toContain("/login");
 });
 
-test("campaign submission and admin approval preserve immutable review history", async ({ page }) => {
+test("campaign submission and admin approval preserve immutable review history", async ({
+  page,
+}) => {
   test.setTimeout(60_000);
   const name = `E2E Campaign ${randomUUID()}`;
   let campaignId: string | undefined;
@@ -154,8 +156,10 @@ test("campaign submission and admin approval preserve immutable review history",
     await page.getByRole("link", { name: "+ New campaign" }).click();
     await page.waitForURL("**/advertiser/campaigns/new");
 
-    // Step 1 — basics (leave dates empty: draft campaigns don't need them)
+    // Step 1 — basics. D38(d): review needs dates, a total budget and a target area.
     await page.getByLabel("Campaign name *").fill(name);
+    await page.getByLabel("Starts, Nigeria time (WAT)").fill("2027-01-10T09:00");
+    await page.getByLabel("Ends, Nigeria time (WAT)").fill("2027-02-10T18:00");
     await page.getByLabel(/Total budget/).fill("1500000");
     await page.getByRole("button", { name: "Continue →" }).click();
 
@@ -191,9 +195,41 @@ test("campaign submission and admin approval preserve immutable review history",
     await expect(page.getByRole("button", { name: /launch|schedule|activate/i })).not.toBeVisible();
     await expect(page.getByRole("button", { name: "Request custom quotation" })).toBeVisible();
 
+    // Zone drawing is covered by the zones editor tests; add the target area through the API.
+    const session = (await page.context().cookies()).find(
+      (cookie) => cookie.name === (process.env.SESSION_COOKIE_NAME ?? "mobility_session"),
+    );
+    expect(session, "advertiser login must set the session cookie").toBeTruthy();
+    const apiBase = process.env.E2E_API_BASE_URL ?? "http://localhost:8000";
+    const zone = await page.request.post(
+      `${apiBase}/api/v1/advertiser/campaigns/${campaignId}/zones`,
+      {
+        headers: { Authorization: `Bearer ${session!.value}` },
+        data: {
+          name: "E2E target area",
+          zone_type: "target",
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [3.3, 6.4],
+                [3.5, 6.4],
+                [3.5, 6.6],
+                [3.3, 6.6],
+                [3.3, 6.4],
+              ],
+            ],
+          },
+        },
+      },
+    );
+    expect(zone.ok(), "target area setup must succeed").toBe(true);
+    await page.reload();
+
     await page.getByRole("button", { name: "Submit for review" }).click();
-    await expect(page.getByText("Under admin review")).toBeVisible();
-    await expect(page.getByText(/^Submission reference: [a-f0-9]{64}$/)).toBeVisible();
+    await expect(page.getByText(/With Terrax Media for review/)).toBeVisible();
+    // D38(c): the submission fingerprint is no longer shown to advertisers.
+    await expect(page.getByText(/Submission reference/)).not.toBeVisible();
 
     await loginAsAdmin(page);
     await page.goto("/admin/approvals");

@@ -99,6 +99,8 @@ describe("ReportIssuancePanel", () => {
     );
     expect(screen.getByRole("link", { name: /download pdf/i })).toBeInTheDocument();
     expect(screen.queryByText(/return on investment|\broi\b/i)).not.toBeInTheDocument();
+    // D38(c): the downloaded files carry their checksums; the screen does not.
+    expect(document.body.textContent).not.toMatch(/a{12}|b{12}/);
   });
 
   it("replays a persisted lost-response request with the same client identity", async () => {

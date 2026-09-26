@@ -32,7 +32,7 @@ export function NewOrderForm({ campaigns }: { campaigns: { id: string; name: str
         </div>
         <div className="flex flex-col gap-1.5">
           <label htmlFor="co-day" className="micro text-muted">
-            Lagos day
+            Day, Nigeria time (WAT)
           </label>
           <input
             id="co-day"

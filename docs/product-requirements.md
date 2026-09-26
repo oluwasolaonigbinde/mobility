@@ -264,7 +264,7 @@ training and handover.
   **Implemented.**
 - **A-12** The advertiser submits a completed draft for Terrax Media review.
   While under review the campaign details are frozen. A rejected campaign
-  shows the rejection reason and can be resubmitted. **Implemented.** A
+  shows the rejection reason and can be resubmitted. A campaign can't be submitted without start and end dates, a total budget and at least one target area (D38). **Implemented.** A
   dedicated screen for editing general campaign details after rejection is
   **Not confirmed**.
 - **A-13** The campaign page must show a preparation summary with the next
@@ -285,8 +285,8 @@ training and handover.
   to private storage, are checked for size and type, and must pass a malware
   scan before they can be reviewed. The upload shows its progress and gives a
   retry path on failure. **Implemented · Gated (G-09, G-10)** for production
-  storage and scanner. Allowed file types and sizes await client approval
-  (G-22).
+  storage and scanner. File types and sizes follow a per-purpose policy
+  (artwork 25 MB; identity documents 10 MB; vehicle documents and photos and installation photos 20 MB), the developer recommendation the client accepted on 24 Sep 2026 (G-22).
 - **A-17** Artwork is submitted for Terrax Media review, then approved or
   rejected with a reason. Only approved, clean, platform-stored artwork can
   be used in offers or activation; older linked files are marked as needing a
@@ -354,7 +354,7 @@ training and handover.
 - **A-31** Budget alerts, automatic pause and resume evaluate advertiser
   billing facts, never driver earnings. Without approved policy values, no
   threshold is applied and the product records that the policy is missing.
-  **Implemented · Gated (G-20).** Whether printing and fixed costs consume the
+  Alerts come in two levels, a warning and an urgent alert, before the pause, and reach every member of the advertiser company plus Terrax Media admins. The client answered warning 80 %, urgent 95 % and pause 100 %. **Implemented · Gated (G-20)** until the policy revision and resume threshold are also supplied. Whether printing and fixed costs consume the
   campaign budget is a client decision (G-21).
 
 ### 4.8 Reports, maps and planning sources
@@ -459,8 +459,10 @@ training and handover.
   **Implemented.**
 - **D-16** A driver uploads installation photos for an assignment. An
   administrator must approve them before the campaign hours can earn.
-  **Implemented · Gated (G-21a)** — the required photo views, uploader roles
-  and validity periods await approved evidence policy values.
+  **Implemented · Pilot values supplied** — front, back, left side, right side
+  and close-up; the driver or a Terrax Media admin uploads; photos are renewed
+  weekly (client answer #4, 24 Sep 2026). Display-check windows remain gated
+  (G-21a).
 - **D-17** Recurring display checks and physical spot checks may be issued to
   confirm the branding is still on the vehicle; missed or failed checks feed
   fraud review. **Implemented · Gated (G-21a)** for thresholds and

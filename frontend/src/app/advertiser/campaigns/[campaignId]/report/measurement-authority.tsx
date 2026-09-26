@@ -221,11 +221,11 @@ export function MeasurementAuthorityPanel({ authority }: { authority: Measuremen
                   <p className="mt-1">Source: {metric.density_provenance.source}</p>
                   <p>Calibration: {metric.density_provenance.calibration}</p>
                   {metric.density_provenance.profiles.map((profile) => (
-                    <p key={`${profile.lineage_id}:${profile.revision}`} className="mt-1 font-mono">
-                      profile {profile.profile_id} · lineage {profile.lineage_id} · revision{" "}
-                      {profile.revision} · effective {profile.effective_from} ·{" "}
-                      {profile.traffic_density_per_km}/km · {profile.dwell_impressions_per_minute}
-                      /dwell-minute · {profile.road_category_method} · {profile.value_fingerprint}
+                    <p key={`${profile.lineage_id}:${profile.revision}`} className="mt-1">
+                      Traffic profile revision {profile.revision}, effective{" "}
+                      {profile.effective_from}: {profile.traffic_density_per_km} per km ·{" "}
+                      {profile.dwell_impressions_per_minute} per minute stopped ·{" "}
+                      {profile.road_category_method}
                     </p>
                   ))}
                 </details>
@@ -303,18 +303,6 @@ export function MeasurementAuthorityPanel({ authority }: { authority: Measuremen
           <p className="text-muted mt-3 text-xs">{projection.roi.method.limitations}</p>
         </div>
       ) : null}
-
-      <details className="border-edge mt-5 border-t pt-4 font-mono text-xs">
-        <summary className="text-muted cursor-pointer font-sans">Technical reference</summary>
-        <p className="text-muted mt-2">Run {run.id}</p>
-        <p className="text-faint mt-1">
-          timezone {projection.timezone} · rounding {projection.rounding}
-        </p>
-        <p className="text-faint mt-1 break-all">
-          input {projection.inputSha256} · result {projection.resultSha256} · proof{" "}
-          {projection.proofSha256} · report {projection.reportSha256}
-        </p>
-      </details>
     </Panel>
   );
 }
@@ -322,7 +310,7 @@ export function MeasurementAuthorityPanel({ authority }: { authority: Measuremen
 const stateCopy: Record<string, { title: string; body: string }> = {
   SAFE_MEASUREMENT_RUN_REQUIRED: {
     title: "No report is available yet",
-    body: "Campaign results appear here once Cardvert issues a verified report for this campaign.",
+    body: "Campaign results appear here once Terrax Media issues a verified report for this campaign.",
   },
   PRIVACY_LIVE_USE_BLOCKED: {
     title: "Campaign results aren't switched on yet",
@@ -334,7 +322,7 @@ const stateCopy: Record<string, { title: string; body: string }> = {
   },
   ZONE_PROJECTION_INTEGRITY_FAILURE: {
     title: "The area map doesn't match this report",
-    body: "No map is shown because the area data doesn't match the issued report. Cardvert needs to reissue the analysis.",
+    body: "No map is shown because the area data doesn't match the issued report. Terrax Media needs to reissue the analysis.",
   },
   MEASUREMENT_LIVE_ISSUANCE_BLOCKED: {
     title: "Live analysis is unavailable",
@@ -342,11 +330,11 @@ const stateCopy: Record<string, { title: string; body: string }> = {
   },
   MEASUREMENT_RUN_INTEGRITY_FAILURE: {
     title: "This report failed its integrity check",
-    body: "No campaign results are shown because the report data did not pass verification. Cardvert needs to reissue the analysis.",
+    body: "No campaign results are shown because the report data did not pass verification. Terrax Media needs to reissue the analysis.",
   },
   EXPOSURE_SCORE_INTEGRITY_FAILURE: {
     title: "Exposure analysis failed its integrity check",
-    body: "No campaign results are shown because the exposure score does not match this report. Cardvert needs to reissue the analysis.",
+    body: "No campaign results are shown because the exposure score does not match this report. Terrax Media needs to reissue the analysis.",
   },
 };
 

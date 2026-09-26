@@ -227,6 +227,7 @@ class Settings(BaseSettings):
     budget_policy_id: str | None = None
     budget_policy_revision: str | None = None
     budget_alert_ratio: OptionalFloat = None
+    budget_urgent_ratio: OptionalFloat = None
     budget_pause_ratio: OptionalFloat = None
     budget_resume_ratio: OptionalFloat = None
     phone_operator_external_approved: bool = False
@@ -410,6 +411,7 @@ class Settings(BaseSettings):
             self.budget_policy_id,
             self.budget_policy_revision,
             self.budget_alert_ratio,
+            self.budget_urgent_ratio,
             self.budget_pause_ratio,
             self.budget_resume_ratio,
         )
@@ -419,9 +421,15 @@ class Settings(BaseSettings):
         if self.budget_policy_external_approved and not all(configured):
             raise ValueError("Approved budget policy requires a complete revision")
         if all(configured) and not (
-            0 < self.budget_resume_ratio <= self.budget_alert_ratio < self.budget_pause_ratio
+            0
+            < self.budget_resume_ratio
+            <= self.budget_alert_ratio
+            < self.budget_urgent_ratio
+            < self.budget_pause_ratio
         ):
-            raise ValueError("Budget policy thresholds must satisfy resume <= alert < pause")
+            raise ValueError(
+                "Budget policy thresholds must satisfy resume <= alert < urgent < pause"
+            )
         return self
 
     @model_validator(mode="after")

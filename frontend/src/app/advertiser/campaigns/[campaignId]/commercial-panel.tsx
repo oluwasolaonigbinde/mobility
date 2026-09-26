@@ -19,6 +19,14 @@ type Quotation = Commercial["revisions"][number] | NonNullable<Commercial["terms
 
 const initialState: CommercialActionState = {};
 
+const budgetStateLabel: Record<string, string> = {
+  blocked_external_policy: "Not set up yet",
+  within_budget: "Within budget",
+  alert_threshold: "Warning: most of the budget is used",
+  urgent_threshold: "Urgent: the budget is nearly used",
+  pause_threshold: "Paused: the budget is used up",
+};
+
 function exactMoney(currency: string, amount: string | number) {
   return `${currency} ${String(amount)}`;
 }
@@ -274,10 +282,10 @@ export function CommercialPanel({
               </p>
             </div>
             <div>
-              <p className="micro text-muted">Budget policy</p>
+              <p className="micro text-muted">Budget alerts</p>
               <p className="mt-1 text-sm">
-                {commercial.budget_evaluations.at(-1)?.state.replaceAll("_", " ") ??
-                  "Not evaluated"}
+                {budgetStateLabel[commercial.budget_evaluations.at(-1)?.state ?? ""] ??
+                  "Not checked yet"}
               </p>
             </div>
           </div>

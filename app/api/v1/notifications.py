@@ -120,16 +120,20 @@ def notification_feed_response(notice: Notification) -> NotificationFeedItemRead
             "Campaign funding has been confirmed.",
         ),
         NotificationType.BUDGET_ALERT.value: (
-            "Campaign budget alert",
-            "A configured campaign budget alert threshold was reached.",
+            "Campaign budget warning",
+            "A campaign has used most of its budget.",
+        ),
+        NotificationType.BUDGET_URGENT_ALERT.value: (
+            "Campaign budget nearly used",
+            "A campaign has almost used its budget and will pause when it runs out.",
         ),
         NotificationType.CAMPAIGN_BUDGET_PAUSED.value: (
             "Campaign paused",
-            "A campaign was paused by the configured budget policy.",
+            "Cardvert paused a campaign because its budget is used up.",
         ),
         NotificationType.CAMPAIGN_BUDGET_RESUMED.value: (
             "Campaign resumed",
-            "An administrator resumed a budget-paused campaign.",
+            "Terrax Media resumed a campaign that was paused for budget.",
         ),
         NotificationType.CAMPAIGN_CANCELLED.value: (
             "Campaign cancelled",
@@ -137,7 +141,7 @@ def notification_feed_response(notice: Notification) -> NotificationFeedItemRead
         ),
         NotificationType.EVIDENCE_CHALLENGE_CREATED.value: (
             "Evidence requested",
-            "Operations requested new campaign evidence.",
+            "Terrax Media requested new campaign evidence.",
         ),
         NotificationType.EVIDENCE_VERIFIED.value: (
             "Evidence verified",
@@ -162,7 +166,7 @@ def notification_feed_response(notice: Notification) -> NotificationFeedItemRead
         NotificationType.ACTIVITY_FLOOR_BREACHED.value: (
             "Verified activity below floor",
             "Your verified activity was below the configured weekly floor. "
-            "Operations will review the assignment.",
+            "Terrax Media will review the assignment.",
         ),
         NotificationType.ACTIVITY_FLOOR_RECOVERED.value: (
             "Verified activity recovered",
@@ -171,12 +175,12 @@ def notification_feed_response(notice: Notification) -> NotificationFeedItemRead
         NotificationType.ASSIGNMENT_INACTIVE.value: (
             "Assignment inactive",
             "No verified activity was recorded for this assignment for seven "
-            "consecutive days. Operations will review it.",
+            "consecutive days. Terrax Media will review it.",
         ),
         NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED.value: (
             "Assignment activity resumed",
-            "Verified activity resumed for this assignment. The operations flag "
-            "has been recovered.",
+            "Verified activity resumed for this assignment, so the activity flag "
+            "has been cleared.",
         ),
     }
     title, body = rendered.get(

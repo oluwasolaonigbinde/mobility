@@ -50,6 +50,12 @@ describe("commercial advertiser feedback", () => {
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
+  it("says who posts the quotation after a request (D38a)", async () => {
+    await expect(requestQuoteAction({}, campaignForm())).resolves.toEqual({
+      done: "Quotation requested. Terrax Media will post it here for review.",
+    });
+  });
+
   it("maps known failures and never returns raw backend text", async () => {
     mocks.post.mockRejectedValueOnce(
       new ApiError(409, {

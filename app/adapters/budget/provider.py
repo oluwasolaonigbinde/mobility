@@ -31,6 +31,8 @@ class BudgetPolicyDecision:
     resume_threshold_amount: Decimal | None
     should_pause: bool
     resume_allowed: bool
+    # Optional second alert level; None keeps a two-level (alert/pause) decision.
+    urgent_threshold_amount: Decimal | None = None
 
 
 class BudgetPolicyAdapter(Protocol):
@@ -70,15 +72,19 @@ class FixedBudgetPolicyAdapter:
         alert_ratio: Decimal,
         pause_ratio: Decimal,
         resume_ratio: Decimal,
+        urgent_ratio: Decimal | None = None,
     ) -> None:
         if policy_source not in {"external_approved", "synthetic_test"}:
             raise ValueError("invalid_budget_policy_source")
         if not (Decimal("0") < resume_ratio <= alert_ratio < pause_ratio):
             raise ValueError("invalid_budget_policy_threshold_order")
+        if urgent_ratio is not None and not (alert_ratio < urgent_ratio < pause_ratio):
+            raise ValueError("invalid_budget_policy_threshold_order")
         self.policy_id = policy_id
         self.policy_revision = policy_revision
         self.policy_source = policy_source
         self.alert_ratio = alert_ratio
+        self.urgent_ratio = urgent_ratio
         self.pause_ratio = pause_ratio
         self.resume_ratio = resume_ratio
 
@@ -103,11 +109,18 @@ class FixedBudgetPolicyAdapter:
             key=lambda item: item[2] / item[1] if item[1] else Decimal("Infinity"),
         )
         alert = (budget * self.alert_ratio).quantize(Decimal("0.01"))
+        urgent = (
+            (budget * self.urgent_ratio).quantize(Decimal("0.01"))
+            if self.urgent_ratio is not None
+            else None
+        )
         pause = (budget * self.pause_ratio).quantize(Decimal("0.01"))
         resume = (budget * self.resume_ratio).quantize(Decimal("0.01"))
         state = (
             "pause_threshold"
             if spend >= pause
+            else "urgent_threshold"
+            if urgent is not None and spend >= urgent
             else "alert_threshold"
             if spend >= alert
             else "within_budget"
@@ -125,6 +138,7 @@ class FixedBudgetPolicyAdapter:
             resume_threshold_amount=resume,
             should_pause=state == "pause_threshold",
             resume_allowed=spend <= resume,
+            urgent_threshold_amount=urgent,
         )
 
 
@@ -133,6 +147,7 @@ def build_budget_policy_adapter(settings) -> BudgetPolicyAdapter:
         settings.budget_policy_id,
         settings.budget_policy_revision,
         settings.budget_alert_ratio,
+        settings.budget_urgent_ratio,
         settings.budget_pause_ratio,
         settings.budget_resume_ratio,
     )
@@ -143,6 +158,7 @@ def build_budget_policy_adapter(settings) -> BudgetPolicyAdapter:
         policy_revision=settings.budget_policy_revision,
         policy_source="external_approved",
         alert_ratio=Decimal(str(settings.budget_alert_ratio)),
+        urgent_ratio=Decimal(str(settings.budget_urgent_ratio)),
         pause_ratio=Decimal(str(settings.budget_pause_ratio)),
         resume_ratio=Decimal(str(settings.budget_resume_ratio)),
     )

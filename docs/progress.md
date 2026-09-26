@@ -117,6 +117,126 @@ CI-throughput continuation (12 Sep 2026): run `34690115628` on `2a3f7e0` failed 
 
 ## Direct owner requests outside the package queue
 
+**Cardvert next build pass, Batches A–F (25 Sep 2026):** The owner directs the
+build list in section 3 of the 25 Sep three-way action list, as decided in
+D38 and D39 and the client answer register
+(`issues/planning/client-answers-2026-09-24.md`), on the local `master`
+baseline `edcda6b` (not pushed). This is a bounded direct-owner programme
+outside the executable queue: the controller stays
+`PAUSED — EXT-PAYMENT-PROVIDER`, no package is promoted or reordered, and no
+live-use gate changes. Batches run in dependency order: A, D38 product fixes
+plus budget alerts at 80/95/100 %, the installation-photo policy values and
+per-purpose upload limits; B, the `payout_v4` daily-rate engine; C, automatic
+payout approval with safeguards (depends on B); D, Paystack payment and
+transfer adapters built from the public API documentation and tested against
+recorded fixtures only; E, in-app complaints with a Customer Service inbox;
+F, invoice layout, deployment environment templates, the client guide and
+architecture §16 / PRD §7 amendments. Open client parameters (shortfall
+formula, which miles count, the 70-mile cap, ₦10,000 or ₦9,800, payout
+frequency, RC or TIN) are fail-closed configuration and are never invented;
+`payout_v1`–`v3` earnings and accepted work are never repriced (D14/D21). The
+Paystack password in the client document is never recorded or used; adapters
+read keys from settings only and stay disabled without them. `PKG-03 / W2-01C`
+resumes on the normal package path only when the owner supplies test keys.
+Single writer: this Claude Opus 5.5 session; reviewers are read-only
+clean-context subagents. Gates per batch: one independent plan review, one
+post-build review to `PASS`, D32 changed-line coverage against `edcda6b`
+(≥90 % lines, ≥80 % branches) and a live check on the `cardvertmain` stack
+(ports 3001/8001); Batches B and C also get money and security specialist
+reviews. No commit, push, deployment, provider call or external-account action
+is authorized without separate owner approval. Batch records follow below as
+each batch closes.
+
+Batch A record (25–26 Sep 2026, uncommitted working tree on `edcda6b`).
+Scope: D38(a)–(e), budget alerts at 80/95/100 %, the client photo policy and
+per-purpose upload limits. Plan review (read-only Opus 5.5 stand-in) returned
+6 material and 8 minor findings, all adopted: vehicle evidence keeps PDF
+papers; no invented "externally approved" budget values on the live stack;
+the client's "fixed costs count toward the budget" is deferred to a money
+batch (G-21 stays open); money and security specialist reviews added; the
+driver keeps every accepted term in readable words ("Full job terms") and
+loses only the fingerprint and raw JSON; the E2E campaign flow (dates, a
+target area, new review text) and admin headings updated; a fixed
+item-to-endpoint table for the admin queue with a per-item "Couldn't check";
+two-level budget evaluation keys unchanged.
+
+Delivered. D38(a): signed-in copy names Terrax Media when a person acts and
+reads "Nigeria time (WAT)", including the budget, evidence and activity
+notices. D38(b): `/driver/capabilities` is a plain Phone check (five yes/no
+rows, fixes, "Copy for support"); the unchanged R14-A probe is the unlinked
+`?view=support`. D38(c): hashes, run IDs and fingerprints are removed from
+advertiser and driver screens (staff screens and downloads keep them).
+D38(d): `submit_campaign_for_review` refuses a campaign without start/end
+dates, a positive total budget or a target zone (409
+`CAMPAIGN_INCOMPLETE_FOR_REVIEW`, `details.missing`, nothing written); the
+campaign page lists what is missing and the wizard states the rule. D38(e):
+the admin home is "Waiting for you", grouped by Operations, Compliance,
+Finance, Customer Service and Admin over existing list endpoints. Budget:
+migration `0091` adds the urgent level (`urgent_threshold_amount`, state
+`urgent_threshold`), `BUDGET_URGENT_RATIO` joins the complete fail-closed
+set, and warning/urgent/pause notices also reach active admins in the app;
+all budget values stay blank in every template (policy revision and resume
+ratio not supplied). Photo policy: front, back, left, right, close-up; driver
+or admin; 168 h in the release templates; the driver policy endpoint no
+longer waits for the separate, still-open display-proof windows. Uploads:
+identity documents 10 MB; vehicle documents and photos 20 MB; installation
+photos 20 MB; artwork 25 MB; types per purpose; report exports refused;
+client-side checks match. OpenAPI, snapshot and TypeScript baselines moved
+together.
+
+Specialist reviews: money (A6) `PASS`, security (A8, A2, A7, D38(c)/(d))
+`PASS`, both Opus 5.5 stand-ins; their low findings adopted (frontend upload
+checks, settings-wiring test, E2E location count). Residuals recorded: a
+campaign budget under about ₦0.10 whose thresholds round together stops that
+budget-sweep run (pre-existing, fail-closed); upload confirmation does not
+recheck the new policy for intents created before deploy. EXT-UPLOAD-POLICY
+and EXT-EVIDENCE-POLICY register rows are unchanged: the owner should confirm
+the upload recommendation with the client, and display-proof and spot-check
+values remain open.
+
+Evidence (26 Sep 2026). Backend: `ruff check` passes; the 30 files that
+exercise the changed code ran under coverage (889 passed; the 12 failures are
+all in `test_w403a_release_preparation.py` and environmental: no `docker`
+binary in the test image and CRLF shell scripts on the Windows checkout; its
+environment-template parity tests, which cover `BUDGET_URGENT_RATIO`, pass).
+A local full-suite run in three shards completed two shards: 804 passed / 25
+failed and 1,342 passed / 33 failed + 6 errors. Every failure there is
+environmental (no `docker` or `npm` in the test image; CRLF shell scripts on
+the Windows checkout) except nine: seven pass when rerun alone (load-sensitive
+lock and copy tests) and two fail identically on `edcda6b`
+(`test_evidence_verification::test_satisfied_challenge_stays_satisfied_after_assignment_cancellation`,
+`test_migration_payout_downgrade_guards::test_0014_concurrent_insert_is_serialized_before_downgrade_guard`).
+The third shard was stopped under the owner's 26 Sep instruction to leave the
+full suite to GitHub CI (6 Linux shards) after an approved push and run only
+the touched files locally (contract amendment R17); that CI run remains an
+open gate. Changed E2E specs ran in a local Playwright container: the campaign
+submission and approval journey and the admin work queue pass; the journey's
+cleanup step and the cookieless session probe need `docker` and host
+networking that the container lacks, and the advertiser dashboard check
+expects results that this stack's default privacy configuration hides.
+Migration `0091` upgrade, downgrade and refusal are tested; the local
+`cardvertmain` database is at `0091`. Frontend: `tsc`,
+ESLint and Prettier on the changed files pass; the full Vitest suite passes
+162 files / 1,044 tests, including the R14-B fixtures. OpenAPI `--check`
+passes after moving `openapi.json`, the snapshot and `schema.d.ts` together.
+D32 changed lines against `edcda6b` from local LCOV: backend 53/53 lines and
+20/20 branches; frontend 233/243 lines (95.9 %) and 160/181 branches
+(88.4 %). The first exact-SHA CI run after an approved push must refresh the
+D33 baseline for the new files. Live on `cardvertmain` (3001/8001, local
+override adding the photo policy only): admin "Waiting for you" with real
+counts; wizard and edit labels in WAT; a new name-only draft lists what is
+missing and Submit returns the plain refusal (status stays draft); no hashes
+on campaign, report or jobs screens; "Budget alerts: Not set up yet"; the
+driver Phone check ran real probes (storage and sign-in yes; wake lock and
+location refused by the desktop pane, with fixes shown); the support view
+keeps the probe; the jobs page shows the five photo views without a
+display-proof prompt; Track links "Phone check". The urgent level and admin
+notices are proven by service tests with synthetic authority, not on the live
+stack. During the run Docker Desktop stopped responding under memory load and
+was restarted; every container that had been running was started again, except
+another project's auto-removed `tss-test-runner` run container. Nothing is
+committed or pushed.
+
 **Client visual-direction reduction (24 Sep 2026):** The owner reports the
 client rejected former directions 1, 2, 4, 5, 6, 7 and 8 and directs their
 implementation traces and dedicated assets removed. Retain former directions

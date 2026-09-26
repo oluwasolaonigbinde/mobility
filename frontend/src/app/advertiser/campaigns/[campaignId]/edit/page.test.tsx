@@ -41,8 +41,8 @@ describe("EditCampaignPage", () => {
     const { container } = render(await EditCampaignPage(input));
 
     expect(screen.getByLabelText("Campaign name")).toHaveValue("Launch");
-    expect(screen.getByLabelText("Starts (Lagos time)")).toHaveValue("2026-10-01T09:00");
-    expect(screen.getByLabelText("Ends (Lagos time)")).toHaveValue("");
+    expect(screen.getByLabelText("Starts, Nigeria time (WAT)")).toHaveValue("2026-10-01T09:00");
+    expect(screen.getByLabelText("Ends, Nigeria time (WAT)")).toHaveValue("");
     expect(screen.getByLabelText("Total budget (NGN)")).toHaveValue("500000.00");
     const original = container.querySelector<HTMLInputElement>('input[name="original_start_at"]');
     expect(original?.value).toBe("2026-10-01T09:00");

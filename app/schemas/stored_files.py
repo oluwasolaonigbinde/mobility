@@ -2,14 +2,23 @@ from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models.stored_file import FilePurpose, FileScanStatus
 
-MAX_CREATIVE_BYTES = 25 * 1024 * 1024
-CREATIVE_CONTENT_TYPES = frozenset(
-    {"application/pdf", "image/jpeg", "image/png", "image/webp", "video/mp4"}
-)
+MB = 1024 * 1024
+_IMAGES = frozenset({"image/jpeg", "image/png", "image/webp"})
+_DOCUMENTS = _IMAGES | {"application/pdf"}
+# Per-purpose upload policy: the developer recommendation adopted under client
+# answer #12 ("file types and sizes as recommended", 24 Sep 2026).
+UPLOAD_POLICY: dict[FilePurpose, tuple[int, frozenset[str]]] = {
+    FilePurpose.CREATIVE: (25 * MB, _DOCUMENTS | {"video/mp4"}),
+    FilePurpose.DRIVER_KYC: (10 * MB, _DOCUMENTS),
+    # Registration and insurance papers as well as vehicle photos.
+    FilePurpose.VEHICLE_EVIDENCE: (20 * MB, _DOCUMENTS),
+    FilePurpose.INSTALLATION_EVIDENCE: (20 * MB, _IMAGES),
+}
+MAX_UPLOAD_BYTES = max(limit for limit, _ in UPLOAD_POLICY.values())
 
 
 class FileUploadCreate(BaseModel):
@@ -19,7 +28,7 @@ class FileUploadCreate(BaseModel):
     purpose: FilePurpose
     filename: str = Field(min_length=1, max_length=255)
     content_type: str = Field(min_length=1, max_length=255)
-    size_bytes: int = Field(gt=0, le=MAX_CREATIVE_BYTES)
+    size_bytes: int = Field(gt=0, le=MAX_UPLOAD_BYTES)
     sha256: str = Field(pattern=r"^[0-9a-fA-F]{64}$")
 
     @field_validator("filename")
@@ -33,15 +42,24 @@ class FileUploadCreate(BaseModel):
     @field_validator("content_type")
     @classmethod
     def validate_content_type(cls, value: str) -> str:
-        normalized = value.strip().lower()
-        if normalized not in CREATIVE_CONTENT_TYPES:
-            raise ValueError("Content type is not allowed for creative uploads")
-        return normalized
+        return value.strip().lower()
 
     @field_validator("sha256")
     @classmethod
     def normalize_sha256(cls, value: str) -> str:
         return value.lower()
+
+    @model_validator(mode="after")
+    def validate_purpose_policy(self) -> "FileUploadCreate":
+        policy = UPLOAD_POLICY.get(self.purpose)
+        if policy is None:
+            raise ValueError("This file purpose cannot be uploaded")
+        max_bytes, content_types = policy
+        if self.content_type not in content_types:
+            raise ValueError("This file type is not allowed for this upload")
+        if self.size_bytes > max_bytes:
+            raise ValueError(f"This file is larger than the {max_bytes // MB} MB limit")
+        return self
 
 
 class PresignedPostRead(BaseModel):

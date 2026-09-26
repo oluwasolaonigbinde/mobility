@@ -5,6 +5,7 @@ import json
 import os
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from uuid import UUID, uuid4
 
@@ -1141,6 +1142,31 @@ def create_test_campaign_zone(
             return zone
 
     return asyncio.run(create())
+
+
+def make_test_campaign_reviewable(
+    db_sessionmaker: async_sessionmaker[AsyncSession],
+    *,
+    campaign_id: UUID,
+    created_by_user_id: UUID,
+) -> None:
+    """Give a draft the dates, total budget and target area D38(d) requires for review."""
+
+    async def complete() -> None:
+        async with db_sessionmaker() as session:
+            campaign = await session.get(Campaign, campaign_id)
+            if campaign.start_at is None:
+                campaign.start_at = datetime(2026, 10, 1, 8, tzinfo=UTC)
+            if campaign.end_at is None:
+                campaign.end_at = datetime(2026, 10, 31, 17, tzinfo=UTC)
+            if campaign.budget_amount is None:
+                campaign.budget_amount = Decimal("250000.00")
+            await session.commit()
+
+    asyncio.run(complete())
+    create_test_campaign_zone(
+        db_sessionmaker, campaign_id=campaign_id, created_by_user_id=created_by_user_id
+    )
 
 
 def create_test_traffic_density_profile(

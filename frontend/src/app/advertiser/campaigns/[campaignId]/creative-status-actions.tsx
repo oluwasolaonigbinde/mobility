@@ -67,10 +67,10 @@ export function CreativeStatusActions({
   }
 
   if (status === "pending_review") {
-    return <p className="micro text-amber text-right">Under admin review</p>;
+    return <p className="micro text-amber text-right">With Terrax Media for review</p>;
   }
   if (status === "approved") {
-    return <p className="micro text-green text-right">Admin approved</p>;
+    return <p className="micro text-green text-right">Approved by Terrax Media</p>;
   }
   if (status !== "draft" && status !== "rejected") {
     return null;

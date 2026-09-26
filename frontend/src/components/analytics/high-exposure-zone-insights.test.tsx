@@ -90,9 +90,10 @@ describe("HighExposureZoneInsights", () => {
       screen.getByText(/reissue of 00000000-0000-0000-0000-000000000006/i),
     ).toBeInTheDocument();
 
-    rerender(<HighExposureZoneInsights insight={readyInsight} surface="report" />);
-    expect(
-      screen.queryByText(/segment 00000000-0000-0000-0000-000000000005/i),
-    ).not.toBeInTheDocument();
+    for (const surface of ["report", "map"] as const) {
+      rerender(<HighExposureZoneInsights insight={readyInsight} surface={surface} />);
+      expect(screen.queryByText(/technical reference/i)).not.toBeInTheDocument();
+      expect(document.body.textContent).not.toMatch(/0{8}-0{4}-0{4}-0{4}-0{11}\d|a{12}|d{12}/);
+    }
   });
 });

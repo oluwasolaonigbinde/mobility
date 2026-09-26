@@ -70,7 +70,7 @@ describe("CommercialPanel copy", () => {
   it("keeps visible request success through the authoritative commercial refresh", async () => {
     const user = userEvent.setup();
     vi.mocked(requestQuoteAction).mockResolvedValueOnce({
-      done: "Quotation requested. Cardvert will post it here for review.",
+      done: "Quotation requested. Terrax Media will post it here for review.",
     });
     const view = render(<CommercialPanel campaignId={CAMPAIGN_ID} commercial={commercial()} />);
     await user.type(screen.getByLabelText("Quotation notes"), "Four vehicle placement");
@@ -212,5 +212,44 @@ describe("CommercialPanel copy", () => {
     expect(screen.getByText("Payment basis")).toBeInTheDocument();
     expect(screen.getByText("approved credit · ₦50,000")).toBeInTheDocument();
     expect(screen.queryByText("Funding authority")).not.toBeInTheDocument();
+  });
+
+  it("names the latest budget alert level in plain words", () => {
+    const accepted = {
+      ...revision(),
+      quotation_revision_id: "00000000-0000-4000-8000-000000000002",
+      quotation_revision_number: 2,
+      standard_production_wait_hours: 24,
+      acceptance_method: "in_platform",
+      accepted_at: "2026-09-14T12:30:00Z",
+    } as Commercial["terms"];
+    const evaluation = (state: string) =>
+      ({ state }) as unknown as Commercial["budget_evaluations"][number];
+    const view = render(
+      <CommercialPanel
+        campaignId={CAMPAIGN_ID}
+        commercial={commercial({ terms: accepted, budget_evaluations: [] })}
+      />,
+    );
+    expect(screen.getByText("Budget alerts")).toBeInTheDocument();
+    expect(screen.getByText("Not checked yet")).toBeInTheDocument();
+
+    for (const [state, label] of [
+      ["blocked_external_policy", "Not set up yet"],
+      ["alert_threshold", "Warning: most of the budget is used"],
+      ["urgent_threshold", "Urgent: the budget is nearly used"],
+      ["pause_threshold", "Paused: the budget is used up"],
+    ]) {
+      view.rerender(
+        <CommercialPanel
+          campaignId={CAMPAIGN_ID}
+          commercial={commercial({
+            terms: accepted,
+            budget_evaluations: [evaluation("within_budget"), evaluation(state!)],
+          })}
+        />,
+      );
+      expect(screen.getByText(label!)).toBeInTheDocument();
+    }
   });
 });

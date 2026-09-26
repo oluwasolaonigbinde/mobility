@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { installationViewLabel as viewLabel } from "@/lib/assignments/installation-views";
 import { reviewInstallationEvidenceAction, type CampaignReviewActionState } from "./actions";
 import { DecisionButtons } from "./decision-buttons";
 
@@ -48,11 +49,6 @@ async function loadEvidencePhoto(fileId: string): Promise<PhotoResult> {
   if (!VIEWABLE_TYPES.has(blob.type))
     return { error: "The evidence file is not a viewable image." };
   return { blob };
-}
-
-function viewLabel(view: string): string {
-  const label = view.replaceAll("_", " ");
-  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 export function InstallationReviewActions({
@@ -110,7 +106,7 @@ export function InstallationReviewActions({
           >
             {openingFileId === photo.stored_file_id
               ? "Opening…"
-              : `View ${photo.view.replaceAll("_", " ")}`}
+              : `View ${viewLabel(photo.view).toLowerCase()}`}
           </Button>
         ))}
       </div>

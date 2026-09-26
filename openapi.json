@@ -3198,6 +3198,18 @@
           "state": {
             "title": "State",
             "type": "string"
+          },
+          "urgent_threshold_amount": {
+            "anyOf": [
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Urgent Threshold Amount"
           }
         },
         "required": [
@@ -3215,6 +3227,7 @@
           "billing_fact_source",
           "billing_spend_amount",
           "alert_threshold_amount",
+          "urgent_threshold_amount",
           "pause_threshold_amount",
           "resume_threshold_amount",
           "alert_applied",
@@ -15897,6 +15910,7 @@
           "quotation_ready",
           "funding_confirmed",
           "budget_alert",
+          "budget_urgent_alert",
           "campaign_budget_paused",
           "campaign_budget_resumed",
           "campaign_cancelled",

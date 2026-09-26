@@ -171,7 +171,7 @@ export default async function DriverTripEarningsPage({
           )}
           {data.superseded_by_recompute ? (
             <p className="micro text-amber mt-2">
-              Updated by an operations review — the entries below show every change.
+              Updated after a Terrax Media review — the entries below show every change.
             </p>
           ) : null}
         </Panel>

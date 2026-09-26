@@ -3431,6 +3431,12 @@ def _budget_evaluation_key(
             str(decision.pause_threshold_amount),
             str(decision.resume_threshold_amount),
             decision.state,
+            # Appended only when set, so two-level decisions keep their existing keys.
+            *(
+                (str(decision.urgent_threshold_amount),)
+                if decision.urgent_threshold_amount is not None
+                else ()
+            ),
         )
     )
     return hashlib.sha256(source.encode()).hexdigest()
@@ -3465,12 +3471,23 @@ def _validate_budget_decision(decision, *, synthetic_test_authority: bool) -> No
     if not missing:
         spend = Decimal(decision.billing_spend_amount)
         alert = Decimal(decision.alert_threshold_amount)
+        urgent = (
+            Decimal(decision.urgent_threshold_amount)
+            if decision.urgent_threshold_amount is not None
+            else None
+        )
         pause = Decimal(decision.pause_threshold_amount)
         resume = Decimal(decision.resume_threshold_amount)
-        thresholds_valid = Decimal("0") <= resume <= alert < pause and spend >= 0
+        thresholds_valid = (
+            Decimal("0") <= resume <= alert < pause
+            and spend >= 0
+            and (urgent is None or alert < urgent < pause)
+        )
         expected_state = (
             BudgetPolicyEvaluationState.PAUSE_THRESHOLD.value
             if spend >= pause
+            else BudgetPolicyEvaluationState.URGENT_THRESHOLD.value
+            if urgent is not None and spend >= urgent
             else BudgetPolicyEvaluationState.ALERT_THRESHOLD.value
             if spend >= alert
             else BudgetPolicyEvaluationState.WITHIN_BUDGET.value
@@ -3481,6 +3498,7 @@ def _validate_budget_decision(decision, *, synthetic_test_authority: bool) -> No
         not in {
             BudgetPolicyEvaluationState.WITHIN_BUDGET.value,
             BudgetPolicyEvaluationState.ALERT_THRESHOLD.value,
+            BudgetPolicyEvaluationState.URGENT_THRESHOLD.value,
             BudgetPolicyEvaluationState.PAUSE_THRESHOLD.value,
         }
         or missing
@@ -3571,6 +3589,7 @@ async def evaluate_campaign_budget_policy(
                 decision.budget_basis is not None,
                 decision.billing_spend_amount is not None,
                 decision.alert_threshold_amount is not None,
+                decision.urgent_threshold_amount is not None,
                 decision.pause_threshold_amount is not None,
                 decision.resume_threshold_amount is not None,
                 decision.should_pause,
@@ -3621,11 +3640,13 @@ async def evaluate_campaign_budget_policy(
         billing_fact_source=None if blocked else billing_fact_source,
         billing_spend_amount=decision.billing_spend_amount,
         alert_threshold_amount=decision.alert_threshold_amount,
+        urgent_threshold_amount=decision.urgent_threshold_amount,
         pause_threshold_amount=decision.pause_threshold_amount,
         resume_threshold_amount=decision.resume_threshold_amount,
         alert_applied=decision.state
         in {
             BudgetPolicyEvaluationState.ALERT_THRESHOLD.value,
+            BudgetPolicyEvaluationState.URGENT_THRESHOLD.value,
             BudgetPolicyEvaluationState.PAUSE_THRESHOLD.value,
         },
         pause_applied=pause_will_apply,

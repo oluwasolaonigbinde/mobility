@@ -64,7 +64,7 @@ describe("InstallationEvidenceActions", () => {
         ],
       }),
     );
-    expect(await screen.findByText("✓ Evidence submitted for operations review.")).toBeVisible();
+    expect(await screen.findByText("✓ Photos sent to Terrax Media for review.")).toBeVisible();
   });
 
   it("gets a nonce before uploading and consuming a start-of-shift proof", async () => {
@@ -119,5 +119,24 @@ describe("InstallationEvidenceActions", () => {
     expect(
       screen.getByRole("button", { name: "Complete required display challenge" }),
     ).toBeVisible();
+  });
+
+  it("names the client's photo views and hides display proof until its windows are set", () => {
+    render(
+      <InstallationEvidenceActions
+        assignmentId={ASSIGNMENT_ID}
+        status="active"
+        requiredViews={["front", "back", "left", "right", "close_up"]}
+        latestEvidenceStatus="approved"
+        proofAvailable={false}
+      />,
+    );
+
+    for (const label of ["Front", "Back", "Left side", "Right side", "Close-up of the branding"]) {
+      expect(screen.getByText(label)).toBeVisible();
+    }
+    expect(
+      screen.queryByRole("button", { name: "Verify display for this shift" }),
+    ).not.toBeInTheDocument();
   });
 });

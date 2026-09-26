@@ -160,12 +160,6 @@ export default async function PlanningSourcesPage() {
                           {source.status === "active" ? "Used until" : "Ended"}{" "}
                           {formatDate(source.deactivated_at ?? source.expires_at)}
                         </p>
-                        <details className="micro text-faint mt-2">
-                          <summary className="cursor-pointer">Technical reference</summary>
-                          <p className="mt-1 font-mono break-all">
-                            Record fingerprint {source.snapshot_sha256}
-                          </p>
-                        </details>
                       </div>
                       {source.status === "active" ? (
                         <TerminalPlanningActionForm
@@ -278,15 +272,6 @@ export default async function PlanningSourcesPage() {
                         ) : null}
                         {recommendation?.disclaimer ? (
                           <p className="micro text-faint mt-1">{recommendation.disclaimer}</p>
-                        ) : null}
-                        {ready && recommendation.provenance ? (
-                          <details className="micro text-faint mt-2">
-                            <summary className="cursor-pointer">Technical reference</summary>
-                            <p className="mt-1 font-mono break-all">
-                              Segment v{recommendation.provenance.segment_version} ·{" "}
-                              {recommendation.provenance.segment_snapshot_sha256}
-                            </p>
-                          </details>
                         ) : null}
                       </div>
                     </article>

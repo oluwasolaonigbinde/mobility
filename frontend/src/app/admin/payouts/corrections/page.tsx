@@ -85,8 +85,8 @@ export default async function AdminCorrectionsPage({
       <Panel className="mb-6 p-6">
         <h2 className="micro text-muted mb-1">Project a correction</h2>
         <p className="text-faint mb-4 text-xs">
-          Pick a campaign and Lagos day to preview what a recompute would change, then create a
-          draft order carrying that projection.
+          Pick a campaign and day (Nigeria time, WAT) to preview what a recompute would change, then
+          create a draft order carrying that projection.
         </p>
         <NewOrderForm
           campaigns={(campaigns?.items ?? []).map((c) => ({ id: c.id, name: c.name }))}
@@ -127,7 +127,7 @@ export default async function AdminCorrectionsPage({
               <tr className="border-edge micro text-muted border-b text-left">
                 <th className="px-6 py-3 font-normal">Status</th>
                 <th className="px-4 py-3 font-normal">Campaign</th>
-                <th className="px-4 py-3 font-normal">Lagos day</th>
+                <th className="px-4 py-3 font-normal">Day, Nigeria time (WAT)</th>
                 <th className="px-4 py-3 text-right font-normal">Projected delta</th>
                 <th className="px-4 py-3 font-normal">Creator</th>
                 <th className="px-4 py-3 font-normal">Approver</th>

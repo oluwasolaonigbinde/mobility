@@ -19,7 +19,7 @@ export function StatusActions({
   if (status === "pending_review") {
     return (
       <p className="micro text-amber max-w-xs text-right">
-        Under admin review — campaign details are frozen.
+        With Terrax Media for review — campaign details can&apos;t be changed meanwhile.
       </p>
     );
   }

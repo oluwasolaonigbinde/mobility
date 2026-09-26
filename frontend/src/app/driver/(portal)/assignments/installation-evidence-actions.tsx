@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { installationViewLabel } from "@/lib/assignments/installation-views";
 import { postJson, uploadInstallationImage } from "@/lib/files/installation-evidence-upload";
 
 function deviceId(): string {
@@ -20,12 +21,15 @@ export function InstallationEvidenceActions({
   requiredViews,
   latestEvidenceStatus,
   pendingChallengeDueAt,
+  proofAvailable = true,
 }: {
   assignmentId: string;
   status: string;
   requiredViews: string[];
   latestEvidenceStatus?: string;
   pendingChallengeDueAt?: string;
+  /** Display proof needs its own configured windows (still an open policy input). */
+  proofAvailable?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -56,7 +60,7 @@ export function InstallationEvidenceActions({
           photos,
           metadata: { capture_surface: "driver_pwa" },
         });
-        setDone("Evidence submitted for operations review.");
+        setDone("Photos sent to Terrax Media for review.");
         router.refresh();
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : "Evidence could not be submitted.");
@@ -114,7 +118,7 @@ export function InstallationEvidenceActions({
         <div className="mt-3 flex flex-col gap-3">
           {requiredViews.map((view) => (
             <label key={view} className="text-xs">
-              <span className="mb-1 block capitalize">{view.replaceAll("_", " ")}</span>
+              <span className="mb-1 block">{installationViewLabel(view)}</span>
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/webp"
@@ -133,9 +137,9 @@ export function InstallationEvidenceActions({
           </Button>
         </div>
       ) : (
-        <p className="text-muted mt-3 text-xs">Operations review is pending.</p>
+        <p className="text-muted mt-3 text-xs">Terrax Media is reviewing your photos.</p>
       )}
-      {active && latestEvidenceStatus === "approved" ? (
+      {proofAvailable && active && latestEvidenceStatus === "approved" ? (
         <div className="border-edge mt-4 border-t pt-3">
           <label className="text-xs">
             <span className="mb-1 block">Current display photo</span>

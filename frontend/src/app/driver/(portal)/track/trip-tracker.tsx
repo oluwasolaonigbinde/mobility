@@ -1225,7 +1225,7 @@ export function TripTracker({
             keep the app open on screen and allow location after you press Start.
           </p>
           <Link href="/driver/capabilities" className="micro text-faint mt-3 inline-block">
-            Phone diagnostics →
+            Phone check →
           </Link>
         </Panel>
         <Panel className="p-6 text-center">
@@ -1234,7 +1234,7 @@ export function TripTracker({
           </p>
           <p className="text-muted mt-1 text-xs">
             {startUnavailableMessage ??
-              "Accept an offer and wait for admin activation — then your trips earn."}
+              "Accept an offer and wait for Terrax Media to start it — then your trips earn."}
           </p>
         </Panel>
       </div>
@@ -1271,7 +1271,7 @@ export function TripTracker({
                 </p>
               </div>
               <Link href="/driver/capabilities" className="micro text-faint">
-                Phone diagnostics →
+                Phone check →
               </Link>
             </div>
             {hasEvidenceIssue ? (
@@ -1314,7 +1314,7 @@ export function TripTracker({
               visible while driving; tracking pauses whenever Cardvert is not on screen.
             </p>
             <Link href="/driver/capabilities" className="micro text-faint mt-3 inline-block">
-              Phone diagnostics →
+              Phone check →
             </Link>
           </Panel>
           <Panel className="p-5">

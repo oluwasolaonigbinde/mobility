@@ -1,15 +1,18 @@
 import asyncio
 import hashlib
 import json
+from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
 import pytest
 from conftest import (
     auth_headers,
     create_test_campaign,
+    create_test_campaign_zone,
     create_test_organization,
     create_test_user,
     fetch_audit_events,
+    make_test_campaign_reviewable,
 )
 from sqlalchemy import func, select
 from starlette import status as http_status
@@ -17,6 +20,7 @@ from starlette import status as http_status
 from app.core.errors import AppError
 from app.models.audit import AuditEvent
 from app.models.campaign import Campaign, CampaignReviewEvent, CampaignStatus
+from app.models.campaign_zone import CampaignZoneType
 from app.models.organization import MembershipRole, MembershipStatus
 from app.models.user import UserRole, UserStatus
 from app.schemas.campaigns import CampaignUpdate
@@ -503,6 +507,9 @@ def test_campaign_review_lifecycle_binds_immutable_submission_history_and_audits
         created_by_user_id=advertiser.id,
         name="Reviewable campaign",
     )
+    make_test_campaign_reviewable(
+        db_sessionmaker, campaign_id=campaign.id, created_by_user_id=advertiser.id
+    )
     other_campaign = create_test_campaign(
         db_sessionmaker,
         organization_id=other_organization.id,
@@ -669,6 +676,9 @@ def test_campaign_review_postgres_race_has_one_decision_and_one_conflict(
         organization_id=organization.id,
         created_by_user_id=advertiser.id,
     )
+    make_test_campaign_reviewable(
+        postgis_db_sessionmaker, campaign_id=campaign.id, created_by_user_id=advertiser.id
+    )
 
     async def scenario() -> tuple[list[str], int]:
         async with postgis_db_sessionmaker() as session:
@@ -736,6 +746,9 @@ def test_campaign_review_service_requires_active_admin_before_campaign_read(
         db_sessionmaker,
         organization_id=organization.id,
         created_by_user_id=advertiser.id,
+    )
+    make_test_campaign_reviewable(
+        db_sessionmaker, campaign_id=campaign.id, created_by_user_id=advertiser.id
     )
 
     async def scenario() -> None:
@@ -886,3 +899,65 @@ def test_admin_can_list_and_read_campaigns_across_organizations(
     assert "password_hash" not in get_response.text
     assert advertiser_response.status_code == http_status.HTTP_403_FORBIDDEN
     assert advertiser_response.json()["error"]["code"] == "FORBIDDEN_ROLE"
+
+@pytest.mark.parametrize(
+    ("dates", "budget", "zone_type", "missing"),
+    [
+        (False, "5000.00", CampaignZoneType.TARGET, ["dates"]),
+        (True, None, CampaignZoneType.TARGET, ["total_budget"]),
+        (True, "0.00", CampaignZoneType.TARGET, ["total_budget"]),
+        (True, "5000.00", CampaignZoneType.EXCLUSION, ["target_area"]),
+        (False, None, None, ["dates", "total_budget", "target_area"]),
+    ],
+)
+def test_incomplete_campaign_cannot_be_submitted_for_review(
+    db_client, db_sessionmaker, dates, budget, zone_type, missing
+) -> None:
+    """D38(d): review needs start and end dates, a total budget and a target area."""
+    advertiser, organization = create_advertiser_with_org(
+        db_sessionmaker, email="incomplete-review@example.com"
+    )
+    campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=advertiser.id,
+        start_at=datetime(2026, 10, 1, 8, tzinfo=UTC) if dates else None,
+        end_at=datetime(2026, 10, 31, 17, tzinfo=UTC) if dates else None,
+        budget_amount=budget,
+    )
+    if zone_type is not None:
+        create_test_campaign_zone(
+            db_sessionmaker,
+            campaign_id=campaign.id,
+            created_by_user_id=advertiser.id,
+            zone_type=zone_type,
+        )
+    headers = auth_headers(db_client, advertiser.email, PASSWORD)
+
+    refused = db_client.post(f"/api/v1/advertiser/campaigns/{campaign.id}/submit", headers=headers)
+
+    assert refused.status_code == http_status.HTTP_409_CONFLICT
+    assert refused.json()["error"]["code"] == "CAMPAIGN_INCOMPLETE_FOR_REVIEW"
+    assert refused.json()["error"]["details"] == {"missing": missing}
+    current = db_client.get(f"/api/v1/advertiser/campaigns/{campaign.id}", headers=headers)
+    assert current.json()["status"] == "draft"
+    history = db_client.get(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/review-history", headers=headers
+    )
+    assert history.json()["total"] == 0
+    assert fetch_audit_events(db_sessionmaker) == []
+
+    make_test_campaign_reviewable(
+        db_sessionmaker, campaign_id=campaign.id, created_by_user_id=advertiser.id
+    )
+    if budget == "0.00":
+        db_client.patch(
+            f"/api/v1/advertiser/campaigns/{campaign.id}",
+            headers=headers,
+            json={"budget_amount": "5000.00"},
+        )
+    submitted = db_client.post(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/submit", headers=headers
+    )
+    assert submitted.status_code == http_status.HTTP_200_OK
+    assert submitted.json()["status"] == "pending_review"

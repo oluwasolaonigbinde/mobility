@@ -4,7 +4,12 @@
 import asyncio
 from uuid import UUID, uuid4
 
-from conftest import auth_headers, create_test_campaign, create_test_user
+from conftest import (
+    auth_headers,
+    create_test_campaign,
+    create_test_user,
+    make_test_campaign_reviewable,
+)
 from sqlalchemy import select
 from test_campaigns import PASSWORD, create_advertiser_with_org
 from test_commercial_terms import _commercial_fixture
@@ -41,6 +46,9 @@ def test_campaign_rejection_notifies_without_copying_the_reason(db_client, db_se
     )
     campaign = create_test_campaign(
         db_sessionmaker, organization_id=organization.id, created_by_user_id=advertiser.id
+    )
+    make_test_campaign_reviewable(
+        db_sessionmaker, campaign_id=campaign.id, created_by_user_id=advertiser.id
     )
     advertiser_headers = auth_headers(db_client, advertiser.email, PASSWORD)
     admin_headers = auth_headers(db_client, admin.email, PASSWORD)
@@ -93,6 +101,9 @@ def test_rejected_campaign_edit_and_resubmission_journey_on_postgresql(
         organization_id=organization.id,
         created_by_user_id=advertiser.id,
         name="Journey campaign",
+    )
+    make_test_campaign_reviewable(
+        postgis_db_sessionmaker, campaign_id=campaign.id, created_by_user_id=advertiser.id
     )
     advertiser_headers = auth_headers(postgis_db_client, advertiser.email, PASSWORD)
     admin_headers = auth_headers(postgis_db_client, admin.email, PASSWORD)

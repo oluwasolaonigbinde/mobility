@@ -41,7 +41,11 @@ export function AssignmentActions({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const step = status === "offered" && !canAccept ? undefined : nextStep[status];
   if (!step && status === "accepted") {
-    return <p className="text-muted mt-4 text-center text-xs">Awaiting admin activation.</p>;
+    return (
+      <p className="text-muted mt-4 text-center text-xs">
+        Waiting for Terrax Media to start this job.
+      </p>
+    );
   }
   const blockedOffer = status === "offered" && !canAccept;
   if (!step && !blockedOffer) return null;

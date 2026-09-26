@@ -46,9 +46,7 @@ describe("MeasurementHeadlineStats", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/1 of 1 completed trips included/i)).toBeInTheDocument();
     expect(screen.queryByText(/ROI/i)).not.toBeInTheDocument();
-    for (const summary of screen.getAllByText(/technical reference/i)) {
-      expect(summary.closest("details")).not.toHaveAttribute("open");
-    }
+    expect(document.body.textContent).not.toMatch(/a{64}|b{64}|exposure_v1|technical reference/i);
   });
 
   it("omits the headline total when the frozen run suppressed it", () => {

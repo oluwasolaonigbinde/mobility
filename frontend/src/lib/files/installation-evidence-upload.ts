@@ -1,4 +1,5 @@
-const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
+// Mirrors the server's per-purpose upload policy for installation photos.
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const ACCEPTED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
 type UploadIntent = {
@@ -28,7 +29,7 @@ export async function uploadInstallationImage(
 ): Promise<string> {
   if (!ACCEPTED_TYPES.has(file.type)) throw new Error("Choose a PNG, JPEG, or WebP image.");
   if (file.size <= 0 || file.size > MAX_IMAGE_BYTES) {
-    throw new Error("Evidence images must be larger than 0 bytes and no more than 25 MB.");
+    throw new Error("Choose a photo that is no bigger than 20 MB.");
   }
   const intent = await responseJson<UploadIntent>(
     await fetch("/api/driver/files/uploads", {

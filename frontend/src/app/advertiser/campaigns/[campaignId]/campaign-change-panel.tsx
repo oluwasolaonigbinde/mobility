@@ -18,7 +18,7 @@ const initialState: CampaignReviewActionState = {};
 
 const outcomeCopy = {
   apply_now: "This change can apply as soon as you confirm it.",
-  await_review: "After confirmation, Cardvert must review this change before it can apply.",
+  await_review: "After confirmation, Terrax Media must review this change before it can apply.",
   await_funding: "After confirmation, this change will wait for enough recorded funding.",
 } as const;
 
@@ -121,7 +121,7 @@ export function CampaignChangePanel({
             />
           </label>
           <label className="text-sm">
-            <span className="micro text-muted">New start (Lagos time)</span>
+            <span className="micro text-muted">New start, Nigeria time (WAT)</span>
             <input
               name="start_at"
               type="datetime-local"
@@ -129,7 +129,7 @@ export function CampaignChangePanel({
             />
           </label>
           <label className="text-sm">
-            <span className="micro text-muted">New end (Lagos time)</span>
+            <span className="micro text-muted">New end, Nigeria time (WAT)</span>
             <input
               name="end_at"
               type="datetime-local"

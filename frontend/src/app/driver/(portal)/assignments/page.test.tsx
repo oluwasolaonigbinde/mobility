@@ -84,11 +84,36 @@ describe("DriverAssignmentsPage history availability", () => {
     render(await DriverAssignmentsPage());
 
     expect(
-      screen.getByText("Accepted. Cardvert operations still need to activate this campaign."),
+      screen.getByText("Accepted. Terrax Media still needs to start this campaign for you."),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Activated. Cardvert checks you're still ready each time you press Start."),
     ).toBeInTheDocument();
     expect(screen.queryByText(/authority|PWA|independent admin/i)).not.toBeInTheDocument();
+  });
+  it("lists the accepted terms in words without the fingerprint or raw JSON (D38c)", async () => {
+    mockJobs([
+      {
+        id: "00000000-0000-4000-8000-000000000014",
+        campaign_id: "00000000-0000-4000-8000-000000000015",
+        status: "offered",
+        offered_at: "2026-09-01T09:00:00Z",
+        offer_terms_sha256: "f".repeat(64),
+        offer_terms: {
+          currency: "NGN",
+          payout: { revision_id: "r-1", hourly_rate_naira: "1500.00" },
+          zones: { target: [{ id: "z-1", name: "Wuse II", wkt: "MULTIPOLYGON EMPTY" }] },
+        },
+        campaign: { name: "Abuja offer" },
+        vehicle: { plate_number: "ABC-125", vehicle_type: "sedan" },
+      },
+    ]);
+
+    const { container } = render(await DriverAssignmentsPage());
+
+    expect(screen.getByText("Full job terms")).toBeInTheDocument();
+    expect(screen.getByText("Zones · Target")).toBeInTheDocument();
+    expect(screen.getByText("Wuse II")).toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/f{64}|r-1|z-1|MULTIPOLYGON|Technical reference/);
   });
 });

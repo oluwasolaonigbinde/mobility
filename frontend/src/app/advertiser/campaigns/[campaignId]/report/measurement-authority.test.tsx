@@ -239,10 +239,12 @@ describe("frozen measurement authority", () => {
     expect(
       screen.getByText(/2026-08-01T00:00:00.000Z to 2026-08-02T00:00:00.000Z · UTC/i),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(/exact frozen decimal strings; no browser rounding/i),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/input a{64}/i)).toBeInTheDocument();
+    // D38(c): run IDs, manifest hashes and profile fingerprints stay off advertiser screens.
+    const panel = screen.getByLabelText("Report basis");
+    expect(panel.textContent).not.toMatch(
+      /[0-9a-f]{64}|Technical reference|lineage|profile [0-9a-f-]{8}/i,
+    );
+    expect(panel.textContent).not.toContain(authority.ok ? authority.run.id : "");
     expect(screen.queryByText(/ROI/i)).not.toBeInTheDocument();
   });
 

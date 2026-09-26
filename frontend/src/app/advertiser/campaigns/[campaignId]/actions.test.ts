@@ -131,7 +131,7 @@ describe("submitCampaignForReviewAction", () => {
 
   it("uses the dedicated advertiser submit endpoint and refreshes campaign views", async () => {
     await expect(submitCampaignForReviewAction({}, submitForm())).resolves.toEqual({
-      done: "Campaign submitted for admin review.",
+      done: "Campaign sent to Terrax Media for review.",
     });
     expect(mocks.post).toHaveBeenCalledWith("/api/v1/advertiser/campaigns/{campaign_id}/submit", {
       params: { path: { campaign_id: CAMPAIGN_ID } },
@@ -159,6 +159,22 @@ describe("submitCampaignForReviewAction", () => {
       error: "The campaign state changed. Refresh and try again.",
     });
   });
+
+  it("explains in plain words what an incomplete campaign still needs (D38d)", async () => {
+    mocks.post.mockRejectedValue(
+      new ApiError(409, {
+        code: "CAMPAIGN_INCOMPLETE_FOR_REVIEW",
+        message: "raw",
+        details: { missing: ["dates", "target_area"] },
+      }),
+    );
+
+    await expect(submitCampaignForReviewAction({}, submitForm())).resolves.toEqual({
+      error:
+        "Add start and end dates, a total budget and at least one target area before submitting for review.",
+    });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
 });
 
 describe("submitCreativeForReviewAction", () => {
@@ -169,7 +185,7 @@ describe("submitCreativeForReviewAction", () => {
 
   it("uses the dedicated creative submit endpoint and refreshes both role surfaces", async () => {
     await expect(submitCreativeForReviewAction({}, creativeSubmitForm())).resolves.toEqual({
-      done: "Creative submitted for admin review.",
+      done: "Artwork sent to Terrax Media for review.",
     });
     expect(mocks.post).toHaveBeenCalledWith(
       "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}/submit",
@@ -217,7 +233,7 @@ describe("replaceCreativeAndSubmitAction", () => {
     form.set("creative_type", "image");
 
     await expect(replaceCreativeAndSubmitAction({}, form)).resolves.toEqual({
-      done: "Replacement artwork submitted for admin review.",
+      done: "Replacement artwork sent to Terrax Media for review.",
     });
     expect(mocks.patch).toHaveBeenCalledWith(
       "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}",

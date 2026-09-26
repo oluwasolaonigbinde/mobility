@@ -245,21 +245,15 @@ export function ReportIssuancePanel({ measurementRunId }: { measurementRunId: st
         <div className="mt-5">
           <p className="text-green text-sm font-semibold">Version {status.data.version} is ready</p>
           <div className="mt-3 flex flex-wrap gap-3">
-            {(["csv", "pdf"] as const).map((format) => {
-              const artifact = readyArtifacts[format];
-              return (
-                <a
-                  key={format}
-                  href={`/api/advertiser/report-issuances/${status.data.id}/artifacts/${format}/download`}
-                  className="border-edge hover:border-muted rounded-md border px-4 py-2 text-sm font-semibold uppercase"
-                >
-                  Download {format}
-                  <span className="text-faint ml-2 font-mono text-[10px] normal-case">
-                    {artifact.checksum_sha256.slice(0, 12)}…
-                  </span>
-                </a>
-              );
-            })}
+            {(["csv", "pdf"] as const).map((format) => (
+              <a
+                key={format}
+                href={`/api/advertiser/report-issuances/${status.data.id}/artifacts/${format}/download`}
+                className="border-edge hover:border-muted rounded-md border px-4 py-2 text-sm font-semibold uppercase"
+              >
+                Download {format}
+              </a>
+            ))}
           </div>
           <button
             type="button"

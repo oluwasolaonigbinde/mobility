@@ -19,6 +19,7 @@ from app.models.campaign import (
     CreativeStatus,
     CreativeType,
 )
+from app.models.campaign_zone import CampaignZone, CampaignZoneType
 from app.models.organization import (
     AdvertiserOrganization,
     MembershipRole,
@@ -416,6 +417,30 @@ async def submit_campaign_for_review(
     prior_status = campaign.status
     if prior_status not in {CampaignStatus.DRAFT.value, CampaignStatus.REJECTED.value}:
         raise review_state_conflict(prior_status, CampaignStatus.PENDING_REVIEW.value)
+    # D38(d): review needs dates, a total budget and at least one target area.
+    missing = []
+    if campaign.start_at is None or campaign.end_at is None:
+        missing.append("dates")
+    if campaign.budget_amount is None or campaign.budget_amount <= 0:
+        missing.append("total_budget")
+    target_zone = await session.scalar(
+        select(CampaignZone.id)
+        .where(
+            CampaignZone.campaign_id == campaign.id,
+            CampaignZone.zone_type == CampaignZoneType.TARGET.value,
+        )
+        .limit(1)
+    )
+    if target_zone is None:
+        missing.append("target_area")
+    if missing:
+        raise AppError(
+            "CAMPAIGN_INCOMPLETE_FOR_REVIEW",
+            "Add start and end dates, a total budget and at least one target area "
+            "before submitting for review",
+            status_code=status.HTTP_409_CONFLICT,
+            details={"missing": missing},
+        )
 
     snapshot = campaign_review_snapshot(campaign)
     snapshot_digest = campaign_review_snapshot_digest(snapshot)

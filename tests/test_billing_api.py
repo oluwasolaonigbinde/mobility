@@ -8,6 +8,7 @@ from conftest import (
     create_test_campaign,
     create_test_organization,
     create_test_user,
+    make_test_campaign_reviewable,
 )
 from sqlalchemy import func, select
 from test_invoices import _issuer
@@ -138,6 +139,9 @@ def test_commercial_api_journey_is_tenant_scoped_and_uses_canonical_cash(
     )
     assert retried_acceptance.status_code == 200, retried_acceptance.text
     assert retried_acceptance.json()["id"] == terms_id
+    make_test_campaign_reviewable(
+        db_sessionmaker, campaign_id=campaign.id, created_by_user_id=admin.id
+    )
 
     submitted = db_client.post(
         f"/api/v1/advertiser/campaigns/{campaign.id}/submit",

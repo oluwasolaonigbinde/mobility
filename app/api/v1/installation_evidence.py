@@ -162,11 +162,15 @@ async def driver_evidence_policy(
     _user: DriverUserDependency,
     settings: SettingsDependency,
 ) -> InstallationEvidencePolicyRead:
+    # The photo policy (client answer #4) and the display-proof windows are
+    # separate inputs: photos can be uploaded before the proof windows exist.
     configured = bool(
         settings.installation_evidence_uploaders
         and settings.installation_evidence_views
         and settings.installation_evidence_validity_hours is not None
-        and settings.display_proof_challenge_ttl_seconds is not None
+    )
+    proof_configured = configured and (
+        settings.display_proof_challenge_ttl_seconds is not None
         and settings.display_proof_validity_seconds is not None
     )
     return InstallationEvidencePolicyRead(
@@ -177,10 +181,10 @@ async def driver_evidence_policy(
             settings.installation_evidence_validity_hours if configured else None
         ),
         display_proof_challenge_ttl_seconds=(
-            settings.display_proof_challenge_ttl_seconds if configured else None
+            settings.display_proof_challenge_ttl_seconds if proof_configured else None
         ),
         display_proof_validity_seconds=(
-            settings.display_proof_validity_seconds if configured else None
+            settings.display_proof_validity_seconds if proof_configured else None
         ),
     )
 

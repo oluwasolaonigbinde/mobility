@@ -49,8 +49,8 @@ describe("CreativeStatusActions", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it.each([
-    ["pending_review", "Under admin review"],
-    ["approved", "Admin approved"],
+    ["pending_review", "With Terrax Media for review"],
+    ["approved", "Approved by Terrax Media"],
   ])("shows %s artwork as read-only review state", (status, copy) => {
     renderActions(status);
     expect(screen.getByText(copy)).toBeInTheDocument();
@@ -65,12 +65,14 @@ describe("CreativeStatusActions", () => {
 
   it("submits the exact draft creative and shows the confirmed result", async () => {
     const user = userEvent.setup();
-    mocks.submit.mockResolvedValue({ done: "Creative submitted for admin review." });
+    mocks.submit.mockResolvedValue({ done: "Artwork sent to Terrax Media for review." });
     renderActions("draft");
 
     await user.click(screen.getByRole("button", { name: "Submit creative" }));
 
-    expect(await screen.findByText("✓ Creative submitted for admin review.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("✓ Artwork sent to Terrax Media for review."),
+    ).toBeInTheDocument();
     const form = mocks.submit.mock.calls[0]?.[1] as FormData;
     expect(form.get("campaign_id")).toBe(CAMPAIGN_ID);
     expect(form.get("creative_id")).toBe(CREATIVE_ID);
@@ -116,7 +118,9 @@ describe("CreativeStatusActions", () => {
           release = resolve;
         }),
     );
-    mocks.replace.mockResolvedValue({ done: "Replacement artwork submitted for admin review." });
+    mocks.replace.mockResolvedValue({
+      done: "Replacement artwork sent to Terrax Media for review.",
+    });
     renderActions("rejected");
     const file = wrap();
 
@@ -133,7 +137,7 @@ describe("CreativeStatusActions", () => {
     await user.click(screen.getByRole("button", { name: "Replace and submit" }));
 
     expect(
-      await screen.findByText("✓ Replacement artwork submitted for admin review."),
+      await screen.findByText("✓ Replacement artwork sent to Terrax Media for review."),
     ).toBeInTheDocument();
     const form = mocks.replace.mock.calls[0]?.[1] as FormData;
     expect(Object.fromEntries(form.entries())).toEqual({

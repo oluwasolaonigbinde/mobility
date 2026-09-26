@@ -111,7 +111,9 @@ describe("resilient campaign detail", () => {
     expect(screen.getByRole("button", { name: "Cancel campaign" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Commercial terms" })).toBeInTheDocument();
     expect(
-      screen.getByText("No artwork yet. Add the files Cardvert should review for this campaign."),
+      screen.getByText(
+        "No artwork yet. Add the files Terrax Media should review for this campaign.",
+      ),
     ).toBeInTheDocument();
     expect(screen.queryByText("Estimated ad exposure")).not.toBeInTheDocument();
     expect(screen.queryByText("Fleet")).not.toBeInTheDocument();
@@ -151,7 +153,7 @@ describe("resilient campaign detail", () => {
     [
       "/creatives",
       "Creatives unavailable",
-      "No artwork yet. Add the files Cardvert should review for this campaign.",
+      "No artwork yet. Add the files Terrax Media should review for this campaign.",
     ],
     ["/commercial", "Commercial terms unavailable", "Commercial terms"],
     [
@@ -354,7 +356,7 @@ describe("resilient campaign detail", () => {
     expect(
       get.mock.calls.filter(([path]) => String(path).includes("/creatives/{creative_id}/")),
     ).toHaveLength(1);
-    expect(screen.getByText(/review-proof/)).toBeInTheDocument();
+    expect(screen.queryByText(/review-proof/)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cancel campaign" })).not.toBeInTheDocument();
     expect(screen.getByText("₦500.00")).toBeInTheDocument();
   });
@@ -432,7 +434,7 @@ describe("resilient campaign detail", () => {
     expect(
       screen.getByText("Calculated driver pay; your invoice is shown in Billing."),
     ).toBeInTheDocument();
-    expect(screen.getByText("Trip integrity checks awaiting Cardvert review")).toBeInTheDocument();
+    expect(screen.getByText("Trip checks waiting for Terrax Media to review")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Submission and review history" }),
     ).toBeInTheDocument();

@@ -14,9 +14,12 @@ async function loginAsAdmin(page: Page) {
   await page.waitForURL("**/admin");
 }
 
-test("admin overview shows network counts and full nav", async ({ page }) => {
+test("admin home shows the department work queue and full nav", async ({ page }) => {
   await loginAsAdmin(page);
-  await expect(page.getByRole("heading", { name: "Fleet & Trust Operations" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Waiting for you" })).toBeVisible();
+  for (const section of ["Operations", "Compliance", "Finance", "Customer Service", "Admin"]) {
+    await expect(page.getByRole("heading", { name: section, exact: true })).toBeVisible();
+  }
   const nav = page.getByRole("navigation", { name: "Primary" }).first();
   for (const item of [
     "Users",

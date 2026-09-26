@@ -86,6 +86,8 @@ const campaignActionErrors = {
   CAMPAIGN_CHANGE_PREVIEW_STALE: "Funding or review facts changed. Preview the change again.",
   CAMPAIGN_CHANGE_RETRY_CONFLICT: "This confirmation no longer matches the preview. Preview again.",
   CAMPAIGN_REVIEW_STATE_CONFLICT: "The campaign state changed. Refresh and try again.",
+  CAMPAIGN_INCOMPLETE_FOR_REVIEW:
+    "Add start and end dates, a total budget and at least one target area before submitting for review.",
   CREATIVE_REVIEW_STATE_CONFLICT: "The creative state changed. Refresh and try again.",
   CREATIVE_FILE_NOT_CLEARED: "The creative file is not ready for review.",
 } as const;
@@ -326,7 +328,7 @@ export async function submitCampaignForReviewAction(
 
   revalidatePath(`/advertiser/campaigns/${parsed.data.campaignId}`);
   revalidatePath("/advertiser/campaigns");
-  return { done: "Campaign submitted for admin review." };
+  return { done: "Campaign sent to Terrax Media for review." };
 }
 
 export async function submitCreativeForReviewAction(
@@ -357,7 +359,7 @@ export async function submitCreativeForReviewAction(
 
   revalidatePath(`/advertiser/campaigns/${parsed.data.campaignId}`);
   revalidatePath("/admin/approvals");
-  return { done: "Creative submitted for admin review." };
+  return { done: "Artwork sent to Terrax Media for review." };
 }
 
 export async function replaceCreativeAndSubmitAction(
@@ -401,5 +403,5 @@ export async function replaceCreativeAndSubmitAction(
 
   revalidatePath(`/advertiser/campaigns/${parsed.data.campaignId}`);
   revalidatePath("/admin/approvals");
-  return { done: "Replacement artwork submitted for admin review." };
+  return { done: "Replacement artwork sent to Terrax Media for review." };
 }

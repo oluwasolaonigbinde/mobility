@@ -88,13 +88,17 @@ _TEMPLATES: dict[NotificationType, Callable[[dict[str, Any]], RenderedEmail]] = 
         "Campaign funding confirmed", "Campaign funding has been confirmed."
     ),
     NotificationType.BUDGET_ALERT: _static(
-        "Campaign budget alert", "A configured campaign budget alert threshold was reached."
+        "Campaign budget warning", "A campaign has used most of its budget."
+    ),
+    NotificationType.BUDGET_URGENT_ALERT: _static(
+        "Campaign budget nearly used",
+        "A campaign has almost used its budget and will pause when it runs out.",
     ),
     NotificationType.CAMPAIGN_BUDGET_PAUSED: _static(
-        "Campaign paused for budget", "A campaign was paused by the configured budget policy."
+        "Campaign paused for budget", "Cardvert paused a campaign because its budget is used up."
     ),
     NotificationType.CAMPAIGN_BUDGET_RESUMED: _static(
-        "Campaign resumed", "An administrator resumed a budget-paused campaign."
+        "Campaign resumed", "Terrax Media resumed a campaign that was paused for budget."
     ),
     NotificationType.CAMPAIGN_CANCELLED: _static(
         "Campaign cancelled", "A campaign cancellation has been recorded."

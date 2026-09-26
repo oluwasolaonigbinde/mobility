@@ -3,7 +3,12 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
-from conftest import create_test_campaign, create_test_organization, create_test_user
+from conftest import (
+    create_test_campaign,
+    create_test_organization,
+    create_test_user,
+    make_test_campaign_reviewable,
+)
 from sqlalchemy import func, select
 from test_invoices import _issuer
 from test_receipt_allocations import _accepted_terms
@@ -839,6 +844,9 @@ def test_stale_currency_update_cannot_mutate_submitted_review_snapshot(
         postgis_db_sessionmaker,
         organization_id=organization.id,
         created_by_user_id=admin.id,
+    )
+    make_test_campaign_reviewable(
+        postgis_db_sessionmaker, campaign_id=campaign.id, created_by_user_id=admin.id
     )
 
     async def race() -> tuple[str, str, str]:

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { formatDate, formatDateRange } from "@/lib/format";
+import { offerTermLines } from "@/lib/assignments/offer-terms";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { AssignmentActions } from "./assignment-actions";
@@ -34,7 +35,7 @@ const statusMeta: Record<
 
 const statusExplanation: Record<AssignmentStatus, string> = {
   offered: "Decision required. This offer does not grant campaign work.",
-  accepted: "Accepted. Cardvert operations still need to activate this campaign.",
+  accepted: "Accepted. Terrax Media still needs to start this campaign for you.",
   declined: "Declined. This offer cannot be activated or tracked.",
   expired: "Expired. This offer cannot be accepted or tracked.",
   active: "Activated. Cardvert checks you're still ready each time you press Start.",
@@ -253,16 +254,16 @@ export default async function DriverAssignmentsPage() {
                   </div>
                   <details className="mt-3">
                     <summary className="text-muted cursor-pointer text-[11px]">
-                      Technical reference
+                      Full job terms
                     </summary>
-                    {a.offer_terms_sha256 ? (
-                      <p className="text-faint mt-2 font-mono text-[10px] break-all">
-                        Terms fingerprint {a.offer_terms_sha256}
-                      </p>
-                    ) : null}
-                    <pre className="border-edge/60 bg-bg/50 mt-2 max-h-64 overflow-auto rounded border p-2 font-mono text-[10px] leading-4 whitespace-pre-wrap">
-                      {JSON.stringify(a.offer_terms, null, 2)}
-                    </pre>
+                    <dl className="mt-2 grid gap-1 text-[11px]">
+                      {offerTermLines(a.offer_terms).map((line) => (
+                        <div key={line.label} className="flex flex-wrap gap-x-2">
+                          <dt className="text-faint">{line.label}</dt>
+                          <dd>{line.value}</dd>
+                        </div>
+                      ))}
+                    </dl>
                   </details>
                 </div>
               ) : null}
@@ -286,10 +287,11 @@ export default async function DriverAssignmentsPage() {
                   requiredViews={evidencePolicy.data.required_views}
                   latestEvidenceStatus={evidenceByAssignment.get(a.id)?.at(-1)?.status}
                   pendingChallengeDueAt={pendingByAssignment.get(a.id)?.due_at ?? undefined}
+                  proofAvailable={evidencePolicy.data.display_proof_challenge_ttl_seconds != null}
                 />
               ) : ["accepted", "active", "deactivated"].includes(a.status) ? (
                 <p className="text-muted border-edge mt-4 border-t pt-3 text-xs">
-                  Installation evidence is waiting for the operations policy to be configured.
+                  Installation photos can&apos;t be uploaded yet.
                 </p>
               ) : null}
             </Panel>

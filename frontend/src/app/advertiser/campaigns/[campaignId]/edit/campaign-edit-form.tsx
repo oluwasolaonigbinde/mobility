@@ -49,13 +49,13 @@ export function CampaignEditForm({
       </label>
       <div className="grid gap-4 sm:grid-cols-2">
         <Field
-          label="Starts (Lagos time)"
+          label="Starts, Nigeria time (WAT)"
           name="start_at"
           type="datetime-local"
           defaultValue={shown.start_at}
         />
         <Field
-          label="Ends (Lagos time)"
+          label="Ends, Nigeria time (WAT)"
           name="end_at"
           type="datetime-local"
           defaultValue={shown.end_at}

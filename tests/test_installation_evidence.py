@@ -623,3 +623,43 @@ def test_trip_start_fails_closed_without_current_bound_display_proof(
     response = start_trip(db_client, assignment.id)
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "CURRENT_DISPLAY_PROOF_REQUIRED"
+
+def test_photo_policy_enables_driver_uploads_before_display_proof_windows_exist(
+    db_client, db_sessionmaker, settings
+) -> None:
+    """Client answer #4 photo rules stand alone; display-proof windows are still open inputs."""
+    settings.installation_evidence_uploader_roles = "driver,admin"
+    settings.installation_evidence_required_views = "front,back,left,right,close_up"
+    settings.installation_evidence_validity_hours = 168
+    settings.display_proof_challenge_ttl_seconds = None
+    settings.display_proof_validity_seconds = None
+    driver = create_test_user(
+        db_sessionmaker,
+        email="evidence-policy-driver@example.com",
+        password=PASSWORD,
+        role=UserRole.DRIVER,
+    )
+    create_test_driver_profile(db_sessionmaker, user_id=driver.id)
+    headers = auth_headers(db_client, driver.email, PASSWORD)
+
+    policy = db_client.get("/api/v1/driver/installation-evidence/policy", headers=headers)
+    assert policy.status_code == 200, policy.text
+    assert policy.json() == {
+        "configured": True,
+        "can_upload": True,
+        "required_views": ["front", "back", "left", "right", "close_up"],
+        "evidence_validity_hours": 168,
+        "display_proof_challenge_ttl_seconds": None,
+        "display_proof_validity_seconds": None,
+    }
+
+    settings.display_proof_challenge_ttl_seconds = 120
+    settings.display_proof_validity_seconds = 3600
+    with_proof = db_client.get("/api/v1/driver/installation-evidence/policy", headers=headers)
+    assert with_proof.json()["display_proof_challenge_ttl_seconds"] == 120
+    assert with_proof.json()["display_proof_validity_seconds"] == 3600
+
+    settings.installation_evidence_validity_hours = None
+    unset = db_client.get("/api/v1/driver/installation-evidence/policy", headers=headers).json()
+    assert unset["configured"] is False and unset["can_upload"] is False
+    assert unset["display_proof_challenge_ttl_seconds"] is None

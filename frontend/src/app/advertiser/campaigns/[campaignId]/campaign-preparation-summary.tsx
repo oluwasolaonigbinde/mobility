@@ -27,8 +27,8 @@ function artworkState(creatives: Creative[]): string {
 // is the useful next action.
 const lifecycleAction: Partial<Record<Campaign["status"], string>> = {
   active:
-    "This campaign is live. Results appear on the Campaign Performance Analysis page once Cardvert issues a report.",
-  paused: "This campaign is paused. Cardvert decides when it can resume.",
+    "This campaign is live. Results appear on the Campaign Performance Analysis page once Terrax Media issues a report.",
+  paused: "This campaign is paused. Terrax Media decides when it can resume.",
   completed:
     "This campaign has finished. Its report appears on the Campaign Performance Analysis page once issued.",
   cancelled: "This campaign is cancelled; no new work can start.",
@@ -39,34 +39,51 @@ function nextAction(campaign: Campaign, commercial: Commercial, creatives: Creat
   if (lifecycle) return lifecycle;
   if (campaign.status === "rejected") return "Update the rejected campaign details, then resubmit.";
   if (!commercial.quote_request) return "Request the custom quotation for this campaign.";
-  if (!commercial.revisions.length) return "Wait for Cardvert to post the quotation for review.";
+  if (!commercial.revisions.length)
+    return "Wait for Terrax Media to post the quotation for review.";
   if (!commercial.terms) return "Review and accept the latest quotation shown below.";
   if (!creatives.length) return "Add the artwork files required for this campaign.";
   if (creatives.some((creative) => creative.status === "rejected")) {
     return "Replace or update rejected artwork, then resubmit it for review.";
   }
   if (creatives.some((creative) => creative.status === "draft")) {
-    return "Submit each draft artwork file for Cardvert review.";
+    return "Submit each draft artwork file for Terrax Media to review.";
   }
   if (creatives.some((creative) => creative.status === "pending_review")) {
-    return "Wait for Cardvert to finish the artwork review.";
+    return "Wait for Terrax Media to finish the artwork review.";
   }
   if (!commercial.financial_authority) {
-    return "Wait for Cardvert to confirm your payment or agreed credit.";
+    return "Wait for Terrax Media to confirm your payment or agreed credit.";
   }
-  if (campaign.status === "draft") return "Submit the completed campaign for Cardvert review.";
-  if (campaign.status === "pending_review") return "Wait for Cardvert to finish campaign review.";
-  return "Cardvert now arranges drivers, installation and the start date.";
+  if (campaign.status === "draft")
+    return "Submit the completed campaign for Terrax Media to review.";
+  if (campaign.status === "pending_review")
+    return "Wait for Terrax Media to finish the campaign review.";
+  return "Terrax Media now arranges drivers, installation and the start date.";
+}
+
+// D38(d): the server refuses review until these exist; say so before the button is pressed.
+function missingForReview(campaign: Campaign, targetAreas?: number): string[] {
+  if (campaign.status !== "draft" && campaign.status !== "rejected") return [];
+  const missing: string[] = [];
+  if (!campaign.start_at || !campaign.end_at) missing.push("start and end dates");
+  if (!campaign.budget_amount || Number(campaign.budget_amount) <= 0)
+    missing.push("a total budget");
+  if (targetAreas === 0) missing.push("a target area");
+  return missing;
 }
 
 export function CampaignPreparationSummary({
   campaign,
   commercial,
   creatives,
+  targetAreas,
 }: {
   campaign: Campaign;
   commercial?: Commercial;
   creatives?: Creative[];
+  /** Target-area count from the campaign's target-zone list; undefined when it couldn't be read. */
+  targetAreas?: number;
 }) {
   if (!commercial || !creatives) {
     return (
@@ -81,6 +98,7 @@ export function CampaignPreparationSummary({
   }
 
   const artwork = artworkState(creatives);
+  const missing = missingForReview(campaign, targetAreas);
   return (
     <Panel className="mb-6 p-5" aria-label="Campaign preparation">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -116,6 +134,15 @@ export function CampaignPreparationSummary({
           </dd>
         </div>
       </dl>
+      {missing.length ? (
+        <p className="text-coral mt-4 text-sm">
+          Before you can submit for review, add{" "}
+          {missing.length > 1
+            ? `${missing.slice(0, -1).join(", ")} and ${missing.at(-1)}`
+            : missing[0]}
+          .
+        </p>
+      ) : null}
       <p className="text-faint mt-4 text-xs">
         This checklist shows what has been recorded so far. It does not authorize production,
         assignment, installation or launch.

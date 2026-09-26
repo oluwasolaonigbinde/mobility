@@ -86,7 +86,7 @@ test("quotation acceptance and invoice facts survive role changes and reloads", 
   await expect(page.getByRole("heading", { name: campaignName })).toBeVisible();
   await page.getByLabel("Quotation notes").fill("Two vehicles for a commercial contract test");
   await page.getByRole("button", { name: "Request custom quotation" }).click();
-  await expect(page.getByText(/Quotation requested\. Cardvert will post it here/)).toBeVisible({
+  await expect(page.getByText(/Quotation requested\. Terrax Media will post it here/)).toBeVisible({
     timeout: 15_000,
   });
 

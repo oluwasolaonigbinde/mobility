@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
@@ -8,7 +9,7 @@ from conftest import create_test_campaign, create_test_organization, create_test
 from sqlalchemy import func, select
 
 import app.services.billing as billing_service
-from app.adapters.budget import FixedBudgetPolicyAdapter
+from app.adapters.budget import BudgetPolicyContext, FixedBudgetPolicyAdapter
 from app.core.errors import AppError
 from app.models.audit import AuditEvent
 from app.models.billing import (
@@ -271,7 +272,8 @@ def test_billing_funding_alert_pause_reversal_and_audited_resume_converge(
                 if type_key == NotificationType.QUOTATION_READY.value
             ]
             assert len(quotation_notices) == 2
-            assert len(notice_types) - len(quotation_notices) == 10
+            # The active admin also receives the alert and pause in the app (client answer #3).
+            assert len(notice_types) - len(quotation_notices) == 12
 
             await fund(
                 session,
@@ -322,7 +324,7 @@ def test_billing_funding_alert_pause_reversal_and_audited_resume_converge(
                     )
                     or 0
                 )
-                == 8
+                == 11
             )
             assert (
                 await session.scalar(
@@ -535,7 +537,7 @@ def test_resume_epoch_uses_causal_time_not_uuid_or_later_pause(
                     .select_from(Notification)
                     .where(Notification.type_key == NotificationType.CAMPAIGN_BUDGET_PAUSED.value)
                 )
-                == 6
+                == 9
             )
             await session.commit()
 
@@ -691,7 +693,7 @@ def test_postgres_resume_evaluation_overlap_applies_one_new_epoch_pause(
                     .select_from(Notification)
                     .where(Notification.type_key == NotificationType.CAMPAIGN_BUDGET_PAUSED.value)
                 )
-                == 4
+                == 6
             )
             assert (
                 await session.scalar(
@@ -801,3 +803,197 @@ def test_concurrent_funding_and_budget_worker_converge_to_one_pause(
             )
 
     asyncio.run(scenario())
+
+
+def three_level_policy() -> FixedBudgetPolicyAdapter:
+    return FixedBudgetPolicyAdapter(
+        policy_id="synthetic-budget-policy",
+        policy_revision="synthetic-test-r2",
+        policy_source="synthetic_test",
+        alert_ratio=Decimal("0.80"),
+        urgent_ratio=Decimal("0.95"),
+        pause_ratio=Decimal("1.00"),
+        resume_ratio=Decimal("0.70"),
+    )
+
+
+def test_urgent_level_alerts_advertiser_members_and_admins_before_the_pause(
+    db_sessionmaker,
+) -> None:
+    admin = create_test_user(db_sessionmaker, email="budget-urgent-admin@example.com")
+    second_admin = create_test_user(db_sessionmaker, email="budget-urgent-admin2@example.com")
+    owner = create_test_user(
+        db_sessionmaker, email="budget-urgent-owner@example.com", role=UserRole.ADVERTISER
+    )
+    organization, _ = create_test_organization(db_sessionmaker, owner_user_id=owner.id)
+    campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=admin.id,
+        campaign_status=CampaignStatus.ACTIVE,
+        budget_amount="1000.00",
+    )
+
+    async def scenario():
+        async with db_sessionmaker() as session:
+            terms = await accepted_terms(session, campaign=campaign, admin=admin, owner=owner)
+            await fund(
+                session,
+                terms=terms,
+                organization=organization,
+                admin=admin,
+                reference="SYNTHETIC-URGENT-960",
+                amount="960.00",
+            )
+            urgent = await evaluate_campaign_budget_policy(
+                session,
+                campaign_id=campaign.id,
+                adapter=three_level_policy(),
+                synthetic_test_authority=True,
+            )
+            retry = await evaluate_campaign_budget_policy(
+                session,
+                campaign_id=campaign.id,
+                adapter=three_level_policy(),
+                synthetic_test_authority=True,
+            )
+            assert retry.id == urgent.id
+            assert urgent.state == "urgent_threshold"
+            assert urgent.urgent_threshold_amount == Decimal("950.00")
+            assert urgent.alert_applied is True
+            assert urgent.pause_applied is False
+            assert (await session.get(Campaign, campaign.id)).status == CampaignStatus.ACTIVE
+            recipients = list(
+                await session.execute(
+                    select(Notification.recipient_user_id, Notification.channel).where(
+                        Notification.type_key == NotificationType.BUDGET_URGENT_ALERT.value
+                    )
+                )
+            )
+            # The owner gets in-app and email; each active admin gets one in-app notice,
+            # and a retried evaluation adds nothing.
+            assert sorted((str(user), channel) for user, channel in recipients) == sorted(
+                [
+                    (str(owner.id), "in_app"),
+                    (str(owner.id), "transactional_email"),
+                    (str(admin.id), "in_app"),
+                    (str(second_admin.id), "in_app"),
+                ]
+            )
+
+    asyncio.run(scenario())
+
+
+def test_two_level_decisions_keep_their_evaluation_key() -> None:
+    campaign = Campaign(
+        id=UUID("00000000-0000-4000-8000-000000000001"),
+        budget_amount=Decimal("1000.00"),
+        daily_budget_amount=None,
+        currency="NGN",
+    )
+    context = BudgetPolicyContext(
+        campaign_id=campaign.id,
+        currency="NGN",
+        configured_budget_amount=Decimal("1000.00"),
+        configured_daily_budget_amount=None,
+        total_billing_spend_amount=Decimal("850.00"),
+        daily_billing_spend_amount=Decimal("0.00"),
+    )
+    decision = asyncio.run(policy().evaluate(context))
+    assert decision.urgent_threshold_amount is None
+    key = billing_service._budget_evaluation_key(
+        campaign,
+        evaluation_epoch_id=None,
+        decision=decision,
+        billing_fact_source="confirmed_funding",
+    )
+    # Recorded before the urgent level existed; must not change for two-level policies.
+    legacy = hashlib.sha256(
+        "|".join(
+            (
+                str(campaign.id),
+                "initial",
+                "1000.00",
+                "None",
+                "NGN",
+                "synthetic-budget-policy",
+                "synthetic-test-r1",
+                "synthetic_test",
+                "total",
+                "confirmed_funding",
+                "850.00",
+                "800.00",
+                "1000.00",
+                "700.00",
+                "alert_threshold",
+            )
+        ).encode()
+    ).hexdigest()
+    assert key == legacy
+
+
+def test_three_level_thresholds_are_ordered_and_tiny_budgets_fail_closed() -> None:
+    with pytest.raises(ValueError, match="invalid_budget_policy_threshold_order"):
+        FixedBudgetPolicyAdapter(
+            policy_id="p",
+            policy_revision="r",
+            policy_source="synthetic_test",
+            alert_ratio=Decimal("0.80"),
+            urgent_ratio=Decimal("0.80"),
+            pause_ratio=Decimal("1.00"),
+            resume_ratio=Decimal("0.70"),
+        )
+    # A 0.05 budget rounds warning, urgent and pause to the same cent; the service
+    # refuses the collapsed decision instead of recording it.
+    context = BudgetPolicyContext(
+        campaign_id=UUID("00000000-0000-4000-8000-000000000002"),
+        currency="NGN",
+        configured_budget_amount=Decimal("0.05"),
+        configured_daily_budget_amount=None,
+        total_billing_spend_amount=Decimal("0.05"),
+        daily_billing_spend_amount=Decimal("0.00"),
+    )
+    decision = asyncio.run(three_level_policy().evaluate(context))
+    with pytest.raises(AppError) as invalid:
+        billing_service._validate_budget_decision(decision, synthetic_test_authority=True)
+    assert invalid.value.code == "INVALID_BUDGET_POLICY_DECISION"
+
+def test_approved_settings_wire_all_three_levels_into_the_live_adapter(monkeypatch) -> None:
+    from app.adapters.budget import build_budget_policy_adapter
+    from app.core.config import Settings
+
+    values = {
+        "BUDGET_POLICY_EXTERNAL_APPROVED": "true",
+        "BUDGET_POLICY_ID": "synthetic-settings-policy",
+        "BUDGET_POLICY_REVISION": "synthetic-r1",
+        "BUDGET_ALERT_RATIO": "0.80",
+        "BUDGET_URGENT_RATIO": "0.95",
+        "BUDGET_PAUSE_RATIO": "1.00",
+        "BUDGET_RESUME_RATIO": "0.70",
+    }
+    for name, value in values.items():
+        monkeypatch.setenv(name, value)
+    adapter = build_budget_policy_adapter(Settings(_env_file=None))
+    assert isinstance(adapter, FixedBudgetPolicyAdapter)
+    assert adapter.urgent_ratio == Decimal("0.95")
+
+    def decide(spend: str):
+        context = BudgetPolicyContext(
+            campaign_id=UUID("00000000-0000-4000-8000-000000000003"),
+            currency="NGN",
+            configured_budget_amount=Decimal("1000.00"),
+            configured_daily_budget_amount=None,
+            total_billing_spend_amount=Decimal(spend),
+            daily_billing_spend_amount=Decimal("0.00"),
+        )
+        return asyncio.run(adapter.evaluate(context))
+
+    assert decide("850.00").state == "alert_threshold"
+    assert decide("950.00").state == "urgent_threshold"
+    paused = decide("1000.00")
+    assert paused.state == "pause_threshold" and paused.should_pause is True
+
+    for name, value in (("BUDGET_URGENT_RATIO", "0.80"), ("BUDGET_URGENT_RATIO", "")):
+        monkeypatch.setenv(name, value)
+        with pytest.raises(ValueError):
+            Settings(_env_file=None)

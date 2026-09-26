@@ -52,7 +52,7 @@ export async function requestQuoteAction(
   } catch (error) {
     return { error: safeCommercialError(error, "Could not request a quotation. Try again.") };
   }
-  return { done: "Quotation requested. Cardvert will post it here for review." };
+  return { done: "Quotation requested. Terrax Media will post it here for review." };
 }
 
 export async function acceptQuoteAction(
