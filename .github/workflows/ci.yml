@@ -156,10 +156,7 @@ jobs:
           echo "exact candidate SHA: $actual"
       - name: Start real MinIO and ClamAV
         run: |
-          docker pull quay.io/minio/minio@sha256:d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0
-          docker tag quay.io/minio/minio@sha256:d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0 minio/minio:RELEASE.2025-07-23T15-54-02Z
-          docker pull quay.io/minio/mc@sha256:fb8f773eac8ef9d6da0486d5dec2f42f219358bcb8de579d1623d518c9ebd4cc
-          docker tag quay.io/minio/mc@sha256:fb8f773eac8ef9d6da0486d5dec2f42f219358bcb8de579d1623d518c9ebd4cc minio/mc:RELEASE.2025-07-21T05-28-08Z
+          ./scripts/ci_load_minio_images.sh
           docker run -d --name minio -p 9000:9000 \
             -e MINIO_ROOT_USER="$LOCAL_MINIO_ACCESS_KEY" \
             -e MINIO_ROOT_PASSWORD="$LOCAL_MINIO_SECRET_KEY" \
@@ -477,8 +474,7 @@ jobs:
           LOGIN_RATE_LIMIT_IP_MAX_FAILURES: "500"
           F7_SEED_MAX_TRIPS_PER_DAY: "1"
         run: |
-          docker pull quay.io/minio/minio@sha256:d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0
-          docker tag quay.io/minio/minio@sha256:d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0 minio/minio:RELEASE.2025-07-23T15-54-02Z
+          ./scripts/ci_load_minio_images.sh
           cp .env.example .env
           sed -i 's/ALLOW_DEMO_SEED=false/ALLOW_DEMO_SEED=true/' .env
           docker compose up -d --build api db redis
@@ -557,10 +553,7 @@ jobs:
         working-directory: frontend
       - name: Run the isolated real-stack release journey
         run: |
-          docker pull quay.io/minio/minio@sha256:d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0
-          docker tag quay.io/minio/minio@sha256:d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0 minio/minio:RELEASE.2025-07-23T15-54-02Z
-          docker pull quay.io/minio/mc@sha256:fb8f773eac8ef9d6da0486d5dec2f42f219358bcb8de579d1623d518c9ebd4cc
-          docker tag quay.io/minio/mc@sha256:fb8f773eac8ef9d6da0486d5dec2f42f219358bcb8de579d1623d518c9ebd4cc minio/mc:RELEASE.2025-07-21T05-28-08Z
+          ./scripts/ci_load_minio_images.sh
           ./scripts/run_r59_real_stack.sh
       - uses: actions/upload-artifact@v4
         if: always()

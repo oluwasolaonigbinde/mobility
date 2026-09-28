@@ -24,6 +24,9 @@ from sqlalchemy import text
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = REPO_ROOT / ".github/workflows/ci.yml"
 E2E_COMPOSE_OVERRIDE_PATH = REPO_ROOT / "frontend/e2e/support/docker-compose.e2e.yml"
+# MinIO's pinned images are no longer publicly pullable; CI loads checksummed
+# exports of the same images from the repository's release.
+MINIO_LOADER = "./scripts/ci_load_minio_images.sh"
 
 # Release-critical paths a change to which must select CI. The root entries are the
 # ones codex-production-readiness-audit P1 found omitted; `.codex/**` closes the
@@ -384,22 +387,27 @@ def test_preprod_tests_execute_only_inside_authoritative_matrix(workflow: dict) 
     ("r59_real_stack", "Run the isolated real-stack release journey",
      "./scripts/run_r59_real_stack.sh"),
 ])
-def test_backend_pulls_identical_minio_digests_before_startup(
+def test_backend_loads_identical_minio_images_before_startup(
     workflow: dict, job: str, step_name: str, startup: str,
 ) -> None:
     step = next(s for s in workflow["jobs"][job]["steps"]
                 if s.get("name") == step_name)
     run = step["run"]
-    for image, digest, tag in (
-        ("minio", "d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0",
-         "RELEASE.2025-07-23T15-54-02Z"),
-        ("mc", "fb8f773eac8ef9d6da0486d5dec2f42f219358bcb8de579d1623d518c9ebd4cc",
-         "RELEASE.2025-07-21T05-28-08Z"),
+    assert run.index(MINIO_LOADER) < run.index(startup)
+
+
+def test_minio_loader_pins_checksummed_exports_of_the_pinned_images() -> None:
+    script = (REPO_ROOT / "scripts/ci_load_minio_images.sh").read_text(encoding="utf-8")
+    assert "set -euo pipefail" in script
+    for export_sha, tag in (
+        ("8367872214ecc1ca919b7b7e3a28e4e13cfd9b6ca7609b4028dbfa4be03d7610",
+         "minio/minio:RELEASE.2025-07-23T15-54-02Z"),
+        ("ef6be78bd425b192300ad2acc614a9e3d61f805d3d07b0fddc52a64789ecec1a",
+         "minio/mc:RELEASE.2025-07-21T05-28-08Z"),
     ):
-        source = f"quay.io/minio/{image}@sha256:{digest}"
-        pull = f"docker pull {source}"
-        local_tag = f"docker tag {source} minio/{image}:{tag}"
-        assert run.index(pull) < run.index(local_tag) < run.index(startup)
+        assert export_sha in script
+        assert tag in script
+    assert script.index("sha256sum -c") < script.index("docker load")
 
 
 def test_backend_provisions_caddy_before_authoritative_tests(workflow):
@@ -422,9 +430,4 @@ def test_e2e_runs_independently_of_coverage_after_quality(workflow):
 def test_ordinary_e2e_provisions_its_implicit_minio_dependency(workflow):
     steps = workflow["jobs"]["e2e"]["steps"]
     run = next(step["run"] for step in steps if step.get("name", "").startswith("Boot backend"))
-    image = (
-        "quay.io/minio/minio@sha256:"
-        "d249d1fb6966de4d8ad26c04754b545205ff15a62e4fd19ebd0f26fa5baacbc0"
-    )
-    assert run.index(f"docker pull {image}") < run.index(f"docker tag {image}")
-    assert run.index(f"docker tag {image}") < run.index("docker compose up")
+    assert run.index(MINIO_LOADER) < run.index("docker compose up")

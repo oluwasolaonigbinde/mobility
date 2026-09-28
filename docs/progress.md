@@ -412,6 +412,18 @@ then passed (59). `tsc` passes; full Vitest 1,061/1,064, and the three
 file passes alone (85/85). The full backend suite is left to GitHub CI after an
 owner-approved push.
 
+CI MinIO repair (28 Sep 2026, owner-approved). Every backend shard, e2e and R59
+job on `4f318e3`, `batch-c` and `batch-e` failed before pytest: the pinned
+`quay.io/minio/minio` and `minio/mc` digests are no longer publicly pullable
+(also absent from Docker Hub). Unmodified `docker save` exports of those exact
+images, from this laptop's cache, are attached to the repository release
+`ci-images-minio-2025-07`; `scripts/ci_load_minio_images.sh` downloads them,
+checks pinned SHA-256 sums before `docker load`, and replaces the three
+pull-and-tag blocks in `ci.yml`. Evidence: the loader ran end to end in a Linux
+container (both sums OK, both tags loaded) and
+`tests/test_ci_integration_authority_r02.py` passes (73). The full suite on A, B
+and D therefore had not run until this fix.
+
 **Client visual-direction reduction (24 Sep 2026):** The owner reports the
 client rejected former directions 1, 2, 4, 5, 6, 7 and 8 and directs their
 implementation traces and dedicated assets removed. Retain former directions
