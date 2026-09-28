@@ -187,7 +187,10 @@ test("campaign submission and admin approval preserve immutable review history",
       throw new Error("Created campaign URL did not contain a valid campaign ID.");
     }
     await expect(page.getByRole("heading", { name })).toBeVisible();
-    await expect(page.getByText("Draft", { exact: true })).toBeVisible();
+    // The status chip beside the heading; the preparation summary repeats the status.
+    await expect(
+      page.getByRole("heading", { name }).locator("..").getByText("Draft", { exact: true }),
+    ).toBeVisible();
     await expect(page.getByRole("link", { name: "Add artwork" })).toBeVisible();
 
     // A draft can only enter the review lifecycle through its dedicated action.

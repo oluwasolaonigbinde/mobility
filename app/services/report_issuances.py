@@ -1511,11 +1511,13 @@ async def sweep_report_publications(
                 or intent.publisher_token != cleanup_token
             ):
                 continue
+            # Clock before any change: its query autoflushes a half-set row.
+            cleaned_at = await database_clock(session)
             intent.publisher_token = None
             intent.lease_expires_at = None
             if failure_code is None:
                 intent.state = ReportPublicationState.CLEANED
-                intent.cleaned_at = await database_clock(session)
+                intent.cleaned_at = cleaned_at
                 intent.last_error_code = None
                 await create_audit_event(
                     session,
