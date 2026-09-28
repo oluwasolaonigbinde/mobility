@@ -230,6 +230,8 @@ class Settings(BaseSettings):
     budget_urgent_ratio: OptionalFloat = None
     budget_pause_ratio: OptionalFloat = None
     budget_resume_ratio: OptionalFloat = None
+    # EXT-PAYMENT-PROVIDER: blank keeps every Paystack path on the disabled adapters.
+    paystack_secret_key: OptionalSecret = None
     phone_operator_external_approved: bool = False
     phone_verification_ttl_seconds: int = 600
     phone_verification_max_code_attempts: int = 5
@@ -454,6 +456,21 @@ class Settings(BaseSettings):
             raise ValueError("JWT_SECRET_KEY must be changed outside local/test")
         if not value.strip() or len(value) < 32:
             raise ValueError("JWT_SECRET_KEY must be at least 32 characters long")
+        return value
+
+    @field_validator("paystack_secret_key")
+    @classmethod
+    def validate_paystack_secret_key(cls, value: SecretStr | None, info) -> SecretStr | None:
+        if value is None:
+            return None
+        secret = value.get_secret_value()
+        if not re.fullmatch(r"sk_(test|live)_\S+", secret):
+            raise ValueError("PAYSTACK_SECRET_KEY must be a Paystack sk_test_ or sk_live_ key")
+        environment = str(info.data.get("environment", "local")).lower()
+        if environment in LOCAL_ENVIRONMENTS and secret.startswith("sk_live_"):
+            raise ValueError("PAYSTACK_SECRET_KEY live keys are refused in local/test")
+        if environment == "production" and secret.startswith("sk_test_"):
+            raise ValueError("PAYSTACK_SECRET_KEY test keys are refused in production")
         return value
 
     @field_validator("max_campaign_zone_area_sq_km")
