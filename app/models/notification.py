@@ -50,6 +50,9 @@ class NotificationType(StrEnum):
     ACTIVITY_FLOOR_RECOVERED = "activity_floor_recovered"
     ASSIGNMENT_INACTIVE = "assignment_inactive"
     ASSIGNMENT_ACTIVITY_RECOVERED = "assignment_activity_recovered"
+    PAYOUT_AUTOMATIC_ALERT = "payout_automatic_alert"
+    PAYOUT_AUTOMATIC_PAUSED = "payout_automatic_paused"
+    PAYOUT_AUTOMATIC_RESUMED = "payout_automatic_resumed"
 
 
 class NotificationChannel(StrEnum):

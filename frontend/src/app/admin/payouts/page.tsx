@@ -131,6 +131,10 @@ export default async function AdminPayoutsPage({
         · Retroactive day fixes run through maker-checker{" "}
         <Link href="/admin/payouts/corrections" className="text-amber hover:underline">
           correction orders →
+        </Link>{" "}
+        · Clean daily-rate earnings can be paid by Cardvert{" "}
+        <Link href="/admin/payouts/automatic" className="text-amber hover:underline">
+          automatic payouts →
         </Link>
       </p>
     </div>

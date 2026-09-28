@@ -119,6 +119,38 @@ describe("bounded payout pages", () => {
     ).toHaveAttribute("href", "?page=2");
   });
 
+  it("shows Cardvert as the approver of an automatic batch and offers no approval", async () => {
+    const automatic = {
+      ...summary,
+      approval_mode: "automatic",
+      maker_name: "Cardvert (automatic payouts)",
+      approved_at: "2026-09-14T10:00:00Z",
+    };
+    mocks.api
+      .mockResolvedValueOnce({ items: [], total: 0 })
+      .mockResolvedValueOnce({ items: [automatic], total: 1 });
+    render(await PayoutBatchesPage({ searchParams: Promise.resolve({}) }));
+    expect(screen.getByText("Approved automatically by Cardvert")).toBeVisible();
+    expect(screen.queryByText(/Maker:/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Awaiting independent approval/)).not.toBeInTheDocument();
+  });
+
+  it("does not offer approve or send on an automatic batch's detail page", async () => {
+    mocks.api.mockResolvedValue({
+      summary: { ...summary, approval_mode: "automatic", approved_at: "2026-09-14T10:00:00Z" },
+      lines: [line],
+      total: 1,
+    });
+    render(await BatchDetailPage(detailProps()));
+    expect(screen.getByText(/Approved automatically by/)).toHaveTextContent("Cardvert");
+    expect(screen.getByRole("link", { name: "Automatic payouts" })).toHaveAttribute(
+      "href",
+      "/admin/payouts/automatic",
+    );
+    expect(screen.queryByText("Batch actions")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Checker:/)).not.toBeInTheDocument();
+  });
+
   it("limits existing-draft selection to its maker", async () => {
     mocks.api
       .mockResolvedValueOnce({ summary: { ...summary, status: "draft" }, lines: [], total: 0 })

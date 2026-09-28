@@ -182,6 +182,19 @@ def notification_feed_response(notice: Notification) -> NotificationFeedItemRead
             "Verified activity resumed for this assignment, so the activity flag "
             "has been cleared.",
         ),
+        NotificationType.PAYOUT_AUTOMATIC_ALERT.value: (
+            "Automatic payout needs attention",
+            "Cardvert found a problem with automatic driver payouts. "
+            "Open Automatic payouts to follow it up.",
+        ),
+        NotificationType.PAYOUT_AUTOMATIC_PAUSED.value: (
+            "Automatic payouts paused",
+            "Terrax Media paused automatic driver payouts. Open Automatic payouts to see why.",
+        ),
+        NotificationType.PAYOUT_AUTOMATIC_RESUMED.value: (
+            "Automatic payouts resumed",
+            "Terrax Media resumed automatic driver payouts.",
+        ),
     }
     title, body = rendered.get(
         notice.type_key,

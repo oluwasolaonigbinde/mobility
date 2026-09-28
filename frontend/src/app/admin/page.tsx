@@ -100,7 +100,9 @@ const SECTIONS: Array<{
         count: paged,
         read: (api) =>
           api.GET("/api/v1/admin/payout-batches/summaries", {
-            params: { query: { limit: 1, batch_status: "reserved" } },
+            params: {
+              query: { limit: 1, batch_status: "reserved", approval_mode: "maker_checker" },
+            },
           }),
       },
       {
@@ -110,6 +112,15 @@ const SECTIONS: Array<{
         read: (api) =>
           api.GET("/api/v1/admin/payout-batches/summaries", {
             params: { query: { limit: 1, batch_status: "failed" } },
+          }),
+      },
+      {
+        label: "Automatic payout problems",
+        href: "/admin/payouts/automatic",
+        count: paged,
+        read: (api) =>
+          api.GET("/api/v1/admin/payouts/automatic/alerts", {
+            params: { query: { limit: 1, alert_status: "open" } },
           }),
       },
       {

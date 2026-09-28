@@ -291,6 +291,14 @@ AUDITED = {
         "admin.payout_batch.failed_lines_retried"
     ),
     ("POST", "/api/v1/admin/payout-batches/{batch_id}/void"): ("admin.payout_batch.voided"),
+    ("POST", "/api/v1/admin/payouts/automatic/pause"): "admin.payout_automatic.paused",
+    ("POST", "/api/v1/admin/payouts/automatic/resume"): "admin.payout_automatic.resumed",
+    ("POST", "/api/v1/admin/payouts/automatic/release-unsent"): (
+        "admin.payout_automatic.released_to_manual"
+    ),
+    ("POST", "/api/v1/admin/payouts/automatic/alerts/{alert_id}/resolve"): (
+        "admin.payout_automatic_alert.resolved"
+    ),
     ("POST", "/api/v1/admin/traffic-density-profiles"): ("admin.traffic_density_profile.created"),
     ("PATCH", "/api/v1/admin/traffic-density-profiles/{profile_id}"): (
         "admin.traffic_density_profile.updated"

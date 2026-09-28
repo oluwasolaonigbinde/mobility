@@ -9,6 +9,7 @@ from app.adapters.storage import build_storage_provider
 from app.core.config import Settings, get_settings
 from app.core.observability import configure_logging, init_error_tracking
 from app.jobs.assignment_activity import sweep_assignment_activity_flags
+from app.jobs.automatic_payouts import sweep_automatic_payouts
 from app.jobs.budget_enforcement import sweep_campaign_budget_enforcement
 from app.jobs.campaign_assignments import sweep_campaign_assignment_expiries
 from app.jobs.data_lifecycle import (
@@ -185,6 +186,11 @@ class WorkerSettings:
         cron(purge_expired_file_kyc, hour={6}, minute={0}, unique=True),
         cron(
             sweep_disbursement_intents,
+            minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
+            unique=True,
+        ),
+        cron(
+            sweep_automatic_payouts,
             minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
             unique=True,
         ),

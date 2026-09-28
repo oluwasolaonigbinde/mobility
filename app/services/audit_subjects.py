@@ -30,6 +30,7 @@ ACTOR_ONLY_TYPES = frozenset(
         "invoice",
         "invoice_correction",
         "invoice_issuer_profile",
+        "payout_automatic_control",
         "payment_receipt",
         "production_start",
         "receipt_allocation",
@@ -154,6 +155,22 @@ SUBJECT_QUERIES.update(
             "payout_batches",
             "SELECT e.driver_user_id FROM payout_batch_lines s JOIN earnings_ledger_entries e "
             "ON e.id=s.ledger_entry_id WHERE s.batch_id=:entity_id",
+        ),
+        "payout_automatic_run": (
+            "payout_automatic_runs",
+            "SELECT e.driver_user_id FROM payout_batches b JOIN payout_batch_lines s "
+            "ON s.batch_id=b.id JOIN earnings_ledger_entries e ON e.id=s.ledger_entry_id "
+            "WHERE b.automatic_run_id=:entity_id",
+        ),
+        "payout_automatic_alert": (
+            "payout_automatic_alerts",
+            "SELECT d.user_id FROM payout_automatic_alerts a JOIN driver_profiles d "
+            "ON d.id=a.driver_profile_id WHERE a.id=:entity_id UNION "
+            "SELECT e.driver_user_id FROM payout_automatic_alerts a JOIN earnings_ledger_entries e "
+            "ON e.id=a.ledger_entry_id WHERE a.id=:entity_id UNION "
+            "SELECT e.driver_user_id FROM payout_automatic_alerts a JOIN payout_batch_lines s "
+            "ON s.id=a.line_id JOIN earnings_ledger_entries e ON e.id=s.ledger_entry_id "
+            "WHERE a.id=:entity_id",
         ),
         "payout_submission_intent": (
             "payout_submission_intents",

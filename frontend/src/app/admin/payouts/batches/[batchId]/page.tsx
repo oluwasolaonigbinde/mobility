@@ -33,6 +33,7 @@ export default async function BatchDetailPage({
     throw error;
   }
   const batch = detail.summary;
+  const automatic = batch.approval_mode === "automatic";
   const credits =
     batch.status === "draft" && batch.created_by_user_id === me.user.id
       ? await batchApi<Page<EligiblePayment>>(
@@ -49,24 +50,44 @@ export default async function BatchDetailPage({
         eyebrow={`${batch.status} · ${formatMoneyExact(batch.total_amount, batch.currency)}`}
       />
       <Panel className="space-y-3 p-4 sm:p-6">
-        <p>
-          Maker: <strong>{batch.maker_name}</strong> · {formatDateTime(batch.created_at)}
-        </p>
-        <p>
-          Checker: <strong>{batch.checker_name ?? "Awaiting independent approval"}</strong>
-          {batch.approved_at ? ` · ${formatDateTime(batch.approved_at)}` : ""}
-        </p>
-        <p className="text-muted text-sm">
-          A different administrator must approve frozen instructions. Submission is queued first;
-          provider evidence determines each line&apos;s outcome. Manual verification requires a
-          third administrator.
-        </p>
+        {automatic ? (
+          <>
+            <p>
+              Approved automatically by <strong>Cardvert</strong>
+              {batch.approved_at ? ` · ${formatDateTime(batch.approved_at)}` : ""}
+            </p>
+            <p className="text-muted text-sm">
+              These earnings passed every automatic payout check, so no person approved them.
+              Cardvert sends each payment when automatic payouts are running; provider evidence
+              still decides each line&apos;s outcome. Follow up problems on{" "}
+              <Link className="underline" href="/admin/payouts/automatic">
+                Automatic payouts
+              </Link>
+              .
+            </p>
+          </>
+        ) : (
+          <>
+            <p>
+              Maker: <strong>{batch.maker_name}</strong> · {formatDateTime(batch.created_at)}
+            </p>
+            <p>
+              Checker: <strong>{batch.checker_name ?? "Awaiting independent approval"}</strong>
+              {batch.approved_at ? ` · ${formatDateTime(batch.approved_at)}` : ""}
+            </p>
+            <p className="text-muted text-sm">
+              A different administrator must approve frozen instructions. Submission is queued
+              first; provider evidence determines each line&apos;s outcome. Manual verification
+              requires a third administrator.
+            </p>
+          </>
+        )}
         {Object.entries(batch.outcomes).map(([outcome, count]) => (
           <p key={outcome}>
             {outcomeLabel(outcome)}: {count}
           </p>
         ))}
-        {batch.status === "reserved" ||
+        {(batch.status === "reserved" && !automatic) ||
         batch.status === "reconciled" ||
         batch.status === "failed" ? (
           <BatchActions batchId={batchId} status={batch.status} />

@@ -6,6 +6,7 @@ from app.api.v1.advertiser_reports import router as advertiser_reports_router
 from app.api.v1.audience_delivery import router as audience_delivery_router
 from app.api.v1.audit import router as audit_router
 from app.api.v1.auth import router as auth_router
+from app.api.v1.automatic_payouts import router as automatic_payouts_router
 from app.api.v1.billing import router as billing_router
 from app.api.v1.campaign_assignments import router as campaign_assignments_router
 from app.api.v1.campaign_cancellations import router as campaign_cancellations_router
@@ -46,6 +47,7 @@ api_router.include_router(notifications_router)
 api_router.include_router(privacy_dsr_router)
 api_router.include_router(payees_router)
 api_router.include_router(disbursements_router)
+api_router.include_router(automatic_payouts_router)
 api_router.include_router(admin_router)
 api_router.include_router(audit_router)
 api_router.include_router(audience_delivery_router)

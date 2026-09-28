@@ -47,6 +47,13 @@ describe("admin Waiting for you work queue (D38e)", () => {
     expect(
       within(item("Payout batches to approve or send")).getByText("Nothing waiting"),
     ).toBeInTheDocument();
+    expect(get).toHaveBeenCalledWith("/api/v1/admin/payout-batches/summaries", {
+      params: { query: { limit: 1, batch_status: "reserved", approval_mode: "maker_checker" } },
+    });
+    expect(item("Automatic payout problems")).toHaveAttribute("href", "/admin/payouts/automatic");
+    expect(get).toHaveBeenCalledWith("/api/v1/admin/payouts/automatic/alerts", {
+      params: { query: { limit: 1, alert_status: "open" } },
+    });
     expect(get).toHaveBeenCalledWith("/api/v1/admin/campaign-assignments", {
       params: { query: { limit: 1, status: "accepted" } },
     });

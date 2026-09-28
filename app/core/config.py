@@ -3,6 +3,7 @@ import binascii
 import ipaddress
 import json
 import re
+from decimal import Decimal
 from functools import lru_cache
 from typing import Annotated
 from urllib.parse import parse_qsl, urlsplit
@@ -33,6 +34,7 @@ def _blank_to_none(value: str | float | int | None) -> str | float | int | None:
     return value
 
 
+AUTOMATIC_PAYOUT_FREQUENCIES = ("daily", "weekly")
 LOCAL_ENVIRONMENTS = {"local", "dev", "development", "test", "testing"}
 DEFAULT_JWT_SECRET = "change-me-local-development-secret-at-least-32-bytes"
 
@@ -287,6 +289,14 @@ class Settings(BaseSettings):
     # full-day amount). No pay value exists in configuration; every value is
     # entered on an audited revision once this is switched on.
     payout_v4_publishing_enabled: bool = False
+    # D39(c) automatic payout approval (Batch C). Nothing runs until the switch
+    # is on AND the client's payout frequency and the run total limit are set;
+    # none has a default because none has been supplied.
+    payout_automatic_approval_enabled: bool = False
+    payout_automatic_frequency: Annotated[str | None, BeforeValidator(_blank_to_none)] = None
+    payout_automatic_batch_limit_ngn: Annotated[Decimal | None, BeforeValidator(_blank_to_none)] = (
+        None
+    )
     payout_eligibility_stationary_radius_m: int = 200
     payout_eligibility_stationary_window_min: int = 5
     payout_eligibility_stationary_grace_min: int = 4
@@ -436,6 +446,29 @@ class Settings(BaseSettings):
         ):
             raise ValueError(
                 "Budget policy thresholds must satisfy resume <= alert < urgent < pause"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def validate_automatic_payout_configuration(self):
+        frequency = self.payout_automatic_frequency
+        if frequency is not None:
+            normalized = frequency.strip().lower()
+            if normalized not in AUTOMATIC_PAYOUT_FREQUENCIES:
+                raise ValueError("PAYOUT_AUTOMATIC_FREQUENCY must be daily or weekly")
+            self.payout_automatic_frequency = normalized
+        limit = self.payout_automatic_batch_limit_ngn
+        if limit is not None and (
+            not limit.is_finite()
+            or limit <= 0
+            or limit >= Decimal("1000000000000")
+            or limit != limit.quantize(Decimal("0.01"))
+        ):
+            raise ValueError("PAYOUT_AUTOMATIC_BATCH_LIMIT_NGN must be a positive naira amount")
+        if self.payout_automatic_approval_enabled and (frequency is None or limit is None):
+            raise ValueError(
+                "Automatic payout approval requires PAYOUT_AUTOMATIC_FREQUENCY and "
+                "PAYOUT_AUTOMATIC_BATCH_LIMIT_NGN"
             )
         return self
 

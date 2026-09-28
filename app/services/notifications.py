@@ -487,6 +487,34 @@ async def create_budget_resume_notices(
     )
 
 
+async def create_active_admin_notices(
+    session: AsyncSession,
+    *,
+    type_key: NotificationType,
+    event_key: str,
+    payload: dict[str, str],
+    exclude_user_id: UUID | None = None,
+) -> list[Notification]:
+    """In-app notices for every active Terrax Media admin (Batch C payout alerts)."""
+    query = select(User.id).where(
+        User.role == UserRole.ADMIN.value, User.status == UserStatus.ACTIVE.value
+    )
+    if exclude_user_id is not None:
+        query = query.where(User.id != exclude_user_id)
+    notices: list[Notification] = []
+    for admin_id in list(await session.scalars(query.order_by(User.id))):
+        notices.append(
+            await create_notification(
+                session,
+                recipient_user_id=admin_id,
+                type_key=type_key,
+                payload=payload,
+                dedupe_key=f"{event_key}:in_app",
+            )
+        )
+    return notices
+
+
 async def create_password_reset_notification(
     session: AsyncSession, *, user: User, reset: PasswordResetToken
 ) -> Notification:

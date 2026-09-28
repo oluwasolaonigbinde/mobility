@@ -2856,6 +2856,645 @@
         "title": "AuditEventRead",
         "type": "object"
       },
+      "AutomaticAlertCountRead": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PayoutAutomaticAlertKind"
+          }
+        },
+        "required": [
+          "kind",
+          "count"
+        ],
+        "title": "AutomaticAlertCountRead",
+        "type": "object"
+      },
+      "AutomaticEvidenceRead": {
+        "properties": {
+          "applied": {
+            "title": "Applied",
+            "type": "boolean"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome",
+          "applied",
+          "count"
+        ],
+        "title": "AutomaticEvidenceRead",
+        "type": "object"
+      },
+      "AutomaticManualReasonRead": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "count",
+          "amount"
+        ],
+        "title": "AutomaticManualReasonRead",
+        "type": "object"
+      },
+      "AutomaticOutcomeRead": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome",
+          "count",
+          "amount"
+        ],
+        "title": "AutomaticOutcomeRead",
+        "type": "object"
+      },
+      "AutomaticPayoutAlertListRead": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AutomaticPayoutAlertRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "AutomaticPayoutAlertListRead",
+        "type": "object"
+      },
+      "AutomaticPayoutAlertRead": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "batch_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "detail": {
+            "additionalProperties": true,
+            "title": "Detail",
+            "type": "object"
+          },
+          "driver_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driver Name"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/PayoutAutomaticAlertKind"
+          },
+          "lagos_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lagos Day"
+          },
+          "line_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Id"
+          },
+          "resolution_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Note"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "resolved_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved By Name"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "created_at",
+          "driver_name",
+          "lagos_day",
+          "amount",
+          "currency",
+          "batch_id",
+          "line_id",
+          "detail",
+          "resolved_at",
+          "resolved_by_name",
+          "resolution_note"
+        ],
+        "title": "AutomaticPayoutAlertRead",
+        "type": "object"
+      },
+      "AutomaticPayoutAlertResolve": {
+        "additionalProperties": false,
+        "properties": {
+          "note": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "note"
+        ],
+        "title": "AutomaticPayoutAlertResolve",
+        "type": "object"
+      },
+      "AutomaticPayoutReason": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "AutomaticPayoutReason",
+        "type": "object"
+      },
+      "AutomaticPayoutReleaseRead": {
+        "properties": {
+          "released_amount": {
+            "title": "Released Amount",
+            "type": "string"
+          },
+          "released_count": {
+            "title": "Released Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "released_count",
+          "released_amount"
+        ],
+        "title": "AutomaticPayoutReleaseRead",
+        "type": "object"
+      },
+      "AutomaticPayoutRunRead": {
+        "properties": {
+          "batch_count": {
+            "title": "Batch Count",
+            "type": "integer"
+          },
+          "batch_limit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Limit"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "line_count": {
+            "title": "Line Count",
+            "type": "integer"
+          },
+          "period_key": {
+            "title": "Period Key",
+            "type": "string"
+          },
+          "total_amount": {
+            "title": "Total Amount",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "period_key",
+          "created_at",
+          "batch_count",
+          "line_count",
+          "total_amount"
+        ],
+        "title": "AutomaticPayoutRunRead",
+        "type": "object"
+      },
+      "AutomaticPayoutStatusRead": {
+        "properties": {
+          "batch_limit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Batch Limit"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "frequency": {
+            "anyOf": [
+              {
+                "enum": [
+                  "daily",
+                  "weekly"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frequency"
+          },
+          "identity_ready": {
+            "title": "Identity Ready",
+            "type": "boolean"
+          },
+          "last_run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AutomaticPayoutRunRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "missing_settings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Missing Settings",
+            "type": "array"
+          },
+          "open_alert_count": {
+            "title": "Open Alert Count",
+            "type": "integer"
+          },
+          "pause_changed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pause Changed At"
+          },
+          "pause_changed_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pause Changed By Name"
+          },
+          "pause_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pause Reason"
+          },
+          "paused": {
+            "title": "Paused",
+            "type": "boolean"
+          },
+          "provider_ready": {
+            "title": "Provider Ready",
+            "type": "boolean"
+          },
+          "runnable": {
+            "title": "Runnable",
+            "type": "boolean"
+          },
+          "switched_on": {
+            "title": "Switched On",
+            "type": "boolean"
+          },
+          "unsent_count": {
+            "title": "Unsent Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "switched_on",
+          "frequency",
+          "batch_limit",
+          "currency",
+          "missing_settings",
+          "paused",
+          "pause_reason",
+          "pause_changed_by_name",
+          "pause_changed_at",
+          "identity_ready",
+          "provider_ready",
+          "runnable",
+          "last_run",
+          "open_alert_count",
+          "unsent_count"
+        ],
+        "title": "AutomaticPayoutStatusRead",
+        "type": "object"
+      },
+      "AutomaticReconciliationLineRead": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "batch_id": {
+            "format": "uuid",
+            "title": "Batch Id",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "driver_name": {
+            "title": "Driver Name",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_provider_evidence_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Provider Evidence At"
+          },
+          "outcome": {
+            "title": "Outcome",
+            "type": "string"
+          },
+          "provider_transfer_reference": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Transfer Reference"
+          }
+        },
+        "required": [
+          "id",
+          "batch_id",
+          "driver_name",
+          "amount",
+          "currency",
+          "outcome",
+          "provider_transfer_reference",
+          "last_provider_evidence_at"
+        ],
+        "title": "AutomaticReconciliationLineRead",
+        "type": "object"
+      },
+      "AutomaticReconciliationRead": {
+        "properties": {
+          "alerts_raised": {
+            "items": {
+              "$ref": "#/components/schemas/AutomaticAlertCountRead"
+            },
+            "title": "Alerts Raised",
+            "type": "array"
+          },
+          "awaiting_provider_count": {
+            "title": "Awaiting Provider Count",
+            "type": "integer"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "kept_for_manual_review": {
+            "items": {
+              "$ref": "#/components/schemas/AutomaticManualReasonRead"
+            },
+            "title": "Kept For Manual Review",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/AutomaticReconciliationLineRead"
+            },
+            "title": "Lines",
+            "type": "array"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "outcomes": {
+            "items": {
+              "$ref": "#/components/schemas/AutomaticOutcomeRead"
+            },
+            "title": "Outcomes",
+            "type": "array"
+          },
+          "provider_evidence": {
+            "items": {
+              "$ref": "#/components/schemas/AutomaticEvidenceRead"
+            },
+            "title": "Provider Evidence",
+            "type": "array"
+          },
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/AutomaticPayoutRunRead"
+            },
+            "title": "Runs",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "runs",
+          "outcomes",
+          "provider_evidence",
+          "awaiting_provider_count",
+          "alerts_raised",
+          "kept_for_manual_review",
+          "lines",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "AutomaticReconciliationRead",
+        "type": "object"
+      },
       "BankAccountPayoutVerificationCreate": {
         "additionalProperties": false,
         "properties": {
@@ -16141,7 +16780,10 @@
           "activity_floor_breached",
           "activity_floor_recovered",
           "assignment_inactive",
-          "assignment_activity_recovered"
+          "assignment_activity_recovered",
+          "payout_automatic_alert",
+          "payout_automatic_paused",
+          "payout_automatic_resumed"
         ],
         "title": "NotificationType",
         "type": "string"
@@ -16320,6 +16962,26 @@
         ],
         "title": "PaymentWebhookReceipt",
         "type": "object"
+      },
+      "PayoutAutomaticAlertKind": {
+        "enum": [
+          "failed_payment",
+          "duplicate_payment",
+          "daily_limit",
+          "batch_limit",
+          "run_failed",
+          "submission_blocked"
+        ],
+        "title": "PayoutAutomaticAlertKind",
+        "type": "string"
+      },
+      "PayoutBatchApprovalMode": {
+        "enum": [
+          "maker_checker",
+          "automatic"
+        ],
+        "title": "PayoutBatchApprovalMode",
+        "type": "string"
       },
       "PayoutBatchCreate": {
         "additionalProperties": false,
@@ -16561,6 +17223,10 @@
       },
       "PayoutBatchRead": {
         "properties": {
+          "approval_mode": {
+            "$ref": "#/components/schemas/PayoutBatchApprovalMode",
+            "default": "maker_checker"
+          },
           "approved_at": {
             "anyOf": [
               {
@@ -16584,6 +17250,18 @@
               }
             ],
             "title": "Approved By User Id"
+          },
+          "automatic_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Automatic Run Id"
           },
           "created_at": {
             "format": "date-time",
@@ -16735,6 +17413,10 @@
       },
       "PayoutBatchSummaryRead": {
         "properties": {
+          "approval_mode": {
+            "$ref": "#/components/schemas/PayoutBatchApprovalMode",
+            "default": "maker_checker"
+          },
           "approved_at": {
             "anyOf": [
               {
@@ -30351,6 +31033,22 @@
               ],
               "title": "Batch Status"
             }
+          },
+          {
+            "in": "query",
+            "name": "approval_mode",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/PayoutBatchApprovalMode"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Approval Mode"
+            }
           }
         ],
         "responses": {
@@ -30949,6 +31647,392 @@
         "summary": "Whether daily-rate (payout_v4) revisions can be published",
         "tags": [
           "Payouts"
+        ]
+      }
+    },
+    "/api/v1/admin/payouts/automatic/alerts": {
+      "get": {
+        "operationId": "admin_automatic_payout_alerts_api_v1_admin_payouts_automatic_alerts_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "alert_status",
+            "required": false,
+            "schema": {
+              "default": "open",
+              "enum": [
+                "open",
+                "resolved",
+                "all"
+              ],
+              "title": "Alert Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomaticPayoutAlertListRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Automatic Payout Alerts",
+        "tags": [
+          "Admin automatic payouts"
+        ]
+      }
+    },
+    "/api/v1/admin/payouts/automatic/alerts/{alert_id}/resolve": {
+      "post": {
+        "operationId": "admin_resolve_automatic_payout_alert_api_v1_admin_payouts_automatic_alerts__alert_id__resolve_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "alert_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Alert Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutomaticPayoutAlertResolve"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomaticPayoutAlertRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Resolve Automatic Payout Alert",
+        "tags": [
+          "Admin automatic payouts"
+        ]
+      }
+    },
+    "/api/v1/admin/payouts/automatic/pause": {
+      "post": {
+        "operationId": "admin_pause_automatic_payouts_api_v1_admin_payouts_automatic_pause_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutomaticPayoutReason"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomaticPayoutStatusRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Pause Automatic Payouts",
+        "tags": [
+          "Admin automatic payouts"
+        ]
+      }
+    },
+    "/api/v1/admin/payouts/automatic/reconciliation": {
+      "get": {
+        "operationId": "admin_automatic_payout_reconciliation_api_v1_admin_payouts_automatic_reconciliation_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "day",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Day"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomaticReconciliationRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Automatic Payout Reconciliation",
+        "tags": [
+          "Admin automatic payouts"
+        ]
+      }
+    },
+    "/api/v1/admin/payouts/automatic/release-unsent": {
+      "post": {
+        "operationId": "admin_release_unsent_automatic_payments_api_v1_admin_payouts_automatic_release_unsent_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutomaticPayoutReason"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomaticPayoutReleaseRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Release Unsent Automatic Payments",
+        "tags": [
+          "Admin automatic payouts"
+        ]
+      }
+    },
+    "/api/v1/admin/payouts/automatic/resume": {
+      "post": {
+        "operationId": "admin_resume_automatic_payouts_api_v1_admin_payouts_automatic_resume_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutomaticPayoutReason"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomaticPayoutStatusRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Resume Automatic Payouts",
+        "tags": [
+          "Admin automatic payouts"
+        ]
+      }
+    },
+    "/api/v1/admin/payouts/automatic/status": {
+      "get": {
+        "operationId": "admin_automatic_payout_status_api_v1_admin_payouts_automatic_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutomaticPayoutStatusRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Automatic Payout Status",
+        "tags": [
+          "Admin automatic payouts"
         ]
       }
     },

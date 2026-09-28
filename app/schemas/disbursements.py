@@ -12,7 +12,11 @@ from pydantic import (
     field_validator,
 )
 
-from app.models.disbursement import PayoutBatchLineStatus, PayoutBatchStatus
+from app.models.disbursement import (
+    PayoutBatchApprovalMode,
+    PayoutBatchLineStatus,
+    PayoutBatchStatus,
+)
 
 
 class PayoutBatchCreate(BaseModel):
@@ -114,6 +118,8 @@ class PayoutBatchRead(BaseModel):
     approved_by_user_id: UUID | None
     approved_at: datetime | None
     submitted_at: datetime | None
+    approval_mode: PayoutBatchApprovalMode = PayoutBatchApprovalMode.MAKER_CHECKER
+    automatic_run_id: UUID | None = None
     created_at: datetime
     lines: list[PayoutBatchLineRead] = Field(default_factory=list)
 
@@ -183,6 +189,7 @@ class PayoutBatchSummaryRead(BaseModel):
     approved_by_user_id: UUID | None
     maker_name: str
     checker_name: str | None
+    approval_mode: PayoutBatchApprovalMode = PayoutBatchApprovalMode.MAKER_CHECKER
     created_at: datetime
     approved_at: datetime | None
     submitted_at: datetime | None

@@ -424,6 +424,143 @@ container (both sums OK, both tags loaded) and
 `tests/test_ci_integration_authority_r02.py` passes (73). The full suite on A, B
 and D therefore had not run until this fix.
 
+Batch C record (27–28 Sep 2026, branch `batch-c` on `master` `4f318e3`).
+Scope: automatic payout approval with safeguards, D39(c) as designed in D40 and
+client answer item 8. Only clean `payout_v4` trip earnings may be approved by
+Cardvert; everything else stays on the maker-checker path. Plan review (read-only
+Opus 5.5 stand-in; the `verified-feature-delivery` reviewer agents were not
+installed then): PASS WITH CHANGES, every finding adopted before build.
+
+Delivered. Migration `0093` adds `payout_batches.approval_mode` and
+`automatic_run_id`, the tables `payout_automatic_runs` (one per period),
+`payout_automatic_controls` (one row: the pause switch and the system actor's
+password fingerprint) and `payout_automatic_alerts`, and seeds a disabled system
+actor ("Cardvert (automatic payouts)") that makes and approves automatic batches;
+a check constraint allows only that actor to make automatic batches and never
+manual ones, and downgrade refuses while automatic history exists. A worker cron
+sweep (every sweep interval) makes at most one run per period (daily or weekly,
+Nigeria time), enforced by the unique period key. A clean earning
+is a `payout_v4` trip payout with no review flag of any status, no hold, no open
+dispute for the driver, a current assessment, no debt, a verified payee, no
+earlier automatic, active or failed line and no other non-voided entry on the
+trip; flagged or adjusted trips are left out in the query so they never take a
+scan place. Cross-campaign ceiling: per driver per Lagos day, earnings and
+non-void, non-failed line cash (manual or automatic) must stay within one bound
+day rate; differing rates or same-day hourly pay go to a person with a
+`daily_limit` alert. The run limit stops at the first miss and never pays an
+entry above the whole limit; one batch per driver per run; at most 200
+candidates per run. Human approve/submit refuses automatic batches (409
+`PAYOUT_BATCH_AUTOMATIC`); the submission claim re-checks cleanliness, the
+switch, the pause and the actor's identity (email, name, role, disabled status,
+password fingerprint) before any provider call, while lookups continue. While
+automatic payouts are blocked, their unsent intents are left out of the due
+queue so manual payments are never starved. Alerts cover failed and duplicate
+payments, blocked submissions, limits and failed runs, with notices to active
+admins. Finance API under `/api/v1/admin/payouts/automatic` (status, pause,
+resume, release-unsent, alerts, resolve, reconciliation) and an `approval_mode`
+filter on batch summaries. Audit subjects: runs resolve to the drivers in their
+batches, alerts to their driver, the control row is actor-only. Admin
+"Automatic payouts" page, "Automatic payout problems" under Finance in "Waiting
+for you" (the approve/send count is now maker-checker only), and batch pages
+show "Approved automatically by Cardvert" with no approve or send actions. The
+worker keeps `DisabledDisbursementAdapter`, so a switched-on run records a
+provider alert and creates nothing until W2-01C. `app/services/payouts.py` is
+unchanged; no pay is recalculated.
+
+Reviews and residuals. Security specialist (Opus 5.5 stand-in): PASS with four
+low findings; name in the integrity check, the database pin on the actor and the
+limit cap below ₦10^12 are fixed; an explicit actor guard in manual
+approve/reserve was not added because the check constraint forbids the actor as
+a manual maker and approval needs an active admin. Money specialist (Opus 5.5
+stand-in): FIX; the high finding (blocked automatic intents starving the send
+queue) and five low findings are fixed and now tested. The verification run found
+two gaps, both fixed: the three new audit entity types had no subject
+classification, and the worker cron count test expected 20 jobs. Money specialist
+re-review of those fixes (Opus 5.5, clean context): PASS with two low test gaps
+and two notes, none blocking. Post-build review (`vfd-change-reviewer`, Opus 5.5):
+FIX with four findings, all adopted: a corrupted `₦` in a test comment restored;
+§16.3, the v1.100 changelog row and D40 now name the name check, manual cash in
+the ceiling and the due-queue exclusion; this record's schedule wording
+corrected; and duplicate-payment alert scans now read newest first, so a new
+duplicate is never hidden behind 200 already-alerted ones (tested). Residuals for
+the owner: a `users.py` guard refusing edits to the system actor (today an edit
+only blocks automatic runs); the ceiling counts a line's full amount on every
+day its trip touched (conservative for cross-midnight trips); no test yet proves
+that another day's submitted line is left out of "awaiting provider" or that
+manual failure audits cannot crowd the blocked-submission scan; while the actor
+is invalid, no `submission_blocked` alert is raised (only the run's
+`run_failed` alert, and none if the switch is also off); entries excluded for
+drift, `not_daily_rate` or an unverified payee still take candidate places until
+handled by hand.
+
+Evidence (28 Sep 2026). Backend (own database `mobility_test_c`; at most one of
+this session's containers at a time beside Batch E's two, as the owner allowed):
+`ruff check` passes and `ruff format --check` passes on the files Batch C adds;
+pre-existing unformatted lines in touched files are left alone. The 39 files that
+exercise the change ran under coverage: 1,068 passed and 15 failed. Twelve are
+the environmental `test_w403a_release_preparation` failures seen in Batches A, B
+and D (no `docker` binary in the test image, CRLF shell scripts); one is
+`test_w403b_synthetic_path` (no `npm` in the test image); two were the audit
+subject and cron-count gaps above. After the fixes, the automatic-payout, audit
+subject, worker substrate and W403B files reran: 110 passed, only the `npm`
+failure remaining. After the post-build review fixes, the automatic-payout,
+progress-validator and architecture-state files reran under coverage: 89 passed. `tests/test_automatic_payouts.py` now has 38 tests, including
+the queue-starvation, manual-cash guard, actor-name, audit-subject and
+duplicate-alert cases, and
+the migration test covers the actor pin both ways. OpenAPI `--check` and the
+architecture inventory check pass, so no baseline moved. D32 changed lines
+against `4f318e3` from local LCOV: backend 679/746 lines (91.0 %) and 163/200
+branches (81.5 %); frontend 102/102 lines (100 %) and 148/166 branches (89.2 %).
+Frontend: `tsc` and ESLint pass; Prettier passes with `--end-of-line auto` (the
+Windows checkout gives Batch C's files CRLF; Git stores LF). The full Vitest
+suite under coverage passed 163 of 169 files; the six failures were 5-second
+timeouts in files Batch C does not touch, and all six, plus a load timeout in the
+batch-forms test, pass when run on their own. The full backend suite is left to
+GitHub CI (6 Linux shards) after an owner-approved push.
+
+Live check (synthetic values only: daily, run limit ₦20,000, ₦8,000 day rate) on
+a fresh `mobility_live_c` database migrated by alembic to `0093`, so the actor
+and control rows came from the migration. Driver A (one campaign, ₦3,357.89) was
+approved by Cardvert, sent by the disbursement sweep through the fake adapter
+and paid by a signed fake webhook (line succeeded, entry paid, batch completed,
+maker the system actor, no human approver). Driver B earned ₦16,000.00 on
+20 Jul across two campaigns (₦3,357.89 + ₦4,642.11 + ₦8,000.00): all three
+trips stayed manual as `daily_limit` exclusions with one alert (earned ₦16,000,
+ceiling ₦8,000). A second sweep in the period returned `already_ran`; no review
+flags were raised. Over HTTP (uvicorn): status 200 (switched on, identity ready,
+provider not ready because the API keeps the disabled adapter); a one-letter
+pause reason 422; pause 200 and a second pause 409; release-unsent 200 with
+nothing to release; resume 200; resolving the alert 200 and again 409; alerts
+then empty; reconciliation for 28 Sep showed one run, one succeeded line and
+none awaiting the provider; batch summaries named "Cardvert (automatic
+payouts)" with no checker; a driver got 403 and no token 401. The admin screens
+were not opened live, to stay within the container limit; they are covered by
+Vitest.
+
+Left unset in `.env.example`, both release templates and both Compose files:
+`PAYOUT_AUTOMATIC_APPROVAL_ENABLED=false`, `PAYOUT_AUTOMATIC_FREQUENCY` blank
+(client Q4), `PAYOUT_AUTOMATIC_BATCH_LIMIT_NGN` blank, and
+`PAYSTACK_SECRET_KEY` blank. The controller stays
+`PAUSED — EXT-PAYMENT-PROVIDER`; nothing is promoted.
+
+Batch C integration (28 Sep 2026, owner-approved). The security review had run
+on an earlier branch state, so a fresh security specialist (clean-context,
+reported `claude-opus-5-5`) reviewed the final `batch-c` diff: PASS WITH
+FINDINGS, no merge blocker. M1 (medium): one admin can add and verify a bank
+account (D29) and, with no batch approver, automatic payouts would pay it
+unseen. Fixed: an automatic payment needs a bank account version with an
+earlier `succeeded` line, else `new_bank_destination` keeps it manual (D40(b)
+and §16.3 updated). L1: `update_user` now refuses the system actor
+(409 `SYSTEM_ACCOUNT_READ_ONLY`), the owner-approved guard. Recorded, not
+adopted: L2 the open-dispute check takes no lock (narrow window; the manual
+path has no dispute gate), L3 alert creation writes no audit event (rows are
+durable; resolution is audited), L4 the run-level audit event maps every
+driver in the run as a subject though it carries only run totals, L5 the
+200-entry scan cap can delay newer clean earnings behind long-excluded ones
+(availability only). The branch was squash-merged as one owner-authored commit
+because its commits were authored as `Claude <noreply@anthropic.com>` and two
+were work-in-progress.
+
 **Client visual-direction reduction (24 Sep 2026):** The owner reports the
 client rejected former directions 1, 2, 4, 5, 6, 7 and 8 and directs their
 implementation traces and dedicated assets removed. Retain former directions

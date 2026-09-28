@@ -24,7 +24,9 @@ from app.core.errors import AppError
 from app.db.integrity import integrity_constraint_name
 from app.models.audit import AuditEvent
 from app.models.disbursement import (
+    CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID,
     PayoutBatch,
+    PayoutBatchApprovalMode,
     PayoutBatchLine,
     PayoutBatchLineStatus,
     PayoutBatchStatus,
@@ -211,6 +213,52 @@ async def _frozen_payee_authority(
     return payee_version, account_version
 
 
+def build_frozen_payout_line(
+    *,
+    batch_id: UUID,
+    entry: EarningsLedgerEntry,
+    payee_version: PayeeVersion,
+    account_version: PayeeBankAccountVersion,
+) -> PayoutBatchLine:
+    """Freeze one ledger credit into a reserved line (manual and automatic batches)."""
+    instruction = {
+        "ledger_entry_id": str(entry.id),
+        "payee_version_id": str(payee_version.id),
+        "bank_account_version_id": str(account_version.id),
+        "amount": f"{entry.amount:.2f}",
+        "currency": entry.currency,
+    }
+    instruction_fingerprint = _fingerprint(instruction)
+    return PayoutBatchLine(
+        batch_id=batch_id,
+        ledger_entry_id=entry.id,
+        payee_version_id=payee_version.id,
+        bank_account_version_id=account_version.id,
+        amount=entry.amount,
+        currency=entry.currency,
+        instruction=instruction,
+        instruction_fingerprint=instruction_fingerprint,
+        idempotency_key=_line_idempotency_key(
+            batch_id=batch_id,
+            instruction_fingerprint=instruction_fingerprint,
+            predecessor_line_id=None,
+        ),
+        status=PayoutBatchLineStatus.RESERVED,
+        reservation_active=True,
+    )
+
+
+def freeze_batch_instruction_set(batch: PayoutBatch, lines: list[PayoutBatchLine]) -> None:
+    batch.total_amount = sum((line.amount for line in lines), Decimal("0"))
+    batch.instruction_set_fingerprint = _fingerprint(
+        {
+            "currency": batch.currency,
+            "total_amount": f"{batch.total_amount:.2f}",
+            "line_fingerprints": sorted(line.instruction_fingerprint for line in lines),
+        }
+    )
+
+
 async def reserve_payout_batch(
     session: AsyncSession,
     *,
@@ -352,45 +400,18 @@ async def reserve_payout_batch(
         if payee is None:
             raise _error("PAYOUT_PAYEE_MISSING", "The ledger entry has no pilot payee")
         payee_version, account_version = await _frozen_payee_authority(session, entry, payee)
-        instruction = {
-            "ledger_entry_id": str(entry.id),
-            "payee_version_id": str(payee_version.id),
-            "bank_account_version_id": str(account_version.id),
-            "amount": f"{entry.amount:.2f}",
-            "currency": entry.currency,
-        }
-        instruction_fingerprint = _fingerprint(instruction)
-        idempotency_key = _line_idempotency_key(
-            batch_id=batch.id,
-            instruction_fingerprint=instruction_fingerprint,
-            predecessor_line_id=None,
-        )
         lines.append(
-            PayoutBatchLine(
+            build_frozen_payout_line(
                 batch_id=batch.id,
-                ledger_entry_id=entry.id,
-                payee_version_id=payee_version.id,
-                bank_account_version_id=account_version.id,
-                amount=entry.amount,
-                currency=entry.currency,
-                instruction=instruction,
-                instruction_fingerprint=instruction_fingerprint,
-                idempotency_key=idempotency_key,
-                status=PayoutBatchLineStatus.RESERVED,
-                reservation_active=True,
+                entry=entry,
+                payee_version=payee_version,
+                account_version=account_version,
             )
         )
     try:
         async with session.begin_nested():
             session.add_all(lines)
-            batch.total_amount = sum((line.amount for line in lines), Decimal("0"))
-            batch.instruction_set_fingerprint = _fingerprint(
-                {
-                    "currency": batch.currency,
-                    "total_amount": f"{batch.total_amount:.2f}",
-                    "line_fingerprints": sorted(line.instruction_fingerprint for line in lines),
-                }
-            )
+            freeze_batch_instruction_set(batch, lines)
             batch.status = PayoutBatchStatus.RESERVED
             await session.flush()
     except IntegrityError as exc:
@@ -474,11 +495,20 @@ def _assert_frozen(batch: PayoutBatch, lines: tuple[PayoutBatchLine, ...]) -> No
         raise _error("PAYOUT_BATCH_CHANGED", "The frozen payout batch snapshot changed")
 
 
+def _refuse_automatic_batch(batch: PayoutBatch) -> None:
+    if batch.approval_mode == PayoutBatchApprovalMode.AUTOMATIC.value:
+        raise _error(
+            "PAYOUT_BATCH_AUTOMATIC",
+            "Cardvert approved and queued this batch automatically; no person approves or sends it",
+        )
+
+
 async def approve_payout_batch(
     session: AsyncSession, *, batch_id: UUID, actor_user_id: UUID
 ) -> tuple[PayoutBatch, tuple[PayoutBatchLine, ...]]:
     await require_active_admin(session, actor_user_id)
     batch, lines = await _locked_batch_with_lines(session, batch_id)
+    _refuse_automatic_batch(batch)
     if batch.status != PayoutBatchStatus.RESERVED:
         raise _error("PAYOUT_BATCH_NOT_RESERVED", "Only a reserved batch can be approved")
     if batch.created_by_user_id == actor_user_id:
@@ -518,6 +548,7 @@ async def submit_payout_batch(
 ) -> tuple[PayoutBatch, tuple[PayoutBatchLine, ...]]:
     await require_active_admin(session, actor_user_id)
     batch, lines = await _locked_batch_with_lines(session, batch_id)
+    _refuse_automatic_batch(batch)
     if batch.status not in {PayoutBatchStatus.RESERVED, PayoutBatchStatus.SUBMITTED}:
         raise _error("PAYOUT_BATCH_NOT_RESERVED", "The batch is not ready for submission")
     if batch.approved_by_user_id is None or batch.approved_at is None:
@@ -621,6 +652,7 @@ async def _final_payout_authority(
     current_intent: PayoutSubmissionIntent,
     provider_name: str,
     settings: Settings,
+    automatic_clean_check: bool = True,
 ) -> dict[str, object]:
     if batch.status not in {
         PayoutBatchStatus.RESERVED.value,
@@ -631,7 +663,19 @@ async def _final_payout_authority(
             "PAYOUT_BATCH_NOT_SUBMITTABLE",
             "The payout batch no longer has unresolved provider work",
         )
-    if (
+    automatic = batch.approval_mode == PayoutBatchApprovalMode.AUTOMATIC.value
+    if automatic:
+        if (
+            batch.created_by_user_id != CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID
+            or batch.approved_by_user_id is not None
+            or batch.approved_at is None
+            or batch.automatic_run_id is None
+        ):
+            raise _error(
+                "PAYOUT_BATCH_AUTOMATIC_AUTHORITY_INVALID",
+                "The batch no longer has valid automatic approval",
+            )
+    elif (
         batch.approved_by_user_id is None
         or batch.approved_at is None
         or batch.approved_by_user_id == batch.created_by_user_id
@@ -838,8 +882,19 @@ async def _final_payout_authority(
             }
         )
 
+    automatic_authority: dict[str, object] = {}
+    if automatic and automatic_clean_check:
+        from app.services.automatic_payouts import automatic_final_clean_authority
+
+        automatic_authority = await automatic_final_clean_authority(
+            session,
+            batch=batch,
+            trip_ids=ordered_trip_ids,
+            driver_profile_ids=tuple(driver for driver, _ in debt_scopes),
+        )
     config_state = _final_gate_config_state(settings)
     return {
+        **automatic_authority,
         "final_gate_version": FINAL_DISBURSEMENT_GATE_VERSION,
         "final_gate_config": config_state,
         "final_gate_config_fingerprint": _fingerprint(config_state),
@@ -853,7 +908,7 @@ async def _final_payout_authority(
 
 
 async def find_due_payout_submission_intent_ids(
-    session: AsyncSession, *, limit: int = 100
+    session: AsyncSession, *, limit: int = 100, settings: Settings | None = None
 ) -> tuple[UUID, ...]:
     event_entity_id = AuditEvent.entity_id
     if session.get_bind().dialect.name == "sqlite":
@@ -872,22 +927,36 @@ async def find_due_payout_submission_intent_ids(
         (last_failure_at > PayoutSubmissionIntent.updated_at, last_failure_at),
         else_=PayoutSubmissionIntent.updated_at,
     )
+    due = or_(
+        PayoutSubmissionIntent.state.in_(
+            [
+                PayoutSubmissionIntentState.PENDING.value,
+                PayoutSubmissionIntentState.QUERY_ONLY.value,
+            ]
+        ),
+        (PayoutSubmissionIntent.state == PayoutSubmissionIntentState.CLAIMED.value)
+        & (PayoutSubmissionIntent.claim_expires_at <= func.now()),
+    )
+    # Batch C: while automatic payouts are blocked (paused, switched off or the
+    # system actor changed) their unsent intents would be skipped without a
+    # visit and could starve every other due intent, so they are left out here.
+    # Lookups (claimed/query_only) on automatic intents stay due.
+    from app.services.automatic_payouts import automatic_submission_blocker
+
+    if await automatic_submission_blocker(session, settings or get_settings(), lock=False):
+        due = due & ~(
+            (PayoutSubmissionIntent.state == PayoutSubmissionIntentState.PENDING.value)
+            & PayoutSubmissionIntent.payout_batch_line_id.in_(
+                select(PayoutBatchLine.id)
+                .join(PayoutBatch, PayoutBatch.id == PayoutBatchLine.batch_id)
+                .where(PayoutBatch.approval_mode == PayoutBatchApprovalMode.AUTOMATIC.value)
+            )
+        )
     return tuple(
         (
             await session.scalars(
                 select(PayoutSubmissionIntent.id)
-                .where(
-                    or_(
-                        PayoutSubmissionIntent.state.in_(
-                            [
-                                PayoutSubmissionIntentState.PENDING.value,
-                                PayoutSubmissionIntentState.QUERY_ONLY.value,
-                            ]
-                        ),
-                        (PayoutSubmissionIntent.state == PayoutSubmissionIntentState.CLAIMED.value)
-                        & (PayoutSubmissionIntent.claim_expires_at <= func.now()),
-                    )
-                )
+                .where(due)
                 .order_by(
                     last_visit_at,
                     PayoutSubmissionIntent.id,
@@ -916,6 +985,8 @@ async def claim_payout_submission_intent(
                     PayoutBatch.created_by_user_id,
                     PayoutBatch.approved_by_user_id,
                     PayoutSubmissionIntent.requested_by_user_id,
+                    PayoutBatch.approval_mode,
+                    PayoutBatch.automatic_run_id,
                 )
                 .join(
                     PayoutBatchLine,
@@ -937,9 +1008,28 @@ async def claim_payout_submission_intent(
                 .where(PayoutBatchLine.batch_id == stub.batch_id)
             )
         )
-        admin_ids = requester_ids | {stub.created_by_user_id}
-        if stub.approved_by_user_id is not None:
-            admin_ids.add(stub.approved_by_user_id)
+        automatic = stub.approval_mode == PayoutBatchApprovalMode.AUTOMATIC.value
+        automatic_blocker: str | None = None
+        if automatic:
+            # Batch C: the system actor is disabled by design, so it replaces the
+            # active-admin check with its own integrity and switch checks. The
+            # control row is taken FOR SHARE here, before any fraud-hold scope,
+            # matching the run's control -> fraud-hold lock order.
+            from app.services.automatic_payouts import automatic_submission_blocker
+
+            if requester_ids != {CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID} or (
+                stub.created_by_user_id != CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID
+            ):
+                raise _error(
+                    "PAYOUT_BATCH_AUTHORITY_CHANGED",
+                    "The automatic payout authority is not the Cardvert system actor",
+                )
+            automatic_blocker = await automatic_submission_blocker(session, settings)
+            admin_ids: set[UUID] = set()
+        else:
+            admin_ids = requester_ids | {stub.created_by_user_id}
+            if stub.approved_by_user_id is not None:
+                admin_ids.add(stub.approved_by_user_id)
         # Batch authority must still be active before any new provider effect, but
         # a lookup only records what an earlier authorized submission already did.
         # A lost response leaves the line without a transfer reference, so neither
@@ -973,6 +1063,8 @@ async def claim_payout_submission_intent(
         if (
             batch.created_by_user_id != stub.created_by_user_id
             or batch.approved_by_user_id != stub.approved_by_user_id
+            or batch.approval_mode != stub.approval_mode
+            or batch.automatic_run_id != stub.automatic_run_id
         ):
             raise _error(
                 "PAYOUT_BATCH_AUTHORITY_CHANGED",
@@ -1028,6 +1120,15 @@ async def claim_payout_submission_intent(
             return None
         if action == PayoutSubmissionClaimAction.SUBMIT and inactive_authority_error is not None:
             raise inactive_authority_error
+        if action == PayoutSubmissionClaimAction.SUBMIT and automatic_blocker is not None:
+            if automatic_blocker == "actor_invalid":
+                raise _error(
+                    "PAYOUT_AUTOMATIC_ACTOR_INVALID",
+                    "The Cardvert automatic payout identity was changed; nothing is sent",
+                    http_status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
+            # Paused, switched off or not set up: the payment waits unsent.
+            return None
         recovery_incident_id = None
         if action == PayoutSubmissionClaimAction.QUERY:
             recovery_incident_id = await session.scalar(
@@ -1044,6 +1145,7 @@ async def claim_payout_submission_intent(
                 current_intent=intent,
                 provider_name=capabilities.provider_name,
                 settings=settings,
+                automatic_clean_check=action == PayoutSubmissionClaimAction.SUBMIT,
             )
         else:
             _assert_frozen(batch, lines)

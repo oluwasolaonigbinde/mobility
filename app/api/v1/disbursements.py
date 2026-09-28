@@ -7,7 +7,7 @@ from sqlalchemy import select
 from app.adapters.disbursement import DisabledDisbursementAdapter, DisbursementAdapter
 from app.api.v1.dependencies import AdminUserDependency, SessionDependency
 from app.core.errors import AppError
-from app.models.disbursement import PayoutBatchStatus
+from app.models.disbursement import PayoutBatchApprovalMode, PayoutBatchStatus
 from app.models.driver import DriverProfile
 from app.schemas.disbursements import (
     CampaignMoneyPositionRead,
@@ -119,9 +119,16 @@ async def admin_payout_batch_summaries(
     limit: int = Query(default=25, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     batch_status: PayoutBatchStatus | None = None,
+    approval_mode: PayoutBatchApprovalMode | None = None,
 ) -> PayoutBatchSummaryListRead:
     return PayoutBatchSummaryListRead.model_validate(
-        await payout_batch_summaries(session, limit=limit, offset=offset, batch_status=batch_status)
+        await payout_batch_summaries(
+            session,
+            limit=limit,
+            offset=offset,
+            batch_status=batch_status,
+            approval_mode=approval_mode,
+        )
     )
 
 

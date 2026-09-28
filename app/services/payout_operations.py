@@ -228,6 +228,7 @@ async def _batch_summary(session: AsyncSession, batch: PayoutBatch) -> dict:
         "approved_by_user_id": batch.approved_by_user_id,
         "maker_name": names[batch.created_by_user_id],
         "checker_name": names.get(batch.approved_by_user_id),
+        "approval_mode": batch.approval_mode,
         "created_at": batch.created_at,
         "approved_at": batch.approved_at,
         "submitted_at": batch.submitted_at,
@@ -251,11 +252,14 @@ async def payout_batch_summaries(
     limit: int = 25,
     offset: int = 0,
     batch_status: str | None = None,
+    approval_mode: str | None = None,
 ) -> dict:
     _page(limit, offset)
     query = select(PayoutBatch)
     if batch_status:
         query = query.where(PayoutBatch.status == batch_status)
+    if approval_mode:
+        query = query.where(PayoutBatch.approval_mode == approval_mode)
     total = await session.scalar(select(func.count()).select_from(query.subquery()))
     batches = (
         await session.scalars(

@@ -38,7 +38,7 @@ async def process_disbursement_intent_job(
 async def sweep_disbursement_intents(ctx: dict[str, Any]) -> dict[str, int]:
     """The database is the catch-up authority when request-path enqueue is absent or fails."""
     async with ctx["sessionmaker"]() as session:
-        intent_ids = await find_due_payout_submission_intent_ids(session)
+        intent_ids = await find_due_payout_submission_intent_ids(session, settings=_settings(ctx))
     processed = 0
     failed = 0
     for intent_id in intent_ids:

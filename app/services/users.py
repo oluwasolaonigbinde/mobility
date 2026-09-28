@@ -12,6 +12,7 @@ from starlette import status
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.core.security import hash_password, verify_password
+from app.models.disbursement import CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID
 from app.models.driver_application import DriverAccountSetupToken, DriverApplication
 from app.models.user import User, UserRole, UserStatus
 from app.schemas.users import UserCreate, UserUpdate
@@ -244,6 +245,13 @@ async def update_user(
     actor = None
     if actor_user_id is not None:
         actor = _require_admin_actor(locked.get(actor_user_id), actor_session_version)
+    if user.id == CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID:
+        # Any edit would only halt automatic payouts (actor_integrity_problem).
+        raise AppError(
+            "SYSTEM_ACCOUNT_READ_ONLY",
+            "Cardvert's automatic payouts account can't be edited",
+            status_code=status.HTTP_409_CONFLICT,
+        )
 
     update_values = payload.model_dump(exclude_unset=True, exclude={"current_password"})
     changed_fields = list(update_values)

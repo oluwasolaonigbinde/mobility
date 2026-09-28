@@ -124,10 +124,16 @@ export default async function PayoutBatchesPage({
                 <StatusChip>{batch.status}</StatusChip>
                 <strong>{formatMoneyExact(batch.total_amount, batch.currency)}</strong>
               </div>
-              <p className="break-words">Maker: {batch.maker_name}</p>
-              <p className="break-words">
-                Checker: {batch.checker_name ?? "Awaiting independent approval"}
-              </p>
+              {batch.approval_mode === "automatic" ? (
+                <p className="break-words">Approved automatically by Cardvert</p>
+              ) : (
+                <>
+                  <p className="break-words">Maker: {batch.maker_name}</p>
+                  <p className="break-words">
+                    Checker: {batch.checker_name ?? "Awaiting independent approval"}
+                  </p>
+                </>
+              )}
               <p className="text-muted text-sm">
                 {formatDateTime(batch.created_at)} · {batch.line_count} lines
               </p>

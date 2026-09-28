@@ -1733,6 +1733,125 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/payouts/automatic/alerts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Automatic Payout Alerts */
+        get: operations["admin_automatic_payout_alerts_api_v1_admin_payouts_automatic_alerts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payouts/automatic/alerts/{alert_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Resolve Automatic Payout Alert */
+        post: operations["admin_resolve_automatic_payout_alert_api_v1_admin_payouts_automatic_alerts__alert_id__resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payouts/automatic/pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Pause Automatic Payouts */
+        post: operations["admin_pause_automatic_payouts_api_v1_admin_payouts_automatic_pause_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payouts/automatic/reconciliation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Automatic Payout Reconciliation */
+        get: operations["admin_automatic_payout_reconciliation_api_v1_admin_payouts_automatic_reconciliation_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payouts/automatic/release-unsent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Release Unsent Automatic Payments */
+        post: operations["admin_release_unsent_automatic_payments_api_v1_admin_payouts_automatic_release_unsent_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payouts/automatic/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Resume Automatic Payouts */
+        post: operations["admin_resume_automatic_payouts_api_v1_admin_payouts_automatic_resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payouts/automatic/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Automatic Payout Status */
+        get: operations["admin_automatic_payout_status_api_v1_admin_payouts_automatic_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/payouts/correction-orders": {
         parameters: {
             query?: never;
@@ -5559,6 +5678,211 @@ export interface components {
             metadata: {
                 [key: string]: unknown;
             };
+        };
+        /** AutomaticAlertCountRead */
+        AutomaticAlertCountRead: {
+            /** Count */
+            count: number;
+            kind: components["schemas"]["PayoutAutomaticAlertKind"];
+        };
+        /** AutomaticEvidenceRead */
+        AutomaticEvidenceRead: {
+            /** Applied */
+            applied: boolean;
+            /** Count */
+            count: number;
+            /** Outcome */
+            outcome: string;
+        };
+        /** AutomaticManualReasonRead */
+        AutomaticManualReasonRead: {
+            /** Amount */
+            amount: string;
+            /** Count */
+            count: number;
+            /** Reason */
+            reason: string;
+        };
+        /** AutomaticOutcomeRead */
+        AutomaticOutcomeRead: {
+            /** Amount */
+            amount: string;
+            /** Count */
+            count: number;
+            /** Outcome */
+            outcome: string;
+        };
+        /** AutomaticPayoutAlertListRead */
+        AutomaticPayoutAlertListRead: {
+            /** Items */
+            items: components["schemas"]["AutomaticPayoutAlertRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** AutomaticPayoutAlertRead */
+        AutomaticPayoutAlertRead: {
+            /** Amount */
+            amount: string | null;
+            /** Batch Id */
+            batch_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Currency */
+            currency: string | null;
+            /** Detail */
+            detail: {
+                [key: string]: unknown;
+            };
+            /** Driver Name */
+            driver_name: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            kind: components["schemas"]["PayoutAutomaticAlertKind"];
+            /** Lagos Day */
+            lagos_day: string | null;
+            /** Line Id */
+            line_id: string | null;
+            /** Resolution Note */
+            resolution_note: string | null;
+            /** Resolved At */
+            resolved_at: string | null;
+            /** Resolved By Name */
+            resolved_by_name: string | null;
+        };
+        /** AutomaticPayoutAlertResolve */
+        AutomaticPayoutAlertResolve: {
+            /** Note */
+            note: string;
+        };
+        /** AutomaticPayoutReason */
+        AutomaticPayoutReason: {
+            /** Reason */
+            reason: string;
+        };
+        /** AutomaticPayoutReleaseRead */
+        AutomaticPayoutReleaseRead: {
+            /** Released Amount */
+            released_amount: string;
+            /** Released Count */
+            released_count: number;
+        };
+        /** AutomaticPayoutRunRead */
+        AutomaticPayoutRunRead: {
+            /** Batch Count */
+            batch_count: number;
+            /** Batch Limit */
+            batch_limit?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Line Count */
+            line_count: number;
+            /** Period Key */
+            period_key: string;
+            /** Total Amount */
+            total_amount: string;
+        };
+        /** AutomaticPayoutStatusRead */
+        AutomaticPayoutStatusRead: {
+            /** Batch Limit */
+            batch_limit: string | null;
+            /** Currency */
+            currency: string;
+            /** Frequency */
+            frequency: ("daily" | "weekly") | null;
+            /** Identity Ready */
+            identity_ready: boolean;
+            last_run: components["schemas"]["AutomaticPayoutRunRead"] | null;
+            /** Missing Settings */
+            missing_settings: string[];
+            /** Open Alert Count */
+            open_alert_count: number;
+            /** Pause Changed At */
+            pause_changed_at: string | null;
+            /** Pause Changed By Name */
+            pause_changed_by_name: string | null;
+            /** Pause Reason */
+            pause_reason: string | null;
+            /** Paused */
+            paused: boolean;
+            /** Provider Ready */
+            provider_ready: boolean;
+            /** Runnable */
+            runnable: boolean;
+            /** Switched On */
+            switched_on: boolean;
+            /** Unsent Count */
+            unsent_count: number;
+        };
+        /** AutomaticReconciliationLineRead */
+        AutomaticReconciliationLineRead: {
+            /** Amount */
+            amount: string;
+            /**
+             * Batch Id
+             * Format: uuid
+             */
+            batch_id: string;
+            /** Currency */
+            currency: string;
+            /** Driver Name */
+            driver_name: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Provider Evidence At */
+            last_provider_evidence_at: string | null;
+            /** Outcome */
+            outcome: string;
+            /** Provider Transfer Reference */
+            provider_transfer_reference: string | null;
+        };
+        /** AutomaticReconciliationRead */
+        AutomaticReconciliationRead: {
+            /** Alerts Raised */
+            alerts_raised: components["schemas"]["AutomaticAlertCountRead"][];
+            /** Awaiting Provider Count */
+            awaiting_provider_count: number;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Kept For Manual Review */
+            kept_for_manual_review: components["schemas"]["AutomaticManualReasonRead"][];
+            /** Limit */
+            limit: number;
+            /** Lines */
+            lines: components["schemas"]["AutomaticReconciliationLineRead"][];
+            /** Offset */
+            offset: number;
+            /** Outcomes */
+            outcomes: components["schemas"]["AutomaticOutcomeRead"][];
+            /** Provider Evidence */
+            provider_evidence: components["schemas"]["AutomaticEvidenceRead"][];
+            /** Runs */
+            runs: components["schemas"]["AutomaticPayoutRunRead"][];
+            /** Total */
+            total: number;
         };
         /** BankAccountPayoutVerificationCreate */
         BankAccountPayoutVerificationCreate: {
@@ -10533,7 +10857,7 @@ export interface components {
          * NotificationType
          * @enum {string}
          */
-        NotificationType: "assignment_offered" | "assignment_accepted" | "campaign_approved" | "campaign_rejected" | "creative_approved" | "creative_rejected" | "quotation_ready" | "funding_confirmed" | "budget_alert" | "budget_urgent_alert" | "campaign_budget_paused" | "campaign_budget_resumed" | "campaign_cancelled" | "evidence_challenge_created" | "evidence_verified" | "payout_released" | "password_reset_requested" | "driver_onboarding_access_requested" | "driver_account_setup_requested" | "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied" | "activity_floor_breached" | "activity_floor_recovered" | "assignment_inactive" | "assignment_activity_recovered";
+        NotificationType: "assignment_offered" | "assignment_accepted" | "campaign_approved" | "campaign_rejected" | "creative_approved" | "creative_rejected" | "quotation_ready" | "funding_confirmed" | "budget_alert" | "budget_urgent_alert" | "campaign_budget_paused" | "campaign_budget_resumed" | "campaign_cancelled" | "evidence_challenge_created" | "evidence_verified" | "payout_released" | "password_reset_requested" | "driver_onboarding_access_requested" | "driver_account_setup_requested" | "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied" | "activity_floor_breached" | "activity_floor_recovered" | "assignment_inactive" | "assignment_activity_recovered" | "payout_automatic_alert" | "payout_automatic_paused" | "payout_automatic_resumed";
         /** NotificationUnreadCountRead */
         NotificationUnreadCountRead: {
             /** Unread Count */
@@ -10619,6 +10943,16 @@ export interface components {
              */
             event_id: string;
         };
+        /**
+         * PayoutAutomaticAlertKind
+         * @enum {string}
+         */
+        PayoutAutomaticAlertKind: "failed_payment" | "duplicate_payment" | "daily_limit" | "batch_limit" | "run_failed" | "submission_blocked";
+        /**
+         * PayoutBatchApprovalMode
+         * @enum {string}
+         */
+        PayoutBatchApprovalMode: "maker_checker" | "automatic";
         /** PayoutBatchCreate */
         PayoutBatchCreate: {
             /** Currency */
@@ -10704,10 +11038,14 @@ export interface components {
         };
         /** PayoutBatchRead */
         PayoutBatchRead: {
+            /** @default maker_checker */
+            approval_mode: components["schemas"]["PayoutBatchApprovalMode"];
             /** Approved At */
             approved_at: string | null;
             /** Approved By User Id */
             approved_by_user_id: string | null;
+            /** Automatic Run Id */
+            automatic_run_id?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -10760,6 +11098,8 @@ export interface components {
         };
         /** PayoutBatchSummaryRead */
         PayoutBatchSummaryRead: {
+            /** @default maker_checker */
+            approval_mode: components["schemas"]["PayoutBatchApprovalMode"];
             /** Approved At */
             approved_at: string | null;
             /** Approved By User Id */
@@ -16906,6 +17246,7 @@ export interface operations {
                 limit?: number;
                 offset?: number;
                 batch_status?: components["schemas"]["PayoutBatchStatus"] | null;
+                approval_mode?: components["schemas"]["PayoutBatchApprovalMode"] | null;
             };
             header?: never;
             path?: never;
@@ -17211,6 +17552,235 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PayoutV4Status"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_automatic_payout_alerts_api_v1_admin_payouts_automatic_alerts_get: {
+        parameters: {
+            query?: {
+                alert_status?: "open" | "resolved" | "all";
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomaticPayoutAlertListRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_resolve_automatic_payout_alert_api_v1_admin_payouts_automatic_alerts__alert_id__resolve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alert_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomaticPayoutAlertResolve"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomaticPayoutAlertRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_pause_automatic_payouts_api_v1_admin_payouts_automatic_pause_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomaticPayoutReason"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomaticPayoutStatusRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_automatic_payout_reconciliation_api_v1_admin_payouts_automatic_reconciliation_get: {
+        parameters: {
+            query?: {
+                day?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomaticReconciliationRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_release_unsent_automatic_payments_api_v1_admin_payouts_automatic_release_unsent_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomaticPayoutReason"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomaticPayoutReleaseRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_resume_automatic_payouts_api_v1_admin_payouts_automatic_resume_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutomaticPayoutReason"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomaticPayoutStatusRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_automatic_payout_status_api_v1_admin_payouts_automatic_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutomaticPayoutStatusRead"];
                 };
             };
             /** @description Request validation failed */

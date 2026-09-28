@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import Any
@@ -8,6 +8,7 @@ from sqlalchemy import (
     JSON,
     Boolean,
     CheckConstraint,
+    Date,
     DateTime,
     ForeignKey,
     ForeignKeyConstraint,
@@ -77,6 +78,43 @@ class PayoutRecoveryIncidentStatus(StrEnum):
     CLOSED = "closed"
 
 
+# D39(c) Batch C: the one non-human identity that prepares and approves
+# automatic payout batches. Seeded by migration 0093 as a disabled admin with an
+# unusable password, so it can never sign in or pass require_active_admin; the
+# automatic path checks its integrity instead.
+CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID = UUID("6c0de000-0000-4000-8000-000000000001")
+CARDVERT_AUTOMATIC_PAYOUT_ACTOR_EMAIL = "automatic-payouts@cardvert.invalid"
+CARDVERT_AUTOMATIC_PAYOUT_ACTOR_NAME = "Cardvert (automatic payouts)"
+
+
+# PostgreSQL compares the literal as a uuid; a SQLite unit-test schema stores
+# UUIDs as 32 hex digits, so the literal never matches there (no automatic batch
+# exists in those schemas and a manual maker is never the actor).
+_ACTOR_SQL = f"'{CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID}'"
+_APPROVAL_MODE_CHECK = (
+    f"(approval_mode = 'maker_checker' AND automatic_run_id IS NULL "
+    f"AND created_by_user_id <> {_ACTOR_SQL}) OR "
+    f"(approval_mode = 'automatic' AND automatic_run_id IS NOT NULL "
+    f"AND created_by_user_id = {_ACTOR_SQL} "
+    f"AND approved_by_user_id IS NULL AND approved_at IS NOT NULL "
+    f"AND status <> 'draft')"
+)
+
+
+class PayoutBatchApprovalMode(StrEnum):
+    MAKER_CHECKER = "maker_checker"
+    AUTOMATIC = "automatic"
+
+
+class PayoutAutomaticAlertKind(StrEnum):
+    FAILED_PAYMENT = "failed_payment"
+    DUPLICATE_PAYMENT = "duplicate_payment"
+    DAILY_LIMIT = "daily_limit"
+    BATCH_LIMIT = "batch_limit"
+    RUN_FAILED = "run_failed"
+    SUBMISSION_BLOCKED = "submission_blocked"
+
+
 class PayoutBatch(Base):
     __tablename__ = "payout_batches"
     __table_args__ = (
@@ -96,7 +134,12 @@ class PayoutBatch(Base):
             "approved_by_user_id IS NULL OR approved_by_user_id <> created_by_user_id",
             name="ck_payout_batches_maker_checker",
         ),
+        CheckConstraint(
+            _APPROVAL_MODE_CHECK,
+            name="ck_payout_batches_approval_mode",
+        ),
         Index("ix_payout_batches_status_created", "status", "created_at"),
+        Index("ix_payout_batches_automatic_run_id", "automatic_run_id"),
     )
 
     id: Mapped[UUID] = mapped_column(
@@ -117,6 +160,15 @@ class PayoutBatch(Base):
     )
     approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    approval_mode: Mapped[str] = mapped_column(
+        String(16),
+        default=PayoutBatchApprovalMode.MAKER_CHECKER.value,
+        server_default=text("'maker_checker'"),
+        nullable=False,
+    )
+    automatic_run_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("payout_automatic_runs.id", ondelete="RESTRICT")
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -830,3 +882,135 @@ class PayoutDebtAllocation(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class PayoutAutomaticRun(Base):
+    """One completed automatic payout run per payout period (D39(c), Batch C).
+
+    Written only in the transaction that creates the run's batches, so a
+    refused or crashed run leaves no row and the period retries.
+    """
+
+    __tablename__ = "payout_automatic_runs"
+    __table_args__ = (
+        CheckConstraint("frequency IN ('daily', 'weekly')", name="ck_payout_automatic_runs_freq"),
+        CheckConstraint("length(currency) = 3", name="ck_payout_automatic_runs_currency"),
+        CheckConstraint("batch_limit > 0", name="ck_payout_automatic_runs_limit_positive"),
+        CheckConstraint(
+            "total_amount >= 0 AND total_amount <= batch_limit",
+            name="ck_payout_automatic_runs_total_within_limit",
+        ),
+        CheckConstraint(
+            "batch_count >= 0 AND line_count >= batch_count",
+            name="ck_payout_automatic_runs_counts",
+        ),
+        UniqueConstraint("period_key", name="uq_payout_automatic_runs_period_key"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    period_key: Mapped[str] = mapped_column(String(16), nullable=False)
+    frequency: Mapped[str] = mapped_column(String(8), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    batch_limit: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    total_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    batch_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    line_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Entries kept on the maker-checker path, by reason: {"reason": {"count", "amount"}}.
+    exclusions: Mapped[dict[str, Any]] = mapped_column(
+        JSON().with_variant(postgresql.JSONB(), "postgresql"), nullable=False
+    )
+    settings_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class PayoutAutomaticControl(Base):
+    """The Finance pause switch (single row, id 1, seeded by migration 0093)."""
+
+    __tablename__ = "payout_automatic_controls"
+    __table_args__ = (
+        CheckConstraint("id = 1", name="ck_payout_automatic_controls_singleton"),
+        CheckConstraint(
+            "(changed_by_user_id IS NULL AND changed_at IS NULL AND reason IS NULL "
+            "AND paused = false) OR (changed_by_user_id IS NOT NULL AND changed_at IS NOT NULL "
+            "AND reason IS NOT NULL AND length(trim(reason)) BETWEEN 3 AND 500)",
+            name="ck_payout_automatic_controls_change_evidence",
+        ),
+        CheckConstraint(
+            "length(actor_password_fingerprint) = 64",
+            name="ck_payout_automatic_controls_actor_fingerprint",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    paused: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    reason: Mapped[str | None] = mapped_column(Text)
+    changed_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
+    )
+    changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # SHA-256 of the system actor's password hash fixed at migration time.
+    actor_password_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+
+
+class PayoutAutomaticAlert(Base):
+    __tablename__ = "payout_automatic_alerts"
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ('failed_payment', 'duplicate_payment', 'daily_limit', "
+            "'batch_limit', 'run_failed', 'submission_blocked')",
+            name="ck_payout_automatic_alerts_kind",
+        ),
+        CheckConstraint(
+            "(resolved_by_user_id IS NULL AND resolved_at IS NULL AND resolution_note IS NULL) "
+            "OR (resolved_by_user_id IS NOT NULL AND resolved_at IS NOT NULL "
+            "AND resolution_note IS NOT NULL AND length(trim(resolution_note)) BETWEEN 3 AND 500)",
+            name="ck_payout_automatic_alerts_resolution",
+        ),
+        UniqueConstraint("dedupe_key", name="uq_payout_automatic_alerts_dedupe_key"),
+        Index("ix_payout_automatic_alerts_created_at", "created_at"),
+        Index(
+            "ix_payout_automatic_alerts_open",
+            "created_at",
+            sqlite_where=text("resolved_at IS NULL"),
+            postgresql_where=text("resolved_at IS NULL"),
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    dedupe_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    run_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("payout_automatic_runs.id", ondelete="RESTRICT")
+    )
+    batch_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("payout_batches.id", ondelete="RESTRICT")
+    )
+    line_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("payout_batch_lines.id", ondelete="RESTRICT")
+    )
+    ledger_entry_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("earnings_ledger_entries.id", ondelete="RESTRICT")
+    )
+    driver_profile_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("driver_profiles.id", ondelete="RESTRICT")
+    )
+    lagos_day: Mapped[date | None] = mapped_column(Date)
+    amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    currency: Mapped[str | None] = mapped_column(String(3))
+    detail: Mapped[dict[str, Any]] = mapped_column(
+        JSON().with_variant(postgresql.JSONB(), "postgresql"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    resolved_by_user_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT")
+    )
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolution_note: Mapped[str | None] = mapped_column(Text)
