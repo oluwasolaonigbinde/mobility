@@ -150,6 +150,11 @@ def _projection_payload(computations: list[DayComputation]) -> dict:
                     "eligible_seconds": target.eligible_seconds,
                     "payable_seconds": target.payable_seconds,
                     "voided": target.voided,
+                    **(
+                        {"distance_m_by_day": target.distance_m_by_day}
+                        if target.distance_m_by_day is not None
+                        else {}
+                    ),
                 }
             )
             previous_total += target.previous_posted_amount
@@ -523,6 +528,14 @@ def _execution_result_payload(
                             trip.entry.status if trip.entry is not None else None
                         ),
                         "voided": trip.voided,
+                        **(
+                            {
+                                "distance_m_by_day": trip.distance_m_by_day,
+                                "amount_by_day": trip.amount_by_day,
+                            }
+                            if trip.distance_m_by_day is not None
+                            else {}
+                        ),
                     }
                     for trip in outcome.trips
                 ],

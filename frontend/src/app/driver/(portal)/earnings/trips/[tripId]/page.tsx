@@ -63,6 +63,12 @@ const EXCLUSION_LABELS: Record<string, string> = {
     "Stationary after two 2-minute movement checks (shared grace applied)",
 };
 
+const METRES_PER_MILE = 1609.344;
+
+function formatMiles(metres: number): string {
+  return (metres / METRES_PER_MILE).toFixed(1);
+}
+
 export default async function DriverTripEarningsPage({
   params,
 }: {
@@ -122,6 +128,7 @@ export default async function DriverTripEarningsPage({
   const data = breakdown.data;
   const holds = holdsResponse.data.items ?? [];
 
+  const isDailyRate = data.formula_version === "payout_v4";
   const isV3 = data.formula_version === "payout_v3";
   const isHourly = data.formula_version === "payout_v2" || isV3;
   const hasTierBreakdown =
@@ -157,7 +164,11 @@ export default async function DriverTripEarningsPage({
           <p className="font-display text-green mt-1 text-3xl font-semibold">
             {formatMoneyExact(data.amount, data.currency)}
           </p>
-          {isV3 ? (
+          {isDailyRate ? (
+            <p className="text-muted mt-2 text-sm">
+              Daily-rate pay · day rate and daily miles fixed when you accepted this campaign
+            </p>
+          ) : isV3 ? (
             <p className="text-muted mt-2 text-sm">
               Hourly pay · base and premium-zone rates fixed when you accepted this campaign
             </p>
@@ -231,6 +242,52 @@ export default async function DriverTripEarningsPage({
             </Panel>
           );
         })}
+
+        {isDailyRate ? (
+          <Panel className="p-5">
+            <h2 className="micro text-muted mb-3">Miles counted</h2>
+            {data.daily_rate_days && data.daily_rate_days.length > 0 ? (
+              <ul className="divide-edge/60 divide-y">
+                {data.daily_rate_days.map((day) => (
+                  <li key={day.lagos_day} className="grid grid-cols-[1fr_auto] gap-4 py-2.5">
+                    <div>
+                      <p className="text-sm font-medium">{formatDate(day.lagos_day)}</p>
+                      <p className="micro text-faint mt-0.5">
+                        {formatMiles(day.distance_m)} miles counted on this trip (Nigeria time, WAT)
+                      </p>
+                    </div>
+                    <p className="font-mono text-sm">
+                      {formatMoneyExact(day.amount, data.currency)}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-muted text-sm">No miles counted on this trip.</p>
+            )}
+            <p className="micro text-faint mt-3">
+              Each day pays up to one full day rate. This trip&apos;s pay is what its miles added to
+              the miles you had already covered that day.
+            </p>
+            {excluded.length > 0 ? (
+              <div className="border-edge/60 mt-4 border-t pt-3">
+                <p className="micro text-faint mb-2">Time that didn&apos;t count</p>
+                <ul className="flex flex-col gap-1.5">
+                  {excluded.map(([reason, seconds]) => (
+                    <li key={reason} className="flex items-center justify-between text-sm">
+                      <span className="text-muted">
+                        {reason === "stationary"
+                          ? "Stops longer than 5 minutes"
+                          : (EXCLUSION_LABELS[reason] ?? reason.replace(/_/g, " "))}
+                      </span>
+                      <span className="font-mono">{formatDuration(seconds)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </Panel>
+        ) : null}
 
         {isHourly ? (
           <>

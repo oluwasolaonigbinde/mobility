@@ -68,6 +68,44 @@ describe("DriverTripEarningsPage", () => {
     expect(within(panel).getByText(/250\.00/)).toBeInTheDocument();
   });
 
+  it("explains payout_v4 per-day miles and pay without internal codes", async () => {
+    get.mockResolvedValue({
+      data: breakdown({
+        formula_version: "payout_v4",
+        amount: "3500.00",
+        hourly_rate: null,
+        capped_seconds: null,
+        base_payable_seconds: null,
+        premium_payable_seconds: null,
+        base_hourly_rate: null,
+        premium_hourly_rate: null,
+        base_amount: null,
+        premium_amount: null,
+        excluded_seconds_by_reason: { stationary: 420 },
+        daily_rate_days: [
+          { lagos_day: "2026-07-20", distance_m: 48280, amount: "3000.00" },
+          { lagos_day: "2026-07-21", distance_m: 8047, amount: "500.00" },
+        ],
+      }),
+    });
+
+    render(await DriverTripEarningsPage({ params: Promise.resolve({ tripId: "trip-v4" }) }));
+
+    expect(
+      screen.getByText(
+        "Daily-rate pay · day rate and daily miles fixed when you accepted this campaign",
+      ),
+    ).toBeInTheDocument();
+    const panel = screen.getByRole("heading", { name: "Miles counted" }).parentElement;
+    if (!panel) throw new Error("expected miles panel");
+    expect(within(panel).getByText(/^30\.0 miles counted on this trip/)).toBeInTheDocument();
+    expect(within(panel).getByText(/^5\.0 miles counted on this trip/)).toBeInTheDocument();
+    expect(within(panel).getByText(/3,000\.00/)).toBeInTheDocument();
+    expect(within(panel).getByText(/500\.00/)).toBeInTheDocument();
+    expect(within(panel).getByText("Stops longer than 5 minutes")).toBeInTheDocument();
+    expect(screen.queryByText(/payout_v4|d39|stationary/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Verified time" })).not.toBeInTheDocument();
+  });
   it("preserves the payout_v2 hourly explanation without a tier panel", async () => {
     get.mockResolvedValue({
       data: breakdown({

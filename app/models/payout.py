@@ -64,7 +64,7 @@ class PayoutCorrectionOrderStatus(StrEnum):
 
 PAYOUT_RULE_MODEL_XOR_SQL = (
     "("
-    "formula_version <> 'payout_v2'"
+    "formula_version NOT IN ('payout_v2', 'payout_v4')"
     " AND hourly_rate_naira IS NULL"
     " AND daily_payable_hours_cap IS NULL"
     " AND eligibility_params IS NULL"
@@ -91,7 +91,46 @@ PAYOUT_RULE_MODEL_XOR_SQL = (
     " AND low_fraud_multiplier IS NULL"
     " AND medium_fraud_multiplier IS NULL"
     " AND high_fraud_multiplier IS NULL"
+    ") OR ("
+    # payout_v4 (D39): a daily-rate campaign's rule row carries no rates; every
+    # pay value lives on its audited revisions.
+    "formula_version = 'payout_v4'"
+    " AND hourly_rate_naira IS NULL"
+    " AND daily_payable_hours_cap IS NULL"
+    " AND eligibility_params IS NULL"
+    " AND base_rate_per_km IS NULL"
+    " AND base_rate_per_active_hour IS NULL"
+    " AND target_zone_bonus_rate_per_km IS NULL"
+    " AND bonus_zone_bonus_rate_per_km IS NULL"
+    " AND estimated_impression_rate_per_1000 IS NULL"
+    " AND min_payout_per_trip IS NULL"
+    " AND max_payout_per_trip IS NULL"
+    " AND low_fraud_multiplier IS NULL"
+    " AND medium_fraud_multiplier IS NULL"
+    " AND high_fraud_multiplier IS NULL"
     ")"
+)
+
+# Revisions and bindings hold either the hourly terms (payout_v3) or the
+# complete daily-rate terms (payout_v4), never a mixture (migration 0092).
+PAYOUT_TERMS_SHAPE_SQL = (
+    "(formula_version <> 'payout_v4' AND hourly_rate_naira IS NOT NULL"
+    " AND daily_rate_naira IS NULL AND daily_target_miles IS NULL"
+    " AND shortfall_strategy IS NULL AND deduction_per_mile_naira IS NULL"
+    " AND minimum_miles IS NULL AND outside_area_weight IS NULL"
+    ") OR (formula_version = 'payout_v4'"
+    " AND hourly_rate_naira IS NULL AND premium_hourly_rate_naira IS NULL"
+    " AND daily_payable_hours_cap IS NULL"
+    # Explicit IS NOT NULL: a comparison with NULL would let the CHECK pass.
+    " AND daily_rate_naira IS NOT NULL AND daily_target_miles IS NOT NULL"
+    " AND minimum_miles IS NOT NULL AND outside_area_weight IS NOT NULL"
+    " AND shortfall_strategy IS NOT NULL"
+    " AND daily_rate_naira > 0 AND daily_target_miles > 0"
+    " AND minimum_miles >= 0 AND minimum_miles <= daily_target_miles"
+    " AND outside_area_weight >= 0 AND outside_area_weight <= 1"
+    " AND ((shortfall_strategy = 'proportional' AND deduction_per_mile_naira IS NULL)"
+    " OR (shortfall_strategy = 'per_mile_deduction' AND deduction_per_mile_naira IS NOT NULL"
+    " AND deduction_per_mile_naira > 0)))"
 )
 
 CURRENCY_CODE_SQL = (
@@ -233,8 +272,9 @@ class CampaignPayoutRuleRevision(Base):
     effective_from <= T. Non-overlap is by construction: no update/delete
     path exists, uq(campaign_id, effective_from) makes boundaries
     deterministic, and uq(campaign_id, revision_number) serializes
-    concurrent supersedes fail-closed (PR1). Revisions are payout_v3-only
-    value sources; payout_v2 keeps pricing from the frozen rule row (PR3).
+    concurrent supersedes fail-closed (PR1). Revisions are payout_v3 (hourly)
+    or payout_v4 (daily-rate, D39) value sources; payout_v2 keeps pricing from
+    the frozen rule row (PR3).
     """
 
     __tablename__ = "campaign_payout_rule_revisions"
@@ -254,6 +294,10 @@ class CampaignPayoutRuleRevision(Base):
         CheckConstraint(
             CURRENCY_CODE_SQL,
             name="ck_campaign_payout_rule_revisions_currency",
+        ),
+        CheckConstraint(
+            PAYOUT_TERMS_SHAPE_SQL,
+            name="ck_campaign_payout_rule_revisions_terms_shape",
         ),
         UniqueConstraint(
             "campaign_id",
@@ -284,9 +328,16 @@ class CampaignPayoutRuleRevision(Base):
     )
     revision_number: Mapped[int] = mapped_column(Integer, nullable=False)
     effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    hourly_rate_naira: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    # NULL only for payout_v4 revisions (daily rate, no hourly terms).
+    hourly_rate_naira: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     premium_hourly_rate_naira: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     daily_payable_hours_cap: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
+    daily_rate_naira: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    daily_target_miles: Mapped[Decimal | None] = mapped_column(Numeric(10, 3))
+    shortfall_strategy: Mapped[str | None] = mapped_column(Text)
+    deduction_per_mile_naira: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    minimum_miles: Mapped[Decimal | None] = mapped_column(Numeric(10, 3))
+    outside_area_weight: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     eligibility_params: Mapped[dict[str, Any]] = mapped_column(
         JSON().with_variant(postgresql.JSONB(), "postgresql"),
@@ -330,6 +381,10 @@ class AssignmentRuleBinding(Base):
             CURRENCY_CODE_SQL,
             name="ck_assignment_rule_bindings_currency",
         ),
+        CheckConstraint(
+            PAYOUT_TERMS_SHAPE_SQL,
+            name="ck_assignment_rule_bindings_terms_shape",
+        ),
         UniqueConstraint(
             "assignment_id",
             name="uq_assignment_rule_bindings_assignment_id",
@@ -350,9 +405,16 @@ class AssignmentRuleBinding(Base):
         ForeignKey("campaign_payout_rule_revisions.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    hourly_rate_naira: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    # NULL only for payout_v4 bindings, which copy the daily-rate terms below.
+    hourly_rate_naira: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     premium_hourly_rate_naira: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     daily_payable_hours_cap: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
+    daily_rate_naira: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    daily_target_miles: Mapped[Decimal | None] = mapped_column(Numeric(10, 3))
+    shortfall_strategy: Mapped[str | None] = mapped_column(Text)
+    deduction_per_mile_naira: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    minimum_miles: Mapped[Decimal | None] = mapped_column(Numeric(10, 3))
+    outside_area_weight: Mapped[Decimal | None] = mapped_column(Numeric(5, 4))
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     eligibility_params: Mapped[dict[str, Any]] = mapped_column(
         JSON().with_variant(postgresql.JSONB(), "postgresql"),
@@ -631,6 +693,10 @@ class PayoutCalculation(Base):
     # day's own cap (RM1, D4/D14); this is the stored allocation the cap
     # accounting and recompute-day read back.
     payable_seconds_by_day: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    # payout_v4 (D39): whole metres credited to each Lagos day and that day's
+    # money increment (decimal string). Required on v4 rows by the engine.
+    distance_m_by_day: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    amount_by_day: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     excluded_seconds_by_reason: Mapped[dict[str, Any] | None] = mapped_column(
         JSON().with_variant(postgresql.JSONB(), "postgresql")
     )

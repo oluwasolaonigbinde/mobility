@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { formatDate, formatDateRange } from "@/lib/format";
-import { offerTermLines } from "@/lib/assignments/offer-terms";
+import { dailyRateSentences, offerTermLines } from "@/lib/assignments/offer-terms";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { AssignmentActions } from "./assignment-actions";
@@ -199,32 +199,43 @@ export default async function DriverAssignmentsPage() {
               {a.offer_terms ? (
                 <div className="bg-raised border-edge mt-4 rounded-lg border p-3">
                   <p className="micro text-faint">Pay and job terms</p>
+                  {dailyRateSentences(a.offer_terms).length ? (
+                    <ul className="mt-2 grid gap-1 text-xs">
+                      {dailyRateSentences(a.offer_terms).map((sentence) => (
+                        <li key={sentence}>{sentence}</li>
+                      ))}
+                    </ul>
+                  ) : null}
                   <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
                     <p>Currency: {String(a.offer_terms.currency ?? "—")}</p>
-                    <p>
-                      Base:{" "}
-                      {String(
-                        (a.offer_terms.payout as Record<string, unknown> | null | undefined)
-                          ?.hourly_rate_naira ?? "—",
-                      )}
-                      /hr
-                    </p>
-                    <p>
-                      Premium:{" "}
-                      {String(
-                        (a.offer_terms.payout as Record<string, unknown> | null | undefined)
-                          ?.premium_hourly_rate_naira ?? "—",
-                      )}
-                      /hr
-                    </p>
-                    <p>
-                      Daily cap:{" "}
-                      {String(
-                        (a.offer_terms.payout as Record<string, unknown> | null | undefined)
-                          ?.daily_payable_hours_cap ?? "—",
-                      )}
-                      h
-                    </p>
+                    {dailyRateSentences(a.offer_terms).length ? null : (
+                      <>
+                        <p>
+                          Base:{" "}
+                          {String(
+                            (a.offer_terms.payout as Record<string, unknown> | null | undefined)
+                              ?.hourly_rate_naira ?? "—",
+                          )}
+                          /hr
+                        </p>
+                        <p>
+                          Premium:{" "}
+                          {String(
+                            (a.offer_terms.payout as Record<string, unknown> | null | undefined)
+                              ?.premium_hourly_rate_naira ?? "—",
+                          )}
+                          /hr
+                        </p>
+                        <p>
+                          Daily cap:{" "}
+                          {String(
+                            (a.offer_terms.payout as Record<string, unknown> | null | undefined)
+                              ?.daily_payable_hours_cap ?? "—",
+                          )}
+                          h
+                        </p>
+                      </>
+                    )}
                     <p>
                       Window: {formatDate(a.offer_terms.campaign_window_start_at ?? null)} –{" "}
                       {formatDate(a.offer_terms.campaign_window_end_at ?? null)}

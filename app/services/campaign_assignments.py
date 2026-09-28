@@ -59,6 +59,7 @@ from app.services.payout_eligibility import (
     D22_ROLLING_RELEASE_WINDOWS,
     D22_ROLLING_STRIDE_SECONDS,
     D22_ROLLING_WINDOW_SECONDS,
+    STATIONARY_POLICY_D39,
     STATIONARY_POLICY_V1,
 )
 from app.services.payout_rule_serialization import (
@@ -102,6 +103,22 @@ TERMINAL_DECISION_STATUSES = {
 
 OFFER_TERMS_VERSION = "campaign-assignment-offer-v1"
 PAYOUT_V3 = "payout_v3"
+PAYOUT_V4 = "payout_v4"
+# Frozen-offer zone semantics per formula. v4 counts target-zone miles in full
+# and other eligible miles at the revision's outside_area_weight.
+ZONE_SEMANTICS = {
+    PAYOUT_V3: "target_zones_are_premium; exclusions_are_unpaid",
+    PAYOUT_V4: "target_zone_miles_count_in_full; other_miles_weighted; exclusions_are_unpaid",
+}
+STOP_POLICY_BY_FORMULA = {PAYOUT_V3: STATIONARY_POLICY_V1, PAYOUT_V4: STATIONARY_POLICY_D39}
+V4_TERM_FIELDS = (
+    "daily_rate_naira",
+    "daily_target_miles",
+    "shortfall_strategy",
+    "deduction_per_mile_naira",
+    "minimum_miles",
+    "outside_area_weight",
+)
 ACTIVATION_SNAPSHOT_VERSION = "assignment-activation-v1"
 
 
@@ -1212,8 +1229,9 @@ def _offer_terms_complete(terms: dict | None, terms_sha256: str | None) -> bool:
     if not isinstance(payout, dict):
         return False
     payout_currency = payout.get("currency")
+    formula_version = payout.get("formula_version")
     if (
-        payout.get("formula_version") != PAYOUT_V3
+        formula_version not in (PAYOUT_V3, PAYOUT_V4)
         or not payout.get("revision_id")
         or not payout.get("payout_rule_id")
         or not payout.get("effective_from")
@@ -1230,23 +1248,28 @@ def _offer_terms_complete(terms: dict | None, terms_sha256: str | None) -> bool:
     try:
         UUID(str(payout["revision_id"]))
         UUID(str(payout["payout_rule_id"]))
-        rates = [
-            Decimal(str(payout["hourly_rate_naira"])),
-            Decimal(str(payout["premium_hourly_rate_naira"])),
-            Decimal(str(payout["daily_payable_hours_cap"])),
-        ]
-    except (KeyError, TypeError, ValueError, ArithmeticError):
+    except (KeyError, TypeError, ValueError):
         return False
-    if (
-        not all(rate.is_finite() and rate >= 0 for rate in rates[:2])
-        or not rates[2].is_finite()
-        or rates[2] <= 0
-    ):
-        return False
+    if formula_version == PAYOUT_V4:
+        if _daily_rate_offer_terms(payout) is None:
+            return False
+    else:
+        try:
+            rates = [
+                Decimal(str(payout["hourly_rate_naira"])),
+                Decimal(str(payout["premium_hourly_rate_naira"])),
+                Decimal(str(payout["daily_payable_hours_cap"])),
+            ]
+        except (KeyError, TypeError, ValueError, ArithmeticError):
+            return False
+        if (
+            not all(rate.is_finite() and rate >= 0 for rate in rates[:2])
+            or not rates[2].is_finite()
+            or rates[2] <= 0
+        ):
+            return False
     zones = terms.get("zones")
-    if not isinstance(zones, dict) or zones.get("semantics") != (
-        "target_zones_are_premium; exclusions_are_unpaid"
-    ):
+    if not isinstance(zones, dict) or zones.get("semantics") != ZONE_SEMANTICS[formula_version]:
         return False
 
     def valid_zone_rows(value: object, *, required_rows: bool) -> bool:
@@ -1282,8 +1305,44 @@ def _offer_terms_complete(terms: dict | None, terms_sha256: str | None) -> bool:
     eligibility = terms.get("eligibility")
     return bool(
         isinstance(eligibility, dict)
-        and eligibility.get("stationary_policy_marker") == STATIONARY_POLICY_V1
+        and eligibility.get("stationary_policy_marker") == STOP_POLICY_BY_FORMULA[formula_version]
     )
+
+
+def _daily_rate_offer_terms(payout: dict) -> dict[str, Decimal | str | None] | None:
+    """Parse the frozen payout_v4 terms exactly as the DB shape check allows."""
+    try:
+        values: dict[str, Decimal | str | None] = {
+            "daily_rate_naira": Decimal(str(payout["daily_rate_naira"])),
+            "daily_target_miles": Decimal(str(payout["daily_target_miles"])),
+            "shortfall_strategy": str(payout["shortfall_strategy"]),
+            "deduction_per_mile_naira": (
+                Decimal(str(payout["deduction_per_mile_naira"]))
+                if payout.get("deduction_per_mile_naira") is not None
+                else None
+            ),
+            "minimum_miles": Decimal(str(payout["minimum_miles"])),
+            "outside_area_weight": Decimal(str(payout["outside_area_weight"])),
+        }
+    except (KeyError, TypeError, ValueError, ArithmeticError):
+        return None
+    numbers = [value for value in values.values() if isinstance(value, Decimal)]
+    if (
+        any("hourly" in key or key == "daily_payable_hours_cap" for key in payout)
+        or not all(number.is_finite() for number in numbers)
+        or values["daily_rate_naira"] <= 0
+        or values["daily_target_miles"] <= 0
+        or not 0 <= values["minimum_miles"] <= values["daily_target_miles"]
+        or not 0 <= values["outside_area_weight"] <= 1
+    ):
+        return None
+    strategy, deduction = values["shortfall_strategy"], values["deduction_per_mile_naira"]
+    if not (
+        (strategy == "proportional" and deduction is None)
+        or (strategy == "per_mile_deduction" and deduction is not None and deduction > 0)
+    ):
+        return None
+    return values
 
 
 async def build_offer_terms(
@@ -1348,18 +1407,30 @@ async def build_offer_terms(
         .limit(1)
         .with_for_update()
     )
+    hourly_terms_complete = revision is not None and (
+        revision.formula_version == PAYOUT_V3
+        and revision.hourly_rate_naira is not None
+        and revision.premium_hourly_rate_naira is not None
+        and revision.daily_payable_hours_cap is not None
+    )
+    daily_rate_terms_complete = revision is not None and (
+        revision.formula_version == PAYOUT_V4
+        and revision.daily_rate_naira is not None
+        and revision.daily_target_miles is not None
+        and revision.shortfall_strategy is not None
+        and revision.minimum_miles is not None
+        and revision.outside_area_weight is not None
+    )
     if (
         revision is None
-        or revision.formula_version != PAYOUT_V3
+        or not (hourly_terms_complete or daily_rate_terms_complete)
         or not _valid_frozen_currency(revision.currency)
         or revision.currency != campaign.currency
-        or revision.hourly_rate_naira is None
-        or revision.premium_hourly_rate_naira is None
-        or revision.daily_payable_hours_cap is None
     ):
         raise AppError(
             "FROZEN_PAYOUT_TERMS_REQUIRED",
-            "An effective payout-v3 base/premium rate and daily cap are required before offering",
+            "Effective payout terms (hourly base/premium rate and daily cap, or a"
+            " complete daily rate) are required before offering",
             status_code=status.HTTP_409_CONFLICT,
         )
     bind = session.get_bind()
@@ -1392,6 +1463,28 @@ async def build_offer_terms(
             "All offered service-area zones must have geometry",
             status_code=status.HTTP_409_CONFLICT,
         )
+    payout_terms: dict[str, object] = {
+        "currency": revision.currency,
+        "revision_id": str(revision.id),
+        "payout_rule_id": str(revision.payout_rule_id),
+        "revision_number": revision.revision_number,
+        "effective_from": as_aware_utc(revision.effective_from).isoformat(),
+        "formula_version": revision.formula_version,
+    }
+    if revision.formula_version == PAYOUT_V4:
+        # D39: the exact audited revision values, verbatim; no hourly fields.
+        for field in V4_TERM_FIELDS:
+            value = getattr(revision, field)
+            payout_terms[field] = None if value is None else str(value)
+    else:
+        payout_terms.update(
+            {
+                "hourly_rate_naira": str(revision.hourly_rate_naira),
+                "premium_hourly_rate_naira": str(revision.premium_hourly_rate_naira),
+                "daily_payable_hours_cap": str(revision.daily_payable_hours_cap),
+            }
+        )
+    payout_terms["eligibility_params"] = revision.eligibility_params or {}
     terms = {
         "offer_terms_version": OFFER_TERMS_VERSION,
         "currency": revision.currency,
@@ -1414,20 +1507,9 @@ async def build_offer_terms(
             else None,
         },
         "creative": creative_snapshot,
-        "payout": {
-            "currency": revision.currency,
-            "revision_id": str(revision.id),
-            "payout_rule_id": str(revision.payout_rule_id),
-            "revision_number": revision.revision_number,
-            "effective_from": as_aware_utc(revision.effective_from).isoformat(),
-            "formula_version": revision.formula_version,
-            "hourly_rate_naira": str(revision.hourly_rate_naira),
-            "premium_hourly_rate_naira": str(revision.premium_hourly_rate_naira),
-            "daily_payable_hours_cap": str(revision.daily_payable_hours_cap),
-            "eligibility_params": revision.eligibility_params or {},
-        },
+        "payout": payout_terms,
         "zones": {
-            "semantics": "target_zones_are_premium; exclusions_are_unpaid",
+            "semantics": ZONE_SEMANTICS[revision.formula_version],
             "target": target_rows,
             "premium": target_rows,
             "exclusion": exclusion_rows,
@@ -1442,7 +1524,7 @@ async def build_offer_terms(
         # shape.  The binding carries the same marker in its dedicated column.
         "eligibility": {
             **resolved_eligibility_snapshot(settings, revision.eligibility_params),
-            "stationary_policy_marker": STATIONARY_POLICY_V1,
+            "stationary_policy_marker": STOP_POLICY_BY_FORMULA[revision.formula_version],
         },
     }
     if not terms["branding"]["version"]:
@@ -1552,13 +1634,26 @@ async def create_rule_binding_for_accept(
     zones = terms["zones"]
     premium_zone_rows = [(row["id"], row["wkt"]) for row in zones["premium"]]
     exclusion_zone_rows = [(row["id"], row["wkt"]) for row in zones["exclusion"]]
+    daily_rate = payout["formula_version"] == PAYOUT_V4
     try:
         window_start = datetime.fromisoformat(terms["campaign_window_start_at"])
         window_end = datetime.fromisoformat(terms["campaign_window_end_at"])
         revision_id = UUID(payout["revision_id"])
-        hourly_rate = Decimal(payout["hourly_rate_naira"])
-        premium_rate = Decimal(payout["premium_hourly_rate_naira"])
-        daily_cap = Decimal(payout["daily_payable_hours_cap"])
+        if daily_rate:
+            # Copied verbatim from the frozen offer; the DB shape check
+            # refuses an incomplete or mixed set.
+            pay_terms = {
+                "hourly_rate_naira": None,
+                "premium_hourly_rate_naira": None,
+                "daily_payable_hours_cap": None,
+                **_daily_rate_offer_terms(payout),
+            }
+        else:
+            pay_terms = {
+                "hourly_rate_naira": Decimal(payout["hourly_rate_naira"]),
+                "premium_hourly_rate_naira": Decimal(payout["premium_hourly_rate_naira"]),
+                "daily_payable_hours_cap": Decimal(payout["daily_payable_hours_cap"]),
+            }
         currency = payout["currency"] if "currency" in payout else terms["currency"]
     except (KeyError, TypeError, ValueError, ArithmeticError) as exc:
         raise AppError(
@@ -1602,9 +1697,7 @@ async def create_rule_binding_for_accept(
         assignment_id=assignment.id,
         revision_id=revision_id,
         currency=currency,
-        hourly_rate_naira=hourly_rate,
-        premium_hourly_rate_naira=premium_rate,
-        daily_payable_hours_cap=daily_cap,
+        **pay_terms,
         eligibility_params=payout["eligibility_params"],
         resolved_eligibility_params=resolved_eligibility,
         formula_version=payout["formula_version"],
@@ -1614,7 +1707,7 @@ async def create_rule_binding_for_accept(
         exclusion_zone_ids=[str(row[0]) for row in exclusion_zone_rows],
         exclusion_zone_geometry_hash=frozen_zone_geometry_hash(exclusion_zone_rows),
         exclusion_zone_geometry_wkts=[str(row[1]) for row in exclusion_zone_rows],
-        stationary_policy_marker=STATIONARY_POLICY_V1,
+        stationary_policy_marker=STOP_POLICY_BY_FORMULA[payout["formula_version"]],
         campaign_window_start_at=window_start,
         campaign_window_end_at=window_end,
         campaign_window_frozen=True,

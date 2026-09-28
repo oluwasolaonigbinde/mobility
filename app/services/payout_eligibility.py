@@ -13,6 +13,8 @@ Invariant (property-tested): eligible_seconds + sum of every excluded reason
 import math
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
+from decimal import Decimal
+from fractions import Fraction
 from zoneinfo import ZoneInfo
 
 # The payable day is the Africa/Lagos calendar day (D4 cap, D9c). Frozen
@@ -39,6 +41,13 @@ EXCLUSION_REASONS = (
 )
 
 STATIONARY_POLICY_V1 = "stationary-rd-v1"
+# D39(b) stop rule, payout_v4 only: movement continues through each stop of up
+# to 5 minutes; a continuous stay LONGER than the frozen window adds nothing.
+# No rolling detector and no whole-trip grace. The server fixes this overlay on
+# every v4 revision; admins cannot change it.
+STATIONARY_POLICY_D39 = "d39-stop-5min-v1"
+D39_STOP_OVERLAY = {"stationary_window_min": 5, "stationary_grace_min": 0}
+METRES_PER_MILE = Decimal("1609.344")
 D22_ROLLING_WINDOW_SECONDS = 120
 D22_ROLLING_STRIDE_SECONDS = 120
 D22_ROLLING_MAX_DISPLACEMENT_M = 25.0
@@ -109,6 +118,15 @@ class EligibleSlice:
     end_offset: int
     day: str
     premium: bool
+    # The ping interval the slice belongs to and that interval's whole-second
+    # length (payout_v4 prorates the interval's distance by eligible time).
+    interval_index: int = -1
+    interval_length: int = 0
+    # The interval's real start (seconds from the trip start; negative when a
+    # ping was recorded before Start) and duration. Distance driven before
+    # the start must not be credited.
+    interval_start_seconds: float = 0.0
+    interval_seconds: float = 0.0
 
     @property
     def length(self) -> int:
@@ -128,6 +146,11 @@ class EligibilityBreakdown:
     # lengths always sum to eligible_seconds.
     eligible_slices: tuple[EligibleSlice, ...] = ()
     stationary_detector_evidence: dict = field(default_factory=dict)
+    # Ping intervals shorter than one whole second (both pings floor to the
+    # same offset) have no slice; those that would be eligible at that instant
+    # are listed as (interval_index, day, premium) so v4 can credit their
+    # distance. Time-based engines ignore them (they carry no seconds).
+    eligible_instant_intervals: tuple[tuple[int, str, bool], ...] = ()
 
     @property
     def total_seconds(self) -> int:
@@ -158,12 +181,17 @@ def _stay_point_regions(
     offsets: list[int],
     raw_seconds: list[float],
     params: EligibilityParams,
+    *,
+    longer_than_window: bool = False,
 ) -> list[tuple[int, int]]:
     """Legacy confirmed stay-point spans before shared grace allocation.
 
     Detection runs over the full ping series so area/window exclusions never
     reset it; only a GPS gap breaks a stretch. Rolling and legacy ranges are
-    unioned before the existing whole-trip grace is spent once.
+    unioned before the existing whole-trip grace is spent once. Under the D39
+    stop rule (``longer_than_window``) a stay confirms only when it lasts
+    strictly longer than the window: a stay of exactly the window counts as
+    movement.
     """
     regions: list[tuple[int, int]] = []
     count = len(pings)
@@ -185,7 +213,12 @@ def _stay_point_regions(
                 break
             last_inside = j
         duration = raw_seconds[last_inside] - raw_seconds[anchor]
-        if last_inside > anchor and duration >= params.stationary_window_seconds:
+        confirmed = (
+            duration > params.stationary_window_seconds
+            if longer_than_window
+            else duration >= params.stationary_window_seconds
+        )
+        if last_inside > anchor and confirmed:
             span_start = offsets[anchor]
             span_end = offsets[last_inside]
             if span_start < span_end:
@@ -503,7 +536,10 @@ def classify_session(
     window_from = off((_utc(window_start_at) - start).total_seconds()) if window_start_at else 0
     window_to = off((_utc(window_end_at) - start).total_seconds()) if window_end_at else duration
 
-    legacy_stay_regions = _stay_point_regions(ordered, offsets, raw_seconds, params)
+    d39_stop_rule = stationary_policy_marker == STATIONARY_POLICY_D39
+    legacy_stay_regions = _stay_point_regions(
+        ordered, offsets, raw_seconds, params, longer_than_window=d39_stop_rule
+    )
     rolling_regions: list[tuple[int, int]] = []
     rolling_observations: list[dict] = []
     reset_events: list[dict] = []
@@ -558,6 +594,35 @@ def classify_session(
                 low = mid + 1
         return None
 
+    def stationary_reason_at(point: int) -> str | None:
+        return next(
+            (
+                reason
+                for region_start, region_end, reason in stationary_regions
+                if region_start <= point < region_end
+            ),
+            None,
+        )
+
+    eligible_instants: list[tuple[int, str, bool]] = []
+    for index in range(len(ordered) - 1):
+        point = offsets[index]
+        if (
+            offsets[index + 1] == point
+            and raw_seconds[index] >= 0
+            and interval_reason[index] is None
+            and window_from <= point < window_to
+            and point < duration
+            and stationary_reason_at(point) is None
+        ):
+            eligible_instants.append(
+                (
+                    index,
+                    lagos_day_at(start, point),
+                    ordered[index].in_premium and ordered[index + 1].in_premium,
+                )
+            )
+
     eligible = 0
     eligible_by_day: dict[str, int] = {}
     eligible_slices: list[EligibleSlice] = []
@@ -585,14 +650,7 @@ def classify_session(
         if base == REASON_OUT_OF_AREA:
             excluded[REASON_OUT_OF_AREA] += length
             continue
-        stationary_reason = next(
-            (
-                reason
-                for region_start, region_end, reason in stationary_regions
-                if region_start <= slice_start < region_end
-            ),
-            None,
-        )
+        stationary_reason = stationary_reason_at(slice_start)
         if stationary_reason is not None:
             excluded[stationary_reason] += length
             continue
@@ -609,8 +667,34 @@ def classify_session(
                 end_offset=slice_end,
                 day=day_key,
                 premium=ordered[index].in_premium and ordered[index + 1].in_premium,
+                interval_index=index,
+                interval_length=offsets[index + 1] - offsets[index],
+                interval_start_seconds=raw_seconds[index],
+                interval_seconds=raw_seconds[index + 1] - raw_seconds[index],
             )
         )
+
+    if stationary_policy_marker == STATIONARY_POLICY_V1:
+        detector_evidence = {
+            "version": stationary_policy_marker,
+            "params": params.as_metadata(),
+            "classified_stationary_ranges": [
+                {"start_offset": start, "end_offset": end} for start, end in rolling_regions
+            ],
+            "window_observations": rolling_observations,
+            "reset_events": reset_events,
+            "grace_allocation": grace_allocation,
+        }
+    elif d39_stop_rule:
+        detector_evidence = {
+            "version": stationary_policy_marker,
+            "params": params.as_legacy_metadata(),
+            "excluded_stop_ranges": [
+                {"start_offset": start, "end_offset": end} for start, end in legacy_stay_regions
+            ],
+        }
+    else:
+        detector_evidence = {}
 
     return EligibilityBreakdown(
         eligible_seconds=eligible,
@@ -620,18 +704,53 @@ def classify_session(
         teleport_incident_count=teleport_incidents,
         eligible_seconds_by_day=eligible_by_day,
         eligible_slices=tuple(eligible_slices),
-        stationary_detector_evidence=(
-            {
-                "version": stationary_policy_marker,
-                "params": params.as_metadata(),
-                "classified_stationary_ranges": [
-                    {"start_offset": start, "end_offset": end} for start, end in rolling_regions
-                ],
-                "window_observations": rolling_observations,
-                "reset_events": reset_events,
-                "grace_allocation": grace_allocation,
-            }
-            if stationary_policy_marker == STATIONARY_POLICY_V1
-            else {}
-        ),
+        stationary_detector_evidence=detector_evidence,
+        eligible_instant_intervals=tuple(eligible_instants),
     )
+
+
+def credited_distance_m_by_day(
+    *,
+    pings: list[EligibilityPing],
+    breakdown: EligibilityBreakdown,
+    outside_area_weight: Decimal,
+) -> dict[str, int]:
+    """payout_v4 (D39) distance: whole metres credited to each Lagos day.
+
+    Each eligible slice credits its ping interval's great-circle distance in
+    proportion to the slice's share of that interval's seconds; a sub-second
+    interval that is eligible at its instant credits its whole distance. Miles
+    inside the frozen target zones count in full, others at
+    ``outside_area_weight``. Excluded time (GPS gaps, low accuracy, teleports,
+    out of window or area, long stops) credits nothing. Sums are exact
+    fractions, rounded DOWN to whole metres per day before any pricing.
+    ``pings`` must be the same list given to ``classify_session``.
+    """
+    ordered = sorted(pings, key=lambda ping: _utc(ping.recorded_at))
+    outside = Fraction(outside_area_weight)
+
+    def interval_metres(index: int) -> Fraction:
+        first, second = ordered[index], ordered[index + 1]
+        return Fraction(
+            haversine_m(first.latitude, first.longitude, second.latitude, second.longitude)
+        )
+
+    totals: dict[str, Fraction] = {}
+    for eligible_slice in breakdown.eligible_slices:
+        # Share of the interval's whole-second span, times the part of the
+        # interval actually driven after Start (exactly 1 for any interval
+        # starting at or after it; fractional timestamps never reduce it).
+        start = Fraction(eligible_slice.interval_start_seconds)
+        duration = Fraction(eligible_slice.interval_seconds)
+        in_trip = (start + duration - max(start, Fraction(0))) / duration
+        share = (
+            interval_metres(eligible_slice.interval_index)
+            * Fraction(eligible_slice.length, eligible_slice.interval_length)
+            * in_trip
+        )
+        weight = 1 if eligible_slice.premium else outside
+        totals[eligible_slice.day] = totals.get(eligible_slice.day, Fraction(0)) + share * weight
+    for index, day, premium in breakdown.eligible_instant_intervals:
+        weight = 1 if premium else outside
+        totals[day] = totals.get(day, Fraction(0)) + interval_metres(index) * weight
+    return {day: math.floor(total) for day, total in sorted(totals.items())}

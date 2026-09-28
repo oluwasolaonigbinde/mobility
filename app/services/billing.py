@@ -135,6 +135,9 @@ RECEIPT_SEQUENCE = {
 }
 
 LIABILITY_FORMULA_VERSION = "rate-cap-vehicle-days-v1"
+# payout_v4 reservations store the day rate in hourly_rate with a cap of one
+# day unit; the distinct version keeps those columns unambiguous.
+DAILY_RATE_LIABILITY_FORMULA_VERSION = "day-rate-vehicle-days-v1"
 LAGOS_TZ = ZoneInfo("Africa/Lagos")
 
 
@@ -1958,6 +1961,12 @@ class AssignmentLiabilityCalculation:
     can_reserve: bool
 
 
+def _liability_formula_version(binding: AssignmentRuleBinding) -> str:
+    if binding.formula_version == "payout_v4":
+        return DAILY_RATE_LIABILITY_FORMULA_VERSION
+    return LIABILITY_FORMULA_VERSION
+
+
 async def _assignment_liability_calculation(
     session: AsyncSession, assignment: CampaignAssignment
 ) -> AssignmentLiabilityCalculation:
@@ -1977,9 +1986,17 @@ async def _assignment_liability_calculation(
     binding = await session.scalar(
         select(AssignmentRuleBinding).where(AssignmentRuleBinding.assignment_id == assignment.id)
     )
+    daily_rate = binding is not None and binding.formula_version == "payout_v4"
+    frozen_ceiling = (
+        None
+        if binding is None
+        else binding.daily_rate_naira
+        if daily_rate
+        else binding.daily_payable_hours_cap
+    )
     if (
         binding is None
-        or binding.daily_payable_hours_cap is None
+        or frozen_ceiling is None
         or binding.campaign_window_start_at is None
         or binding.campaign_window_end_at is None
     ):
@@ -1991,11 +2008,16 @@ async def _assignment_liability_calculation(
     start_date = _stored_aware_utc(binding.campaign_window_start_at).astimezone(LAGOS_TZ).date()
     end_date = _stored_aware_utc(binding.campaign_window_end_at).astimezone(LAGOS_TZ).date()
     covered_days = max(1, (end_date - start_date).days + 1)
-    rate = max(
-        Decimal(binding.hourly_rate_naira),
-        Decimal(binding.premium_hourly_rate_naira or binding.hourly_rate_naira),
-    )
-    cap = Decimal(binding.daily_payable_hours_cap)
+    if daily_rate:
+        # payout_v4 pays at most one full day rate per driver per campaign
+        # day, so the ceiling is day rate x one "day" unit per covered day.
+        rate, cap = Decimal(binding.daily_rate_naira), Decimal("1")
+    else:
+        rate = max(
+            Decimal(binding.hourly_rate_naira),
+            Decimal(binding.premium_hourly_rate_naira or binding.hourly_rate_naira),
+        )
+        cap = Decimal(binding.daily_payable_hours_cap)
     requested = (rate * cap * covered_days).quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)
     if requested <= 0:
         raise AppError(
@@ -2128,7 +2150,7 @@ async def reserve_assignment_liability(
             reserved_amount=requested if can_reserve else None,
             requested_at=now,
             reserved_at=now if can_reserve else None,
-            formula_version=LIABILITY_FORMULA_VERSION,
+            formula_version=_liability_formula_version(binding),
         )
         session.add(existing)
     elif existing.status == "pending_funding" and can_reserve:
@@ -2148,7 +2170,7 @@ async def reserve_assignment_liability(
             "assignment_id": str(assignment.id),
             "status": existing.status,
             "requested_amount": f"{requested:.2f}",
-            "formula_version": LIABILITY_FORMULA_VERSION,
+            "formula_version": existing.formula_version,
         },
     )
     return existing

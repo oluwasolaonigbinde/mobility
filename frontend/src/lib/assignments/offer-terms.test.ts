@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { installationViewLabel } from "./installation-views";
-import { offerTermLines } from "./offer-terms";
+import { dailyRateSentences, offerTermLines } from "./offer-terms";
 
 describe("offerTermLines", () => {
   it("lists every accepted term in words without IDs, hashes, geometry or versions", () => {
@@ -55,5 +55,62 @@ describe("installationViewLabel", () => {
       "Close-up of the branding",
     ]);
     expect(installationViewLabel("rear_window")).toBe("Rear window");
+  });
+});
+
+describe("dailyRateSentences", () => {
+  const offer = (payout: Record<string, unknown>) => ({
+    payout: {
+      formula_version: "payout_v4",
+      daily_rate_naira: "10000.00",
+      daily_target_miles: "70.000",
+      shortfall_strategy: "proportional",
+      deduction_per_mile_naira: null,
+      minimum_miles: "0.000",
+      outside_area_weight: "1.0000",
+      ...payout,
+    },
+    eligibility: {
+      stationary_policy_marker: "d39-stop-5min-v1",
+      stationary_window_seconds: 300,
+      max_ping_gap_seconds: 120,
+    },
+  });
+
+  it("states the day rate, target, proportional rule, stop rule and full outside miles", () => {
+    expect(dailyRateSentences(offer({}))).toEqual([
+      "₦10,000 for a full day of 70 miles.",
+      "Driving more than 70 miles in a day still earns ₦10,000.",
+      "Shorter days are paid in proportion to the miles covered.",
+      "Stops of up to 5 minutes count as driving; longer stops add no miles.",
+      "No miles are counted while your phone loses its location for more than 2 minutes.",
+      "Miles outside the campaign area count in full.",
+    ]);
+  });
+
+  it("states the per-mile deduction, the minimum and the outside-area share", () => {
+    const sentences = dailyRateSentences(
+      offer({
+        shortfall_strategy: "per_mile_deduction",
+        deduction_per_mile_naira: "140.00",
+        minimum_miles: "20.000",
+        outside_area_weight: "0.5000",
+      }),
+    );
+    expect(sentences).toContain("Each mile short of 70 takes ₦140 off the day's pay.");
+    expect(sentences).toContain("Days under 20 miles are not paid.");
+    expect(sentences).toContain("Miles outside the campaign area count at 50%.");
+    expect(dailyRateSentences(offer({ outside_area_weight: "0.0000" }))).toContain(
+      "Only miles inside the campaign area count.",
+    );
+  });
+
+  it("returns nothing for hourly offers and hides the raw daily-rate keys", () => {
+    expect(dailyRateSentences({ payout: { formula_version: "payout_v3" } })).toEqual([]);
+    const text = offerTermLines(offer({}))
+      .map((line) => `${line.label}: ${line.value}`)
+      .join("\n");
+    expect(text).not.toMatch(/Daily rate naira|Daily target miles|Shortfall|Outside area weight/);
+    expect(text).toContain("Eligibility · Stationary window seconds: 300");
   });
 });

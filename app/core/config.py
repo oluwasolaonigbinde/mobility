@@ -280,6 +280,11 @@ class Settings(BaseSettings):
     impression_min_confidence: float = 0.0
     impression_max_confidence: float = 1.0
     payout_formula_version: str = "payout_v1"
+    # D39 daily-rate (payout_v4) publishing stays off until the client answers
+    # Q1-Q3 (shortfall formula and minimum, which miles count, the cap and the
+    # full-day amount). No pay value exists in configuration; every value is
+    # entered on an audited revision once this is switched on.
+    payout_v4_publishing_enabled: bool = False
     payout_eligibility_stationary_radius_m: int = 200
     payout_eligibility_stationary_window_min: int = 5
     payout_eligibility_stationary_grace_min: int = 4

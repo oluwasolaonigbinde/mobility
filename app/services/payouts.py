@@ -1,8 +1,10 @@
 import hashlib
 import logging
+import math
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import ROUND_HALF_UP, Decimal
+from fractions import Fraction
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -29,6 +31,8 @@ from app.models.payout import (
     EarningsLedgerEntryType,
     PayoutCalculation,
     PayoutCalculationStatus,
+    PayoutCorrectionOrder,
+    PayoutCorrectionOrderStatus,
 )
 from app.models.trip import LocationPing, TripSession, TripSessionStatus
 from app.models.trip_analytics import (
@@ -40,6 +44,7 @@ from app.schemas.payouts import (
     CampaignPayoutRuleCreate,
     CampaignPayoutRuleRevisionCreate,
     CampaignPayoutRuleUpdate,
+    CampaignPayoutV4RevisionCreate,
 )
 from app.services.campaign_cancellations import campaign_financial_cutoff
 from app.services.campaigns import get_advertiser_campaign
@@ -60,10 +65,14 @@ from app.services.payout_eligibility import (
     D22_ROLLING_RELEASE_WINDOWS,
     D22_ROLLING_STRIDE_SECONDS,
     D22_ROLLING_WINDOW_SECONDS,
+    D39_STOP_OVERLAY,
+    METRES_PER_MILE,
+    STATIONARY_POLICY_D39,
     STATIONARY_POLICY_V1,
     EligibilityParams,
     EligibilityPing,
     classify_session,
+    credited_distance_m_by_day,
 )
 from app.services.payout_rule_serialization import (
     acquire_campaign_terms_lock,
@@ -86,6 +95,15 @@ ZERO = Decimal("0")
 PAYOUT_V1 = "payout_v1"
 PAYOUT_V2 = "payout_v2"
 PAYOUT_V3 = "payout_v3"
+# D39 daily rate for reaching a daily distance target. Created only through
+# the audited v4 revision path, never through the rule-create API.
+PAYOUT_V4 = "payout_v4"
+SHORTFALL_PROPORTIONAL = "proportional"
+SHORTFALL_PER_MILE_DEDUCTION = "per_mile_deduction"
+SHORTFALL_STRATEGIES = frozenset({SHORTFALL_PROPORTIONAL, SHORTFALL_PER_MILE_DEDUCTION})
+# One formula family per driver/campaign/Lagos day: the hourly engines share
+# a seconds cap pool, the daily-rate engine a distance pool.
+HOURLY_DAY_FORMULAS = (PAYOUT_V2, PAYOUT_V3)
 PAYOUT_FORMULA_VERSIONS = frozenset({PAYOUT_V1, PAYOUT_V2})
 # Classified in-service by name (MNY-06A) — the FND-07 shared classifier in
 # app/db/integrity.py is a reserved surface and stays untouched.
@@ -419,6 +437,26 @@ def rule_revisions_exist() -> AppError:
     )
 
 
+def payout_v4_policy_unavailable() -> AppError:
+    # D39 Q1-Q3 (shortfall formula and minimum, which miles count, the cap and
+    # the full-day amount) are still open with the client. Until the owner
+    # switches publishing on, nothing is written.
+    return AppError(
+        "PAYOUT_V4_POLICY_UNAVAILABLE",
+        "Daily-rate pay is not switched on yet",
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+    )
+
+
+def payout_day_mixed_formula() -> AppError:
+    return AppError(
+        "PAYOUT_DAY_MIXED_FORMULA",
+        "This driver already has hourly and daily-rate pay on the same campaign day;"
+        " resolve manually",
+        status_code=status.HTTP_409_CONFLICT,
+    )
+
+
 def payout_source_mismatch(mismatches: list[dict[str, str]]) -> AppError:
     return AppError(
         "PAYOUT_SOURCE_MISMATCH",
@@ -739,7 +777,14 @@ async def update_campaign_payout_rule(
     update_values = payload.model_dump(exclude_unset=True)
     validate_rule_update_nulls(update_values)
     # A rule row's model is immutable (P6): reject the other model's fields.
-    other_model_fields = V1_RULE_FIELDS if rule.formula_version == PAYOUT_V2 else V2_RULE_FIELDS
+    # A daily-rate (payout_v4) rule carries no rates at all: its pay values
+    # change only through the v4 revision chain.
+    if rule.formula_version == PAYOUT_V4:
+        other_model_fields = V1_RULE_FIELDS | V2_RULE_FIELDS | {"currency"}
+    elif rule.formula_version == PAYOUT_V2:
+        other_model_fields = V1_RULE_FIELDS
+    else:
+        other_model_fields = V2_RULE_FIELDS
     set_other_fields = sorted(
         field for field in other_model_fields if update_values.get(field) is not None
     )
@@ -759,7 +804,7 @@ async def update_campaign_payout_rule(
         )
         if retired_fields:
             raise rule_mutation_retired(retired_fields)
-    else:
+    elif rule.formula_version != PAYOUT_V4:
         prospective_min = update_values.get("min_payout_per_trip", rule.min_payout_per_trip)
         prospective_max = update_values.get("max_payout_per_trip", rule.max_payout_per_trip)
         ensure_rule_caps(min_payout=Decimal(prospective_min), max_payout=prospective_max)
@@ -862,6 +907,97 @@ async def create_payout_rule_revision(
         raise
     await session.refresh(revision)
     return revision, latest
+
+
+async def publish_payout_v4_revision(
+    session: AsyncSession,
+    *,
+    campaign_id: UUID,
+    payload: CampaignPayoutV4RevisionCreate,
+    actor_user_id: UUID,
+    settings: Settings,
+) -> tuple[
+    CampaignPayoutRuleRevision, CampaignPayoutRuleRevision | None, CampaignPayoutRule | None
+]:
+    """Append one audited daily-rate (payout_v4, D39) revision.
+
+    Fails closed before any lock or write while PAYOUT_V4_PUBLISHING_ENABLED is
+    off. A campaign without an active rule gets a rate-less payout_v4 rule in
+    the same transaction; a campaign governed by an hourly or legacy rule is
+    refused (a v4 revision never extends an hourly chain, and vice versa). The
+    chain guards are those of the hourly path. The stop rule is fixed by the
+    server. Returns (revision, previous, created_rule).
+    """
+    if not settings.payout_v4_publishing_enabled:
+        raise payout_v4_policy_unavailable()
+    await acquire_campaign_terms_lock(session, campaign_id)
+    db_now = await database_clock(session)
+    campaign = await get_campaign(session, campaign_id)
+    rule = await session.scalar(
+        select(CampaignPayoutRule).where(
+            CampaignPayoutRule.campaign_id == campaign_id,
+            CampaignPayoutRule.status == CampaignPayoutRuleStatus.ACTIVE.value,
+        )
+    )
+    if rule is not None and rule.formula_version != PAYOUT_V4:
+        raise invalid_rule_revision(
+            f"this campaign is governed by a {rule.formula_version} rule; a daily-rate"
+            " revision cannot extend it"
+        )
+    latest = await latest_payout_rule_revision(session, campaign_id)
+    if latest is not None and payload.effective_from <= _ensure_utc_aware(latest.effective_from):
+        raise invalid_rule_revision(
+            "effective_from must be strictly after the latest revision's"
+            " effective_from; retroactive changes require a correction order"
+        )
+    if payload.effective_from < _ensure_utc_aware(db_now):
+        raise invalid_rule_revision("effective_from must not be before the database clock")
+
+    created_rule = None
+    if rule is None:
+        rule = CampaignPayoutRule(
+            campaign_id=campaign_id,
+            created_by_user_id=actor_user_id,
+            formula_version=PAYOUT_V4,
+            status=CampaignPayoutRuleStatus.ACTIVE.value,
+            currency=validate_currency_code(campaign.currency),
+            rule_metadata={},
+        )
+        session.add(rule)
+        await session.flush()
+        await session.refresh(rule)
+        created_rule = rule
+
+    revision = CampaignPayoutRuleRevision(
+        campaign_id=campaign_id,
+        payout_rule_id=rule.id,
+        revision_number=(latest.revision_number + 1) if latest is not None else 1,
+        effective_from=payload.effective_from,
+        hourly_rate_naira=None,
+        premium_hourly_rate_naira=None,
+        daily_payable_hours_cap=None,
+        daily_rate_naira=payload.daily_rate_naira,
+        daily_target_miles=payload.daily_target_miles,
+        shortfall_strategy=payload.shortfall_strategy,
+        deduction_per_mile_naira=payload.deduction_per_mile_naira,
+        minimum_miles=payload.minimum_miles,
+        outside_area_weight=payload.outside_area_weight,
+        currency=rule.currency,
+        eligibility_params=dict(D39_STOP_OVERLAY),
+        formula_version=PAYOUT_V4,
+        reason=payload.reason,
+        created_by_user_id=actor_user_id,
+    )
+    try:
+        async with session.begin_nested():
+            session.add(revision)
+            await session.flush()
+    except IntegrityError as exc:
+        if _is_rule_revision_unique_conflict(exc):
+            raise rule_revision_conflict() from exc
+        raise
+    await session.refresh(revision)
+    return revision, latest, created_rule
 
 
 async def list_payout_rule_revisions(
@@ -1165,10 +1301,13 @@ def frozen_eligibility_params(binding: AssignmentRuleBinding) -> EligibilityPara
     fail closed rather than silently filling their gaps from mutable runtime
     configuration.
     """
-    if binding.stationary_policy_marker != STATIONARY_POLICY_V1:
+    expected_marker = (
+        STATIONARY_POLICY_D39 if binding.formula_version == PAYOUT_V4 else STATIONARY_POLICY_V1
+    )
+    if binding.stationary_policy_marker != expected_marker:
         raise AppError(
             "PAYOUT_STATIONARY_POLICY_UNRESOLVED",
-            "The payout_v3 assignment binding does not contain the approved"
+            f"The {binding.formula_version} assignment binding does not contain the approved"
             " stationary detector policy; resolve manually",
             status_code=status.HTTP_409_CONFLICT,
         )
@@ -1417,6 +1556,142 @@ def v3_inputs_fingerprint(
     )
 
 
+@dataclass(frozen=True)
+class DailyRateTerms:
+    """The payout_v4 pay terms frozen on a binding (all client values, D39)."""
+
+    daily_rate_naira: Decimal
+    daily_target_miles: Decimal
+    shortfall_strategy: str
+    deduction_per_mile_naira: Decimal | None
+    minimum_miles: Decimal
+    outside_area_weight: Decimal
+
+    def as_metadata(self) -> dict[str, str | None]:
+        return {
+            "daily_rate_naira": str(self.daily_rate_naira),
+            "daily_target_miles": str(self.daily_target_miles),
+            "shortfall_strategy": self.shortfall_strategy,
+            "deduction_per_mile_naira": (
+                str(self.deduction_per_mile_naira)
+                if self.deduction_per_mile_naira is not None
+                else None
+            ),
+            "minimum_miles": str(self.minimum_miles),
+            "outside_area_weight": str(self.outside_area_weight),
+        }
+
+
+def daily_rate_terms(binding: AssignmentRuleBinding) -> DailyRateTerms:
+    """Read the frozen v4 terms, failing closed on an incomplete binding."""
+    required = (
+        binding.daily_rate_naira,
+        binding.daily_target_miles,
+        binding.shortfall_strategy,
+        binding.minimum_miles,
+        binding.outside_area_weight,
+    )
+    if (
+        any(value is None for value in required)
+        or binding.shortfall_strategy not in SHORTFALL_STRATEGIES
+        or (binding.shortfall_strategy == SHORTFALL_PER_MILE_DEDUCTION)
+        != (binding.deduction_per_mile_naira is not None)
+    ):
+        raise AppError(
+            "PAYOUT_BINDING_INCOMPLETE",
+            "The payout_v4 assignment binding does not contain complete daily-rate"
+            " terms; resolve manually",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    return DailyRateTerms(
+        daily_rate_naira=Decimal(binding.daily_rate_naira),
+        daily_target_miles=Decimal(binding.daily_target_miles),
+        shortfall_strategy=binding.shortfall_strategy,
+        deduction_per_mile_naira=(
+            Decimal(binding.deduction_per_mile_naira)
+            if binding.deduction_per_mile_naira is not None
+            else None
+        ),
+        minimum_miles=Decimal(binding.minimum_miles),
+        outside_area_weight=Decimal(binding.outside_area_weight),
+    )
+
+
+def _half_up_naira(value: Fraction) -> Decimal:
+    """Exact 2dp NGN ROUND_HALF_UP of a non-negative fraction."""
+    cents = math.floor(value * 100 + Fraction(1, 2))
+    return (Decimal(cents) / 100).quantize(DECIMAL_2)
+
+
+def day_pay_naira(distance_m: int, terms: DailyRateTerms) -> Decimal:
+    """D(d): a day's pay for ``distance_m`` whole credited metres (payout_v4).
+
+    D(0) = 0; below the minimum distance nothing is paid; at or above the
+    target the day rate is paid and never more (one full day's rate per
+    driver per campaign day). Short of the target: ``proportional`` pays
+    rate x miles / target; ``per_mile_deduction`` pays rate minus the
+    deduction for each missing mile, floored at 0. D is non-decreasing, so a
+    day's per-trip increments are never negative and sum to D(day total).
+    The per-mile form jumps from D(0) to rate - deduction x target just above
+    zero; the client's minimum-distance answer (Q1) decides whether that jump
+    is intended.
+    """
+    if distance_m <= 0:
+        return Decimal("0.00")
+    miles = Fraction(distance_m) / Fraction(METRES_PER_MILE)
+    if miles < Fraction(terms.minimum_miles):
+        return Decimal("0.00")
+    rate = Fraction(terms.daily_rate_naira)
+    target = Fraction(terms.daily_target_miles)
+    if miles >= target:
+        return _half_up_naira(rate)
+    if terms.shortfall_strategy == SHORTFALL_PROPORTIONAL:
+        return _half_up_naira(rate * miles / target)
+    deduction = Fraction(terms.deduction_per_mile_naira)
+    return _half_up_naira(max(Fraction(0), rate - deduction * (target - miles)))
+
+
+def v4_governing_values(
+    binding: AssignmentRuleBinding,
+    terms: DailyRateTerms,
+    params: EligibilityParams,
+) -> dict:
+    """Every frozen input a payout_v4 amount depends on (replay + fingerprint)."""
+    return {
+        "engine": PAYOUT_V4,
+        "binding_id": binding.id,
+        "revision_id": binding.revision_id,
+        **terms.as_metadata(),
+        "eligibility_params": params.as_legacy_metadata(),
+        "frozen_eligibility_params": binding.eligibility_params or {},
+        "resolved_eligibility_params": binding.resolved_eligibility_params,
+        "target_zone_ids": list(binding.premium_zone_ids or []),
+        "target_zone_geometry_hash": binding.premium_zone_geometry_hash,
+        "exclusion_zone_ids": list(binding.exclusion_zone_ids or []),
+        "exclusion_zone_geometry_hash": binding.exclusion_zone_geometry_hash,
+        "stationary_policy_marker": binding.stationary_policy_marker,
+        "campaign_window_start_at": binding.campaign_window_start_at,
+        "campaign_window_end_at": binding.campaign_window_end_at,
+        "currency": binding.currency,
+    }
+
+
+def v4_inputs_fingerprint(
+    *,
+    governing_values: dict,
+    ping_fingerprint: str,
+    window_end_at: datetime | None,
+) -> str:
+    return stable_source_fingerprint(
+        {
+            "formula_version": PAYOUT_V4,
+            "governing_values": governing_values,
+            "ping_set_fingerprint": ping_fingerprint,
+            "window_end_at": window_end_at,
+        }
+    )
+
+
 async def binding_for_assignment(
     session: AsyncSession,
     assignment_id: UUID,
@@ -1607,6 +1882,164 @@ async def day_consumed_payable_seconds(
             # have been charged to the trip's own start day.
             consumed_by_trip[entry.trip_session_id] = int(payable)
     return sum(consumed_by_trip.values())
+
+
+def _day_trip_overlap(lagos_days: list[date]):
+    clauses = []
+    for day in lagos_days:
+        day_start_utc, day_end_utc = lagos_day_utc_range(day)
+        clauses.append(
+            and_(
+                TripSession.started_at < day_end_utc,
+                func.coalesce(TripSession.ended_at, TripSession.started_at) >= day_start_utc,
+            )
+        )
+    return or_(*clauses)
+
+
+async def refuse_mixed_formula_day(
+    session: AsyncSession,
+    *,
+    trip: TripSession,
+    lagos_days: list[date],
+    daily_rate: bool,
+) -> None:
+    """One formula family per driver/campaign/Lagos day (Batch B review #7).
+
+    Hourly (v2/v3) and daily-rate (v4) pay cannot share a day: neither pool
+    can price the other. A driver with earlier hourly work may still accept a
+    daily-rate offer; only a same-day mix is refused, for manual resolution.
+    Callers hold every listed day's paycap lock.
+    """
+    other = HOURLY_DAY_FORMULAS if daily_rate else (PAYOUT_V4,)
+    conflict = await session.scalar(
+        select(PayoutCalculation.id)
+        .join(TripSession, TripSession.id == PayoutCalculation.trip_session_id)
+        .where(
+            PayoutCalculation.driver_profile_id == trip.driver_profile_id,
+            PayoutCalculation.campaign_id == trip.campaign_id,
+            PayoutCalculation.trip_session_id != trip.id,
+            PayoutCalculation.formula_version.in_(other),
+            _day_trip_overlap(lagos_days),
+        )
+        .limit(1)
+    )
+    if conflict is not None:
+        raise payout_day_mixed_formula()
+
+
+async def day_credited_distance_m(
+    session: AsyncSession,
+    *,
+    driver_profile_id: UUID,
+    campaign_id: UUID,
+    lagos_day: date,
+    exclude_trip_id: UUID,
+) -> int:
+    """Whole metres already credited to a driver/campaign/Lagos day (payout_v4).
+
+    Sums each earlier v4 calculation's stored per-day distance; the latest
+    non-voided recompute-day breakdown for that calculation supersedes it (the
+    same chain as the hourly cap reader). Trips whose trip_payout entry is
+    voided credit nothing. Callers hold that day's paycap advisory lock.
+    """
+    day_key = lagos_day.isoformat()
+    voided_trip_payout = (
+        select(EarningsLedgerEntry.id)
+        .where(
+            EarningsLedgerEntry.trip_session_id == PayoutCalculation.trip_session_id,
+            EarningsLedgerEntry.entry_type == EarningsLedgerEntryType.TRIP_PAYOUT.value,
+            EarningsLedgerEntry.status == EarningsLedgerEntryStatus.VOIDED.value,
+        )
+        .correlate(PayoutCalculation)
+        .exists()
+    )
+    rows = await session.execute(
+        select(PayoutCalculation)
+        .join(TripSession, TripSession.id == PayoutCalculation.trip_session_id)
+        .where(
+            PayoutCalculation.driver_profile_id == driver_profile_id,
+            PayoutCalculation.campaign_id == campaign_id,
+            PayoutCalculation.formula_version == PAYOUT_V4,
+            PayoutCalculation.trip_session_id != exclude_trip_id,
+            _day_trip_overlap([lagos_day]),
+            ~voided_trip_payout,
+        )
+        .order_by(PayoutCalculation.calculated_at, PayoutCalculation.id)
+    )
+    # Latest calculation per trip (write-once rows; one per trip in practice).
+    latest_by_trip = {calc.trip_session_id: calc for calc in rows.scalars().all()}
+    total = 0
+    for calculation in latest_by_trip.values():
+        by_day, _ = await latest_daily_rate_position(session, calculation)
+        total += int(by_day.get(day_key, 0) or 0)
+    return total
+
+
+async def latest_daily_rate_position(
+    session: AsyncSession,
+    calculation: PayoutCalculation,
+) -> tuple[dict, dict]:
+    """A payout_v4 trip's authoritative (distance_m_by_day, amount_by_day).
+
+    The newest of: the write-once calculation, the latest non-voided
+    recompute-day ledger breakdown, and the latest executed correction order
+    that recorded this trip's position. Orders record the position even when
+    the money delta is zero (a flat stretch of D below the minimum or at the
+    target), so a re-measured distance is never lost for later arrivals.
+    """
+    best_at: datetime | None = None
+    distance = dict(calculation.distance_m_by_day or {})
+    amount = dict(calculation.amount_by_day or {})
+    entries = await session.execute(
+        select(EarningsLedgerEntry).where(
+            EarningsLedgerEntry.trip_session_id == calculation.trip_session_id,
+            EarningsLedgerEntry.status != EarningsLedgerEntryStatus.VOIDED.value,
+            EarningsLedgerEntry.entry_type.in_(
+                (
+                    EarningsLedgerEntryType.ADJUSTMENT.value,
+                    EarningsLedgerEntryType.REVERSAL.value,
+                )
+            ),
+        )
+    )
+    for entry in entries.scalars().all():
+        metadata = entry.ledger_metadata or {}
+        breakdown = metadata.get("breakdown")
+        if (
+            metadata.get("recompute_day")
+            and metadata.get("payout_calculation_id") == str(calculation.id)
+            and metadata.get("formula_version") == PAYOUT_V4
+            and isinstance(breakdown, dict)
+            and isinstance(breakdown.get("distance_m_by_day"), dict)
+        ):
+            at = _aware_utc(entry.occurred_at)
+            if best_at is None or at > best_at:
+                best_at = at
+                distance = dict(breakdown["distance_m_by_day"])
+                amount = dict(breakdown.get("amount_by_day") or {})
+    orders = await session.execute(
+        select(PayoutCorrectionOrder).where(
+            PayoutCorrectionOrder.campaign_id == calculation.campaign_id,
+            PayoutCorrectionOrder.status == PayoutCorrectionOrderStatus.EXECUTED.value,
+            PayoutCorrectionOrder.executed_at.is_not(None),
+        )
+    )
+    for order in orders.scalars().all():
+        at = _aware_utc(order.executed_at)
+        if best_at is not None and at <= best_at:
+            continue
+        for driver in (order.execution_result or {}).get("drivers", []):
+            for trip in driver.get("trips", []):
+                if (
+                    trip.get("trip_session_id") == str(calculation.trip_session_id)
+                    and trip.get("payout_calculation_id") == str(calculation.id)
+                    and isinstance(trip.get("distance_m_by_day"), dict)
+                ):
+                    best_at = at
+                    distance = dict(trip["distance_m_by_day"])
+                    amount = dict(trip.get("amount_by_day") or {})
+    return distance, amount
 
 
 def daily_cap_seconds(rule: CampaignPayoutRule) -> int:
@@ -2056,6 +2489,7 @@ async def calculate_trip_payout_v2(
         trip=trip,
         lagos_days=lagos_days,
     )
+    await refuse_mixed_formula_day(session, trip=trip, lagos_days=lagos_days, daily_rate=False)
 
     if (
         analytics.status == TripAnalyticsStatus.INSUFFICIENT_DATA.value
@@ -2322,6 +2756,7 @@ async def calculate_trip_payout_v3(
         trip=trip,
         lagos_days=lagos_days,
     )
+    await refuse_mixed_formula_day(session, trip=trip, lagos_days=lagos_days, daily_rate=False)
 
     if (
         analytics.status == TripAnalyticsStatus.INSUFFICIENT_DATA.value
@@ -2560,6 +2995,311 @@ async def v3_calculation_is_stale(
     return calculation.currency != binding.currency or calculation.inputs_fingerprint != current
 
 
+@dataclass(frozen=True)
+class DailyRateClassification:
+    """One trip classified under its frozen payout_v4 binding (no writes)."""
+
+    terms: DailyRateTerms
+    params: EligibilityParams
+    governing_values: dict
+    breakdown: object
+    distance_m_by_day: dict[str, int]
+    ping_fingerprint: str
+    inputs_fingerprint: str
+    window_start_at: datetime | None
+    window_end_at: datetime | None
+    effective_window_end_at: datetime | None
+    financial_cutoff_at: datetime | None
+
+
+async def classify_daily_rate_trip(
+    session: AsyncSession,
+    *,
+    trip: TripSession,
+    binding: AssignmentRuleBinding,
+) -> DailyRateClassification:
+    """Classify and measure a trip exclusively from its frozen v4 binding.
+
+    Exclusions, the D39 stop rule and the target/outside weighting all come
+    from the acceptance-time snapshot; mutable Settings, rules and zones never
+    participate. Shared by the engine, staleness and recompute-day.
+    """
+    revision = await session.get(CampaignPayoutRuleRevision, binding.revision_id)
+    if revision is None or revision.currency != binding.currency:
+        raise invalid_rule_values(
+            "the frozen assignment binding must match its payout revision currency"
+        )
+    terms = daily_rate_terms(binding)
+    params = frozen_eligibility_params(binding)
+    window_start_at, window_end_at = frozen_campaign_window(binding)
+    economic_end, effective_window_end, cutoff = await payout_time_bounds(
+        session, trip=trip, window_end_at=window_end_at
+    )
+    ping_rows = await load_eligibility_pings(
+        session,
+        trip_id=trip.id,
+        campaign_id=trip.campaign_id,
+        frozen_premium_zone_wkts=list(binding.premium_zone_geometry_wkts or []),
+        frozen_exclusion_zone_wkts=list(binding.exclusion_zone_geometry_wkts or []),
+        recorded_through=economic_end,
+    )
+    pings = [row.ping for row in ping_rows]
+    breakdown = classify_session(
+        session_started_at=trip.started_at,
+        session_ended_at=economic_end,
+        pings=pings,
+        window_start_at=window_start_at,
+        window_end_at=effective_window_end,
+        params=params,
+        stationary_policy_marker=binding.stationary_policy_marker,
+    )
+    distance_by_day = credited_distance_m_by_day(
+        pings=pings,
+        breakdown=breakdown,
+        outside_area_weight=terms.outside_area_weight,
+    )
+    governing_values = v4_governing_values(binding, terms, params)
+    ping_fingerprint = ping_set_fingerprint(ping_rows)
+    return DailyRateClassification(
+        terms=terms,
+        params=params,
+        governing_values=governing_values,
+        breakdown=breakdown,
+        distance_m_by_day=distance_by_day,
+        ping_fingerprint=ping_fingerprint,
+        inputs_fingerprint=v4_inputs_fingerprint(
+            governing_values=governing_values,
+            ping_fingerprint=ping_fingerprint,
+            window_end_at=effective_window_end,
+        ),
+        window_start_at=window_start_at,
+        window_end_at=window_end_at,
+        effective_window_end_at=effective_window_end,
+        financial_cutoff_at=cutoff,
+    )
+
+
+def _payout_status(analytics: TripAnalytics, estimate: ImpressionEstimate) -> str:
+    if (
+        analytics.status == TripAnalyticsStatus.INSUFFICIENT_DATA.value
+        or estimate.status == ImpressionEstimateStatus.INSUFFICIENT_DATA.value
+    ):
+        return PayoutCalculationStatus.INSUFFICIENT_DATA.value
+    if (
+        analytics.status == TripAnalyticsStatus.BLOCKED.value
+        or estimate.status == ImpressionEstimateStatus.EXCLUDED.value
+    ):
+        return PayoutCalculationStatus.BLOCKED.value
+    return PayoutCalculationStatus.CALCULATED.value
+
+
+async def calculate_trip_payout_v4(
+    session: AsyncSession,
+    *,
+    trip: TripSession,
+    analytics: TripAnalytics,
+    estimate: ImpressionEstimate,
+    binding: AssignmentRuleBinding,
+    counts: dict[str, int],
+    metadata: dict,
+    settings: Settings,
+    metadata_prefix: dict | None = None,
+    now: datetime | None = None,
+) -> tuple[PayoutCalculation, EarningsLedgerEntry | None, bool]:
+    """payout_v4 (D39): a daily rate for reaching a daily distance target.
+
+    Priced only from the assignment's frozen binding. Each Lagos day the trip
+    touches is priced as an increment on the distance already credited that
+    day: D(before + this) - D(before), so a day's trips together earn exactly
+    D(day total) and never more than the day rate. The same per-day paycap
+    locks and predecessor gate as the hourly engines order arrivals; a day
+    that already holds hourly pay is refused. Insufficient or blocked trips
+    credit 0 m and ₦0. Write-once, like v2/v3.
+    """
+    ensure_postgis(session)
+    calculated_at = now or utc_now()
+    await get_campaign(session, trip.campaign_id)
+    classified = await classify_daily_rate_trip(session, trip=trip, binding=binding)
+    breakdown = classified.breakdown
+    revision_rule_id = await session.scalar(
+        select(CampaignPayoutRuleRevision.payout_rule_id).where(
+            CampaignPayoutRuleRevision.id == binding.revision_id
+        )
+    )
+
+    lagos_day = lagos_day_for(trip.started_at)
+    day_keys = sorted(
+        set(breakdown.eligible_seconds_by_day) | set(classified.distance_m_by_day)
+    ) or [lagos_day.isoformat()]
+    lagos_days = [date.fromisoformat(key) for key in day_keys]
+    for day in lagos_days:
+        await acquire_paycap_lock(
+            session, paycap_lock_key(trip.driver_profile_id, trip.campaign_id, day)
+        )
+    await require_paycap_predecessors_processed(session, trip=trip, lagos_days=lagos_days)
+    await refuse_mixed_formula_day(session, trip=trip, lagos_days=lagos_days, daily_rate=True)
+
+    status_value = _payout_status(analytics, estimate)
+    distance_by_day = (
+        {key: value for key, value in classified.distance_m_by_day.items() if value > 0}
+        if status_value == PayoutCalculationStatus.CALCULATED.value
+        else {}
+    )
+    prior_by_day: dict[str, int] = {}
+    amount_by_day: dict[str, Decimal] = {}
+    for day in lagos_days:
+        key = day.isoformat()
+        prior_by_day[key] = await day_credited_distance_m(
+            session,
+            driver_profile_id=trip.driver_profile_id,
+            campaign_id=trip.campaign_id,
+            lagos_day=day,
+            exclude_trip_id=trip.id,
+        )
+        added = distance_by_day.get(key, 0)
+        if added > 0:
+            amount_by_day[key] = day_pay_naira(
+                prior_by_day[key] + added, classified.terms
+            ) - day_pay_naira(prior_by_day[key], classified.terms)
+    amount = quantize_2(sum(amount_by_day.values(), Decimal("0.00")))
+
+    payout_metadata = {
+        "formula_version": PAYOUT_V4,
+        "payout_rule_id": str(revision_rule_id),
+        "binding": {
+            "binding_id": str(binding.id),
+            "revision_id": str(binding.revision_id),
+            "currency": binding.currency,
+            "bound_at": binding.bound_at.isoformat(),
+            "campaign_window_start_at": (
+                classified.window_start_at.isoformat()
+                if classified.window_start_at is not None
+                else None
+            ),
+            "campaign_window_end_at": (
+                classified.window_end_at.isoformat()
+                if classified.window_end_at is not None
+                else None
+            ),
+            "target_zone_ids": list(binding.premium_zone_ids or []),
+            "target_zone_geometry_hash": binding.premium_zone_geometry_hash,
+            "exclusion_zone_ids": list(binding.exclusion_zone_ids or []),
+            "exclusion_zone_geometry_hash": binding.exclusion_zone_geometry_hash,
+            "stationary_policy_marker": binding.stationary_policy_marker,
+            "resolved_eligibility_params": binding.resolved_eligibility_params,
+        },
+        "daily_rate": classified.terms.as_metadata(),
+        "source_analytics_id": str(analytics.id),
+        "source_impression_estimate_id": str(estimate.id),
+        "fraud_flag_counts": counts,
+        "request_metadata": metadata,
+        "lagos_day": lagos_day.isoformat(),
+        "lagos_days": day_keys,
+        "distance": {
+            "prior_distance_m_by_day": prior_by_day,
+            "distance_m_by_day": distance_by_day,
+            "measured_distance_m_by_day": classified.distance_m_by_day,
+            # Time after a GPS gap longer than max_ping_gap_seconds credits no
+            # distance; it is listed with the other exclusions.
+            "rounding": "whole metres down per day before pricing",
+            "metres_per_mile": str(METRES_PER_MILE),
+        },
+        "eligibility_params": classified.params.as_legacy_metadata(),
+        "ping_set_fingerprint": classified.ping_fingerprint,
+        "teleport_incident_count": breakdown.teleport_incident_count,
+        "stationary_detector": breakdown.stationary_detector_evidence,
+        "components": {
+            "eligible_seconds": breakdown.eligible_seconds,
+            "eligible_seconds_by_day": breakdown.eligible_seconds_by_day,
+            "excluded_seconds_by_reason": breakdown.excluded_seconds_by_reason,
+            "amount_by_day": {key: str(value) for key, value in amount_by_day.items()},
+            "amount": str(amount),
+        },
+        "source_analytics_formula_version": analytics.formula_version,
+        "source_analytics_computed_at": analytics.computed_at.isoformat(),
+        "source_analytics_fingerprint": analytics_output_fingerprint(analytics),
+        "source_impression_formula_version": estimate.formula_version,
+        "source_impression_estimated_at": estimate.estimated_at.isoformat(),
+        "source_impression_fingerprint": impression_output_fingerprint(estimate),
+        "financial_cutoff_at": (
+            classified.financial_cutoff_at.isoformat()
+            if classified.financial_cutoff_at is not None
+            else None
+        ),
+        "recorded_trip_end_at": _aware_utc(trip.ended_at).isoformat(),
+    }
+    payout_metadata = merge_payout_metadata(metadata_prefix, payout_metadata)
+
+    calculation = PayoutCalculation(
+        trip_session_id=trip.id,
+        trip_analytics_id=analytics.id,
+        impression_estimate_id=estimate.id,
+        payout_rule_id=revision_rule_id,
+        assignment_id=analytics.assignment_id,
+        campaign_id=analytics.campaign_id,
+        driver_profile_id=analytics.driver_profile_id,
+        vehicle_id=analytics.vehicle_id,
+        formula_version=PAYOUT_V4,
+        status=status_value,
+        currency=binding.currency,
+        gross_payout=amount,
+        final_payout=amount,
+        eligible_seconds=breakdown.eligible_seconds,
+        excluded_seconds_by_reason=breakdown.excluded_seconds_by_reason,
+        distance_m_by_day=distance_by_day,
+        amount_by_day={key: str(value) for key, value in amount_by_day.items()},
+        inputs_fingerprint=classified.inputs_fingerprint,
+        calculated_at=calculated_at,
+        payout_metadata=payout_metadata,
+    )
+    try:
+        async with session.begin_nested():
+            session.add(calculation)
+            await session.flush()
+    except IntegrityError as exc:
+        if not is_expected_uniqueness_conflict(
+            exc,
+            constraints=PAYOUT_CALCULATION_CONSTRAINTS,
+        ):
+            raise
+        existing = await existing_payout_calculation(
+            session,
+            trip_id=trip.id,
+            formula_version=PAYOUT_V4,
+            payout_rule_id=revision_rule_id,
+        )
+        if existing is None:
+            raise
+        ledger = await ensure_ledger_entry(session, existing, metadata_prefix=metadata_prefix)
+        return existing, ledger, False
+    await session.refresh(calculation)
+    ledger = await ensure_ledger_entry(session, calculation, metadata_prefix=metadata_prefix)
+    return calculation, ledger, True
+
+
+async def v4_calculation_is_stale(
+    session: AsyncSession,
+    calculation: PayoutCalculation,
+    *,
+    trip: TripSession,
+) -> bool:
+    """Detect input drift for a payout_v4 calculation without recomputing
+    money: re-derive the fingerprint from the frozen binding and the current
+    ping set. Money is never auto-rewritten."""
+    binding = await binding_for_assignment(session, trip.assignment_id)
+    if (
+        binding is None
+        or binding.formula_version != PAYOUT_V4
+        or not binding.campaign_window_frozen
+    ):
+        return True
+    classified = await classify_daily_rate_trip(session, trip=trip, binding=binding)
+    return (
+        calculation.currency != binding.currency
+        or calculation.inputs_fingerprint != classified.inputs_fingerprint
+    )
+
+
 async def _calculate_trip_payout_v1(
     session: AsyncSession,
     *,
@@ -2737,6 +3477,9 @@ async def calculate_trip_payout(
                     session, existing, trip=trip, settings=settings
                 ):
                     raise payout_calculation_stale()
+            elif existing.formula_version == PAYOUT_V4:
+                if strict_staleness and await v4_calculation_is_stale(session, existing, trip=trip):
+                    raise payout_calculation_stale()
             else:
                 ensure_current_payout_calculation_source(
                     existing,
@@ -2751,6 +3494,9 @@ async def calculate_trip_payout(
     # assignment's trips price from the frozen acceptance-time values only.
     binding = await binding_for_assignment(session, trip.assignment_id)
     if binding is not None:
+        # The binding's own formula decides the engine: payout_v4 (daily
+        # rate, D39) or payout_v3 (hourly tiers).
+        bound_formula = PAYOUT_V4 if binding.formula_version == PAYOUT_V4 else PAYOUT_V3
         if payout_rule_id is not None:
             revision = await session.get(CampaignPayoutRuleRevision, binding.revision_id)
             if payout_rule_id != revision.payout_rule_id:
@@ -2765,10 +3511,23 @@ async def calculate_trip_payout(
                 session, trip_id=trip.id
             )
             if existing_any is not None and not (
-                existing_any.formula_version == PAYOUT_V3
+                existing_any.formula_version == bound_formula
                 and existing_any.payout_rule_id == revision.payout_rule_id
             ):
                 raise payout_calculation_stale()
+        if bound_formula == PAYOUT_V4:
+            return await calculate_trip_payout_v4(
+                session,
+                trip=trip,
+                analytics=analytics,
+                estimate=estimate,
+                binding=binding,
+                counts=counts,
+                metadata=metadata,
+                settings=settings,
+                metadata_prefix=metadata_prefix,
+                now=now,
+            )
         return await calculate_trip_payout_v3(
             session,
             trip=trip,
@@ -2788,6 +3547,14 @@ async def calculate_trip_payout(
         payout_rule_id=payout_rule_id,
     )
 
+    if rule.formula_version == PAYOUT_V4:
+        # Daily-rate pay exists only as accepted, frozen terms.
+        raise AppError(
+            "PAYOUT_BINDING_NOT_FOUND",
+            "A daily-rate campaign pays only work accepted under frozen terms;"
+            " this trip's assignment has no binding",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     if rule.formula_version == PAYOUT_V2:
         if payout_rule_id is not None:
             # Write-once holds on the explicit-rule surface too: a trip
@@ -3215,6 +3982,10 @@ class RecomputeDayTripOutcome:
     payable_seconds: int
     entry: EarningsLedgerEntry | None
     voided: bool
+    # payout_v4: the trip's full per-day position after this run, recorded in
+    # the order's execution_result even when the money delta is zero.
+    distance_m_by_day: dict[str, int] | None = None
+    amount_by_day: dict[str, str] | None = None
 
 
 @dataclass(frozen=True)
@@ -3250,7 +4021,7 @@ class DayTripTarget:
     payable_seconds: int
     payable_by_day: dict[str, int]
     payable_by_day_tier: dict[str, dict[str, int]] | None
-    hourly_rate: Decimal
+    hourly_rate: Decimal | None
     premium_hourly_rate: Decimal | None
     cap_seconds: int
     voided: bool
@@ -3258,6 +4029,11 @@ class DayTripTarget:
     stored_inputs_fingerprint: str | None
     governing_values: dict
     stationary_detector_evidence: dict | None
+    # payout_v4 only: whole metres and money increments per Lagos day after
+    # this recompute, and the distance credited before this trip on the day.
+    distance_m_by_day: dict[str, int] | None = None
+    amount_by_day: dict[str, str] | None = None
+    prior_distance_m: int | None = None
 
 
 @dataclass(frozen=True)
@@ -3323,11 +4099,11 @@ async def _latest_recompute_breakdown(
 def payout_day_unsupported_formula() -> AppError:
     """The v2-vs-v3 mixed-day refusal is retired (PR6): the recompute core
     prices both engines under one shared cap pool. Only formula versions with
-    no seconds-based repricing model (payout_v1) still refuse."""
+    no day-based repricing model (payout_v1) still refuse."""
     return AppError(
         "PAYOUT_DAY_UNSUPPORTED_FORMULA",
-        "The day holds calculations without a seconds-based payout model"
-        " (payout_v1); recompute supports payout_v2 and payout_v3 only",
+        "The day holds calculations without a day-based payout model"
+        " (payout_v1); recompute supports payout_v2, payout_v3 and payout_v4 only",
         status_code=status.HTTP_409_CONFLICT,
     )
 
@@ -3369,6 +4145,103 @@ async def _posted_amount_for_trip(
         )
     )
     return quantize_2(Decimal(str(total or 0)))
+
+
+async def _daily_rate_day_target(
+    session: AsyncSession,
+    *,
+    trip: TripSession,
+    calculation: PayoutCalculation,
+    voided: bool,
+    day_key: str,
+    credited_before_m: int,
+    driver_profile_id: UUID,
+) -> DayTripTarget:
+    """One payout_v4 trip's recomputed target for the day being corrected.
+
+    The day's distance is re-measured from the frozen binding and credited
+    after every earlier trip of the day, in start order; the trip's other
+    Lagos days keep their stored distance and money (the latest correction
+    breakdown supersedes the write-once calculation), so correcting day B of
+    a cross-midnight trip never undoes an earlier day-A correction. A voided
+    or blocked trip targets 0 m and ₦0; an insufficient-data trip is priced
+    from a fresh classification (the D9 escape hatch, as for v2/v3).
+    """
+    binding = await binding_for_assignment(session, trip.assignment_id)
+    if binding is None or binding.formula_version != PAYOUT_V4:
+        raise AppError(
+            "PAYOUT_BINDING_NOT_FOUND",
+            "A payout_v4 calculation exists but its assignment has no frozen"
+            " daily-rate binding; resolve manually",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if calculation.currency != binding.currency:
+        raise payout_day_currency_mismatch()
+    classified = await classify_daily_rate_trip(session, trip=trip, binding=binding)
+    governing_values = {
+        **classified.governing_values,
+        "financial_cutoff_at": (
+            classified.financial_cutoff_at.isoformat()
+            if classified.financial_cutoff_at is not None
+            else None
+        ),
+    }
+    breakdown = classified.breakdown
+    if voided or calculation.status == PayoutCalculationStatus.BLOCKED.value:
+        distance_by_day: dict[str, int] = {}
+        amount_by_day: dict[str, str] = {}
+        eligible_seconds = 0
+        excluded: dict[str, int] = {}
+    else:
+        stored_distance, stored_amount = await latest_daily_rate_position(session, calculation)
+        distance_by_day = {
+            key: int(value) for key, value in stored_distance.items() if key != day_key
+        }
+        amount_by_day = {key: str(value) for key, value in stored_amount.items() if key != day_key}
+        day_distance = classified.distance_m_by_day.get(day_key, 0)
+        if day_distance > 0:
+            distance_by_day[day_key] = day_distance
+            amount_by_day[day_key] = str(
+                day_pay_naira(credited_before_m + day_distance, classified.terms)
+                - day_pay_naira(credited_before_m, classified.terms)
+            )
+        eligible_seconds = breakdown.eligible_seconds
+        excluded = breakdown.excluded_seconds_by_reason
+    target_amount = quantize_2(
+        sum((Decimal(value) for value in amount_by_day.values()), Decimal("0.00"))
+    )
+    posted = await _posted_amount_for_trip(
+        session,
+        trip_session_id=trip.id,
+        driver_profile_id=driver_profile_id,
+        currency=calculation.currency,
+    )
+    return DayTripTarget(
+        trip_session_id=trip.id,
+        vehicle_id=trip.vehicle_id,
+        payout_calculation_id=calculation.id,
+        formula_version=PAYOUT_V4,
+        currency=calculation.currency,
+        previous_posted_amount=posted,
+        target_amount=target_amount,
+        delta_amount=quantize_2(target_amount - posted),
+        eligible_seconds=eligible_seconds,
+        excluded_seconds_by_reason=excluded,
+        payable_seconds=0,
+        payable_by_day={},
+        payable_by_day_tier=None,
+        hourly_rate=None,
+        premium_hourly_rate=None,
+        cap_seconds=0,
+        voided=voided,
+        current_ping_fingerprint=classified.ping_fingerprint,
+        stored_inputs_fingerprint=calculation.inputs_fingerprint,
+        governing_values=governing_values,
+        stationary_detector_evidence=breakdown.stationary_detector_evidence,
+        distance_m_by_day=distance_by_day,
+        amount_by_day=amount_by_day,
+        prior_distance_m=credited_before_m,
+    )
 
 
 async def compute_payout_day_targets(
@@ -3444,11 +4317,11 @@ async def compute_payout_day_targets(
     latest_calculations = [
         calculations_by_trip[trip.id] for trip in trips if trip.id in calculations_by_trip
     ]
-    if any(
-        calculation.formula_version not in (PAYOUT_V2, PAYOUT_V3)
-        for calculation in latest_calculations
-    ):
+    day_formulas = {calculation.formula_version for calculation in latest_calculations}
+    if day_formulas - {PAYOUT_V2, PAYOUT_V3, PAYOUT_V4}:
         raise payout_day_unsupported_formula()
+    if PAYOUT_V4 in day_formulas and day_formulas & set(HOURLY_DAY_FORMULAS):
+        raise payout_day_mixed_formula()
     currencies = {calculation.currency for calculation in latest_calculations}
     if len(currencies) > 1:
         raise payout_day_currency_mismatch()
@@ -3470,6 +4343,7 @@ async def compute_payout_day_targets(
     zone_state = await campaign_zone_state(session, campaign_id)
 
     consumed = 0  # ONE shared chronological cap pool across engines (PR5).
+    credited_m = 0  # payout_v4: distance credited so far on the day, in order.
     targets: list[DayTripTarget] = []
     for trip in trips:
         calculation = calculations_by_trip.get(trip.id)
@@ -3482,6 +4356,20 @@ async def compute_payout_day_targets(
             and trip_payout_entry.status == EarningsLedgerEntryStatus.VOIDED.value
         )
         formula_version = calculation.formula_version
+
+        if formula_version == PAYOUT_V4:
+            target = await _daily_rate_day_target(
+                session,
+                trip=trip,
+                calculation=calculation,
+                voided=voided,
+                day_key=day_key,
+                credited_before_m=credited_m,
+                driver_profile_id=driver_profile_id,
+            )
+            credited_m += int((target.distance_m_by_day or {}).get(day_key, 0))
+            targets.append(target)
+            continue
 
         binding: AssignmentRuleBinding | None = None
         if formula_version == PAYOUT_V3:
@@ -3835,12 +4723,23 @@ async def write_day_differentials(
                 "excluded_seconds_by_reason": target.excluded_seconds_by_reason,
                 "payable_seconds": target.payable_seconds,
                 "payable_seconds_by_day": target.payable_by_day,
-                "hourly_rate_naira": str(target.hourly_rate),
                 "cap_seconds": target.cap_seconds,
                 "target_amount": str(target.target_amount),
                 "previous_posted_amount": str(target.previous_posted_amount),
                 "delta_amount": str(delta),
             }
+            if target.hourly_rate is not None:
+                breakdown_metadata["hourly_rate_naira"] = str(target.hourly_rate)
+            if target.distance_m_by_day is not None:
+                # payout_v4: the trip's full per-day position after this
+                # correction; later corrections and the day-distance reader
+                # take it as authoritative over the calculation row.
+                breakdown_metadata["distance_m_by_day"] = target.distance_m_by_day
+                breakdown_metadata["amount_by_day"] = target.amount_by_day
+                breakdown_metadata["prior_distance_m"] = target.prior_distance_m
+                breakdown_metadata["daily_rate"] = {
+                    key: target.governing_values[key] for key in DailyRateTerms.__dataclass_fields__
+                }
             if target.payable_by_day_tier is not None:
                 base_seconds = sum(
                     int(tiers.get("base", 0) or 0) for tiers in target.payable_by_day_tier.values()
@@ -3877,7 +4776,7 @@ async def write_day_differentials(
                 "breakdown": breakdown_metadata,
                 "request_metadata": request_metadata,
             }
-            if target.formula_version == PAYOUT_V3:
+            if target.formula_version in (PAYOUT_V3, PAYOUT_V4):
                 ledger_metadata["binding_id"] = str(target.governing_values["binding_id"])
                 ledger_metadata["revision_id"] = str(target.governing_values["revision_id"])
                 frozen_start = target.governing_values["campaign_window_start_at"]
@@ -3924,6 +4823,8 @@ async def write_day_differentials(
                 payable_seconds=target.payable_seconds,
                 entry=entry,
                 voided=target.voided,
+                distance_m_by_day=target.distance_m_by_day,
+                amount_by_day=target.amount_by_day,
             )
         )
 
@@ -3989,6 +4890,28 @@ class DriverTripBreakdown:
     lagos_day: date | None
     cap_seconds: int | None
     day_payable_seconds: int | None
+    # payout_v4: (Lagos day, whole metres counted, pay this trip added).
+    daily_rate_days: list[tuple[date, int, Decimal]] | None = None
+
+
+def _daily_rate_days(
+    distance_m_by_day: object,
+    amount_by_day: object,
+) -> list[tuple[date, int, Decimal]] | None:
+    """Parse a stored payout_v4 per-day position; None when malformed."""
+    if not isinstance(distance_m_by_day, dict) or not isinstance(amount_by_day, dict):
+        return None
+    try:
+        days = []
+        for key in sorted(set(distance_m_by_day) | set(amount_by_day)):
+            metres = int(distance_m_by_day.get(key, 0) or 0)
+            amount = Decimal(str(amount_by_day.get(key, "0.00")))
+            if metres < 0 or amount < 0:
+                return None
+            days.append((date.fromisoformat(key), metres, quantize_2(amount)))
+    except (ArithmeticError, TypeError, ValueError):
+        return None
+    return days
 
 
 def _tier_breakdown_from_stored_metadata(
@@ -4259,6 +5182,43 @@ async def driver_trip_earnings_breakdown(
                 lagos_day=lagos_day_value,
             )
 
+    daily_rate_days: list[tuple[date, int, Decimal]] | None = None
+    if calculation is not None and calculation.formula_version == PAYOUT_V4:
+        eligible_seconds = calculation.eligible_seconds
+        excluded = calculation.excluded_seconds_by_reason or {}
+        daily_rate_days = _daily_rate_days(
+            calculation.distance_m_by_day or {}, calculation.amount_by_day or {}
+        )
+        for entry in reversed(entries):
+            entry_metadata = entry.ledger_metadata or {}
+            stored = entry_metadata.get("breakdown")
+            if (
+                entry.status != EarningsLedgerEntryStatus.VOIDED.value
+                and entry.entry_type
+                in (
+                    EarningsLedgerEntryType.ADJUSTMENT.value,
+                    EarningsLedgerEntryType.REVERSAL.value,
+                )
+                and entry_metadata.get("recompute_day")
+                and entry_metadata.get("payout_calculation_id") == str(calculation.id)
+                and entry_metadata.get("formula_version") == PAYOUT_V4
+                and isinstance(stored, dict)
+            ):
+                superseded = True
+                daily_rate_days = _daily_rate_days(
+                    stored.get("distance_m_by_day"), stored.get("amount_by_day")
+                )
+                eligible_seconds, excluded = _recompute_explanation_from_stored_metadata(
+                    stored
+                ) or (None, None)
+                break
+        # The per-day explanation must add up to the posted amount; otherwise
+        # (a voided payout, say) the entries alone are the visible authority.
+        if daily_rate_days is not None and (
+            quantize_2(sum((day[2] for day in daily_rate_days), Decimal("0.00"))) != amount
+        ):
+            daily_rate_days = None
+
     # Tier components explain the authoritative posted balance, not a stale
     # calculation target. If later ledger voiding makes those disagree, hide
     # the tier explanation and leave the entries as the visible authority.
@@ -4294,4 +5254,5 @@ async def driver_trip_earnings_breakdown(
         lagos_day=lagos_day_value,
         cap_seconds=cap_seconds,
         day_payable_seconds=day_payable_seconds,
+        daily_rate_days=daily_rate_days,
     )

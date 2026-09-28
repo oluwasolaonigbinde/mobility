@@ -237,6 +237,89 @@ was restarted; every container that had been running was started again, except
 another project's auto-removed `tss-test-runner` run container. Nothing is
 committed or pushed.
 
+Batch B record (26–27 Sep 2026, uncommitted worktree `batch-b` on `7a9ceb0`).
+Scope: the D39 `payout_v4` daily-rate engine under the plan-reviewed contract
+(Opus 5.5 stand-in; 7 material and 5 minor findings adopted before build).
+Deviation from D39's "same batch" wording, as the owner's handoff directs:
+architecture §16 gains a [BUILT] v4 paragraph and changelog row v1.98, while
+the §16/PRD §7 rewrite and the client guide stay in Batch F.
+
+Delivered. Migration `0092`: a rate-less `payout_v4` rule branch, v4
+revision/binding terms (day rate, target miles, shortfall strategy with its
+deduction, minimum miles, outside-area share) with per-formula shape checks
+that refuse NULL values, per-day `distance_m_by_day`/`amount_by_day` on
+calculations; downgrade refuses while any v4 row exists. Every pay value is a
+required field of an audited revision; nothing is defaulted.
+`PAYOUT_V4_PUBLISHING_ENABLED` (false in every template, because a blank
+boolean does not parse; same fail-closed effect) returns 503
+`PAYOUT_V4_POLICY_UNAVAILABLE` and writes nothing until the client answers
+D39 Q1–Q3. New admin endpoints publish a revision (audited before/after, and
+the rate-less rule when the campaign has none active) and report whether
+publishing is on. Offers freeze and acceptance binds the exact values with the
+server-fixed `d39-stop-5min-v1` stop rule (stays up to 300 s count as driving;
+longer stays are excluded whole; no rolling detector, no whole-trip grace).
+Distance is slice-prorated haversine metres, target zones in full and other
+miles at the frozen share, exact per Lagos day and floored to whole metres;
+pings buffered before Start add nothing. Each trip earns
+`D(before + this) − D(before)` per day under the v2/v3 paycap locks and
+predecessor gate; a day never mixes hourly and daily-rate pay (409 both
+ways). Recompute-day re-measures the corrected day in start order and keeps
+other days; executed correction orders record each daily-rate trip's
+position even when the money delta is zero. Liability reservations and window
+extensions reserve one day rate per covered day
+(`day-rate-vehicle-days-v1`); the worker sweep never requeues v4 rows. The
+admin "Daily rate" form and table (loading, empty, not switched on,
+validation, retry, labelled inputs), the driver's plain "Pay and job terms"
+sentences and the per-day trip breakdown are built. v1–v3 pricing is
+unchanged.
+
+Reviews: money specialist (Opus 5.5 stand-in) FIX → PASS after two rounds
+(pre-start ping distance, then fractional-timestamp proration; a zero-delta
+correction losing a re-measured distance); security specialist (Opus 5.5
+stand-in) PASS. Its low note (an admin may retire an hourly rule and move a
+campaign to daily rate) is kept as intended: the contract expects drivers with
+earlier hourly work to take daily-rate offers, and same-day mixes are refused.
+Residuals: the cross-campaign per-driver-per-day ceiling (Batch C); a voided
+or later-held earlier trip shifts later trips only through a day correction;
+parked GPS jitter under 5 minutes is credited (109 m for a 4-minute parked stop on a ±5 m synthetic trace); the retired
+direct recompute path records a daily-rate position only with a money delta.
+
+Evidence (27 Sep 2026). Backend: `ruff check` passes; the 25 test files that
+exercise the change ran under coverage in five sequential chunks (a first
+single run was lost when Docker Desktop crashed under memory load; every
+previously running container was restarted except another project's
+`tss-test-runner` database). 303 + 508 passed; chunk 5's 14 failures are the
+12 environmental `test_w403a` failures seen in Batch A, the pre-existing
+`test_0014` failure, and a real migration-head expectation, fixed and re-run
+green with the architecture inventory regenerated. After the money fixes the
+v4, correction, eligibility and dependent suites pass (nine files under coverage: 207 passed, plus the new fail-closed tests). D32 changed
+lines against `7a9ceb0`: backend 460/488 lines (94.3 %) and 136/164 branches (82.9 %); frontend 84/85 lines (98.8 %)
+and 127/144 branches (88.2 %). Frontend: `tsc`, ESLint and Prettier clean; the
+full Vitest suite passes 163 files / 1,055 tests including the R14-B fixtures
+(new admin action/page and driver offer tests added afterwards pass). OpenAPI
+`--check` passes with `openapi.json`, the snapshot and `schema.d.ts` moved
+together. Live check: the worktree API on port 8011 against a separate
+`mobility_live_b` database (migrated to `0092`, demo seed, publishing on only
+there; web and ClamAV not started to spare memory, so screens are proven by
+Vitest). Through the real API: a revision without a deduction was refused
+(422), a synthetic revision (₦3,000 day, 4 mi, ₦500 per missing mile, half
+weight outside) was published (201) with the fixed stop rule, an offer froze
+those terms with `d39-stop-5min-v1`, and the driver accepted. The demo
+creative was given a synthetic clean file record in that database because
+MinIO and ClamAV were stopped. Three synthetic sealed trips then ran the real
+pipeline: 5,404 m → ₦2,678.94; 5,404 m → ₦321.06 (the day reaches exactly
+₦3,000); the cross-midnight trip added ₦0.00 on the capped 15 Sep and
+4,683 m (partly outside the target zone at half weight) → ₦2,454.94 on
+16 Sep, all matching hand calculations. The driver breakdown API returned the
+per-day miles and pay, and correction projections for both days showed zero
+deltas. After the post-build review, a blocked-trip test was added (0 m, ₦0, no
+entry; the next trip starts from 0 m), formatter-only edits to unrelated
+lines were reverted, and every touched suite was rerun on the final code:
+822 passed, and the only failures are the 12 environmental `test_w403a`
+release-preparation tests. Those tests validate the compose and env templates
+this batch edits, so that validation remains an open CI gate.
+The full backend suite is left to GitHub CI (6 Linux shards) after an
+owner-approved push. Nothing is committed or pushed.
 **Client visual-direction reduction (24 Sep 2026):** The owner reports the
 client rejected former directions 1, 2, 4, 5, 6, 7 and 8 and directs their
 implementation traces and dedicated assets removed. Retain former directions

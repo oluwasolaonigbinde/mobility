@@ -116,4 +116,45 @@ describe("DriverAssignmentsPage history availability", () => {
     expect(screen.getByText("Wuse II")).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/f{64}|r-1|z-1|MULTIPOLYGON|Technical reference/);
   });
+
+  it("shows daily-rate pay terms as plain sentences instead of hourly lines", async () => {
+    mockJobs([
+      {
+        id: "00000000-0000-4000-8000-000000000020",
+        campaign_id: "00000000-0000-4000-8000-000000000021",
+        status: "offered",
+        offered_at: "2026-09-01T09:00:00Z",
+        expires_at: "2026-10-01T09:00:00Z",
+        offer_terms: {
+          currency: "NGN",
+          campaign_window_start_at: "2026-10-01T08:00:00+00:00",
+          campaign_window_end_at: "2026-12-01T08:00:00+00:00",
+          service_area: { city: "Abuja" },
+          creative: { name: "Launch artwork" },
+          zones: { target: [{ id: "z1", name: "Wuse II" }], exclusion: [] },
+          payout: {
+            formula_version: "payout_v4",
+            daily_rate_naira: "10000.00",
+            daily_target_miles: "70.000",
+            shortfall_strategy: "proportional",
+            deduction_per_mile_naira: null,
+            minimum_miles: "0.000",
+            outside_area_weight: "1.0000",
+          },
+          eligibility: { stationary_window_seconds: 300, max_ping_gap_seconds: 120 },
+        },
+        campaign: { name: "Abuja daily" },
+        vehicle: { plate_number: "ABC-125", vehicle_type: "sedan" },
+      },
+    ]);
+
+    render(await DriverAssignmentsPage());
+
+    expect(screen.getByText("₦10,000 for a full day of 70 miles.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Shorter days are paid in proportion to the miles covered."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/\/hr/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Daily cap/)).not.toBeInTheDocument();
+  });
 });

@@ -145,6 +145,10 @@ async def _additional_window_liability(
     bindings = list(await session.scalars(binding_statement))
     requested = Decimal("0.00")
     for binding in bindings:
+        if binding.formula_version == "payout_v4":
+            # At most one full day rate per driver per campaign day (D39).
+            requested += Decimal(binding.daily_rate_naira) * extra_days
+            continue
         rate = max(
             Decimal(binding.hourly_rate_naira),
             Decimal(binding.premium_hourly_rate_naira or binding.hourly_rate_naira),

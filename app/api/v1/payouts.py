@@ -36,8 +36,10 @@ from app.schemas.payouts import (
     CampaignPayoutRuleRevisionListResponse,
     CampaignPayoutRuleRevisionRead,
     CampaignPayoutRuleUpdate,
+    CampaignPayoutV4RevisionCreate,
     DriverEarningsCurrencySummary,
     DriverEarningsSummary,
+    DriverTripDailyRateDay,
     DriverTripEarningsBreakdown,
     DriverTripEarningsCapProgress,
     EarningsLedgerEntryListResponse,
@@ -50,6 +52,7 @@ from app.schemas.payouts import (
     PayoutCorrectionOrderRead,
     PayoutDayProjection,
     PayoutLedgerEntrySummary,
+    PayoutV4Status,
     RecomputePayoutDayRequest,
     RecomputePayoutDayResult,
 )
@@ -77,6 +80,7 @@ from app.services.payouts import (
     list_driver_ledger_entries,
     list_payout_calculations,
     list_payout_rule_revisions,
+    publish_payout_v4_revision,
     recompute_requires_correction_order,
     update_campaign_payout_rule,
 )
@@ -151,6 +155,12 @@ def payout_rule_revision_response(
         hourly_rate_naira=revision.hourly_rate_naira,
         premium_hourly_rate_naira=revision.premium_hourly_rate_naira,
         daily_payable_hours_cap=revision.daily_payable_hours_cap,
+        daily_rate_naira=revision.daily_rate_naira,
+        daily_target_miles=revision.daily_target_miles,
+        shortfall_strategy=revision.shortfall_strategy,
+        deduction_per_mile_naira=revision.deduction_per_mile_naira,
+        minimum_miles=revision.minimum_miles,
+        outside_area_weight=revision.outside_area_weight,
         currency=revision.currency,
         # Historical revision rows may represent "no overrides" as NULL.
         # Keep the public response stable and equivalent to newly written {}.
@@ -169,6 +179,24 @@ def payout_rule_revision_audit_values(
     as string, never field names alone (closes RM6 for this path)."""
     if revision is None:
         return None
+    if revision.formula_version == "payout_v4":
+        return {
+            "revision_number": revision.revision_number,
+            "effective_from": revision.effective_from.isoformat(),
+            "daily_rate_naira": str(revision.daily_rate_naira),
+            "daily_target_miles": str(revision.daily_target_miles),
+            "shortfall_strategy": revision.shortfall_strategy,
+            "deduction_per_mile_naira": (
+                str(revision.deduction_per_mile_naira)
+                if revision.deduction_per_mile_naira is not None
+                else None
+            ),
+            "minimum_miles": str(revision.minimum_miles),
+            "outside_area_weight": str(revision.outside_area_weight),
+            "currency": revision.currency,
+            "eligibility_params": revision.eligibility_params,
+            "formula_version": revision.formula_version,
+        }
     return {
         "revision_number": revision.revision_number,
         "effective_from": revision.effective_from.isoformat(),
@@ -400,6 +428,70 @@ async def admin_create_payout_rule_revision(
         metadata={
             "campaign_id": str(campaign_id),
             "payout_rule_id": str(rule_id),
+            "reason": revision.reason,
+            "before": payout_rule_revision_audit_values(previous),
+            "after": payout_rule_revision_audit_values(revision),
+        },
+    )
+    await session.commit()
+    return payout_rule_revision_response(revision)
+
+
+@router.get(
+    "/admin/payout-v4/status",
+    response_model=PayoutV4Status,
+    summary="Whether daily-rate (payout_v4) revisions can be published",
+)
+async def admin_payout_v4_status(
+    current_user: AdminUserDependency,
+    settings: SettingsDependency,
+) -> PayoutV4Status:
+    del current_user
+    return PayoutV4Status(publishing_enabled=settings.payout_v4_publishing_enabled)
+
+
+@router.post(
+    "/admin/campaigns/{campaign_id}/payout-v4-revisions",
+    response_model=CampaignPayoutRuleRevisionRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Publish an effective-dated daily-rate (payout_v4) revision",
+)
+async def admin_publish_payout_v4_revision(
+    campaign_id: UUID,
+    payload: CampaignPayoutV4RevisionCreate,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> CampaignPayoutRuleRevisionRead:
+    revision, previous, created_rule = await publish_payout_v4_revision(
+        session,
+        campaign_id=campaign_id,
+        payload=payload,
+        actor_user_id=current_user.id,
+        settings=settings,
+    )
+    if created_rule is not None:
+        await create_audit_event(
+            session,
+            actor_user_id=current_user.id,
+            action="admin.campaign_payout_rule.created",
+            entity_type="campaign_payout_rule",
+            entity_id=str(created_rule.id),
+            metadata={
+                "campaign_id": str(campaign_id),
+                "status": created_rule.status,
+                "formula_version": created_rule.formula_version,
+            },
+        )
+    await create_audit_event(
+        session,
+        actor_user_id=current_user.id,
+        action="admin.payout_rule_revision.created",
+        entity_type="campaign_payout_rule_revision",
+        entity_id=str(revision.id),
+        metadata={
+            "campaign_id": str(campaign_id),
+            "payout_rule_id": str(revision.payout_rule_id),
             "reason": revision.reason,
             "before": payout_rule_revision_audit_values(previous),
             "after": payout_rule_revision_audit_values(revision),
@@ -966,4 +1058,12 @@ async def driver_get_trip_earnings_breakdown(
         superseded_by_recompute=breakdown.superseded_by_recompute,
         entries=[ledger_entry_response(entry) for entry in breakdown.entries],
         cap=cap,
+        daily_rate_days=(
+            [
+                DriverTripDailyRateDay(lagos_day=day, distance_m=metres, amount=amount)
+                for day, metres, amount in breakdown.daily_rate_days
+            ]
+            if breakdown.daily_rate_days is not None
+            else None
+        ),
     )

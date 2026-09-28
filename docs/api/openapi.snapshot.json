@@ -5861,6 +5861,39 @@
             ],
             "title": "Daily Payable Hours Cap"
           },
+          "daily_rate_naira": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Rate Naira"
+          },
+          "daily_target_miles": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Target Miles"
+          },
+          "deduction_per_mile_naira": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deduction Per Mile Naira"
+          },
           "effective_from": {
             "format": "date-time",
             "title": "Effective From",
@@ -5891,6 +5924,28 @@
             "title": "Id",
             "type": "string"
           },
+          "minimum_miles": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minimum Miles"
+          },
+          "outside_area_weight": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Outside Area Weight"
+          },
           "payout_rule_id": {
             "format": "uuid",
             "title": "Payout Rule Id",
@@ -5914,6 +5969,17 @@
           "revision_number": {
             "title": "Revision Number",
             "type": "integer"
+          },
+          "shortfall_strategy": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shortfall Strategy"
           }
         },
         "required": [
@@ -6182,6 +6248,109 @@
           }
         },
         "title": "CampaignPayoutRuleUpdate",
+        "type": "object"
+      },
+      "CampaignPayoutV4RevisionCreate": {
+        "additionalProperties": false,
+        "description": "A daily-rate (payout_v4, D39) revision. Every pay value is required and\nentered by Terrax Media staff; nothing is defaulted. The stop rule is fixed\nby the server and cannot be supplied.",
+        "properties": {
+          "daily_rate_naira": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,15}0*$)\\d{0,12}\\.\\d{0,2}0*$)",
+                "type": "string"
+              }
+            ],
+            "title": "Daily Rate Naira"
+          },
+          "daily_target_miles": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,7}|(?=[\\d.]{1,11}0*$)\\d{0,7}\\.\\d{0,3}0*$)",
+                "type": "string"
+              }
+            ],
+            "title": "Daily Target Miles"
+          },
+          "deduction_per_mile_naira": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,15}0*$)\\d{0,12}\\.\\d{0,2}0*$)",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deduction Per Mile Naira"
+          },
+          "effective_from": {
+            "format": "date-time",
+            "title": "Effective From",
+            "type": "string"
+          },
+          "minimum_miles": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,7}|(?=[\\d.]{1,11}0*$)\\d{0,7}\\.\\d{0,3}0*$)",
+                "type": "string"
+              }
+            ],
+            "title": "Minimum Miles"
+          },
+          "outside_area_weight": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,1}|(?=[\\d.]{1,6}0*$)\\d{0,1}\\.\\d{0,4}0*$)",
+                "type": "string"
+              }
+            ],
+            "title": "Outside Area Weight"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "shortfall_strategy": {
+            "enum": [
+              "proportional",
+              "per_mile_deduction"
+            ],
+            "title": "Shortfall Strategy",
+            "type": "string"
+          }
+        },
+        "required": [
+          "effective_from",
+          "daily_rate_naira",
+          "daily_target_miles",
+          "shortfall_strategy",
+          "minimum_miles",
+          "outside_area_weight",
+          "reason"
+        ],
+        "title": "CampaignPayoutV4RevisionCreate",
         "type": "object"
       },
       "CampaignRead": {
@@ -10779,6 +10948,38 @@
         "title": "DriverTripAnalyticsSummary",
         "type": "object"
       },
+      "DriverTripDailyRateDay": {
+        "description": "payout_v4: one Nigeria-time day of a trip \u2014 metres counted and the pay\nthis trip added to that day.",
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "distance_m": {
+            "title": "Distance M",
+            "type": "integer"
+          },
+          "lagos_day": {
+            "format": "date",
+            "title": "Lagos Day",
+            "type": "string"
+          }
+        },
+        "required": [
+          "lagos_day",
+          "distance_m",
+          "amount"
+        ],
+        "title": "DriverTripDailyRateDay",
+        "type": "object"
+      },
       "DriverTripEarningsBreakdown": {
         "properties": {
           "amount": {
@@ -10849,6 +11050,20 @@
           "currency": {
             "title": "Currency",
             "type": "string"
+          },
+          "daily_rate_days": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DriverTripDailyRateDay"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Rate Days"
           },
           "eligible_seconds": {
             "anyOf": [
@@ -17535,6 +17750,19 @@
           "ledger_entry_ids"
         ],
         "title": "PayoutSelectionPreviewRead",
+        "type": "object"
+      },
+      "PayoutV4Status": {
+        "properties": {
+          "publishing_enabled": {
+            "title": "Publishing Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "publishing_enabled"
+        ],
+        "title": "PayoutV4Status",
         "type": "object"
       },
       "PersonPayeeReviewDecisionCreate": {
@@ -25875,6 +26103,64 @@
         ]
       }
     },
+    "/api/v1/admin/campaigns/{campaign_id}/payout-v4-revisions": {
+      "post": {
+        "operationId": "admin_publish_payout_v4_revision_api_v1_admin_campaigns__campaign_id__payout_v4_revisions_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampaignPayoutV4RevisionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignPayoutRuleRevisionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Publish an effective-dated daily-rate (payout_v4) revision",
+        "tags": [
+          "Payouts"
+        ]
+      }
+    },
     "/api/v1/admin/campaigns/{campaign_id}/production-start": {
       "post": {
         "operationId": "admin_record_production_start_api_v1_admin_campaigns__campaign_id__production_start_post",
@@ -30602,6 +30888,42 @@
           }
         ],
         "summary": "List payout calculations",
+        "tags": [
+          "Payouts"
+        ]
+      }
+    },
+    "/api/v1/admin/payout-v4/status": {
+      "get": {
+        "operationId": "admin_payout_v4_status_api_v1_admin_payout_v4_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayoutV4Status"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Whether daily-rate (payout_v4) revisions can be published",
         "tags": [
           "Payouts"
         ]

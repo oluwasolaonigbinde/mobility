@@ -503,6 +503,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/campaigns/{campaign_id}/payout-v4-revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish an effective-dated daily-rate (payout_v4) revision */
+        post: operations["admin_publish_payout_v4_revision_api_v1_admin_campaigns__campaign_id__payout_v4_revisions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/campaigns/{campaign_id}/production-start": {
         parameters: {
             query?: never;
@@ -1691,6 +1708,23 @@ export interface paths {
         };
         /** List payout calculations */
         get: operations["admin_list_payout_calculations_api_v1_admin_payout_calculations_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payout-v4/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Whether daily-rate (payout_v4) revisions can be published */
+        get: operations["admin_payout_v4_status_api_v1_admin_payout_v4_status_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -6494,6 +6528,12 @@ export interface components {
             currency: string;
             /** Daily Payable Hours Cap */
             daily_payable_hours_cap: string | null;
+            /** Daily Rate Naira */
+            daily_rate_naira?: string | null;
+            /** Daily Target Miles */
+            daily_target_miles?: string | null;
+            /** Deduction Per Mile Naira */
+            deduction_per_mile_naira?: string | null;
             /**
              * Effective From
              * Format: date-time
@@ -6512,6 +6552,10 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Minimum Miles */
+            minimum_miles?: string | null;
+            /** Outside Area Weight */
+            outside_area_weight?: string | null;
             /**
              * Payout Rule Id
              * Format: uuid
@@ -6523,6 +6567,8 @@ export interface components {
             reason: string;
             /** Revision Number */
             revision_number: number;
+            /** Shortfall Strategy */
+            shortfall_strategy?: string | null;
         };
         /**
          * CampaignPayoutRuleStatus
@@ -6566,6 +6612,36 @@ export interface components {
             status?: components["schemas"]["CampaignPayoutRuleStatus"] | null;
             /** Target Zone Bonus Rate Per Km */
             target_zone_bonus_rate_per_km?: number | string | null;
+        };
+        /**
+         * CampaignPayoutV4RevisionCreate
+         * @description A daily-rate (payout_v4, D39) revision. Every pay value is required and
+         *     entered by Terrax Media staff; nothing is defaulted. The stop rule is fixed
+         *     by the server and cannot be supplied.
+         */
+        CampaignPayoutV4RevisionCreate: {
+            /** Daily Rate Naira */
+            daily_rate_naira: number | string;
+            /** Daily Target Miles */
+            daily_target_miles: number | string;
+            /** Deduction Per Mile Naira */
+            deduction_per_mile_naira?: number | string | null;
+            /**
+             * Effective From
+             * Format: date-time
+             */
+            effective_from: string;
+            /** Minimum Miles */
+            minimum_miles: number | string;
+            /** Outside Area Weight */
+            outside_area_weight: number | string;
+            /** Reason */
+            reason: string;
+            /**
+             * Shortfall Strategy
+             * @enum {string}
+             */
+            shortfall_strategy: "proportional" | "per_mile_deduction";
         };
         /** CampaignRead */
         CampaignRead: {
@@ -8271,6 +8347,22 @@ export interface components {
              */
             trip_id: string;
         };
+        /**
+         * DriverTripDailyRateDay
+         * @description payout_v4: one Nigeria-time day of a trip — metres counted and the pay
+         *     this trip added to that day.
+         */
+        DriverTripDailyRateDay: {
+            /** Amount */
+            amount: string | null;
+            /** Distance M */
+            distance_m: number;
+            /**
+             * Lagos Day
+             * Format: date
+             */
+            lagos_day: string;
+        };
         /** DriverTripEarningsBreakdown */
         DriverTripEarningsBreakdown: {
             /** Amount */
@@ -8286,6 +8378,8 @@ export interface components {
             capped_seconds: number | null;
             /** Currency */
             currency: string;
+            /** Daily Rate Days */
+            daily_rate_days?: components["schemas"]["DriverTripDailyRateDay"][] | null;
             /** Eligible Seconds */
             eligible_seconds: number | null;
             /** Entries */
@@ -11025,6 +11119,11 @@ export interface components {
             ledger_entry_ids: string[];
             /** Total Amount */
             total_amount: string;
+        };
+        /** PayoutV4Status */
+        PayoutV4Status: {
+            /** Publishing Enabled */
+            publishing_enabled: boolean;
         };
         /** PersonPayeeReviewDecisionCreate */
         PersonPayeeReviewDecisionCreate: {
@@ -14562,6 +14661,41 @@ export interface operations {
             };
         };
     };
+    admin_publish_payout_v4_revision_api_v1_admin_campaigns__campaign_id__payout_v4_revisions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignPayoutV4RevisionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignPayoutRuleRevisionRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     admin_record_production_start_api_v1_admin_campaigns__campaign_id__production_start_post: {
         parameters: {
             query?: never;
@@ -17016,6 +17150,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PayoutCalculationListResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_payout_v4_status_api_v1_admin_payout_v4_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayoutV4Status"];
                 };
             };
             /** @description Request validation failed */

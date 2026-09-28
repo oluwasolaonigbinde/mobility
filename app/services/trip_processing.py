@@ -49,6 +49,7 @@ from app.services.impressions import (
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock
 from app.services.payouts import (
     PAYOUT_V2,
+    PAYOUT_V4,
     calculate_trip_payout,
     repair_missing_ledger_entries,
 )
@@ -864,7 +865,8 @@ async def find_unprocessed_trip_page(
                     # payout_v1 staleness recompute path: only when the trip's
                     # chain is itself under the governing v1 formula.
                     and_(
-                        active_rule_formula != PAYOUT_V2,
+                        # v2 and v4 rows are write-once; never re-queue them.
+                        active_rule_formula.not_in((PAYOUT_V2, PAYOUT_V4)),
                         governing_formula_calculation_exists,
                         ~current_payout_exists,
                     ),

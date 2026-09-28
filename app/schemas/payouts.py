@@ -1,6 +1,6 @@
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import (
@@ -81,6 +81,11 @@ class DecimalStringMixin(BaseModel):
         "batch_payable_amount",
         "final_payout_total",
         "gross_payout_total",
+        "daily_rate_naira",
+        "daily_target_miles",
+        "deduction_per_mile_naira",
+        "minimum_miles",
+        "outside_area_weight",
         check_fields=False,
     )
     def serialize_decimal(self, value: Decimal | None) -> str | None:
@@ -271,6 +276,57 @@ class CampaignPayoutRuleRevisionCreate(BaseModel):
         return trimmed
 
 
+class CampaignPayoutV4RevisionCreate(BaseModel):
+    """A daily-rate (payout_v4, D39) revision. Every pay value is required and
+    entered by Terrax Media staff; nothing is defaulted. The stop rule is fixed
+    by the server and cannot be supplied."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    effective_from: datetime
+    daily_rate_naira: Decimal = Field(gt=Decimal("0"), max_digits=14, decimal_places=2)
+    daily_target_miles: Decimal = Field(gt=Decimal("0"), max_digits=10, decimal_places=3)
+    shortfall_strategy: Literal["proportional", "per_mile_deduction"]
+    deduction_per_mile_naira: Decimal | None = Field(
+        default=None, gt=Decimal("0"), max_digits=14, decimal_places=2
+    )
+    minimum_miles: Decimal = Field(ge=Decimal("0"), max_digits=10, decimal_places=3)
+    outside_area_weight: Decimal = Field(
+        ge=Decimal("0"), le=Decimal("1"), max_digits=5, decimal_places=4
+    )
+    reason: str
+
+    @field_validator("effective_from")
+    @classmethod
+    def validate_effective_from(cls, value: datetime) -> datetime:
+        if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
+            raise ValueError("Datetime must include timezone information")
+        return value
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, value: str) -> str:
+        trimmed = value.strip()
+        if not trimmed:
+            raise ValueError("reason must not be empty")
+        return trimmed
+
+    @model_validator(mode="after")
+    def validate_strategy(self) -> "CampaignPayoutV4RevisionCreate":
+        per_mile = self.shortfall_strategy == "per_mile_deduction"
+        if per_mile and self.deduction_per_mile_naira is None:
+            raise ValueError("deduction_per_mile_naira is required for per_mile_deduction")
+        if not per_mile and self.deduction_per_mile_naira is not None:
+            raise ValueError("deduction_per_mile_naira applies only to per_mile_deduction")
+        if self.minimum_miles > self.daily_target_miles:
+            raise ValueError("minimum_miles must not exceed daily_target_miles")
+        return self
+
+
+class PayoutV4Status(BaseModel):
+    publishing_enabled: bool
+
+
 class CampaignPayoutRuleRevisionRead(DecimalStringMixin):
     model_config = ConfigDict(from_attributes=True)
 
@@ -279,9 +335,15 @@ class CampaignPayoutRuleRevisionRead(DecimalStringMixin):
     payout_rule_id: UUID
     revision_number: int
     effective_from: datetime
-    hourly_rate_naira: Decimal
+    hourly_rate_naira: Decimal | None
     premium_hourly_rate_naira: Decimal | None
     daily_payable_hours_cap: Decimal | None
+    daily_rate_naira: Decimal | None = None
+    daily_target_miles: Decimal | None = None
+    shortfall_strategy: str | None = None
+    deduction_per_mile_naira: Decimal | None = None
+    minimum_miles: Decimal | None = None
+    outside_area_weight: Decimal | None = None
     currency: str
     eligibility_params: dict[str, Any]
     formula_version: str
@@ -522,6 +584,15 @@ class DriverTripEarningsCapProgress(BaseModel):
     day_payable_seconds: int
 
 
+class DriverTripDailyRateDay(DecimalStringMixin):
+    """payout_v4: one Nigeria-time day of a trip — metres counted and the pay
+    this trip added to that day."""
+
+    lagos_day: date
+    distance_m: int
+    amount: Decimal
+
+
 class DriverTripEarningsBreakdown(DecimalStringMixin):
     trip_session_id: UUID
     formula_version: str
@@ -540,3 +611,4 @@ class DriverTripEarningsBreakdown(DecimalStringMixin):
     superseded_by_recompute: bool
     entries: list[EarningsLedgerEntryRead]
     cap: DriverTripEarningsCapProgress | None
+    daily_rate_days: list[DriverTripDailyRateDay] | None = None
