@@ -9,6 +9,7 @@ const nav: NavItem[] = [
   { href: "/admin/driver-applications", label: "Driver applications", group: "People & cars" },
   { href: "/admin/vehicles", label: "Vehicles", group: "People & cars" },
   { href: "/admin/contact", label: "Driver contact", group: "People & cars" },
+  { href: "/admin/complaints", label: "Customer Service", group: "People & cars" },
   { href: "/admin/approvals", label: "Approvals", group: "Campaigns" },
   { href: "/admin/assignments", label: "Assignments", group: "Campaigns" },
   { href: "/admin/planning-sources", label: "Planning sources", group: "Campaigns" },

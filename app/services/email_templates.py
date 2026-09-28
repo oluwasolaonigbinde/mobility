@@ -126,6 +126,15 @@ _TEMPLATES: dict[NotificationType, Callable[[dict[str, Any]], RenderedEmail]] = 
     NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED: _static(
         "Assignment activity resumed", "Verified activity resumed for this assignment."
     ),
+    NotificationType.COMPLAINT_REPLIED: _static(
+        "Terrax Media replied to your complaint",
+        "Terrax Media Customer Service replied to your complaint. Sign in to read the reply.",
+    ),
+    NotificationType.COMPLAINT_RESOLVED: _static(
+        "Your complaint is resolved",
+        "Terrax Media Customer Service marked your complaint as resolved. Sign in to read it "
+        "or reply if you still need help.",
+    ),
 }
 
 

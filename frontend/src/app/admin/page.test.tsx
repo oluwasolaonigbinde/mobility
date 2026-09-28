@@ -21,6 +21,7 @@ describe("admin Waiting for you work queue (D38e)", () => {
   it("groups the queue by department and links each item to its page", async () => {
     get.mockImplementation(async (path: string, options?: { params?: { query?: object } }) => {
       if (path === "/api/v1/admin/fraud-flags") return { data: { items: [], total: 3 } };
+      if (path === "/api/v1/admin/complaints") return { data: { items: [], total: 4 } };
       if (path === "/api/v1/admin/installation-evidence/pending") {
         return { data: { items: [{ id: "a" }, { id: "b" }] } };
       }
@@ -54,6 +55,11 @@ describe("admin Waiting for you work queue (D38e)", () => {
     expect(get).toHaveBeenCalledWith("/api/v1/admin/payouts/automatic/alerts", {
       params: { query: { limit: 1, alert_status: "open" } },
     });
+    expect(item("Complaints to answer")).toHaveAttribute("href", "/admin/complaints?status=open");
+    expect(within(item("Complaints to answer")).getByText("4")).toBeInTheDocument();
+    expect(get).toHaveBeenCalledWith("/api/v1/admin/complaints", {
+      params: { query: { limit: 1, status: "open" } },
+    });
     expect(get).toHaveBeenCalledWith("/api/v1/admin/campaign-assignments", {
       params: { query: { limit: 1, status: "accepted" } },
     });
@@ -64,12 +70,18 @@ describe("admin Waiting for you work queue (D38e)", () => {
       if (path === "/api/v1/admin/fraud-flags") return { error: { code: "X" } };
       if (path === "/api/v1/admin/manual-driver-contact-tasks") throw new Error("offline");
       if (path === "/api/v1/admin/campaign-change-requests/pending") return {};
+      if (path === "/api/v1/admin/complaints") throw new Error("offline");
       return { data: { items: [], total: 0 } };
     });
 
     render(await AdminWorkQueuePage());
 
-    for (const name of ["Trip reviews", "Driver contact tasks", "Campaign changes to review"]) {
+    for (const name of [
+      "Trip reviews",
+      "Driver contact tasks",
+      "Campaign changes to review",
+      "Complaints to answer",
+    ]) {
       expect(within(item(name)).getByText("Couldn't check")).toBeInTheDocument();
     }
     expect(within(item("Campaigns to review")).getByText("Nothing waiting")).toBeInTheDocument();

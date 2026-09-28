@@ -8,6 +8,7 @@ const nav: NavItem[] = [
   { href: "/advertiser/planning-sources", label: "Retargeting" },
   { href: "/advertiser/billing", label: "Billing" },
   { href: "/advertiser/company", label: "Company" },
+  { href: "/advertiser/help", label: "Help" },
 ];
 
 export default async function AdvertiserLayout({ children }: { children: ReactNode }) {

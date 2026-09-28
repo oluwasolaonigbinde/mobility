@@ -605,6 +605,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/complaints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin List Complaints */
+        get: operations["admin_list_complaints_api_v1_admin_complaints_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/complaints/{complaint_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Get Complaint */
+        get: operations["admin_get_complaint_api_v1_admin_complaints__complaint_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Admin Update Complaint */
+        patch: operations["admin_update_complaint_api_v1_admin_complaints__complaint_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/complaints/{complaint_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Reply To Complaint */
+        post: operations["admin_reply_to_complaint_api_v1_admin_complaints__complaint_id__messages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/creatives/pending-review": {
         parameters: {
             query?: never;
@@ -3030,6 +3082,75 @@ export interface paths {
         patch: operations["advertiser_update_company_api_v1_advertiser_company_patch"];
         trace?: never;
     };
+    "/api/v1/advertiser/complaints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Advertiser List Complaints */
+        get: operations["advertiser_list_complaints_api_v1_advertiser_complaints_get"];
+        put?: never;
+        /** Advertiser Raise Complaint */
+        post: operations["advertiser_raise_complaint_api_v1_advertiser_complaints_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/complaints/reference-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Advertiser Complaint Reference Options */
+        get: operations["advertiser_complaint_reference_options_api_v1_advertiser_complaints_reference_options_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/complaints/{complaint_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Advertiser Get Complaint */
+        get: operations["advertiser_get_complaint_api_v1_advertiser_complaints__complaint_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/complaints/{complaint_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Advertiser Add Complaint Message */
+        post: operations["advertiser_add_complaint_message_api_v1_advertiser_complaints__complaint_id__messages_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/advertiser/dashboard/summary": {
         parameters: {
             query?: never;
@@ -3786,6 +3907,75 @@ export interface paths {
         put?: never;
         /** Driver Submit Evidence */
         post: operations["driver_submit_evidence_api_v1_driver_campaign_assignments__assignment_id__installation_evidence_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/complaints": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Driver List Complaints */
+        get: operations["driver_list_complaints_api_v1_driver_complaints_get"];
+        put?: never;
+        /** Driver Raise Complaint */
+        post: operations["driver_raise_complaint_api_v1_driver_complaints_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/complaints/reference-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Driver Complaint Reference Options */
+        get: operations["driver_complaint_reference_options_api_v1_driver_complaints_reference_options_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/complaints/{complaint_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Driver Get Complaint */
+        get: operations["driver_get_complaint_api_v1_driver_complaints__complaint_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/complaints/{complaint_id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Driver Add Complaint Message */
+        post: operations["driver_add_complaint_message_api_v1_driver_complaints__complaint_id__messages_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -7491,6 +7681,142 @@ export interface components {
             /** Status */
             status?: string | null;
         };
+        /**
+         * ComplaintCategory
+         * @description Neutral default categories (Batch E); the client has not supplied a list.
+         * @enum {string}
+         */
+        ComplaintCategory: "pay_or_payout" | "trip_or_tracking" | "campaign_or_job" | "billing_or_invoice" | "account" | "other";
+        /** ComplaintCreate */
+        ComplaintCreate: {
+            category: components["schemas"]["ComplaintCategory"];
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /** Message */
+            message: string;
+            /** Reference Id */
+            reference_id?: string | null;
+            reference_type?: components["schemas"]["ComplaintReferenceType"] | null;
+        };
+        /** ComplaintDetailRead */
+        ComplaintDetailRead: {
+            category: components["schemas"]["ComplaintCategory"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Last Message At
+             * Format: date-time
+             */
+            last_message_at: string;
+            /** Messages */
+            messages: components["schemas"]["ComplaintMessageRead"][];
+            /** Reference Label */
+            reference_label: string | null;
+            reference_type: components["schemas"]["ComplaintReferenceType"] | null;
+            status: components["schemas"]["ComplaintStatus"];
+            /** Waiting On You */
+            waiting_on_you: boolean;
+        };
+        /** ComplaintList */
+        ComplaintList: {
+            /** Items */
+            items: components["schemas"]["ComplaintSummaryRead"][];
+        };
+        /** ComplaintMessageCreate */
+        ComplaintMessageCreate: {
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /** Message */
+            message: string;
+        };
+        /** ComplaintMessageRead */
+        ComplaintMessageRead: {
+            /** Body */
+            body: string;
+            /**
+             * Sender
+             * @enum {string}
+             */
+            sender: "you" | "your_team" | "terrax_media";
+            /**
+             * Sent At
+             * Format: date-time
+             */
+            sent_at: string;
+        };
+        /**
+         * ComplaintParty
+         * @enum {string}
+         */
+        ComplaintParty: "driver" | "advertiser";
+        /** ComplaintReferenceOption */
+        ComplaintReferenceOption: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Label */
+            label: string;
+        };
+        /** ComplaintReferenceOptions */
+        ComplaintReferenceOptions: {
+            /** Campaigns */
+            campaigns: components["schemas"]["ComplaintReferenceOption"][];
+            /** Payouts */
+            payouts: components["schemas"]["ComplaintReferenceOption"][];
+            /** Trips */
+            trips: components["schemas"]["ComplaintReferenceOption"][];
+        };
+        /**
+         * ComplaintReferenceType
+         * @enum {string}
+         */
+        ComplaintReferenceType: "campaign" | "trip" | "payout";
+        /**
+         * ComplaintStatus
+         * @enum {string}
+         */
+        ComplaintStatus: "open" | "answered" | "resolved";
+        /** ComplaintSummaryRead */
+        ComplaintSummaryRead: {
+            category: components["schemas"]["ComplaintCategory"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Last Message At
+             * Format: date-time
+             */
+            last_message_at: string;
+            /** Reference Label */
+            reference_label: string | null;
+            reference_type: components["schemas"]["ComplaintReferenceType"] | null;
+            status: components["schemas"]["ComplaintStatus"];
+            /** Waiting On You */
+            waiting_on_you: boolean;
+        };
         /** CreativeCreate */
         CreativeCreate: {
             creative_type: components["schemas"]["CreativeType"];
@@ -10857,7 +11183,7 @@ export interface components {
          * NotificationType
          * @enum {string}
          */
-        NotificationType: "assignment_offered" | "assignment_accepted" | "campaign_approved" | "campaign_rejected" | "creative_approved" | "creative_rejected" | "quotation_ready" | "funding_confirmed" | "budget_alert" | "budget_urgent_alert" | "campaign_budget_paused" | "campaign_budget_resumed" | "campaign_cancelled" | "evidence_challenge_created" | "evidence_verified" | "payout_released" | "password_reset_requested" | "driver_onboarding_access_requested" | "driver_account_setup_requested" | "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied" | "activity_floor_breached" | "activity_floor_recovered" | "assignment_inactive" | "assignment_activity_recovered" | "payout_automatic_alert" | "payout_automatic_paused" | "payout_automatic_resumed";
+        NotificationType: "assignment_offered" | "assignment_accepted" | "campaign_approved" | "campaign_rejected" | "creative_approved" | "creative_rejected" | "quotation_ready" | "funding_confirmed" | "budget_alert" | "budget_urgent_alert" | "campaign_budget_paused" | "campaign_budget_resumed" | "campaign_cancelled" | "evidence_challenge_created" | "evidence_verified" | "payout_released" | "password_reset_requested" | "driver_onboarding_access_requested" | "driver_account_setup_requested" | "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied" | "activity_floor_breached" | "activity_floor_recovered" | "assignment_inactive" | "assignment_activity_recovered" | "payout_automatic_alert" | "payout_automatic_paused" | "payout_automatic_resumed" | "complaint_received" | "complaint_replied" | "complaint_resolved" | "complaint_assigned";
         /** NotificationUnreadCountRead */
         NotificationUnreadCountRead: {
             /** Unread Count */
@@ -12674,6 +13000,168 @@ export interface components {
             recorded_at: string;
             /** Settlement Provider */
             settlement_provider: string;
+        };
+        /** StaffComplaintDetailRead */
+        StaffComplaintDetailRead: {
+            /** Advertiser Organization Id */
+            advertiser_organization_id: string | null;
+            /** Assigned To Name */
+            assigned_to_name: string | null;
+            /** Assigned To User Id */
+            assigned_to_user_id: string | null;
+            category: components["schemas"]["ComplaintCategory"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Driver Profile Id */
+            driver_profile_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Last Message At
+             * Format: date-time
+             */
+            last_message_at: string;
+            /** Messages */
+            messages: components["schemas"]["StaffComplaintMessageRead"][];
+            party: components["schemas"]["ComplaintParty"];
+            /** Party Name */
+            party_name: string;
+            /** Raised By Name */
+            raised_by_name: string;
+            /**
+             * Raised By User Id
+             * Format: uuid
+             */
+            raised_by_user_id: string;
+            /** Reference Id */
+            reference_id: string | null;
+            /** Reference Label */
+            reference_label: string | null;
+            reference_type: components["schemas"]["ComplaintReferenceType"] | null;
+            /** Resolved At */
+            resolved_at: string | null;
+            /** Revision */
+            revision: number;
+            status: components["schemas"]["ComplaintStatus"];
+        };
+        /** StaffComplaintList */
+        StaffComplaintList: {
+            /** Items */
+            items: components["schemas"]["StaffComplaintSummaryRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** StaffComplaintMessageRead */
+        StaffComplaintMessageRead: {
+            /** Author Name */
+            author_name: string;
+            /**
+             * Author Side
+             * @enum {string}
+             */
+            author_side: "complainant" | "staff";
+            /**
+             * Author User Id
+             * Format: uuid
+             */
+            author_user_id: string;
+            /** Body */
+            body: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Sent At
+             * Format: date-time
+             */
+            sent_at: string;
+            status_after: components["schemas"]["ComplaintStatus"];
+        };
+        /** StaffComplaintReplyCreate */
+        StaffComplaintReplyCreate: {
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /** Message */
+            message: string;
+            /**
+             * Resolve
+             * @default false
+             */
+            resolve: boolean;
+        };
+        /** StaffComplaintSummaryRead */
+        StaffComplaintSummaryRead: {
+            /** Advertiser Organization Id */
+            advertiser_organization_id: string | null;
+            /** Assigned To Name */
+            assigned_to_name: string | null;
+            /** Assigned To User Id */
+            assigned_to_user_id: string | null;
+            category: components["schemas"]["ComplaintCategory"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Driver Profile Id */
+            driver_profile_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Last Message At
+             * Format: date-time
+             */
+            last_message_at: string;
+            party: components["schemas"]["ComplaintParty"];
+            /** Party Name */
+            party_name: string;
+            /** Raised By Name */
+            raised_by_name: string;
+            /**
+             * Raised By User Id
+             * Format: uuid
+             */
+            raised_by_user_id: string;
+            /** Reference Id */
+            reference_id: string | null;
+            /** Reference Label */
+            reference_label: string | null;
+            reference_type: components["schemas"]["ComplaintReferenceType"] | null;
+            /** Resolved At */
+            resolved_at: string | null;
+            /** Revision */
+            revision: number;
+            status: components["schemas"]["ComplaintStatus"];
+        };
+        /**
+         * StaffComplaintUpdate
+         * @description Both fields are optional; an empty body is a valid no-op.
+         *
+         *     An omitted field is left unchanged; an explicit null assignee clears it.
+         */
+        StaffComplaintUpdate: {
+            /** Assigned To User Id */
+            assigned_to_user_id?: string | null;
+            /** Status */
+            status?: ("open" | "resolved") | null;
         };
         /** StoredFileRead */
         StoredFileRead: {
@@ -15225,6 +15713,142 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HighExposureZoneInsightsRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_list_complaints_api_v1_admin_complaints_get: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["ComplaintStatus"] | null;
+                party?: components["schemas"]["ComplaintParty"] | null;
+                assigned_to_me?: boolean;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffComplaintList"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_get_complaint_api_v1_admin_complaints__complaint_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                complaint_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffComplaintDetailRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_update_complaint_api_v1_admin_complaints__complaint_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                complaint_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffComplaintUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffComplaintDetailRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_reply_to_complaint_api_v1_admin_complaints__complaint_id__messages_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                complaint_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffComplaintReplyCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffComplaintDetailRead"];
                 };
             };
             /** @description Request validation failed */
@@ -20490,6 +21114,163 @@ export interface operations {
             };
         };
     };
+    advertiser_list_complaints_api_v1_advertiser_complaints_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplaintList"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    advertiser_raise_complaint_api_v1_advertiser_complaints_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComplaintCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplaintDetailRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    advertiser_complaint_reference_options_api_v1_advertiser_complaints_reference_options_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplaintReferenceOptions"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    advertiser_get_complaint_api_v1_advertiser_complaints__complaint_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                complaint_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplaintDetailRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    advertiser_add_complaint_message_api_v1_advertiser_complaints__complaint_id__messages_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                complaint_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComplaintMessageCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplaintDetailRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     advertiser_get_dashboard_summary_api_v1_advertiser_dashboard_summary_get: {
         parameters: {
             query?: {
@@ -22078,6 +22859,163 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InstallationEvidenceRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    driver_list_complaints_api_v1_driver_complaints_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplaintList"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    driver_raise_complaint_api_v1_driver_complaints_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComplaintCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplaintDetailRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    driver_complaint_reference_options_api_v1_driver_complaints_reference_options_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplaintReferenceOptions"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    driver_get_complaint_api_v1_driver_complaints__complaint_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                complaint_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplaintDetailRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    driver_add_complaint_message_api_v1_driver_complaints__complaint_id__messages_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                complaint_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComplaintMessageCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ComplaintDetailRead"];
                 };
             };
             /** @description Request validation failed */

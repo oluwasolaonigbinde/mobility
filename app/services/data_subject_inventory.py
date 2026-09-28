@@ -78,6 +78,28 @@ ADDITIONAL_SUBJECT_LINK_RULES = (
         ),
     ),
     SubjectLinkRule(
+        data_class="customer_service_complaints",
+        counted_tables=frozenset({"complaints", "complaint_messages"}),
+        path_tables=frozenset(),
+        subject_path="complaint raised by the user, or message written by the user",
+        count_query=(
+            "SELECT (SELECT count(*) FROM complaints "
+            "WHERE raised_by_user_id = :subject_user_id) + "
+            "(SELECT count(*) FROM complaint_messages "
+            "WHERE author_user_id = :subject_user_id)"
+        ),
+    ),
+    SubjectLinkRule(
+        data_class="automatic_payout_alerts",
+        counted_tables=frozenset({"payout_automatic_alerts"}),
+        path_tables=frozenset({"driver_profiles"}),
+        subject_path="automatic payout alert → driver profile → user",
+        count_query=(
+            "SELECT count(*) FROM payout_automatic_alerts a JOIN driver_profiles d "
+            "ON d.id = a.driver_profile_id WHERE d.user_id = :subject_user_id"
+        ),
+    ),
+    SubjectLinkRule(
         data_class="assignment_subject_authority",
         counted_tables=frozenset(
             {
@@ -156,6 +178,7 @@ OPERATOR_AUTHORITY_EXCLUSIONS = frozenset(
         "invoices",
         "payment_gateway_processing_attempts",
         "payment_receipts",
+        "payout_automatic_controls",
         "payout_batches",
         "payout_correction_orders",
         "production_starts",

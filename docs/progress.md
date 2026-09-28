@@ -583,6 +583,137 @@ driver in the run as a subject though it carries only run totals, L5 the
 because its commits were authored as `Claude <noreply@anthropic.com>` and two
 were work-in-progress.
 
+Batch E record (28 Sep 2026, worktree `mobility-batch-e`, branch `batch-e` from
+`4f318e3`, built in parallel with Batch C). Scope: D39(d) in-app complaints with
+a Customer Service inbox, under the contract in
+`.codex/delivery/cardvert-batch-e/contract.md`. Plan review (Opus 5.5
+`vfd-plan-reviewer`): PASS WITH CHANGES, 5 material and 9 minor findings, all
+adopted (§10 there): every complaint route scopes the complaint before any other
+check; follow-up, reply and PATCH lock the row; messages record the status they
+left, so a retry with `resolve` flipped is 409; advertiser viewers may raise and
+follow up; fixed dedupe keys; `reference-options` declared before
+`{complaint_id}`; the sender reads only `you`, `your_team` or `terrax_media`;
+driver campaign and payout references limited to the driver's own jobs and pay
+entries; a technical limit of 100 messages per complaint; §20.4 records how
+complaint text is kept and the driver manual-contact exception.
+
+Delivered. Migration `0094` (`down_revision` `0092`; re-pointed to Batch C's
+`0093` at integration) adds `complaints` and the append-only
+`complaint_messages`; downgrade refuses while any complaint exists. Five driver
+routes, five advertiser routes and four admin routes under
+`/api/v1/driver/complaints`, `/api/v1/advertiser/complaints` and
+`/api/v1/admin/complaints`. The owner rules: a driver complaint belongs to the driver
+profile, and an advertiser complaint to the organization, which every active
+member can see. Any active admin handles complaints (no new role); the assignee
+must be an active admin. Foreign and unknown references return the same 404
+`COMPLAINT_REFERENCE_NOT_FOUND`, and foreign and unknown complaints the same 404
+`COMPLAINT_NOT_FOUND`, with nothing written. Each mutation writes one audit
+event with no message text; exact retries converge and changed reuse is 409.
+Four notification types: staff get in-app notices (the assignee, or every
+active admin); advertisers get in-app plus the existing preference-governed
+email (static templates, identifiers only); drivers get in-app only and no
+manual contact task (a stated §20.2 exception). The audit-subject registry
+covers `complaint`, and the DSR inventory gains `customer_service_complaints`.
+Screens: driver `/driver/help` (Help link in the driver header), advertiser
+`/advertiser/help` (nav "Help"), staff `/admin/complaints` (nav "Customer
+Service") and "Complaints to answer" in the Customer Service section of
+"Waiting for you". They cover loading, empty, error-with-retry, pending and
+plain-error states, show times as "(Nigeria time, WAT)", and put no IDs or
+hashes on driver or advertiser screens. The categories are a neutral, labelled
+default. OpenAPI, the snapshot and `schema.d.ts` moved together; architecture
+§20.4 [BUILT], a §30 row and changelog v1.101 (v1.100 is Batch C's). No decision
+row changes.
+
+Reviews. Security and privacy specialist (read-only clean-context subagent,
+reported model Opus 5.5 `claude-opus-5-5`): PASS WITH FINDINGS. It confirmed
+tenant isolation, non-enumeration, revocation, admin-only staff routes, the
+assignee check, idempotency and races, server-action validation and screens
+without IDs. It found one low defect: a NUL character in a message made
+PostgreSQL fail with a 500 whose exception text (sent to Sentry) could include
+the message. Fixed: the schemas refuse NUL with 422. Also adopted: the
+category check now also requires lowercase with no spaces, as the contract
+says (portable to the SQLite test metadata); a revoked or missing account now
+gets "Your account can't use Help right now" instead of "record not found";
+and tests for revocation on every advertiser route and for an inactive
+organization, for identical foreign and unknown complaint 404s on driver and
+advertiser detail and follow-up, and for advertiser email rows without message
+text. Not adopted, as optional: a stricter UUID pattern for the reference value
+(the backend validates it), a UUID pre-check on page URLs (a malformed link
+shows "couldn't load"), and a database trigger for append-only messages (ORM
+guards, as the contract specifies). Post-build minimal-change review
+(`vfd-change-reviewer`, Opus 5.5 `claude-opus-5-5`): FIX with four
+documentation findings (a placeholder, a CI claim about an unpushed branch, an
+inaccurate description of coverage misses, and a stale handoff file, now
+removed), all fixed; then `PASS`.
+
+Evidence (28 Sep 2026). Backend on the shared `cardvertmain` PostgreSQL 16 +
+PostGIS 3.4 container with its own `mobility_test_e` database and Redis 7
+(databases 12–14), run from a `cardvert-dev:py312` container. The 13 files that
+exercise the change ran under coverage: 138 passed. They are: complaints API
+and service, migration `0094`, the authorization denial matrix, audit-route
+coverage, audit subjects, the DSR inventory registry, architecture current
+state, MVP hardening, OpenAPI, the notification feed, review notifications and
+email delivery architecture. A first run after the specialist fixes caught a
+real regression: a regular-expression category check broke the SQLite test
+metadata (58 errors). It was replaced by a portable check, and the rerun
+passed. `ruff check .` passes; `ruff format` is clean on the changed files.
+The inventory is regenerated, OpenAPI `--check` passes (the new checks don't
+change the schema) and the progress validator passes. D32 changed lines
+against `4f318e3` from local LCOV: backend 571/579 lines (98.6 %) and 99/102
+branches (97.1 %); frontend 193/210 lines (91.9 %) and 183/197 branches
+(92.9 %). Backend misses: the replay branch of the concurrent-raise race
+(`services/complaints.py:429`, not exercised by a test) and route and service
+lines after an `await` that this coverage configuration does not trace.
+Frontend misses: the route-file wrappers and `loading.tsx` files. These numbers
+come from the batch's ad-hoc LCOV script
+(`.codex/delivery/cardvert-batch-e/d32.py`), because the repository's
+`scripts/check_changed_coverage.py` needs CI provenance; CI's run of that
+checker is the gate that counts. Frontend
+(Node 26.3.0 container): the full Vitest suite passes 170 files / 1,106 tests,
+including the R14-B fixtures, with `--testTimeout=30000`. With the default 5 s
+timeout, three `vendored-fonts` tests timed out scanning the Windows bind
+mount; that file passes alone (85/85). `tsc`, ESLint and Prettier are clean on
+the changed files. Live check (earlier in this batch, uvicorn + `next dev` on a
+scratch demo database, real HTTP and Playwright):
+- raising a complaint works, and foreign and unknown references both return
+  the identical 404;
+- an exact retry converges;
+- staff reply and resolve work;
+- the driver sees "Terrax Media", and the driver's follow-up reopens the
+  complaint;
+- an advertiser viewer can raise a complaint, and the owner sees it as
+  "your_team";
+- email rows exist only for advertiser members, with identifier-only payloads;
+- each of the six mutations wrote exactly one audit event without message text;
+- driver screens show no hashes or IDs and read "(Nigeria time, WAT)".
+The specialist-review fixes (NUL refused, the category check, the account
+message) are proven by tests, not re-run live. The full backend suite is left to
+GitHub CI (6 Linux shards) after the owner-approved push of `batch-e`. Nothing
+is merged to `master` or deployed.
+
+Residuals and open client questions: (1) the complaint category list (a
+neutral labelled default is in use); (2) any response-time target (none is shown
+or enforced); (3) whether drivers should get email or WhatsApp for replies
+(in-app only today, per §20/D18, with no manual contact task); (4) whether
+advertiser complaints are visible to the whole company (today) or only to the
+person who raised them; (5) how data-erasure requests treat complaint text
+(kept as the customer-service record and counted in the DSR inventory; any
+erasure is a manual staff decision). At Batch C integration, `0094` is
+re-pointed to `0093` and the migration-head tests and inventory are rerun.
+
+Batch E integration (28 Sep 2026, owner-approved). Squash-merged onto `master`
+after Batch C as one owner-authored commit. `0094` now revises `0093`
+(`test_migration_0094` updated); notification types, the "Waiting for you"
+test, migration-head tests, OpenAPI, snapshot, types and the architecture
+inventory were merged or regenerated (changelog v1.101 above C's v1.100).
+Two cross-batch defects found by running the shared tests: (1) C's
+`payout_automatic_alerts` and `payout_automatic_controls` were not classified
+in the DSR inventory; alerts are now counted per driver
+(`automatic_payout_alerts`) and the pause switch is an operator-authority
+exclusion. (2) `ck_complaints_category` used `NOT LIKE '% %'`, which metadata
+DDL renders as `'%% %%'`, so model-built test databases enforced a different
+rule from migrated ones; both now use `category = replace(category, ' ', '')`.
+
 **Client visual-direction reduction (24 Sep 2026):** The owner reports the
 client rejected former directions 1, 2, 4, 5, 6, 7 and 8 and directs their
 implementation traces and dedicated assets removed. Retain former directions

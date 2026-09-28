@@ -195,6 +195,22 @@ def notification_feed_response(notice: Notification) -> NotificationFeedItemRead
             "Automatic payouts resumed",
             "Terrax Media resumed automatic driver payouts.",
         ),
+        NotificationType.COMPLAINT_RECEIVED.value: (
+            "Complaint waiting",
+            "A driver or advertiser raised or followed up a complaint for Customer Service.",
+        ),
+        NotificationType.COMPLAINT_REPLIED.value: (
+            "Reply to your complaint",
+            "Terrax Media replied to your complaint. Open Help to read it.",
+        ),
+        NotificationType.COMPLAINT_RESOLVED.value: (
+            "Complaint resolved",
+            "Terrax Media marked your complaint as resolved. Open Help to read it or reply.",
+        ),
+        NotificationType.COMPLAINT_ASSIGNED.value: (
+            "Complaint assigned to you",
+            "A complaint in the Customer Service inbox was assigned to you.",
+        ),
     }
     title, body = rendered.get(
         notice.type_key,

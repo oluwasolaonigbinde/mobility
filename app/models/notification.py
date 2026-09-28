@@ -53,6 +53,10 @@ class NotificationType(StrEnum):
     PAYOUT_AUTOMATIC_ALERT = "payout_automatic_alert"
     PAYOUT_AUTOMATIC_PAUSED = "payout_automatic_paused"
     PAYOUT_AUTOMATIC_RESUMED = "payout_automatic_resumed"
+    COMPLAINT_RECEIVED = "complaint_received"
+    COMPLAINT_REPLIED = "complaint_replied"
+    COMPLAINT_RESOLVED = "complaint_resolved"
+    COMPLAINT_ASSIGNED = "complaint_assigned"
 
 
 class NotificationChannel(StrEnum):

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { TabBar } from "@/components/driver/tab-bar";
 import { ServiceWorkerRegister } from "@/components/driver/sw-register";
 import { requireRole } from "@/lib/auth/current-user";
@@ -20,6 +21,9 @@ export default async function DriverPortalLayout({ children }: { children: React
           <span className="micro text-faint align-middle">DRIVER</span>
         </p>
         <div className="flex items-center gap-3">
+          <Link href="/driver/help" className="micro text-muted hover:text-amber">
+            Help
+          </Link>
           <NotificationCenter sessionScope={me.user.id} />
           <span className="micro text-muted flex items-center gap-1.5">
             <span

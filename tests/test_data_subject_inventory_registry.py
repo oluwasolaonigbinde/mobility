@@ -293,6 +293,8 @@ def test_subject_link_registry_counts_recovery_contact_and_trip_manifest_rows(
     assert counts["driver_contact_and_consent"] == 4
     assert counts["trip_evidence_manifest"] == 1
     assert counts["assignment_subject_authority"] == 6
+    assert counts["customer_service_complaints"] == 0
+    assert counts["automatic_payout_alerts"] == 0
     assert classified_subject_tables() == {
         "password_reset_attempts",
         "password_reset_tokens",
@@ -308,4 +310,7 @@ def test_subject_link_registry_counts_recovery_contact_and_trip_manifest_rows(
         "assignment_activity_flag_events",
         "assignment_rule_bindings",
         "campaign_liability_reservations",
+        "complaints",
+        "complaint_messages",
+        "payout_automatic_alerts",
     }

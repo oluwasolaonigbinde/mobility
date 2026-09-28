@@ -8532,6 +8532,343 @@
         "title": "CompanyProfileUpdate",
         "type": "object"
       },
+      "ComplaintCategory": {
+        "description": "Neutral default categories (Batch E); the client has not supplied a list.",
+        "enum": [
+          "pay_or_payout",
+          "trip_or_tracking",
+          "campaign_or_job",
+          "billing_or_invoice",
+          "account",
+          "other"
+        ],
+        "title": "ComplaintCategory",
+        "type": "string"
+      },
+      "ComplaintCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/ComplaintCategory"
+          },
+          "client_request_id": {
+            "format": "uuid",
+            "title": "Client Request Id",
+            "type": "string"
+          },
+          "message": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "reference_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Id"
+          },
+          "reference_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComplaintReferenceType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "category",
+          "message",
+          "client_request_id"
+        ],
+        "title": "ComplaintCreate",
+        "type": "object"
+      },
+      "ComplaintDetailRead": {
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/ComplaintCategory"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_message_at": {
+            "format": "date-time",
+            "title": "Last Message At",
+            "type": "string"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/ComplaintMessageRead"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "reference_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Label"
+          },
+          "reference_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComplaintReferenceType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/ComplaintStatus"
+          },
+          "waiting_on_you": {
+            "title": "Waiting On You",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "category",
+          "status",
+          "reference_type",
+          "reference_label",
+          "created_at",
+          "last_message_at",
+          "waiting_on_you",
+          "messages"
+        ],
+        "title": "ComplaintDetailRead",
+        "type": "object"
+      },
+      "ComplaintList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ComplaintSummaryRead"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ComplaintList",
+        "type": "object"
+      },
+      "ComplaintMessageCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_request_id": {
+            "format": "uuid",
+            "title": "Client Request Id",
+            "type": "string"
+          },
+          "message": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message",
+          "client_request_id"
+        ],
+        "title": "ComplaintMessageCreate",
+        "type": "object"
+      },
+      "ComplaintMessageRead": {
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "sender": {
+            "enum": [
+              "you",
+              "your_team",
+              "terrax_media"
+            ],
+            "title": "Sender",
+            "type": "string"
+          },
+          "sent_at": {
+            "format": "date-time",
+            "title": "Sent At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sender",
+          "body",
+          "sent_at"
+        ],
+        "title": "ComplaintMessageRead",
+        "type": "object"
+      },
+      "ComplaintParty": {
+        "enum": [
+          "driver",
+          "advertiser"
+        ],
+        "title": "ComplaintParty",
+        "type": "string"
+      },
+      "ComplaintReferenceOption": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "label"
+        ],
+        "title": "ComplaintReferenceOption",
+        "type": "object"
+      },
+      "ComplaintReferenceOptions": {
+        "properties": {
+          "campaigns": {
+            "items": {
+              "$ref": "#/components/schemas/ComplaintReferenceOption"
+            },
+            "title": "Campaigns",
+            "type": "array"
+          },
+          "payouts": {
+            "items": {
+              "$ref": "#/components/schemas/ComplaintReferenceOption"
+            },
+            "title": "Payouts",
+            "type": "array"
+          },
+          "trips": {
+            "items": {
+              "$ref": "#/components/schemas/ComplaintReferenceOption"
+            },
+            "title": "Trips",
+            "type": "array"
+          }
+        },
+        "required": [
+          "campaigns",
+          "trips",
+          "payouts"
+        ],
+        "title": "ComplaintReferenceOptions",
+        "type": "object"
+      },
+      "ComplaintReferenceType": {
+        "enum": [
+          "campaign",
+          "trip",
+          "payout"
+        ],
+        "title": "ComplaintReferenceType",
+        "type": "string"
+      },
+      "ComplaintStatus": {
+        "enum": [
+          "open",
+          "answered",
+          "resolved"
+        ],
+        "title": "ComplaintStatus",
+        "type": "string"
+      },
+      "ComplaintSummaryRead": {
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/ComplaintCategory"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_message_at": {
+            "format": "date-time",
+            "title": "Last Message At",
+            "type": "string"
+          },
+          "reference_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Label"
+          },
+          "reference_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComplaintReferenceType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "$ref": "#/components/schemas/ComplaintStatus"
+          },
+          "waiting_on_you": {
+            "title": "Waiting On You",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "category",
+          "status",
+          "reference_type",
+          "reference_label",
+          "created_at",
+          "last_message_at",
+          "waiting_on_you"
+        ],
+        "title": "ComplaintSummaryRead",
+        "type": "object"
+      },
       "CreativeCreate": {
         "additionalProperties": false,
         "properties": {
@@ -16783,7 +17120,11 @@
           "assignment_activity_recovered",
           "payout_automatic_alert",
           "payout_automatic_paused",
-          "payout_automatic_resumed"
+          "payout_automatic_resumed",
+          "complaint_received",
+          "complaint_replied",
+          "complaint_resolved",
+          "complaint_assigned"
         ],
         "title": "NotificationType",
         "type": "string"
@@ -21231,6 +21572,474 @@
           "recorded_at"
         ],
         "title": "SettlementRead",
+        "type": "object"
+      },
+      "StaffComplaintDetailRead": {
+        "properties": {
+          "advertiser_organization_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Advertiser Organization Id"
+          },
+          "assigned_to_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned To Name"
+          },
+          "assigned_to_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned To User Id"
+          },
+          "category": {
+            "$ref": "#/components/schemas/ComplaintCategory"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "driver_profile_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driver Profile Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_message_at": {
+            "format": "date-time",
+            "title": "Last Message At",
+            "type": "string"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/StaffComplaintMessageRead"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "party": {
+            "$ref": "#/components/schemas/ComplaintParty"
+          },
+          "party_name": {
+            "title": "Party Name",
+            "type": "string"
+          },
+          "raised_by_name": {
+            "title": "Raised By Name",
+            "type": "string"
+          },
+          "raised_by_user_id": {
+            "format": "uuid",
+            "title": "Raised By User Id",
+            "type": "string"
+          },
+          "reference_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Id"
+          },
+          "reference_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Label"
+          },
+          "reference_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComplaintReferenceType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ComplaintStatus"
+          }
+        },
+        "required": [
+          "id",
+          "party",
+          "category",
+          "status",
+          "raised_by_user_id",
+          "raised_by_name",
+          "driver_profile_id",
+          "advertiser_organization_id",
+          "party_name",
+          "reference_type",
+          "reference_id",
+          "reference_label",
+          "assigned_to_user_id",
+          "assigned_to_name",
+          "revision",
+          "created_at",
+          "last_message_at",
+          "resolved_at",
+          "messages"
+        ],
+        "title": "StaffComplaintDetailRead",
+        "type": "object"
+      },
+      "StaffComplaintList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StaffComplaintSummaryRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "StaffComplaintList",
+        "type": "object"
+      },
+      "StaffComplaintMessageRead": {
+        "properties": {
+          "author_name": {
+            "title": "Author Name",
+            "type": "string"
+          },
+          "author_side": {
+            "enum": [
+              "complainant",
+              "staff"
+            ],
+            "title": "Author Side",
+            "type": "string"
+          },
+          "author_user_id": {
+            "format": "uuid",
+            "title": "Author User Id",
+            "type": "string"
+          },
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "sent_at": {
+            "format": "date-time",
+            "title": "Sent At",
+            "type": "string"
+          },
+          "status_after": {
+            "$ref": "#/components/schemas/ComplaintStatus"
+          }
+        },
+        "required": [
+          "id",
+          "author_side",
+          "author_user_id",
+          "author_name",
+          "body",
+          "status_after",
+          "sent_at"
+        ],
+        "title": "StaffComplaintMessageRead",
+        "type": "object"
+      },
+      "StaffComplaintReplyCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_request_id": {
+            "format": "uuid",
+            "title": "Client Request Id",
+            "type": "string"
+          },
+          "message": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          },
+          "resolve": {
+            "default": false,
+            "title": "Resolve",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "message",
+          "client_request_id"
+        ],
+        "title": "StaffComplaintReplyCreate",
+        "type": "object"
+      },
+      "StaffComplaintSummaryRead": {
+        "properties": {
+          "advertiser_organization_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Advertiser Organization Id"
+          },
+          "assigned_to_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned To Name"
+          },
+          "assigned_to_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned To User Id"
+          },
+          "category": {
+            "$ref": "#/components/schemas/ComplaintCategory"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "driver_profile_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driver Profile Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_message_at": {
+            "format": "date-time",
+            "title": "Last Message At",
+            "type": "string"
+          },
+          "party": {
+            "$ref": "#/components/schemas/ComplaintParty"
+          },
+          "party_name": {
+            "title": "Party Name",
+            "type": "string"
+          },
+          "raised_by_name": {
+            "title": "Raised By Name",
+            "type": "string"
+          },
+          "raised_by_user_id": {
+            "format": "uuid",
+            "title": "Raised By User Id",
+            "type": "string"
+          },
+          "reference_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Id"
+          },
+          "reference_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Label"
+          },
+          "reference_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComplaintReferenceType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ComplaintStatus"
+          }
+        },
+        "required": [
+          "id",
+          "party",
+          "category",
+          "status",
+          "raised_by_user_id",
+          "raised_by_name",
+          "driver_profile_id",
+          "advertiser_organization_id",
+          "party_name",
+          "reference_type",
+          "reference_id",
+          "reference_label",
+          "assigned_to_user_id",
+          "assigned_to_name",
+          "revision",
+          "created_at",
+          "last_message_at",
+          "resolved_at"
+        ],
+        "title": "StaffComplaintSummaryRead",
+        "type": "object"
+      },
+      "StaffComplaintUpdate": {
+        "additionalProperties": false,
+        "description": "Both fields are optional; an empty body is a valid no-op.\n\nAn omitted field is left unchanged; an explicit null assignee clears it.",
+        "properties": {
+          "assigned_to_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assigned To User Id"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "open",
+                  "resolved"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "title": "StaffComplaintUpdate",
         "type": "object"
       },
       "StoredFileRead": {
@@ -27156,6 +27965,271 @@
         "summary": "Read governed admin high-exposure zone insights",
         "tags": [
           "Audience Recommendations and Delivery"
+        ]
+      }
+    },
+    "/api/v1/admin/complaints": {
+      "get": {
+        "operationId": "admin_list_complaints_api_v1_admin_complaints_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ComplaintStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "party",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/ComplaintParty"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Party"
+            }
+          },
+          {
+            "in": "query",
+            "name": "assigned_to_me",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Assigned To Me",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffComplaintList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin List Complaints",
+        "tags": [
+          "Complaints"
+        ]
+      }
+    },
+    "/api/v1/admin/complaints/{complaint_id}": {
+      "get": {
+        "operationId": "admin_get_complaint_api_v1_admin_complaints__complaint_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "complaint_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Complaint Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffComplaintDetailRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Get Complaint",
+        "tags": [
+          "Complaints"
+        ]
+      },
+      "patch": {
+        "operationId": "admin_update_complaint_api_v1_admin_complaints__complaint_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "complaint_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Complaint Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffComplaintUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffComplaintDetailRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Update Complaint",
+        "tags": [
+          "Complaints"
+        ]
+      }
+    },
+    "/api/v1/admin/complaints/{complaint_id}/messages": {
+      "post": {
+        "operationId": "admin_reply_to_complaint_api_v1_admin_complaints__complaint_id__messages_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "complaint_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Complaint Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffComplaintReplyCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffComplaintDetailRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Reply To Complaint",
+        "tags": [
+          "Complaints"
         ]
       }
     },
@@ -37038,6 +38112,228 @@
         ]
       }
     },
+    "/api/v1/advertiser/complaints": {
+      "get": {
+        "operationId": "advertiser_list_complaints_api_v1_advertiser_complaints_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser List Complaints",
+        "tags": [
+          "Complaints"
+        ]
+      },
+      "post": {
+        "operationId": "advertiser_raise_complaint_api_v1_advertiser_complaints_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComplaintCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintDetailRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Raise Complaint",
+        "tags": [
+          "Complaints"
+        ]
+      }
+    },
+    "/api/v1/advertiser/complaints/reference-options": {
+      "get": {
+        "operationId": "advertiser_complaint_reference_options_api_v1_advertiser_complaints_reference_options_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintReferenceOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Complaint Reference Options",
+        "tags": [
+          "Complaints"
+        ]
+      }
+    },
+    "/api/v1/advertiser/complaints/{complaint_id}": {
+      "get": {
+        "operationId": "advertiser_get_complaint_api_v1_advertiser_complaints__complaint_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "complaint_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Complaint Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintDetailRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Get Complaint",
+        "tags": [
+          "Complaints"
+        ]
+      }
+    },
+    "/api/v1/advertiser/complaints/{complaint_id}/messages": {
+      "post": {
+        "operationId": "advertiser_add_complaint_message_api_v1_advertiser_complaints__complaint_id__messages_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "complaint_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Complaint Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComplaintMessageCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintDetailRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Add Complaint Message",
+        "tags": [
+          "Complaints"
+        ]
+      }
+    },
     "/api/v1/advertiser/dashboard/summary": {
       "get": {
         "description": "Aggregate stored campaign, trip, impression, payout, and fraud data for the current advertiser organization. The demo seed returns non-empty data here.",
@@ -39504,6 +40800,228 @@
         "summary": "Driver Submit Evidence",
         "tags": [
           "Installation evidence"
+        ]
+      }
+    },
+    "/api/v1/driver/complaints": {
+      "get": {
+        "operationId": "driver_list_complaints_api_v1_driver_complaints_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Driver List Complaints",
+        "tags": [
+          "Complaints"
+        ]
+      },
+      "post": {
+        "operationId": "driver_raise_complaint_api_v1_driver_complaints_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComplaintCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintDetailRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Driver Raise Complaint",
+        "tags": [
+          "Complaints"
+        ]
+      }
+    },
+    "/api/v1/driver/complaints/reference-options": {
+      "get": {
+        "operationId": "driver_complaint_reference_options_api_v1_driver_complaints_reference_options_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintReferenceOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Driver Complaint Reference Options",
+        "tags": [
+          "Complaints"
+        ]
+      }
+    },
+    "/api/v1/driver/complaints/{complaint_id}": {
+      "get": {
+        "operationId": "driver_get_complaint_api_v1_driver_complaints__complaint_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "complaint_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Complaint Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintDetailRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Driver Get Complaint",
+        "tags": [
+          "Complaints"
+        ]
+      }
+    },
+    "/api/v1/driver/complaints/{complaint_id}/messages": {
+      "post": {
+        "operationId": "driver_add_complaint_message_api_v1_driver_complaints__complaint_id__messages_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "complaint_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Complaint Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComplaintMessageCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ComplaintDetailRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Driver Add Complaint Message",
+        "tags": [
+          "Complaints"
         ]
       }
     },

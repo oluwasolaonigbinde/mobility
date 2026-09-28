@@ -138,6 +138,13 @@ const SECTIONS: Array<{
     title: "Customer Service",
     items: [
       {
+        label: "Complaints to answer",
+        href: "/admin/complaints?status=open",
+        count: paged,
+        read: (api) =>
+          api.GET("/api/v1/admin/complaints", { params: { query: { limit: 1, status: "open" } } }),
+      },
+      {
         label: "Driver contact tasks",
         href: "/admin/contact",
         count: paged,

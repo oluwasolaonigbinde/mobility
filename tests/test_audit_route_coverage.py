@@ -265,6 +265,16 @@ AUDITED = {
     ("POST", "/api/v1/admin/fraud-flags/{flag_id}/review/resolve"): ("admin.fraud_flag.resolved"),
     ("POST", "/api/v1/driver/fraud-holds/{flag_id}/disputes"): ("driver.fraud_dispute.created"),
     ("POST", "/api/v1/admin/fraud-disputes/{dispute_id}/reply"): ("admin.fraud_dispute.replied"),
+    ("POST", "/api/v1/driver/complaints"): "driver.complaint.created",
+    ("POST", "/api/v1/advertiser/complaints"): "advertiser.complaint.created",
+    ("POST", "/api/v1/driver/complaints/{complaint_id}/messages"): (
+        "driver.complaint.message_added"
+    ),
+    ("POST", "/api/v1/advertiser/complaints/{complaint_id}/messages"): (
+        "advertiser.complaint.message_added"
+    ),
+    ("POST", "/api/v1/admin/complaints/{complaint_id}/messages"): "admin.complaint.replied",
+    ("PATCH", "/api/v1/admin/complaints/{complaint_id}"): "admin.complaint.updated",
     ("POST", "/api/v1/admin/payees/drivers/{driver_profile_id}"): "admin.payee.created",
     ("POST", "/api/v1/admin/payees/{payee_id}/bank-account-versions"): (
         "admin.bank_account.verified"
