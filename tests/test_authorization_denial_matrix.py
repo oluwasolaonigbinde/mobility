@@ -26,9 +26,11 @@ from sqlalchemy import func, select
 
 from app.adapters.disbursement import FakeDisbursementAdapter
 from app.adapters.payments import FakePaymentGatewayAdapter
+from app.adapters.payments.paystack import PaystackClient, PaystackPaymentGatewayAdapter
 from app.api.v1.billing import get_payment_gateway_adapter
 from app.api.v1.dependencies import get_payment_event_enqueuer, get_storage_provider
 from app.api.v1.disbursements import get_disbursement_adapter
+from app.api.v1.webhooks import get_paystack_payment_adapter
 from app.core.security import create_access_token
 from app.db.base import Base
 from app.models.audit import AuditEvent
@@ -294,6 +296,9 @@ def test_machine_callbacks_reject_forged_authority_without_effects(
 
     db_client.app.dependency_overrides[get_payment_gateway_adapter] = lambda: payment
     db_client.app.dependency_overrides[get_disbursement_adapter] = lambda: disbursement
+    db_client.app.dependency_overrides[get_paystack_payment_adapter] = lambda: (
+        PaystackPaymentGatewayAdapter(PaystackClient("sk_test_synthetic_matrix_key"))
+    )
     db_client.app.dependency_overrides[get_payment_event_enqueuer] = ForbiddenEnqueuer
     settings.email_receipt_signing_secret = SecretStr("matrix-email-secret")
     settings.email_receipt_key_id = "matrix-v1"
@@ -310,6 +315,11 @@ def test_machine_callbacks_reject_forged_authority_without_effects(
             "/api/v1/webhooks/payments",
             content=b"{}",
             headers={"X-Payment-Signature": "forged"},
+        ),
+        ("POST", "/api/v1/webhooks/paystack"): db_client.post(
+            "/api/v1/webhooks/paystack",
+            content=b"{}",
+            headers={"X-Paystack-Signature": "forged"},
         ),
         ("POST", "/api/v1/notifications/email/delivery-receipts"): db_client.post(
             "/api/v1/notifications/email/delivery-receipts",

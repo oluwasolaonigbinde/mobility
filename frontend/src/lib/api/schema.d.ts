@@ -4363,6 +4363,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/webhooks/paystack": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Paystack Webhook
+         * @description Record Cardvert charge events; acknowledge every other signed event unprocessed.
+         *
+         *     Transfer outcomes are reconciled by the admin poll until a queued transfer-event
+         *     path exists (§15.4 keeps business logic out of the webhook request path).
+         */
+        post: operations["paystack_webhook_api_v1_webhooks_paystack_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health": {
         parameters: {
             query?: never;
@@ -11124,6 +11147,15 @@ export interface components {
         PayoutV4Status: {
             /** Publishing Enabled */
             publishing_enabled: boolean;
+        };
+        /** PaystackWebhookReceipt */
+        PaystackWebhookReceipt: {
+            /** Accepted */
+            accepted: boolean;
+            /** Duplicate */
+            duplicate: boolean;
+            /** Event */
+            event: string;
         };
         /** PersonPayeeReviewDecisionCreate */
         PersonPayeeReviewDecisionCreate: {
@@ -22765,6 +22797,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PaymentWebhookReceipt"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    paystack_webhook_api_v1_webhooks_paystack_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Paystack-Signature"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaystackWebhookReceipt"];
                 };
             };
             /** @description Request validation failed */

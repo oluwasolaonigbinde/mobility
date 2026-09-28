@@ -78,6 +78,7 @@ APPLICANT_ROUTES = frozenset(
 MACHINE_ROUTES = frozenset(
     {
         ("POST", "/api/v1/webhooks/payments"),
+        ("POST", "/api/v1/webhooks/paystack"),
         ("POST", "/api/v1/notifications/email/delivery-receipts"),
         ("POST", "/api/v1/admin/payout-batches/provider-webhook"),
     }

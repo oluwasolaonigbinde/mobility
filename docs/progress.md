@@ -320,6 +320,81 @@ release-preparation tests. Those tests validate the compose and env templates
 this batch edits, so that validation remains an open CI gate.
 The full backend suite is left to GitHub CI (6 Linux shards) after an
 owner-approved push. Nothing is committed or pushed.
+Batch D record (26–27 Sep 2026, worktree `mobility-batch-d`, branch `batch-d`
+from the committed Batch A head `7a9ceb0`; built in parallel with Batch B).
+Scope: Paystack implementations of the payment and disbursement ports from
+Paystack's public API documentation (read 26 Sep 2026; no account, dashboard or
+provider call), tested only against synthetic recorded fixtures with an injected
+HTTP transport. The client document's Paystack credentials are not recorded or
+used. The controller stays `PAUSED — EXT-PAYMENT-PROVIDER` and the queue is not
+flipped: `PKG-03 / W2-01C` resumes on the normal package path only when the owner
+supplies Paystack test keys. Plan review (read-only Opus 5.5 stand-in): 6 material
+and 6 minor findings; 10 adopted (test/live domain check, `sk_test_` refused in
+production, recipient must match the frozen destination before any transfer,
+resolver bound to the frozen payee/account versions, foreign charges acknowledged,
+extra ordering and duplicate-reference tests), 2 rejected with reasons (the Batch D
+handoff waives the live stack check and requires the specialist reviews). Owner
+decision (27 Sep): the public route acknowledges `transfer.*` without reconciling
+it, because the only transfer path reconciles in-request and §15.4 forbids that.
+
+Delivered. `app/adapters/payments/paystack.py`: bearer client, HMAC-SHA512
+`x-paystack-signature` verification, checkout initialize, verify, refund
+create/list, exact kobo conversion, and `PaystackOutcomeUnknownError` for
+timeouts, transport errors, 5xx, 429 and non-final statuses (never paid or
+failed). `app/adapters/disbursement/paystack.py`: one line per submission, a
+deterministic 50-character `cvp_` reference from the line idempotency key,
+recipient checks, lookup (404 → not found, otherwise unknown), and webhook/poll
+evidence with identical IDs and fingerprints; without an injected destination
+resolver it reports no submission capability. `POST /api/v1/webhooks/paystack`:
+503 without a key, 401 on a missing or bad signature, a Cardvert `charge.success`
+recorded and enqueued through the existing ingestion, every other signed event
+200 `accepted=false` with no writes. `PAYSTACK_SECRET_KEY` is blank in `.env.example`,
+both release templates and both Compose files; `sk_live_` is refused in local/test
+and `sk_test_` in production. Existing payment and payout routes, the worker and
+every live-use gate are unchanged. No migration. OpenAPI, snapshot and
+`schema.d.ts` moved together; the architecture inventory block was regenerated.
+
+Evidence (27 Sep 2026). Backend (own database `mobility_test_d`, at most two
+test containers across both sessions): `ruff check` and `ruff format --check`
+pass on the changed files. The 11 files that exercise the change ran under
+coverage: 751 passed; the 12 failures are the same environmental ones as Batch A,
+all in `test_w403a_release_preparation.py` (no `docker` binary in the test image,
+CRLF shell scripts); its environment-template parity tests, which cover
+`PAYSTACK_SECRET_KEY`, pass. After the specialist-review hardening, the Paystack
+adapter and API tests, the progress validator, the architecture inventory and
+`test_openapi.py` ran again under coverage: 124 passed. Webhook ingestion is
+proven through the API test client: a Cardvert charge creates one event and,
+through the existing worker, one receipt; byte-identical and re-serialized
+replays are duplicates; foreign charges, `transfer.*` and `refund.*` write
+nothing; forged, other-secret, missing and blank signatures get 401; no key gets
+503. Transfers are proven end to end through the existing provider-webhook and
+poll routes with the Paystack adapter injected: submission through the worker,
+`transfer.success` pays the line once, replay and poll add no event, and a late
+success after `transfer.reversed` stays unapplied with the ledger unpaid. D32
+changed lines against `7a9ceb0` from local LCOV: backend 381/387 lines (98.45 %)
+and 116/122 branches (95.08 %). OpenAPI `--check` passes; `tsc` passes on the
+regenerated `schema.d.ts`; the full Vitest suite passes 162 files / 1,044 tests,
+including the R14-B fixtures. The full backend suite is left to GitHub CI
+(6 Linux shards) after an owner-approved push. No live stack check: the Batch D
+handoff waives it because the adapters are disabled without keys. Reviews: money
+`PASS` and security `PASS` (both Opus 5.5 stand-ins, no required fixes); a
+non-object `data` now gets 400/401 instead of 500, from the money review's notes.
+Post-build minimal-change review (`vfd-change-reviewer`, Opus 5.5 stand-in):
+`PASS` with four non-blocking notes and no fixes.
+
+Remaining for key day (`W2-01C`, owner-supplied test keys): sandbox checks of
+field names and timestamps, verify-transfer 404, reference uniqueness after a
+failed transfer, metadata round-trip and key format; disable Transfers OTP and
+confirm the fee bearer (amount vs `requested_amount`); wire an audited destination
+resolver and the Paystack adapters into payout submit/poll and the worker; build a
+checkout flow that stores Cardvert-issued references and checks the organization
+and a same-origin `callback_url`; add a queued path (event row + worker) for
+`transfer.*`, so a reversal after success is seen, before any transfer is
+submitted; decide whether `sk_test_` should be refused for every deployed
+environment name other than `staging` (today only the exact `production` value
+refuses it); configure the webhook URL; Batch F edge work: a body-size cap and the
+Paystack IP allowlist on `/api/v1/webhooks/*`. Nothing is committed or pushed.
+
 **Client visual-direction reduction (24 Sep 2026):** The owner reports the
 client rejected former directions 1, 2, 4, 5, 6, 7 and 8 and directs their
 implementation traces and dedicated assets removed. Retain former directions

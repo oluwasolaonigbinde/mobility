@@ -35,6 +35,7 @@ from app.api.v1.trip_analytics import router as trip_analytics_router
 from app.api.v1.trips import admin_router as trips_admin_router
 from app.api.v1.trips import router as trips_router
 from app.api.v1.vehicles import router as vehicles_router
+from app.api.v1.webhooks import router as webhooks_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
@@ -71,4 +72,5 @@ api_router.include_router(trips_admin_router)
 api_router.include_router(driver_profiles_router)
 api_router.include_router(fraud_disputes_router)
 api_router.include_router(vehicles_router)
+api_router.include_router(webhooks_router)
 api_router.include_router(health_router)

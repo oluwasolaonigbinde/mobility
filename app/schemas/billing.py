@@ -448,3 +448,9 @@ class PaymentWebhookReceipt(BaseModel):
     event_id: UUID
     accepted: bool
     duplicate: bool
+
+
+class PaystackWebhookReceipt(BaseModel):
+    event: str
+    accepted: bool
+    duplicate: bool

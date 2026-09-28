@@ -435,6 +435,11 @@ EXEMPT = {
         "is the canonical ingestion evidence and downstream receipt/allocation mutations are "
         "audited by the async worker. Duplicate callbacks do not create another event."
     ),
+    ("POST", "/api/v1/webhooks/paystack"): (
+        "Paystack-signed machine callback: a Cardvert charge becomes the same append-only "
+        "payment_gateway_events row as /webhooks/payments, audited downstream by the worker; "
+        "every other signed event is acknowledged and writes nothing."
+    ),
     ("POST", "/api/v1/admin/payouts/recompute-day"): (
         "Retired endpoint (MNY-06C/PR7): the direct day-recompute execute"
         " path always answers 409 RECOMPUTE_REQUIRES_CORRECTION_ORDER and"

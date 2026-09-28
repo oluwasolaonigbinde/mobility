@@ -17765,6 +17765,29 @@
         "title": "PayoutV4Status",
         "type": "object"
       },
+      "PaystackWebhookReceipt": {
+        "properties": {
+          "accepted": {
+            "title": "Accepted",
+            "type": "boolean"
+          },
+          "duplicate": {
+            "title": "Duplicate",
+            "type": "boolean"
+          },
+          "event": {
+            "title": "Event",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event",
+          "accepted",
+          "duplicate"
+        ],
+        "title": "PaystackWebhookReceipt",
+        "type": "object"
+      },
       "PersonPayeeReviewDecisionCreate": {
         "additionalProperties": false,
         "properties": {
@@ -40350,6 +40373,56 @@
         "summary": "Payment Webhook",
         "tags": [
           "Commercial billing"
+        ]
+      }
+    },
+    "/api/v1/webhooks/paystack": {
+      "post": {
+        "description": "Record Cardvert charge events; acknowledge every other signed event unprocessed.\n\nTransfer outcomes are reconciled by the admin poll until a queued transfer-event\npath exists (\u00a715.4 keeps business logic out of the webhook request path).",
+        "operationId": "paystack_webhook_api_v1_webhooks_paystack_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Paystack-Signature",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Paystack-Signature"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaystackWebhookReceipt"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "summary": "Paystack Webhook",
+        "tags": [
+          "Provider webhooks"
         ]
       }
     },
