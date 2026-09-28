@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -26,6 +27,8 @@ from app.services.trip_analytics import analytics_output_fingerprint
 ASSESSMENT_ROW_CONSTRAINTS = frozenset({"uq_fraud_assessments_trip_session_id"})
 ASSESSMENT_ERROR_CODE = "assessment_evaluation_failed"
 UNAVAILABLE_FINGERPRINT = "0" * 64
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -147,7 +150,13 @@ async def load_current_successful_assessment(
 
     try:
         analytics_fingerprint = analytics_output_fingerprint(analytics)
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "Fraud assessment treated as not current for trip %s: analytics fingerprint "
+            "failed (%s)",
+            trip_id,
+            type(exc).__name__,
+        )
         return CurrentFraudAssessment(assessment, analytics, flags, False, signature)
     replay_source_current = signature.source_analytics_fingerprint == analytics_fingerprint
     replay_current = (
@@ -232,7 +241,12 @@ async def assess_trip_fraud(
             formula_version=settings.fraud_assessment_formula_version,
             upstream_facts=upstream_facts,
         )
-    except Exception:
+    except Exception as exc:
+        logger.warning(
+            "Fraud assessment recorded as failed for trip %s: input fingerprint failed (%s)",
+            analytics.trip_session_id,
+            type(exc).__name__,
+        )
         source_fingerprint = UNAVAILABLE_FINGERPRINT
         inputs_fingerprint = UNAVAILABLE_FINGERPRINT
         evaluation_failed = True

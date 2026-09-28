@@ -17,10 +17,14 @@ _limiters: dict[tuple[str, int, int, int, int, int, int], "RedisLoginRateLimiter
 # instead of declaring it. That is fine on standalone Redis (the supported
 # topology) but would break on Redis Cluster, which requires every touched key
 # to be declared and co-located. Revisit before any cluster migration.
+#
+# Only the ip and account buckets refuse. The global bucket still counts net
+# failures but never blocks, so an attacker cannot lock everyone out; reaching
+# its limit returns an alert flag once per window instead.
 RESERVE_LOGIN_ATTEMPT = """
 local limits = {tonumber(ARGV[1]), tonumber(ARGV[3]), tonumber(ARGV[5])}
 local ttls = {tonumber(ARGV[2]), tonumber(ARGV[4]), tonumber(ARGV[6])}
-for i = 1, 3 do
+for i = 1, 2 do
   local current = tonumber(redis.call('GET', KEYS[i]) or '0')
   if current >= limits[i] then
     local ttl = redis.call('TTL', KEYS[i])
@@ -33,11 +37,23 @@ for i = 1, 3 do
     return {0, i, ttl, notified and 1 or 0}
   end
 end
+local global_count = 0
 for i = 1, 3 do
   local value = redis.call('INCR', KEYS[i])
   if value == 1 then redis.call('EXPIRE', KEYS[i], ttls[i]) end
+  global_count = value
 end
-return {1, 0, 0, 0}
+if global_count < limits[3] then
+  return {1, 0, 0, 0}
+end
+local ttl = redis.call('TTL', KEYS[3])
+if ttl < 0 then
+  redis.call('EXPIRE', KEYS[3], ttls[3])
+  ttl = ttls[3]
+end
+local marker = 'ratelimit:login:notify:' .. KEYS[3]
+local alerted = redis.call('SET', marker, '1', 'NX', 'EX', math.max(ttl, 1))
+return {1, 0, 0, alerted and 1 or 0}
 """
 
 RELEASE_LOGIN_SUCCESS = """
@@ -159,13 +175,21 @@ class RedisLoginRateLimiter:
             values = [int(value) for value in raw]
             if values == [1, 0, 0, 0]:
                 return RateLimitDecision(allowed=True)
+            if values == [1, 0, 0, 1]:
+                logger.error(
+                    "Login failure volume reached the global alert threshold "
+                    "(%s failures in %s seconds); sign-in is not blocked",
+                    self.settings.login_rate_limit_global_max_failures,
+                    self.settings.login_rate_limit_global_window_seconds,
+                )
+                return RateLimitDecision(allowed=True)
             if (
                 values[0] != 0
                 or values[2] < 1
                 or values[3] not in (0, 1)
             ):
                 raise ValueError("invalid reserve response values")
-            bucket = {1: "ip", 2: "account", 3: "global"}.get(values[1])
+            bucket = {1: "ip", 2: "account"}.get(values[1])
             if bucket is None:
                 raise ValueError("unknown rate-limit bucket")
             return RateLimitDecision(

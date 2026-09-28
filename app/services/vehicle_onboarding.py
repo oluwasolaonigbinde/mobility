@@ -524,19 +524,58 @@ async def submit_application_vehicle(
 async def application_vehicle_view(
     session: AsyncSession, *, application: DriverApplication
 ) -> VehicleStageView:
-    vehicle = await session.scalar(
-        select(Vehicle)
-        .where(Vehicle.driver_profile_id == application.driver_profile_id)
-        .order_by(Vehicle.updated_at.desc(), Vehicle.id)
-        .limit(1)
+    """The car to show: one awaiting review first, else the latest changed.
+
+    Drives the staff queue and the applicant's public status-reference page.
+    """
+    vehicles = list(
+        (
+            await session.scalars(
+                select(Vehicle)
+                .where(Vehicle.driver_profile_id == application.driver_profile_id)
+                .order_by(Vehicle.updated_at.desc(), Vehicle.id)
+            )
+        ).all()
     )
-    if vehicle is None:
+    if not vehicles:
         return VehicleStageView(None, None, None, {})
-    submission = await _latest_submission(session, vehicle.id, lock=False)
+    latest = [
+        (vehicle, await _latest_submission(session, vehicle.id, lock=False))
+        for vehicle in vehicles
+    ]
+    vehicle, submission = next(
+        (
+            (vehicle, submission)
+            for vehicle, submission in latest
+            if submission is not None
+            and submission.status == KycSubmissionStatus.PENDING_REVIEW.value
+        ),
+        latest[0],
+    )
     if submission is None:
         return VehicleStageView(vehicle, None, None, {})
     decision = await _latest_decision(session, submission.id, lock=False)
     return VehicleStageView(vehicle, submission, decision, await _documents(session, submission.id))
+
+
+async def applicant_vehicles(
+    session: AsyncSession, *, token: str, settings
+) -> list[tuple[Vehicle, VehicleEvidenceSubmission | None]]:
+    """The applicant's own cars, so a revision is chosen by plate rather than by ID."""
+    application = await application_from_access_token(
+        session, token=token, settings=settings, lock=False
+    )
+    vehicles = (
+        await session.scalars(
+            select(Vehicle)
+            .where(Vehicle.driver_profile_id == application.driver_profile_id)
+            .order_by(Vehicle.created_at, Vehicle.id)
+        )
+    ).all()
+    return [
+        (vehicle, await _latest_submission(session, vehicle.id, lock=False))
+        for vehicle in vehicles
+    ]
 
 
 async def vehicle_status_by_reference(session: AsyncSession, *, reference: str) -> VehicleStageView:

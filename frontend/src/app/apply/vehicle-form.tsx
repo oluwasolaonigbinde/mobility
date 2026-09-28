@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Panel } from "@/components/ui/panel";
 import { onboardingResponseJson, uploadOnboardingFile } from "@/lib/files/onboarding-upload";
+import { CarChooser } from "./car-chooser";
 
 type VehicleStage = {
   status: string;
@@ -17,6 +18,7 @@ export function VehicleForm() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const [result, setResult] = useState<VehicleStage>();
+  const [chooserKey, setChooserKey] = useState(0);
   const submissionRequestId = useRef(crypto.randomUUID());
   const uploadRequestIds = useRef({
     registration: crypto.randomUUID(),
@@ -27,7 +29,11 @@ export function VehicleForm() {
   const uploadContext = useRef<{ token: string; files: File[] } | null>(null);
   const generation = useRef(0);
 
-  function changed() {
+  function changed(event: FormEvent<HTMLFormElement>) {
+    // A different code may own different cars, so the looked-up list starts over.
+    if ((event.target as HTMLInputElement).name === "application_access_token") {
+      setChooserKey((key) => key + 1);
+    }
     generation.current += 1;
     submissionRequestId.current = crypto.randomUUID();
     setResult(undefined);
@@ -148,11 +154,7 @@ export function VehicleForm() {
           autoComplete="one-time-code"
           required
         />
-        <Field
-          label="Existing vehicle ID (only when revising)"
-          name="vehicle_id"
-          placeholder="Leave blank for your first submission"
-        />
+        <CarChooser key={chooserKey} />
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Plate number" name="plate_number" required />
           <Field
@@ -200,12 +202,6 @@ export function VehicleForm() {
           <p role="status" className="text-green text-sm">
             Vehicle evidence version {result.version} for {result.plate_number} was sent for
             administrator review.
-            {result.vehicle_id ? (
-              <span className="mt-1 block">
-                Save vehicle ID <code className="font-mono">{result.vehicle_id}</code> for a later
-                revision.
-              </span>
-            ) : null}
           </p>
         ) : null}
         <Button type="submit" disabled={pending}>

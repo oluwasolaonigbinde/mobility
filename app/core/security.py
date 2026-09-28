@@ -1,7 +1,9 @@
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
+import anyio
 import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import Argon2Error
@@ -11,6 +13,10 @@ from app.core import clock
 from app.core.config import Settings
 
 _password_hasher = PasswordHasher(time_cost=2, memory_cost=19456, parallelism=1)
+# Argon2 releases the GIL, so request-path hashing runs in worker threads. Each
+# hash holds ~19 MiB; this bound caps that memory and CPU per process and keeps
+# the default thread pool free for other work.
+_PASSWORD_WORK_LIMITER = anyio.CapacityLimiter(4)
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,6 +37,23 @@ def verify_password(password: str, password_hash: str) -> bool:
         return _password_hasher.verify(password_hash, password)
     except Argon2Error:
         return False
+
+
+async def run_password_work[T](work: Callable[[], T]) -> T:
+    """Run Argon2 work off the event loop.
+
+    Cancellation waits for the thread, so a client disconnect never abandons a
+    hash while its transaction carries on.
+    """
+    return await anyio.to_thread.run_sync(work, limiter=_PASSWORD_WORK_LIMITER)
+
+
+async def hash_password_async(password: str) -> str:
+    return await run_password_work(lambda: hash_password(password))
+
+
+async def verify_password_async(password: str, password_hash: str) -> bool:
+    return await run_password_work(lambda: verify_password(password, password_hash))
 
 
 def create_access_token(

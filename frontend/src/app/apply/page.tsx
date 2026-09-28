@@ -1,11 +1,43 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Panel } from "@/components/ui/panel";
+import { cx } from "@/lib/cx";
 import { DriverApplicationForms } from "./application-forms";
+import { PersonPayeeForm } from "./person-payee-form";
+import { VehicleForm } from "./vehicle-form";
 
 export const metadata: Metadata = { title: "Driver application" };
 
-export default function DriverApplicationPage() {
+const STEPS = [
+  {
+    id: "apply",
+    title: "Apply",
+    detail: "Send your contact details. Cardvert emails you a code for the next step.",
+  },
+  {
+    id: "details",
+    title: "Your details",
+    detail: "Use the emailed code to send your ID, bank details and documents for review.",
+  },
+  {
+    id: "car",
+    title: "Your car",
+    detail: "Once your details are approved, send your car's documents for review.",
+  },
+] as const;
+
+type StepId = (typeof STEPS)[number]["id"];
+
+export default async function DriverApplicationPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ step?: string }>;
+}) {
+  const requested = (await searchParams).step;
+  const step: StepId = STEPS.some((item) => item.id === requested)
+    ? (requested as StepId)
+    : "apply";
+  const index = STEPS.findIndex((item) => item.id === step);
+  const next = STEPS[index + 1];
   return (
     <main className="bg-atmosphere relative flex-1 overflow-hidden p-6 md:p-10">
       <div className="bg-grid pointer-events-none absolute inset-0" aria-hidden />
@@ -23,39 +55,41 @@ export default function DriverApplicationPage() {
             Already invited? Sign in →
           </Link>
         </div>
-        <Panel className="mb-5 p-5" aria-labelledby="application-journey-title">
-          <p className="micro text-cyan">Application journey</p>
-          <h2 id="application-journey-title" className="font-display mt-1 text-xl font-semibold">
-            Application receipt is not work approval
-          </h2>
-          <ol className="text-muted mt-4 grid gap-3 text-xs sm:grid-cols-3 lg:grid-cols-7">
-            {[
-              "Submit contact details",
-              "Use the expiring onboarding code",
-              "Submit person/payee evidence",
-              "Wait for person/payee approval",
-              "Submit vehicle evidence after approval",
-              "Wait for vehicle approval",
-              "Complete account setup when authorized",
-            ].map((step, index) => (
-              <li key={step} className="border-edge bg-raised rounded-lg border p-3">
-                <span className="text-amber font-mono">{index + 1}</span>
-                <span className="mt-1 block leading-5">{step}</span>
+        <nav aria-label="Application steps" className="mb-5">
+          <ol className="grid gap-3 sm:grid-cols-3">
+            {STEPS.map((item, position) => (
+              <li key={item.id}>
+                <Link
+                  href={`/apply?step=${item.id}`}
+                  aria-current={item.id === step ? "step" : undefined}
+                  className={cx(
+                    "border-edge bg-raised block rounded-lg border p-3 text-xs transition-colors",
+                    item.id === step ? "border-amber" : "hover:border-ink/30",
+                  )}
+                >
+                  <span className="text-amber font-mono">{position + 1}</span>
+                  <span className="text-ink mt-1 block font-medium">{item.title}</span>
+                  <span className="text-muted mt-1 block leading-5">{item.detail}</span>
+                </Link>
               </li>
             ))}
           </ol>
-          <p className="text-muted mt-4 text-xs">
-            Person and payee evidence is reviewed first. Vehicle evidence is accepted only after
-            person and payee approval. Once the vehicle review also passes, an administrator
-            separately starts account setup. Choose your password with that one-use setup link, then
-            sign in. The status reference and onboarding code never grant a session, campaign work,
-            or tracking authority.
+        </nav>
+        {step === "apply" ? <DriverApplicationForms /> : null}
+        {step === "details" ? <PersonPayeeForm /> : null}
+        {step === "car" ? <VehicleForm /> : null}
+        {next ? (
+          <p className="mt-5 text-sm">
+            <Link href={`/apply?step=${next.id}`} className="text-cyan">
+              Next: {next.title} →
+            </Link>
           </p>
-        </Panel>
-        <DriverApplicationForms />
+        ) : null}
         <p className="micro text-faint mt-6">
           No password, work access, assignment, payout or document access is created by these forms.
-          Vehicle approval never assigns campaign work automatically.
+          Vehicle approval never assigns campaign work automatically. After both reviews pass,
+          Terrax Media separately starts account setup; choose your password with that one-use link,
+          then sign in.
         </p>
       </div>
     </main>

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
+import { toApiDatetime } from "@/lib/campaigns/schema";
 
 export interface SourceActionState {
   error?: string;
@@ -13,6 +14,19 @@ export interface SourceActionState {
 
 function text(formData: FormData, field: string): string {
   return String(formData.get(field) ?? "").trim();
+}
+
+const DATETIME_LOCAL = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/;
+
+/** A datetime-local field read as Nigeria time (WAT), or null when it isn't a valid time. */
+function nigeriaTime(formData: FormData, field: string): Date | null {
+  const value = text(formData, field);
+  if (!DATETIME_LOCAL.test(value)) return null;
+  try {
+    return new Date(toApiDatetime(value) ?? "");
+  } catch {
+    return null;
+  }
 }
 
 const OPERATION_KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -31,8 +45,8 @@ export async function createSourceAction(
     return { error: "Refresh this page before retrying the operation." };
   }
   const sourceType = text(formData, "source_type");
-  const expiresAt = new Date(text(formData, "expires_at"));
-  if (!Number.isFinite(expiresAt.getTime()) || expiresAt <= new Date()) {
+  const expiresAt = nigeriaTime(formData, "expires_at");
+  if (expiresAt === null || expiresAt <= new Date()) {
     return {
       error: "Choose a future date and time to stop using it.",
       operationKey: idempotencyKey,
@@ -135,13 +149,9 @@ export async function createSourceLinkAction(
   if (idempotencyKey === null) {
     return { error: "Refresh this page before retrying the operation." };
   }
-  const startAt = new Date(text(formData, "start_at"));
-  const endAt = new Date(text(formData, "end_at"));
-  if (
-    !Number.isFinite(startAt.getTime()) ||
-    !Number.isFinite(endAt.getTime()) ||
-    startAt >= endAt
-  ) {
+  const startAt = nigeriaTime(formData, "start_at");
+  const endAt = nigeriaTime(formData, "end_at");
+  if (startAt === null || endAt === null || startAt >= endAt) {
     return {
       error: "Choose a start date and time before the end.",
       operationKey: idempotencyKey,

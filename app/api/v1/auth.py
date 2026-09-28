@@ -39,6 +39,8 @@ from app.schemas.driver_onboarding import (
     ApplicantFileUploadCreate,
     ApplicantFileUploadRead,
     ApplicantStoredFileRead,
+    ApplicantVehicleListRead,
+    ApplicantVehicleOption,
     ApplicantVehicleSubmissionCreate,
     PersonPayeeStageRead,
     PersonPayeeSubmissionCreate,
@@ -81,6 +83,7 @@ from app.services.stored_files import (
 )
 from app.services.vehicle_onboarding import (
     VehicleStageView,
+    applicant_vehicles,
     submit_application_vehicle,
     vehicle_status_by_reference,
 )
@@ -591,6 +594,32 @@ async def submit_driver_onboarding_vehicle(
     view = await submit_application_vehicle(session, payload=payload, settings=settings)
     await session.commit()
     return _vehicle_stage_response(view)
+
+
+@router.post(
+    "/driver-onboarding/vehicles",
+    response_model=ApplicantVehicleListRead,
+    summary="List the applicant's own cars by plate",
+)
+async def list_driver_onboarding_vehicles(
+    payload: ApplicantFileUploadConfirm,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> ApplicantVehicleListRead:
+    require_driver_registration_enabled(settings)
+    rows = await applicant_vehicles(
+        session, token=payload.application_access_token.get_secret_value(), settings=settings
+    )
+    return ApplicantVehicleListRead(
+        items=[
+            ApplicantVehicleOption(
+                vehicle_id=vehicle.id,
+                plate_number=vehicle.plate_number,
+                status=submission.status if submission is not None else "not_submitted",
+            )
+            for vehicle, submission in rows
+        ]
+    )
 
 
 @router.post(

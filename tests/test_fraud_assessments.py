@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
@@ -16,12 +17,18 @@ from sqlalchemy import select
 
 from app.models.driver import DriverOnboardingStatus
 from app.models.fraud_assessment import FraudAssessment, FraudAssessmentStatus
+from app.models.route_replay import RouteReplaySignature, RouteReplayStatus
 from app.models.trip import TripSessionStatus
 from app.models.trip_analytics import FraudFlag
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
 from app.services import fraud_assessments
-from app.services.fraud_assessments import assess_trip_fraud, is_current_successful_assessment
+from app.services.fraud_assessments import (
+    assess_trip_fraud,
+    is_current_successful_assessment,
+    load_current_successful_assessment,
+)
+from app.services.route_replay import route_replay_config_fingerprint
 
 NOW = datetime(2026, 8, 21, 12, 0, tzinfo=UTC)
 
@@ -240,10 +247,25 @@ def test_formula_version_change_replaces_current_assessment(db_sessionmaker, set
     )
 
 
+def assert_one_fallback_warning(caplog, trip_id, reason: str) -> None:
+    warnings = [
+        record
+        for record in caplog.records
+        if record.name == "app.services.fraud_assessments" and record.levelno == logging.WARNING
+    ]
+    assert len(warnings) == 1
+    message = warnings[0].getMessage()
+    assert reason in message
+    assert str(trip_id) in message
+    assert "RuntimeError" in message
+    assert "sensitive" not in message
+
+
 def test_assessment_failure_persists_error_and_never_counts_as_success(
     db_sessionmaker,
     settings,
     monkeypatch,
+    caplog,
 ) -> None:
     graph = build_graph(db_sessionmaker, "error")
 
@@ -251,12 +273,15 @@ def test_assessment_failure_persists_error_and_never_counts_as_success(
         raise RuntimeError("sensitive internal failure")
 
     monkeypatch.setattr(fraud_assessments, "assessment_inputs_fingerprint", fail_fingerprint)
-    run_assessment(
-        db_sessionmaker,
-        analytics=graph.analytics,
-        flags=[],
-        settings=settings,
-    )
+    with caplog.at_level(logging.WARNING, logger="app.services.fraud_assessments"):
+        run_assessment(
+            db_sessionmaker,
+            analytics=graph.analytics,
+            flags=[],
+            settings=settings,
+        )
+
+    assert_one_fallback_warning(caplog, graph.trip.id, "input fingerprint failed")
 
     assessment = fetch_assessment(db_sessionmaker, graph.trip.id)
     assert assessment.status == FraudAssessmentStatus.ERROR.value
@@ -274,6 +299,7 @@ def test_source_fingerprint_failure_persists_sanitized_error(
     db_sessionmaker,
     settings,
     monkeypatch,
+    caplog,
 ) -> None:
     graph = build_graph(db_sessionmaker, "source-error")
 
@@ -281,15 +307,63 @@ def test_source_fingerprint_failure_persists_sanitized_error(
         raise RuntimeError("sensitive source failure")
 
     monkeypatch.setattr(fraud_assessments, "analytics_output_fingerprint", fail_source)
-    run_assessment(
-        db_sessionmaker,
-        analytics=graph.analytics,
-        flags=[],
-        settings=settings,
-    )
+    with caplog.at_level(logging.WARNING, logger="app.services.fraud_assessments"):
+        run_assessment(
+            db_sessionmaker,
+            analytics=graph.analytics,
+            flags=[],
+            settings=settings,
+        )
 
     assessment = fetch_assessment(db_sessionmaker, graph.trip.id)
     assert assessment.status == FraudAssessmentStatus.ERROR.value
     assert assessment.error_code == "assessment_evaluation_failed"
     assert assessment.source_analytics_fingerprint == "0" * 64
     assert "sensitive" not in assessment.error_code
+    assert_one_fallback_warning(caplog, graph.trip.id, "input fingerprint failed")
+
+
+def test_unfingerprintable_analytics_is_never_current_and_is_logged(
+    db_sessionmaker,
+    settings,
+    monkeypatch,
+    caplog,
+) -> None:
+    graph = build_graph(db_sessionmaker, "current-source-error")
+
+    async def seed_signature() -> None:
+        async with db_sessionmaker() as session:
+            session.add(
+                RouteReplaySignature(
+                    trip_session_id=graph.trip.id,
+                    trip_analytics_id=graph.analytics.id,
+                    status=RouteReplayStatus.COMPUTED.value,
+                    detector_version=settings.route_replay_detector_version,
+                    detector_config_fingerprint=route_replay_config_fingerprint(settings),
+                    source_analytics_fingerprint="c" * 64,
+                    payload_fingerprint="a" * 64,
+                    normalized_fingerprint="b" * 64,
+                    point_count=3,
+                    computed_at=NOW,
+                )
+            )
+            await session.commit()
+
+    async def load_current():
+        async with db_sessionmaker() as session:
+            return await load_current_successful_assessment(
+                session, trip_id=graph.trip.id, settings=settings
+            )
+
+    asyncio.run(seed_signature())
+
+    def fail_source(_analytics):
+        raise RuntimeError("sensitive source failure")
+
+    monkeypatch.setattr(fraud_assessments, "analytics_output_fingerprint", fail_source)
+    with caplog.at_level(logging.WARNING, logger="app.services.fraud_assessments"):
+        current = asyncio.run(load_current())
+
+    assert current.current is False
+    assert current.route_replay_signature is not None
+    assert_one_fallback_warning(caplog, graph.trip.id, "analytics fingerprint failed")

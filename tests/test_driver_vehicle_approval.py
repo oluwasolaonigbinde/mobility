@@ -665,6 +665,97 @@ def test_rejected_vehicle_can_resubmit_as_a_new_immutable_revision(
     assert asyncio.run(statuses()) == ["rejected", "pending_review"]
 
 
+def test_applicant_car_list_shows_only_their_own_cars_by_plate(
+    db_client, db_sessionmaker, settings
+) -> None:
+    token, application, _ = _approved_applicant(
+        db_client, db_sessionmaker, settings, suffix="list-owner"
+    )
+    other_token, other_application, _ = _approved_applicant(
+        db_client, db_sessionmaker, settings, suffix="list-other"
+    )
+    empty = db_client.post(
+        "/api/v1/auth/driver-onboarding/vehicles", json={"application_access_token": token}
+    )
+    assert empty.status_code == 200
+    assert empty.json() == {"items": []}
+
+    files = _seed_vehicle_files(db_sessionmaker, application=application, suffix="list-owner")
+    submitted = db_client.post(
+        "/api/v1/auth/driver-onboarding/vehicle", json=_vehicle_payload(token, files)
+    ).json()
+    other_files = _seed_vehicle_files(
+        db_sessionmaker, application=other_application, suffix="list-other"
+    )
+    db_client.post(
+        "/api/v1/auth/driver-onboarding/vehicle",
+        json=_vehicle_payload(other_token, other_files, plate_number="XYZ-987-AB"),
+    )
+
+    listed = db_client.post(
+        "/api/v1/auth/driver-onboarding/vehicles", json={"application_access_token": token}
+    )
+    assert listed.status_code == 200
+    assert listed.json() == {
+        "items": [
+            {
+                "vehicle_id": submitted["vehicle_id"],
+                "plate_number": "ABC-123-XY",
+                "status": "pending_review",
+            }
+        ]
+    }
+
+    invalid = db_client.post(
+        "/api/v1/auth/driver-onboarding/vehicles",
+        json={"application_access_token": "not-a-real-capability"},
+    )
+    invalid_file_probe = db_client.post(
+        f"/api/v1/auth/driver-onboarding/files/{uuid4()}/status",
+        json={"application_access_token": "not-a-real-capability"},
+    )
+    assert invalid.status_code == invalid_file_probe.status_code == 404
+    assert invalid.json()["error"]["code"] == invalid_file_probe.json()["error"]["code"]
+    assert "XYZ" not in invalid.text and "ABC" not in invalid.text
+
+
+def test_staff_car_view_prefers_a_car_awaiting_review(db_client, db_sessionmaker, settings) -> None:
+    token, application, admin = _approved_applicant(
+        db_client, db_sessionmaker, settings, suffix="two-cars"
+    )
+    first_files = _seed_vehicle_files(db_sessionmaker, application=application, suffix="car-one")
+    first = db_client.post(
+        "/api/v1/auth/driver-onboarding/vehicle", json=_vehicle_payload(token, first_files)
+    ).json()
+    second_files = _seed_vehicle_files(db_sessionmaker, application=application, suffix="car-two")
+    second = db_client.post(
+        "/api/v1/auth/driver-onboarding/vehicle",
+        json=_vehicle_payload(token, second_files, plate_number="LND-222-ZZ"),
+    ).json()
+    # The second car is decided last, so it is the most recently changed car.
+    rejected = db_client.post(
+        _decision_path(application.id, second["vehicle_id"], second["submission_id"]),
+        headers=auth_headers(db_client, admin.email, PASSWORD),
+        json={
+            "client_request_id": str(uuid4()),
+            "decision": "rejected",
+            "reason_code": "not_roadworthy",
+        },
+    )
+    assert rejected.status_code == 200
+
+    async def staff_view():
+        async with db_sessionmaker() as session:
+            loaded = await session.get(DriverApplication, application.id)
+            return await vehicle_onboarding_service.application_vehicle_view(
+                session, application=loaded
+            )
+
+    view = asyncio.run(staff_view())
+    assert str(view.vehicle.id) == first["vehicle_id"]
+    assert view.submission.status == "pending_review"
+
+
 def test_vehicle_eligibility_opens_and_expiry_closes_assignment_and_trip(
     db_client, db_sessionmaker, settings
 ) -> None:

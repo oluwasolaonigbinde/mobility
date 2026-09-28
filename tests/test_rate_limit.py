@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 
 import pytest
@@ -188,12 +189,38 @@ def test_login_redis_failure_is_reported_as_storage_unavailable() -> None:
     assert decision.bucket == "storage"
 
 
+def test_login_global_alert_admits_and_logs_one_error(caplog) -> None:
+    class AlertingRedis:
+        def register_script(self, _script):
+            async def alerting(**_kwargs):
+                return [1, 0, 0, 1]
+
+            return alerting
+
+    with caplog.at_level(logging.ERROR, logger="app.core.rate_limit"):
+        decision = asyncio.run(
+            RedisLoginRateLimiter(AlertingRedis(), Settings()).reserve(
+                "203.0.113.1", "driver@example.com"
+            )
+        )
+
+    assert decision == RateLimitDecision(allowed=True)
+    errors = [record for record in caplog.records if record.levelno == logging.ERROR]
+    assert len(errors) == 1
+    message = errors[0].getMessage()
+    assert "global alert threshold" in message
+    assert "250 failures in 300 seconds" in message
+    assert "203.0.113.1" not in message and "driver@example.com" not in message
+
+
 @pytest.mark.parametrize(
     "raw",
     [
         [1, 99, 0, 0],
         [1, 0, 1, 0],
+        [1, 0, 0, 2],
         [0, 99, 1, 0],
+        [0, 3, 1, 0],
         [0, 1, 0, 0],
         [0, 1, 1, 2],
     ],
@@ -358,6 +385,61 @@ def test_redis_reservations_are_atomic_ttl_bound_and_refundable() -> None:
         await redis.aclose()
 
     asyncio.run(exercise())
+
+
+def test_redis_global_bucket_alerts_once_and_never_blocks(caplog) -> None:
+    redis_url = os.environ.get("RATE_LIMIT_TEST_REDIS_URL")
+    if not redis_url:
+        pytest.skip("Redis rate-limit test URL is not configured")
+
+    async def exercise() -> list[RateLimitDecision]:
+        redis = Redis.from_url(redis_url, decode_responses=True)
+        await redis.flushdb()
+        limiter = RedisLoginRateLimiter(
+            redis,
+            Settings(
+                redis_url=redis_url,
+                login_rate_limit_ip_max_failures=20,
+                login_rate_limit_account_max_failures=3,
+                login_rate_limit_global_max_failures=3,
+                login_rate_limit_ip_window_seconds=30,
+                login_rate_limit_account_window_seconds=30,
+                login_rate_limit_global_window_seconds=30,
+            ),
+        )
+        decisions = [
+            await limiter.reserve(f"198.51.100.{index}", f"spread-{index}@example.com")
+            for index in range(10)
+        ]
+        global_key = limiter.keys("198.51.100.0", "spread-0@example.com")[2]
+        assert int(await redis.get(global_key)) == 10
+        assert await redis.ttl(f"ratelimit:login:notify:{global_key}") > 0
+        # A missing TTL on the global key is repaired before the alert marker is set.
+        await redis.flushdb()
+        await redis.set(global_key, 5)
+        assert (await limiter.reserve("198.51.100.99", "late@example.com")).allowed
+        assert await redis.ttl(global_key) > 0
+        # With the global bucket over its limit, the account bucket still refuses on
+        # its own limit and the alert does not repeat within the window.
+        for _ in range(3):
+            assert (await limiter.reserve("198.51.100.50", "same@example.com")).allowed
+        account_block = await limiter.reserve("198.51.100.51", "same@example.com")
+        assert not account_block.allowed and account_block.bucket == "account"
+        await redis.aclose()
+        return decisions
+
+    with caplog.at_level(logging.ERROR, logger="app.core.rate_limit"):
+        decisions = asyncio.run(exercise())
+
+    assert all(decision.allowed for decision in decisions)
+    alerts = [
+        record
+        for record in caplog.records
+        if record.levelno == logging.ERROR and "global alert threshold" in record.getMessage()
+    ]
+    # Once at the third failure of the first window, once after the flush that
+    # cleared the marker for the TTL-repair case.
+    assert len(alerts) == 2
 
 
 def test_registration_redis_reservations_are_atomic_ttl_bound_and_notify_once() -> None:

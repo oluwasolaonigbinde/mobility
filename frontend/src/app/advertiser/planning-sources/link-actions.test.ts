@@ -47,8 +47,9 @@ describe("createSourceLinkAction", () => {
           source_id: "00000000-0000-4000-8000-000000000001",
           campaign_id: "00000000-0000-4000-8000-000000000002",
           zone_id: "00000000-0000-4000-8000-000000000003",
-          start_at: expect.stringMatching(/^2026-09-01T/),
-          end_at: expect.stringMatching(/^2026-09-02T/),
+          // Entered as Nigeria time (WAT, UTC+1), whatever zone the server runs in.
+          start_at: "2026-09-01T09:00:00.000Z",
+          end_at: "2026-09-02T09:00:00.000Z",
         },
       }),
     );
@@ -159,6 +160,75 @@ describe("createSourceLinkAction", () => {
 
     expect(await createSourceLinkAction({}, data)).toEqual({
       error: "Choose a start date and time before the end.",
+      operationKey: OPERATION_KEY,
+    });
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["", "2026-09-02T10:00"],
+    ["2026-09-01", "2026-09-02T10:00"],
+    ["2026-13-01T10:00", "2026-09-02T10:00"],
+    ["2026-09-01T10:00Z", "2026-09-02T10:00"],
+  ])("rejects a start of %j that isn't a date and time", async (start, end) => {
+    const data = linkData();
+    data.set("start_at", start);
+    data.set("end_at", end);
+
+    expect(await createSourceLinkAction({}, data)).toEqual({
+      error: "Choose a start date and time before the end.",
+      operationKey: OPERATION_KEY,
+    });
+    expect(mocks.post).not.toHaveBeenCalled();
+  });
+});
+
+describe("createSourceAction expiry", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useRealTimers();
+    mocks.post.mockResolvedValue({ data: { id: "source-1" } });
+  });
+
+  function sourceData(expiresAt: string) {
+    const data = new FormData();
+    data.set("operation_key", OPERATION_KEY);
+    data.set("source_type", "manual-insight");
+    data.set("category", "area-demand");
+    data.set("confidence", "high");
+    data.set("expires_at", expiresAt);
+    return data;
+  }
+
+  it("sends the expiry as the Nigeria-time instant", async () => {
+    await createSourceAction({}, sourceData("2027-09-01T10:00"));
+    expect(mocks.post).toHaveBeenCalledWith(
+      "/api/v1/advertiser/retargeting-sources",
+      expect.objectContaining({
+        body: expect.objectContaining({ expires_at: "2027-09-01T09:00:00.000Z" }),
+      }),
+    );
+  });
+
+  it("refuses an expiry that has already passed in Nigeria time", async () => {
+    vi.useFakeTimers();
+    // 09:30 UTC is 10:30 in Nigeria, so 10:00 Nigeria time has already passed.
+    vi.setSystemTime(new Date("2026-09-01T09:30:00Z"));
+    try {
+      expect(await createSourceAction({}, sourceData("2026-09-01T10:00"))).toEqual({
+        error: "Choose a future date and time to stop using it.",
+        operationKey: OPERATION_KEY,
+      });
+      await createSourceAction({}, sourceData("2026-09-01T11:00"));
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(mocks.post).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses an expiry that isn't a date and time", async () => {
+    expect(await createSourceAction({}, sourceData("next week"))).toEqual({
+      error: "Choose a future date and time to stop using it.",
       operationKey: OPERATION_KEY,
     });
     expect(mocks.post).not.toHaveBeenCalled();

@@ -72,6 +72,7 @@ APPLICANT_ROUTES = frozenset(
         ("POST", "/api/v1/auth/driver-onboarding/files/{file_id}/status"),
         ("POST", "/api/v1/auth/driver-onboarding/person-payee"),
         ("POST", "/api/v1/auth/driver-onboarding/vehicle"),
+        ("POST", "/api/v1/auth/driver-onboarding/vehicles"),
     }
 )
 

@@ -329,13 +329,13 @@ Default failure/in-flight thresholds are:
 |---|---:|---:|
 | Normalized account | 5 | 15 minutes |
 | Client IP | 150 | 5 minutes |
-| Platform global | 250 | 5 minutes |
+| Platform global (alert only, never blocks) | 250 | 5 minutes |
 
 Successful login deletes the account counter and refunds its IP/global reservation. Redis/Lua reserve errors return `503 RATE_LIMIT_UNAVAILABLE` with `Retry-After` before password verification; a refund failure after valid credentials is warning-only and may overcount until TTL expiry. The login form presents backend `429` responses and the retry delay.
 
 Password-change attempts share the same buckets so a stolen session cannot brute-force the current password: a wrong current password keeps its reservation and is audited as `auth.password.change_failed`; proving the current password refunds it. Limit transitions appear as `auth.password.change_rate_limited`.
 
-With client-header trust disabled, FastAPI uses its direct socket peer. Browser login calls arrive through the BFF, so they share the Next server's IP bucket. An unauthenticated attacker sustaining roughly 150 junk form submissions per five-minute window can therefore block all web-UI logins; 250 failures fill the global bucket. The per-account bucket remains the primary credential-guessing control in this topology. Repeating `auth.login.rate_limited` records with `bucket=ip` or `bucket=global` in `/admin/audit` identify this condition.
+With client-header trust disabled, FastAPI uses its direct socket peer. Browser login calls arrive through the BFF, so they share the Next server's IP bucket. An unauthenticated attacker sustaining roughly 150 junk form submissions per five-minute window can therefore block all web-UI logins. The per-account bucket remains the primary credential-guessing control in this topology. Repeating `auth.login.rate_limited` records with `bucket=ip` in `/admin/audit` identify this condition. The platform-global bucket never refuses a sign-in: when 250 net failures accumulate within five minutes the API logs one ERROR, "Login failure volume reached the global alert threshold", per window, which Sentry records as an event when `SENTRY_DSN` is configured; it writes no audit row. Treat that alert as a sign of a distributed guessing attempt and block the source at the edge.
 
 Clear only login limiter keys during an approved lockout response:
 

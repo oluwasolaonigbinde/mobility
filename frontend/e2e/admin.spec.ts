@@ -103,10 +103,10 @@ test("assignments section lists the seeded pairing", async ({ page }) => {
   await expect(trigger).toBeFocused();
 });
 
-test("fraud console renders with status filters", async ({ page }) => {
+test("fraud page renders with status filters", async ({ page }) => {
   await loginAsAdmin(page);
   await page.goto("/admin/fraud");
-  await expect(page.getByRole("heading", { name: "Fraud console" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Fraud", exact: true })).toBeVisible();
   await expect(
     page.getByRole("group", { name: "Filter by status" }).getByRole("link", { name: "open" }),
   ).toBeVisible();

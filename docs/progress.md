@@ -117,6 +117,225 @@ CI-throughput continuation (12 Sep 2026): run `34690115628` on `2a3f7e0` failed 
 
 ## Direct owner requests outside the package queue
 
+**Lane 1: hardening, code quality and audit gaps (parallel worktree
+`lane1/hardening-and-audit-gaps`, 26 Sep 2026):** The owner directs Lane 1 of
+the 26 Sep engineering backlog (`Cardvert_Lane1_Handoff_2026-09-26.md`) in the
+separate worktree `mobility-lane1`, branched from `edcda6b`, while another
+session builds client Batches A–F in the main checkout. Single writer on this
+branch: this Claude Opus 5.5 session; reviewers are read-only. The controller
+is unchanged (`PAUSED — EXT-PAYMENT-PROVIDER`); no package is promoted or
+reordered and no external or live-use gate changes. Work runs in three groups,
+each with a plan review, D32 changed-line coverage (≥90% lines, ≥80% branches)
+against `edcda6b`, live checks on an isolated Docker stack (project
+`cardvertlane1`, remapped ports) and a post-build review to `PASS`: **L1-A**
+security/runtime (P1 global login bucket alerts instead of blocking; P2 Argon2
+off the event loop and a multi-worker API CMD; P5 logged fraud fallbacks;
+security review); **L1-B** guardrails (P3 pyright basic + ruff C901 ratchet; P4
+Dependabot, pip-audit, npm audit; radon/jscpd "before" baseline; P6 one shared
+company page); **L1-C** audit gaps (G1 driver renewals QA-12/NX-05 and G2 staff
+phone verification NX-11, both with a privacy/security review; G3 guided
+`/apply`; G4 fraud/physical-check pickers QA-05; P7b fraud wording; G5
+retargeting dates QA-21; P8 full Playwright run; P10 field-test protocol).
+Disjoint ownership — this lane may edit: `app/core/rate_limit.py`,
+`app/core/security.py`, the Argon2 callers (`app/api/v1/{auth,users}.py`,
+`app/services/{auth,account_recovery,driver_account_setup,driver_applications}.py`
+as applicable), `app/services/fraud_assessments.py`, `Dockerfile`,
+`pyproject.toml`, new `pyrightconfig.json` and its baseline,
+`.github/workflows/ci.yml` (additive steps), new `.github/dependabot.yml`,
+`frontend/src/app/advertiser/company/**`,
+`frontend/src/app/admin/advertisers/[organizationId]/company/**`, a new shared
+company component/helper, the driver-portal renewal and admin
+phone-verification surfaces with their backend services, `frontend/src/app/apply/**`,
+`frontend/src/app/admin/fraud/**`, `frontend/src/app/advertiser/planning-sources/actions.ts`
+and its tests, generated API files if the API changes, the tests of all of
+these, `issues/testing/pwa-field-test-protocol.md`, and this entry. Hands off
+(owned by the A–F session): `app/core/config.py`, `app/models/{billing,notification}.py`,
+`app/schemas/{billing,stored_files}.py`,
+`app/services/{billing,campaigns,email_templates,notifications}.py`,
+`app/api/v1/{installation_evidence,notifications}.py`, `app/adapters/budget/*`,
+payout/disbursement/trip-processing code, the admin home/approvals/payouts,
+advertiser home/campaigns/planning-sources page, driver
+assignments/capabilities/earnings/track, `components/analytics`,
+`lib/{api,assignments,files,payouts}`, `tests/conftest.py`,
+`docker-compose*.yml`, every `*.env.example`, `docs/architecture.md` and
+`docs/product-requirements.md`. No migration without asking the owner first
+(the other session holds `0091`). No commit, push, merge, rebase or deploy
+without owner approval. Lane stack: `cardvertlane1` (web 3102, api 8002, db
+5435, redis 6381, minio 9020/9021, mailpit 1027/8027), migrated to `0090`
+with the demo seed; tests run in `cardvert-dev:py312` against its database.
+
+L1-A record (27 Sep 2026, uncommitted). Plan review (Opus 5.5 stand-in) `FIX`,
+all ten amendments adopted. **P1** `RESERVE_LOGIN_ATTEMPT` refuses only on the
+ip/account buckets; the global counter still counts net failures and, on
+reaching its limit, sets its notify marker (TTL repaired if missing) and
+returns an alert flag, which `RedisLoginRateLimiter` logs once per window as
+ERROR "Login failure volume reached the global alert threshold (…); sign-in is
+not blocked" (Sentry's default logging integration records it as an event
+when `SENTRY_DSN` is set); a bucket-3 refusal or unknown flag fails closed.
+`docs/runbook.md` now says the global bucket alerts and never blocks.
+**P2** `app/core/security.py` adds `run_password_work`,
+`hash_password_async` and `verify_password_async` (`anyio.to_thread` with a
+dedicated 4-token limiter; cancellation waits for the thread), used by login
+(including the whole unknown-user equaliser), change-password, admin re-auth
+and create-user, password reset, driver account setup and driver application
+intake; seeds stay synchronous. The security review (`FIX`) found that
+off-loop hashing let known e-mails queue on their row lock while unknown ones
+ran in parallel, a concurrent-timing existence oracle; adopted: login first
+takes a transaction-scoped advisory lock on the normalized e-mail (PostgreSQL
+only, taken by no other path), with a PostgreSQL test for known and unknown
+e-mails that fails without the lock. The production `Dockerfile` sets
+`ENV WEB_CONCURRENCY=2` (uvicorn's `--workers` default) with the CMD unchanged.
+Process-state audit: login/registration limiters and trip/payment enqueuers
+are Redis-backed per process; the SQLAlchemy engine is created lazily per
+process; the readiness cache and equaliser `lru_cache` are per-process and
+benign; the API starts no background tasks. **P5** both fraud-assessment
+fallbacks log WARNING with the trip id and exception class only.
+Evidence on the final L1-A source (including the login lock): `ruff` clean;
+the 10 affected suites (rate limit, auth, fraud assessments, admin users,
+contacts and recovery, driver account setup, driver applications, R09 auth
+races, R32 application lifecycle, account-setup preparation) 226 passed, 0
+failed, under coverage; D32 changed lines vs `edcda6b` 41/41 (100%) and
+branches 10/10 (100%); the login-lock test fails without the lock and passes
+with it; `validate_progress.py` passes; the security re-review returned
+`PASS`; `test_w403a_release_preparation.py` and
+`test_ci_integration_authority_r02.py` 517 pass, 12 fail for environment only
+(no `docker` binary in the test container, CRLF shell scripts on Windows).
+Live on `cardvertlane1`: with the global limit set to 5, eight failures across
+distinct e-mails all returned 401 (none 429), the admin then signed in (200),
+and exactly one ERROR line was logged; the worktree-built production image
+runs a uvicorn parent plus two workers by default and one with
+`WEB_CONCURRENCY=1`; a 32-login burst probe (one worker each, evidence only)
+cut `/me` median latency during the burst from 530 ms (base `edcda6b` image)
+to 71 ms, with no DB-pool timeouts. **Hand-off to the A–F session (their
+files):** from the next image build `docker-compose.production.yml` and
+`frontend/e2e/support/docker-compose.r59.yml` (CI `r59_real_stack`) run two
+API workers because their `command:` omits `--workers`; check Postgres
+`max_connections` headroom (each worker pools 5 + 10) or pin the count there;
+`docs/architecture.md` should note the global login bucket is alert-only.
+**Follow-ups (not in L1-A):** per-IP keys use the full IPv6 address, so /64
+rotation evades the ip bucket now that no global cap exists (collapse to /64
+or rate-limit at Caddy); the Argon2 limiter queue is unbounded (consider
+early 503 when many tasks wait); driver-application intake hashes only for
+new e-mails (pre-existing timing leak); `verify_password` lets
+`InvalidHashError` escape for a malformed stored hash (pre-existing).
+
+L1-B record (27 Sep 2026, uncommitted). Plan review (Opus 5.5 stand-in) `FIX`;
+twelve amendments adopted or disposed as below. **Before-figures** (tools run
+in `cardvert-dev:py312` / `node:22` against this worktree at `edcda6b` + L1-A):
+radon 6.0.1 on `app/` — 2,102 functions/methods, median cyclomatic complexity
+2, 197 above 10, 60 above 20, 14 above 40 (ranks A 1,655 / B 250 / C 137 / D
+36 / E 10 / F 14; highest `trip_cohort_meets_disclosure_floor` 93,
+`compute_payout_day_targets` 62, `_normalize_provenance` 53); maintainability
+index over 241 files mean 48.1, 18 files rank C (<10) and 15 rank B. jscpd 4.0.5
+(defaults: 50 tokens / 5 lines) — backend `app/` 3.31% (1,855 of 56,056 lines,
+153 clones); `frontend/src` excluding tests and generated `schema.d.ts` 3.02%
+(1,191 of 39,499 lines, 105 clones); the earlier script estimate was 5.0% /
+4.2%. ruff mccabe on `app/`: 71 functions above 10 (33 files), 29 above 15 (18
+files), 14 above 20 (11 files). basedpyright 1.40.1 basic mode: 325 errors in
+65 files in a CI-equivalent Linux venv (320 in the dev image). pip-audit 2.10.1
+on the hash-locked production requirements and `npm audit --audit-level=high`
+in `frontend/`: no known vulnerabilities, so nothing was pinned. **P3**
+`pyrightconfig.json` (basic, Linux, Python 3.12, `app/`) and
+`.basedpyright/baseline.json` generated once in that venv; CI `backend_static`
+installs a new `static` extra (`basedpyright`, `pip-audit`, pinned) and runs
+`basedpyright` after `ruff check .`, failing only on errors not in the
+baseline (matched by file, rule and column range; a pure line shift passes, an
+extra error of an already-baselined rule in a baselined file fails). ruff
+selects `C90` at `max-complexity = 10` with per-file ignores generated once for
+the 33 `app/` files that already exceed it, plus `tests/`, `scripts/` and
+`alembic/` (the limit targets application code). Owner-visible gap: a new or
+worsened complex function inside one of those 33 files is not flagged; closing
+it needs one `# noqa: C901` per existing function (`ruff --add-noqa`), which
+touches files the A–F session is editing, so it is offered as a post-merge
+follow-up. Upstream package or stub releases can surface new type errors with
+no code change; the remedy is a reviewed re-baseline. **P4**
+`.github/dependabot.yml` (weekly pip, npm, grouped github-actions, docker for
+both Dockerfiles); the docker entries stay inert until the bare-digest `FROM`
+pins gain `name:tag@sha256` form; a github-actions major bump must update the
+artifact-action pins asserted in `test_ci_integration_authority_r02.py`; the
+first pip run should be checked for the `pip-compile --no-index` header. The
+audit steps run last in `backend_static` (`pip-audit --require-hashes
+--disable-pip`) and `quality` (`npm audit --audit-level=high`). **P6**
+`components/company/company-profile-form.tsx` (server component) and
+`lib/advertiser/company-profile.ts` (`companyProfileUpdate`) now back both
+company pages; each page keeps its route, role check, data loading, notices and
+redirects (the admin form gains the enabled `<fieldset>` the advertiser form
+already had). Evidence: in a clean CI-like Linux venv the baseline passes (0
+errors) and red checks behave as designed (new error in a new file fails; an
+extra error of a baselined rule in a baselined file fails; a pure line shift
+passes; a complexity-12 function fails in an unlisted file and, as disclosed,
+passes in a listed one); `ruff` clean; the four CI-contract suites 161 passed;
+the exact CI `pip-audit` command finds nothing; Vitest for the six company
+files 15 passed; `tsc` and ESLint clean; D32 changed frontend lines 4/4 and
+branches 4/4. Live on `cardvertlane1`: owner save (`?saved=1`, value kept),
+viewer read-only (all 14 fields disabled, no Save), admin save with campaign
+context (`?campaign=…&saved=1`, breadcrumb kept), admin page at 375 px without
+horizontal overflow; `billing.spec.ts` "admin company update persists and is
+visible to the advertiser" passes on desktop and mobile, while its unrelated
+campaign-panel assertion "Driver pay to date" fails on both (campaign screens
+are the A–F session's; reported with P8).
+
+L1-C record (27 Sep 2026, uncommitted). Plan review `FIX` (five blocking,
+ten minor) was adopted in full; on the owner's "continue and wrap up" the group
+closed with part of its scope. **Delivered:** G5 — the retargeting source
+expiry and link window read `datetime-local` values as Nigeria time through
+CV-17's `toApiDatetime` (only `planning-sources/actions.ts` and its test
+changed). P7b — `/admin/fraud` is titled "Fraud" (the nav label) with the
+eyebrow "Trip reviews — earnings stay on hold until a review is dismissed"; a
+new `admin/fraud/evidence.ts` renders each detector's evidence as a sentence
+(for example "Top speed 1,944 km/h (limit 198 km/h)") and hides the seed keys.
+G4 — each active trip review has a "Request physical check" action that sends
+that review's assignment and trip; typed IDs remain only in a collapsed "Check
+a trip without a flag" form (random checks on unflagged trips need a trip
+picker, which needs a trip-listing endpoint in hands-off trip code). G3 —
+`/apply` shows Apply → Your details → Your car one step at a time (`?step=`),
+the details step carries the single line "Document upload opens once Terrax
+Media switches on driver onboarding", and the car step replaces the vehicle-ID
+field with a chooser of the applicant's own cars by plate, backed by the new
+`POST /api/v1/auth/driver-onboarding/vehicles` (capability token in the body,
+uniform error for invalid codes; all three §9 artifacts regenerated). The
+applicant/staff car view now prefers a car awaiting review. P10 —
+`issues/testing/pwa-field-test-protocol.md`. **Not delivered:** G1 driver
+renewals (designed: a signed-in resubmission path reusing the applicant
+services, keep-or-change bank account so an identity-only renewal never pauses
+payouts, documents-only car renewal, hardening of the unguarded
+`/driver/kyc/submissions` and `/driver/vehicles/{id}/evidence-submissions`
+endpoints, a "Terrax Media will contact you" step for drivers created without
+an application, and renewals listed in the existing queue) and G2 staff phone
+verification, which needs an owner decision: architecture §20.3 requires a
+named operator to send the verification code manually yet forbids the code in
+any API response, so no compliant way exists for staff to learn it; contact-task
+completion also needs WhatsApp consent capture, whose wording belongs to
+`EXT-LEGAL-PRIVACY`, and live sends need `EXT-PHONE-OPERATOR`. Evidence:
+changed lines 141/142 (99.3%) and branches 112/119 (94.1%) on the L1-C files;
+`ruff`, basedpyright on the final tree (0 errors against the baseline), OpenAPI
+check, `tsc`, ESLint and Prettier pass; backend suites 47 passed plus a focused
+re-run of 25; frontend 18 files / 103 tests passed; the privacy/security review
+of the new public endpoint returned `PASS`. Live on `cardvertlane1`: fraud
+page wording and evidence on 13 seeded reviews, a row action that created a
+pending physical check (three synthetic checks remain in the lane database),
+the three `/apply` steps at desktop and 375 px, and the chooser's uniform error
+for an invalid code. P8, the full ordinary Playwright suite on desktop and
+mobile against the lane stack after reloading the demo seed: 82 passed, 21
+failed, 17 skipped, 6 did not run. The ordinary specs covering this lane's
+changes passed (fraud page and review flow, company update, login, landing);
+the three edited specs that skip in the ordinary run were then run in their own
+modes: the physical-check spec with a seeded assignment and trip (2 passed),
+the synthetic `/apply` correction workflows (4 passed), and W401C, whose
+`/apply` step passed on re-run (its first attempt aborted while the dev server
+compiled the page) while its Track-page "End trip" step fails on the A–F
+session's screen. On `/apply` the onboarding code is entered on each step; it
+is not carried between steps (never in the URL or storage), which differs from
+the plan's wording but matches the previous page. The ordinary-run failures
+touch no file this lane changed: specs that run
+`docker compose exec` for setup could not reach Docker from the browser
+container (campaign cancellation, campaign change, campaign review history,
+notifications, driver account setup), and assertions on the A–F session's
+screens fail (analytics "No report is available yet", billing "Driver pay to
+date", advertiser dashboard "Estimated ad exposure", payout closeout
+"Settlement and payout position", the campaign "Zones" link); those are
+reported to that session, not edited.
+
 **Client visual-direction reduction (24 Sep 2026):** The owner reports the
 client rejected former directions 1, 2, 4, 5, 6, 7 and 8 and directs their
 implementation traces and dedicated assets removed. Retain former directions

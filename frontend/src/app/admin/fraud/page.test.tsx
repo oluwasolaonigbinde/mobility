@@ -169,5 +169,106 @@ describe("AdminFraudPage disputes", () => {
     expect(screen.getByText("SLA exceeded before resolution")).toBeInTheDocument();
     expect(screen.queryByText(/This review is unresolved/)).not.toBeInTheDocument();
     expect(screen.getAllByText(/released earnings were reversed/i)).toHaveLength(2);
+    // A decided review offers no new physical check.
+    expect(screen.queryByText("Request physical check")).not.toBeInTheDocument();
+  });
+});
+
+describe("AdminFraudPage trip reviews", () => {
+  beforeEach(() => get.mockReset());
+
+  function flag(overrides: Record<string, unknown>) {
+    return {
+      id: FLAG_ID,
+      trip_analytics_id: null,
+      trip_session_id: "00000000-0000-4000-8000-000000000001",
+      assignment_id: "00000000-0000-4000-8000-000000000002",
+      campaign_id: "00000000-0000-4000-8000-000000000003",
+      driver_profile_id: "00000000-0000-4000-8000-000000000004",
+      vehicle_id: "00000000-0000-4000-8000-000000000005",
+      flag_type: "impossible_speed",
+      severity: "high",
+      description: "Observed speed exceeded configured threshold.",
+      evidence: {
+        demo: true,
+        seed_version: "f7_rich_v1",
+        threshold_mps: 55,
+        max_observed_speed_mps: 539.9865,
+      },
+      status: "open",
+      detected_at: "2026-08-21T09:00:00Z",
+      review_due_at: "2026-08-30T09:00:00Z",
+      escalated_at: null,
+      money_effect: {
+        available_net: "0",
+        currency: "NGN",
+        reversal_entry_id: null,
+        reversal_recommended: false,
+      },
+      reviewed_at: null,
+      reviewed_by_user_id: null,
+      resolution_note: null,
+      created_at: "2026-08-21T09:00:00Z",
+      updated_at: "2026-08-21T09:00:00Z",
+      ...overrides,
+    };
+  }
+
+  function respond(flags: object[], pendingChecks: object[] = []) {
+    get
+      .mockResolvedValueOnce({ data: { items: flags, total: flags.length, limit: 25, offset: 0 } })
+      .mockResolvedValueOnce({ data: { items: pendingChecks } })
+      .mockResolvedValueOnce({ data: { items: [], total: 0, limit: 25, offset: 0 } });
+  }
+
+  it("uses the nav label, plain hold wording and readable evidence without seed keys", async () => {
+    respond([flag({})]);
+    render(await AdminFraudPage({ searchParams: Promise.resolve({}) }));
+
+    expect(screen.getByRole("heading", { name: "Fraud" })).toBeInTheDocument();
+    expect(
+      screen.getByText("Trip reviews — earnings stay on hold until a review is dismissed"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("1 trip review")).toBeInTheDocument();
+    const evidence = screen.getByRole("list", { name: "Detection evidence" });
+    expect(within(evidence).getByText("Top speed 1,944 km/h (limit 198 km/h)")).toBeInTheDocument();
+    expect(evidence).not.toHaveTextContent(/seed|demo|f7_rich_v1|_mps/i);
+  });
+
+  it("offers a physical check on an active review, with that review's trip", async () => {
+    respond([flag({})]);
+    const { container } = render(await AdminFraudPage({ searchParams: Promise.resolve({}) }));
+
+    expect(screen.getByText("Request physical check", { selector: "summary" })).toBeInTheDocument();
+    const hidden = [...container.querySelectorAll<HTMLInputElement>("input[type=hidden]")];
+    expect(hidden.map((input) => [input.name, input.value])).toEqual(
+      expect.arrayContaining([
+        ["assignment_id", "00000000-0000-4000-8000-000000000002"],
+        ["trip_session_id", "00000000-0000-4000-8000-000000000001"],
+      ]),
+    );
+    // Typed IDs are only an optional fallback, tucked away.
+    expect(screen.getByText("Check a trip without a flag")).toBeInTheDocument();
+    expect(screen.getByLabelText("Assignment ID").closest("details")).not.toHaveAttribute("open");
+  });
+
+  it("hides the request when that trip already has a pending physical check", async () => {
+    respond(
+      [flag({})],
+      [
+        {
+          id: "00000000-0000-4000-8000-0000000000f1",
+          assignment_id: "00000000-0000-4000-8000-000000000002",
+          source_trip_session_id: "00000000-0000-4000-8000-000000000001",
+          issued_at: "2026-08-22T09:00:00Z",
+          result_note: "Queued from a trip review",
+        },
+      ],
+    );
+    render(await AdminFraudPage({ searchParams: Promise.resolve({}) }));
+
+    expect(screen.queryByText("Request physical check", { selector: "summary" })).toBeNull();
+    expect(screen.getByText("Pending physical checks")).toBeInTheDocument();
+    expect(screen.getByText(/Physical check requested/)).toBeInTheDocument();
   });
 });

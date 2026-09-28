@@ -26,12 +26,14 @@ async function uploads(page: Page, prefix: string) {
 for (const stage of [
   {
     endpoint: "person-payee",
+    step: "details",
     button: "Submit person & payee evidence",
     fields: ["Driver licence", "Driver photo", "Signed agreement"],
     fileId: "driver_license_file_id",
   },
   {
     endpoint: "vehicle",
+    step: "car",
     button: "Submit vehicle evidence",
     fields: ["Vehicle registration", "Current insurance", "Vehicle photo"],
     fileId: "registration_file_id",
@@ -50,7 +52,7 @@ for (const stage of [
           : { json: { status: "pending_review", version: 1 } },
       );
     });
-    await page.goto("/apply");
+    await page.goto(`/apply?step=${stage.step}`);
     const form = page
       .locator("form")
       .filter({ has: page.getByRole("button", { name: stage.button, exact: true }) });

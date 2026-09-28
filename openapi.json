@@ -1973,6 +1973,47 @@
         "title": "ApplicantStoredFileRead",
         "type": "object"
       },
+      "ApplicantVehicleListRead": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ApplicantVehicleOption"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ApplicantVehicleListRead",
+        "type": "object"
+      },
+      "ApplicantVehicleOption": {
+        "description": "One of the applicant's own cars, for choosing which one to revise.",
+        "properties": {
+          "plate_number": {
+            "title": "Plate Number",
+            "type": "string"
+          },
+          "status": {
+            "default": "not_submitted",
+            "title": "Status",
+            "type": "string"
+          },
+          "vehicle_id": {
+            "format": "uuid",
+            "title": "Vehicle Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "vehicle_id",
+          "plate_number"
+        ],
+        "title": "ApplicantVehicleOption",
+        "type": "object"
+      },
       "ApplicantVehicleSubmissionCreate": {
         "additionalProperties": false,
         "properties": {
@@ -37302,6 +37343,47 @@
           }
         },
         "summary": "Submit Driver Onboarding Vehicle",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/driver-onboarding/vehicles": {
+      "post": {
+        "operationId": "list_driver_onboarding_vehicles_api_v1_auth_driver_onboarding_vehicles_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicantFileUploadConfirm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicantVehicleListRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "summary": "List the applicant's own cars by plate",
         "tags": [
           "Auth"
         ]

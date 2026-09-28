@@ -12,8 +12,9 @@ import type { components } from "@/lib/api/schema";
 import { ReviewActions } from "./review-actions";
 import { DisputeReplyActions } from "./dispute-actions";
 import { SpotCheckQueueForm, SpotCheckResultForm } from "./spot-check-actions";
+import { readableEvidence } from "./evidence";
 
-export const metadata: Metadata = { title: "Fraud console" };
+export const metadata: Metadata = { title: "Fraud" };
 
 const PAGE_SIZE = 25;
 type FStatus = components["schemas"]["FraudFlagStatus"];
@@ -40,24 +41,6 @@ const typeLabel: Record<string, string> = {
   concurrent_session_day: "Concurrent sessions",
   physical_spot_check_failed: "Failed physical spot check",
 };
-
-function evidenceLabel(key: string): string {
-  return key.replaceAll("_", " ");
-}
-
-function evidenceValue(value: unknown): string {
-  let rendered: string;
-  if (typeof value === "string") rendered = value;
-  else if (typeof value === "number" || typeof value === "boolean") rendered = String(value);
-  else {
-    try {
-      rendered = JSON.stringify(value) ?? "Unavailable";
-    } catch {
-      rendered = "Unavailable";
-    }
-  }
-  return rendered.length > 120 ? `${rendered.slice(0, 117)}…` : rendered;
-}
 
 function href(params: { status?: string; offset?: number }): string {
   const qs = new URLSearchParams();
@@ -101,24 +84,35 @@ export default async function AdminFraudPage({
   const disputeByFlagId = new Map(
     (disputeResponse?.data?.items ?? []).map((dispute) => [dispute.fraud_flag_id, dispute]),
   );
+  const tripsWithPendingCheck = new Set(
+    (verificationData?.items ?? []).map((item) => item.source_trip_session_id),
+  );
 
   return (
     <div className="animate-rise mx-auto max-w-6xl">
       <PageHeader
-        title="Fraud console"
-        eyebrow={`${total} flag${total === 1 ? "" : "s"} — open, acknowledged and confirmed flags hold affected money; only dismissal releases the hold`}
+        title="Fraud"
+        eyebrow="Trip reviews — earnings stay on hold until a review is dismissed"
       />
+      <p className="text-muted -mt-2 mb-5 text-sm">
+        {total} trip review{total === 1 ? "" : "s"}
+      </p>
 
       <Panel className="mb-5 p-5">
         <h2 className="font-medium">Physical display checks</h2>
         <p className="text-muted mt-1 text-sm">
-          Queue an in-person check against one assignment and trip. A failed result enters the same
-          authoritative fraud-review hold below; location data alone is never treated as proof that
-          a branded vehicle moved.
+          Request an in-person check from a trip review below. A failed result enters the same
+          authoritative fraud-review hold; location data alone is never treated as proof that a
+          branded vehicle moved.
         </p>
-        <div className="mt-4">
-          <SpotCheckQueueForm />
-        </div>
+        <details className="mt-4">
+          <summary className="text-muted cursor-pointer text-xs">
+            Check a trip without a flag
+          </summary>
+          <div className="mt-3">
+            <SpotCheckQueueForm />
+          </div>
+        </details>
         {(verificationData?.items ?? []).length > 0 ? (
           <div className="border-edge mt-5 border-t pt-4">
             <h3 className="micro text-muted">Pending physical checks</h3>
@@ -210,25 +204,37 @@ export default async function AdminFraudPage({
                         them automatically.
                       </p>
                     ) : null}
-                    {Object.keys(f.evidence ?? {}).length > 0 ? (
-                      <dl
-                        className="border-edge mt-3 grid max-w-2xl grid-cols-[auto_1fr] gap-x-3 gap-y-1 border-l pl-3 text-xs"
+                    {readableEvidence(f.evidence).length > 0 ? (
+                      <ul
+                        className="border-edge text-muted mt-3 flex max-w-2xl flex-col gap-1 border-l pl-3 text-xs"
                         aria-label="Detection evidence"
                       >
-                        {Object.entries(f.evidence ?? {})
+                        {readableEvidence(f.evidence)
                           .slice(0, 6)
-                          .map(([key, value]) => (
-                            <div key={key} className="contents">
-                              <dt className="text-faint capitalize">{evidenceLabel(key)}</dt>
-                              <dd
-                                className="text-muted min-w-0 truncate font-mono"
-                                title={evidenceValue(value)}
-                              >
-                                {evidenceValue(value)}
-                              </dd>
-                            </div>
+                          .map((line) => (
+                            <li key={line}>{line}</li>
                           ))}
-                      </dl>
+                      </ul>
+                    ) : null}
+                    {reviewActive && tripsWithPendingCheck.has(f.trip_session_id) ? (
+                      <p className="text-muted mt-3 text-xs">
+                        Physical check requested — see Pending physical checks above.
+                      </p>
+                    ) : null}
+                    {reviewActive && !tripsWithPendingCheck.has(f.trip_session_id) ? (
+                      <details className="mt-3">
+                        <summary className="text-cyan cursor-pointer text-xs">
+                          Request physical check
+                        </summary>
+                        <div className="mt-3">
+                          <SpotCheckQueueForm
+                            trip={{
+                              assignmentId: f.assignment_id,
+                              tripSessionId: f.trip_session_id,
+                            }}
+                          />
+                        </div>
+                      </details>
                     ) : null}
                     {f.reviewed_by_user_id && f.reviewed_at ? (
                       <p className="micro text-faint mt-3">
