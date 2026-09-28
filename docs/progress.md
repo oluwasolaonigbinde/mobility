@@ -444,7 +444,24 @@ row violating `ck_report_publication_write_state` (ten report tests); the clock
 is now read first.
 Local evidence: the head-catalog, 0019 and report-issuance files pass (44).
 `test_evidence_verification::test_satisfied_challenge_stays_satisfied_after_assignment_cancellation`
-also fails in CI and at `edcda6b`; it is left for a separate investigation.
+also failed in CI and at `edcda6b`: its earning was fixed at 26 Aug with a
+30-day lookback but evaluated at real time, so it began failing on 25 Sep; it
+now dates the earning from its own issue time (`319c2c4`).
+
+A–E full-suite acceptance and D33 refresh (29 Sep 2026). Run `36491538535` on
+`319c2c4` left five report-cleanup tests (the same autoflush ordering in
+`sweep_report_publications`, clock now read before any change) and the
+campaign-flow e2e ("Draft" also shown by Batch A's preparation summary; the
+check is now scoped to the heading chip), fixed in `cf2dfd2`. Run
+`36494571198` on `cf2dfd2` passed frontend checks, all six backend shards,
+backend aggregate, R59 and desktop/mobile e2e; only the D33 gate failed with
+"controlled baseline refresh required" for the new eligible sources. The
+checker's refresh mode (Python 3.12.14, coverage 7.16.0, clean Linux clone of
+`cf2dfd2`, base `319c2c4`) adopted that run's artifacts and a re-check passed.
+Global line 86.78 → 88.32 %, branch 66.69 → 70.49 %; critical backend line
+89.04 → 89.85 %, branch 69.10 → 71.12 %; critical frontend line 75.12 →
+80.72 %, branch 64.06 → 69.82 %; no floor lowered. One exact-SHA CI run on the
+refresh commit remains for acceptance.
 
 Batch C record (27–28 Sep 2026, branch `batch-c` on `master` `4f318e3`).
 Scope: automatic payout approval with safeguards, D39(c) as designed in D40 and
