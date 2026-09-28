@@ -47,16 +47,18 @@ def configured(settings):
     )
 
 
-def activate_and_add_earning(db_sessionmaker, graph, *, amount: str = "1200.00") -> None:
+def activate_and_add_earning(
+    db_sessionmaker, graph, *, amount: str = "1200.00", now: datetime = NOW
+) -> None:
     async def run() -> None:
         async with db_sessionmaker() as session:
             assignment = await session.get(CampaignAssignment, graph.assignment.id)
             assignment.status = CampaignAssignmentStatus.ACTIVE.value
-            assignment.activated_at = NOW - timedelta(days=1)
+            assignment.activated_at = now - timedelta(days=1)
             trip = await session.get(TripSession, graph.trip.id)
-            trip.started_at = NOW - timedelta(hours=2)
-            trip.ended_at = NOW - timedelta(hours=1)
-            trip.sealed_at = NOW - timedelta(minutes=50)
+            trip.started_at = now - timedelta(hours=2)
+            trip.ended_at = now - timedelta(hours=1)
+            trip.sealed_at = now - timedelta(minutes=50)
             session.add(
                 EarningsLedgerEntry(
                     driver_profile_id=graph.profile.id,
@@ -68,7 +70,7 @@ def activate_and_add_earning(db_sessionmaker, graph, *, amount: str = "1200.00")
                     status=EarningsLedgerEntryStatus.AVAILABLE.value,
                     amount=Decimal(amount),
                     currency="NGN",
-                    occurred_at=NOW - timedelta(minutes=45),
+                    occurred_at=now - timedelta(minutes=45),
                     description="Synthetic verified earnings",
                     ledger_metadata={},
                 )
@@ -594,8 +596,9 @@ def test_satisfied_challenge_stays_satisfied_after_assignment_cancellation(
     settings,
 ) -> None:
     graph = build_graph(db_sessionmaker, "satisfied-final")
-    activate_and_add_earning(db_sessionmaker, graph)
+    # Real time: the display proof helper stamps real time too.
     issued_at = datetime.now(UTC)
+    activate_and_add_earning(db_sessionmaker, graph, now=issued_at)
 
     async def issue() -> None:
         async with db_sessionmaker() as session:
