@@ -928,6 +928,8 @@ async def publish_payout_v4_revision(
     chain guards are those of the hourly path. The stop rule is fixed by the
     server. Returns (revision, previous, created_rule).
     """
+    # An unknown campaign is 404 whether or not publishing is on.
+    await get_campaign(session, campaign_id)
     if not settings.payout_v4_publishing_enabled:
         raise payout_v4_policy_unavailable()
     await acquire_campaign_terms_lock(session, campaign_id)

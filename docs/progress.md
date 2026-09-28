@@ -395,6 +395,23 @@ environment name other than `staging` (today only the exact `production` value
 refuses it); configure the webhook URL; Batch F edge work: a body-size cap and the
 Paystack IP allowlist on `/api/v1/webhooks/*`. Nothing is committed or pushed.
 
+B + D integration (28 Sep 2026, owner-approved commits). Batch B was committed
+on `batch-b` (`e14149d`) and fast-forwarded onto `master`; Batch D was committed
+on `batch-d` (`dbd41e1`) and merged. Template and compose conflicts kept both
+settings; D's changelog row became v1.99; `openapi.json`, the snapshot,
+`schema.d.ts` and the architecture inventory were regenerated from the merged
+code (254 paths = 251 + B's 2 + D's 1). Merge-touched checks: `ruff` clean;
+12 files (OpenAPI, inventory, audit-route coverage, authorization matrix, MVP
+hardening, Paystack, v4, 0092, rule revisions, budget, release preparation):
+611 passed, 12 environmental `test_w403a` failures, and one real defect the
+authorization matrix found in Batch B: an unknown campaign on the v4 publish
+route returned 503 while publishing was off instead of 404. The service now
+checks the campaign before the switch; the matrix, v4 and rule-revision suites
+then passed (59). `tsc` passes; full Vitest 1,061/1,064, and the three
+`vendored-fonts` failures came from load while pytest ran alongside, since the
+file passes alone (85/85). The full backend suite is left to GitHub CI after an
+owner-approved push.
+
 **Client visual-direction reduction (24 Sep 2026):** The owner reports the
 client rejected former directions 1, 2, 4, 5, 6, 7 and 8 and directs their
 implementation traces and dedicated assets removed. Retain former directions
