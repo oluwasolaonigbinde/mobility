@@ -424,6 +424,28 @@ container (both sums OK, both tags loaded) and
 `tests/test_ci_integration_authority_r02.py` passes (73). The full suite on A, B
 and D therefore had not run until this fix.
 
+First full-suite CI run on A+B+D (`ba36073`, 28 Sep 2026) and repairs. Shards 0
+and 5 passed; the failures were real and none environmental:
+(1) Batch D: the Paystack adapters import `httpx`, which was only a dev
+dependency, so the production API image could not start (e2e and R59 "API never
+became ready"). `httpx==0.28.1` is now a runtime dependency in `pyproject.toml`
+and `requirements-production.in`, and `requirements-production.txt` gains
+`httpx`/`httpcore` with their PyPI SHA-256 hashes (other pins unchanged); the
+production image was rebuilt with `--require-hashes` and booted with CI's e2e
+environment (`/api/v1/health` 200).
+(2) Batch B: `PAYOUT_RULE_MODEL_XOR_SQL` listed `max_payout_per_trip` in a
+different position from migration 0092, failing the exact head-catalog test;
+the model now matches the migration (same meaning).
+(3) Batch B: `test_migration_0019` still expected `hourly_rate_naira` NOT NULL
+on bindings at head; 0092 made it nullable under the terms-shape check.
+(4) Pre-existing (unchanged since 8 Sep): `_settle_publication_write` set
+`state='settled'` before reading the database clock, whose query autoflushed a
+row violating `ck_report_publication_write_state` (ten report tests); the clock
+is now read first.
+Local evidence: the head-catalog, 0019 and report-issuance files pass (44).
+`test_evidence_verification::test_satisfied_challenge_stays_satisfied_after_assignment_cancellation`
+also fails in CI and at `edcda6b`; it is left for a separate investigation.
+
 Batch C record (27–28 Sep 2026, branch `batch-c` on `master` `4f318e3`).
 Scope: automatic payout approval with safeguards, D39(c) as designed in D40 and
 client answer item 8. Only clean `payout_v4` trip earnings may be approved by

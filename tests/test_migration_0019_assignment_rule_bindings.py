@@ -42,7 +42,9 @@ def test_bindings_table_created_empty_and_downgrade_drops_it(monkeypatch) -> Non
             )
         )
         by_column = {row[0]: (row[1], row[2]) for row in defaults}
-        assert by_column["hourly_rate_naira"][0] == "NO"
+        # 0092 (payout_v4) made it nullable; the terms-shape check still requires it
+        # on every hourly binding.
+        assert by_column["hourly_rate_naira"][0] == "YES"
         assert by_column["premium_hourly_rate_naira"][0] == "YES"
         assert by_column["daily_payable_hours_cap"][0] == "YES"
         assert by_column["eligibility_params"][0] == "NO"

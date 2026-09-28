@@ -87,10 +87,10 @@ PAYOUT_RULE_MODEL_XOR_SQL = (
     " AND bonus_zone_bonus_rate_per_km IS NULL"
     " AND estimated_impression_rate_per_1000 IS NULL"
     " AND min_payout_per_trip IS NULL"
-    " AND max_payout_per_trip IS NULL"
     " AND low_fraud_multiplier IS NULL"
     " AND medium_fraud_multiplier IS NULL"
     " AND high_fraud_multiplier IS NULL"
+    " AND max_payout_per_trip IS NULL"
     ") OR ("
     # payout_v4 (D39): a daily-rate campaign's rule row carries no rates; every
     # pay value lives on its audited revisions.
@@ -104,10 +104,10 @@ PAYOUT_RULE_MODEL_XOR_SQL = (
     " AND bonus_zone_bonus_rate_per_km IS NULL"
     " AND estimated_impression_rate_per_1000 IS NULL"
     " AND min_payout_per_trip IS NULL"
-    " AND max_payout_per_trip IS NULL"
     " AND low_fraud_multiplier IS NULL"
     " AND medium_fraud_multiplier IS NULL"
     " AND high_fraud_multiplier IS NULL"
+    " AND max_payout_per_trip IS NULL"
     ")"
 )
 

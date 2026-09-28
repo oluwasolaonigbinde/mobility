@@ -1058,9 +1058,11 @@ async def _settle_publication_write(
         )
         if receipt is None or receipt.state != "registered":
             raise _publication_lost()
+        # Read the clock first: its query autoflushes, and a half-set row fails the state check.
+        settled_at = None if uncertain else await database_clock(session)
         receipt.state = "uncertain" if uncertain else "settled"
         receipt.error_code = "storage_write_uncertain" if uncertain else None
-        receipt.settled_at = None if uncertain else await database_clock(session)
+        receipt.settled_at = settled_at
         if uncertain:
             intent = await session.get(ReportPublicationIntent, receipt.publication_intent_id)
             await create_audit_event(
