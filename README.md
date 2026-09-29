@@ -5,12 +5,11 @@ backend and a Next.js frontend for advertiser, driver, and operator workflows.
 
 ## Project Status
 
-Delivery status lives in **one place**: `docs/progress.md` — what has been
-delivered vs. the client-promised MVP scope, current roadmap wave, and what is
-outstanding. Read it (plus `docs/architecture.md`) before planning any work.
-Summary as of Aug 2026: backend slices 0–13 closed; frontend F0–F7 merged;
-worker pipeline, payout v2 (S1), and data lifecycle (S4) delivered; nothing
-deployed yet.
+Current delivery status and the sole executable queue live in
+[`docs/progress.md`](docs/progress.md). Binding package and checklist detail
+lives in [`docs/delivery-contracts.md`](docs/delivery-contracts.md); dated
+delivery receipts live in [`docs/archive/progress-history-2026-09.md`](docs/archive/progress-history-2026-09.md).
+Read the current control pointer and external gates before planning work.
 
 ## Stack
 
@@ -58,24 +57,28 @@ architecture, local setup, and testing.
 
 ## Documentation Map
 
-Four living authorities, one locked loop: client decisions change →
-architecture amends → `docs/progress.md` authorises one of nine packages →
+Four living authorities and one linked detail companion, one locked loop:
+client decisions change →
+architecture amends → `docs/progress.md` authorises one of ten packages →
 agents complete its mandatory checklist and review it once → progress records
 evidence and promotes the next dependency-safe package. The proposal is the
-scope baseline; later direct client decisions, currently D18–D20, override any
-conflict. Root `AGENTS.md` enforces this loop.
+scope baseline; later adopted decisions override conflicts. Root `AGENTS.md`
+enforces this loop.
 
 1. `docs/Mobility_AdTech_MVP_Proposal_5_Month_Retargeting.docx` — **scope
    baseline**: the client-facing MVP promise (D11), interpreted through later
-   direct client decisions, currently D18–D20. Never edited by agents.
+   direct client answers and subsequent adopted decisions. Never edited by
+   agents.
 2. `docs/architecture.md` — **design**: verified current state and the target
    architecture that fulfils the proposal, with the §31 wave roadmap.
 3. `docs/decisions-log.md` — **decisions**: Part 1 append-only D-row history,
    Part 2 current Q1–Q34 statuses + divergence guards.
-4. `docs/progress.md` — **delivery control**: the intended MVP, delivered
-   evidence, nine-package remainder, 71-item acceptance checklist, and the sole
-   authorised `NEXT` package; updated
-   with every landed package.
+4. `docs/progress.md` — **delivery control**: current pointer, ten-package
+   queue, 71-item status/dependency checklist and external gates.
+
+[`docs/delivery-contracts.md`](docs/delivery-contracts.md) is the **live
+acceptance-detail companion** for the packages and checklist items in the
+control page.
 
 Supporting reference: `docs/runbook.md` (operations), `docs/next-steps.md`
 (historical W1 planning research — never the current queue),

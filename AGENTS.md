@@ -19,6 +19,11 @@ Before planning or editing, the active controller reads these sources in order:
 5. The nearest nested `AGENTS.md` for the files being changed, such as
    `frontend/AGENTS.md`.
 
+For implementation planning, then read the relevant live package and checklist
+criteria in `docs/delivery-contracts.md`. Its detail is binding; only
+`docs/progress.md` controls queue order, statuses, dependencies and external
+gates. `docs/archive/progress-history-2026-09.md` is historical evidence.
+
 A delegated worker reads only the exact excerpts, local rules, and source files
 named in its bounded packet. The controller alone reads and edits the complete
 programme ledger and `docs/progress.md`.
