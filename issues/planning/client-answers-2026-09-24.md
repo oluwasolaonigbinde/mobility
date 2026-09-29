@@ -1,5 +1,9 @@
 # Client answers ("Cardvert DOC Answer 2", received 24 Sep 2026)
 
+> **Frozen snapshot of 24–25 Sep 2026.** Statuses below are not updated. For
+> what the client wants now, see [client-decisions.md](../../docs/client-decisions.md);
+> for open questions and work, see [requests.md](../../docs/requests.md).
+
 Source: Terrax Media's answers to the 20-item client-requirements document,
 relayed by the project owner. This register maps each answer to the open inputs
 in `docs/product-requirements.md` §13 and says whether it can be used as given.

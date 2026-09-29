@@ -11,6 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_PROGRESS = ROOT / "docs" / "progress.md"
+DEFAULT_CONTRACTS = ROOT / "docs" / "delivery-contracts.md"
 ACTIVE_PACKAGE_STATUSES = {"NEXT", "IN PROGRESS", "REVIEW"}
 PACKAGE_STATUSES = ACTIVE_PACKAGE_STATUSES | {"QUEUED", "DONE", "BLOCKED"}
 CHECKLIST_STATUSES = {"TODO", "DONE"}
@@ -462,8 +463,13 @@ def _parse_item_prerequisites(
     return item_dependencies, external_dependencies
 
 
-def validate_text(text: str) -> list[str]:
+def validate_text(text: str, contracts_text: str | None = None) -> list[str]:
     errors: list[str] = []
+
+    if contracts_text is None:
+        if not DEFAULT_CONTRACTS.is_file():
+            return ["live delivery-contracts.md is missing"]
+        contracts_text = DEFAULT_CONTRACTS.read_text(encoding="utf-8")
 
     text = _authoritative_view(text, errors)
     _check_unique_authority_markers(text, errors)
@@ -944,6 +950,65 @@ def validate_text(text: str) -> list[str]:
         for obligation in obligations:
             if obligation not in chunk:
                 errors.append(f"checklist specification {item_id} is missing {obligation}")
+
+    # Progress holds the sole queue and its 71 status/dependency rows. The
+    # detailed criteria remain live in this companion, so both files must agree
+    # on every card identity and the companion must carry substantive criteria.
+    contracts_text = _authoritative_view(contracts_text, errors)
+    for heading in (
+        "## Executable package contracts",
+        "## Checklist item specifications",
+        "## Coverage proof",
+    ):
+        title = heading.removeprefix("## ")
+        occurrences = re.findall(
+            rf"^#{{1,6}}\s+{re.escape(title)}\b.*$", contracts_text, re.MULTILINE
+        )
+        if len(occurrences) != 1:
+            errors.append(f"live contracts heading {title!r} must appear exactly once")
+    for forbidden in (
+        "## Executable package queue",
+        "## Mandatory checklist item register",
+        "## External prerequisite register",
+        "## Deferred post-build validation register",
+    ):
+        title = forbidden.removeprefix("## ")
+        if re.search(rf"^#{{1,6}}\s+{re.escape(title)}\b", contracts_text, re.MULTILINE):
+            errors.append(f"live contracts must not duplicate queue authority {forbidden!r}")
+    try:
+        live_packages, _ = _section(
+            contracts_text, "## Executable package contracts", "## Checklist item specifications"
+        )
+        live_specs, _ = _section(
+            contracts_text, "## Checklist item specifications", "## Coverage proof"
+        )
+    except ValueError as exc:
+        errors.append(f"live contracts: {exc}")
+    else:
+        live_package_ids = re.findall(r"^### (PKG-\d{2}) —", live_packages, re.MULTILINE)
+        if live_package_ids != package_card_ids:
+            errors.append("live package contracts do not match progress package cards")
+        live_package_chunks = re.split(
+            r"^### PKG-\d{2} —.*$", live_packages, flags=re.MULTILINE
+        )[1:]
+        for package_id, chunk in zip(live_package_ids, live_package_chunks, strict=False):
+            if "- **Owns:**" not in chunk or len(chunk.strip()) < 100:
+                errors.append(f"live package contract {package_id} lacks detail")
+        live_spec_ids = re.findall(r"^#### ([A-Z0-9-]+) —", live_specs, re.MULTILINE)
+        if live_spec_ids != item_ids:
+            errors.append("live checklist specifications do not match progress checklist rows")
+        live_spec_chunks = re.split(
+            r"^#### [A-Z0-9-]+ —.*$", live_specs, flags=re.MULTILINE
+        )[1:]
+        for item_id, chunk in zip(live_spec_ids, live_spec_chunks, strict=False):
+            for obligation in ("Scope / authority", "Acceptance", "Verify / review"):
+                match = re.search(
+                    rf"^- \*\*{re.escape(obligation)}:\*\*\s*(.+)$",
+                    chunk,
+                    re.MULTILINE,
+                )
+                if match is None or "delivery-contracts.md" in match.group(1):
+                    errors.append(f"live checklist specification {item_id} lacks {obligation}")
 
     dependencies: dict[str, tuple[list[str], list[str]]] = {}
     earlier_ids: set[str] = set()

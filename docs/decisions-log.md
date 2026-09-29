@@ -7,10 +7,16 @@ is the *current* status of every questionnaire item Q1–Q34 with its adopted
 direction and divergence guard (formerly `docs/adopted-decisions.md`, merged
 4 Aug 2026 — stale references to that filename resolve here).
 
-How change flows through the doc system: client decisions change **here**
-(new Part 1 row + Part 2 status flip) → `docs/architecture.md` is amended in
-the same commit → agents build to the amended architecture → delivered work
-is recorded in `docs/progress.md`. Scope baseline: the client proposal
+This is the **formal record**. For what the client wants now, topic by topic
+in plain language, read [client-decisions.md](client-decisions.md); every
+current rule there cites the D-row or Q-row here that governs it.
+
+How change flows through the doc system: the request is recorded in
+[requests.md](requests.md) → a client decision that changes product behaviour,
+money, privacy, eligibility or security gets a new Part 1 row here, the
+matching Part 2 status update, the topic update in `client-decisions.md` and
+the `docs/architecture.md` amendment, all in the same commit → agents build to
+the amended architecture → the request is marked done. Scope baseline: the client proposal
 (`docs/Mobility_AdTech_MVP_Proposal_5_Month_Retargeting.docx`, D11), as
 superseded by later direct client and project-owner decisions—currently D18–D25—where they
 conflict.
@@ -72,7 +78,10 @@ D8's adopted defaults unblocked the build while Somto's response was pending.
 Somto transmitted the client's complete answer key in D18, and D20 records the
 client's approved implementation clarification for Q11/Q24/Q30. Together they
 supersede affected defaults while preserving the divergence-safe architecture
-where it still fits. **This Part is the agent-facing truth for every Q-number.** Architecture
+where it still fits. **This Part is the formal status of every Q-number.** Later
+D-rows may supersede a row for new work; such rows are marked below, and
+[client-decisions.md](client-decisions.md) states the current rule for each
+topic in plain language. Architecture
 §33 routes each Q to its owning section; this Part owns its current status and
 direction. A confirmed policy may still have missing live-use facts, which are
 called out in the row and in `docs/progress.md`'s external register.
@@ -104,8 +113,8 @@ called out in the row and in `docs/progress.md`'s external register.
 | Q1 | Pricing structure | **CONFIRMED** (D18) | A custom quotation is prepared for every campaign; a launch package catalogue is not client-approved scope (§15). | Quote components, line items, terms and revisions are configurable data, never code; every accepted campaign preserves its immutable quotation snapshot. |
 | Q2 | Payment timing | **CONFIRMED** | Standard advertisers pay in full before printing or installation begins; specifically approved corporate advertisers may use accepted invoice/credit terms (§15). | The invoice/receipt model supports both. Corporate credit never bypasses RM12: driver liability still requires an approved funding/subsidy/credit authorization before work. |
 | Q3 | Payment methods | **CONFIRMED** | Both bank transfer with admin reconciliation and online gateway payment, in one payment history (§15.3). | Both paths converge on canonical receipts/allocations. Provider choice/account remains external. |
-| Q4 | Hourly-rate uniformity | **CONFIRMED** — *`payout_v2` built under D9; next policy version D18* | One platform-standard hourly rate with admin-only campaign override (§16.1). | `payout_v3` resolves disclosed base and premium hourly amounts on an immutable rule revision; later rule changes never reprice accepted work. |
-| Q5 | Payable-hour definition | **CONFIRMED** — *supersedes D9(c)/D12 zone-pricing statement via D18; parked-time detail fixed by D22* | Verified in-window, valid-GPS/movement campaign time earns a base hourly amount outside the primary/premium zone and a premium hourly amount inside it; exclusion zones, D22-classified stationary time after the shared grace, and invalid time are unpaid; D4 cap still applies (§16.1). | `payout_v3` freezes the accepted tier, complete eligibility terms and `stationary-rd-v1` marker; payout-v1/v2 remain immutable. The fingerprint, calculation/correction evidence and driver/admin explanations show the applied tier/reason. Later parked-time tuning requires a new effective revision for future acceptances. |
+| Q4 | Hourly-rate uniformity | **CONFIRMED** — *`payout_v2` built under D9; next policy version D18*; **superseded for new acceptances by D39** (daily rate; see client-decisions "Driver pay") | One platform-standard hourly rate with admin-only campaign override (§16.1). | `payout_v3` resolves disclosed base and premium hourly amounts on an immutable rule revision; later rule changes never reprice accepted work. |
+| Q5 | Payable-hour definition | **CONFIRMED** — *supersedes D9(c)/D12 zone-pricing statement via D18; parked-time detail fixed by D22*; **superseded for new acceptances by D39** (daily distance with 5-minute stops) | Verified in-window, valid-GPS/movement campaign time earns a base hourly amount outside the primary/premium zone and a premium hourly amount inside it; exclusion zones, D22-classified stationary time after the shared grace, and invalid time are unpaid; D4 cap still applies (§16.1). | `payout_v3` freezes the accepted tier, complete eligibility terms and `stationary-rd-v1` marker; payout-v1/v2 remain immutable. The fingerprint, calculation/correction evidence and driver/admin explanations show the applied tier/reason. Later parked-time tuning requires a new effective revision for future acceptances. |
 | Q6 | Campaign creation & approval | **CONFIRMED** | Advertiser creates a draft and submits it for admin approval before launch (§18). | Use one audited lifecycle; no parallel approval flag. |
 | Q7 | Matching model | **CONFIRMED** | System recommends eligible drivers/vehicles; admin approves the final assignment (§21). | Recommendation and assignment remain separate steps. |
 | Q8 | Driver acceptance | **CONFIRMED** | Driver receives terms-complete offer and accepts/declines before final assignment (§21). | Record offer, acceptance/decline, expiry and immutable accepted terms. |
@@ -124,10 +133,10 @@ called out in the row and in `docs/progress.md`'s external register.
 | Q16 | One campaign per vehicle | **CONFIRMED** | One active campaign per vehicle. | Enforce the existing exclusivity invariant; remove the client-facing promise of later overlapping placements. |
 | Q17 | Installation evidence | **CONFIRMED** | Admin-approved installation photo before campaign hours can earn (§19/§18). | Evidence state feeds activation and earnings eligibility. |
 | Q18 | Creative upload & approval | **CONFIRMED** (confirms D7) | Advertiser uploads in-platform; admin approves/rejects before production or launch (§19/§18). | Build the managed file pipeline and review queue. |
-| Q19 | Vehicle eligibility | **CONFIRMED** | Roadworthy cars meeting approved documentation/condition checks for the pilot. | Pilot validation accepts cars; other vehicle types are out of the confirmed pilot. |
+| Q19 | Vehicle eligibility | **CONFIRMED** — *motorcycles under review, REQ-034* | Roadworthy cars meeting approved documentation/condition checks for the pilot. | Pilot validation accepts cars; other vehicle types are out of the confirmed pilot. |
 | Q20 | Minimum activity | **CONFIRMED** | Configurable verified-hours floor and automatic flag after seven consecutive inactive days (§21). | Exact weekly minimum remains a pre-pilot operational parameter. |
 | Q21 | Fraud handling | **CONFIRMED** (confirms D5) | Hold flagged-session earnings for admin review; show reasons and dispute path; thresholds configurable (§17). | Implement RM8 assessment/transition/hold contracts. |
-| Q22 | Earnings release | **CONFIRMED** (D18) | Clean/current-successful assessed earnings become available for the next weekly batch. Flagged/under-review earnings remain pending for a seven-day review SLA; admin explicitly approves/releases or confirms/declines them. Unresolved cases remain held and escalate after day seven—never auto-release. | MNY-03A implements clean release plus flagged-review escalation. Named adjuster, separate approver and value-complete audit remain mandatory for corrections. |
+| Q22 | Earnings release | **CONFIRMED** (D18) — *automatic payout timing (daily or weekly) open under D40, REQ-017* | Clean/current-successful assessed earnings become available for the next weekly batch. Flagged/under-review earnings remain pending for a seven-day review SLA; admin explicitly approves/releases or confirms/declines them. Unresolved cases remain held and escalate after day seven—never auto-release. | MNY-03A implements clean release plus flagged-review escalation. Named adjuster, separate approver and value-complete audit remain mandatory for corrections. |
 | Q23 | Owner-drivers only | **CONFIRMED** | Pilot vehicle is registered to its driver and that driver is the payee; fleet owners are not onboarded during the pilot. | Keep the payee abstraction promised in the approved rule; it prevents later fleet support from rewriting money history. |
 | Q24 | Cancellation & refunds | **CONFIRMED** (D18, clarified by D20) | The 24-hour window starts at the first confirmed cash allocation authorising production. Standard production waits until the window closes. An advertiser may request expedited production only by an immutable audited waiver; refund eligibility ends when waived production actually begins. Cancellation stops new work at an immutable cutoff and pays verified driver earnings to that moment. | Production authority must prove window expiry or a valid advertiser-requested waiver. Record waiver, actual production start, eligibility decision and settlement. Corporate-credit cancellations with no received cash have contract settlement, not a refund. |
 

@@ -21,6 +21,10 @@ def _progress() -> str:
     return (ROOT / "docs" / "progress.md").read_text()
 
 
+def _contracts() -> str:
+    return (ROOT / "docs" / "delivery-contracts.md").read_text()
+
+
 def _with_control_pointer(text: str, *, state: str, package: str, checkpoint: str) -> str:
     """Replace the live pointer without depending on its current checkpoint."""
     text = re.sub(
@@ -985,3 +989,25 @@ def test_ci_e2e_boot_is_fail_closed() -> None:
     workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text()
     assert "pg_isready" in workflow
     assert workflow.count("never became ready") >= 2
+
+
+def test_live_contract_reference_matches_package_and_checklist_ids() -> None:
+    contracts = _contracts().replace("### PKG-03 —", "### PKG-XX —", 1)
+    errors = VALIDATOR.validate_text(_progress(), contracts)
+    assert any("live package contracts do not match" in error for error in errors)
+
+    contracts = _contracts().replace("#### W2-01C —", "#### W2-XXC —", 1)
+    errors = VALIDATOR.validate_text(_progress(), contracts)
+    assert any("live checklist specifications do not match" in error for error in errors)
+
+
+def test_live_contract_reference_keeps_substantive_acceptance() -> None:
+    contracts = re.sub(
+        r"(#### W2-01C —[^\n]+\n.*?)- \*\*Acceptance:\*\* [^\n]+",
+        r"\1- **Acceptance:** [Detailed criterion](delivery-contracts.md)",
+        _contracts(),
+        count=1,
+        flags=re.DOTALL,
+    )
+    errors = VALIDATOR.validate_text(_progress(), contracts)
+    assert any("live checklist specification W2-01C lacks Acceptance" in error for error in errors)

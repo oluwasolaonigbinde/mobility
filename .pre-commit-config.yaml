@@ -6,4 +6,4 @@ repos:
         entry: python3 scripts/validate_progress.py
         language: system
         pass_filenames: false
-        files: ^(docs/progress\.md|scripts/validate_progress\.py|tests/test_validate_progress\.py|AGENTS\.md|\.pre-commit-config\.yaml)$
+        files: ^(docs/progress\.md|docs/delivery-contracts\.md|scripts/validate_progress\.py|tests/test_validate_progress\.py|AGENTS\.md|\.pre-commit-config\.yaml)$

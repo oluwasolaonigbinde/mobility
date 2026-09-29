@@ -5,12 +5,13 @@ backend and a Next.js frontend for advertiser, driver, and operator workflows.
 
 ## Project Status
 
-Delivery status lives in **one place**: `docs/progress.md` — what has been
-delivered vs. the client-promised MVP scope, current roadmap wave, and what is
-outstanding. Read it (plus `docs/architecture.md`) before planning any work.
-Summary as of Aug 2026: backend slices 0–13 closed; frontend F0–F7 merged;
-worker pipeline, payout v2 (S1), and data lifecycle (S4) delivered; nothing
-deployed yet.
+What the client wants now, topic by topic, lives in
+[`docs/client-decisions.md`](docs/client-decisions.md), and every request and
+its status in [`docs/requests.md`](docs/requests.md). The original build
+programme and its remaining launch gates live in
+[`docs/progress.md`](docs/progress.md), with package detail in
+[`docs/delivery-contracts.md`](docs/delivery-contracts.md) and dated receipts in
+[`docs/archive/progress-history-2026-09.md`](docs/archive/progress-history-2026-09.md).
 
 ## Stack
 
@@ -58,24 +59,33 @@ architecture, local setup, and testing.
 
 ## Documentation Map
 
-Four living authorities, one locked loop: client decisions change →
-architecture amends → `docs/progress.md` authorises one of nine packages →
-agents complete its mandatory checklist and review it once → progress records
-evidence and promotes the next dependency-safe package. The proposal is the
-scope baseline; later direct client decisions, currently D18–D20, override any
-conflict. Root `AGENTS.md` enforces this loop.
+One loop for new work: the request is recorded in `docs/requests.md` → a
+changed client rule updates its topic in `docs/client-decisions.md` (and, for
+product behaviour, money, privacy, eligibility or security, a new
+decisions-log D-row and the architecture amendment) → the change is built on a
+branch and merged after full CI passes → the request is marked done. The
+proposal is the scope baseline; later adopted decisions override conflicts.
+Root `AGENTS.md` enforces this loop.
+
+0. `docs/client-decisions.md` — **current client rules** by topic, with dated
+   history; `docs/requests.md` — **every request** and its status;
+   `docs/client-documents/` — index of source documents.
 
 1. `docs/Mobility_AdTech_MVP_Proposal_5_Month_Retargeting.docx` — **scope
    baseline**: the client-facing MVP promise (D11), interpreted through later
-   direct client decisions, currently D18–D20. Never edited by agents.
+   direct client answers and subsequent adopted decisions. Never edited by
+   agents.
 2. `docs/architecture.md` — **design**: verified current state and the target
    architecture that fulfils the proposal, with the §31 wave roadmap.
 3. `docs/decisions-log.md` — **decisions**: Part 1 append-only D-row history,
    Part 2 current Q1–Q34 statuses + divergence guards.
-4. `docs/progress.md` — **delivery control**: the intended MVP, delivered
-   evidence, nine-package remainder, 71-item acceptance checklist, and the sole
-   authorised `NEXT` package; updated
-   with every landed package.
+4. `docs/progress.md` — **build programme and launch gates**: current
+   pointer, ten-package queue, 71-item status/dependency checklist and external
+   gates.
+
+[`docs/delivery-contracts.md`](docs/delivery-contracts.md) is the **live
+acceptance-detail companion** for the packages and checklist items in the
+control page.
 
 Supporting reference: `docs/runbook.md` (operations), `docs/next-steps.md`
 (historical W1 planning research — never the current queue),
