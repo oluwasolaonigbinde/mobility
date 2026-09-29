@@ -11,7 +11,8 @@ dated **history** so earlier rules are never lost. Work items live in
 This file is the plain-language index. The formal record stays in
 [decisions-log.md](decisions-log.md): Part 1 is the append-only log of decisions
 (`D1`, `D2`, …) and Part 2 holds the questionnaire items `Q1`–`Q34`. Every
-current rule below cites the D-row or Q-row that governs it. If this file and
+current rule below cites the D-row or Q-row that governs it or, where none
+exists yet, the dated client answer it comes from. If this file and
 the formal record ever disagree, the newest D-row wins; fix this file in the
 same change.
 
@@ -140,15 +141,18 @@ invoices.
 ### Budgets and alerts
 
 **Current rule:** A **warning at 80 %** of the campaign budget, an **urgent
-alert at 95 %**, and the campaign **pauses at 100 %**. Fixed costs count
-towards the budget. Alerts go to every member of the advertiser company and to
-Terrax admins. Only a Terrax admin raises a budget or restarts a paused
-campaign, after the increase or payment is confirmed (client answers item 3).
-The exact ratios are set in configuration (`BUDGET_*_RATIO`).
+alert at 95 %**, and the campaign **pauses at 100 %**. Alerts go to every
+member of the advertiser company and to Terrax admins. Only a Terrax admin
+raises a budget or restarts a paused campaign, after the increase or payment is
+confirmed (client answers item 3). The ratios are set per deployment in
+configuration (`BUDGET_*_RATIO`) and are blank in the templates. The client
+also wants fixed costs to count towards the budget: **agreed, not yet built**.
+
+**Still open:** [REQ-037](requests.md) — fixed costs in the budget.
 
 **History:**
 - **Before 2026-09-24** — One alert level (`budget_alert_ratio`) before the pause.
-- **2026-09-24** — Client asked for 80 % and 95 % warnings and a pause at 100 %; recipients "everybody" (read as all company members plus Terrax admins). Built in `7a9ceb0` (REQ-001).
+- **2026-09-24** — Client asked for 80 % and 95 % warnings and a pause at 100 %; recipients "everybody" (read as all company members plus Terrax admins); fixed costs to count. The three levels and admin recipients were built in `7a9ceb0` (REQ-001); fixed costs were deferred to a money batch.
 
 ### Campaign lifecycle and changes
 
@@ -218,8 +222,11 @@ approval ends on an admin-entered date (D31). Pilot vehicles: roadworthy cars
 **Current rule:** Before campaign hours can earn, installation photos must be
 approved by an admin (Q17). Views: **front, back, left, right and close-up**.
 The driver or an admin uploads them (there is no installer login); Compliance
-reviews; new photos are required **weekly** (client answers item 4). Set in
-configuration (`INSTALLATION_EVIDENCE_*`).
+reviews; new photos are required **weekly**; Terrax's inspector makes spot
+checks on top (client answers item 4). Set in configuration
+(`INSTALLATION_EVIDENCE_*`).
+
+**Still open:** [REQ-039](requests.md) — spot-check and display-proof values.
 
 **History:**
 - **2026-08-14** — Client confirmed approved installation evidence (Q17, D18).
@@ -253,7 +260,7 @@ which miles count, [REQ-016](requests.md) ₦10,000 or ₦9,800 and any cap.
 Documentation: [REQ-012](requests.md).
 
 **History:**
-- **2026-07** — Fixed naira amount **per hour** of verified time, with a daily cap on payable hours (D2, D4); reconfirmed against the proposal (D12). Built as `payout_v1`/`payout_v2`.
+- **2026-07 to 2026-08-04** — Fixed naira amount **per hour** of verified time, with a daily cap on payable hours (D2, D4); built as `payout_v1` and `payout_v2` (D9, 30 Jul); reconfirmed against the proposal (D12, 4 Aug).
 - **2026-08-14** — Client set one platform hourly rate with an admin campaign override, and a higher (premium) hourly rate inside the primary zone (Q4, Q5, D18). Built as `payout_v3`.
 - **2026-09-24** — Client's answer gave per-mile figures (₦140 inside the primary zone, ₦50 outside, 70 miles a day) and a ₦10,000 daily rate for special locations (client answers item 2).
 - **2026-09-25** — Client moved new work to a **daily rate** for the expected distance, with reduced pay for less (D39a). Built as `payout_v4` in `e14149d` (REQ-002).
@@ -274,7 +281,7 @@ transfer fee, [REQ-029](requests.md) run limit, [REQ-030](requests.md) alert
 recipients. Optional hardening: [REQ-036](requests.md).
 
 **History:**
-- **2026-08-14** — Automated bank transfers confirmed (Q27, D18); every batch prepared by one person and approved by a different person (maker-checker).
+- **2026-08-14** — Automated bank transfers confirmed (Q27, D18). Every batch was prepared by one person and approved by a different person (maker-checker, architecture §16.3 / RM10).
 - **2026-09-25** — Client chose automatic approval with no person approving each batch; Finance monitors and follows up (D39c). Built in `3b6b396` (REQ-003).
 - **2026-09-28** — Owner added: the first payment to any new bank account goes to a person (D40b, security review). Built in `3b6b396`.
 
@@ -393,6 +400,8 @@ legal retention for KYC and money records (client answers items 11 and 17).
 **Current rule:** Limits per purpose: identity documents 10 MB, vehicle photos
 20 MB, installation photos 20 MB, artwork 25 MB. File types and sizes follow the
 developer's recommendation; files are virus-checked (client answers item 12).
+
+**Still open:** [REQ-038](requests.md) — client confirmation of these limits.
 
 **History:**
 - **Before 2026-09-26** — One shared 25 MB limit.

@@ -18,9 +18,9 @@ wants, topic by topic, is in [client-decisions.md](client-decisions.md).
 3. **While working,** set `IN PROGRESS` and name the branch in *Notes*.
 4. **When merged,** set `DONE` and put the implementing commit (short SHA) and
    date in *Done in*. Merge without squashing so that SHA reaches `master`; if a
-   branch is squashed, cite the squash commit instead. A commit cannot contain
-   its own SHA, so mark the row `DONE` in a later commit on the same branch
-   (before merging) or in the next change.
+   branch is squashed, cite the squash commit instead. A row becomes `DONE` only
+   once its work is on `master`, so record it in the next change that touches
+   this file (a commit cannot contain its own SHA).
 5. **Questions** stay `NEEDS ANSWER` until answered. Then record the answer in
    *Notes*, update the topic, and either set `DONE` (nothing to build) or add
    the build work as a new row.
@@ -44,8 +44,8 @@ wants, topic by topic, is in [client-decisions.md](client-decisions.md).
 | REQ-003 | 2026-09-25 | Client (D39) | Batch C: automatic payout approval with safeguards, Finance pause switch, alerts, reconciliation view | DONE | `3b6b396` (2026-09-28) | [Payouts](client-decisions.md#payout-approval-and-timing) | Off until REQ-017, REQ-029 and REQ-030 are answered. |
 | REQ-004 | 2026-09-25 | Owner | Batch D: Paystack payment and transfer adapters from the public docs, disabled without keys | DONE | `dbd41e1` (2026-09-28) | [Payments](client-decisions.md#advertiser-payments) | Live use waits for REQ-027 and REQ-035. |
 | REQ-005 | 2026-09-25 | Client (D39) | Batch E: in-app complaints and a Customer Service inbox | DONE | `7e39c66` (2026-09-28) | [Complaints](client-decisions.md#complaints-and-support) | Defaults in use until REQ-020–REQ-024 are answered. |
-| REQ-006 | 2026-09-28 | Owner | Repair GitHub CI (withdrawn MinIO images), fix what the first full run found, and stop the coverage check failing on run-to-run noise (D41) | DONE | `83444dc` (2026-09-29) | | First fully green run: 36516619520. |
-| REQ-007 | 2026-09-29 | Owner | Shorten `docs/progress.md`; move history and package detail out | DONE | `9a0ef34` (2026-09-29) | | Done by another agent; committed on the REQ-008 branch. |
+| REQ-006 | 2026-09-28 | Owner | Repair GitHub CI (withdrawn MinIO images), fix what the first full run found, and stop the coverage check failing on run-to-run noise (D41) | DONE | `83444dc` (2026-09-29) | | First fully green CI run: 36516619520, on `83444dc`. |
+| REQ-007 | 2026-09-29 | Owner | Shorten `docs/progress.md`; move history and package detail out | IN PROGRESS | | | Done by another agent; committed as `9a0ef34` on branch `docs/client-decision-flow` with REQ-008. |
 | REQ-008 | 2026-09-29 | Owner | Track client decisions by topic with history, and track every request from ask to done | IN PROGRESS | | | Branch `docs/client-decision-flow`. |
 | REQ-009 | 2026-09-25 | Owner | Batch F1: invoice layout — 7.5 % VAT included, Terrax details, serial number, campaign length, quantity, signature lines | TODO | | [Invoices](client-decisions.md#invoices-and-vat) | The RC/TIN field waits for REQ-019. |
 | REQ-010 | 2026-09-25 | Owner | Batch F2: deployment environment templates for Render, S3 with KMS, ClamAV, Postmark and Mapbox (templates only; no accounts or deploys) | TODO | | [Hosting](client-decisions.md#hosting-accounts-and-providers) | |
@@ -75,3 +75,7 @@ wants, topic by topic, is in [client-decisions.md](client-decisions.md).
 | REQ-034 | 2026-09-25 | Owner | Confirm motorcycles are allowed in the pilot, then record a decision row and update Q19 | NEEDS ANSWER | | [Drivers and vehicles](client-decisions.md#drivers-and-vehicles) | Told to the client as an assumption on 2026-09-25; Q19 still says cars. |
 | REQ-035 | 2026-09-28 | Owner | Paystack key day: sandbox checks of field names, timestamps and references; wire the audited destination resolver and Paystack adapters into payout submit, poll and the worker; checkout flow with Cardvert references; queued transfer-webhook path; decide whether `sk_test_` is refused outside staging; configure the webhook URL | TODO | | [Payments](client-decisions.md#advertiser-payments) | Waits for REQ-027. Resumes `PKG-03 / W2-01C`. |
 | REQ-036 | 2026-09-28 | Owner | Optional hardening from the Batch C security review: lock the open-dispute check (L2), audit alert creation (L3), actor-only run audit subjects (L4), fairer scan cap (L5) | TODO | | [Payouts](client-decisions.md#payout-approval-and-timing) | Optional; owner to prioritise. |
+| REQ-037 | 2026-09-24 | Client | Count fixed costs (printing, installation, permits, design) towards the campaign budget | TODO | | [Budgets](client-decisions.md#budgets-and-alerts) | Client answers item 3; deferred from Batch A to a money batch. |
+| REQ-038 | 2026-09-26 | Owner → client | Confirm the per-purpose upload limits (identity 10 MB, vehicle 20 MB, installation 20 MB, artwork 25 MB) | NEEDS ANSWER | | [Uploads](client-decisions.md#file-uploads) | Built as the developer's recommendation (REQ-001); told to the client for information. |
+| REQ-039 | 2026-09-26 | Owner → client | Values for the inspector's installation spot checks and the display-proof windows | NEEDS ANSWER | | [Installation photos](client-decisions.md#installation-photos) | Still open after Batch A. |
+| REQ-040 | 2026-09-28 | Owner | Optional Batch C follow-ups: a daily-limit check that counts cross-midnight trips per day rather than in full; tests that another day's submitted line stays out of "awaiting provider" and that manual failure audits cannot crowd the blocked-submission scan; a `submission_blocked` alert while the system account is invalid; excluded entries no longer taking candidate places | TODO | | [Payouts](client-decisions.md#payout-approval-and-timing) | Optional. The system-account edit guard is already done (`3b6b396`). |
