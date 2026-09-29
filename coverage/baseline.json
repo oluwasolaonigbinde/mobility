@@ -6,12 +6,12 @@
   },
   "critical": {
     "backend": {
-      "branch_covered": 5415,
-      "branch_percent": 71.119,
-      "branch_total": 7614,
-      "line_covered": 28427,
-      "line_percent": 89.8451,
-      "line_total": 31640,
+      "branch_covered": 5435,
+      "branch_percent": 71.2133,
+      "branch_total": 7632,
+      "line_covered": 28478,
+      "line_percent": 89.8473,
+      "line_total": 31696,
       "paths": [
         "app/__init__.py",
         "app/adapters/ad_platforms/__init__.py",
@@ -268,12 +268,12 @@
       ]
     },
     "frontend": {
-      "branch_covered": 5045,
-      "branch_percent": 69.8173,
-      "branch_total": 7226,
-      "line_covered": 5107,
-      "line_percent": 80.7176,
-      "line_total": 6327,
+      "branch_covered": 5182,
+      "branch_percent": 70.6668,
+      "branch_total": 7333,
+      "line_covered": 5194,
+      "line_percent": 81.2833,
+      "line_total": 6390,
       "paths": [
         "frontend/src/app/admin/advertisers/[organizationId]/company/actions.ts",
         "frontend/src/app/admin/advertisers/[organizationId]/company/page.tsx",
@@ -294,6 +294,7 @@
         "frontend/src/app/admin/audit/page.tsx",
         "frontend/src/app/admin/billing/[campaignId]/actions.ts",
         "frontend/src/app/admin/billing/[campaignId]/closeout/page.tsx",
+        "frontend/src/app/admin/billing/[campaignId]/invoices/[invoiceId]/page.tsx",
         "frontend/src/app/admin/billing/[campaignId]/page.tsx",
         "frontend/src/app/admin/billing/page.tsx",
         "frontend/src/app/admin/complaints/[complaintId]/loading.tsx",
@@ -378,6 +379,7 @@
         "frontend/src/app/advertiser/campaigns/[campaignId]/creative-status-actions.tsx",
         "frontend/src/app/advertiser/campaigns/[campaignId]/edit/campaign-edit-form.tsx",
         "frontend/src/app/advertiser/campaigns/[campaignId]/edit/page.tsx",
+        "frontend/src/app/advertiser/campaigns/[campaignId]/invoices/[invoiceId]/page.tsx",
         "frontend/src/app/advertiser/campaigns/[campaignId]/map/heatmap-view.tsx",
         "frontend/src/app/advertiser/campaigns/[campaignId]/map/page.tsx",
         "frontend/src/app/advertiser/campaigns/[campaignId]/page.tsx",
@@ -557,6 +559,7 @@
         "frontend/src/lib/auth/token.ts",
         "frontend/src/lib/billing/commercial-history.tsx",
         "frontend/src/lib/billing/history.ts",
+        "frontend/src/lib/billing/invoice-document.tsx",
         "frontend/src/lib/campaigns/schema.ts",
         "frontend/src/lib/campaigns/status.ts",
         "frontend/src/lib/complaints/actions.ts",
@@ -589,25 +592,29 @@
       ]
     }
   },
-  "eligible_inventory_sha256": "79a0dd7f5b065c9a13782e813d5013af35d32b526e36dc3dc0d1e7571d05b11b",
+  "eligible_inventory_sha256": "d50696ba91460d2d3f957d1fd36796b99cea7d938a560d9407239b627a2eae2c",
   "global": {
-    "branch_covered": 10460,
-    "branch_percent": 70.4852,
-    "branch_total": 14840,
-    "line_covered": 33534,
-    "line_percent": 88.3241,
-    "line_total": 37967
+    "branch_covered": 10617,
+    "branch_percent": 70.9455,
+    "branch_total": 14965,
+    "line_covered": 33672,
+    "line_percent": 88.4104,
+    "line_total": 38086
   },
   "policy_sha256": "a4200e7586a91c296343a4d2b26e6790556d4d6f8e43e35bd05779dd96461604",
   "refresh": {
     "inventory_changes": {
-      "added": [],
+      "added": [
+        "frontend/src/app/admin/billing/[campaignId]/invoices/[invoiceId]/page.tsx",
+        "frontend/src/app/advertiser/campaigns/[campaignId]/invoices/[invoiceId]/page.tsx",
+        "frontend/src/lib/billing/invoice-document.tsx"
+      ],
       "removed": []
     },
-    "previous_baseline_sha256": "04fd48b7bf7e47a19bfa1279c7b8de10132ba1fbcd8ae0f5963735dfa96e2a24",
-    "reason": "D41 policy-only refresh: noise tolerance raised to 0.3 points; adopted floors unchanged"
+    "previous_baseline_sha256": "6ed44afdc12334c5548ac27b81e6e09b9559bb444fa378515c166878120f59a5",
+    "reason": "Batch F (REQ-009, REQ-010, REQ-012): new invoice, deployment-template and test sources; built from exact-SHA CI run 36603321930 on c994f58ecf05b5c694254cae717cb2b31b117795"
   },
-  "source_parent_sha": "fe9ec2db16cfcbf02d01725d6010e64f98d36007",
-  "source_sha256": "71e51d5561b0a7703d7c47b570bafbce1b11154ad6bcf14eac96cb631571cbfc",
+  "source_parent_sha": "c994f58ecf05b5c694254cae717cb2b31b117795",
+  "source_sha256": "276519c3b484dd433fe0ef5c45fef66e36405d5218585fed6bb04cbd62a27c02",
   "version": 3
 }
