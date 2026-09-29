@@ -61,7 +61,10 @@ entry points, review factors, and internal checkpoints.
   their named specialist reviews. These supplement rather than repeat the
   consolidated package review.
 - Run deterministic tests and a live or end-to-end simulation proportional to
-  risk. Contract changes update every baseline required by architecture §9;
+  risk. Locally, run only the test files the change touches; with the owner's
+  approval, push the branch and merge it into `master` only after the full
+  GitHub CI run on that branch passes (D41). Never leave several branches'
+  full-suite evidence to one later run. Contract changes update every baseline required by architecture §9;
   changes to those baselines rerun R14-B native contract fixtures.
 - Amend architecture or decisions only for genuine design or product changes.
   In the same package change, update `docs/progress.md`, architecture tags and

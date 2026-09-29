@@ -463,6 +463,18 @@ Global line 86.78 → 88.32 %, branch 66.69 → 70.49 %; critical backend line
 80.72 %, branch 64.06 → 69.82 %; no floor lowered. One exact-SHA CI run on the
 refresh commit remains for acceptance.
 
+D41 (29 Sep 2026, owner-approved). Run `36496910250` on the refresh commit
+`2485184` again passed every test job but failed D33: identical code measured
+18 backend lines below `cf2dfd2`, because concurrency tests take different
+race paths (lines only in one run sat in conflict and retry branches of
+`campaign_assignments`, `trips`, `disbursements`, `campaigns` and `billing`).
+Rather than chasing each race path with tests, the owner adopted D41: ordinary
+checks allow a 0.1-point dip below adopted floors (floors never lowered,
+refreshes exact, D32 unchanged), and each batch branch must pass full CI before
+it merges (`AGENTS.md`). `tests/test_changed_coverage_policy.py` passes (34,
+including the new tolerance test). The checker is a policy file, so its change
+needs a policy-only refresh that keeps the adopted floors.
+
 Batch C record (27–28 Sep 2026, branch `batch-c` on `master` `4f318e3`).
 Scope: automatic payout approval with safeguards, D39(c) as designed in D40 and
 client answer item 8. Only clean `payout_v4` trip earnings may be approved by

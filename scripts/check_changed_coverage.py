@@ -17,10 +17,15 @@ import tempfile
 import tomllib
 from collections.abc import Iterable
 from dataclasses import dataclass, field
+from fractions import Fraction
 from pathlib import Path
 
 LINE_FLOOR = 90.0
 BRANCH_FLOOR = 80.0
+# D41: a run's global/critical ratios may sit this many percentage points below
+# the adopted floor, absorbing run-to-run noise from concurrency tests. Adopted
+# floors are never lowered, refreshes stay exact, and D32 floors are unaffected.
+RATCHET_TOLERANCE_POINTS = Fraction(1, 10)
 FULL_SHA = re.compile(r"[0-9a-f]{40}\Z")
 HUNK = re.compile(r"@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 LEGACY_RUNTIME_ATTESTATION = "docs/evidence/coverage-runtime-34354263174.json"
@@ -426,7 +431,14 @@ def _required_percentages(scope: object, label: str) -> tuple[float, float]:
     return values[0], values[1]
 
 
-def _assert_not_regressed(label: str, actual: dict[str, float | int], expected: object) -> None:
+def _assert_not_regressed(
+    label: str,
+    actual: dict[str, float | int],
+    expected: object,
+    *,
+    tolerance: Fraction = Fraction(0),
+) -> None:
+    """Refuse a ratio below the floor; ``tolerance`` is in percentage points."""
     expected_line, expected_branch = _required_percentages(expected, label)
     assert isinstance(expected, dict)
     for metric in ("line", "branch"):
@@ -435,10 +447,18 @@ def _assert_not_regressed(label: str, actual: dict[str, float | int], expected: 
             continue
         if type(covered) is not int or type(total) is not int or not 0 <= covered <= total:
             raise PolicyError(f"baseline {label}.{metric} counts are invalid")
-        numerator, denominator = (covered, total) if total else (1, 1)
-        if actual[f"{metric}_covered"] * denominator < numerator * actual[f"{metric}_total"]:
+        floor = Fraction(covered, total) if total else Fraction(1)
+        actual_total = actual[f"{metric}_total"]
+        measured = (
+            Fraction(actual[f"{metric}_covered"], actual_total) if actual_total else Fraction(1)
+        )
+        if measured < floor - tolerance / 100:
             raise PolicyError(f"{label} {metric} coverage regressed from exact baseline ratio")
-    if actual["line_percent"] < expected_line or actual["branch_percent"] < expected_branch:
+    slack = float(tolerance)
+    if (
+        actual["line_percent"] < expected_line - slack
+        or actual["branch_percent"] < expected_branch - slack
+    ):
         raise PolicyError(
             f"{label} coverage regressed: line {actual['line_percent']}% < {expected_line}% "
             f"or branch {actual['branch_percent']}% < {expected_branch}%"
@@ -676,15 +696,20 @@ def _trusted_baseline(
         raise PolicyError("D32 changed-code floors cannot be lowered by baseline refresh")
     _validate_instrumentation(repo_root, args.base)
     actual = _metrics(records.values())
+    # A refresh adopts the measured ratios, so it must come from a run at or above
+    # the floor; only ordinary checks absorb run-to-run noise.
+    tolerance = Fraction(0) if args.refresh_baseline else RATCHET_TOLERANCE_POINTS
     if not runtime_migration:
-        _assert_not_regressed("global", actual, trusted.get("global"))
+        _assert_not_regressed("global", actual, trusted.get("global"), tolerance=tolerance)
     critical = {}
     for name, paths in groups.items():
         if not paths:
             raise PolicyError(f"critical coverage group has no eligible sources: {name}")
         metrics = _metrics(records[path] for path in paths)
         if not runtime_migration:
-            _assert_not_regressed(f"critical.{name}", metrics, trusted["critical"][name])
+            _assert_not_regressed(
+                f"critical.{name}", metrics, trusted["critical"][name], tolerance=tolerance
+            )
         critical[name] = {**metrics, "paths": paths}
     inventory_hash = hashlib.sha256(
         ("\n".join(groups["backend"] + groups["frontend"]) + "\n").encode()
@@ -797,7 +822,7 @@ def _trusted_baseline(
                     ):
                         raise PolicyError(f"invalid adopted coverage metrics: {label}.{metric}")
                 _assert_not_regressed(label, adopted, prior)
-                _assert_not_regressed(label, measured, adopted)
+                _assert_not_regressed(label, measured, adopted, tolerance=RATCHET_TOLERANCE_POINTS)
             snapshot["global"] = candidate["global"]
             snapshot["critical"] = {
                 name: {**candidate["critical"][name], "paths": groups[name]} for name in groups
@@ -924,7 +949,9 @@ def _evaluate(args: argparse.Namespace) -> dict[str, object]:
         )
 
     global_metrics = _metrics(records.values())
-    _assert_not_regressed("global", global_metrics, baseline["global"])
+    _assert_not_regressed(
+        "global", global_metrics, baseline["global"], tolerance=RATCHET_TOLERANCE_POINTS
+    )
     critical_results: dict[str, dict[str, float | int]] = {}
     critical = baseline["critical"]
     assert isinstance(critical, dict)
@@ -941,7 +968,9 @@ def _evaluate(args: argparse.Namespace) -> dict[str, object]:
         if not selected:
             raise PolicyError(f"critical coverage group has no LCOV sources: {name}")
         metrics = _metrics(selected)
-        _assert_not_regressed(f"critical.{name}", metrics, definition)
+        _assert_not_regressed(
+            f"critical.{name}", metrics, definition, tolerance=RATCHET_TOLERANCE_POINTS
+        )
         critical_results[name] = metrics
 
     result = {

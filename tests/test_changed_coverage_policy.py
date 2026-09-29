@@ -39,6 +39,38 @@ def test_ci_runs_when_the_coverage_receipt_changes() -> None:
     assert '- "coverage/**"' in pull_request_paths
 
 
+def test_ratchet_tolerance_absorbs_noise_but_not_real_drops() -> None:
+    spec = importlib.util.spec_from_file_location("coverage_policy_tolerance", CHECKER)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+
+    def metrics(line_covered: int, branch_covered: int = 700) -> dict[str, float | int]:
+        return {
+            "line_covered": line_covered,
+            "line_total": 10_000,
+            "line_percent": line_covered / 100,
+            "branch_covered": branch_covered,
+            "branch_total": 1_000,
+            "branch_percent": branch_covered / 10,
+        }
+
+    floor = metrics(8_800)
+    tolerance = module.RATCHET_TOLERANCE_POINTS
+    assert tolerance == module.Fraction(1, 10)
+    # 18 lines below on 10,000 (0.18 points) is beyond 0.1; 10 lines (0.1) is within.
+    module._assert_not_regressed("global", metrics(8_790), floor, tolerance=tolerance)
+    with pytest.raises(module.PolicyError, match="regressed"):
+        module._assert_not_regressed("global", metrics(8_782), floor, tolerance=tolerance)
+    # Exact comparisons (refresh adoption) keep zero tolerance.
+    with pytest.raises(module.PolicyError, match="regressed"):
+        module._assert_not_regressed("global", metrics(8_799), floor)
+    with pytest.raises(module.PolicyError, match="regressed"):
+        module._assert_not_regressed(
+            "global", metrics(8_800, branch_covered=698), floor, tolerance=tolerance
+        )
+
+
 def test_exact_critical_paths_support_next_dynamic_segments() -> None:
     spec = importlib.util.spec_from_file_location("coverage_policy", CHECKER)
     module = importlib.util.module_from_spec(spec)
