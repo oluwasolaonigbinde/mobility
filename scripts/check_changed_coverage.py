@@ -696,9 +696,7 @@ def _trusted_baseline(
         raise PolicyError("D32 changed-code floors cannot be lowered by baseline refresh")
     _validate_instrumentation(repo_root, args.base)
     actual = _metrics(records.values())
-    # A refresh adopts the measured ratios, so it must come from a run at or above
-    # the floor; only ordinary checks absorb run-to-run noise.
-    tolerance = Fraction(0) if args.refresh_baseline else RATCHET_TOLERANCE_POINTS
+    tolerance = RATCHET_TOLERANCE_POINTS
     if not runtime_migration:
         _assert_not_regressed("global", actual, trusted.get("global"), tolerance=tolerance)
     critical = {}
@@ -753,6 +751,12 @@ def _trusted_baseline(
         # Metadata-only refreshes retain adopted floors; actual evidence was checked above.
         snapshot["global"] = trusted["global"]
         snapshot["critical"] = trusted["critical"]
+    elif args.refresh_baseline and not runtime_migration:
+        # This refresh adopts the measured ratios, so they must meet the floors
+        # exactly; the D41 tolerance never lowers an adopted floor.
+        _assert_not_regressed("global", actual, trusted.get("global"))
+        for name in groups:
+            _assert_not_regressed(f"critical.{name}", critical[name], trusted["critical"][name])
     if runtime_migration:
         attestation_path = repo_root / LEGACY_RUNTIME_ATTESTATION
         attestation = _legacy_attestation(
