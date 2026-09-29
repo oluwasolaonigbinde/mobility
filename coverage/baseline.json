@@ -604,10 +604,10 @@
       "added": [],
       "removed": []
     },
-    "previous_baseline_sha256": "e386f9b13ee9c00e1242861c936cc9b4d5458406e73f16e3263379bef37c1642",
+    "previous_baseline_sha256": "04fd48b7bf7e47a19bfa1279c7b8de10132ba1fbcd8ae0f5963735dfa96e2a24",
     "reason": "D41 policy-only refresh: noise tolerance raised to 0.3 points; adopted floors unchanged"
   },
-  "source_parent_sha": "65a3a2f36477362476e286e64befd0e7435628de",
+  "source_parent_sha": "fe9ec2db16cfcbf02d01725d6010e64f98d36007",
   "source_sha256": "71e51d5561b0a7703d7c47b570bafbce1b11154ad6bcf14eac96cb631571cbfc",
   "version": 3
 }
