@@ -367,6 +367,13 @@ def test_max_length_synthetic_and_verified_rendered_prefixes_are_distinct(
                 verification_status=IssuerVerificationStatus.VERIFIED,
                 external_input_reference="VERIFIED-MAX-PREFIX",
                 settings=verified_settings,
+                # D42: a verified issuer carries every invoice fact (test values only).
+                company_registration_number="TEST-RC-ONLY",
+                contact_phone="TEST-PHONE-ONLY",
+                contact_email="invoices@example.com",
+                bank_name="Test Bank",
+                bank_account_name="Test Account Name",
+                bank_account_number="TEST-ACCOUNT-ONLY",
             )
             numbers = []
             for campaign, issuer, authority_settings in (
@@ -391,6 +398,9 @@ def test_max_length_synthetic_and_verified_rendered_prefixes_are_distinct(
                     settings=authority_settings,
                 )
                 numbers.append(invoice.invoice_number)
+            assert invoice.issuer_snapshot["synthetic_test_authority"] is False
+            assert invoice.issuer_snapshot["company_registration_number"] == "TEST-RC-ONLY"
+            assert invoice.issuer_snapshot["bank_account_number"] == "TEST-ACCOUNT-ONLY"
             assert numbers[0] is not None and numbers[0].startswith(f"TEST-{prefix}-")
             assert numbers[1] is not None and numbers[1].startswith(f"{prefix}-")
             assert numbers[0].endswith("000001") and numbers[1].endswith("000001")

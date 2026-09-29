@@ -695,7 +695,12 @@ training and handover.
   **Implemented.**
 - **M-06** Invoices are numbered, itemise net, VAT and gross, and become
   immutable when issued; corrections use credit or debit notes, and repeating
-  a correction does not duplicate it. **Implemented · Gated (G-17).**
+  a correction does not duplicate it. The invoice page shows Terrax Media's
+  company details (including RC number and TIN), the invoice number, campaign
+  duration, each line's quantity and unit price, the VAT-inclusive total as the
+  headline, corrections and payments, bank details and client and CEO
+  signature lines (D42). A real invoice needs every company and bank detail
+  and the accountant's sign-off. **Implemented · Gated (G-17).**
 - **M-07** Online checkout and manual transfer converge on the same payment
   record. **Implemented · Gated (G-01)** for online checkout.
 
@@ -703,15 +708,21 @@ training and handover.
 
 - **M-08** Earnings are calculated automatically once a trip's evidence is
   complete and sealed, using the terms frozen when the driver accepted the
-  offer. **Implemented.**
-- **M-09** Earnings become available for the next weekly payout when the trip
-  has a current successful fraud assessment and no active hold. Held
-  earnings follow O-16 and O-17. **Implemented.**
+  offer: hourly terms for work accepted under them, daily-rate terms (M-30)
+  for new work. **Implemented.**
+- **M-09** Earnings become available for the next payout when the trip has a
+  current successful fraud assessment and no active hold. Whether automatic
+  payouts run daily or weekly is not yet decided. Held earnings follow O-16
+  and O-17. **Implemented · Gated (payout frequency).**
 - **M-10** Historical earnings can change only through a correction proposed
   by one administrator and approved by a different administrator, rechecked
   for staleness and applied once. **Implemented.**
 
 ### 7.4 Payout selection
+
+M-11 to M-15 describe payouts prepared by a person (every hourly payout, and
+any daily-rate earning Cardvert does not approve automatically). Automatic
+payouts follow M-31 and M-32.
 
 - **M-11** An administrator selects payouts from eligible available credits.
   Each candidate shows the named driver and payee, a masked destination,
@@ -732,7 +743,8 @@ training and handover.
 
 - **M-15** One administrator makes a batch; a different administrator must
   approve its frozen instructions. Self-approval is refused. Batch lists show
-  maker and checker names. **Implemented.**
+  maker and checker names. Batches Cardvert approves automatically (M-31)
+  cannot be approved or submitted by a person. **Implemented.**
 - **M-16** Submission is provider-neutral: no live payout provider is
   connected. Submitting queues work first; queued work has not been submitted.
   **Implemented · Gated (G-02).**
@@ -791,6 +803,35 @@ training and handover.
   credit can be reserved into only one active line, and replacement requires
   the conditions in M-21 and M-22. Duplicate successes reported by a provider
   remain visible rather than hidden (M-27). **Implemented.**
+
+### 7.9 Daily-rate pay and automatic payouts (D39, D40)
+
+- **M-30** New work pays a **daily rate** for covering an expected daily
+  distance in the campaign; covering less pays a reduced amount. Terrax Media
+  sets the day rate, target distance, shortfall rule, minimum distance and how
+  outside-area miles count on an audited revision per campaign, with no
+  defaults, and the driver's offer states them in plain sentences. Accepting
+  the offer freezes them. Each stop of up to five minutes counts as driving; a
+  longer stop adds no distance. One driver-day never mixes hourly and
+  daily-rate pay. Hourly work already accepted keeps its rules.
+  **Implemented · Gated (shortfall rule, counted miles and full-day amount,
+  REQ-014–REQ-016).**
+- **M-31** Cardvert approves and sends payouts of clean daily-rate earnings
+  without a person: no hold, review flag or open dispute; a current fraud
+  assessment; no carry-forward debt; a verified bank account that has already
+  received a payment approved by a person (the first payment to a new account
+  always goes to a person); at most one full day's rate per driver per Nigeria
+  day across campaigns; within the run limit. Everything else goes to a person
+  (M-11 to M-15). Provider evidence, per-line finality, retries with the same
+  reference and reconciliation are unchanged (M-16 to M-19).
+  **Implemented · Gated (payout frequency, run limit and alert recipients,
+  REQ-017, REQ-029, REQ-030; payout provider, G-02).**
+- **M-32** Finance can pause and resume automatic payouts with a required
+  reason; while paused nothing new is sent, lookups and reconciliation carry
+  on, and unsent payments can be moved to manual review. Failed or duplicate
+  payments, blocked submissions, limit hits and run failures raise alerts in
+  the Finance section of "Waiting for you", and a daily reconciliation view
+  shows what was sent. **Implemented.**
 
 ---
 

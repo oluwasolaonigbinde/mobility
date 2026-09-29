@@ -291,7 +291,7 @@ Current OpenAPI: **304 operations across 272 paths**; **303 operations under `/a
 | `/health` | 1 | 1 |
 
 SQLAlchemy metadata contains **128 mapped tables**.
-Alembic contains **94 linear revisions**, from base `0001_enable_extensions` to the single head `0094_customer_service_complaints`.
+Alembic contains **95 linear revisions**, from base `0001_enable_extensions` to the single head `0095_invoice_issuer_contact_and_bank`.
 
 Required public driver-onboarding paths:
 
@@ -620,7 +620,7 @@ Notes:
 
 ### 7.2 Migration policy **[BUILT]**
 
-- Alembic has **94 linear revisions**, from base `0001_enable_extensions` to the single head `0094_customer_service_complaints`.
+- Alembic has **95 linear revisions**, from base `0001_enable_extensions` to the single head `0095_invoice_issuer_contact_and_bank`.
   <!-- verified by scripts/update_architecture_inventory.py from Alembic's ScriptDirectory -->
 - `0001` enables `pgcrypto` + `postgis`.
 - Shipped migrations are frozen history: schema changes come as **new**
@@ -1188,6 +1188,32 @@ Rules: amounts are `Decimal` (strings on the wire, P6); invoices are immutable
 once issued (corrections = credit-note-style new rows); every state change
 audited (§6.4.9).
 
+**[BUILT — Batch F, D42] Invoice layout and issuer facts.** Advertisers
+(`/advertiser/campaigns/{id}/invoices/{invoice_id}`) and staff
+(`/admin/billing/{id}/invoices/{invoice_id}`) open one invoice page rendered
+from the existing commercial reads: issuer block (legal name, address, phone,
+email, RC number, TIN), invoice number as the serial number, issue date in
+Nigeria time, bill-to company and contact, campaign name, duration and payment
+arrangement, a line table (S/N, services rendered, quantity, unit price and
+amount before VAT), subtotal, VAT at the invoice's rate and **Invoice total
+(VAT inclusive)** as the headline, then corrections, the amount after
+corrections, the amount paid and the payment status, bank details, and
+signature lines for the client and Terrax Media's CEO. Prices are still
+entered before VAT, and VAT is still computed once on the net total. Quotation
+lines may carry a whole `quantity` and a `unit_amount` (the amount is derived
+or must equal their product; lines without them keep their earlier canonical
+shape), and `production_scope` may carry `campaign_start_date` /
+`campaign_end_date` (ISO dates, both or neither, end not before start) that
+the invoice shows as its duration. Migration `0095` adds nullable RC number,
+phone, email, bank name, account name and account number to the append-only
+issuer profiles; downgrade refuses once any is recorded. A **verified** profile
+needs all of them plus the TIN, and is refused while
+`INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE` (the accountant's sign-off, blank in
+every template) is unset; issuance also rechecks completeness, and the issued
+snapshot carries the six new facts. Missing facts show "Not yet recorded"; RC,
+TIN and bank values are never pre-filled. The advertiser page never shows the
+issuer's external reference, IDs or hashes (D38c).
+
 Campaign commercial authority uses one advisory lock through both authorization
 and the caller's production/activation/trip-start mutation. Receipt reversal and
 refund settlement take the receipt row first, then every affected campaign lock
@@ -1328,10 +1354,21 @@ don't fork it.
 
 ## 16. Money out — versioned payout, release, disbursement
 
-Q4, Q5, Q22 and Q27 are client-confirmed by D18. D4's daily cap remains. D18
-changes the zone treatment and therefore requires a new immutable formula
-version; it does not rewrite calculations already stamped `payout_v1` or
-`payout_v2`.
+Q4, Q5, Q22 and Q27 are client-confirmed by D18. D4's daily cap remains for
+hourly work. D18 changes the zone treatment and therefore requires a new
+immutable formula version; it does not rewrite calculations already stamped
+`payout_v1` or `payout_v2`.
+
+**D39/D40 (25–28 Sep 2026)** move new work to a **daily rate** for covering an
+expected daily distance (`payout_v4`, §16.1) with each stop of up to five
+minutes counting as driving, and let Cardvert approve payouts of clean
+`payout_v4` earnings without a person (§16.3), with Finance able to pause,
+see alerts and reconcile daily. Hourly (`payout_v1`–`v3`) work already accepted
+keeps its rules and is never repriced (D14/D21), and its payouts stay
+maker-checker. Both are built and switched off: daily-rate publishing waits
+for the shortfall rule, which miles count and the full-day amount
+(REQ-014–REQ-016), and automatic payouts wait for the payout frequency, run
+limit and alert recipients (REQ-017, REQ-029, REQ-030).
 
 ### 16.1 Payout engine v2 (D2, D4) **[BUILT]**
 
@@ -1509,14 +1546,18 @@ sentences and the trip breakdown shows miles counted and pay per day.
 Recorded residuals: the per-driver-per-day ceiling across different campaigns
 (Batch C); a voided or later-held earlier trip shifts later trips only through
 a day correction; parked GPS jitter under 5 minutes is credited (109 m for a
-4-minute stop on a ±5 m synthetic trace). The §16 rewrite, PRD §7 and the client
-guide are scheduled for Batch F.
+4-minute stop on a ±5 m synthetic trace). The §16 introduction and PRD §7 were
+amended for D39/D40 in Batch F; the client guide rewrite is REQ-011.
+
 ### 16.2 Release scheduling (Q22)
 
 Ledger entries post as `pending` (built). The D18 release policy makes an
 earning with a current successful assessment and no authoritative active hold
-available without a blanket seven-day delay; the configured weekly cadence
-controls disbursement batching, not earned-status approval. A dismissed flag
+available without a blanket seven-day delay; the payout cadence controls
+disbursement batching, not earned-status approval. For automatic payouts the
+cadence is `PAYOUT_AUTOMATIC_FREQUENCY` (daily or weekly, Nigeria time), which
+the client has not yet chosen (REQ-017); manual batches are made when staff
+choose. A dismissed flag
 remains part of the assessment fingerprint, so dismissal first makes the old
 assessment stale and release waits for reassessment. A suspected or flagged
 earning with an active hold remains `pending` for admin approve/decline, with a
@@ -2729,6 +2770,16 @@ client-owned cloud/domain. The actual account/domain/provider/budget/access
 remain `EXT-RELEASE-ENV`. Posture: containerised and cloud-portable — nothing
 below assumes a specific vendor.
 
+**[TEMPLATE — Batch F, not applied]** The client chose Render hosting, AWS S3
+storage with KMS bucket encryption, ClamAV, Postmark and Mapbox (client answers
+items 9–16). `deploy/render/render.yaml`, `deploy/aws/` and
+`docs/deployment-templates.md` translate that choice into templates with every
+secret blank and every unanswered switch off. They are not a deployable
+topology: the document lists the gaps this section's edge design still
+requires on Render (security headers, webhook and health routing, Redis TLS,
+Mapbox with MapLibre, KMS key custody, release procedures, retention, shared
+login limits without a trusted edge, and where personal data is stored).
+
 ### 25.1 Environments
 
 | Env | Purpose | Shape |
@@ -3082,6 +3133,8 @@ The pre-flight table for any new work. **If your feature isn't here, add it
 | Notifications | §20 | `services/notifications.py`, `jobs/`, `adapters/messaging/` | notifications (new) | inline provider calls | Q34 confirmed; provider is parameter |
 | In-app complaints and Customer Service inbox | §20.4 | `services/complaints.py`, `api/v1/complaints.py` + driver/advertiser Help and admin Customer Service pages | complaints, complaint_messages (append-only), notifications | new staff roles; message text in audit/notification payloads/email; manual contact tasks for drivers | [BUILT] D39(d); categories, response time, driver channel, company-wide visibility and erasure are open client questions |
 | Billing / accepted terms / invoices / payments | §15 | `services/billing.py`, `adapters/payments/` | commercial_terms, invoices, payments (new) | report/cost-summary logic | Q1–Q3, Q14, Q28 confirmed; external provider/company facts for live use |
+| Invoice layout and issuer facts (D42) | §15.2 | `services/billing.py` + `lib/billing/invoice-document.tsx` + advertiser/admin invoice pages | invoice_issuer_profiles contact/bank columns (`0095`); quotation line quantity and campaign dates | VAT computation, numbering, issued-invoice immutability | REQ-019 (RC or TIN), bank details and accountant sign-off for real invoices |
+| Deployment templates (Render, AWS) | §25 | `deploy/render/`, `deploy/aws/`, `docs/deployment-templates.md` | — | applying them, accounts, provider calls | REQ-028 accounts, REQ-033 domain, the listed go-live gaps |
 | Payment webhooks | §15.4 | `api/v1/webhooks.py` | payment_events (new) | business logic in handler | provider choice |
 | Budget enforcement | §15.5 | `jobs/` + `services/billing.py` + campaign status | campaign status | hard deletes | policy confirmation (Q9-adjacent, via decisions-log) |
 | Matching/recommender | §21 | `services/campaign_assignments.py` | — | UI-layer constraint checks | Q7/Q16 confirmed |
@@ -3288,6 +3341,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.102 | 2026-09-29 | **Batch F (REQ-009, REQ-010, REQ-012).** §15.2 records the invoice layout (D42): advertiser and staff invoice pages; quotation lines with quantity and unit price; campaign dates in the accepted quotation; migration `0095` adds RC number, phone, email and bank details to issuer profiles (downgrade refuses once recorded); verified profiles and issuance need every fact plus the accountant's sign-off reference. VAT computation, numbering and immutability are unchanged. §16's introduction and §16.2 are amended for D39/D40 (daily-rate pay and automatic approval, both switched off; frequency open). §25 points to the new Render/AWS templates and their go-live gaps. Two §30 rows; all three §9 baselines moved together (issuer profile create/read). The client guide rewrite (REQ-011) left this batch. |
 | v1.101 | 2026-09-28 | **Batch E: in-app complaints and the Customer Service inbox (D39(d), direct-owner pass).** New §20.4 [BUILT]: migration `0094` adds `complaints` and the append-only `complaint_messages`; downgrade refuses while any complaint exists. Five driver routes (`/api/v1/driver/complaints…`), five advertiser routes (`/api/v1/advertiser/complaints…`) and four staff routes (`/api/v1/admin/complaints…`) with owner scoping, identical 404s for foreign and unknown references, row locks, one audit per mutation and idempotent retries. Four notification types (`complaint_received`, `complaint_replied`, `complaint_resolved`, `complaint_assigned`); advertisers also get the preference-governed email; drivers get no manual contact task (a stated §20.2 exception). The audit-subject and DSR registries cover complaints. Driver and advertiser Help screens, the staff Customer Service inbox and "Complaints to answer" in "Waiting for you". §30 row added; all three §9 baselines moved together. v1.100 is reserved for Batch C. |
 | v1.100 | 2026-09-28 | **Batch C: automatic payout approval with safeguards (D39(c), D40; direct-owner pass; switched off).** §16.3 records the automatic path, the disabled system actor and its integrity check, the clean-earnings rule, the cross-campaign one-day-rate ceiling, the run limit, the Finance pause switch, alerts, the daily reconciliation view, the lock order and the due-intent exclusion of blocked automatic intents; §30 gains its row. Migration `0093` adds the batch approval mode, runs, controls and alerts and seeds the actor; seven admin endpoints under `/api/v1/admin/payouts/automatic` and an `approval_mode` filter on batch summaries. `PAYOUT_AUTOMATIC_APPROVAL_ENABLED`, `PAYOUT_AUTOMATIC_FREQUENCY` and `PAYOUT_AUTOMATIC_BATCH_LIMIT_NGN` are false/blank in every template. Pay calculation, manual maker-checker rules and the Paystack wiring are unchanged; all three §9 baselines moved together. |
 | v1.99 | 2026-09-27 | **Batch D: Paystack payment and transfer adapters (direct-owner pass).** §15.3, §15.4 and §16 record Paystack implementations of the payment and disbursement ports built from the public API documentation and tested only against synthetic recorded fixtures, plus `POST /api/v1/webhooks/paystack` (Cardvert charges recorded and enqueued; every other signed event acknowledged without writes). `PAYSTACK_SECRET_KEY` is blank in every template and keeps both ports disabled. Existing payment and payout routes, the worker and every live-use gate are unchanged; no migration, provider call or account action. All three §9 baselines moved together. |

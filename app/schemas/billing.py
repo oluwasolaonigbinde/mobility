@@ -206,6 +206,15 @@ class IssuerProfileCreate(BaseModel):
     numbering_prefix: str
     verification_status: IssuerVerificationStatus
     external_input_reference: str
+    # Lengths match migration 0095; an over-long value is a 422, not a database error.
+    company_registration_number: str | None = Field(default=None, max_length=128)
+    contact_phone: str | None = Field(default=None, max_length=64)
+    contact_email: str | None = Field(
+        default=None, max_length=320, pattern=r"^\s*$|^[^@\s]+@[^@\s]+\.[^@\s]+$"
+    )
+    bank_name: str | None = Field(default=None, max_length=255)
+    bank_account_name: str | None = Field(default=None, max_length=255)
+    bank_account_number: str | None = Field(default=None, max_length=64)
 
 
 class IssuerProfileRead(ORMRead):
@@ -218,6 +227,12 @@ class IssuerProfileRead(ORMRead):
     numbering_prefix: str
     verification_status: str
     external_input_reference: str
+    company_registration_number: str | None
+    contact_phone: str | None
+    contact_email: str | None
+    bank_name: str | None
+    bank_account_name: str | None
+    bank_account_number: str | None
     recorded_at: datetime
 
 

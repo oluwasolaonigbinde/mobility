@@ -73,5 +73,9 @@ describe("CommercialHistory", () => {
     expect(screen.getByText(/Reduced vehicle count/)).toBeInTheDocument();
     expect(screen.getByText("refunded")).toBeInTheDocument();
     expect(screen.getByText(/REF-100/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View invoice" })).toHaveAttribute(
+      "href",
+      "/advertiser/campaigns/00000000-0000-0000-0000-000000000002/invoices/00000000-0000-0000-0000-000000000001",
+    );
   });
 });

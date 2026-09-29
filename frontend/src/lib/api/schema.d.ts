@@ -10423,6 +10423,18 @@ export interface components {
         };
         /** IssuerProfileCreate */
         IssuerProfileCreate: {
+            /** Bank Account Name */
+            bank_account_name?: string | null;
+            /** Bank Account Number */
+            bank_account_number?: string | null;
+            /** Bank Name */
+            bank_name?: string | null;
+            /** Company Registration Number */
+            company_registration_number?: string | null;
+            /** Contact Email */
+            contact_email?: string | null;
+            /** Contact Phone */
+            contact_phone?: string | null;
             /** Country Code */
             country_code: string;
             /** External Input Reference */
@@ -10441,6 +10453,18 @@ export interface components {
         };
         /** IssuerProfileRead */
         IssuerProfileRead: {
+            /** Bank Account Name */
+            bank_account_name: string | null;
+            /** Bank Account Number */
+            bank_account_number: string | null;
+            /** Bank Name */
+            bank_name: string | null;
+            /** Company Registration Number */
+            company_registration_number: string | null;
+            /** Contact Email */
+            contact_email: string | null;
+            /** Contact Phone */
+            contact_phone: string | null;
             /** Country Code */
             country_code: string;
             /** External Input Reference */

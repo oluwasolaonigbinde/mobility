@@ -128,15 +128,20 @@ outside it and recorded (Q14). Customer-facing prices are **VAT-inclusive
 (7.5 %)**, while the invoice still shows net, VAT and gross (Q28). Invoice
 details: Terrax Media Company Ltd, 73 Lome Crescent, Wuse Zone 7, FCT Abuja,
 07074200080, terraxmediacompany@gmail.com; fields include serial number, RC
-number, client and CEO signature lines, campaign duration, quantity and bank
-details (client answers item 6). An accountant must confirm before live
-invoices.
+number, client and CEO signature lines, campaign duration, quantity (the
+number of advert campaigns) and bank details (client answers item 6). The
+invoice leads with the VAT-inclusive total; staff still enter prices before
+VAT. RC number, TIN and bank details stay blank ("Not yet recorded") until
+Terrax supplies them, and a real invoice cannot be issued without them or
+without the accountant's sign-off (D42).
 
-**Still open:** [REQ-019](requests.md) — RC or TIN. Layout work: [REQ-009](requests.md).
+**Still open:** [REQ-019](requests.md) — RC or TIN; [REQ-041](requests.md) —
+OPay bank details; [REQ-042](requests.md) — accountant's confirmation.
 
 **History:**
 - **2026-08-14** — Client confirmed in-platform invoices and VAT-inclusive display (Q14, Q28, D18).
 - **2026-09-24** — Client supplied company details and invoice fields (client answers item 6).
+- **2026-09-29** — Owner approved the invoice layout: bank slots left blank until the real OPay details arrive, prices still entered before VAT (D42, REQ-009).
 
 ### Budgets and alerts
 
@@ -380,6 +385,7 @@ Templates: [REQ-010](requests.md).
 **History:**
 - **2026-08-14** — Client confirmed ownership (Q32, D18).
 - **2026-09-24** — Client chose the providers and domain (client answers items 9–16).
+- **2026-09-29** — Deployment templates for these providers written, with every secret blank and the go-live gaps listed in `docs/deployment-templates.md`; nothing applied (REQ-010).
 
 ### Legal, privacy and retention
 

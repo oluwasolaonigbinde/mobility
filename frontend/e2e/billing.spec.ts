@@ -96,9 +96,13 @@ test("quotation acceptance and invoice facts survive role changes and reloads", 
   const campaignRow = page.locator("li").filter({ hasText: campaignName });
   await campaignRow.getByRole("link", { name: "Open billing" }).click();
   await page.getByLabel("Quote reference").fill(quoteReference);
-  await page.getByLabel("Line-item description").fill("Vehicle media placement");
-  await page.getByLabel("Net amount").fill("100000");
-  await page.getByLabel("Tax rate (decimal)").fill("0.075");
+  await page.getByLabel("Services rendered").fill("Vehicle media placement");
+  await expect(page.getByLabel("Quantity (number of advert campaigns)")).toHaveValue("1");
+  await page.getByLabel("Unit price before VAT").fill("100000");
+  await expect(page.getByLabel("VAT rate (decimal, 0.075 = 7.5 %)")).toHaveValue("0.075");
+  // The isolated campaign has no dates, so the required campaign dates start blank.
+  await page.getByLabel("Campaign start date").fill("2026-10-01");
+  await page.getByLabel("Campaign end date").fill("2026-10-31");
   await page.getByLabel("Vehicle count").fill("2");
   await page.getByLabel("Payment terms / evidence notes").fill("Payment before production");
   await page.getByRole("button", { name: "Record immutable revision" }).click();
@@ -144,4 +148,10 @@ test("quotation acceptance and invoice facts survive role changes and reloads", 
   const history = page.getByRole("link", { name: campaignName }).locator("xpath=../..");
   await expect(history.getByText("Invoice and settlement history")).toBeVisible();
   await expect(history.getByText("Draft — number assigned on issue")).toBeVisible();
+  await history.getByRole("link", { name: "View invoice" }).click();
+  await expect(page.getByRole("heading", { name: "Draft invoice" })).toBeVisible();
+  await expect(page.getByText("1 October 2026 – 31 October 2026 (31 days)")).toBeVisible();
+  await expect(
+    page.getByText("Invoice total (VAT inclusive)").locator("..").getByText("₦107,500.00"),
+  ).toBeVisible();
 });

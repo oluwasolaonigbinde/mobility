@@ -32,11 +32,14 @@ export async function recordRevisionAction(
             code: "MEDIA",
             description: String(formData.get("description") ?? "").trim(),
             kind: "media",
-            amount: String(formData.get("amount") ?? "").trim(),
+            quantity: Number(formData.get("quantity") ?? 0),
+            unit_amount: String(formData.get("unit_amount") ?? "").trim(),
           },
         ],
         production_scope: {
           vehicle_count: Number(formData.get("vehicle_count") ?? 0),
+          campaign_start_date: String(formData.get("campaign_start_date") ?? "").trim(),
+          campaign_end_date: String(formData.get("campaign_end_date") ?? "").trim(),
         },
         payment_class: String(formData.get("payment_class")) as
           | "standard_prepaid"
