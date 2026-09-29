@@ -1,6 +1,7 @@
 import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
+from uuid import uuid4
 
 import pytest
 from conftest import create_test_campaign, create_test_organization, create_test_user
@@ -9,6 +10,7 @@ from test_receipt_allocations import _accepted_terms
 
 from app.core.errors import AppError
 from app.models.billing import (
+    AcceptanceMethod,
     InvoiceIssuerProfile,
     IssuerVerificationStatus,
     PaymentClass,
@@ -20,6 +22,7 @@ from app.models.user import UserRole
 from app.schemas.billing import IssuerProfileCreate
 from app.services import billing as billing_service
 from app.services.billing import (
+    accept_quotation_revision,
     allocate_payment_receipt,
     confirm_payment_receipt,
     create_invoice_draft,
@@ -588,6 +591,203 @@ def test_quotation_lines_accept_quantity_and_unit_price_and_campaign_dates(
                 with pytest.raises(AppError) as invalid_scope:
                     await revise([{**line, "amount": "1.00"}], scope)
                 assert invalid_scope.value.code == "INVALID_PRODUCTION_SCOPE", scope
+
+    asyncio.run(scenario())
+
+
+def test_commercial_validation_paths_fail_closed(db_sessionmaker, settings) -> None:
+    """Deterministic coverage of the quotation, invoice and issuer refusals around D42."""
+    admin, owner, organization, campaign = _fixture(db_sessionmaker)
+    external_campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=admin.id,
+        name="Externally agreed campaign",
+    )
+    line = {"code": "MEDIA", "description": "Campaign", "kind": "media", "amount": "1.00"}
+
+    async def refused(code, awaitable):
+        with pytest.raises(AppError) as error:
+            await awaitable
+        assert error.value.code == code
+
+    async def scenario() -> None:
+        async with db_sessionmaker() as session:
+            await refused(
+                "CAMPAIGN_NOT_FOUND",
+                request_custom_quote(
+                    session,
+                    campaign_id=uuid4(),
+                    actor_user_id=admin.id,
+                    source=QuoteRequestSource.EXTERNAL_RECORDED,
+                    request_details={},
+                ),
+            )
+            await refused(
+                "INVALID_QUOTE_REQUEST",
+                request_custom_quote(
+                    session,
+                    campaign_id=campaign.id,
+                    actor_user_id=owner.id,
+                    source=QuoteRequestSource.IN_PLATFORM,
+                    request_details=["not", "an", "object"],
+                ),
+            )
+            request = await request_custom_quote(
+                session,
+                campaign_id=campaign.id,
+                actor_user_id=owner.id,
+                source=QuoteRequestSource.IN_PLATFORM,
+                request_details={},
+            )
+            await refused(
+                "QUOTE_REQUEST_ALREADY_EXISTS",
+                request_custom_quote(
+                    session,
+                    campaign_id=campaign.id,
+                    actor_user_id=owner.id,
+                    source=QuoteRequestSource.IN_PLATFORM,
+                    request_details={},
+                ),
+            )
+
+            def revise(quote_request_id=request.id, **changes):
+                values = {
+                    "quote_reference": "Q-VALIDATION",
+                    "currency": "NGN",
+                    "line_items": [line],
+                    "production_scope": {"vehicle_count": 1},
+                    "payment_class": PaymentClass.STANDARD_PREPAID,
+                    "payment_terms": {},
+                    "tax_rate": "0.075",
+                } | changes
+                return record_quotation_revision(
+                    session, quote_request_id=quote_request_id, actor_user_id=admin.id, **values
+                )
+
+            await refused("QUOTE_REQUEST_NOT_FOUND", revise(quote_request_id=uuid4()))
+            await refused("INVALID_QUOTATION_IDENTITY", revise(currency="NG"))
+            await refused("PRODUCTION_SCOPE_REQUIRED", revise(production_scope={}))
+            await refused("INVALID_PAYMENT_TERMS", revise(payment_terms=["notes"]))
+            await refused("INVALID_TAX_RATE", revise(tax_rate="seven"))
+            await refused("INVALID_COMMERCIAL_AMOUNT", revise(line_items=[{**line, "amount": "x"}]))
+            await refused("INVALID_COMMERCIAL_LINE_ITEM", revise(line_items=["media"]))
+            await refused(
+                "INVALID_COMMERCIAL_LINE_ITEM", revise(line_items=[{**line, "kind": "bonus"}])
+            )
+            await refused(
+                "INVALID_COMMERCIAL_LINE_ITEM", revise(line_items=[{**line, "metadata": "x"}])
+            )
+            await refused(
+                "QUOTATION_NOT_FOUND",
+                accept_quotation_revision(
+                    session,
+                    quotation_revision_id=uuid4(),
+                    actor_user_id=owner.id,
+                    acceptance_method=AcceptanceMethod.IN_PLATFORM,
+                ),
+            )
+
+            revision = await revise()
+            terms = await accept_quotation_revision(
+                session,
+                quotation_revision_id=revision.id,
+                actor_user_id=owner.id,
+                acceptance_method=AcceptanceMethod.IN_PLATFORM,
+            )
+            await refused(
+                "COMMERCIAL_TERMS_NOT_FOUND",
+                create_invoice_draft(session, commercial_terms_id=uuid4(), actor_user_id=admin.id),
+            )
+            draft = await create_invoice_draft(
+                session, commercial_terms_id=terms.id, actor_user_id=admin.id
+            )
+            replay = await create_invoice_draft(
+                session, commercial_terms_id=terms.id, actor_user_id=admin.id
+            )
+            assert replay.id == draft.id
+            receipt = await record_payment_receipt(
+                session,
+                organization_id=campaign.organization_id,
+                actor_user_id=admin.id,
+                method=ReceiptMethod.MANUAL_TRANSFER,
+                provider="bank-transfer",
+                external_transaction_id="INV-VALIDATION-PAY",
+                amount="1.08",
+                currency="NGN",
+                payer_name="Acme",
+                evidence_reference="full-payment",
+                observed_at=datetime.now(UTC),
+            )
+            await reconcile_payment_receipt(
+                session,
+                receipt_id=receipt.id,
+                actor_user_id=admin.id,
+                expected_amount="1.08",
+                expected_currency="NGN",
+            )
+            await confirm_payment_receipt(session, receipt_id=receipt.id, actor_user_id=admin.id)
+            await allocate_payment_receipt(
+                session,
+                receipt_id=receipt.id,
+                commercial_terms_id=terms.id,
+                actor_user_id=admin.id,
+                amount="1.08",
+            )
+            assert await invoice_payment_status(session, draft) == ("paid", Decimal("1.08"))
+
+            # An externally agreed deal needs its evidence and a timezone-aware acceptance time.
+            external_request = await request_custom_quote(
+                session,
+                campaign_id=external_campaign.id,
+                actor_user_id=admin.id,
+                source=QuoteRequestSource.EXTERNAL_RECORDED,
+                request_details={},
+            )
+            external_revision = await revise(
+                quote_request_id=external_request.id, quote_reference="Q-VALIDATION-EXTERNAL"
+            )
+            for reference, accepted_at, code in (
+                (None, None, "EXTERNAL_ACCEPTANCE_EVIDENCE_REQUIRED"),
+                ("SIGNED-PO-1", datetime(2026, 9, 1, 12, 0), "INVALID_ACCEPTED_AT"),
+            ):
+                await refused(
+                    code,
+                    accept_quotation_revision(
+                        session,
+                        quotation_revision_id=external_revision.id,
+                        actor_user_id=admin.id,
+                        acceptance_method=AcceptanceMethod.EXTERNAL_RECORDED,
+                        external_accepted_at=accepted_at,
+                        external_acceptance_reference=reference,
+                    ),
+                )
+            await refused(
+                "INVOICE_NOT_FOUND",
+                issue_invoice(
+                    session,
+                    invoice_id=uuid4(),
+                    issuer_profile_id=uuid4(),
+                    actor_user_id=admin.id,
+                    settings=settings,
+                ),
+            )
+            await refused(
+                "INCOMPLETE_ISSUER_FACTS",
+                record_invoice_issuer_profile(
+                    session,
+                    actor_user_id=admin.id,
+                    legal_name="Terrax Media",
+                    tax_identification_number=" ",
+                    registered_address="Test fixture address, Abuja",
+                    country_code="NG",
+                    invoice_wording="Wording",
+                    numbering_prefix="CV",
+                    verification_status=IssuerVerificationStatus.SYNTHETIC,
+                    external_input_reference="SYNTHETIC-NO-TIN",
+                    settings=settings,
+                ),
+            )
 
     asyncio.run(scenario())
 

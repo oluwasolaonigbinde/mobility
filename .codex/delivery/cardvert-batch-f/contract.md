@@ -43,7 +43,7 @@ complaint logic.
 | AC8 contract baselines | PASS | `openapi.json`, `docs/api/openapi.snapshot.json` (`update_openapi_snapshot --check` OK), `schema.d.ts` regenerated from the committed `openapi.json`; full Vitest: 1,134 passed, 3 font-scan tests timed out under full-suite load and pass alone (85/85) |
 | AC9 templates | PASS | `test_deploy_templates.py` (4): backend keys are Settings fields, committed values validate through Settings, no secret values, secret-shaped key guard, switches off, DB/Redis hand-entered, exact IAM actions, KMS via S3 only; gap list reviewed |
 | AC11 docs and records | PASS | architecture inventory `--check` OK; D42, Q28, PRD §7, client-decisions, requests updated |
-| AC12 D32 | PASS | changed lines vs `fedd41b`: backend 60/60 lines, 18/18 branches; frontend 63/63 lines, 98/109 branches (89.9 %). Full CI on the branch before merge (D41) |
+| AC12 D32 | PASS | changed lines vs `fedd41b`: backend 60/60 lines, 18/18 branches; frontend 63/63 lines, 98/109 branches (89.9 %), confirmed on CI run 36599216949's own LCOV. That run's critical-backend ratio sat 0.064 points under the adopted floor because 19 previously incidental `billing.py` refusal lines went uncovered after the shard layout changed; `test_commercial_validation_paths_fail_closed` now covers them deterministically before the D33 refresh |
 
 AC10 (client guide) was removed by the owner.
 
