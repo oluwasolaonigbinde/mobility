@@ -7,6 +7,7 @@ import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
 import { requireRole } from "@/lib/auth/current-user";
 import { receiptsAllocatedToTerms } from "@/lib/billing/history";
+import { watCalendarDate } from "@/lib/billing/invoice-document";
 import { formatDate, formatMoney } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -121,13 +122,48 @@ export default async function AdminCampaignBillingPage({
           ) : commercial.quote_request && revisionAction ? (
             <form action={revisionAction} className="grid gap-4">
               <Field name="quote_reference" label="Quote reference" required />
-              <Field name="description" label="Line-item description" required />
+              <Field name="description" label="Services rendered" required />
               <div className="grid grid-cols-2 gap-4">
-                <Field name="amount" label="Net amount" inputMode="decimal" required />
-                <Field name="tax_rate" label="Tax rate (decimal)" inputMode="decimal" required />
+                <Field
+                  name="quantity"
+                  label="Quantity (number of advert campaigns)"
+                  type="number"
+                  min={1}
+                  defaultValue="1"
+                  required
+                />
+                <Field
+                  name="unit_amount"
+                  label="Unit price before VAT"
+                  inputMode="decimal"
+                  required
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
+                <Field
+                  name="tax_rate"
+                  label="VAT rate (decimal, 0.075 = 7.5 %)"
+                  inputMode="decimal"
+                  defaultValue="0.075"
+                  required
+                />
                 <Field name="currency" label="Currency" defaultValue={campaign.currency} required />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <Field
+                  name="campaign_start_date"
+                  label="Campaign start date"
+                  type="date"
+                  defaultValue={watCalendarDate(campaign.start_at)}
+                  required
+                />
+                <Field
+                  name="campaign_end_date"
+                  label="Campaign end date"
+                  type="date"
+                  defaultValue={watCalendarDate(campaign.end_at)}
+                  required
+                />
                 <Field name="vehicle_count" label="Vehicle count" type="number" min={1} required />
               </div>
               <label className="micro text-muted">
@@ -235,6 +271,12 @@ export default async function AdminCampaignBillingPage({
                   {formatMoney(invoice.tax_amount, invoice.currency)} VAT ·{" "}
                   {formatMoney(invoice.gross_amount, invoice.currency)} gross
                 </p>
+                <Link
+                  className="micro text-amber mt-1 inline-block hover:underline"
+                  href={`/admin/billing/${campaignId}/invoices/${invoice.id}`}
+                >
+                  View invoice
+                </Link>
                 <div className="border-edge mt-4 grid gap-3 rounded-lg border p-4 sm:grid-cols-3">
                   <div>
                     <p className="micro text-muted">Effective obligation</p>

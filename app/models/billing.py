@@ -470,6 +470,13 @@ class InvoiceIssuerProfile(Base):
     numbering_prefix: Mapped[str] = mapped_column(String(32), nullable=False)
     verification_status: Mapped[str] = mapped_column(String(32), nullable=False)
     external_input_reference: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Required for verified issuance (D42); synthetic profiles may leave them blank.
+    company_registration_number: Mapped[str | None] = mapped_column(String(128))
+    contact_phone: Mapped[str | None] = mapped_column(String(64))
+    contact_email: Mapped[str | None] = mapped_column(String(320))
+    bank_name: Mapped[str | None] = mapped_column(String(255))
+    bank_account_name: Mapped[str | None] = mapped_column(String(255))
+    bank_account_number: Mapped[str | None] = mapped_column(String(64))
     recorded_by_user_id: Mapped[UUID] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
