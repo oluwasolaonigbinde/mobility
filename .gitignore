@@ -22,3 +22,6 @@ backups/
 # local agent config + generated review artifacts
 .claude/
 docs/architecture-review-packet.zip
+
+# Local scratch files; may hold client documents with credentials.
+tmp/

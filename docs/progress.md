@@ -1,13 +1,15 @@
-# Delivery Control — Intended MVP, Delivered Work, and Ordered Queue
+# Build Programme and Launch Gates
 
-**Start here before every task.** This is the operational control document for
-delivery: it shows the endpoint, what exists, the sole authorised package, and
-the ordered remainder. Agents update it in the same change as every landed
-package. The proposal owns scope, architecture owns design, decisions-log owns
-product decisions, and Git/test evidence proves delivery; **this file alone
-controls which package may be executed next**. It replaces the status-summary
-role of `project-reconciliation.md` (4 Aug 2026) and the work-selection role
-previously implied by `next-steps.md` (10 Aug 2026).
+**For current work, start with [client-decisions.md](client-decisions.md)
+(what the client wants now) and [requests.md](requests.md) (every ask and its
+status).** This file is the ledger of the original build programme. That
+programme is complete except for its launch gates: the payment-provider keys
+(`PKG-03 / W2-01C`) and the external release, device, pilot and handover
+evidence in PKG-08 and PKG-09. For that programme, **this file alone controls
+which package may be executed next**, and its registers below are what the
+pilot-gate and handover tooling checks. The proposal owns scope, architecture
+owns design, decisions-log owns the formal decision record, and Git/test
+evidence proves delivery.
 
 The endpoint is the D11 proposal scope as superseded by direct client answers
 and later approved decisions in `docs/decisions-log.md`, designed in
@@ -86,16 +88,16 @@ PKG-08 and PKG-09 await the external release, provider, physical-device and pilo
 
 **Progress-document reorganization (29 Sep 2026):** The owner approved this shorter present-day control page. Dated receipts are in [the September delivery history](archive/progress-history-2026-09.md); detailed package and checklist criteria remain live in [delivery-contracts.md](delivery-contracts.md). The package queue, checklist statuses, dependencies, external gates and controller pointer retain their authority and values.
 
-**Cardvert next build pass (D38–D41):** Batches A–E are integrated on
-`master`. Batch F remains in the owner-directed A–F sequence: invoice layout,
-deployment environment templates, the client guide, and architecture §16 / PRD
-§7 amendments. The recorded batch contracts and evidence are in
-[the delivery history](archive/progress-history-2026-09.md). This programme
-does not promote or reorder the paused package queue. Open client parameters
-stay fail-closed; `payout_v1`–`v3` history is never repriced. Each batch retains
-the independent reviews, D32 changed-line coverage and live `cardvertmain`
-check in the owner's original request. Commit, push, deployment, provider call
-and external-account action still require separate owner approval.
+**Owner and client work (from 29 Sep 2026):** Every ask from the client, PM or
+owner is recorded and tracked in [requests.md](requests.md), and client rules
+by topic in [client-decisions.md](client-decisions.md); root `AGENTS.md` sets
+the flow. Batches A–E of the Cardvert next build pass (D38–D41) are merged and
+recorded there as REQ-001 to REQ-006; Batch F is REQ-009 to REQ-012. Their
+contracts and evidence are in [the delivery history](archive/progress-history-2026-09.md).
+This work does not promote or reorder the paused package queue. Open client
+parameters stay fail-closed; `payout_v1`–`v3` history is never repriced.
+Commit, push, deployment, provider calls and external-account action require
+separate owner approval.
 
 **Branch acceptance (D41, 29 Sep 2026):** Each future batch or feature branch must pass its full GitHub CI run before merging into `master`; local runs cover touched test files. The adopted coverage floors and D32 thresholds remain unchanged. See [D41](decisions-log.md) for the exact tolerance policy.
 
@@ -866,7 +868,9 @@ Provider-neutral implementation and synthetic preparation have reached the exter
 
 | Question | Source of truth |
 | --- | --- |
-| MVP scope and current decisions | `docs/decisions-log.md` D18–D41 and the client proposal where not superseded |
+| What the client wants now, by topic | [client-decisions.md](client-decisions.md), citing the formal D-rows and Q-rows in `docs/decisions-log.md` |
+| Every request and its status | [requests.md](requests.md) |
+| MVP scope and the formal decision record | `docs/decisions-log.md` D18 onwards and the client proposal where not superseded |
 | Design and placement | `docs/architecture.md` |
 | Which package/checkpoint may execute; statuses, dependencies and external gates | This file only |
 | Binding package and checklist acceptance detail | [delivery-contracts.md](delivery-contracts.md), read with this file's status and execution lock |
@@ -875,8 +879,8 @@ Provider-neutral implementation and synthetic preparation have reached the exter
 
 ## Update rules
 
-1. Record a direct owner request here before editing outside the package queue. It does not move the queue without explicit reprioritization.
+1. Record every owner or client request in [requests.md](requests.md) before editing, as root `AGENTS.md` describes. It does not move this queue without explicit reprioritization.
 2. For a package change, update this file's status, evidence and pointers, plus the live detailed criteria when needed. Keep external gates and deferred validation truthful.
-3. Client product decisions land in `decisions-log.md` first; amend architecture only for a genuine design or product change.
+3. Client product decisions land in `decisions-log.md` (formal record) and [client-decisions.md](client-decisions.md) (current rule and history by topic) in the same change; amend architecture only for a genuine design or product change.
 4. A `DONE` claim requires every owned checklist item `DONE`, proportional deterministic and live/synthetic evidence, required review and applicable docs. Code alone is not completion.
 5. Historical receipts may be archived after closure; live acceptance criteria remain editable in `delivery-contracts.md`. `docs/next-steps.md` and `docs/build-loop/` do not authorize work.
