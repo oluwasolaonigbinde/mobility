@@ -57,18 +57,20 @@ def test_ratchet_tolerance_absorbs_noise_but_not_real_drops() -> None:
 
     floor = metrics(8_800)
     tolerance = module.RATCHET_TOLERANCE_POINTS
-    assert tolerance == module.Fraction(1, 10)
-    # 18 lines below on 10,000 (0.18 points) is beyond 0.1; 10 lines (0.1) is within.
-    module._assert_not_regressed("global", metrics(8_790), floor, tolerance=tolerance)
+    assert tolerance == module.Fraction(3, 10)
+    # 0.3 points is within; 0.4 points is a real drop, for lines and for branches.
+    module._assert_not_regressed(
+        "global", metrics(8_770, branch_covered=697), floor, tolerance=tolerance
+    )
     with pytest.raises(module.PolicyError, match="regressed"):
-        module._assert_not_regressed("global", metrics(8_782), floor, tolerance=tolerance)
+        module._assert_not_regressed("global", metrics(8_760), floor, tolerance=tolerance)
+    with pytest.raises(module.PolicyError, match="regressed"):
+        module._assert_not_regressed(
+            "global", metrics(8_800, branch_covered=696), floor, tolerance=tolerance
+        )
     # Exact comparisons (refresh adoption) keep zero tolerance.
     with pytest.raises(module.PolicyError, match="regressed"):
         module._assert_not_regressed("global", metrics(8_799), floor)
-    with pytest.raises(module.PolicyError, match="regressed"):
-        module._assert_not_regressed(
-            "global", metrics(8_800, branch_covered=698), floor, tolerance=tolerance
-        )
 
 
 def test_exact_critical_paths_support_next_dynamic_segments() -> None:

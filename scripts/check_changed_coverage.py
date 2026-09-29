@@ -25,7 +25,8 @@ BRANCH_FLOOR = 80.0
 # D41: a run's global/critical ratios may sit this many percentage points below
 # the adopted floor, absorbing run-to-run noise from concurrency tests. Adopted
 # floors are never lowered, refreshes stay exact, and D32 floors are unaffected.
-RATCHET_TOLERANCE_POINTS = Fraction(1, 10)
+# 0.3: four runs of identical code spread 0.20 points on critical backend branches.
+RATCHET_TOLERANCE_POINTS = Fraction(3, 10)
 FULL_SHA = re.compile(r"[0-9a-f]{40}\Z")
 HUNK = re.compile(r"@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
 LEGACY_RUNTIME_ATTESTATION = "docs/evidence/coverage-runtime-34354263174.json"
