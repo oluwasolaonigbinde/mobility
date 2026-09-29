@@ -598,59 +598,16 @@
     "line_percent": 88.3241,
     "line_total": 37967
   },
-  "policy_sha256": "7ce59d164ae0a070eb4d260483655605382c98e626df896b5910db52b0d7ec1b",
+  "policy_sha256": "f31ab2c27f13e9b564f59248c6d0ec9b62634d245073b8c669e08e33857efc4d",
   "refresh": {
     "inventory_changes": {
-      "added": [
-        "app/adapters/disbursement/paystack.py",
-        "app/adapters/payments/paystack.py",
-        "app/api/v1/automatic_payouts.py",
-        "app/api/v1/complaints.py",
-        "app/api/v1/webhooks.py",
-        "app/jobs/automatic_payouts.py",
-        "app/models/complaint.py",
-        "app/schemas/automatic_payouts.py",
-        "app/schemas/complaints.py",
-        "app/services/automatic_payouts.py",
-        "app/services/complaints.py",
-        "frontend/src/app/admin/complaints/[complaintId]/loading.tsx",
-        "frontend/src/app/admin/complaints/[complaintId]/page.tsx",
-        "frontend/src/app/admin/complaints/loading.tsx",
-        "frontend/src/app/admin/complaints/page.tsx",
-        "frontend/src/app/admin/payouts/automatic/actions.ts",
-        "frontend/src/app/admin/payouts/automatic/controls.tsx",
-        "frontend/src/app/admin/payouts/automatic/page.tsx",
-        "frontend/src/app/admin/payouts/rules/daily-rate-panel.tsx",
-        "frontend/src/app/advertiser/campaigns/[campaignId]/edit/campaign-edit-form.tsx",
-        "frontend/src/app/advertiser/campaigns/[campaignId]/edit/page.tsx",
-        "frontend/src/app/advertiser/help/[complaintId]/loading.tsx",
-        "frontend/src/app/advertiser/help/[complaintId]/page.tsx",
-        "frontend/src/app/advertiser/help/loading.tsx",
-        "frontend/src/app/advertiser/help/page.tsx",
-        "frontend/src/app/advertiser/planning-sources/labels.ts",
-        "frontend/src/app/driver/(portal)/capabilities/phone-check.tsx",
-        "frontend/src/app/driver/(portal)/capabilities/use-capability-probes.ts",
-        "frontend/src/app/driver/(portal)/help/[complaintId]/loading.tsx",
-        "frontend/src/app/driver/(portal)/help/[complaintId]/page.tsx",
-        "frontend/src/app/driver/(portal)/help/loading.tsx",
-        "frontend/src/app/driver/(portal)/help/page.tsx",
-        "frontend/src/components/complaints/complainant-pages.tsx",
-        "frontend/src/components/complaints/forms.tsx",
-        "frontend/src/lib/assignments/installation-views.ts",
-        "frontend/src/lib/assignments/offer-terms.ts",
-        "frontend/src/lib/complaints/actions.ts",
-        "frontend/src/lib/complaints/labels.ts",
-        "frontend/src/lib/complaints/read.ts",
-        "frontend/src/lib/payouts/automatic.ts"
-      ],
-      "removed": [
-        "frontend/src/fonts/families/bricolage-grotesque.ts"
-      ]
+      "added": [],
+      "removed": []
     },
-    "previous_baseline_sha256": "9d9037c7722a3fc62a914be12b8d932eee4e302f0c09ea8f19f0d68f4e0e4bdb",
-    "reason": "Batches A-E (D38/D39/D40): new eligible sources for budget urgent alerts, upload policy, payout_v4, Paystack adapters, automatic payouts and complaints; adopted from exact-SHA CI run 36494571198 on cf2dfd2 without lowering any floor"
+    "previous_baseline_sha256": "89b428ec2744e6350ac69f6ac37e9eac91369d5dce071b82175564a53eed788b",
+    "reason": "D41 policy-only refresh: the checker gains a 0.1-point noise tolerance for ordinary checks; adopted floors unchanged"
   },
-  "source_parent_sha": "319c2c4c9b8363a074e02a04c83e1f8ee047277e",
+  "source_parent_sha": "2485184d0ddc9c94f88f35438e02af97a10f83fe",
   "source_sha256": "71e51d5561b0a7703d7c47b570bafbce1b11154ad6bcf14eac96cb631571cbfc",
   "version": 3
 }
