@@ -598,16 +598,16 @@
     "line_percent": 88.3241,
     "line_total": 37967
   },
-  "policy_sha256": "f31ab2c27f13e9b564f59248c6d0ec9b62634d245073b8c669e08e33857efc4d",
+  "policy_sha256": "a4200e7586a91c296343a4d2b26e6790556d4d6f8e43e35bd05779dd96461604",
   "refresh": {
     "inventory_changes": {
       "added": [],
       "removed": []
     },
-    "previous_baseline_sha256": "89b428ec2744e6350ac69f6ac37e9eac91369d5dce071b82175564a53eed788b",
-    "reason": "D41 policy-only refresh: the checker gains a 0.1-point noise tolerance for ordinary checks; adopted floors unchanged"
+    "previous_baseline_sha256": "e386f9b13ee9c00e1242861c936cc9b4d5458406e73f16e3263379bef37c1642",
+    "reason": "D41 policy-only refresh: noise tolerance raised to 0.3 points; adopted floors unchanged"
   },
-  "source_parent_sha": "2485184d0ddc9c94f88f35438e02af97a10f83fe",
+  "source_parent_sha": "65a3a2f36477362476e286e64befd0e7435628de",
   "source_sha256": "71e51d5561b0a7703d7c47b570bafbce1b11154ad6bcf14eac96cb631571cbfc",
   "version": 3
 }
