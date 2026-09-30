@@ -1,12 +1,15 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from app.adapters.disbursement import DisabledDisbursementAdapter, DisbursementAdapter
-from app.api.v1.dependencies import AdminUserDependency, SessionDependency
+from app.adapters.disbursement import DisbursementAdapter
+from app.adapters.disbursement.paystack import build_disbursement_adapter
+from app.api.v1.dependencies import AdminUserDependency, SessionDependency, SettingsDependency
 from app.core.errors import AppError
+from app.db.session import get_engine
 from app.models.disbursement import PayoutBatchApprovalMode, PayoutBatchStatus
 from app.models.driver import DriverProfile
 from app.schemas.disbursements import (
@@ -32,7 +35,6 @@ from app.services.disbursements import (
     get_payout_batch,
     list_payout_batches,
     poll_payout_line,
-    reconcile_payout_webhook,
     reserve_payout_batch,
     retry_failed_payout_lines,
     submit_payout_batch,
@@ -47,12 +49,19 @@ from app.services.payout_operations import (
     payout_line_history,
     preview_payment_selection,
 )
+from app.services.paystack_disbursements import build_paystack_destination_resolver
 
 router = APIRouter(prefix="/admin/payout-batches", tags=["Admin payout batches"])
 
 
-def get_disbursement_adapter() -> DisbursementAdapter:
-    return DisabledDisbursementAdapter()
+def get_disbursement_adapter(settings: SettingsDependency) -> DisbursementAdapter:
+    if settings.paystack_secret_key is None:
+        return build_disbursement_adapter(settings)
+    sessionmaker = async_sessionmaker(get_engine(settings), expire_on_commit=False)
+    return build_disbursement_adapter(
+        settings,
+        destination_resolver=build_paystack_destination_resolver(settings, sessionmaker),
+    )
 
 
 DisbursementDependency = Annotated[DisbursementAdapter, Depends(get_disbursement_adapter)]
@@ -268,23 +277,6 @@ async def admin_submit_payout_batch(
         session,
         batch_id=batch_id,
         actor_user_id=current_user.id,
-        adapter=adapter,
-    )
-    await session.commit()
-    return _response(batch, lines)
-
-
-@router.post("/provider-webhook", response_model=PayoutBatchRead)
-async def provider_payout_webhook(
-    request: Request,
-    session: SessionDependency,
-    adapter: DisbursementDependency,
-    provider_signature: str = Header(alias="X-Provider-Signature"),
-) -> PayoutBatchRead:
-    batch, lines, _ = await reconcile_payout_webhook(
-        session,
-        payload=await request.body(),
-        signature=provider_signature,
         adapter=adapter,
     )
     await session.commit()

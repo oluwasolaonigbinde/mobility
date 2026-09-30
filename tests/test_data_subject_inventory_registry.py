@@ -296,6 +296,9 @@ def test_subject_link_registry_counts_recovery_contact_and_trip_manifest_rows(
     assert counts["customer_service_complaints"] == 0
     assert counts["automatic_payout_alerts"] == 0
     assert classified_subject_tables() == {
+        "payment_checkout_intents",
+        "payout_provider_events",
+        "payout_provider_event_processing_attempts",
         "password_reset_attempts",
         "password_reset_tokens",
         "driver_account_setup_tokens",

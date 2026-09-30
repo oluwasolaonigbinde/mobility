@@ -13,6 +13,43 @@ class SubjectLinkRule:
 
 ADDITIONAL_SUBJECT_LINK_RULES = (
     SubjectLinkRule(
+        data_class="payment_checkout_identity",
+        counted_tables=frozenset({"payment_checkout_intents"}),
+        path_tables=frozenset(),
+        subject_path="checkout requester user id",
+        count_query=(
+            "SELECT count(*) FROM payment_checkout_intents "
+            "WHERE requested_by_user_id = :subject_user_id"
+        ),
+    ),
+    SubjectLinkRule(
+        data_class="payout_provider_processing_evidence",
+        counted_tables=frozenset(
+            {"payout_provider_events", "payout_provider_event_processing_attempts"}
+        ),
+        path_tables=frozenset(
+            {
+                "payout_batch_lines",
+                "earnings_ledger_entries",
+            }
+        ),
+        subject_path=(
+            "provider event or processing attempt → provider transfer reference → payout line "
+            "→ ledger driver user"
+        ),
+        count_query=(
+            "SELECT (SELECT count(*) FROM payout_provider_events p "
+            "JOIN payout_batch_lines l ON l.provider_transfer_reference = "
+            "p.provider_transfer_reference JOIN earnings_ledger_entries e "
+            "ON e.id = l.ledger_entry_id WHERE e.driver_user_id = :subject_user_id) + "
+            "(SELECT count(*) FROM payout_provider_event_processing_attempts a "
+            "JOIN payout_provider_events p ON p.id = a.provider_event_id "
+            "JOIN payout_batch_lines l ON l.provider_transfer_reference = "
+            "p.provider_transfer_reference JOIN earnings_ledger_entries e "
+            "ON e.id = l.ledger_entry_id WHERE e.driver_user_id = :subject_user_id)"
+        ),
+    ),
+    SubjectLinkRule(
         data_class="authentication_recovery",
         counted_tables=frozenset(
             {

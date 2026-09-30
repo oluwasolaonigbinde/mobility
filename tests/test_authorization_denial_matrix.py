@@ -329,11 +329,6 @@ def test_machine_callbacks_reject_forged_authority_without_effects(
                 "X-Email-Receipt-Key-Id": "matrix-v1",
             },
         ),
-        ("POST", "/api/v1/admin/payout-batches/provider-webhook"): db_client.post(
-            "/api/v1/admin/payout-batches/provider-webhook",
-            content=b"{}",
-            headers={"X-Provider-Signature": "forged"},
-        ),
     }
 
     assert set(responses) == MACHINE_ROUTES

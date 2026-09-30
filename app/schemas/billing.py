@@ -176,6 +176,15 @@ class BillingHistoryEntry(BaseModel):
     current_status: str | None
 
 
+class PaymentCheckoutRead(ORMRead):
+    reference: str
+    invoice_id: UUID
+    amount: Decimal
+    currency: str
+    status: str
+    checkout_url: str | None
+
+
 class ManualTransferCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     organization_id: UUID

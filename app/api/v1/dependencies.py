@@ -12,6 +12,7 @@ from app.core import clock
 from app.core.config import Settings, get_settings
 from app.core.errors import AppError
 from app.core.payment_enqueue import PaymentEventEnqueuer, build_payment_event_enqueuer
+from app.core.payout_event_enqueue import PayoutEventEnqueuer, build_payout_event_enqueuer
 from app.core.rate_limit import (
     LoginRateLimiter,
     RegistrationRateLimiter,
@@ -75,6 +76,15 @@ def get_payment_event_enqueuer(settings: SettingsDependency) -> PaymentEventEnqu
 
 PaymentEventEnqueuerDependency = Annotated[
     PaymentEventEnqueuer, Depends(get_payment_event_enqueuer)
+]
+
+
+def get_payout_event_enqueuer(settings: SettingsDependency) -> PayoutEventEnqueuer:
+    return build_payout_event_enqueuer(settings)
+
+
+PayoutEventEnqueuerDependency = Annotated[
+    PayoutEventEnqueuer, Depends(get_payout_event_enqueuer)
 ]
 
 

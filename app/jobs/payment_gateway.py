@@ -44,7 +44,7 @@ async def sweep_payment_gateway_events(ctx: dict[str, Any]) -> dict[str, int]:
                     ~exists().where(
                         PaymentGatewayProcessingAttempt.gateway_event_id == PaymentGatewayEvent.id,
                         PaymentGatewayProcessingAttempt.outcome.in_(
-                            ("confirmed", "ignored_failed")
+                            ("confirmed", "confirmed_unallocated", "ignored_failed")
                         ),
                     )
                 )

@@ -78,7 +78,7 @@ def make_ctx(sessionmaker, settings) -> dict:
 
 
 def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
-    assert len(WorkerSettings.functions) == 4
+    assert len(WorkerSettings.functions) == 5
     registered = WorkerSettings.functions[0]
     assert isinstance(registered, Function)
     assert registered.name == "process_trip"
@@ -97,8 +97,13 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert disbursement.name == "process_disbursement_intent"
     assert disbursement.coroutine is disbursement_jobs.process_disbursement_intent_job
     assert disbursement.keep_result_s == 0
+    payout_event = WorkerSettings.functions[4]
+    assert isinstance(payout_event, Function)
+    assert payout_event.name == "process_payout_provider_event"
+    assert payout_event.coroutine is disbursement_jobs.process_payout_provider_event_job
+    assert payout_event.keep_result_s == 0
 
-    assert len(WorkerSettings.cron_jobs) == 21
+    assert len(WorkerSettings.cron_jobs) == 22
     cron_job = WorkerSettings.cron_jobs[0]
     assert isinstance(cron_job, CronJob)
     assert cron_job.coroutine is jobs.process_unprocessed_trips
@@ -163,7 +168,7 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert report_sweep.coroutine is report_issuance_jobs.sweep_report_issuances
     assert report_sweep.unique is True
 
-    lifecycle_crons = {cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[12:-2]}
+    lifecycle_crons = {cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[12:-3]}
     assert set(lifecycle_crons) == {
         data_lifecycle_jobs.premake_ping_partitions,
         data_lifecycle_jobs.check_ping_partition_coverage,
@@ -181,12 +186,16 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
         # Daily, staggered hours so lifecycle DDL never stacks.
         assert len(cron_job.hour) == 1
     assert len({next(iter(job.hour)) for job in lifecycle_crons.values()}) == 6
-    disbursement_sweep = WorkerSettings.cron_jobs[-2]
+    disbursement_sweep = WorkerSettings.cron_jobs[-3]
     assert disbursement_sweep.coroutine is disbursement_jobs.sweep_disbursement_intents
     assert disbursement_sweep.unique is True
     assert disbursement_sweep.minute == sweep_cron_minutes(
         get_settings().worker_sweep_interval_minutes
     )
+    provider_event_sweep = WorkerSettings.cron_jobs[-2]
+    assert provider_event_sweep.coroutine is disbursement_jobs.sweep_payout_provider_events
+    assert provider_event_sweep.unique is True
+    assert provider_event_sweep.minute == disbursement_sweep.minute
     automatic_sweep = WorkerSettings.cron_jobs[-1]
     assert automatic_sweep.coroutine is automatic_payout_jobs.sweep_automatic_payouts
     assert automatic_sweep.unique is True

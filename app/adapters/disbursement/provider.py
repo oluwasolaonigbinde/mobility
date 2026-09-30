@@ -52,6 +52,10 @@ class VerifiedLineEvidence:
     outcome: str
     occurred_at: datetime
     evidence_fingerprint: str
+    provider_reference: str | None = None
+    amount: str | None = None
+    currency: str | None = None
+    provider_event_type: str | None = None
 
 
 class DisbursementAdapter(Protocol):
@@ -213,6 +217,7 @@ class FakeDisbursementAdapter:
                 outcome=outcome,
                 occurred_at=occurred_at,
                 evidence_fingerprint=hashlib.sha256(payload).hexdigest(),
+                provider_event_type=str(data.get("provider_event_type") or "provider.result"),
             )
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
             raise ValueError("Provider webhook payload is invalid") from exc
@@ -239,6 +244,7 @@ class FakeDisbursementAdapter:
             evidence_fingerprint=hashlib.sha256(
                 json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
             ).hexdigest(),
+            provider_event_type="provider.result",
         )
 
     async def poll_line(self, *, provider_transfer_reference: str) -> VerifiedLineEvidence:

@@ -27,6 +27,7 @@ from app.services.payees import (
     bank_account_payout_verification,
     create_applicant_payee,
     create_pilot_payee,
+    read_frozen_payout_bank_account,
     read_verified_bank_account,
     rewrap_bank_account,
 )
@@ -37,6 +38,54 @@ DETAILS = VerifiedBankAccountDetails(
     bank_code="058",
 )
 VERIFICATION_REFERENCE = "provider-evidence-00000000000000000001"
+
+
+def test_worker_reads_only_the_exact_frozen_verified_destination(db_sessionmaker) -> None:
+    admin, _, profile = _seed_actor_and_driver(db_sessionmaker)
+    crypto = EnvelopeCryptoProvider(keys={1: b"e" * 32}, active_key_version=1)
+
+    async def exercise() -> tuple[str, str | None, str]:
+        async with db_sessionmaker() as session:
+            payee, payee_version = await create_pilot_payee(
+                session, driver_profile_id=profile.id, actor_user_id=admin.id
+            )
+            account = await add_verified_bank_account_version(
+                session,
+                payee_id=payee.id,
+                details=DETAILS,
+                verification_reference=VERIFICATION_REFERENCE,
+                actor_user_id=admin.id,
+                crypto=crypto,
+            )
+            await session.commit()
+
+        async with db_sessionmaker() as session:
+            details = await read_frozen_payout_bank_account(
+                session,
+                payee_version_id=payee_version.id,
+                bank_account_version_id=account.id,
+                crypto=crypto,
+            )
+            await session.commit()
+            audit = await session.scalar(
+                select(AuditEvent).where(
+                    AuditEvent.action == "worker.bank_account.payout_read"
+                )
+            )
+            with pytest.raises(AppError) as mismatch:
+                await read_frozen_payout_bank_account(
+                    session,
+                    payee_version_id=uuid4(),
+                    bank_account_version_id=account.id,
+                    crypto=crypto,
+                )
+            return details.account_number, str(audit.actor_user_id), mismatch.value.code
+
+    assert asyncio.run(exercise()) == (
+        DETAILS.account_number,
+        "None",
+        "PAYOUT_DESTINATION_AUTHORITY_INVALID",
+    )
 
 
 def _seed_actor_and_driver(db_sessionmaker):

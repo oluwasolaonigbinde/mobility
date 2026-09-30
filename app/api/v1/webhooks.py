@@ -2,6 +2,11 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Request, status
 
+from app.adapters.disbursement import DisabledDisbursementAdapter
+from app.adapters.disbursement.paystack import (
+    PaystackDisbursementAdapter,
+    build_disbursement_adapter,
+)
 from app.adapters.payments import (
     DisabledPaymentGatewayAdapter,
     PaymentWebhookAuthenticationError,
@@ -13,12 +18,14 @@ from app.adapters.payments.paystack import (
 )
 from app.api.v1.dependencies import (
     PaymentEventEnqueuerDependency,
+    PayoutEventEnqueuerDependency,
     SessionDependency,
     SettingsDependency,
 )
 from app.core.errors import AppError
 from app.schemas.billing import PaystackWebhookReceipt
 from app.services.billing import ingest_payment_gateway_webhook
+from app.services.disbursements import ingest_payout_provider_webhook
 
 router = APIRouter(prefix="/webhooks", tags=["Provider webhooks"])
 
@@ -35,19 +42,29 @@ PaystackAdapterDependency = Annotated[
 ]
 
 
+def get_paystack_disbursement_adapter(
+    settings: SettingsDependency,
+) -> PaystackDisbursementAdapter | DisabledDisbursementAdapter:
+    return build_disbursement_adapter(settings)
+
+
+PaystackDisbursementDependency = Annotated[
+    PaystackDisbursementAdapter | DisabledDisbursementAdapter,
+    Depends(get_paystack_disbursement_adapter),
+]
+
+
 @router.post("/paystack", response_model=PaystackWebhookReceipt)
 async def paystack_webhook(
     request: Request,
     session: SessionDependency,
     adapter: PaystackAdapterDependency,
+    disbursement_adapter: PaystackDisbursementDependency,
     enqueuer: PaymentEventEnqueuerDependency,
+    payout_enqueuer: PayoutEventEnqueuerDependency,
     signature: str | None = Header(default=None, alias="X-Paystack-Signature"),
 ) -> PaystackWebhookReceipt:
-    """Record Cardvert charge events; acknowledge every other signed event unprocessed.
-
-    Transfer outcomes are reconciled by the admin poll until a queued transfer-event
-    path exists (§15.4 keeps business logic out of the webhook request path).
-    """
+    """Authenticate and queue Cardvert charge or transfer evidence."""
     if signature is None or not signature.strip():
         raise AppError(
             "PAYMENT_WEBHOOK_UNAUTHORIZED",
@@ -75,6 +92,24 @@ async def paystack_webhook(
             "Authenticated payment webhook payload is invalid",
             status_code=status.HTTP_400_BAD_REQUEST,
         ) from exc
+    if event_name in {"transfer.success", "transfer.failed", "transfer.reversed"}:
+        if not isinstance(disbursement_adapter, PaystackDisbursementAdapter):
+            raise AppError(
+                "DISBURSEMENT_PROVIDER_UNAVAILABLE",
+                "Provider webhook verification is not configured",
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        event, created = await ingest_payout_provider_webhook(
+            session,
+            payload=payload,
+            signature=signature,
+            adapter=disbursement_adapter,
+        )
+        await session.commit()
+        await payout_enqueuer.enqueue_payout_event(event.id)
+        return PaystackWebhookReceipt(
+            event=event_name, accepted=True, duplicate=not created
+        )
     if not is_payment:
         return PaystackWebhookReceipt(event=event_name, accepted=False, duplicate=False)
     event, created = await ingest_payment_gateway_webhook(

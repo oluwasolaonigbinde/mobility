@@ -231,13 +231,19 @@ async def upsert_user(
 async def upsert_organization(session: AsyncSession) -> AdvertiserOrganization:
     organization = await session.scalar(
         select(AdvertiserOrganization).where(
-            AdvertiserOrganization.billing_email == "billing@demo.mobility.local"
+            AdvertiserOrganization.billing_email == "billing@example.com"
         )
     )
     if organization is None:
+        organization = await session.scalar(
+            select(AdvertiserOrganization).where(
+                AdvertiserOrganization.billing_email == "billing@demo.mobility.local"
+            )
+        )
+    if organization is None:
         organization = AdvertiserOrganization(
             name="Demo Advertiser",
-            billing_email="billing@demo.mobility.local",
+            billing_email="billing@example.com",
             country_code="NG",
             currency="NGN",
             status=OrganizationStatus.ACTIVE.value,
@@ -245,7 +251,7 @@ async def upsert_organization(session: AsyncSession) -> AdvertiserOrganization:
         session.add(organization)
     else:
         organization.name = "Demo Advertiser"
-        organization.billing_email = "billing@demo.mobility.local"
+        organization.billing_email = "billing@example.com"
         organization.country_code = "NG"
         organization.currency = "NGN"
         organization.status = OrganizationStatus.ACTIVE.value

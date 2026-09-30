@@ -5,6 +5,7 @@ from arq.cron import cron
 from arq.worker import func
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from app.adapters.disbursement.paystack import build_disbursement_adapter
 from app.adapters.storage import build_storage_provider
 from app.core.config import Settings, get_settings
 from app.core.observability import configure_logging, init_error_tracking
@@ -19,7 +20,9 @@ from app.jobs.data_lifecycle import (
 )
 from app.jobs.disbursements import (
     process_disbursement_intent_job,
+    process_payout_provider_event_job,
     sweep_disbursement_intents,
+    sweep_payout_provider_events,
 )
 from app.jobs.disclosure_retention import purge_expired_disclosure_query_history
 from app.jobs.earnings_release import sweep_earnings_release_reviews
@@ -42,6 +45,7 @@ from app.jobs.trip_processing import (
     seal_ended_trips_job,
 )
 from app.jobs.vehicle_approvals import sweep_vehicle_approval_expiries
+from app.services.paystack_disbursements import build_paystack_destination_resolver
 from app.services.report_issuances import sweep_report_issuances
 
 
@@ -74,6 +78,12 @@ async def on_startup(ctx: dict[str, Any]) -> None:
     ctx["settings"] = settings
     ctx["engine"] = engine
     ctx["sessionmaker"] = async_sessionmaker(engine, expire_on_commit=False)
+    ctx["disbursement_adapter"] = build_disbursement_adapter(
+        settings,
+        destination_resolver=build_paystack_destination_resolver(
+            settings, ctx["sessionmaker"]
+        ),
+    )
     ctx["storage"] = build_storage_provider(settings)
     init_error_tracking(settings)
 
@@ -106,6 +116,11 @@ class WorkerSettings:
         func(
             process_disbursement_intent_job,
             name="process_disbursement_intent",
+            keep_result=0,
+        ),
+        func(
+            process_payout_provider_event_job,
+            name="process_payout_provider_event",
             keep_result=0,
         ),
     ]
@@ -186,6 +201,11 @@ class WorkerSettings:
         cron(purge_expired_file_kyc, hour={6}, minute={0}, unique=True),
         cron(
             sweep_disbursement_intents,
+            minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
+            unique=True,
+        ),
+        cron(
+            sweep_payout_provider_events,
             minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
             unique=True,
         ),

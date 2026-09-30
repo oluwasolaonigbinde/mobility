@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, Mock
 from uuid import UUID
 
 import pytest
+from paystack_fixtures import SYNTHETIC_LIVE_KEY
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
@@ -69,6 +70,11 @@ def test_demo_seed_refuses_production_even_with_override() -> None:
         ),
         redis_url="rediss://:synthetic-redis-secret@redis:6379/0",
         jwt_secret_key="production-demo-seed-test-secret-32-chars",
+        paystack_secret_key=SYNTHETIC_LIVE_KEY,
+        paystack_checkout_return_url=(
+            "https://payments.cardvert.ng/advertiser/billing/paystack/return"
+        ),
+        public_origin="https://payments.cardvert.ng",
         allow_demo_seed=True,
     )
 
@@ -1247,6 +1253,39 @@ def test_demo_seed_runs_with_immutable_guards_from_alembic_head(
         if engine is not None:
             asyncio.run(engine.dispose())
         asyncio.run(drop_database(migration_url))
+
+
+def test_demo_seed_reuses_legacy_organization_billing_identity(
+    postgis_db_sessionmaker,
+) -> None:
+    async def scenario() -> None:
+        async with postgis_db_sessionmaker() as session:
+            legacy = AdvertiserOrganization(
+                name="Demo Advertiser",
+                billing_email="billing@demo.mobility.local",
+                country_code="NG",
+                currency="NGN",
+                status="active",
+            )
+            session.add(legacy)
+            await session.commit()
+            legacy_id = legacy.id
+
+        async with postgis_db_sessionmaker() as session:
+            current = await demo.upsert_organization(session)
+            await session.commit()
+            assert current.id == legacy_id
+            assert current.billing_email == "billing@example.com"
+            assert (
+                await session.scalar(
+                    select(func.count(AdvertiserOrganization.id)).where(
+                        AdvertiserOrganization.name == "Demo Advertiser"
+                    )
+                )
+                == 1
+            )
+
+    asyncio.run(scenario())
 
 
 def test_demo_seed_is_idempotent_with_postgis(

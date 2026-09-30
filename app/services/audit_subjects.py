@@ -83,6 +83,10 @@ SUBJECT_QUERIES: dict[str, tuple[str, str]] = {
         "SELECT subject_user_id FROM file_upload_intents WHERE id=:entity_id",
     ),
     "stored_file": ("stored_files", "SELECT subject_user_id FROM stored_files WHERE id=:entity_id"),
+    "payment_checkout_intent": (
+        "payment_checkout_intents",
+        "SELECT requested_by_user_id FROM payment_checkout_intents WHERE id=:entity_id",
+    ),
     # The person who raised it; advertiser colleagues are not expanded (tenant, not subject).
     "complaint": ("complaints", "SELECT raised_by_user_id FROM complaints WHERE id=:entity_id"),
 }

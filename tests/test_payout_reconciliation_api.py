@@ -1,5 +1,4 @@
 import asyncio
-import json
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -109,67 +108,3 @@ def test_reconciliation_api_enforces_separation_and_verified_line_finality(
     assert totals["available_amount"] == "0.00"
     assert totals["paid_amount"] == "100.00"
     assert totals["lifetime_earned_amount"] == "100.00"
-
-
-def test_webhook_api_rejects_forgery_and_accepts_signed_fake_evidence(
-    db_client, db_sessionmaker
-) -> None:
-    graph = build_graph(db_sessionmaker, f"webhook-api-{uuid4().hex[:8]}")
-    checker = create_test_user(
-        db_sessionmaker,
-        email=f"webhook-api-checker-{uuid4().hex}@example.com",
-        role=UserRole.ADMIN,
-    )
-
-    async def seed():
-        async with db_sessionmaker() as session:
-            entry = await _seed_authority(session, graph)
-            await session.commit()
-            return entry.id
-
-    entry_id = asyncio.run(seed())
-    maker_headers = auth_headers(db_client, graph.admin.email)
-    checker_headers = auth_headers(db_client, checker.email)
-    fake = FakeDisbursementAdapter()
-    db_client.app.dependency_overrides[get_disbursement_adapter] = lambda: fake
-    batch_id = db_client.post(
-        "/api/v1/admin/payout-batches",
-        headers=maker_headers,
-        json={"currency": "NGN"},
-    ).json()["id"]
-    db_client.post(
-        f"/api/v1/admin/payout-batches/{batch_id}/reserve",
-        headers=maker_headers,
-        json={"ledger_entry_ids": [str(entry_id)]},
-    )
-    db_client.post(f"/api/v1/admin/payout-batches/{batch_id}/approve", headers=checker_headers)
-    queued_line = db_client.post(
-        f"/api/v1/admin/payout-batches/{batch_id}/submit", headers=maker_headers
-    ).json()["lines"][0]
-    assert queued_line["status"] == "reserved"
-    asyncio.run(_run_submission_worker(db_sessionmaker, fake))
-    line = db_client.get(
-        f"/api/v1/admin/payout-batches/{batch_id}", headers=maker_headers
-    ).json()["lines"][0]
-    payload = json.dumps(
-        {
-            "provider_transfer_reference": line["provider_transfer_reference"],
-            "provider_event_id": "api-webhook-success",
-            "outcome": "succeeded",
-            "occurred_at": "2026-08-23T12:30:00+00:00",
-        },
-        sort_keys=True,
-    ).encode()
-    forged = db_client.post(
-        "/api/v1/admin/payout-batches/provider-webhook",
-        content=payload,
-        headers={"X-Provider-Signature": "forged"},
-    )
-    assert forged.status_code == 401
-    accepted = db_client.post(
-        "/api/v1/admin/payout-batches/provider-webhook",
-        content=payload,
-        headers={"X-Provider-Signature": fake.sign_webhook(payload)},
-    )
-    assert accepted.status_code == 200
-    assert accepted.json()["status"] == "completed"

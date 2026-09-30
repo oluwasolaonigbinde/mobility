@@ -54,7 +54,7 @@ test("advertiser sees canonical company, billing and gated launch entries", asyn
   await expect(page.getByLabel("Legal or trading name")).toHaveValue("Demo Advertiser");
   await page.getByRole("link", { name: "Billing", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Billing history" })).toBeVisible();
-  await expect(page.getByText(/Online payment isn.t available yet/i)).toBeVisible();
+  await expect(page.getByText(/Issued NGN invoices can be paid through Paystack/i)).toBeVisible();
   await page.goto("/advertiser/campaigns");
   await page.getByRole("link", { name: "Demo Lagos Mobility Campaign" }).click();
   await expect(page.getByRole("heading", { name: "Commercial terms" })).toBeVisible();

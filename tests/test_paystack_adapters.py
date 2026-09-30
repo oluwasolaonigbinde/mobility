@@ -178,7 +178,9 @@ def test_charge_webhook_payload_refusals(body) -> None:
 
 def test_payer_name_falls_back_to_account_name_then_customer_code() -> None:
     adapter = payments(RecordingTransport())
-    body = charge_success(metadata={"commercial_terms_id": "terms-1"})
+    body = charge_success(
+        metadata={"commercial_terms_id": "terms-1", "organization_id": "org-1"}
+    )
     body["data"]["customer"].update(first_name=None, last_name=" ")
     body["data"]["authorization"]["account_name"] = "Synthetic Account"
     raw = payload(body)
@@ -322,8 +324,19 @@ def test_create_checkout_refuses_invalid_input_before_any_request(overrides) -> 
     assert transport.requests == []
 
 
-def test_create_checkout_malformed_answer_is_unknown() -> None:
-    transport = RecordingTransport(ok({"authorization_url": "http://insecure", "reference": "x"}))
+@pytest.mark.parametrize(
+    "authorization_url",
+    [
+        "http://checkout.paystack.com/insecure",
+        "https://evil.example/redirect",
+        "https://user@checkout.paystack.com/credentialed",
+        "https://checkout.paystack.com:444/nonstandard-port",
+    ],
+)
+def test_create_checkout_malformed_answer_is_unknown(authorization_url: str) -> None:
+    transport = RecordingTransport(
+        ok({"authorization_url": authorization_url, "reference": "cv-synthetic-checkout-0001"})
+    )
     with pytest.raises(PaystackOutcomeUnknownError):
         asyncio.run(payments(transport).create_checkout(checkout()))
 
@@ -617,6 +630,7 @@ def test_blank_key_keeps_both_factories_disabled() -> None:
         ("sk_other_value", "staging"),
         (SYNTHETIC_LIVE_KEY, "test"),
         (SYNTHETIC_LIVE_KEY, "local"),
+        (SYNTHETIC_LIVE_KEY, "staging"),
         (SYNTHETIC_TEST_KEY, "production"),
     ],
 )
@@ -629,11 +643,40 @@ def test_paystack_key_validation_refusals(key: str, environment: str) -> None:
 
 def test_paystack_key_modes_allowed_per_environment() -> None:
     assert settings_with(SYNTHETIC_TEST_KEY, "staging").paystack_secret_key is not None
-    assert settings_with(SYNTHETIC_LIVE_KEY, "staging").paystack_secret_key is not None
+    assert settings_with(SYNTHETIC_LIVE_KEY, "production").paystack_secret_key is not None
     assert paystack_key_mode(SYNTHETIC_LIVE_KEY) == "live"
     assert paystack_key_mode(SYNTHETIC_TEST_KEY) == "test"
     with pytest.raises(ValueError):
         paystack_key_mode("pk_test_x")
+
+
+def test_nonlocal_checkout_return_must_match_public_origin() -> None:
+    base = {
+        "environment": "staging",
+        "paystack_secret_key": SYNTHETIC_TEST_KEY,
+        "jwt_secret_key": "production-secret-with-at-least-32-characters",
+        "database_url": (
+            "postgresql+asyncpg://mobility:synthetic-db-secret@db:5432/mobility?ssl=require"
+        ),
+        "redis_url": "rediss://:synthetic-redis-secret@redis:6379/0",
+        "public_origin": "https://cardvert.example-client.com",
+    }
+    accepted = Settings(
+        _env_file=None,
+        **base,
+        paystack_checkout_return_url=(
+            "https://cardvert.example-client.com/advertiser/billing/paystack/return"
+        ),
+    )
+    assert accepted.paystack_checkout_return_url.endswith("/paystack/return")
+    with pytest.raises(ValidationError, match="PUBLIC_ORIGIN"):
+        Settings(
+            _env_file=None,
+            **base,
+            paystack_checkout_return_url=(
+                "https://offsite.example-client.com/advertiser/billing/paystack/return"
+            ),
+        )
 
 
 def test_subunit_conversion_is_exact_and_refuses_ambiguity() -> None:

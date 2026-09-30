@@ -22,8 +22,11 @@ from app.models.billing import (
 )
 from app.models.user import UserRole
 from app.services.billing import (
+    allocate_payment_receipt,
+    confirm_payment_receipt,
     ingest_payment_gateway_webhook,
     process_payment_gateway_event,
+    reconcile_payment_receipt,
     record_payment_gateway_failure,
     record_payment_receipt,
 )
@@ -50,6 +53,7 @@ def _payload(terms_id, *, event_id="gateway-event-1", transaction_id="gateway-tx
             "external_transaction_id": transaction_id,
             "event_type": "payment_confirmed",
             "commercial_terms_id": str(terms_id),
+            "organization_id": "00000000-0000-4000-8000-000000000002",
             "amount": "100.00",
             "currency": "NGN",
             "payer_name": "Gateway Advertiser",
@@ -210,6 +214,73 @@ def test_authenticated_events_are_durable_before_business_validation(db_sessionm
             )
             assert first.provider_event_id == second.provider_event_id
             assert first.provider != second.provider
+            await session.commit()
+
+    asyncio.run(scenario())
+
+
+def test_manual_payment_before_gateway_confirmation_preserves_unallocated_cash(
+    db_sessionmaker,
+) -> None:
+    admin, owner, organization, campaign = _fixture(db_sessionmaker)
+    fake = FakePaymentGatewayAdapter()
+
+    async def scenario() -> None:
+        async with db_sessionmaker() as session:
+            terms = await _accepted_terms(
+                session,
+                campaign=campaign,
+                admin=admin,
+                owner=owner,
+                reference="GATEWAY-MANUAL-RACE",
+            )
+            manual = await record_payment_receipt(
+                session,
+                organization_id=organization.id,
+                actor_user_id=admin.id,
+                method=ReceiptMethod.MANUAL_TRANSFER,
+                provider="bank-transfer",
+                external_transaction_id="BANK-BEFORE-GATEWAY",
+                amount="100.00",
+                currency="NGN",
+                payer_name="Gateway Advertiser",
+                evidence_reference="statement-before-gateway",
+                observed_at=datetime.now(UTC),
+            )
+            await reconcile_payment_receipt(
+                session,
+                receipt_id=manual.id,
+                actor_user_id=admin.id,
+                expected_amount="100.00",
+                expected_currency="NGN",
+            )
+            await confirm_payment_receipt(
+                session, receipt_id=manual.id, actor_user_id=admin.id
+            )
+            await allocate_payment_receipt(
+                session,
+                receipt_id=manual.id,
+                commercial_terms_id=terms.id,
+                actor_user_id=admin.id,
+                amount="100.00",
+            )
+            body = _payload(
+                terms.id,
+                event_id="gateway-after-manual",
+                transaction_id="gateway-after-manual",
+            )
+            event, _ = await ingest_payment_gateway_webhook(
+                session,
+                adapter=fake,
+                payload=body,
+                signature=fake.sign_webhook(body),
+            )
+            attempt = await process_payment_gateway_event(session, event_id=event.id)
+            assert attempt.outcome == "confirmed_unallocated"
+            assert attempt.receipt_id is not None
+            assert attempt.allocation_id is None
+            assert await session.scalar(select(func.count(PaymentReceipt.id))) == 2
+            assert await session.scalar(select(func.count(ReceiptAllocation.id))) == 1
             await session.commit()
 
     asyncio.run(scenario())

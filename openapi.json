@@ -17417,6 +17417,53 @@
         "title": "PayeeType",
         "type": "string"
       },
+      "PaymentCheckoutRead": {
+        "properties": {
+          "amount": {
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Amount",
+            "type": "string"
+          },
+          "checkout_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkout Url"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "invoice_id": {
+            "format": "uuid",
+            "title": "Invoice Id",
+            "type": "string"
+          },
+          "reference": {
+            "title": "Reference",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reference",
+          "invoice_id",
+          "amount",
+          "currency",
+          "status",
+          "checkout_url"
+        ],
+        "title": "PaymentCheckoutRead",
+        "type": "object"
+      },
       "PaymentClass": {
         "enum": [
           "standard_prepaid",
@@ -32122,48 +32169,6 @@
         ]
       }
     },
-    "/api/v1/admin/payout-batches/provider-webhook": {
-      "post": {
-        "operationId": "provider_payout_webhook_api_v1_admin_payout_batches_provider_webhook_post",
-        "parameters": [
-          {
-            "in": "header",
-            "name": "X-Provider-Signature",
-            "required": true,
-            "schema": {
-              "title": "X-Provider-Signature",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PayoutBatchRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "summary": "Provider Payout Webhook",
-        "tags": [
-          "Admin payout batches"
-        ]
-      }
-    },
     "/api/v1/admin/payout-batches/selection-preview": {
       "post": {
         "operationId": "admin_preview_payment_selection_api_v1_admin_payout_batches_selection_preview_post",
@@ -38821,6 +38826,54 @@
         ]
       }
     },
+    "/api/v1/advertiser/invoices/{invoice_id}/checkout": {
+      "post": {
+        "operationId": "advertiser_create_invoice_checkout_api_v1_advertiser_invoices__invoice_id__checkout_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "invoice_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Invoice Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentCheckoutRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Create Invoice Checkout",
+        "tags": [
+          "Commercial billing"
+        ]
+      }
+    },
     "/api/v1/advertiser/measurement-runs/{run_id}/report-issuances": {
       "get": {
         "operationId": "advertiser_get_current_report_issuance_api_v1_advertiser_measurement_runs__run_id__report_issuances_get",
@@ -39046,6 +39099,53 @@
         "summary": "Get current advertiser organization",
         "tags": [
           "Advertiser Organizations"
+        ]
+      }
+    },
+    "/api/v1/advertiser/payment-checkouts/{reference}/verify": {
+      "post": {
+        "operationId": "advertiser_verify_payment_checkout_api_v1_advertiser_payment_checkouts__reference__verify_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "reference",
+            "required": true,
+            "schema": {
+              "title": "Reference",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PaymentCheckoutRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Verify Payment Checkout",
+        "tags": [
+          "Commercial billing"
         ]
       }
     },
@@ -43125,7 +43225,7 @@
     },
     "/api/v1/webhooks/paystack": {
       "post": {
-        "description": "Record Cardvert charge events; acknowledge every other signed event unprocessed.\n\nTransfer outcomes are reconciled by the admin poll until a queued transfer-event\npath exists (\u00a715.4 keeps business logic out of the webhook request path).",
+        "description": "Authenticate and queue Cardvert charge or transfer evidence.",
         "operationId": "paystack_webhook_api_v1_webhooks_paystack_post",
         "parameters": [
           {

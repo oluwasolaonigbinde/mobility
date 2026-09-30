@@ -111,8 +111,9 @@ installation; approved corporate advertisers may use invoice/credit terms (Q2).
 Advertisers can pay by bank transfer reconciled by an admin or through an
 online gateway, in one payment history (Q3). The gateway is **Paystack** in
 Terrax Media's name (card and bank transfer), settling to OPay; refunds are made
-by the Finance officer (client answers item 7). The Paystack adapters are built
-but stay off until keys are supplied (REQ-004).
+by the Finance officer (client answers item 7). The Paystack adapters and local
+Test Mode checkout are built and verified; production use stays off until the
+public webhook, transfer and production-provider gates pass (REQ-035).
 
 **Still open:** [REQ-025](requests.md), [REQ-027](requests.md), [REQ-035](requests.md).
 
@@ -120,6 +121,7 @@ but stay off until keys are supplied (REQ-004).
 - **2026-08-14** — Client confirmed payment timing and methods (Q2, Q3, D18).
 - **2026-09-24** — Client chose Paystack with OPay settlement (client answers item 7).
 - **2026-09-28** — Paystack adapters built from the public docs, disabled without keys. Built in `dbd41e1` (REQ-004).
+- **2026-09-29** — Existing test-key access was established and one real ₦101 Test Mode checkout completed, verified and applied once by Cardvert; public webhook, transfer and production approval gates remain open (REQ-027, REQ-035).
 
 ### Invoices and VAT
 

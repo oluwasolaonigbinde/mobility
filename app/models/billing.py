@@ -34,6 +34,14 @@ class PaymentClass(StrEnum):
     APPROVED_CORPORATE_CREDIT = "approved_corporate_credit"
 
 
+class PaymentCheckoutStatus(StrEnum):
+    PENDING = "pending"
+    INITIALIZED = "initialized"
+    INITIALIZATION_UNKNOWN = "initialization_unknown"
+    FAILED = "failed"
+    CONFIRMED = "confirmed"
+
+
 class AcceptanceMethod(StrEnum):
     IN_PLATFORM = "in_platform"
     EXTERNAL_RECORDED = "external_recorded"
@@ -572,6 +580,52 @@ class Invoice(Base):
     issued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class PaymentCheckoutIntent(Base):
+    """Durable, exact invoice balance bound to one provider checkout reference."""
+
+    __tablename__ = "payment_checkout_intents"
+    __table_args__ = (
+        CheckConstraint("amount > 0", name="ck_payment_checkout_intents_amount"),
+        CheckConstraint("length(currency) = 3", name="ck_payment_checkout_intents_currency"),
+        CheckConstraint(
+            "status IN ('pending', 'initialized', 'initialization_unknown', 'failed', 'confirmed')",
+            name="ck_payment_checkout_intents_status",
+        ),
+        CheckConstraint(
+            "(status = 'initialized' AND checkout_url IS NOT NULL AND initialized_at IS NOT NULL) "
+            "OR (status <> 'initialized')",
+            name="ck_payment_checkout_intents_initialized",
+        ),
+        UniqueConstraint("reference", name="uq_payment_checkout_intents_reference"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    reference: Mapped[str] = mapped_column(String(100), nullable=False)
+    provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    organization_id: Mapped[UUID] = mapped_column(
+        ForeignKey("advertiser_organizations.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    commercial_terms_id: Mapped[UUID] = mapped_column(
+        ForeignKey("commercial_terms.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    invoice_id: Mapped[UUID] = mapped_column(
+        ForeignKey("invoices.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    requested_by_user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
+    )
+    customer_email: Mapped[str] = mapped_column(String(255), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    checkout_url: Mapped[str | None] = mapped_column(Text)
+    provider_checkout_id: Mapped[str | None] = mapped_column(String(255))
+    failure_code: Mapped[str | None] = mapped_column(String(128))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    initialized_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class CampaignFinancialAuthorization(Base):
     __tablename__ = "campaign_financial_authorizations"
     __table_args__ = (
@@ -845,12 +899,14 @@ class PaymentGatewayProcessingAttempt(Base):
     __table_args__ = (
         CheckConstraint("attempt_number > 0", name="ck_payment_gateway_attempts_number"),
         CheckConstraint(
-            "outcome IN ('confirmed', 'ignored_failed', 'failed')",
+            "outcome IN ('confirmed', 'confirmed_unallocated', 'ignored_failed', 'failed')",
             name="ck_payment_gateway_attempts_outcome",
         ),
         CheckConstraint(
             "(outcome = 'confirmed' AND receipt_id IS NOT NULL AND allocation_id IS NOT NULL "
             "AND error_code IS NULL) OR "
+            "(outcome = 'confirmed_unallocated' AND receipt_id IS NOT NULL "
+            "AND allocation_id IS NULL AND error_code IS NULL) OR "
             "(outcome = 'ignored_failed' AND receipt_id IS NULL AND allocation_id IS NULL "
             "AND error_code IS NULL) OR "
             "(outcome = 'failed' AND receipt_id IS NULL AND allocation_id IS NULL "

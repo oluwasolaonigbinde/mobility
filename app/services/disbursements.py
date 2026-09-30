@@ -18,6 +18,7 @@ from app.adapters.disbursement import (
     ProviderLookupStatus,
     VerifiedLineEvidence,
 )
+from app.adapters.disbursement.paystack import paystack_transfer_reference
 from app.adapters.disbursement.provider import DisbursementUnavailableError
 from app.core.config import Settings, get_settings
 from app.core.errors import AppError
@@ -31,6 +32,8 @@ from app.models.disbursement import (
     PayoutBatchLineStatus,
     PayoutBatchStatus,
     PayoutLineReconciliationEvent,
+    PayoutProviderEvent,
+    PayoutProviderEventProcessingAttempt,
     PayoutRecoveryIncident,
     PayoutRecoveryIncidentKind,
     PayoutRecoveryIncidentStatus,
@@ -1917,6 +1920,17 @@ async def _apply_verified_line_evidence(
         item for item in locked_lines if item.ledger_entry_id == stub.ledger_entry_id
     )
     line = next(item for item in chain_lines if item.id == stub.id)
+    intent = intents_by_line.get(line.id)
+    if intent is not None and intent.provider_name == "paystack":
+        if (
+            evidence.provider_reference != paystack_transfer_reference(line.idempotency_key)
+            or evidence.amount != f"{line.amount:.2f}"
+            or evidence.currency != line.currency
+        ):
+            raise _error(
+                "PAYOUT_PROVIDER_EVIDENCE_MISMATCH",
+                "Verified Paystack evidence does not match the frozen payout instruction",
+            )
     if actor_user_id is not None and actor_user_id in {
         batch.created_by_user_id,
         batch.approved_by_user_id,
@@ -1958,7 +1972,8 @@ async def _apply_verified_line_evidence(
     applied = False
     resolved_at = datetime.now(UTC)
     ledger: EarningsLedgerEntry | None = None
-    if line.status != PayoutBatchLineStatus.SUCCEEDED and (
+    is_reversal = evidence.provider_event_type == "transfer.reversed"
+    if (line.status != PayoutBatchLineStatus.SUCCEEDED or is_reversal) and (
         last_evidence_at is None or occurred_at >= last_evidence_at
     ):
         ledger_authority = (
@@ -2004,13 +2019,22 @@ async def _apply_verified_line_evidence(
                 item.id != line.id and item.status == PayoutBatchLineStatus.SUCCEEDED.value
                 for item in chain_lines
             )
-            if ledger is None or (
-                ledger.status == EarningsLedgerEntryStatus.PAID.value and not other_succeeded
+            if ledger is None:
+                raise _error(
+                    "PAYOUT_LEDGER_FINALITY_CONFLICT",
+                    "The payout ledger entry no longer exists",
+                )
+            if (
+                ledger.status == EarningsLedgerEntryStatus.PAID.value
+                and not other_succeeded
+                and not is_reversal
             ):
                 raise _error(
                     "PAYOUT_PAID_HISTORY_IMMUTABLE",
                     "Verified cash-paid history cannot be changed by failure evidence",
                 )
+            if is_reversal and not other_succeeded:
+                ledger.status = EarningsLedgerEntryStatus.AVAILABLE.value
             if line.status != PayoutBatchLineStatus.FAILED.value:
                 line.status = PayoutBatchLineStatus.FAILED.value
                 line.reservation_active = False
@@ -2089,6 +2113,224 @@ async def reconcile_payout_webhook(
     return await _apply_verified_line_evidence(
         session, evidence=evidence, source="webhook", actor_user_id=None
     )
+
+
+async def ingest_payout_provider_webhook(
+    session: AsyncSession,
+    *,
+    payload: bytes,
+    signature: str,
+    adapter: DisbursementAdapter,
+) -> tuple[PayoutProviderEvent, bool]:
+    """Authenticate and persist transfer evidence without changing money state."""
+
+    try:
+        evidence = await adapter.verify_webhook(payload=payload, signature=signature)
+    except DisbursementUnavailableError as exc:
+        raise _error(
+            "DISBURSEMENT_PROVIDER_UNAVAILABLE",
+            "Provider webhook verification is not configured",
+            http_status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        ) from exc
+    except ValueError as exc:
+        raise _error(
+            "DISBURSEMENT_WEBHOOK_INVALID",
+            "Provider webhook verification failed",
+            http_status=status.HTTP_401_UNAUTHORIZED,
+        ) from exc
+    provider = adapter.capabilities.provider_name.strip().lower()
+    try:
+        fingerprint_is_hex = len(evidence.evidence_fingerprint) == 64 and bool(
+            int(evidence.evidence_fingerprint, 16) >= 0
+        )
+    except ValueError:
+        fingerprint_is_hex = False
+    if (
+        not provider
+        or not evidence.provider_event_id.strip()
+        or len(evidence.provider_event_id) > 255
+        or not evidence.provider_transfer_reference.strip()
+        or len(evidence.provider_transfer_reference) > 255
+        or evidence.outcome not in {"succeeded", "failed"}
+        or not evidence.provider_event_type
+        or len(evidence.provider_event_type) > 64
+        or not evidence.provider_reference
+        or len(evidence.provider_reference) > 100
+        or evidence.amount is None
+        or Decimal(evidence.amount) <= 0
+        or evidence.currency is None
+        or len(evidence.currency) != 3
+        or evidence.occurred_at.tzinfo is None
+        or evidence.occurred_at.utcoffset() is None
+        or not fingerprint_is_hex
+    ):
+        raise _error(
+            "DISBURSEMENT_WEBHOOK_INVALID",
+            "Verified provider evidence is incomplete or malformed",
+            http_status=status.HTTP_400_BAD_REQUEST,
+        )
+
+    def exact_match(candidate: PayoutProviderEvent) -> bool:
+        return (
+            candidate.provider == provider
+            and candidate.provider_event_type == evidence.provider_event_type
+            and candidate.provider_transfer_reference == evidence.provider_transfer_reference
+            and candidate.provider_reference == evidence.provider_reference
+            and Decimal(candidate.amount) == Decimal(evidence.amount)
+            and candidate.currency == evidence.currency
+            and candidate.outcome == evidence.outcome
+            and candidate.evidence_fingerprint == evidence.evidence_fingerprint
+        )
+
+    existing = await session.scalar(
+        select(PayoutProviderEvent).where(
+            PayoutProviderEvent.provider == provider,
+            PayoutProviderEvent.provider_event_id == evidence.provider_event_id,
+        )
+    )
+    if existing is not None:
+        if exact_match(existing):
+            return existing, False
+        raise _error(
+            "DISBURSEMENT_EVENT_IDENTITY_CONFLICT",
+            "Provider transfer event identity belongs to different evidence",
+        )
+    event = PayoutProviderEvent(
+        provider=provider,
+        provider_event_id=evidence.provider_event_id,
+        provider_event_type=evidence.provider_event_type,
+        provider_transfer_reference=evidence.provider_transfer_reference,
+        provider_reference=evidence.provider_reference,
+        amount=Decimal(evidence.amount),
+        currency=evidence.currency,
+        outcome=evidence.outcome,
+        provider_occurred_at=evidence.occurred_at,
+        evidence_fingerprint=evidence.evidence_fingerprint,
+        received_at=datetime.now(UTC),
+    )
+    try:
+        async with session.begin_nested():
+            session.add(event)
+            await session.flush()
+    except IntegrityError as exc:
+        concurrent = await session.scalar(
+            select(PayoutProviderEvent).where(
+                PayoutProviderEvent.provider == provider,
+                PayoutProviderEvent.provider_event_id == evidence.provider_event_id,
+            )
+        )
+        if concurrent is not None and exact_match(concurrent):
+            return concurrent, False
+        raise _error(
+            "DISBURSEMENT_EVENT_IDENTITY_CONFLICT",
+            "Provider transfer event identity is already recorded",
+        ) from exc
+    return event, True
+
+
+async def process_payout_provider_event(
+    session: AsyncSession, *, event_id: UUID
+) -> PayoutProviderEventProcessingAttempt:
+    event = await session.scalar(
+        select(PayoutProviderEvent).where(PayoutProviderEvent.id == event_id).with_for_update()
+    )
+    if event is None:
+        raise _error(
+            "DISBURSEMENT_EVENT_NOT_FOUND",
+            "Provider transfer event was not found",
+            http_status=status.HTTP_404_NOT_FOUND,
+        )
+    completed = await session.scalar(
+        select(PayoutProviderEventProcessingAttempt)
+        .where(
+            PayoutProviderEventProcessingAttempt.provider_event_id == event.id,
+            PayoutProviderEventProcessingAttempt.outcome == "processed",
+        )
+        .order_by(PayoutProviderEventProcessingAttempt.attempt_number.desc())
+        .limit(1)
+    )
+    if completed is not None:
+        return completed
+    attempt_number = (
+        int(
+            await session.scalar(
+                select(
+                    func.coalesce(
+                        func.max(PayoutProviderEventProcessingAttempt.attempt_number), 0
+                    )
+                ).where(
+                    PayoutProviderEventProcessingAttempt.provider_event_id == event.id
+                )
+            )
+            or 0
+        )
+        + 1
+    )
+    evidence = VerifiedLineEvidence(
+        provider_transfer_reference=event.provider_transfer_reference,
+        provider_event_id=event.provider_event_id,
+        outcome=event.outcome,
+        occurred_at=event.provider_occurred_at,
+        evidence_fingerprint=event.evidence_fingerprint,
+        provider_reference=event.provider_reference,
+        amount=f"{event.amount:.2f}",
+        currency=event.currency,
+        provider_event_type=event.provider_event_type,
+    )
+    _, _, reconciliation = await _apply_verified_line_evidence(
+        session, evidence=evidence, source="webhook", actor_user_id=None
+    )
+    attempt = PayoutProviderEventProcessingAttempt(
+        provider_event_id=event.id,
+        attempt_number=attempt_number,
+        outcome="processed",
+        error_code=None,
+        reconciliation_event_id=reconciliation.id,
+        processed_at=datetime.now(UTC),
+    )
+    session.add(attempt)
+    await session.flush()
+    return attempt
+
+
+async def record_payout_provider_event_failure(
+    session: AsyncSession, *, event_id: UUID, error_code: str
+) -> PayoutProviderEventProcessingAttempt:
+    event = await session.scalar(
+        select(PayoutProviderEvent).where(PayoutProviderEvent.id == event_id).with_for_update()
+    )
+    if event is None:
+        raise _error(
+            "DISBURSEMENT_EVENT_NOT_FOUND",
+            "Provider transfer event was not found",
+            http_status=status.HTTP_404_NOT_FOUND,
+        )
+    attempt_number = (
+        int(
+            await session.scalar(
+                select(
+                    func.coalesce(
+                        func.max(PayoutProviderEventProcessingAttempt.attempt_number), 0
+                    )
+                ).where(
+                    PayoutProviderEventProcessingAttempt.provider_event_id == event.id
+                )
+            )
+            or 0
+        )
+        + 1
+    )
+    attempt = PayoutProviderEventProcessingAttempt(
+        provider_event_id=event.id,
+        attempt_number=attempt_number,
+        outcome="failed",
+        error_code=error_code[:128],
+        reconciliation_event_id=None,
+        processed_at=datetime.now(UTC),
+    )
+    session.add(attempt)
+    await session.flush()
+    return attempt
 
 
 async def poll_payout_line(
