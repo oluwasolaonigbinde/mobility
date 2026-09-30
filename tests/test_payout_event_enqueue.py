@@ -15,15 +15,25 @@ class FakePool:
         self.calls.append((name, event_id, _job_id))
 
 
-def test_unconfigured_payout_event_enqueue_is_deferred(caplog) -> None:
+def test_unconfigured_payout_event_enqueue_is_deferred(monkeypatch) -> None:
+    warnings = []
+    monkeypatch.setattr(
+        payout_event_enqueue.logger,
+        "warning",
+        lambda message, *args: warnings.append((message, args)),
+    )
     event_id = uuid4()
     enqueuer = payout_event_enqueue.build_payout_event_enqueuer(SimpleNamespace(redis_url=""))
 
     asyncio.run(enqueuer.enqueue_payout_event(event_id))
 
     assert isinstance(enqueuer, payout_event_enqueue.UnconfiguredPayoutEventEnqueuer)
-    assert str(event_id) in caplog.text
-    assert "RedisUrlNotConfigured" in caplog.text
+    assert warnings == [
+        (
+            "event=payout_event_enqueue_deferred event_id=%s error_class=RedisUrlNotConfigured",
+            (event_id,),
+        )
+    ]
 
 
 def test_redis_payout_event_enqueue_reuses_pool_and_uses_stable_event_job_id(
@@ -59,18 +69,28 @@ def test_redis_payout_event_enqueue_reuses_pool_and_uses_stable_event_job_id(
     ]
 
 
-def test_redis_payout_event_enqueue_logs_and_defers_connection_failure(monkeypatch, caplog) -> None:
+def test_redis_payout_event_enqueue_logs_and_defers_connection_failure(monkeypatch) -> None:
     async def fail(_event_id):
         raise TimeoutError("synthetic Redis timeout")
 
+    warnings = []
+    monkeypatch.setattr(
+        payout_event_enqueue.logger,
+        "warning",
+        lambda message, *args: warnings.append((message, args)),
+    )
     event_id = uuid4()
     enqueuer = payout_event_enqueue.RedisPayoutEventEnqueuer("redis://localhost:6379/0")
     monkeypatch.setattr(enqueuer, "_enqueue", fail)
 
     asyncio.run(enqueuer.enqueue_payout_event(event_id))
 
-    assert str(event_id) in caplog.text
-    assert "TimeoutError" in caplog.text
+    assert warnings == [
+        (
+            "event=payout_event_enqueue_deferred event_id=%s error_class=%s",
+            (event_id, "TimeoutError"),
+        )
+    ]
 
 
 def test_configured_payout_event_enqueuer_is_cached_by_redis_url() -> None:
