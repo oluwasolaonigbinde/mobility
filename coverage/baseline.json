@@ -6,12 +6,12 @@
   },
   "critical": {
     "backend": {
-      "branch_covered": 5435,
-      "branch_percent": 71.2133,
-      "branch_total": 7632,
-      "line_covered": 28478,
-      "line_percent": 89.8473,
-      "line_total": 31696,
+      "branch_covered": 5526,
+      "branch_percent": 71.2848,
+      "branch_total": 7752,
+      "line_covered": 28914,
+      "line_percent": 89.8676,
+      "line_total": 32174,
       "paths": [
         "app/__init__.py",
         "app/adapters/ad_platforms/__init__.py",
@@ -82,6 +82,7 @@
         "app/core/middleware.py",
         "app/core/observability.py",
         "app/core/payment_enqueue.py",
+        "app/core/payout_event_enqueue.py",
         "app/core/rate_limit.py",
         "app/core/security.py",
         "app/core/trip_enqueue.py",
@@ -248,6 +249,7 @@
         "app/services/payout_operations.py",
         "app/services/payout_rule_serialization.py",
         "app/services/payouts.py",
+        "app/services/paystack_disbursements.py",
         "app/services/privacy_authority.py",
         "app/services/provenance.py",
         "app/services/report_cohorts.py",
@@ -268,12 +270,12 @@
       ]
     },
     "frontend": {
-      "branch_covered": 5182,
-      "branch_percent": 70.6668,
-      "branch_total": 7333,
-      "line_covered": 5194,
-      "line_percent": 81.2833,
-      "line_total": 6390,
+      "branch_covered": 5230,
+      "branch_percent": 70.8288,
+      "branch_total": 7384,
+      "line_covered": 5227,
+      "line_percent": 81.3794,
+      "line_total": 6423,
       "paths": [
         "frontend/src/app/admin/advertisers/[organizationId]/company/actions.ts",
         "frontend/src/app/admin/advertisers/[organizationId]/company/page.tsx",
@@ -369,7 +371,9 @@
         "frontend/src/app/admin/vehicles/new/vehicle-form.tsx",
         "frontend/src/app/admin/vehicles/page.tsx",
         "frontend/src/app/admin/vehicles/vehicle-status-menu.tsx",
+        "frontend/src/app/advertiser/billing/actions.ts",
         "frontend/src/app/advertiser/billing/page.tsx",
+        "frontend/src/app/advertiser/billing/paystack/return/route.ts",
         "frontend/src/app/advertiser/campaigns/[campaignId]/actions.ts",
         "frontend/src/app/advertiser/campaigns/[campaignId]/campaign-cancellation-panel.tsx",
         "frontend/src/app/advertiser/campaigns/[campaignId]/campaign-change-panel.tsx",
@@ -592,29 +596,30 @@
       ]
     }
   },
-  "eligible_inventory_sha256": "d50696ba91460d2d3f957d1fd36796b99cea7d938a560d9407239b627a2eae2c",
+  "eligible_inventory_sha256": "933590099ee25cf3d9d7786a11146c8fcafa652eda222c85bcb0ad8f7d7f9733",
   "global": {
-    "branch_covered": 10617,
-    "branch_percent": 70.9455,
-    "branch_total": 14965,
-    "line_covered": 33672,
-    "line_percent": 88.4104,
-    "line_total": 38086
+    "branch_covered": 10756,
+    "branch_percent": 71.0624,
+    "branch_total": 15136,
+    "line_covered": 34141,
+    "line_percent": 88.4551,
+    "line_total": 38597
   },
-  "policy_sha256": "a4200e7586a91c296343a4d2b26e6790556d4d6f8e43e35bd05779dd96461604",
+  "policy_sha256": "216150c75093f3e0dc49ea52694f791c719ed08335e21dd6d69404395e9fb82f",
   "refresh": {
     "inventory_changes": {
       "added": [
-        "frontend/src/app/admin/billing/[campaignId]/invoices/[invoiceId]/page.tsx",
-        "frontend/src/app/advertiser/campaigns/[campaignId]/invoices/[invoiceId]/page.tsx",
-        "frontend/src/lib/billing/invoice-document.tsx"
+        "app/core/payout_event_enqueue.py",
+        "app/services/paystack_disbursements.py",
+        "frontend/src/app/advertiser/billing/actions.ts",
+        "frontend/src/app/advertiser/billing/paystack/return/route.ts"
       ],
       "removed": []
     },
-    "previous_baseline_sha256": "6ed44afdc12334c5548ac27b81e6e09b9559bb444fa378515c166878120f59a5",
-    "reason": "Batch F (REQ-009, REQ-010, REQ-012): new invoice, deployment-template and test sources; built from exact-SHA CI run 36603321930 on c994f58ecf05b5c694254cae717cb2b31b117795"
+    "previous_baseline_sha256": "4bdddf3ce8319f52396a41d686834f9874f7e02a2c3d0c7503168ab2db1c8a61",
+    "reason": "Paystack sandbox checkout and payout wiring; exact source 2bbbb7f368c26ea4d478d6701b6a631c484d0756 measured by CI run 36727158802 against pre-feature base f29e83beeec8d61e79c06ac29c49dd0daa3052fe. All functional jobs passed; D32 floors and exact D33 non-regression retained."
   },
-  "source_parent_sha": "c994f58ecf05b5c694254cae717cb2b31b117795",
-  "source_sha256": "276519c3b484dd433fe0ef5c45fef66e36405d5218585fed6bb04cbd62a27c02",
+  "source_parent_sha": "f29e83beeec8d61e79c06ac29c49dd0daa3052fe",
+  "source_sha256": "35cc634571ca71eb6b8557ff1a5800f0c1543af35c359d396fbf2c35b2da40b3",
   "version": 3
 }
