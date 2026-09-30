@@ -334,6 +334,9 @@ AUDITED = {
         "commercial.terms.accepted"
     ),
     ("POST", "/api/v1/admin/billing/manual-transfers"): "billing.receipt.*",
+    ("POST", "/api/v1/advertiser/invoices/{invoice_id}/checkout"): (
+        "advertiser.payment_checkout.requested"
+    ),
     ("POST", "/api/v1/admin/invoice-issuer-profiles"): ("billing.invoice_issuer_profile.recorded"),
     ("POST", "/api/v1/admin/invoices"): "billing.invoice_draft.created",
     ("POST", "/api/v1/admin/invoices/{invoice_id}/issue"): "billing.invoice.issued",
@@ -456,6 +459,11 @@ EXEMPT = {
         "Paystack-signed machine callback: a Cardvert charge becomes the same append-only "
         "payment_gateway_events row as /webhooks/payments, audited downstream by the worker; "
         "every other signed event is acknowledged and writes nothing."
+    ),
+    ("POST", "/api/v1/advertiser/payment-checkouts/{reference}/verify"): (
+        "Advertiser-triggered provider verification writes the same append-only "
+        "payment_gateway_events evidence as the Paystack webhook; receipt and allocation "
+        "mutations are audited by the asynchronous worker."
     ),
     ("POST", "/api/v1/admin/payouts/recompute-day"): (
         "Retired endpoint (MNY-06C/PR7): the direct day-recompute execute"

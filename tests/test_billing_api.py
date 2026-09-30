@@ -251,7 +251,7 @@ def test_commercial_api_journey_is_tenant_scoped_and_uses_canonical_cash(
 def test_payment_webhook_commits_then_enqueues_and_duplicate_reenqueues(
     db_client, db_sessionmaker
 ) -> None:
-    admin, owner, _, campaign = _fixture(db_sessionmaker, "webhook")
+    admin, owner, organization, campaign = _fixture(db_sessionmaker, "webhook")
     admin_headers = auth_headers(db_client, admin.email)
     owner_headers = auth_headers(db_client, owner.email)
     request = db_client.post(
@@ -298,6 +298,7 @@ def test_payment_webhook_commits_then_enqueues_and_duplicate_reenqueues(
             "external_transaction_id": "api-transaction-1",
             "event_type": "payment_confirmed",
             "commercial_terms_id": terms["id"],
+            "organization_id": str(organization.id),
             "amount": "100.00",
             "currency": "NGN",
             "payer_name": "Gateway Advertiser",

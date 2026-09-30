@@ -858,6 +858,9 @@ def test_release_environment_preserves_explicit_local_rehearsal(tmp_path: Path) 
             "ENVIRONMENT": "rehearsal",
             "EDGE_HOSTNAME": "cardvert-rehearsal.local",
             "PUBLIC_ORIGIN": "https://cardvert-rehearsal.local",
+            "PAYSTACK_CHECKOUT_RETURN_URL": (
+                "https://cardvert-rehearsal.local/advertiser/billing/paystack/return"
+            ),
             "OBJECT_STORAGE_ENDPOINT_URL": "http://minio:9000/private",
             "OBJECT_STORAGE_PUBLIC_ENDPOINT_URL": "http://localhost:9000/private",
         }

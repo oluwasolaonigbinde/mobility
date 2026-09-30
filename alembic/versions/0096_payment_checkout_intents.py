@@ -20,7 +20,7 @@ UUID = postgresql.UUID(as_uuid=True)
 def upgrade() -> None:
     op.create_table(
         "payment_checkout_intents",
-        sa.Column("id", UUID, server_default=sa.text("gen_random_uuid()"), nullable=False),
+        sa.Column("id", UUID, nullable=False),
         sa.Column("reference", sa.String(length=100), nullable=False),
         sa.Column("provider", sa.String(length=64), nullable=False),
         sa.Column("organization_id", UUID, nullable=False),
