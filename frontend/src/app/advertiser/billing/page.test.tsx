@@ -20,6 +20,11 @@ const receipt = (id: string, reference: string) => ({
 describe("AdvertiserBillingPage", () => {
   beforeEach(() => get.mockReset());
 
+  const mockEmptyBilling = () =>
+    get.mockImplementation(async (path?: string) =>
+      path === "/api/v1/advertiser/billing" ? { data: [] } : { data: { items: [], total: 0 } },
+    );
+
   it("describes recorded payments in plain language without changing amounts or production meaning", async () => {
     get.mockImplementation(async (path?: string) => {
       if (path === "/api/v1/advertiser/billing") {
@@ -81,12 +86,39 @@ describe("AdvertiserBillingPage", () => {
   });
 
   it("shows a plain empty state when no payments exist", async () => {
-    get.mockImplementation(async (path?: string) =>
-      path === "/api/v1/advertiser/billing" ? { data: [] } : { data: { items: [], total: 0 } },
-    );
+    mockEmptyBilling();
 
     render(await AdvertiserBillingPage());
 
     expect(screen.getByText("No payments have been recorded yet.")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["confirmed", "Payment confirmed", "The verified payment is being applied to the invoice."],
+    [
+      "failed",
+      "Paystack did not complete the payment",
+      "No payment is treated as complete until Paystack confirms it.",
+    ],
+    [
+      "pending",
+      "Payment confirmation is still pending",
+      "No payment is treated as complete until Paystack confirms it.",
+    ],
+    ["error", "Online payment could not be opened", "Please try again from the invoice."],
+  ])("explains a %s Paystack return in plain language", async (payment, heading, message) => {
+    mockEmptyBilling();
+
+    render(
+      await AdvertiserBillingPage({
+        searchParams: Promise.resolve({
+          payment,
+          ...(payment === "error" ? { message } : {}),
+        }),
+      }),
+    );
+
+    expect(screen.getByRole("status")).toHaveTextContent(heading);
+    expect(screen.getByRole("status")).toHaveTextContent(message);
   });
 });
