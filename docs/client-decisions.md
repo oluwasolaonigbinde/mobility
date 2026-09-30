@@ -130,15 +130,20 @@ outside it and recorded (Q14). Customer-facing prices are **VAT-inclusive
 (7.5 %)**, while the invoice still shows net, VAT and gross (Q28). Invoice
 details: Terrax Media Company Ltd, 73 Lome Crescent, Wuse Zone 7, FCT Abuja,
 07074200080, terraxmediacompany@gmail.com; fields include serial number, RC
-number, client and CEO signature lines, campaign duration, quantity and bank
-details (client answers item 6). An accountant must confirm before live
-invoices.
+number, client and CEO signature lines, campaign duration, quantity (the
+number of advert campaigns) and bank details (client answers item 6). The
+invoice leads with the VAT-inclusive total; staff still enter prices before
+VAT. RC number, TIN and bank details stay blank ("Not yet recorded") until
+Terrax supplies them, and a real invoice cannot be issued without them or
+without the accountant's sign-off (D42).
 
-**Still open:** [REQ-019](requests.md) — RC or TIN. Layout work: [REQ-009](requests.md).
+**Still open:** [REQ-019](requests.md) — RC or TIN; [REQ-041](requests.md) —
+OPay bank details; [REQ-042](requests.md) — accountant's confirmation.
 
 **History:**
 - **2026-08-14** — Client confirmed in-platform invoices and VAT-inclusive display (Q14, Q28, D18).
 - **2026-09-24** — Client supplied company details and invoice fields (client answers item 6).
+- **2026-09-29** — Owner approved the invoice layout: bank slots left blank until the real OPay details arrive, prices still entered before VAT (D42, REQ-009). Built in `0b53eab`.
 
 ### Budgets and alerts
 
@@ -259,13 +264,13 @@ answered.
 
 **Still open:** [REQ-014](requests.md) short-day rule, [REQ-015](requests.md)
 which miles count, [REQ-016](requests.md) ₦10,000 or ₦9,800 and any cap.
-Documentation: [REQ-012](requests.md).
 
 **History:**
 - **2026-07 to 2026-08-04** — Fixed naira amount **per hour** of verified time, with a daily cap on payable hours (D2, D4); built as `payout_v1` and `payout_v2` (D9, 30 Jul); reconfirmed against the proposal (D12, 4 Aug).
 - **2026-08-14** — Client set one platform hourly rate with an admin campaign override, and a higher (premium) hourly rate inside the primary zone (Q4, Q5, D18). Built as `payout_v3`.
 - **2026-09-24** — Client's answer gave per-mile figures (₦140 inside the primary zone, ₦50 outside, 70 miles a day) and a ₦10,000 daily rate for special locations (client answers item 2).
 - **2026-09-25** — Client moved new work to a **daily rate** for the expected distance, with reduced pay for less (D39a). Built as `payout_v4` in `e14149d` (REQ-002).
+- **2026-09-29** — Architecture §16 and PRD §7 amended for daily-rate pay and automatic payouts (REQ-012). Built in `0b53eab`.
 
 ### Payout approval and timing
 
@@ -377,11 +382,11 @@ support@terraxmedia.com; **Mapbox** maps now, Google Maps later; domain
 **terraxmedia.com** (client answers items 9–16).
 
 **Still open:** [REQ-028](requests.md) accounts, [REQ-033](requests.md) domain.
-Templates: [REQ-010](requests.md).
 
 **History:**
 - **2026-08-14** — Client confirmed ownership (Q32, D18).
 - **2026-09-24** — Client chose the providers and domain (client answers items 9–16).
+- **2026-09-29** — Deployment templates for these providers written, with every secret blank and the go-live gaps listed in `docs/deployment-templates.md`; nothing applied (REQ-010). Built in `0b53eab`.
 
 ### Legal, privacy and retention
 

@@ -1,15 +1,15 @@
 """Preserve Paystack event kind and explicit unallocated confirmed cash.
 
-Revision ID: 0097_paystack_edge_case_evidence
-Revises: 0096_payout_provider_event_queue
+Revision ID: 0098_paystack_edge_case_evidence
+Revises: 0097_payout_provider_event_queue
 """
 
 import sqlalchemy as sa
 
 from alembic import op
 
-revision = "0097_paystack_edge_case_evidence"
-down_revision = "0096_payout_provider_event_queue"
+revision = "0098_paystack_edge_case_evidence"
+down_revision = "0097_payout_provider_event_queue"
 branch_labels = None
 depends_on = None
 
@@ -63,7 +63,7 @@ def downgrade() -> None:
     )
     if unallocated:
         raise RuntimeError(
-            f"0097 downgrade blocked: {unallocated} unallocated confirmed payment rows exist"
+            f"0098 downgrade blocked: {unallocated} unallocated confirmed payment rows exist"
         )
     op.drop_constraint(
         "ck_payment_gateway_attempts_result",

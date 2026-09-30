@@ -2,7 +2,7 @@ import hashlib
 import json
 from copy import deepcopy
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
@@ -479,6 +479,15 @@ LIABILITY_FORMULA_VERSION = "rate-cap-vehicle-days-v1"
 # day unit; the distinct version keeps those columns unambiguous.
 DAILY_RATE_LIABILITY_FORMULA_VERSION = "day-rate-vehicle-days-v1"
 LAGOS_TZ = ZoneInfo("Africa/Lagos")
+ISSUER_CONTACT_AND_BANK_FIELDS = (
+    "company_registration_number",
+    "contact_phone",
+    "contact_email",
+    "bank_name",
+    "bank_account_name",
+    "bank_account_number",
+)
+ISSUER_VERIFIED_FACT_FIELDS = ("tax_identification_number", *ISSUER_CONTACT_AND_BANK_FIELDS)
 
 
 def _aware_utc(value: datetime) -> datetime:
@@ -534,6 +543,51 @@ def _tax_rate(value: Decimal | str) -> Decimal:
     return rate
 
 
+def _line_quantity(item: dict, index: int) -> tuple[int, Decimal] | None:
+    """Return (quantity, unit amount) when a line is priced per unit, else None."""
+    if "quantity" not in item and "unit_amount" not in item:
+        return None
+    quantity = item.get("quantity")
+    if (
+        "unit_amount" not in item
+        or isinstance(quantity, bool)
+        or not isinstance(quantity, int)
+        or quantity < 1
+    ):
+        raise AppError(
+            "INVALID_COMMERCIAL_LINE_ITEM",
+            f"Line item {index + 1} needs a whole quantity of at least 1 and a unit amount",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+    return quantity, _money(item["unit_amount"], f"line_items[{index}].unit_amount")
+
+
+def _campaign_period(production_scope: dict) -> None:
+    """Validate the optional campaign dates an invoice shows as its duration."""
+    start = production_scope.get("campaign_start_date")
+    end = production_scope.get("campaign_end_date")
+    if start is None and end is None:
+        return
+    try:
+        start_date = date.fromisoformat(start)
+        end_date = date.fromisoformat(end)
+        # Only YYYY-MM-DD: fromisoformat also takes compact and week forms the invoice can't show.
+        if (start_date.isoformat(), end_date.isoformat()) != (start, end):
+            raise ValueError("not YYYY-MM-DD")
+    except (TypeError, ValueError) as exc:
+        raise AppError(
+            "INVALID_PRODUCTION_SCOPE",
+            "campaign_start_date and campaign_end_date must both be YYYY-MM-DD dates",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        ) from exc
+    if end_date < start_date:
+        raise AppError(
+            "INVALID_PRODUCTION_SCOPE",
+            "campaign_end_date must not be before campaign_start_date",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        )
+
+
 def _canonical_line_items(
     line_items: list[dict],
 ) -> tuple[list[dict], Decimal, Decimal]:
@@ -562,7 +616,18 @@ def _canonical_line_items(
                 f"Line item {index + 1} requires code, description and a supported kind",
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
-        amount = _money(item.get("amount", ""), f"line_items[{index}].amount")
+        quantity_value = _line_quantity(item, index)
+        if quantity_value is None:
+            amount = _money(item.get("amount", ""), f"line_items[{index}].amount")
+        else:
+            quantity, unit_amount = quantity_value
+            amount = unit_amount * quantity
+            if "amount" in item and _money(item["amount"], f"line_items[{index}].amount") != amount:
+                raise AppError(
+                    "INVALID_COMMERCIAL_LINE_ITEM",
+                    f"Line item {index + 1} amount must equal quantity times unit amount",
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                )
         metadata = item.get("metadata", {})
         if not isinstance(metadata, dict):
             raise AppError(
@@ -570,15 +635,18 @@ def _canonical_line_items(
                 f"Line item {index + 1} metadata must be an object",
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
-        canonical.append(
-            {
-                "code": code,
-                "description": description,
-                "kind": kind,
-                "amount": f"{amount:.2f}",
-                "metadata": deepcopy(metadata),
-            }
-        )
+        line = {
+            "code": code,
+            "description": description,
+            "kind": kind,
+            "amount": f"{amount:.2f}",
+            "metadata": deepcopy(metadata),
+        }
+        if quantity_value is not None:
+            # Only lines entered with a quantity carry it, so earlier lines keep their shape.
+            line["quantity"] = quantity
+            line["unit_amount"] = f"{unit_amount:.2f}"
+        canonical.append(line)
         net += amount
         if kind == "production":
             production += amount
@@ -686,6 +754,7 @@ async def record_quotation_revision(
             "production_scope must be a non-empty structured object",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
+    _campaign_period(production_scope)
     if not isinstance(payment_terms, dict):
         raise AppError(
             "INVALID_PAYMENT_TERMS",
@@ -1484,9 +1553,15 @@ async def record_invoice_issuer_profile(
     verification_status: IssuerVerificationStatus,
     external_input_reference: str,
     settings: Settings,
+    company_registration_number: str | None = None,
+    contact_phone: str | None = None,
+    contact_email: str | None = None,
+    bank_name: str | None = None,
+    bank_account_name: str | None = None,
+    bank_account_number: str | None = None,
 ) -> InvoiceIssuerProfile:
     await require_active_admin(session, actor_user_id)
-    values = {
+    values: dict[str, str | None] = {
         "legal_name": legal_name.strip(),
         "tax_identification_number": tax_identification_number.strip(),
         "registered_address": registered_address.strip(),
@@ -1495,12 +1570,21 @@ async def record_invoice_issuer_profile(
         "numbering_prefix": numbering_prefix.strip().upper(),
         "external_input_reference": external_input_reference.strip(),
     }
+    optional = {
+        "company_registration_number": company_registration_number,
+        "contact_phone": contact_phone,
+        "contact_email": contact_email,
+        "bank_name": bank_name,
+        "bank_account_name": bank_account_name,
+        "bank_account_number": bank_account_number,
+    }
     if not all(values.values()) or len(values["country_code"]) != 2:
         raise AppError(
             "INCOMPLETE_ISSUER_FACTS",
             "Complete issuer facts and their external provenance are required",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
+    values.update({field: (value or "").strip() or None for field, value in optional.items()})
     if verification_status == IssuerVerificationStatus.VERIFIED and (
         not settings.invoice_issuer_external_input_reference
         or values["external_input_reference"] != settings.invoice_issuer_external_input_reference
@@ -1509,6 +1593,15 @@ async def record_invoice_issuer_profile(
             "VERIFIED_ISSUER_GATE_REQUIRED",
             "Verified issuer facts require the registered external Q28 gate",
             status_code=status.HTTP_409_CONFLICT,
+        )
+    if verification_status == IssuerVerificationStatus.VERIFIED and not all(
+        values[field] for field in ISSUER_VERIFIED_FACT_FIELDS
+    ):
+        # D42: a real invoice needs the RC number, TIN, contact and bank details.
+        raise AppError(
+            "INCOMPLETE_ISSUER_FACTS",
+            "Verified issuer facts require the RC number, contact and bank details",
+            status_code=status.HTTP_400_BAD_REQUEST,
         )
     existing = await session.scalar(
         select(InvoiceIssuerProfile).where(
@@ -1688,6 +1781,7 @@ async def issue_invoice(
         and issuer.verification_status == IssuerVerificationStatus.VERIFIED
         and bool(settings.invoice_issuer_external_input_reference)
         and issuer.external_input_reference == settings.invoice_issuer_external_input_reference
+        and all(getattr(issuer, field) for field in ISSUER_VERIFIED_FACT_FIELDS)
     )
     if not synthetic_test_authority and not configured_verified_authority:
         raise AppError(
@@ -1732,6 +1826,7 @@ async def issue_invoice(
         "invoice_wording": issuer.invoice_wording,
         "external_input_reference": issuer.external_input_reference,
         "synthetic_test_authority": synthetic_test_authority,
+        **{field: getattr(issuer, field) for field in ISSUER_CONTACT_AND_BANK_FIELDS},
     }
     invoice.issued_by_user_id = actor_user_id
     invoice.issued_at = now

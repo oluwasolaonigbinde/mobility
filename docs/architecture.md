@@ -291,7 +291,7 @@ Current OpenAPI: **305 operations across 273 paths**; **304 operations under `/a
 | `/health` | 1 | 1 |
 
 SQLAlchemy metadata contains **131 mapped tables**.
-Alembic contains **97 linear revisions**, from base `0001_enable_extensions` to the single head `0097_paystack_edge_case_evidence`.
+Alembic contains **98 linear revisions**, from base `0001_enable_extensions` to the single head `0098_paystack_edge_case_evidence`.
 
 Required public driver-onboarding paths:
 
@@ -620,7 +620,7 @@ Notes:
 
 ### 7.2 Migration policy **[BUILT]**
 
-- Alembic has **97 linear revisions**, from base `0001_enable_extensions` to the single head `0097_paystack_edge_case_evidence`.
+- Alembic has **98 linear revisions**, from base `0001_enable_extensions` to the single head `0098_paystack_edge_case_evidence`.
   <!-- verified by scripts/update_architecture_inventory.py from Alembic's ScriptDirectory -->
 - `0001` enables `pgcrypto` + `postgis`.
 - Shipped migrations are frozen history: schema changes come as **new**
@@ -1175,7 +1175,7 @@ must not grow invoicing logic.
 | `invoice_number_sequences` | Mutable allocation control only, scoped by the full rendered issuer prefix plus calendar year. Migration `0042` seeds each scope above the maximum immutable issued suffix; profiles sharing a rendered prefix share one sequence and issued invoices are never rewritten |
 | `invoice_corrections` | Append-only credit/debit notes. Migration `0041` adds a caller-supplied immutable reference unique per invoice and a canonical request fingerprint: same key and payload returns the existing row, while the same key with changed money/type/reason conflicts before any obligation delta |
 | `payments` | Money received against an invoice — **N payments per invoice**: amount, method (`manual_transfer` \| `gateway`), provider + provider reference, status, `recorded_by_user_id` for manual entries. Standard production authority requires confirmed allocations covering the full required amount; an approved corporate-credit snapshot may instead authorise production under its recorded terms |
-| `payment_checkout_intents` | Durable one-off checkout authority introduced by migration `0095`: one exact issued-invoice balance, currency, advertiser, accepted-terms id, customer billing email and Cardvert reference are committed before Paystack initialization. Pending, initialized, unknown, failed and confirmed states distinguish safe retry from an uncertain provider outcome. Initialization commits `unknown` before external I/O, so provider acceptance followed by local failure cannot mint a second reference. An unresolved checkout and a confirmed checkout awaiting worker application block replacement; after terminal application, a later reversal or debit that creates a real balance may open a new reference |
+| `payment_checkout_intents` | Durable one-off checkout authority introduced by migration `0096`: one exact issued-invoice balance, currency, advertiser, accepted-terms id, customer billing email and Cardvert reference are committed before Paystack initialization. Pending, initialized, unknown, failed and confirmed states distinguish safe retry from an uncertain provider outcome. Initialization commits `unknown` before external I/O, so provider acceptance followed by local failure cannot mint a second reference. An unresolved checkout and a confirmed checkout awaiting worker application block replacement; after terminal application, a later reversal or debit that creates a real balance may open a new reference |
 | `payment_events` | Raw webhook/event log from gateways: provider event id (**unique** — replay protection), payload, processing status |
 
 The accepted-terms snapshot fixes the standard 24-hour production wait. A
@@ -1188,6 +1188,32 @@ immutable and auditable; authorisation and production start are distinct facts.
 Rules: amounts are `Decimal` (strings on the wire, P6); invoices are immutable
 once issued (corrections = credit-note-style new rows); every state change
 audited (§6.4.9).
+
+**[BUILT — Batch F, D42] Invoice layout and issuer facts.** Advertisers
+(`/advertiser/campaigns/{id}/invoices/{invoice_id}`) and staff
+(`/admin/billing/{id}/invoices/{invoice_id}`) open one invoice page rendered
+from the existing commercial reads: issuer block (legal name, address, phone,
+email, RC number, TIN), invoice number as the serial number, issue date in
+Nigeria time, bill-to company and contact, campaign name, duration and payment
+arrangement, a line table (S/N, services rendered, quantity, unit price and
+amount before VAT), subtotal, VAT at the invoice's rate and **Invoice total
+(VAT inclusive)** as the headline, then corrections, the amount after
+corrections, the amount paid and the payment status, bank details, and
+signature lines for the client and Terrax Media's CEO. Prices are still
+entered before VAT, and VAT is still computed once on the net total. Quotation
+lines may carry a whole `quantity` and a `unit_amount` (the amount is derived
+or must equal their product; lines without them keep their earlier canonical
+shape), and `production_scope` may carry `campaign_start_date` /
+`campaign_end_date` (ISO dates, both or neither, end not before start) that
+the invoice shows as its duration. Migration `0095` adds nullable RC number,
+phone, email, bank name, account name and account number to the append-only
+issuer profiles; downgrade refuses once any is recorded. A **verified** profile
+needs all of them plus the TIN, and is refused while
+`INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE` (the accountant's sign-off, blank in
+every template) is unset; issuance also rechecks completeness, and the issued
+snapshot carries the six new facts. Missing facts show "Not yet recorded"; RC,
+TIN and bank values are never pre-filled. The advertiser page never shows the
+issuer's external reference, IDs or hashes (D38c).
 
 Campaign commercial authority uses one advisory lock through both authorization
 and the caller's production/activation/trip-start mutation. Receipt reversal and
@@ -1230,7 +1256,7 @@ adapter, `sk_live_` is refused outside production and `sk_test_` in production.
 The returned authorization URL must be HTTPS on `checkout.paystack.com`, with
 no credentials or non-standard port, before it can be stored and used by the
 browser.
-Migration `0095` and the advertiser Billing action persist the exact invoice
+Migration `0096` and the advertiser Billing action persist the exact invoice
 balance before calling `create_checkout`, commit an uncertain state before the
 provider call, reuse an initialized same-balance attempt, and require explicit
 verification of an uncertain saved reference instead of submitting again. They
@@ -1276,7 +1302,7 @@ Rules, binding for any future webhook (payments, messaging delivery receipts):
 `POST /api/v1/webhooks/paystack` follows these rules: without a key it answers
 503. After signature verification, a Cardvert `charge.success` becomes the same
 durable `payment_gateway_events` row as `/webhooks/payments` and is enqueued.
-Migration `0096` adds a separate durable `payout_provider_events` queue and
+Migration `0097` adds a separate durable `payout_provider_events` queue and
 processing-attempt history for `transfer.success`, `transfer.failed` and
 `transfer.reversed`. The request path only authenticates, de-duplicates,
 persists and enqueues. The worker binds payout evidence to the frozen line's
@@ -1366,10 +1392,21 @@ don't fork it.
 
 ## 16. Money out — versioned payout, release, disbursement
 
-Q4, Q5, Q22 and Q27 are client-confirmed by D18. D4's daily cap remains. D18
-changes the zone treatment and therefore requires a new immutable formula
-version; it does not rewrite calculations already stamped `payout_v1` or
-`payout_v2`.
+Q4, Q5, Q22 and Q27 are client-confirmed by D18. D4's daily cap remains for
+hourly work. D18 changes the zone treatment and therefore requires a new
+immutable formula version; it does not rewrite calculations already stamped
+`payout_v1` or `payout_v2`.
+
+**D39/D40 (25–28 Sep 2026)** move new work to a **daily rate** for covering an
+expected daily distance (`payout_v4`, §16.1) with each stop of up to five
+minutes counting as driving, and let Cardvert approve payouts of clean
+`payout_v4` earnings without a person (§16.3), with Finance able to pause,
+see alerts and reconcile daily. Hourly (`payout_v1`–`v3`) work already accepted
+keeps its rules and is never repriced (D14/D21), and its payouts stay
+maker-checker. Both are built and switched off: daily-rate publishing waits
+for the shortfall rule, which miles count and the full-day amount
+(REQ-014–REQ-016), and automatic payouts wait for the payout frequency, run
+limit and alert recipients (REQ-017, REQ-029, REQ-030).
 
 ### 16.1 Payout engine v2 (D2, D4) **[BUILT]**
 
@@ -1547,14 +1584,18 @@ sentences and the trip breakdown shows miles counted and pay per day.
 Recorded residuals: the per-driver-per-day ceiling across different campaigns
 (Batch C); a voided or later-held earlier trip shifts later trips only through
 a day correction; parked GPS jitter under 5 minutes is credited (109 m for a
-4-minute stop on a ±5 m synthetic trace). The §16 rewrite, PRD §7 and the client
-guide are scheduled for Batch F.
+4-minute stop on a ±5 m synthetic trace). The §16 introduction and PRD §7 were
+amended for D39/D40 in Batch F; the client guide rewrite is REQ-011.
+
 ### 16.2 Release scheduling (Q22)
 
 Ledger entries post as `pending` (built). The D18 release policy makes an
 earning with a current successful assessment and no authoritative active hold
-available without a blanket seven-day delay; the configured weekly cadence
-controls disbursement batching, not earned-status approval. A dismissed flag
+available without a blanket seven-day delay; the payout cadence controls
+disbursement batching, not earned-status approval. For automatic payouts the
+cadence is `PAYOUT_AUTOMATIC_FREQUENCY` (daily or weekly, Nigeria time), which
+the client has not yet chosen (REQ-017); manual batches are made when staff
+choose. A dismissed flag
 remains part of the assessment fingerprint, so dismissal first makes the old
 assessment stale and release waits for reassessment. A suspected or flagged
 earning with an active hold remains `pending` for admin approve/decline, with a
@@ -1639,7 +1680,7 @@ clawback; once cash has been paid, RM11's carry-forward debt contract applies.
   configured database session factory, decrypt the exact frozen verified
   version only at submission time, and write a system audit without exposing
   bank data. With no Paystack key they still use the disabled adapter. Migrations
-  `0096` and `0097` queue signed provider outcomes and preserve the exact event
+  `0097` and `0098` queue signed provider outcomes and preserve the exact event
   kind. A newer `transfer.reversed` event changes the affected line to failed
   and returns its earnings to available while retaining the earlier success
   evidence; an older late success cannot override a reversal. Test-key balance and reference probes, worker startup
@@ -2777,6 +2818,16 @@ client-owned cloud/domain. The actual account/domain/provider/budget/access
 remain `EXT-RELEASE-ENV`. Posture: containerised and cloud-portable — nothing
 below assumes a specific vendor.
 
+**[TEMPLATE — Batch F, not applied]** The client chose Render hosting, AWS S3
+storage with KMS bucket encryption, ClamAV, Postmark and Mapbox (client answers
+items 9–16). `deploy/render/render.yaml`, `deploy/aws/` and
+`docs/deployment-templates.md` translate that choice into templates with every
+secret blank and every unanswered switch off. They are not a deployable
+topology: the document lists the gaps this section's edge design still
+requires on Render (security headers, webhook and health routing, Redis TLS,
+Mapbox with MapLibre, KMS key custody, release procedures, retention, shared
+login limits without a trusted edge, and where personal data is stored).
+
 ### 25.1 Environments
 
 | Env | Purpose | Shape |
@@ -3119,7 +3170,7 @@ The pre-flight table for any new work. **If your feature isn't here, add it
 | Trip evidence manifest, seal protocol + post-seal quarantine | §14.2/§35 RM3 | `services/trip_evidence.py`, `services/trips.py`, `services/trip_processing.py`, `api/v1/trips.py` | trip_sessions evidence fields, trip_evidence_manifest_entries, signed live/quarantine receipts | payout recompute (apply never recomputes money) | [BUILT] D15 lifecycle; D25 exact v2 authority (`0074`) |
 | Durable client ping queue | §35 RM4/RM5 | `frontend/src/lib/trips/ping-queue.ts`, `trip-evidence.ts` + `(portal)/track/trip-tracker.tsx` | encrypted IndexedDB batch/receipt records | server contract beyond synchronized §9 baselines | [BUILT] D15 queue; D25 v2 descriptors/receipts |
 | Release scheduling | §16.2 | `jobs/` + `services/payouts.py` | ledger statuses | ledger edits (append-only) | Q22 confirmed; RM8 before release |
-| Automated disbursement | §16.3 | `adapters/disbursement/`, `services/disbursements.py`, `services/paystack_disbursements.py`, worker | payout batches/intents, queued provider events (`0096`), transfer-kind and terminal retry evidence (`0097`) | direct vendor calls from services; plaintext bank data outside the exact frozen resolver | [BUILT, sandbox-wired] Q27/RM10/RM11; `EXT-DISBURSEMENT-PROVIDER` and `EXT-SETTLEMENT-BANK` still gate live submission |
+| Automated disbursement | §16.3 | `adapters/disbursement/`, `services/disbursements.py`, `services/paystack_disbursements.py`, worker | payout batches/intents, queued provider events (`0097`), transfer-kind and terminal retry evidence (`0098`) | direct vendor calls from services; plaintext bank data outside the exact frozen resolver | [BUILT, sandbox-wired] Q27/RM10/RM11; `EXT-DISBURSEMENT-PROVIDER` and `EXT-SETTLEMENT-BANK` still gate live submission |
 | Automatic payout approval (D39(c)) | §16.3 | `services/automatic_payouts.py`, `jobs/automatic_payouts.py`, `api/v1/automatic_payouts.py` + admin Automatic payouts page and Finance queue item | payout_batches approval mode, automatic runs/controls/alerts (`0093`), existing submission intents | maker-checker rules for manual batches; pay calculation; provider adapters or the worker's adapter choice | [BUILT, switched off] settings unset (payout frequency and run limit are client inputs); live submission waits on `W2-01C` |
 | Operator payout selection, recovery and money position | §16.3/§15 | `services/payout_operations.py`, `services/disbursements.py`, `services/payout_debt.py` + admin payout/billing UI | existing payout and settlement projections; draft retry identity | bank plaintext in lists; batch-level cash finality; campaign/assignment completion | [BUILT provider-neutrally] P4; live provider gate unchanged |
 | Named operator discovery and focused review | §17/§18/§21 | `services/operator_search.py`, existing application/assignment services + admin queues/detail | bounded safe search; current evidence; shared zero-write liability readiness | sensitive bulk search/disclosure; advisory activation or reservation | [BUILT provider-neutrally] Phase II; final locked commands unchanged |
@@ -3130,7 +3181,9 @@ The pre-flight table for any new work. **If your feature isn't here, add it
 | Notifications | §20 | `services/notifications.py`, `jobs/`, `adapters/messaging/` | notifications (new) | inline provider calls | Q34 confirmed; provider is parameter |
 | In-app complaints and Customer Service inbox | §20.4 | `services/complaints.py`, `api/v1/complaints.py` + driver/advertiser Help and admin Customer Service pages | complaints, complaint_messages (append-only), notifications | new staff roles; message text in audit/notification payloads/email; manual contact tasks for drivers | [BUILT] D39(d); categories, response time, driver channel, company-wide visibility and erasure are open client questions |
 | Billing / accepted terms / invoices / payments | §15 | `services/billing.py`, `adapters/payments/` | commercial_terms, invoices, payments (new) | report/cost-summary logic | Q1–Q3, Q14, Q28 confirmed; external provider/company facts for live use |
-| Payment checkout and Paystack webhooks | §15.3/§15.4 | `services/billing.py`, `api/v1/billing.py`, `api/v1/webhooks.py`, payment adapter and worker | checkout intents (`0095`), payment events and queued payout-provider events (`0096`), overpayment/reversal evidence (`0097`) | browser-return proof; business logic in webhook handler | [BUILT, local sandbox checkout proven] public webhook/recovery proof and production approval remain `EXT-PAYMENT-PROVIDER` |
+| Invoice layout and issuer facts (D42) | §15.2 | `services/billing.py` + `lib/billing/invoice-document.tsx` + advertiser/admin invoice pages | invoice_issuer_profiles contact/bank columns (`0095`); quotation line quantity and campaign dates | VAT computation, numbering, issued-invoice immutability | REQ-019 (RC or TIN), bank details and accountant sign-off for real invoices |
+| Deployment templates (Render, AWS) | §25 | `deploy/render/`, `deploy/aws/`, `docs/deployment-templates.md` | — | applying them, accounts, provider calls | REQ-028 accounts, REQ-033 domain, the listed go-live gaps |
+| Payment checkout and Paystack webhooks | §15.3/§15.4 | `services/billing.py`, `api/v1/billing.py`, `api/v1/webhooks.py`, payment adapter and worker | checkout intents (`0096`), payment events and queued payout-provider events (`0097`), overpayment/reversal evidence (`0098`) | browser-return proof; business logic in webhook handler | [BUILT, local sandbox checkout proven] public webhook/recovery proof and production approval remain `EXT-PAYMENT-PROVIDER` |
 | Budget enforcement | §15.5 | `jobs/` + `services/billing.py` + campaign status | campaign status | hard deletes | policy confirmation (Q9-adjacent, via decisions-log) |
 | Matching/recommender | §21 | `services/campaign_assignments.py` | — | UI-layer constraint checks | Q7/Q16 confirmed |
 | Activity-floor sweep | §21 | `jobs/` | notifications | — | Q20 confirmed; worker |
@@ -3336,10 +3389,11 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
-| v1.105 | 2026-09-29 | **Real Paystack Test Mode checkout evidence.** A Cardvert-created ₦101 checkout completed through Paystack's successful test-card path. After the local frontend was restored, the saved browser return verified the same Cardvert reference against Paystack; the durable worker processed exactly one confirmed gateway event, created one ₦101 receipt and one allocation, and the Billing UI showed the invoice paid. No real money moved. This proves the hosted-checkout, return verification and local application path; it does not prove public webhook delivery/replay or a transfer. W2-01C therefore remains blocked on those external proofs and production approval. |
-| v1.104 | 2026-09-29 | **Paystack failure-boundary review corrections.** Checkout initialization validates all local request facts before provider I/O, then commits the uncertain state before the call, so invalid billing data fails definitively while provider acceptance followed by a local save failure preserves one reference and requires verification rather than resubmission. A terminally applied checkout permits a new exact-balance reference only if reversal or debit later makes the invoice payable. Browser redirects accept only the credential-free standard HTTPS Paystack checkout origin. Payment enqueue failure is recovered from the durable database sweep; the documented transfer event identity and existing query-only submission recovery cover replay and provider-accepted timeouts. Driver DSR inventory counts provider transfer records and both successful and failed processing attempts through the frozen payout line. Demo reseeding recognizes the legacy local billing address before normalizing it, preventing a duplicate advertiser organization after upgrade. Focused regressions pass; external package gates remain unchanged. |
-| v1.103 | 2026-09-29 | **Paystack integrated review corrections.** Migration `0097` preserves transfer event kind and permits a confirmed provider receipt whose cash is wholly unallocated after another payment settles the obligation. Provider evidence now binds the advertiser metadata; active/confirmed checkouts block a second reference; partial or full gateway overpayment stays in canonical receipt history with audited unallocated cash; a newer Paystack reversal restores earnings to available; permanent or repeatedly unresolved transfer events stop retrying. Live keys are production-only, the return URL is same-origin and part of the production contract, and the legacy synchronous admin provider webhook is removed so Paystack has one queued callback. API artifacts and privacy inventory move with the change. External package gates remain unchanged. |
-| v1.102 | 2026-09-29 | **W2-01C Paystack sandbox wiring, still externally gated.** Migration `0095` adds durable exact-balance checkout intents; advertiser Billing initializes a one-off Paystack checkout and verifies provider evidence before funding. Migration `0096` adds queued transfer-provider events and processing attempts; the unified signed Paystack webhook persists charge and transfer events without money logic in the request. Admin and worker transfer paths use an audited resolver for the exact frozen verified bank-account version. Local test-key balance/reference probes, real ₦100 and ₦101 test checkout initialization, worker startup, focused PostgreSQL/API/frontend checks and migration round trips pass without completing a payment or transfer. Public staging webhook/recovery proof, settlement-bank/OTP decisions and production approval remain external gates; package status is unchanged. |
+| v1.106 | 2026-09-29 | **Real Paystack Test Mode checkout evidence.** A Cardvert-created ₦101 checkout completed through Paystack's successful test-card path. After the local frontend was restored, the saved browser return verified the same Cardvert reference against Paystack; the durable worker processed exactly one confirmed gateway event, created one ₦101 receipt and one allocation, and the Billing UI showed the invoice paid. No real money moved. This proves the hosted-checkout, return verification and local application path; it does not prove public webhook delivery/replay or a transfer. W2-01C therefore remains blocked on those external proofs and production approval. |
+| v1.105 | 2026-09-29 | **Paystack failure-boundary review corrections.** Checkout initialization validates all local request facts before provider I/O, then commits the uncertain state before the call, so invalid billing data fails definitively while provider acceptance followed by a local save failure preserves one reference and requires verification rather than resubmission. A terminally applied checkout permits a new exact-balance reference only if reversal or debit later makes the invoice payable. Browser redirects accept only the credential-free standard HTTPS Paystack checkout origin. Payment enqueue failure is recovered from the durable database sweep; the documented transfer event identity and existing query-only submission recovery cover replay and provider-accepted timeouts. Driver DSR inventory counts provider transfer records and both successful and failed processing attempts through the frozen payout line. Demo reseeding recognizes the legacy local billing address before normalizing it, preventing a duplicate advertiser organization after upgrade. Focused regressions pass; external package gates remain unchanged. |
+| v1.104 | 2026-09-29 | **Paystack integrated review corrections.** Migration `0098` preserves transfer event kind and permits a confirmed provider receipt whose cash is wholly unallocated after another payment settles the obligation. Provider evidence now binds the advertiser metadata; active/confirmed checkouts block a second reference; partial or full gateway overpayment stays in canonical receipt history with audited unallocated cash; a newer Paystack reversal restores earnings to available; permanent or repeatedly unresolved transfer events stop retrying. Live keys are production-only, the return URL is same-origin and part of the production contract, and the legacy synchronous admin provider webhook is removed so Paystack has one queued callback. API artifacts and privacy inventory move with the change. External package gates remain unchanged. |
+| v1.103 | 2026-09-29 | **W2-01C Paystack sandbox wiring, still externally gated.** Migration `0096` adds durable exact-balance checkout intents; advertiser Billing initializes a one-off Paystack checkout and verifies provider evidence before funding. Migration `0097` adds queued transfer-provider events and processing attempts; the unified signed Paystack webhook persists charge and transfer events without money logic in the request. Admin and worker transfer paths use an audited resolver for the exact frozen verified bank-account version. Local test-key balance/reference probes, real ₦100 and ₦101 test checkout initialization, worker startup, focused PostgreSQL/API/frontend checks and migration round trips passed; the ₦101 checkout later completed as recorded in v1.106. Public staging webhook/recovery proof, settlement-bank/OTP decisions and production approval remain external gates; package status is unchanged. |
+| v1.102 | 2026-09-29 | **Batch F (REQ-009, REQ-010, REQ-012).** §15.2 records the invoice layout (D42): advertiser and staff invoice pages; quotation lines with quantity and unit price; campaign dates in the accepted quotation; migration `0095` adds RC number, phone, email and bank details to issuer profiles (downgrade refuses once recorded); verified profiles and issuance need every fact plus the accountant's sign-off reference. VAT computation, numbering and immutability are unchanged. §16's introduction and §16.2 are amended for D39/D40 (daily-rate pay and automatic approval, both switched off; frequency open). §25 points to the new Render/AWS templates and their go-live gaps. Two §30 rows; all three §9 baselines moved together (issuer profile create/read). The client guide rewrite (REQ-011) left this batch. |
 | v1.101 | 2026-09-28 | **Batch E: in-app complaints and the Customer Service inbox (D39(d), direct-owner pass).** New §20.4 [BUILT]: migration `0094` adds `complaints` and the append-only `complaint_messages`; downgrade refuses while any complaint exists. Five driver routes (`/api/v1/driver/complaints…`), five advertiser routes (`/api/v1/advertiser/complaints…`) and four staff routes (`/api/v1/admin/complaints…`) with owner scoping, identical 404s for foreign and unknown references, row locks, one audit per mutation and idempotent retries. Four notification types (`complaint_received`, `complaint_replied`, `complaint_resolved`, `complaint_assigned`); advertisers also get the preference-governed email; drivers get no manual contact task (a stated §20.2 exception). The audit-subject and DSR registries cover complaints. Driver and advertiser Help screens, the staff Customer Service inbox and "Complaints to answer" in "Waiting for you". §30 row added; all three §9 baselines moved together. v1.100 is reserved for Batch C. |
 | v1.100 | 2026-09-28 | **Batch C: automatic payout approval with safeguards (D39(c), D40; direct-owner pass; switched off).** §16.3 records the automatic path, the disabled system actor and its integrity check, the clean-earnings rule, the cross-campaign one-day-rate ceiling, the run limit, the Finance pause switch, alerts, the daily reconciliation view, the lock order and the due-intent exclusion of blocked automatic intents; §30 gains its row. Migration `0093` adds the batch approval mode, runs, controls and alerts and seeds the actor; seven admin endpoints under `/api/v1/admin/payouts/automatic` and an `approval_mode` filter on batch summaries. `PAYOUT_AUTOMATIC_APPROVAL_ENABLED`, `PAYOUT_AUTOMATIC_FREQUENCY` and `PAYOUT_AUTOMATIC_BATCH_LIMIT_NGN` are false/blank in every template. Pay calculation, manual maker-checker rules and the Paystack wiring are unchanged; all three §9 baselines moved together. |
 | v1.99 | 2026-09-27 | **Batch D: Paystack payment and transfer adapters (direct-owner pass).** §15.3, §15.4 and §16 record Paystack implementations of the payment and disbursement ports built from the public API documentation and tested only against synthetic recorded fixtures, plus `POST /api/v1/webhooks/paystack` (Cardvert charges recorded and enqueued; every other signed event acknowledged without writes). `PAYSTACK_SECRET_KEY` is blank in every template and keeps both ports disabled. Existing payment and payout routes, the worker and every live-use gate are unchanged; no migration, provider call or account action. All three §9 baselines moved together. |

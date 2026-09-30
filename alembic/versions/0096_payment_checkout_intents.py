@@ -1,7 +1,7 @@
 """Durable Paystack checkout references for issued advertiser invoices.
 
-Revision ID: 0095_payment_checkout_intents
-Revises: 0094_customer_service_complaints
+Revision ID: 0096_payment_checkout_intents
+Revises: 0095_invoice_issuer_contact_and_bank
 """
 
 import sqlalchemy as sa
@@ -9,8 +9,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision = "0095_payment_checkout_intents"
-down_revision = "0094_customer_service_complaints"
+revision = "0096_payment_checkout_intents"
+down_revision = "0095_invoice_issuer_contact_and_bank"
 branch_labels = None
 depends_on = None
 
@@ -79,7 +79,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     count = op.get_bind().scalar(sa.text("SELECT count(*) FROM payment_checkout_intents"))
     if count:
-        raise RuntimeError(f"0095 downgrade blocked: {count} payment checkout rows exist")
+        raise RuntimeError(f"0096 downgrade blocked: {count} payment checkout rows exist")
     op.drop_index("ix_payment_checkout_intents_invoice_id", table_name="payment_checkout_intents")
     op.drop_index(
         "ix_payment_checkout_intents_commercial_terms_id",

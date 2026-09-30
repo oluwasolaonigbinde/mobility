@@ -1,7 +1,7 @@
 """Queue Paystack transfer evidence before money-state reconciliation.
 
-Revision ID: 0096_payout_provider_event_queue
-Revises: 0095_payment_checkout_intents
+Revision ID: 0097_payout_provider_event_queue
+Revises: 0096_payment_checkout_intents
 """
 
 import sqlalchemy as sa
@@ -9,8 +9,8 @@ from sqlalchemy.dialects import postgresql
 
 from alembic import op
 
-revision = "0096_payout_provider_event_queue"
-down_revision = "0095_payment_checkout_intents"
+revision = "0097_payout_provider_event_queue"
+down_revision = "0096_payment_checkout_intents"
 branch_labels = None
 depends_on = None
 
@@ -86,7 +86,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     count = op.get_bind().scalar(sa.text("SELECT count(*) FROM payout_provider_events"))
     if count:
-        raise RuntimeError(f"0096 downgrade blocked: {count} payout provider event rows exist")
+        raise RuntimeError(f"0097 downgrade blocked: {count} payout provider event rows exist")
     op.drop_index(
         "ix_payout_provider_event_processing_attempts_provider_event_id",
         table_name="payout_provider_event_processing_attempts",

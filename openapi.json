@@ -15327,6 +15327,79 @@
       "IssuerProfileCreate": {
         "additionalProperties": false,
         "properties": {
+          "bank_account_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank Account Name"
+          },
+          "bank_account_number": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank Account Number"
+          },
+          "bank_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank Name"
+          },
+          "company_registration_number": {
+            "anyOf": [
+              {
+                "maxLength": 128,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Registration Number"
+          },
+          "contact_email": {
+            "anyOf": [
+              {
+                "maxLength": 320,
+                "pattern": "^\\s*$|^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Email"
+          },
+          "contact_phone": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Phone"
+          },
           "country_code": {
             "title": "Country Code",
             "type": "string"
@@ -15374,6 +15447,72 @@
       },
       "IssuerProfileRead": {
         "properties": {
+          "bank_account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank Account Name"
+          },
+          "bank_account_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank Account Number"
+          },
+          "bank_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank Name"
+          },
+          "company_registration_number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Company Registration Number"
+          },
+          "contact_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Email"
+          },
+          "contact_phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contact Phone"
+          },
           "country_code": {
             "title": "Country Code",
             "type": "string"
@@ -15427,6 +15566,12 @@
           "numbering_prefix",
           "verification_status",
           "external_input_reference",
+          "company_registration_number",
+          "contact_phone",
+          "contact_email",
+          "bank_name",
+          "bank_account_name",
+          "bank_account_number",
           "recorded_at"
         ],
         "title": "IssuerProfileRead",

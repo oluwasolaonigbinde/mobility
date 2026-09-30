@@ -51,6 +51,12 @@ export function CommercialHistory({
                     {formatMoney(invoice.gross_amount, invoice.currency)} original ·{" "}
                     {formatMoney(invoice.effective_obligation_amount, invoice.currency)} effective
                   </p>
+                  <Link
+                    href={`/advertiser/campaigns/${invoice.campaign_id}/invoices/${invoice.id}`}
+                    className="micro text-amber mt-1 inline-block hover:underline"
+                  >
+                    View invoice
+                  </Link>
                 </div>
                 <div className="text-right">
                   <StatusChip

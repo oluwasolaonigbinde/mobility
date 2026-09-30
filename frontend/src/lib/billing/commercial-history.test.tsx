@@ -75,5 +75,9 @@ describe("CommercialHistory", () => {
     expect(screen.getByText(/REF-100/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Pay invoice online" })).toBeInTheDocument();
     expect(screen.getByText(/Cardvert applies the payment only after Paystack confirms it/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "View invoice" })).toHaveAttribute(
+      "href",
+      "/advertiser/campaigns/00000000-0000-0000-0000-000000000002/invoices/00000000-0000-0000-0000-000000000001",
+    );
   });
 });

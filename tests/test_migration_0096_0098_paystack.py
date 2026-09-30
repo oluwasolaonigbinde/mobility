@@ -18,9 +18,9 @@ from test_migration_0014_partitioning import (
 
 from app.db.base import Base
 
-PREVIOUS = "0094_customer_service_complaints"
-CHECKOUT = "0095_payment_checkout_intents"
-CURRENT = "0097_paystack_edge_case_evidence"
+PREVIOUS = "0095_invoice_issuer_contact_and_bank"
+CHECKOUT = "0096_payment_checkout_intents"
+CURRENT = "0098_paystack_edge_case_evidence"
 
 
 @pytest.fixture
@@ -80,7 +80,7 @@ def test_paystack_migrations_match_models_round_trip_and_protect_provider_eviden
     with pytest.raises(IntegrityError):
         asyncio.run(insert_provider_event("0"))
     asyncio.run(insert_provider_event("100.00"))
-    with pytest.raises(RuntimeError, match="0096 downgrade blocked: 1 payout provider event"):
+    with pytest.raises(RuntimeError, match="0097 downgrade blocked: 1 payout provider event"):
         downgrade_to(url, CHECKOUT, monkeypatch)
 
     async def clear_provider_event() -> None:
