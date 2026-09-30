@@ -605,16 +605,16 @@
     "line_percent": 88.4551,
     "line_total": 38597
   },
-  "policy_sha256": "216150c75093f3e0dc49ea52694f791c719ed08335e21dd6d69404395e9fb82f",
+  "policy_sha256": "a4200e7586a91c296343a4d2b26e6790556d4d6f8e43e35bd05779dd96461604",
   "refresh": {
     "inventory_changes": {
       "added": [],
       "removed": []
     },
-    "previous_baseline_sha256": "55170a7daef6fb10b9915599fc76b030a7bd09384e91d8d8b3719e9b95ad7836",
-    "reason": "Paystack final receipt alignment for push CI base 3836689db178575de258108fc1f5086b9abe048b; unchanged eligible source measured by full CI run 36732543791, every functional job passed. True feature-base f29e83beeec8d61e79c06ac29c49dd0daa3052fe D32 evidence remains run 36727158802: 91.4339 percent lines, 81.3559 percent branches. Preserve adopted ratios and policy."
+    "previous_baseline_sha256": "4dc56fa05c343d663290aceb0af443d1f2b97e4c787ebbde67cc3ee690baeacf",
+    "reason": "Correct Windows CRLF checkout provenance hashes to committed LF Git bytes; preserve every already adopted exact coverage floor, inventory and runtime. Full functional CI 36735859451 passed on cd3fc6f; adopted ratios remain supported by immutable run 36727158802. True-base f29e83beeec8d61e79c06ac29c49dd0daa3052fe changed coverage was 91.4339 percent lines and 81.3559 percent branches. No eligibility, instrumentation or executable source change."
   },
-  "source_parent_sha": "3836689db178575de258108fc1f5086b9abe048b",
-  "source_sha256": "35cc634571ca71eb6b8557ff1a5800f0c1543af35c359d396fbf2c35b2da40b3",
+  "source_parent_sha": "cd3fc6f84c3f2f3ec4285488cee7d223264faec1",
+  "source_sha256": "a7813ac3933ad9b14d72deed41ca2fa8e634f2f9a6a7ffdbd0c11a07fe159ad0",
   "version": 3
 }
