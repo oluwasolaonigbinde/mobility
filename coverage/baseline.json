@@ -608,18 +608,13 @@
   "policy_sha256": "216150c75093f3e0dc49ea52694f791c719ed08335e21dd6d69404395e9fb82f",
   "refresh": {
     "inventory_changes": {
-      "added": [
-        "app/core/payout_event_enqueue.py",
-        "app/services/paystack_disbursements.py",
-        "frontend/src/app/advertiser/billing/actions.ts",
-        "frontend/src/app/advertiser/billing/paystack/return/route.ts"
-      ],
+      "added": [],
       "removed": []
     },
-    "previous_baseline_sha256": "4bdddf3ce8319f52396a41d686834f9874f7e02a2c3d0c7503168ab2db1c8a61",
-    "reason": "Paystack sandbox checkout and payout wiring; exact source 2bbbb7f368c26ea4d478d6701b6a631c484d0756 measured by CI run 36727158802 against pre-feature base f29e83beeec8d61e79c06ac29c49dd0daa3052fe. All functional jobs passed; D32 floors and exact D33 non-regression retained."
+    "previous_baseline_sha256": "55170a7daef6fb10b9915599fc76b030a7bd09384e91d8d8b3719e9b95ad7836",
+    "reason": "Paystack final receipt alignment for push CI base 3836689db178575de258108fc1f5086b9abe048b; unchanged eligible source measured by full CI run 36732543791, every functional job passed. True feature-base f29e83beeec8d61e79c06ac29c49dd0daa3052fe D32 evidence remains run 36727158802: 91.4339 percent lines, 81.3559 percent branches. Preserve adopted ratios and policy."
   },
-  "source_parent_sha": "f29e83beeec8d61e79c06ac29c49dd0daa3052fe",
+  "source_parent_sha": "3836689db178575de258108fc1f5086b9abe048b",
   "source_sha256": "35cc634571ca71eb6b8557ff1a5800f0c1543af35c359d396fbf2c35b2da40b3",
   "version": 3
 }
