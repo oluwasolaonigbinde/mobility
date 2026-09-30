@@ -17,7 +17,12 @@ const receiptStatusLabel: Record<string, string> = {
   reversed: "Reversed",
 };
 
-export default async function AdvertiserBillingPage() {
+export default async function AdvertiserBillingPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ payment?: string; message?: string }>;
+} = {}) {
+  const paymentResult = (await searchParams) ?? {};
   const api = createApiClient(await getSessionToken());
   const [{ data: history }, { data: campaigns }] = await Promise.all([
     api.GET("/api/v1/advertiser/billing"),
@@ -49,6 +54,25 @@ export default async function AdvertiserBillingPage() {
           </Link>
         }
       />
+      {paymentResult.payment ? (
+        <Panel className="mb-6 px-6 py-4" role="status">
+          <p className="text-sm font-semibold">
+            {paymentResult.payment === "confirmed"
+              ? "Payment confirmed"
+              : paymentResult.payment === "failed"
+                ? "Paystack did not complete the payment"
+                : paymentResult.payment === "pending"
+                  ? "Payment confirmation is still pending"
+                  : "Online payment could not be opened"}
+          </p>
+          <p className="text-muted mt-1 text-sm">
+            {paymentResult.message ??
+              (paymentResult.payment === "confirmed"
+                ? "The verified payment is being applied to the invoice."
+                : "No payment is treated as complete until Paystack confirms it.")}
+          </p>
+        </Panel>
+      ) : null}
       <Panel className="overflow-hidden">
         {rows.length ? (
           <ul className="divide-edge/60 divide-y">
@@ -106,7 +130,8 @@ export default async function AdvertiserBillingPage() {
         ) : null,
       )}
       <p className="micro text-muted mt-4">
-        Online payment isn&apos;t available yet. Please pay by bank transfer.
+        Issued NGN invoices can be paid through Paystack. Manual bank transfer remains available
+        through Terrax Media.
       </p>
     </div>
   );

@@ -42,6 +42,7 @@ class VerifiedPaymentEvent:
     external_transaction_id: str
     event_type: str
     commercial_terms_id: str
+    organization_id: str
     amount: Decimal
     currency: str
     payer_name: str
@@ -53,6 +54,8 @@ class VerifiedPaymentEvent:
 class PaymentGatewayAdapter(Protocol):
     provider_name: str
 
+    def validate_checkout(self, request: CheckoutRequest) -> None: ...
+
     async def create_checkout(self, request: CheckoutRequest) -> CheckoutSession: ...
 
     async def verify_transaction(self, transaction_id: str) -> VerifiedPaymentEvent: ...
@@ -62,6 +65,12 @@ class PaymentGatewayAdapter(Protocol):
 
 class DisabledPaymentGatewayAdapter:
     provider_name = "disabled"
+
+    def validate_checkout(self, request: CheckoutRequest) -> None:
+        del request
+        raise PaymentGatewayUnavailableError(
+            "EXT-PAYMENT-PROVIDER is missing; checkout creation is disabled"
+        )
 
     async def create_checkout(self, request: CheckoutRequest) -> CheckoutSession:
         del request
@@ -92,6 +101,9 @@ class FakePaymentGatewayAdapter:
         self.checkout_calls: list[CheckoutRequest] = []
         self.transactions: dict[str, VerifiedPaymentEvent] = {}
 
+    def validate_checkout(self, request: CheckoutRequest) -> None:
+        del request
+
     async def create_checkout(self, request: CheckoutRequest) -> CheckoutSession:
         self.checkout_calls.append(request)
         return CheckoutSession(
@@ -121,6 +133,7 @@ class FakePaymentGatewayAdapter:
                 "external_transaction_id": str(data["external_transaction_id"]),
                 "event_type": event_type,
                 "commercial_terms_id": str(data["commercial_terms_id"]),
+                "organization_id": str(data["organization_id"]),
                 "amount": f"{amount:.2f}",
                 "currency": currency,
                 "payer_name": str(data["payer_name"]),
@@ -132,6 +145,7 @@ class FakePaymentGatewayAdapter:
                 external_transaction_id=canonical["external_transaction_id"],
                 event_type=event_type,
                 commercial_terms_id=canonical["commercial_terms_id"],
+                organization_id=canonical["organization_id"],
                 amount=amount,
                 currency=currency,
                 payer_name=canonical["payer_name"],

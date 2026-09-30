@@ -673,6 +673,23 @@ def validate_release_environment(
     if cors != []:
         raise ContractError("Production BACKEND_CORS_ORIGINS must be [] for the BFF-only surface")
 
+    checkout_return_url = urlparse(_require(environment, "PAYSTACK_CHECKOUT_RETURN_URL"))
+    expected_checkout_path = "/advertiser/billing/paystack/return"
+    if (
+        checkout_return_url.scheme != origin.scheme
+        or checkout_return_url.netloc != origin.netloc
+        or checkout_return_url.path != expected_checkout_path
+        or checkout_return_url.username is not None
+        or checkout_return_url.password is not None
+        or checkout_return_url.params
+        or checkout_return_url.query
+        or checkout_return_url.fragment
+    ):
+        raise ContractError(
+            "PAYSTACK_CHECKOUT_RETURN_URL must be PUBLIC_ORIGIN plus "
+            "/advertiser/billing/paystack/return"
+        )
+
     for name in SECRET_NAMES:
         _validate_secret(name, _require(environment, name))
     _validate_payout_keyring(environment)

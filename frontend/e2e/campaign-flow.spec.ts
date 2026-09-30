@@ -34,7 +34,7 @@ WHERE campaign_id IN (
   SELECT c.id
   FROM campaigns c
   JOIN advertiser_organizations o ON o.id = c.organization_id
-  WHERE o.billing_email = 'billing@demo.mobility.local'
+  WHERE o.billing_email = 'billing@example.com'
     AND c.name = :'campaign_name'
     AND (
       NULLIF(:'campaign_id', '') IS NULL
@@ -44,7 +44,7 @@ WHERE campaign_id IN (
 DELETE FROM campaigns c
 USING advertiser_organizations o
 WHERE c.organization_id = o.id
-  AND o.billing_email = 'billing@demo.mobility.local'
+  AND o.billing_email = 'billing@example.com'
   AND c.name = :'campaign_name'
   AND (
     NULLIF(:'campaign_id', '') IS NULL
@@ -55,7 +55,7 @@ RESET session_replication_role;
 SELECT 1 / CASE WHEN count(*) = 0 THEN 1 ELSE 0 END
 FROM campaigns c
 JOIN advertiser_organizations o ON o.id = c.organization_id
-WHERE o.billing_email = 'billing@demo.mobility.local'
+WHERE o.billing_email = 'billing@example.com'
   AND c.name = :'campaign_name';
 `;
   execFileSync(

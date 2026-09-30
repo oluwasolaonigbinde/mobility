@@ -73,5 +73,7 @@ describe("CommercialHistory", () => {
     expect(screen.getByText(/Reduced vehicle count/)).toBeInTheDocument();
     expect(screen.getByText("refunded")).toBeInTheDocument();
     expect(screen.getByText(/REF-100/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pay invoice online" })).toBeInTheDocument();
+    expect(screen.getByText(/Cardvert applies the payment only after Paystack confirms it/)).toBeInTheDocument();
   });
 });

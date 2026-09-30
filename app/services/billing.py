@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
-from uuid import UUID
+from uuid import UUID, uuid4
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import exists, func, select
@@ -22,11 +22,15 @@ from app.adapters.budget.provider import (
     MISSING_BUDGET_POLICY_GATE,
 )
 from app.adapters.payments import (
+    CheckoutRequest,
+    CheckoutSession,
     PaymentGatewayAdapter,
     PaymentGatewayUnavailableError,
     PaymentWebhookAuthenticationError,
     PaymentWebhookPayloadError,
+    VerifiedPaymentEvent,
 )
+from app.adapters.payments.paystack import PaystackOutcomeUnknownError, PaystackRejectedError
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.billing import (
@@ -50,6 +54,8 @@ from app.models.billing import (
     InvoiceNumberSequence,
     InvoiceStatus,
     IssuerVerificationStatus,
+    PaymentCheckoutIntent,
+    PaymentCheckoutStatus,
     PaymentClass,
     PaymentGatewayEvent,
     PaymentGatewayProcessingAttempt,
@@ -80,6 +86,340 @@ from app.services.campaigns import get_required_advertiser_context
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
 
 MONEY_QUANTUM = Decimal("0.01")
+
+
+async def prepare_invoice_payment_checkout(
+    session: AsyncSession,
+    *,
+    invoice_id: UUID,
+    actor_user_id: UUID,
+    adapter: PaymentGatewayAdapter,
+) -> PaymentCheckoutIntent:
+    """Persist one exact, tenant-owned invoice balance before calling the provider."""
+
+    organization, _ = await get_required_advertiser_context(
+        session, actor_user_id, require_write=True
+    )
+    invoice = await session.scalar(
+        select(Invoice).where(Invoice.id == invoice_id).with_for_update()
+    )
+    if invoice is None or invoice.organization_id != organization.id:
+        raise AppError("INVOICE_NOT_FOUND", "Invoice was not found", status_code=404)
+    if invoice.status != InvoiceStatus.ISSUED.value:
+        raise AppError(
+            "INVOICE_NOT_PAYABLE",
+            "Only an issued invoice can be paid online",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    terms = await session.get(CommercialTerms, invoice.commercial_terms_id)
+    if terms is None or terms.organization_id != organization.id:
+        raise AppError(
+            "INVOICE_TERMS_MISMATCH",
+            "Invoice terms do not belong to this advertiser",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if terms.payment_class != PaymentClass.STANDARD_PREPAID.value:
+        raise AppError(
+            "INVOICE_NOT_PAYABLE_ONLINE",
+            "Corporate credit invoices are settled under their agreed credit terms",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    _, funded = await invoice_payment_status(session, invoice)
+    obligation = await adjusted_invoice_obligation(session, invoice.id)
+    amount = (obligation - funded).quantize(MONEY_QUANTUM)
+    if amount <= 0:
+        raise AppError(
+            "INVOICE_ALREADY_PAID",
+            "This invoice has no remaining balance",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if invoice.currency != terms.currency or invoice.currency != "NGN":
+        raise AppError(
+            "PAYMENT_CURRENCY_UNSUPPORTED",
+            "Online payment is currently available only for NGN invoices",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    provider = adapter.provider_name.strip().lower()
+    if not provider or provider == "disabled":
+        raise AppError(
+            "PAYMENT_PROVIDER_NOT_CONFIGURED",
+            "Online payment is not configured",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+    existing = await session.scalar(
+        select(PaymentCheckoutIntent)
+        .where(
+            PaymentCheckoutIntent.invoice_id == invoice.id,
+            PaymentCheckoutIntent.provider == provider,
+            PaymentCheckoutIntent.status.in_(
+                (
+                    PaymentCheckoutStatus.PENDING.value,
+                    PaymentCheckoutStatus.INITIALIZED.value,
+                    PaymentCheckoutStatus.INITIALIZATION_UNKNOWN.value,
+                    PaymentCheckoutStatus.CONFIRMED.value,
+                )
+            ),
+        )
+        .order_by(PaymentCheckoutIntent.created_at.desc())
+        .limit(1)
+    )
+    if existing is not None:
+        if existing.status == PaymentCheckoutStatus.CONFIRMED.value:
+            confirmation_applied = bool(
+                await session.scalar(
+                    select(
+                        exists().where(
+                            PaymentGatewayEvent.provider == provider,
+                            PaymentGatewayEvent.external_transaction_id == existing.reference,
+                            PaymentGatewayEvent.event_type == "payment_confirmed",
+                            PaymentGatewayProcessingAttempt.gateway_event_id
+                            == PaymentGatewayEvent.id,
+                            PaymentGatewayProcessingAttempt.outcome.in_(
+                                ("confirmed", "confirmed_unallocated")
+                            ),
+                        )
+                    )
+                )
+            )
+            if not confirmation_applied:
+                raise AppError(
+                    "PAYMENT_CONFIRMATION_PROCESSING",
+                    "A confirmed online payment is still being applied",
+                    status_code=status.HTTP_409_CONFLICT,
+                )
+        elif Decimal(existing.amount) == amount and existing.currency == invoice.currency:
+            return existing
+        else:
+            raise AppError(
+                "PAYMENT_CHECKOUT_ALREADY_ACTIVE",
+                "An earlier online checkout is still active for this invoice",
+                status_code=status.HTTP_409_CONFLICT,
+            )
+    user = await session.get(User, actor_user_id)
+    customer_email = (
+        organization.billing_email or (user.email if user is not None else "")
+    ).strip().lower()
+    if not customer_email:
+        raise AppError(
+            "PAYMENT_CUSTOMER_EMAIL_REQUIRED",
+            "A valid billing or account email is required for online payment",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    now = await database_clock(session)
+    checkout = PaymentCheckoutIntent(
+        reference=f"cv-{uuid4().hex}",
+        provider=provider,
+        organization_id=organization.id,
+        commercial_terms_id=terms.id,
+        invoice_id=invoice.id,
+        requested_by_user_id=actor_user_id,
+        customer_email=customer_email,
+        amount=amount,
+        currency=invoice.currency,
+        status=PaymentCheckoutStatus.PENDING.value,
+        checkout_url=None,
+        provider_checkout_id=None,
+        failure_code=None,
+        created_at=now,
+        initialized_at=None,
+        verified_at=None,
+    )
+    session.add(checkout)
+    await session.flush()
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="advertiser.payment_checkout.requested",
+        entity_type="payment_checkout_intent",
+        entity_id=str(checkout.id),
+        metadata={
+            "invoice_id": str(invoice.id),
+            "reference": checkout.reference,
+            "amount": f"{amount:.2f}",
+            "currency": invoice.currency,
+            "provider": provider,
+        },
+    )
+    return checkout
+
+
+async def initialize_invoice_payment_checkout(
+    session: AsyncSession,
+    *,
+    checkout_id: UUID,
+    adapter: PaymentGatewayAdapter,
+    return_url: str,
+) -> tuple[PaymentCheckoutIntent, CheckoutSession | None]:
+    """Initialize a previously committed intent and retain the provider URL."""
+
+    if not return_url.strip():
+        raise AppError(
+            "PAYMENT_RETURN_URL_NOT_CONFIGURED",
+            "Online payment return is not configured",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    checkout = await session.scalar(
+        select(PaymentCheckoutIntent)
+        .where(PaymentCheckoutIntent.id == checkout_id)
+        .with_for_update()
+    )
+    if checkout is None:
+        raise AppError(
+            "PAYMENT_CHECKOUT_NOT_FOUND", "Payment checkout was not found", status_code=404
+        )
+    if checkout.provider != adapter.provider_name.strip().lower():
+        raise AppError(
+            "PAYMENT_CHECKOUT_PROVIDER_MISMATCH",
+            "Payment checkout provider configuration changed",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if checkout.status == PaymentCheckoutStatus.INITIALIZED.value:
+        return checkout, None
+    if checkout.status == PaymentCheckoutStatus.INITIALIZATION_UNKNOWN.value:
+        raise AppError(
+            "PAYMENT_CHECKOUT_INITIALIZATION_UNKNOWN",
+            "Paystack may already hold this checkout. Verify the saved reference before retrying.",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if checkout.status != PaymentCheckoutStatus.PENDING.value:
+        raise AppError(
+            "PAYMENT_CHECKOUT_NOT_INITIALIZABLE",
+            "This payment checkout cannot be initialized",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    request = CheckoutRequest(
+        idempotency_key=checkout.reference,
+        commercial_terms_id=str(checkout.commercial_terms_id),
+        organization_id=str(checkout.organization_id),
+        amount=Decimal(checkout.amount),
+        currency=checkout.currency,
+        customer_reference=checkout.customer_email,
+        return_url=return_url,
+    )
+    try:
+        adapter.validate_checkout(request)
+    except PaymentGatewayUnavailableError as exc:
+        raise AppError(
+            "PAYMENT_PROVIDER_NOT_CONFIGURED",
+            "Online payment is not configured",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        ) from exc
+    except ValueError as exc:
+        checkout.status = PaymentCheckoutStatus.FAILED.value
+        checkout.failure_code = type(exc).__name__
+        await session.flush()
+        raise AppError(
+            "PAYMENT_CHECKOUT_INVALID",
+            "The saved billing details cannot be used for online payment.",
+            status_code=status.HTTP_409_CONFLICT,
+        ) from exc
+    # Commit the uncertain state before external I/O. If Paystack accepts the
+    # reference and this process dies before saving its URL, later requests
+    # must verify this same reference rather than minting a second checkout.
+    checkout.status = PaymentCheckoutStatus.INITIALIZATION_UNKNOWN.value
+    checkout.failure_code = "provider_initialization_pending"
+    await session.flush()
+    await session.commit()
+
+    async def lock_committed_checkout() -> PaymentCheckoutIntent:
+        committed = await session.scalar(
+            select(PaymentCheckoutIntent)
+            .where(PaymentCheckoutIntent.id == checkout_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        if committed is None:
+            raise RuntimeError("A committed payment checkout disappeared")
+        return committed
+
+    def require_initialization_unknown(committed: PaymentCheckoutIntent) -> None:
+        if committed.status != PaymentCheckoutStatus.INITIALIZATION_UNKNOWN.value:
+            raise AppError(
+                "PAYMENT_CHECKOUT_STATE_CHANGED",
+                "The payment checkout changed while Paystack was preparing it",
+                status_code=status.HTTP_409_CONFLICT,
+            )
+
+    try:
+        provider_session = await adapter.create_checkout(request)
+    except PaymentGatewayUnavailableError as exc:
+        raise AppError(
+            "PAYMENT_PROVIDER_NOT_CONFIGURED",
+            "Online payment is not configured",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        ) from exc
+    except PaystackRejectedError as exc:
+        checkout = await lock_committed_checkout()
+        if checkout.status == PaymentCheckoutStatus.CONFIRMED.value:
+            return checkout, None
+        require_initialization_unknown(checkout)
+        checkout.status = PaymentCheckoutStatus.FAILED.value
+        checkout.failure_code = type(exc).__name__
+        await session.flush()
+        raise AppError(
+            "PAYMENT_CHECKOUT_REJECTED",
+            "Paystack rejected this checkout. Please start a new payment attempt.",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+        ) from exc
+    except PaystackOutcomeUnknownError as exc:
+        checkout = await lock_committed_checkout()
+        if checkout.status == PaymentCheckoutStatus.CONFIRMED.value:
+            return checkout, None
+        require_initialization_unknown(checkout)
+        checkout.status = PaymentCheckoutStatus.INITIALIZATION_UNKNOWN.value
+        checkout.failure_code = type(exc).__name__
+        await session.flush()
+        raise AppError(
+            "PAYMENT_CHECKOUT_INITIALIZATION_UNKNOWN",
+            "Paystack may still be preparing this checkout. Please try again.",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+        ) from exc
+    except ValueError as exc:
+        checkout = await lock_committed_checkout()
+        if checkout.status == PaymentCheckoutStatus.CONFIRMED.value:
+            return checkout, None
+        require_initialization_unknown(checkout)
+        checkout.status = PaymentCheckoutStatus.INITIALIZATION_UNKNOWN.value
+        checkout.failure_code = type(exc).__name__
+        await session.flush()
+        raise AppError(
+            "PAYMENT_CHECKOUT_INITIALIZATION_FAILED",
+            "Paystack could not open the checkout. No payment has been confirmed.",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+        ) from exc
+    checkout = await lock_committed_checkout()
+    if checkout.status == PaymentCheckoutStatus.CONFIRMED.value:
+        return checkout, None
+    require_initialization_unknown(checkout)
+    now = await database_clock(session)
+    checkout.status = PaymentCheckoutStatus.INITIALIZED.value
+    checkout.checkout_url = provider_session.checkout_url
+    checkout.provider_checkout_id = provider_session.provider_checkout_id
+    checkout.failure_code = None
+    checkout.initialized_at = now
+    await session.flush()
+    return checkout, provider_session
+
+
+async def get_advertiser_payment_checkout(
+    session: AsyncSession,
+    *,
+    reference: str,
+    actor_user_id: UUID,
+) -> PaymentCheckoutIntent:
+    organization, _ = await get_required_advertiser_context(session, actor_user_id)
+    checkout = await session.scalar(
+        select(PaymentCheckoutIntent).where(
+            PaymentCheckoutIntent.reference == reference,
+            PaymentCheckoutIntent.organization_id == organization.id,
+        )
+    )
+    if checkout is None:
+        raise AppError(
+            "PAYMENT_CHECKOUT_NOT_FOUND", "Payment checkout was not found", status_code=404
+        )
+    return checkout
 
 
 async def campaign_settlement_position(
@@ -951,7 +1291,7 @@ async def allocate_payment_receipt(
         or gateway_event.provider != receipt.provider
         or f"{gateway_event.provider}:{gateway_event.external_transaction_id}"
         != receipt.external_transaction_id
-        or Decimal(gateway_event.amount) != Decimal(str(amount))
+        or Decimal(gateway_event.amount) != Decimal(receipt.amount)
         or gateway_event.currency != receipt.currency
     ):
         raise AppError(
@@ -2520,8 +2860,20 @@ async def ingest_payment_gateway_webhook(
             "Authenticated payment webhook payload is invalid",
             status_code=status.HTTP_400_BAD_REQUEST,
         ) from exc
+    return await ingest_verified_payment_event(session, adapter=adapter, verified=verified)
+
+
+async def ingest_verified_payment_event(
+    session: AsyncSession,
+    *,
+    adapter: PaymentGatewayAdapter,
+    verified: VerifiedPaymentEvent,
+) -> tuple[PaymentGatewayEvent, bool]:
+    """Persist provider-verified evidence and enforce Cardvert checkout binding."""
+
     provider = adapter.provider_name.strip().lower()
     terms_reference = verified.commercial_terms_id.strip()
+    organization_reference = verified.organization_id.strip()
     amount = _money(verified.amount, "gateway_event.amount")
     try:
         fingerprint_is_hex = len(verified.evidence_fingerprint) == 64 and bool(
@@ -2537,6 +2889,8 @@ async def ingest_payment_gateway_webhook(
         or len(verified.external_transaction_id) > 255
         or not terms_reference
         or len(terms_reference) > 64
+        or not organization_reference
+        or len(organization_reference) > 64
         or verified.event_type not in {"payment_confirmed", "payment_failed"}
         or amount == 0
         or len(verified.currency) != 3
@@ -2551,6 +2905,26 @@ async def ingest_payment_gateway_webhook(
             "Verified payment event is incomplete or malformed",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
+    checkout: PaymentCheckoutIntent | None = None
+    if provider == "paystack":
+        checkout = await session.scalar(
+            select(PaymentCheckoutIntent)
+            .where(PaymentCheckoutIntent.reference == verified.external_transaction_id)
+            .with_for_update()
+        )
+        if (
+            checkout is None
+            or checkout.provider != provider
+            or str(checkout.commercial_terms_id) != terms_reference
+            or str(checkout.organization_id) != organization_reference
+            or Decimal(checkout.amount) != amount
+            or checkout.currency != verified.currency
+        ):
+            raise AppError(
+                "PAYMENT_CHECKOUT_BINDING_MISMATCH",
+                "Verified Paystack evidence does not match a Cardvert checkout",
+                status_code=status.HTTP_409_CONFLICT,
+            )
     existing = await session.scalar(
         select(PaymentGatewayEvent).where(
             PaymentGatewayEvent.provider == provider,
@@ -2571,6 +2945,13 @@ async def ingest_payment_gateway_webhook(
 
     if existing is not None:
         if exact_match(existing):
+            if checkout is not None:
+                checkout.status = (
+                    PaymentCheckoutStatus.CONFIRMED.value
+                    if verified.event_type == "payment_confirmed"
+                    else PaymentCheckoutStatus.FAILED.value
+                )
+                checkout.verified_at = checkout.verified_at or existing.received_at
             return existing, False
         raise AppError(
             "PAYMENT_EVENT_IDENTITY_CONFLICT",
@@ -2610,6 +2991,13 @@ async def ingest_payment_gateway_webhook(
             "Provider event identity is already recorded",
             status_code=status.HTTP_409_CONFLICT,
         ) from exc
+    if checkout is not None:
+        checkout.status = (
+            PaymentCheckoutStatus.CONFIRMED.value
+            if verified.event_type == "payment_confirmed"
+            else PaymentCheckoutStatus.FAILED.value
+        )
+        checkout.verified_at = now
     return event, True
 
 
@@ -2691,7 +3079,9 @@ async def process_payment_gateway_event(
         select(PaymentGatewayProcessingAttempt)
         .where(
             PaymentGatewayProcessingAttempt.gateway_event_id == event.id,
-            PaymentGatewayProcessingAttempt.outcome.in_(("confirmed", "ignored_failed")),
+            PaymentGatewayProcessingAttempt.outcome.in_(
+                ("confirmed", "confirmed_unallocated", "ignored_failed")
+            ),
         )
         .order_by(PaymentGatewayProcessingAttempt.attempt_number.desc())
         .limit(1)
@@ -2738,6 +3128,25 @@ async def process_payment_gateway_event(
             "Verified payment event no longer matches accepted terms",
             status_code=status.HTTP_409_CONFLICT,
         )
+    if event.provider == "paystack":
+        checkout = await session.scalar(
+            select(PaymentCheckoutIntent)
+            .where(PaymentCheckoutIntent.reference == event.external_transaction_id)
+            .with_for_update()
+        )
+        if (
+            checkout is None
+            or checkout.provider != event.provider
+            or checkout.commercial_terms_id != terms.id
+            or checkout.organization_id != terms.organization_id
+            or Decimal(checkout.amount) != Decimal(event.amount)
+            or checkout.currency != event.currency
+        ):
+            raise AppError(
+                "PAYMENT_CHECKOUT_BINDING_MISMATCH",
+                "Verified Paystack evidence does not match its invoice checkout",
+                status_code=status.HTTP_409_CONFLICT,
+            )
     receipt = await record_payment_receipt(
         session,
         organization_id=terms.organization_id,
@@ -2753,21 +3162,45 @@ async def process_payment_gateway_event(
         trusted_gateway_event_id=event.id,
     )
     await _reconcile_verified_gateway_receipt(session, receipt=receipt, event=event)
-    allocation = await allocate_payment_receipt(
-        session,
-        receipt_id=receipt.id,
-        commercial_terms_id=terms.id,
-        actor_user_id=None,
-        amount=event.amount,
-        trusted_gateway_event_id=event.id,
+    await acquire_campaign_terms_lock(session, terms.campaign_id)
+    obligation = await effective_invoice_obligation(session, commercial_terms_id=terms.id)
+    allocated = sum(
+        (Decimal(item.amount) for item in await _active_cash_allocations(session, terms.id)),
+        Decimal("0.00"),
     )
+    remaining = max(Decimal("0.00"), obligation - allocated).quantize(MONEY_QUANTUM)
+    allocation_amount = min(Decimal(event.amount), remaining).quantize(MONEY_QUANTUM)
+    allocation = None
+    if allocation_amount > 0:
+        allocation = await allocate_payment_receipt(
+            session,
+            receipt_id=receipt.id,
+            commercial_terms_id=terms.id,
+            actor_user_id=None,
+            amount=allocation_amount,
+            trusted_gateway_event_id=event.id,
+        )
+    unallocated = (Decimal(event.amount) - allocation_amount).quantize(MONEY_QUANTUM)
+    if unallocated > 0:
+        await create_audit_event(
+            session,
+            actor_user_id=None,
+            action="billing.gateway_overpayment.recorded",
+            entity_type="payment_receipt",
+            entity_id=str(receipt.id),
+            metadata={
+                "commercial_terms_id": str(terms.id),
+                "unallocated_amount": f"{unallocated:.2f}",
+                "currency": event.currency,
+            },
+        )
     attempt = PaymentGatewayProcessingAttempt(
         gateway_event_id=event.id,
         attempt_number=attempt_number,
-        outcome="confirmed",
+        outcome="confirmed" if allocation is not None else "confirmed_unallocated",
         error_code=None,
         receipt_id=receipt.id,
-        allocation_id=allocation.id,
+        allocation_id=allocation.id if allocation is not None else None,
         processed_at=now,
     )
     session.add(attempt)
@@ -2787,7 +3220,9 @@ async def record_payment_gateway_failure(
         select(PaymentGatewayProcessingAttempt)
         .where(
             PaymentGatewayProcessingAttempt.gateway_event_id == event.id,
-            PaymentGatewayProcessingAttempt.outcome.in_(("confirmed", "ignored_failed")),
+            PaymentGatewayProcessingAttempt.outcome.in_(
+                ("confirmed", "confirmed_unallocated", "ignored_failed")
+            ),
         )
         .order_by(PaymentGatewayProcessingAttempt.attempt_number.desc())
         .limit(1)

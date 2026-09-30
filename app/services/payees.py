@@ -446,6 +446,61 @@ async def read_verified_bank_account(
     )
 
 
+async def read_frozen_payout_bank_account(
+    session: AsyncSession,
+    *,
+    payee_version_id: UUID,
+    bank_account_version_id: UUID,
+    crypto: CryptoProvider,
+) -> VerifiedBankAccountDetails:
+    """Read the exact verified destination frozen into a payout instruction.
+
+    This is the system-worker path. It deliberately has no person actor: the
+    immutable payee/account binding and payout-verification row are its
+    authority, and the plaintext access is still recorded in the audit log.
+    """
+
+    authority = (
+        await session.execute(
+            select(PayeeBankAccountVersion.id)
+            .join(
+                PayeeBankAccount,
+                PayeeBankAccount.id == PayeeBankAccountVersion.bank_account_id,
+            )
+            .join(Payee, Payee.id == PayeeBankAccount.payee_id)
+            .join(
+                PayeeVersion,
+                PayeeVersion.id == PayeeBankAccountVersion.payee_version_id,
+            )
+            .join(
+                PayeeBankAccountPayoutVerification,
+                PayeeBankAccountPayoutVerification.bank_account_version_id
+                == PayeeBankAccountVersion.id,
+            )
+            .where(
+                PayeeBankAccountVersion.id == bank_account_version_id,
+                PayeeBankAccountVersion.payee_version_id == payee_version_id,
+                PayeeVersion.id == payee_version_id,
+                PayeeVersion.payee_id == Payee.id,
+            )
+        )
+    ).scalar_one_or_none()
+    if authority is None:
+        raise AppError(
+            "PAYOUT_DESTINATION_AUTHORITY_INVALID",
+            "The frozen payout destination is missing, mismatched or not verified",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    return await _read_verified_bank_account_authorized(
+        session,
+        bank_account_version_id=bank_account_version_id,
+        actor_user_id=None,
+        crypto=crypto,
+        purpose="provider_payout_submission",
+        audit_action="worker.bank_account.payout_read",
+    )
+
+
 async def read_applicant_verified_bank_account(
     session: AsyncSession,
     *,
@@ -492,7 +547,7 @@ async def _read_verified_bank_account_authorized(
     session: AsyncSession,
     *,
     bank_account_version_id: UUID,
-    actor_user_id: UUID,
+    actor_user_id: UUID | None,
     crypto: CryptoProvider,
     purpose: str,
     audit_action: str,

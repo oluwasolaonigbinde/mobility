@@ -75,7 +75,7 @@ describe("AdvertiserBillingPage", () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText("₦250,000")).toHaveLength(4);
     expect(
-      screen.getByText("Online payment isn't available yet. Please pay by bank transfer."),
+      screen.getByText(/Issued NGN invoices can be paid through Paystack/),
     ).toBeInTheDocument();
     expect(screen.queryByText(/canonical|immutable|provider/i)).not.toBeInTheDocument();
   });

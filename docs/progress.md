@@ -3,8 +3,9 @@
 **For current work, start with [client-decisions.md](client-decisions.md)
 (what the client wants now) and [requests.md](requests.md) (every ask and its
 status).** This file is the ledger of the original build programme. That
-programme is complete except for its launch gates: the payment-provider keys
-(`PKG-03 / W2-01C`) and the external release, device, pilot and handover
+programme is complete except for its launch gates: public/production
+payment-provider evidence (`PKG-03 / W2-01C`) and the external release, device,
+pilot and handover
 evidence in PKG-08 and PKG-09. For that programme, **this file alone controls
 which package may be executed next**, and its registers below are what the
 pilot-gate and handover tooling checks. The proposal owns scope, architecture
@@ -79,8 +80,8 @@ that gate live use do not prevent provider-neutral or synthetic implementation.
 ### Current control pointer
 
 **Controller state:** `PAUSED — EXT-PAYMENT-PROVIDER`
-**Control package:** `PKG-03` — provider-neutral commercial work is complete; the remaining gateway checkpoint requires registered provider authority.
-**Current checkpoint:** `PKG-03 / W2-01C` — blocked by `EXT-PAYMENT-PROVIDER`.
+**Control package:** `PKG-03` — local sandbox checkout and provider wiring are implemented; the remaining gateway checkpoint requires public-edge webhook/recovery evidence and production provider authority.
+**Current checkpoint:** `PKG-03 / W2-01C` — blocked by the remaining parts of `EXT-PAYMENT-PROVIDER`.
 
 PKG-08 and PKG-09 await the external release, provider, physical-device and pilot evidence named in their checklist rows. PKG-10 remediation is complete. The queue and registers below hold the exact current state.
 
@@ -803,7 +804,7 @@ otherwise synthetic/provider-neutral checklist item or its package.
 | --- | --- | --- | --- | --- |
 | **EXT-STAGING-APPROVAL** | MISSING | External staging provider/account/spend approval | — | Deferred external staging deployment/restore validation and later W4 release/pilot; D23 says it does not block R17-A's provider-neutral build proof |
 | **EXT-RM2-POLICY** | PRESENT | Owner-approved RM2 stationary policy and parameters | `docs/decisions-log.md` D22; reviewed synthetic Option A | FND-02B implementation binds 120s/25m/2-confirm/1-release/per-trip values for new acceptances |
-| **EXT-PAYMENT-PROVIDER** | MISSING | Payment provider/sandbox/signing secrets | — | Live W2-01C adapter and provider refunds |
+| **EXT-PAYMENT-PROVIDER** | MISSING | Payment provider sandbox/live authority, signing secret and public webhook endpoint | Existing Paystack test key verified locally on 2026-09-29; real ₦100 and ₦101 test checkouts initialized, and the ₦101 checkout completed, verified, processed and allocated once; localhost cannot prove provider webhook delivery | W2-01C remains blocked on public staging webhook/replay/recovery evidence, transfer evidence and production approval; provider refunds remain manual/unenabled |
 | **EXT-STORAGE-PROVIDER** | MISSING | Production object-storage provider, account and region | — | W2-02A production adoption |
 | **EXT-MALWARE-SCANNER** | MISSING | Malware scanner/provider | — | W2-02B fail-closed scan integration |
 | **EXT-KMS-CUSTODY** | MISSING | KMS/vault and production key custodian | — | Production W2-02 controls; pilot interim is D17's typed-Settings-key envelope encryption through the shared crypto port |

@@ -108,6 +108,8 @@ def settings() -> Settings:
         installation_evidence_validity_hours=24,
         display_proof_challenge_ttl_seconds=120,
         display_proof_validity_seconds=3600,
+        paystack_secret_key=None,
+        paystack_checkout_return_url="",
     )
 
 
@@ -1242,9 +1244,7 @@ def create_test_campaign_creative(
                 assert campaign is not None
                 file_id = uuid4()
                 persisted_checksum = (
-                    checksum
-                    if checksum is not None and len(checksum) == 64
-                    else ("a" * 64)
+                    checksum if checksum is not None and len(checksum) == 64 else ("a" * 64)
                 )
                 intent = FileUploadIntent(
                     organization_id=campaign.organization_id,

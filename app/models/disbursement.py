@@ -602,6 +602,77 @@ class PayoutLineReconciliationEvent(Base):
     )
 
 
+class PayoutProviderEvent(Base):
+    """Provider-authenticated transfer evidence queued for money-state processing."""
+
+    __tablename__ = "payout_provider_events"
+    __table_args__ = (
+        CheckConstraint(
+            "outcome IN ('succeeded', 'failed')",
+            name="ck_payout_provider_events_outcome",
+        ),
+        CheckConstraint("amount > 0", name="ck_payout_provider_events_amount"),
+        CheckConstraint("length(currency) = 3", name="ck_payout_provider_events_currency"),
+        CheckConstraint(
+            "length(evidence_fingerprint) = 64",
+            name="ck_payout_provider_events_fingerprint",
+        ),
+        UniqueConstraint(
+            "provider", "provider_event_id", name="uq_payout_provider_events_identity"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    provider: Mapped[str] = mapped_column(String(64), nullable=False)
+    provider_event_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    provider_event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    provider_transfer_reference: Mapped[str] = mapped_column(String(255), nullable=False)
+    provider_reference: Mapped[str] = mapped_column(String(100), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(16), nullable=False)
+    provider_occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    evidence_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class PayoutProviderEventProcessingAttempt(Base):
+    __tablename__ = "payout_provider_event_processing_attempts"
+    __table_args__ = (
+        CheckConstraint("attempt_number > 0", name="ck_payout_provider_attempts_number"),
+        CheckConstraint(
+            "outcome IN ('processed', 'failed')", name="ck_payout_provider_attempts_outcome"
+        ),
+        CheckConstraint(
+            "(outcome = 'processed' AND reconciliation_event_id IS NOT NULL "
+            "AND error_code IS NULL) OR (outcome = 'failed' "
+            "AND reconciliation_event_id IS NULL AND error_code IS NOT NULL)",
+            name="ck_payout_provider_attempts_result",
+        ),
+        UniqueConstraint(
+            "provider_event_id", "attempt_number", name="uq_payout_provider_attempt_sequence"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
+    )
+    provider_event_id: Mapped[UUID] = mapped_column(
+        ForeignKey("payout_provider_events.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    attempt_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    outcome: Mapped[str] = mapped_column(String(16), nullable=False)
+    error_code: Mapped[str | None] = mapped_column(String(128))
+    reconciliation_event_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("payout_line_reconciliation_events.id", ondelete="RESTRICT")
+    )
+    processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
 class PayoutRecoveryIncident(Base):
     __tablename__ = "payout_recovery_incidents"
     __table_args__ = (

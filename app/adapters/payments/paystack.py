@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlsplit
 
 import httpx
 
@@ -30,9 +30,26 @@ from app.core.config import Settings
 PAYSTACK_API_BASE_URL = "https://api.paystack.co"
 PAYSTACK_TIMEOUT = httpx.Timeout(20.0)
 PAYSTACK_PROVIDER_NAME = "paystack"
+PAYSTACK_CHECKOUT_HOST = "checkout.paystack.com"
 
 _SIGNATURE_RE = re.compile(r"[0-9a-f]{128}")
 _SUBUNITS_RE = re.compile(r"[0-9]+")
+
+
+def _is_paystack_checkout_url(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        parsed = urlsplit(value)
+        return (
+            parsed.scheme == "https"
+            and parsed.hostname == PAYSTACK_CHECKOUT_HOST
+            and parsed.username is None
+            and parsed.password is None
+            and parsed.port in (None, 443)
+        )
+    except ValueError:
+        return False
 _TRANSACTION_REFERENCE_RE = re.compile(r"[A-Za-z0-9.=-]{1,100}")
 _EMAIL_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 _CENT = Decimal("0.01")
@@ -109,7 +126,7 @@ def paystack_currency(value: object) -> str:
     return currency
 
 
-def _metadata_terms_id(metadata: object) -> str | None:
+def _metadata_value(metadata: object, name: str) -> str | None:
     if isinstance(metadata, str):
         try:
             metadata = json.loads(metadata) if metadata.strip() else None
@@ -117,10 +134,14 @@ def _metadata_terms_id(metadata: object) -> str | None:
             return None
     if not isinstance(metadata, dict):
         return None
-    value = metadata.get("commercial_terms_id")
+    value = metadata.get(name)
     if not isinstance(value, str) or not value.strip():
         return None
     return value.strip()
+
+
+def _metadata_terms_id(metadata: object) -> str | None:
+    return _metadata_value(metadata, "commercial_terms_id")
 
 
 class PaystackClient:
@@ -223,14 +244,20 @@ class PaystackPaymentGatewayAdapter:
     def __init__(self, client: PaystackClient) -> None:
         self.client = client
 
-    async def create_checkout(self, request: CheckoutRequest) -> CheckoutSession:
+    def validate_checkout(self, request: CheckoutRequest) -> None:
         reference = request.idempotency_key
         if not _TRANSACTION_REFERENCE_RE.fullmatch(reference):
             raise ValueError("Checkout reference has characters Paystack does not allow")
+        to_subunits(request.amount)
+        paystack_currency(request.currency)
         if not _EMAIL_RE.fullmatch(request.customer_reference):
             raise ValueError("Paystack checkout needs the customer's email address")
         if not request.commercial_terms_id.strip() or not request.organization_id.strip():
             raise ValueError("Checkout needs commercial terms and organization references")
+
+    async def create_checkout(self, request: CheckoutRequest) -> CheckoutSession:
+        self.validate_checkout(request)
+        reference = request.idempotency_key
         body = {
             "email": request.customer_reference,
             "amount": str(to_subunits(request.amount)),
@@ -250,8 +277,7 @@ class PaystackPaymentGatewayAdapter:
         if (
             not isinstance(data, dict)
             or data.get("reference") != reference
-            or not isinstance(data.get("authorization_url"), str)
-            or not data["authorization_url"].startswith("https://")
+            or not _is_paystack_checkout_url(data.get("authorization_url"))
         ):
             raise PaystackOutcomeUnknownError("Paystack checkout response is malformed")
         return CheckoutSession(
@@ -316,6 +342,9 @@ class PaystackPaymentGatewayAdapter:
         terms_id = _metadata_terms_id(data.get("metadata"))
         if terms_id is None:
             raise ValueError("Paystack transaction carries no Cardvert terms reference")
+        organization_id = _metadata_value(data.get("metadata"), "organization_id")
+        if organization_id is None:
+            raise ValueError("Paystack transaction carries no Cardvert organization reference")
         amount = from_subunits(data["amount"])
         currency = paystack_currency(data["currency"])
         occurred_at = parse_paystack_time(
@@ -346,6 +375,7 @@ class PaystackPaymentGatewayAdapter:
             "external_transaction_id": reference,
             "event_type": "payment_confirmed" if succeeded else "payment_failed",
             "commercial_terms_id": terms_id,
+            "organization_id": organization_id,
             "amount": f"{amount:.2f}",
             "currency": currency,
             "payer_name": payer_name,
@@ -356,6 +386,7 @@ class PaystackPaymentGatewayAdapter:
             external_transaction_id=reference,
             event_type=canonical["event_type"],
             commercial_terms_id=terms_id,
+            organization_id=organization_id,
             amount=amount,
             currency=currency,
             payer_name=payer_name,

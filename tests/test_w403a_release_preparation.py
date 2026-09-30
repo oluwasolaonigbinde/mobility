@@ -228,6 +228,9 @@ def valid_release_environment(tmp_path: Path) -> dict[str, str]:
             "CADDY_IMAGE": "caddy@sha256:" + "5" * 64,
             "EDGE_HOSTNAME": "cardvert.client-owned-domain.com",
             "PUBLIC_ORIGIN": "https://cardvert.client-owned-domain.com",
+            "PAYSTACK_CHECKOUT_RETURN_URL": (
+                "https://cardvert.client-owned-domain.com/advertiser/billing/paystack/return"
+            ),
             "BACKEND_CORS_ORIGINS": "[]",
             "POSTGRES_PASSWORD": "Correct-Horse-Battery-Staple-Database-2026",
             "POSTGRES_TLS_CA_FILE": str(ca_cert),

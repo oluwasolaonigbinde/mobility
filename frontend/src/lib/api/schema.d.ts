@@ -1581,23 +1581,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/payout-batches/provider-webhook": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Provider Payout Webhook */
-        post: operations["provider_payout_webhook_api_v1_admin_payout_batches_provider_webhook_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/admin/payout-batches/selection-preview": {
         parameters: {
             query?: never;
@@ -3256,6 +3239,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/advertiser/invoices/{invoice_id}/checkout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Advertiser Create Invoice Checkout */
+        post: operations["advertiser_create_invoice_checkout_api_v1_advertiser_invoices__invoice_id__checkout_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/advertiser/measurement-runs/{run_id}/report-issuances": {
         parameters: {
             query?: never;
@@ -3303,6 +3303,23 @@ export interface paths {
         get: operations["advertiser_organization_api_v1_advertiser_organization_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/payment-checkouts/{reference}/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Advertiser Verify Payment Checkout */
+        post: operations["advertiser_verify_payment_checkout_api_v1_advertiser_payment_checkouts__reference__verify_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4683,10 +4700,7 @@ export interface paths {
         put?: never;
         /**
          * Paystack Webhook
-         * @description Record Cardvert charge events; acknowledge every other signed event unprocessed.
-         *
-         *     Transfer outcomes are reconciled by the admin poll until a queued transfer-event
-         *     path exists (§15.4 keeps business logic out of the webhook request path).
+         * @description Authenticate and queue Cardvert charge or transfer evidence.
          */
         post: operations["paystack_webhook_api_v1_webhooks_paystack_post"];
         delete?: never;
@@ -11252,6 +11266,24 @@ export interface components {
          * @enum {string}
          */
         PayeeType: "driver";
+        /** PaymentCheckoutRead */
+        PaymentCheckoutRead: {
+            /** Amount */
+            amount: string;
+            /** Checkout Url */
+            checkout_url: string | null;
+            /** Currency */
+            currency: string;
+            /**
+             * Invoice Id
+             * Format: uuid
+             */
+            invoice_id: string;
+            /** Reference */
+            reference: string;
+            /** Status */
+            status: string;
+        };
         /**
          * PaymentClass
          * @enum {string}
@@ -17800,37 +17832,6 @@ export interface operations {
             };
         };
     };
-    provider_payout_webhook_api_v1_admin_payout_batches_provider_webhook_post: {
-        parameters: {
-            query?: never;
-            header: {
-                "X-Provider-Signature": string;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PayoutBatchRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     admin_preview_payment_selection_api_v1_admin_payout_batches_selection_preview_post: {
         parameters: {
             query?: never;
@@ -21470,6 +21471,37 @@ export interface operations {
             };
         };
     };
+    advertiser_create_invoice_checkout_api_v1_advertiser_invoices__invoice_id__checkout_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                invoice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentCheckoutRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     advertiser_get_current_report_issuance_api_v1_advertiser_measurement_runs__run_id__report_issuances_get: {
         parameters: {
             query?: never;
@@ -21614,6 +21646,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdvertiserOrganizationContextResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    advertiser_verify_payment_checkout_api_v1_advertiser_payment_checkouts__reference__verify_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reference: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentCheckoutRead"];
                 };
             };
             /** @description Request validation failed */

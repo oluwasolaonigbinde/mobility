@@ -261,6 +261,10 @@ class PaystackDisbursementAdapter:
                     "currency": currency,
                 }
             ),
+            provider_reference=reference,
+            amount=f"{from_subunits(amount_subunits):.2f}",
+            currency=currency,
+            provider_event_type=event,
         )
 
 

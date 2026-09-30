@@ -5,7 +5,12 @@ from fastapi import APIRouter, Depends, Header, Query, Request, status
 from sqlalchemy import select
 
 from app.adapters.budget import build_budget_policy_adapter
-from app.adapters.payments import DisabledPaymentGatewayAdapter, PaymentGatewayAdapter
+from app.adapters.payments import PaymentGatewayAdapter, PaymentGatewayUnavailableError
+from app.adapters.payments.paystack import (
+    PaystackNotFoundError,
+    PaystackOutcomeUnknownError,
+    build_payment_gateway_adapter,
+)
 from app.api.v1.dependencies import (
     AdminUserDependency,
     AdvertiserUserDependency,
@@ -50,6 +55,7 @@ from app.schemas.billing import (
     IssuerProfileRead,
     ManualTransferCreate,
     ManualTransferResult,
+    PaymentCheckoutRead,
     PaymentWebhookReceipt,
     ProductionStartCreate,
     ProductionStartRead,
@@ -75,9 +81,13 @@ from app.services.billing import (
     billing_history,
     create_invoice_draft,
     evaluate_campaign_budget_policy,
+    get_advertiser_payment_checkout,
     ingest_payment_gateway_webhook,
+    ingest_verified_payment_event,
+    initialize_invoice_payment_checkout,
     invoice_payment_status,
     issue_invoice,
+    prepare_invoice_payment_checkout,
     process_manual_bank_transfer,
     record_approved_credit_authorization,
     record_credit_contract_settlement,
@@ -102,8 +112,8 @@ from app.services.organizations import (
 router = APIRouter(tags=["Commercial billing"])
 
 
-def get_payment_gateway_adapter() -> PaymentGatewayAdapter:
-    return DisabledPaymentGatewayAdapter()
+def get_payment_gateway_adapter(settings: SettingsDependency) -> PaymentGatewayAdapter:
+    return build_payment_gateway_adapter(settings)
 
 
 PaymentGatewayDependency = Annotated[PaymentGatewayAdapter, Depends(get_payment_gateway_adapter)]
@@ -421,6 +431,92 @@ async def advertiser_billing_history(
         BillingHistoryEntry.model_validate(row)
         for row in await billing_history(session, actor_user_id=user.id)
     ]
+
+
+@router.post(
+    "/advertiser/invoices/{invoice_id}/checkout",
+    response_model=PaymentCheckoutRead,
+    status_code=status.HTTP_201_CREATED,
+)
+async def advertiser_create_invoice_checkout(
+    invoice_id: UUID,
+    user: AdvertiserUserDependency,
+    session: SessionDependency,
+    settings: SettingsDependency,
+    adapter: PaymentGatewayDependency,
+) -> PaymentCheckoutRead:
+    checkout = await prepare_invoice_payment_checkout(
+        session,
+        invoice_id=invoice_id,
+        actor_user_id=user.id,
+        adapter=adapter,
+    )
+    await session.commit()
+    try:
+        checkout, _ = await initialize_invoice_payment_checkout(
+            session,
+            checkout_id=checkout.id,
+            adapter=adapter,
+            return_url=settings.paystack_checkout_return_url,
+        )
+        await session.commit()
+    except AppError:
+        await session.commit()
+        raise
+    return PaymentCheckoutRead.model_validate(checkout)
+
+
+@router.post(
+    "/advertiser/payment-checkouts/{reference}/verify",
+    response_model=PaymentCheckoutRead,
+)
+async def advertiser_verify_payment_checkout(
+    reference: str,
+    user: AdvertiserUserDependency,
+    session: SessionDependency,
+    adapter: PaymentGatewayDependency,
+    enqueuer: PaymentEventEnqueuerDependency,
+) -> PaymentCheckoutRead:
+    actor_user_id = user.id
+    checkout = await get_advertiser_payment_checkout(
+        session, reference=reference, actor_user_id=actor_user_id
+    )
+    if checkout.status == "confirmed":
+        return PaymentCheckoutRead.model_validate(checkout)
+    await session.rollback()
+    try:
+        verified = await adapter.verify_transaction(reference)
+    except PaymentGatewayUnavailableError as exc:
+        raise AppError(
+            "PAYMENT_PROVIDER_NOT_CONFIGURED",
+            "Online payment is not configured",
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        ) from exc
+    except PaystackNotFoundError as exc:
+        raise AppError(
+            "PAYMENT_NOT_FINAL",
+            "Paystack has not confirmed this payment yet",
+            status_code=status.HTTP_409_CONFLICT,
+        ) from exc
+    except PaystackOutcomeUnknownError as exc:
+        raise AppError(
+            "PAYMENT_VERIFICATION_UNAVAILABLE",
+            "Paystack could not confirm the payment yet. Please try again.",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+        ) from exc
+    except ValueError as exc:
+        raise AppError(
+            "PAYMENT_VERIFICATION_FAILED",
+            "Paystack returned payment evidence Cardvert could not verify",
+            status_code=status.HTTP_502_BAD_GATEWAY,
+        ) from exc
+    event, _ = await ingest_verified_payment_event(session, adapter=adapter, verified=verified)
+    await session.commit()
+    await enqueuer.enqueue_payment_event(event.id)
+    checkout = await get_advertiser_payment_checkout(
+        session, reference=reference, actor_user_id=actor_user_id
+    )
+    return PaymentCheckoutRead.model_validate(checkout)
 
 
 @router.get("/admin/billing", response_model=list[BillingHistoryEntry])

@@ -169,6 +169,7 @@ class Settings(BaseSettings):
     driver_registration_rate_limit_trust_client_ip_header: bool = False
     driver_registration_rate_limit_trusted_proxy_cidrs: str = ""
     backend_cors_origins: CorsOrigins = Field(default_factory=list)
+    public_origin: str = ""
     log_level: str = "INFO"
     log_format: str = "text"
     request_id_header: str = "X-Request-ID"
@@ -234,6 +235,7 @@ class Settings(BaseSettings):
     budget_resume_ratio: OptionalFloat = None
     # EXT-PAYMENT-PROVIDER: blank keeps every Paystack path on the disabled adapters.
     paystack_secret_key: OptionalSecret = None
+    paystack_checkout_return_url: str = ""
     phone_operator_external_approved: bool = False
     phone_verification_ttl_seconds: int = 600
     phone_verification_max_code_attempts: int = 5
@@ -505,8 +507,8 @@ class Settings(BaseSettings):
         if not re.fullmatch(r"sk_(test|live)_\S+", secret):
             raise ValueError("PAYSTACK_SECRET_KEY must be a Paystack sk_test_ or sk_live_ key")
         environment = str(info.data.get("environment", "local")).lower()
-        if environment in LOCAL_ENVIRONMENTS and secret.startswith("sk_live_"):
-            raise ValueError("PAYSTACK_SECRET_KEY live keys are refused in local/test")
+        if environment != "production" and secret.startswith("sk_live_"):
+            raise ValueError("PAYSTACK_SECRET_KEY live keys are refused outside production")
         if environment == "production" and secret.startswith("sk_test_"):
             raise ValueError("PAYSTACK_SECRET_KEY test keys are refused in production")
         return value
@@ -813,8 +815,7 @@ class Settings(BaseSettings):
         references = [part.strip() for part in value.split(",") if part.strip()]
         if len(references) != len(set(references)) or any(
             len(reference) > 255
-            or reference.lower()
-            in {"missing", "todo", "tbd", "placeholder", "n/a", "none"}
+            or reference.lower() in {"missing", "todo", "tbd", "placeholder", "n/a", "none"}
             for reference in references
         ):
             raise ValueError(
@@ -825,9 +826,7 @@ class Settings(BaseSettings):
 
     @field_validator("email_receipt_signing_secret")
     @classmethod
-    def validate_email_receipt_signing_secret(
-        cls, value: SecretStr | None
-    ) -> SecretStr | None:
+    def validate_email_receipt_signing_secret(cls, value: SecretStr | None) -> SecretStr | None:
         if value is not None and len(value.get_secret_value()) < 32:
             raise ValueError("EMAIL_RECEIPT_SIGNING_SECRET must be at least 32 characters")
         return value
@@ -892,9 +891,7 @@ class Settings(BaseSettings):
 
     @field_validator("trip_evidence_signing_keyring_b64")
     @classmethod
-    def validate_trip_evidence_signing_keyring(
-        cls, value: SecretStr | None
-    ) -> SecretStr | None:
+    def validate_trip_evidence_signing_keyring(cls, value: SecretStr | None) -> SecretStr | None:
         if value is None:
             return None
         try:
@@ -961,6 +958,38 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_impression_confidence_bounds(self) -> "Settings":
+        if self.paystack_checkout_return_url.strip():
+            split = urlsplit(self.paystack_checkout_return_url.strip())
+            environment = self.environment.lower()
+            local_http = (
+                environment in LOCAL_ENVIRONMENTS
+                and split.scheme == "http"
+                and split.hostname in {"localhost", "127.0.0.1"}
+            )
+            secure_public = split.scheme == "https" and (
+                environment in LOCAL_ENVIRONMENTS or _runtime_host_is_allowed(split.hostname)
+            )
+            if (
+                not (local_http or secure_public)
+                or split.username is not None
+                or split.password is not None
+                or not split.path
+                or split.query
+                or split.fragment
+            ):
+                raise ValueError(
+                    "PAYSTACK_CHECKOUT_RETURN_URL must be an absolute HTTPS callback "
+                    "without credentials, query or fragment; local/test may use localhost HTTP"
+                )
+            if environment not in LOCAL_ENVIRONMENTS:
+                public = urlsplit(self.public_origin.strip())
+                if (
+                    not self.public_origin.strip()
+                    or (split.scheme, split.netloc) != (public.scheme, public.netloc)
+                ):
+                    raise ValueError(
+                        "PAYSTACK_CHECKOUT_RETURN_URL must use the configured PUBLIC_ORIGIN"
+                    )
         if self.payout_crypto_key_version not in self.payout_crypto_keys:
             raise ValueError("PAYOUT_CRYPTO_KEY_VERSION must exist in PAYOUT_CRYPTO_KEYRING_B64")
         if (
@@ -968,8 +997,7 @@ class Settings(BaseSettings):
             and self.trip_evidence_signing_key_version not in self.trip_evidence_signing_keys
         ):
             raise ValueError(
-                "TRIP_EVIDENCE_SIGNING_KEY_VERSION must exist in "
-                "TRIP_EVIDENCE_SIGNING_KEYRING_B64"
+                "TRIP_EVIDENCE_SIGNING_KEY_VERSION must exist in TRIP_EVIDENCE_SIGNING_KEYRING_B64"
             )
         if self.impression_min_confidence > self.impression_max_confidence:
             raise ValueError("IMPRESSION_MIN_CONFIDENCE must not exceed IMPRESSION_MAX_CONFIDENCE")

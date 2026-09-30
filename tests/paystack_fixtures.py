@@ -30,6 +30,7 @@ def transaction(
     *,
     reference: str = "cv-synthetic-checkout-0001",
     terms_id: str = "00000000-0000-4000-8000-000000000001",
+    organization_id: str = "00000000-0000-4000-8000-000000000002",
     amount: int = 10000,
     status: str = "success",
     domain: str = "test",
@@ -50,7 +51,9 @@ def transaction(
         "metadata": (
             metadata
             if metadata is not None
-            else json.dumps({"commercial_terms_id": terms_id, "organization_id": "org-1"})
+            else json.dumps(
+                {"commercial_terms_id": terms_id, "organization_id": organization_id}
+            )
         ),
         "customer": {
             "id": 1,

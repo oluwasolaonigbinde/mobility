@@ -293,7 +293,6 @@ AUDITED = {
     ("POST", "/api/v1/admin/payout-batches/{batch_id}/reserve"): ("admin.payout_batch.reserved"),
     ("POST", "/api/v1/admin/payout-batches/{batch_id}/approve"): ("admin.payout_batch.approved"),
     ("POST", "/api/v1/admin/payout-batches/{batch_id}/submit"): ("admin.payout_batch.submitted"),
-    ("POST", "/api/v1/admin/payout-batches/provider-webhook"): ("provider.payout_line.reconciled"),
     ("POST", "/api/v1/admin/payout-batches/lines/{line_id}/poll"): (
         "provider.payout_line.reconciled"
     ),

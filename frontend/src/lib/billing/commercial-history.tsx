@@ -3,6 +3,7 @@ import type { components } from "@/lib/api/schema";
 import { formatDate, formatMoney } from "@/lib/format";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
+import { startInvoicePayment } from "@/app/advertiser/billing/actions";
 
 type Invoice = components["schemas"]["InvoiceRead"];
 type Settlement = components["schemas"]["SettlementRead"];
@@ -86,6 +87,23 @@ export function CommercialHistory({
                     </li>
                   ))}
                 </ul>
+              ) : null}
+              {invoice.status === "issued" &&
+              invoice.payment_status !== "paid" &&
+              invoice.currency === "NGN" ? (
+                <form action={startInvoicePayment} className="mt-4">
+                  <input type="hidden" name="invoiceId" value={invoice.id} />
+                  <button
+                    type="submit"
+                    className="bg-amber text-ink rounded-lg px-4 py-2 text-sm font-semibold"
+                  >
+                    Pay invoice online
+                  </button>
+                  <p className="micro text-muted mt-2">
+                    Pay securely on Paystack by card or bank transfer. Cardvert applies the payment
+                    only after Paystack confirms it.
+                  </p>
+                </form>
               ) : null}
             </li>
           ))}
