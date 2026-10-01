@@ -82,15 +82,14 @@ directions remain, with Ivory Ledger as the default (D37).
 
 **Current rule:** One Terrax admin role; the client's departments (Operations,
 Compliance, Finance, Customer Service, Admin) are sections of the admin
-"Waiting for you" work queue, not separate logins (D38e). One admin may
-complete all driver approval checks; advertiser logins belong to one company
-(D29).
-
-**Still open:** [REQ-031](requests.md) — named people for each department.
+"Waiting for you" work queue, not separate logins (D38e). The client's
+"Finance Officer" is whichever admin handles money. One admin may complete all
+driver approval checks; advertiser logins belong to one company (D29).
 
 **History:**
 - **2026-09-02** — Owner decision on single-company advertiser logins and one admin for driver checks (D29).
 - **2026-09-24** — Client named its departments; owner mapped them to work-queue sections (D38e). Built in `7a9ceb0` (REQ-001).
+- **2026-09-30** — Owner: no named people per department; everyone uses the one admin role (REQ-031).
 
 ### Pricing and quotations
 
@@ -115,7 +114,9 @@ by the Finance officer (client answers item 7). The Paystack adapters and local
 Test Mode checkout are built and verified; production use stays off until the
 public webhook, transfer and production-provider gates pass (REQ-035).
 
-**Still open:** [REQ-025](requests.md), [REQ-027](requests.md), [REQ-035](requests.md).
+**Still open:** [REQ-051](requests.md) Paystack activation and developer admin
+access, [REQ-025](requests.md) password and two-step verification,
+[REQ-027](requests.md), [REQ-035](requests.md).
 
 **History:**
 - **2026-08-14** — Client confirmed payment timing and methods (Q2, Q3, D18).
@@ -129,21 +130,22 @@ public webhook, transfer and production-provider gates pass (REQ-035).
 outside it and recorded (Q14). Customer-facing prices are **VAT-inclusive
 (7.5 %)**, while the invoice still shows net, VAT and gross (Q28). Invoice
 details: Terrax Media Company Ltd, 73 Lome Crescent, Wuse Zone 7, FCT Abuja,
-07074200080, terraxmediacompany@gmail.com; fields include serial number, RC
-number, client and CEO signature lines, campaign duration, quantity (the
-number of advert campaigns) and bank details (client answers item 6). The
-invoice leads with the VAT-inclusive total; staff still enter prices before
-VAT. RC number, TIN and bank details stay blank ("Not yet recorded") until
-Terrax supplies them, and a real invoice cannot be issued without them or
-without the accountant's sign-off (D42).
+07074200080, terraxmediacompany@gmail.com, **TIN 2521515778093, RC 8688553**
+(D43g); fields include serial number, RC number, client and CEO signature
+lines, campaign duration, quantity (the number of advert campaigns) and bank
+details (client answers item 6). The invoice leads with the VAT-inclusive
+total; staff still enter prices before VAT. Bank details stay blank ("Not yet
+recorded") until Terrax supplies them, and a real invoice cannot be issued
+without them or without the accountant's sign-off (D42).
 
-**Still open:** [REQ-019](requests.md) — RC or TIN; [REQ-041](requests.md) —
-OPay bank details; [REQ-042](requests.md) — accountant's confirmation.
+**Still open:** [REQ-041](requests.md) OPay bank details;
+[REQ-042](requests.md) accountant's confirmation and [REQ-052](requests.md) someone to check the sample invoice.
 
 **History:**
 - **2026-08-14** — Client confirmed in-platform invoices and VAT-inclusive display (Q14, Q28, D18).
 - **2026-09-24** — Client supplied company details and invoice fields (client answers item 6).
 - **2026-09-29** — Owner approved the invoice layout: bank slots left blank until the real OPay details arrive, prices still entered before VAT (D42, REQ-009). Built in `0b53eab`.
+- **2026-10-01** — Client confirmed 2521515778093 is the TIN and gave the RC number 8688553 (D43g, REQ-019).
 
 ### Budgets and alerts
 
@@ -215,14 +217,12 @@ registration, insurance, NIN, vehicle photos, a verified bank account and a
 legally approved driver agreement and consent (Q26). In the pilot the vehicle
 is registered to its driver, who is the payee; no fleet owners (Q23). Vehicle
 approval ends on an admin-entered date (D31). Pilot vehicles: roadworthy cars
-(Q19).
-
-**Still open:** [REQ-034](requests.md) — motorcycles.
+(Q19) **and motorcycles** (D43h).
 
 **History:**
 - **2026-08-14** — Client confirmed self-registration, requirements, owner-drivers and cars (Q13, Q19, Q23, Q26, D18).
 - **2026-09-02** — Owner decisions on activation and vehicle approval dates (D28, D31).
-- **2026-09-24** — Client's permit answer mentions SUVs, sedans and motorcycles (client answers item 19). On 2026-09-25 the owner told the client motorcycles are assumed allowed; not yet a D-row.
+- **2026-09-24** — Client's permit answer covers SUVs, sedans and motorcycles (client answers item 19). Recorded as motorcycles allowed on 2026-10-01 (D43h, REQ-034).
 
 ### Installation photos
 
@@ -245,25 +245,25 @@ checks on top (client answers item 4). Set in configuration
 the screen on, starting and ending each trip themselves; native background
 tracking comes after the pilot (Q10). For daily-rate work, **each stop of up to
 5 minutes** (traffic, checkpoints, fuel) counts as driving, and a longer
-continuous stop adds no distance (D39b).
+continuous stop adds no distance (D39b, D43d).
 
 **History:**
 - **2026-08-14** — Client confirmed screen-on tracking with driver Start/End (Q10, D18).
 - **2026-08-20** — Owner chose a parked-time detector for hourly pay (120-second windows, 25-metre threshold; D22).
 - **2026-09-25** — Client set the 5-minute stop rule (D39b). Built for daily-rate pay in `e14149d` (REQ-002). Hourly (v1–v3) work keeps D22.
+- **2026-09-30** — Client confirmed the 5 minutes apply to **each** stop, not the whole trip or day (D43d).
 
 ### Driver pay
 
-**Current rule:** A driver earns a **daily rate** for covering the **expected
-daily distance** in a campaign; covering less earns reduced pay. The client's
-figures are ₦10,000 for 70 miles, and "on request" areas may have their own
-rate. Rates are set per campaign on an audited revision and frozen when the
-driver accepts (D39a). Work accepted under hourly pay keeps its rules (D14,
-D21). Daily-rate publishing stays switched off until the open questions are
-answered.
-
-**Still open:** [REQ-014](requests.md) short-day rule, [REQ-015](requests.md)
-which miles count, [REQ-016](requests.md) ₦10,000 or ₦9,800 and any cap.
+**Current rule:** A driver earns a **daily rate of ₦10,000** for covering the
+**expected daily miles** (70 in the pilot). A shorter day pays **its share of
+the day**: miles counted ÷ expected miles × ₦10,000 (50 of 70 miles =
+₦7,143), with **no minimum distance**. **Only miles inside the campaign area
+count**. Covering more than the expected miles earns no more than the day rate.
+Rates are set per campaign on an audited revision and frozen when the driver
+accepts; "on request" areas may have their own rate (D39a, D43a–c). Work
+accepted under hourly pay keeps its rules (D14, D21). Switching daily-rate pay
+on for real campaigns: [REQ-048](requests.md).
 
 **History:**
 - **2026-07 to 2026-08-04** — Fixed naira amount **per hour** of verified time, with a daily cap on payable hours (D2, D4); built as `payout_v1` and `payout_v2` (D9, 30 Jul); reconfirmed against the proposal (D12, 4 Aug).
@@ -271,26 +271,32 @@ which miles count, [REQ-016](requests.md) ₦10,000 or ₦9,800 and any cap.
 - **2026-09-24** — Client's answer gave per-mile figures (₦140 inside the primary zone, ₦50 outside, 70 miles a day) and a ₦10,000 daily rate for special locations (client answers item 2).
 - **2026-09-25** — Client moved new work to a **daily rate** for the expected distance, with reduced pay for less (D39a). Built as `payout_v4` in `e14149d` (REQ-002).
 - **2026-09-29** — Architecture §16 and PRD §7 amended for daily-rate pay and automatic payouts (REQ-012). Built in `0b53eab`.
+- **2026-09-30** — Client confirmed ₦10,000 a day; the per-mile sheet only shows how the figure was derived (D43a, REQ-016).
+- **2026-10-01** — Client chose the proportional share for short days with no minimum, and only in-area miles count (D43b–c, REQ-014, REQ-015).
 
 ### Payout approval and timing
 
 **Current rule:** Drivers are paid by **automatic bank transfer** through an
 approved provider (Q27; Paystack Transfers funded from OPay, client answers
-item 8). **Payouts are approved automatically** for clean earnings only: no
-hold, flag or open dispute; a verified bank account that has **already received
-a person-approved payment**; at most one full day's rate per driver per day
-across campaigns; within a run limit. Everything else goes to a person. Finance
-can pause automatic payouts, sees alerts and reconciles daily (D39c, D40).
-Automatic payouts stay off until frequency and limits are set.
+item 8), **every day** (D43e). **Payouts are approved automatically** for clean
+earnings only: no hold, flag or open dispute; a verified bank account that has
+**already received a person-approved payment**; at most one full day's rate per
+driver per day across campaigns. Everything else goes to an admin. There is
+**no run limit**: the setting is at its maximum, so it never binds (D43f).
+Admins can pause automatic payouts, get the alerts in the Finance section of
+"Waiting for you", and reconcile daily (D39c, D40). The client calls the
+person doing this the Finance Officer; in Cardvert it is any admin. Switching
+automatic payouts on: [REQ-048](requests.md).
 
-**Still open:** [REQ-017](requests.md) daily or weekly, [REQ-026](requests.md)
-transfer fee, [REQ-029](requests.md) run limit, [REQ-030](requests.md) alert
-recipients. Optional hardening: [REQ-036](requests.md).
+**Still open:** [REQ-026](requests.md) transfer fee. Optional hardening:
+[REQ-036](requests.md), [REQ-040](requests.md).
 
 **History:**
 - **2026-08-14** — Automated bank transfers confirmed (Q27, D18). Every batch was prepared by one person and approved by a different person (maker-checker, architecture §16.3 / RM10).
 - **2026-09-25** — Client chose automatic approval with no person approving each batch; Finance monitors and follows up (D39c). Built in `3b6b396` (REQ-003).
 - **2026-09-28** — Owner added: the first payment to any new bank account goes to a person (D40b, security review). Built in `3b6b396`.
+- **2026-09-30** — Owner: payout alerts go to every admin (as built), not named people (REQ-030).
+- **2026-10-01** — Client chose daily payouts and no run limit (D43e–f, REQ-017, REQ-029).
 
 ### Fraud holds and earnings release
 
@@ -376,17 +382,21 @@ drivers, vehicles and advertisers.
 ### Hosting, accounts and providers
 
 **Current rule:** Terrax owns the cloud accounts and domain, with developer
-access (Q32). Hosting on **Render**; file storage and encryption on the hosting
-provider's services (AWS); **ClamAV** file checking; **Postmark** email from
-support@terraxmedia.com; **Mapbox** maps now, Google Maps later; domain
-**terraxmedia.com** (client answers items 9–16).
+access (Q32). Hosting, database and file storage on **Hetzner**; maps from
+**MapTiler**; email from **Postmark** (support@terraxmedia.com); **ClamAV** file
+checking; domain **terraxmedia.com** (D44, client answers items 9–16). Bank and
+NIN encryption keys stay in Cardvert's own key ring, because Hetzner has no
+key-management service (D44).
 
-**Still open:** [REQ-028](requests.md) accounts, [REQ-033](requests.md) domain.
+**Still open:** [REQ-050](requests.md) Hetzner, Postmark and MapTiler accounts;
+[REQ-043](requests.md) domain connection; [REQ-033](requests.md) which address (for example app.terraxmedia.com). Templates for the new providers:
+[REQ-049](requests.md).
 
 **History:**
 - **2026-08-14** — Client confirmed ownership (Q32, D18).
-- **2026-09-24** — Client chose the providers and domain (client answers items 9–16).
-- **2026-09-29** — Deployment templates for these providers written, with every secret blank and the go-live gaps listed in `docs/deployment-templates.md`; nothing applied (REQ-010). Built in `0b53eab`.
+- **2026-09-24** — Client approved ClamAV, Postmark, Mapbox ("short run", Google Maps later) and terraxmedia.com, and left hosting, storage and region to the developer's recommendation (client answers items 9–16). The recommendation was Render with AWS storage and encryption.
+- **2026-09-29** — Deployment templates for Render, AWS and Mapbox written, with every secret blank and nothing applied (REQ-010). Built in `0b53eab`.
+- **2026-09-30** — Owner chose Hetzner instead of Render and AWS, and MapTiler instead of Mapbox (D44). The Render, AWS and Mapbox templates are superseded (REQ-049).
 
 ### Legal, privacy and retention
 
