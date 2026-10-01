@@ -34,6 +34,16 @@ evidence.
 A delegated worker reads only the exact excerpts, local rules, and source files
 named in its bounded packet. The controller alone edits `docs/progress.md`.
 
+## Account and access directory
+
+Before work involving an external account, domain or deployment, read
+`docs/account-access.md` for login links, access status, resource identifiers
+and exact current credentials and CLI commands. This is a local document ignored
+by Git. Update it when an account is onboarded or the owner supplies new access;
+use the existing credentials without rotating them or reconnecting accounts
+unless the owner asks. Keep the local document available to future agents.
+Account access does not replace the delivery gates or owner authorization below.
+
 ## Owner and client work
 
 All new work comes from the owner, relaying the client, the PM or their own

@@ -25,3 +25,6 @@ docs/architecture-review-packet.zip
 
 # Local scratch files; may hold client documents with credentials.
 tmp/
+
+# Local account guide contains the owner's current credentials.
+/docs/account-access.md
