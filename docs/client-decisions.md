@@ -61,6 +61,7 @@ acceptances unless a D-row says otherwise (D14, D21).
 - [Hosting, accounts and providers](#hosting-accounts-and-providers)
 - [Legal, privacy and retention](#legal-privacy-and-retention)
 - [File uploads](#file-uploads)
+- [Sign-in security and availability](#sign-in-security-and-availability)
 
 ---
 
@@ -223,6 +224,7 @@ approval ends on an admin-entered date (D31). Pilot vehicles: roadworthy cars
 - **2026-08-14** — Client confirmed self-registration, requirements, owner-drivers and cars (Q13, Q19, Q23, Q26, D18).
 - **2026-09-02** — Owner decisions on activation and vehicle approval dates (D28, D31).
 - **2026-09-24** — Client's permit answer covers SUVs, sedans and motorcycles (client answers item 19). Recorded as motorcycles allowed on 2026-10-01 (D43h, REQ-034).
+- **2026-10-01** — Owner requested Lane 1's guided applicant flow and own-car chooser (D45, REQ-054). Approval, activation and live-use gates remain unchanged; active-driver renewals are later-stage work.
 
 ### Installation photos
 
@@ -424,3 +426,16 @@ developer's recommendation; files are virus-checked (client answers item 12).
 **History:**
 - **Before 2026-09-26** — One shared 25 MB limit.
 - **2026-09-24** — Client accepted the developer's recommendation; limits set per purpose and told to the client for information. Built in `7a9ceb0` (REQ-001).
+
+### Sign-in security and availability
+
+**Current rule:** Failed logins may temporarily block an account or IP address;
+a rise in failures across the whole platform alerts Terrax instead of locking
+everyone out. Redis failure still blocks sign-in safely. Password work runs
+outside the API event loop with a four-thread limit per process; same-email
+PostgreSQL login attempts queue consistently for known and unknown accounts.
+The API image defaults to two configurable workers (D45).
+
+**History:**
+- **Before Lane 1 integration** — The global login-failure bucket could block all sign-ins, and password work ran on the request event loop.
+- **2026-10-01** — Owner requested integration of Lane 1's availability and password-work controls, preserving automatic-payout account protection (D45, REQ-054).

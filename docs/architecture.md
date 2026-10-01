@@ -402,12 +402,18 @@ namespace.
 - **`must_change_password` (F7):** set on admin-created users; every endpoint
   outside `{/me, /auth/change-password, /auth/refresh, /auth/logout}` returns 403
   `PASSWORD_CHANGE_REQUIRED` until the password is replaced.
-- **Login rate limiting (F7):** Redis-backed, per-account 5/15 min, per-IP
-  150/5 min, global 250/5 min, atomic Lua reserve/refund, **fail-closed with a
+- **Login rate limiting (F7, D45):** Redis-backed, per-account 5/15 min and
+  per-IP 150/5 min blocking; global 250/5 min is an alert-only threshold,
+  never a global sign-in lockout. Atomic Lua reserve/refund, **fail-closed with a
   stable 503** when Redis is down; trusted-client-IP header honored only behind the documented
   edge preconditions (§12, runbook).
 - Passwords: argon2 (`argon2-cffi`), enforced minimum length 12
-  (`PASSWORD_MIN_LENGTH`, validator refuses lower).
+  (`PASSWORD_MIN_LENGTH`, validator refuses lower). Request-path hashing and
+  verification run off the event loop with a four-thread limiter per API
+  process; cancellation waits for the work to finish. Login first serializes
+  normalized-email attempts with a PostgreSQL transaction advisory lock for
+  both known and unknown accounts, before locking an existing user row.
+  Synchronous seed helpers remain available.
 - Roles: exactly **`admin`, `advertiser`, `driver`** — `UserRole` StrEnum plus a
   DB check constraint `ck_users_role`. <!-- verified: app/models/user.py -->
 - **User lifecycle (R09):** suspended and disabled users are rejected at login
@@ -834,6 +840,12 @@ in `.github/workflows/ci.yml`). Backend contract tests
 | `redis` | `redis:7-alpine` | 6379 | login-rate-limit counters + arq queue, both disposable (§6.5) |
 | `frontend` | `frontend/Dockerfile` (multi-stage node:22-alpine, standalone build, non-root user) | **3100**→3000, **profile `full` only** | `docker compose --profile full up`; local dev normally runs `npm run dev` on 3000 instead |
 
+The API image defaults to two uvicorn worker processes (`WEB_CONCURRENCY=2`),
+overridable at runtime. Production and R59 command overrides inherit that
+default; each process owns a database pool of five connections plus ten
+overflow connections. The arq worker remains a separate process. Deployment
+connection headroom must include every API pool and other database consumers.
+
 Local quirks: the db override file is **gitignored** — fresh clones get 5433;
 this machine uses 5434. Frontend dev on 3000 can collide with other local
 projects (Next will auto-pick another port; the compose profile avoids it by
@@ -865,6 +877,14 @@ delivery-control files; matching pull requests use the same path filters).
   and coverage.py version.
 - Job `quality`: exact candidate-SHA verification, `npm ci`, lint, typecheck,
   coverage-enabled Vitest, generated-client **contract-drift gate**, and build.
+- Static checks also run basedpyright against its committed basic-mode
+  baseline and Ruff C901 with a ten-complexity ceiling and explicit legacy
+  file exceptions. L2-0 refreshes the type baseline once from 325 to 389
+  existing findings (78 newly exposed, 14 stale entries removed), and the
+  complexity baseline once for three files added after Lane 1 branched.
+  Python and frontend dependency audits
+  and weekly Dependabot updates supplement those checks; they do not replace
+  test, coverage or provider gates.
 - Job `coverage` (R17/TST-007): consumes both LCOV artifacts, resolves an
   explicit ancestor base, rejects global or named-critical baseline regression,
   and enforces at least 90% line / 80% branch coverage on changed executable
@@ -987,7 +1007,8 @@ delivery-control files; matching pull requests use the same path filters).
 - **Forced password change:** admin-created users are 403-gated to the
   change-password flow (`/change-password`, `/driver/change-password`).
 - **Login rate limiting:** Redis Lua reserve/refund — per-account 5/15 min
-  (primary control), per-IP 150/5 min, global 250/5 min, **fail-closed** if Redis
+  (primary control), per-IP 150/5 min, global alert-only 250/5 min (D45),
+  **fail-closed** if Redis
   is down. With header trust off, FastAPI buckets by its socket peer, so
   all BFF-relayed logins share one IP bucket — the runbook documents the
   resulting flood-lockout trade-off and the trusted-edge preconditions
@@ -2557,6 +2578,14 @@ aggregates only, k-floor rules of §22.2 apply to any zone-level display.
   sanitized service boundary revalidates an active admin. Operator-led
   onboarding remains available; W3-04B/C and their Package 4 secure-evidence
   dependencies still own approval and work eligibility.
+- **Guided application (D45) [BUILT]:** `/apply` presents Apply → Your details
+  → Your car. The car chooser uses the existing application access capability
+  in the body of `POST /api/v1/auth/driver-onboarding/vehicles`, returning only
+  that applicant's vehicle IDs, plates and review statuses. Invalid access
+  gets the same generic onboarding error. Access codes are not carried in URLs
+  or browser storage. Staff/applicant vehicle projections prefer a submission
+  awaiting review. Existing onboarding/upload/live-use gates remain in force;
+  this does not provide active-driver document renewal or phone verification.
 - **Approved-applicant activation (D28/ONB-009) [BUILT — migration `0089`]:** approval of the
   current person/payee and vehicle evidence does not itself activate the user.
   After both decisions pass, an active Cardvert admin uses the idempotent
@@ -3389,6 +3418,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.107 | 2026-10-01 | **Lane 1 integration (L2-0 / REQ-054, D45).** Imports `3a2ed93` onto the owner's current `master`: global login failures alert without a global lockout, bounded off-loop password work and normalized-email login serialization, two configurable API workers, sanitized fraud fallback logging, type/complexity and dependency guardrails, shared company profiles, guided application/car selection and fraud pickers, Nigeria-time retargeting dates and the field-test protocol. §6.3/§12, §10 and §23 document the imported controls and capability endpoint. All three §9 artifacts are regenerated. The automatic-payout system-account protection is preserved; the launch-gate programme and live provider switches are unchanged. CI-dependent acceptance remains pending separate owner-authorized push. Active-driver renewals and staff phone verification remain later-stage work. |
 | v1.106 | 2026-09-29 | **Real Paystack Test Mode checkout evidence.** A Cardvert-created ₦101 checkout completed through Paystack's successful test-card path. After the local frontend was restored, the saved browser return verified the same Cardvert reference against Paystack; the durable worker processed exactly one confirmed gateway event, created one ₦101 receipt and one allocation, and the Billing UI showed the invoice paid. No real money moved. This proves the hosted-checkout, return verification and local application path; it does not prove public webhook delivery/replay or a transfer. W2-01C therefore remains blocked on those external proofs and production approval. |
 | v1.105 | 2026-09-29 | **Paystack failure-boundary review corrections.** Checkout initialization validates all local request facts before provider I/O, then commits the uncertain state before the call, so invalid billing data fails definitively while provider acceptance followed by a local save failure preserves one reference and requires verification rather than resubmission. A terminally applied checkout permits a new exact-balance reference only if reversal or debit later makes the invoice payable. Browser redirects accept only the credential-free standard HTTPS Paystack checkout origin. Payment enqueue failure is recovered from the durable database sweep; the documented transfer event identity and existing query-only submission recovery cover replay and provider-accepted timeouts. Driver DSR inventory counts provider transfer records and both successful and failed processing attempts through the frozen payout line. Demo reseeding recognizes the legacy local billing address before normalizing it, preventing a duplicate advertiser organization after upgrade. Focused regressions pass; external package gates remain unchanged. |
 | v1.104 | 2026-09-29 | **Paystack integrated review corrections.** Migration `0098` preserves transfer event kind and permits a confirmed provider receipt whose cash is wholly unallocated after another payment settles the obligation. Provider evidence now binds the advertiser metadata; active/confirmed checkouts block a second reference; partial or full gateway overpayment stays in canonical receipt history with audited unallocated cash; a newer Paystack reversal restores earnings to available; permanent or repeatedly unresolved transfer events stop retrying. Live keys are production-only, the return URL is same-origin and part of the production contract, and the legacy synchronous admin provider webhook is removed so Paystack has one queued callback. API artifacts and privacy inventory move with the change. External package gates remain unchanged. |

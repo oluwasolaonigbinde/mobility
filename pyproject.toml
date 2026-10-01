@@ -36,6 +36,11 @@ dev = [
     "pytest>=8.3,<9.0",
     "ruff>=0.6,<1.0",
 ]
+# Static checks run only in CI's backend_static job, not in every test shard.
+static = [
+    "basedpyright==1.40.1",
+    "pip-audit==2.10.1",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
@@ -61,4 +66,51 @@ line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP", "B"]
+select = ["E", "F", "I", "UP", "B", "C90"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+# C901 guards application code only. The app files below already had functions
+# over the limit in Lane 1 or the 1 Oct 2026 integration baseline; new files
+# are checked in full. Integration adds config, automatic payouts and complaints.
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["C901"]
+"scripts/**" = ["C901"]
+"alembic/**" = ["C901"]
+"app/adapters/storage/s3.py" = ["C901"]
+"app/core/config.py" = ["C901"]
+"app/core/observability.py" = ["C901"]
+"app/operations/storage_snapshot.py" = ["C901"]
+"app/seeds/demo.py" = ["C901"]
+"app/services/audience.py" = ["C901"]
+"app/services/audit_subjects.py" = ["C901"]
+"app/services/automatic_payouts.py" = ["C901"]
+"app/services/billing.py" = ["C901"]
+"app/services/campaign_assignments.py" = ["C901"]
+"app/services/campaign_changes.py" = ["C901"]
+"app/services/campaigns.py" = ["C901"]
+"app/services/complaints.py" = ["C901"]
+"app/services/data_lifecycle.py" = ["C901"]
+"app/services/data_subject_requests.py" = ["C901"]
+"app/services/disbursements.py" = ["C901"]
+"app/services/disclosure.py" = ["C901"]
+"app/services/email_delivery.py" = ["C901"]
+"app/services/file_kyc_lifecycle.py" = ["C901"]
+"app/services/impressions.py" = ["C901"]
+"app/services/installation_evidence.py" = ["C901"]
+"app/services/measurement.py" = ["C901"]
+"app/services/notifications.py" = ["C901"]
+"app/services/organizations.py" = ["C901"]
+"app/services/payout_eligibility.py" = ["C901"]
+"app/services/payout_operations.py" = ["C901"]
+"app/services/payouts.py" = ["C901"]
+"app/services/report_issuances.py" = ["C901"]
+"app/services/report_rendering.py" = ["C901"]
+"app/services/route_replay.py" = ["C901"]
+"app/services/stored_object_deletions.py" = ["C901"]
+"app/services/target_area_coverage.py" = ["C901"]
+"app/services/trip_evidence.py" = ["C901"]
+"app/services/trip_processing.py" = ["C901"]
+"app/services/trips.py" = ["C901"]
+"app/services/vehicle_onboarding.py" = ["C901"]

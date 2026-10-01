@@ -49,7 +49,7 @@ describe.each(cases)("$field upload retry", ({ Component, files, field }) => {
         target: { files: [new File([label], "same.png", { type: "image/png" })] },
       }),
     );
-    return screen.getByRole("button").closest("form")!;
+    return screen.getByRole("button", { name: /^Submit/ }).closest("form")!;
   }
 
   async function fail(form: HTMLFormElement) {
@@ -115,7 +115,7 @@ describe.each(cases)("$field upload retry", ({ Component, files, field }) => {
       target: { files: [new File(["new"], "same.png", { type: "image/png" })] },
     });
     release("obsolete-file");
-    await waitFor(() => expect(screen.getByRole("button")).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Submit/ })).toBeEnabled());
     expect(fetch).not.toHaveBeenCalled();
     fireEvent.submit(form);
     await screen.findByRole("alert");

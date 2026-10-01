@@ -39,6 +39,8 @@ from app.schemas.driver_onboarding import (
     ApplicantFileUploadCreate,
     ApplicantFileUploadRead,
     ApplicantStoredFileRead,
+    ApplicantVehicleListRead,
+    ApplicantVehicleOption,
     ApplicantVehicleSubmissionCreate,
     PersonPayeeStageRead,
     PersonPayeeSubmissionCreate,
@@ -81,6 +83,7 @@ from app.services.stored_files import (
 )
 from app.services.vehicle_onboarding import (
     VehicleStageView,
+    applicant_vehicles,
     submit_application_vehicle,
     vehicle_status_by_reference,
 )
@@ -325,6 +328,7 @@ async def login(
     try:
         user = await login_with_password(session, email=payload.email, password=payload.password)
     except AuthCommandError as exc:
+        await rate_limiter.record_failure(client_ip, payload.email)
         # The rejection's audit event lives in this transaction; commit it before
         # the error leaves, or the evidence rolls back with the request.
         if exc.audited:
@@ -594,6 +598,32 @@ async def submit_driver_onboarding_vehicle(
 
 
 @router.post(
+    "/driver-onboarding/vehicles",
+    response_model=ApplicantVehicleListRead,
+    summary="List the applicant's own cars by plate",
+)
+async def list_driver_onboarding_vehicles(
+    payload: ApplicantFileUploadConfirm,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> ApplicantVehicleListRead:
+    require_driver_registration_enabled(settings)
+    rows = await applicant_vehicles(
+        session, token=payload.application_access_token.get_secret_value(), settings=settings
+    )
+    return ApplicantVehicleListRead(
+        items=[
+            ApplicantVehicleOption(
+                vehicle_id=vehicle.id,
+                plate_number=vehicle.plate_number,
+                status=submission.status if submission is not None else "not_submitted",
+            )
+            for vehicle, submission in rows
+        ]
+    )
+
+
+@router.post(
     "/change-password",
     response_model=LoginResponse,
     summary="Change the current user's password",
@@ -656,6 +686,8 @@ async def change_password(
         # buckets; every other rejection refunds the reservation.
         if exc.error.code != "CURRENT_PASSWORD_INCORRECT":
             await rate_limiter.release_success(client_ip, current_user.email)
+        else:
+            await rate_limiter.record_failure(client_ip, current_user.email)
         if exc.audited:
             await session.commit()
         raise exc.error from exc

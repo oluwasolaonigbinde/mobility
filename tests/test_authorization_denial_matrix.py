@@ -527,6 +527,9 @@ def test_applicant_capability_routes_reject_invalid_capability_without_audit_eff
             "insurance_file_id": str(uuid4()),
             "vehicle_photo_file_id": str(uuid4()),
         },
+        "/api/v1/auth/driver-onboarding/vehicles": {
+            "application_access_token": "invalid-capability"
+        },
     }
 
     class ForbiddenStorage:

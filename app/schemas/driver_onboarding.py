@@ -138,6 +138,18 @@ class VehicleStageRead(BaseModel):
     decided_at: datetime | None = None
 
 
+class ApplicantVehicleOption(BaseModel):
+    """One of the applicant's own cars, for choosing which one to revise."""
+
+    vehicle_id: UUID
+    plate_number: str
+    status: str = "not_submitted"
+
+
+class ApplicantVehicleListRead(BaseModel):
+    items: list[ApplicantVehicleOption]
+
+
 class AdminVehicleStageRead(VehicleStageRead):
     document_file_ids: dict[str, UUID] = Field(default_factory=dict)
     decided_by_user_id: UUID | None = None

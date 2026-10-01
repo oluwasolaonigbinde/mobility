@@ -17,10 +17,14 @@ _limiters: dict[tuple[str, int, int, int, int, int, int], "RedisLoginRateLimiter
 # instead of declaring it. That is fine on standalone Redis (the supported
 # topology) but would break on Redis Cluster, which requires every touched key
 # to be declared and co-located. Revisit before any cluster migration.
+#
+# Only the ip and account buckets refuse. The global bucket still counts net
+# confirmed failures but never blocks, so an attacker cannot lock everyone out.
+# Reservations must not trigger its alert before the password outcome is known.
 RESERVE_LOGIN_ATTEMPT = """
-local limits = {tonumber(ARGV[1]), tonumber(ARGV[3]), tonumber(ARGV[5])}
-local ttls = {tonumber(ARGV[2]), tonumber(ARGV[4]), tonumber(ARGV[6])}
-for i = 1, 3 do
+local limits = {tonumber(ARGV[1]), tonumber(ARGV[3])}
+local ttls = {tonumber(ARGV[2]), tonumber(ARGV[4])}
+for i = 1, 2 do
   local current = tonumber(redis.call('GET', KEYS[i]) or '0')
   if current >= limits[i] then
     local ttl = redis.call('TTL', KEYS[i])
@@ -33,19 +37,30 @@ for i = 1, 3 do
     return {0, i, ttl, notified and 1 or 0}
   end
 end
-for i = 1, 3 do
+for i = 1, 2 do
   local value = redis.call('INCR', KEYS[i])
   if value == 1 then redis.call('EXPIRE', KEYS[i], ttls[i]) end
 end
 return {1, 0, 0, 0}
 """
 
+RECORD_LOGIN_FAILURE = """
+local value = redis.call('INCR', KEYS[1])
+local ttl = redis.call('TTL', KEYS[1])
+if ttl < 0 then
+  redis.call('EXPIRE', KEYS[1], tonumber(ARGV[2]))
+  ttl = tonumber(ARGV[2])
+end
+if value < tonumber(ARGV[1]) then return 0 end
+local marker = 'ratelimit:login:notify:' .. KEYS[1]
+local alerted = redis.call('SET', marker, '1', 'NX', 'EX', math.max(ttl, 1))
+return alerted and 1 or 0
+"""
+
 RELEASE_LOGIN_SUCCESS = """
 redis.call('DEL', KEYS[2])
-for _, i in ipairs({1, 3}) do
-  local value = tonumber(redis.call('GET', KEYS[i]) or '0')
-  if value > 0 then redis.call('DECR', KEYS[i]) end
-end
+local value = tonumber(redis.call('GET', KEYS[1]) or '0')
+if value > 0 then redis.call('DECR', KEYS[1]) end
 return 1
 """
 
@@ -62,6 +77,8 @@ class RateLimitDecision:
 class LoginRateLimiter(Protocol):
     async def reserve(self, ip: str, email: str) -> RateLimitDecision: ...
 
+    async def record_failure(self, ip: str, email: str) -> None: ...
+
     async def release_success(self, ip: str, email: str) -> None: ...
 
 
@@ -75,6 +92,9 @@ class NoopLoginRateLimiter:
         return RateLimitDecision(allowed=True)
 
     async def release_success(self, ip: str, email: str) -> None:
+        del ip, email
+
+    async def record_failure(self, ip: str, email: str) -> None:
         del ip, email
 
 
@@ -133,6 +153,7 @@ class RedisLoginRateLimiter:
         self.settings = settings
         self.reserve_script = redis.register_script(RESERVE_LOGIN_ATTEMPT)
         self.release_script = redis.register_script(RELEASE_LOGIN_SUCCESS)
+        self.failure_script = redis.register_script(RECORD_LOGIN_FAILURE)
 
     def keys(self, ip: str, email: str) -> list[str]:
         return [
@@ -144,14 +165,12 @@ class RedisLoginRateLimiter:
     async def reserve(self, ip: str, email: str) -> RateLimitDecision:
         try:
             raw = await self.reserve_script(
-                keys=self.keys(ip, email),
+                keys=self.keys(ip, email)[:2],
                 args=[
                     self.settings.login_rate_limit_ip_max_failures,
                     self.settings.login_rate_limit_ip_window_seconds,
                     self.settings.login_rate_limit_account_max_failures,
                     self.settings.login_rate_limit_account_window_seconds,
-                    self.settings.login_rate_limit_global_max_failures,
-                    self.settings.login_rate_limit_global_window_seconds,
                 ],
             )
             if not isinstance(raw, (list, tuple)) or len(raw) != 4:
@@ -165,7 +184,7 @@ class RedisLoginRateLimiter:
                 or values[3] not in (0, 1)
             ):
                 raise ValueError("invalid reserve response values")
-            bucket = {1: "ip", 2: "account", 3: "global"}.get(values[1])
+            bucket = {1: "ip", 2: "account"}.get(values[1])
             if bucket is None:
                 raise ValueError("unknown rate-limit bucket")
             return RateLimitDecision(
@@ -188,6 +207,27 @@ class RedisLoginRateLimiter:
             await self.release_script(keys=self.keys(ip, email))
         except (RedisError, TypeError, ValueError) as exc:
             logger.warning("Login rate limiter success refund failed: %s", exc)
+
+    async def record_failure(self, ip: str, email: str) -> None:
+        try:
+            alerted = await self.failure_script(
+                keys=[self.keys(ip, email)[2]],
+                args=[
+                    self.settings.login_rate_limit_global_max_failures,
+                    self.settings.login_rate_limit_global_window_seconds,
+                ],
+            )
+            if type(alerted) is not int or alerted not in (0, 1):
+                raise ValueError("malformed failure response")
+            if alerted:
+                logger.error(
+                    "Login failure volume reached the global alert threshold "
+                    "(%s failures in %s seconds); sign-in is not blocked",
+                    self.settings.login_rate_limit_global_max_failures,
+                    self.settings.login_rate_limit_global_window_seconds,
+                )
+        except (RedisError, TypeError, ValueError) as exc:
+            logger.warning("Login rate limiter failure alert unavailable: %s", exc)
 
 
 RESERVE_REGISTRATION_ATTEMPT = """

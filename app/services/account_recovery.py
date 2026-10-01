@@ -10,7 +10,7 @@ from starlette import status
 
 from app.core.config import Settings
 from app.core.errors import AppError
-from app.core.security import hash_password
+from app.core.security import hash_password_async
 from app.models.contact import PasswordResetAttempt, PasswordResetToken
 from app.models.user import User, UserRole, UserStatus
 from app.services.audit import create_audit_event
@@ -241,7 +241,7 @@ async def complete_password_reset(
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     reset.used_at = now
-    user.password_hash = hash_password(new_password)
+    user.password_hash = await hash_password_async(new_password)
     user.must_change_password = False
     user.session_version += 1
     await session.flush()

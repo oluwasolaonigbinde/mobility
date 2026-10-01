@@ -491,6 +491,13 @@ EXEMPT = {
         " There is no authority mutation and no privileged disclosure to"
         " audit; the paired upload/confirm routes above carry the evidence."
     ),
+    ("POST", "/api/v1/auth/driver-onboarding/vehicles"): (
+        "Read-only car chooser: the capability token travels in the body, so"
+        " the read is POST-shaped. `applicant_vehicles` issues only SELECTs,"
+        " the route never commits, and it returns only the applicant's own"
+        " plates and evidence status. The vehicle submission it feeds is"
+        " audited as driver.vehicle_profile.submitted."
+    ),
 }
 
 KNOWN_UNAUDITED: dict[tuple[str, str], str] = {}

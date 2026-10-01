@@ -11,7 +11,7 @@ from starlette import status
 
 from app.core.config import Settings
 from app.core.errors import AppError
-from app.core.security import hash_password
+from app.core.security import hash_password_async
 from app.models.driver import DriverOnboardingStatus, DriverProfile
 from app.models.driver_application import (
     DriverAccountSetupToken,
@@ -383,7 +383,7 @@ async def complete_driver_account_setup(
         )
         .values(invalidated_at=now)
     )
-    user.password_hash = hash_password(new_password)
+    user.password_hash = await hash_password_async(new_password)
     user.must_change_password = False
     user.status = UserStatus.ACTIVE.value
     user.session_version += 1

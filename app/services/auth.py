@@ -10,6 +10,8 @@ re-read with `populate_existing`, because an already-loaded ORM user would
 otherwise be reconciled from the identity map and the command would decide on
 stale state (AUT-001). Only `users` rows are locked here; password reset takes
 `password_reset_tokens` before `users`, and no path takes them in the other order.
+Login first takes a transaction-scoped advisory lock on the normalized e-mail,
+which no other path takes, so known and unknown e-mails queue alike.
 
 The lock spans the argon2 work, so concurrent attempts against one account are
 serialised for the duration of a verification. That is per-account only and is
@@ -17,12 +19,13 @@ already bounded by the login rate limiter; it is the price of deciding status an
 session version against the same row the transition writes.
 """
 
+import hashlib
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
@@ -33,7 +36,10 @@ from app.core.security import (
     create_access_token,
     decode_token_claims,
     hash_password,
+    hash_password_async,
+    run_password_work,
     verify_password,
+    verify_password_async,
 )
 from app.models.user import User, UserRole, UserStatus
 from app.services.audit import create_audit_event
@@ -155,6 +161,20 @@ def _locked(statement):
     return statement.with_for_update().execution_options(populate_existing=True)
 
 
+async def _serialize_login_attempts(session: AsyncSession, email: str) -> None:
+    """Queue same-e-mail sign-ins whether or not the account exists.
+
+    Argon2 runs off the event loop, so without this only a known account's
+    attempts would queue (on its row lock) and concurrent timing would reveal
+    which e-mails exist. Only login takes this lock, always before the row lock.
+    """
+    if session.get_bind().dialect.name != "postgresql":
+        return
+    digest = hashlib.sha256(f"auth-login:{normalize_email(email)}".encode()).digest()
+    lock_key = int.from_bytes(digest[:8], byteorder="big", signed=True)
+    await session.execute(select(func.pg_advisory_xact_lock(lock_key)))
+
+
 async def _lock_user_by_email(session: AsyncSession, email: str) -> User | None:
     return await session.scalar(_locked(select(User).where(User.email == normalize_email(email))))
 
@@ -250,11 +270,12 @@ async def login_with_password(session: AsyncSession, *, email: str, password: st
     contained account is indistinguishable from a wrong password on an unknown
     one and suspension stays undisclosed.
     """
+    await _serialize_login_attempts(session, email)
     user = await _lock_user_by_email(session, email)
     if user is None:
-        verify_password(password, _timing_equalizer_hash())
+        await run_password_work(lambda: verify_password(password, _timing_equalizer_hash()))
         raise await _login_rejected(session, email=email)
-    if not verify_password(password, user.password_hash):
+    if not await verify_password_async(password, user.password_hash):
         raise await _login_rejected(session, email=email)
     if user.status in CONTAINED_USER_STATUSES or (
         user.role == UserRole.ADMIN and user.status != UserStatus.ACTIVE
@@ -345,7 +366,7 @@ async def change_user_password(
                 status_code=status.HTTP_403_FORBIDDEN,
             )
         )
-    if not verify_password(current_password, user.password_hash):
+    if not await verify_password_async(current_password, user.password_hash):
         await create_audit_event(
             session,
             actor_user_id=user.id,
@@ -375,7 +396,7 @@ async def change_user_password(
             )
         )
 
-    user.password_hash = hash_password(new_password)
+    user.password_hash = await hash_password_async(new_password)
     user.must_change_password = False
     user.session_version = session_version + 1
     await session.flush()

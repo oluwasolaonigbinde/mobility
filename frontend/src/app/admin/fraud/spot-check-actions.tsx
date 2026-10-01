@@ -15,26 +15,40 @@ function Result({ state }: { state: SpotCheckActionState }) {
   );
 }
 
-export function SpotCheckQueueForm() {
+/** Queue a physical check for a flagged trip (IDs from the flag) or, as a fallback, any trip. */
+export function SpotCheckQueueForm({
+  trip,
+}: {
+  trip?: { assignmentId: string; tripSessionId: string };
+}) {
   const [state, action, pending] = useActionState(queueSpotCheckAction, initialState);
   return (
     <form action={action} className="grid gap-3 md:grid-cols-2">
-      <label className="text-xs">
-        <span className="text-muted mb-1 block">Assignment ID</span>
-        <input
-          name="assignment_id"
-          required
-          className="border-edge bg-bg w-full rounded-lg border px-3 py-2 font-mono"
-        />
-      </label>
-      <label className="text-xs">
-        <span className="text-muted mb-1 block">Trip ID</span>
-        <input
-          name="trip_session_id"
-          required
-          className="border-edge bg-bg w-full rounded-lg border px-3 py-2 font-mono"
-        />
-      </label>
+      {trip ? (
+        <>
+          <input type="hidden" name="assignment_id" value={trip.assignmentId} />
+          <input type="hidden" name="trip_session_id" value={trip.tripSessionId} />
+        </>
+      ) : (
+        <>
+          <label className="text-xs">
+            <span className="text-muted mb-1 block">Assignment ID</span>
+            <input
+              name="assignment_id"
+              required
+              className="border-edge bg-bg w-full rounded-lg border px-3 py-2 font-mono"
+            />
+          </label>
+          <label className="text-xs">
+            <span className="text-muted mb-1 block">Trip ID</span>
+            <input
+              name="trip_session_id"
+              required
+              className="border-edge bg-bg w-full rounded-lg border px-3 py-2 font-mono"
+            />
+          </label>
+        </>
+      )}
       <label className="text-xs md:col-span-2">
         <span className="text-muted mb-1 block">Why this physical check is needed</span>
         <textarea
@@ -46,7 +60,7 @@ export function SpotCheckQueueForm() {
       </label>
       <div className="flex items-center gap-3 md:col-span-2">
         <Button type="submit" disabled={pending} className="h-9 px-3 text-xs">
-          {pending ? "Queueing…" : "Queue physical spot check"}
+          {pending ? "Queueing…" : trip ? "Request physical check" : "Queue physical spot check"}
         </Button>
         <Result state={state} />
       </div>

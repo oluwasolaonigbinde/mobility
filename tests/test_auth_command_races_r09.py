@@ -18,7 +18,7 @@ from datetime import UTC, datetime, timedelta
 import jwt
 import pytest
 from conftest import create_test_organization, create_test_user
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.core.errors import AppError
 from app.core.rate_limit import NoopLoginRateLimiter
@@ -254,6 +254,49 @@ def test_login_command_verifies_credentials_before_revealing_status(
             assert contained.value.error.code == "USER_NOT_ACTIVE"
             assert contained.value.error.status_code == 403
             await session.commit()
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("known", [True, False])
+def test_same_email_logins_queue_whether_or_not_the_account_exists(
+    postgis_db_sessionmaker, known
+) -> None:
+    """Argon2 runs off the loop; if only known accounts queued, timing would reveal them."""
+    email = "r09-queued@example.com"
+    if known:
+        create_test_user(postgis_db_sessionmaker, email=email, password=PASSWORD)
+
+    async def second_attempt() -> str:
+        async with postgis_db_sessionmaker() as session:
+            with pytest.raises(AuthCommandError) as rejected:
+                await login_with_password(session, email=email, password="wrong-password")
+            await session.commit()
+            return rejected.value.error.code
+
+    async def scenario() -> None:
+        async with postgis_db_sessionmaker() as holder, postgis_db_sessionmaker() as observer:
+            # The first attempt keeps its lock until its transaction ends.
+            with pytest.raises(AuthCommandError):
+                await login_with_password(holder, email=email.upper(), password="wrong-password")
+            pending = asyncio.create_task(second_attempt())
+            waiting = 0
+            for _ in range(200):
+                waiting = await observer.scalar(
+                    text(
+                        "SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' "
+                        "AND NOT granted AND database = "
+                        "(SELECT oid FROM pg_database WHERE datname = current_database())"
+                    )
+                )
+                await observer.rollback()
+                if waiting:
+                    break
+                await asyncio.sleep(0.05)
+            assert waiting == 1
+            assert not pending.done()
+            await holder.commit()
+            assert await asyncio.wait_for(pending, timeout=30) == "INVALID_CREDENTIALS"
 
     asyncio.run(scenario())
 

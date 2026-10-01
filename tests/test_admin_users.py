@@ -147,6 +147,9 @@ class ElevationProofLimiter:
         if self.reservations:
             self.reservations.pop()
 
+    async def record_failure(self, ip: str, email: str) -> None:
+        del ip, email
+
 
 def test_admin_endpoint_rejects_unauthenticated_users(db_client) -> None:
     response = db_client.get("/api/v1/admin/users")

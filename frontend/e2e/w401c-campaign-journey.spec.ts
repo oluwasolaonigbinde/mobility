@@ -148,11 +148,9 @@ test.describe("W4-01C governed campaign journey", () => {
       await expect(page.getByText(/could not be verified/i).first()).toBeVisible();
 
       await page.goto("/apply");
+      await expect(page.getByRole("navigation", { name: "Application steps" })).toBeVisible();
       await expect(
-        page.getByText("Wait for admin review and invitation", { exact: true }),
-      ).toBeVisible();
-      await expect(
-        page.getByText(/never grant a session, campaign work, or tracking/i),
+        page.getByText(/No password, work access, assignment, payout or document access/),
       ).toBeVisible();
       await expect(page.getByRole("link", { name: /already invited.*sign in/i })).toBeVisible();
     });

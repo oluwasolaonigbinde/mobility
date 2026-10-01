@@ -193,8 +193,7 @@ export function PersonPayeeForm() {
           />
         </div>
         <p className="text-faint text-xs">
-          Live onboarding remains unavailable until Terrax Media supplies approved legal/privacy
-          wording and adopts the production storage, scanner, key-custody and bank-provider gates.
+          Document upload opens once Terrax Media switches on driver onboarding.
         </p>
         {error ? (
           <p role="alert" className="text-coral text-sm">

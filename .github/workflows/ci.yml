@@ -86,7 +86,7 @@ jobs:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: pyproject.toml
-      - run: pip install -e ".[dev]"
+      - run: pip install -e ".[dev,static]"
       - name: Validate delivery packages and checklist
         run: python scripts/validate_progress.py
       - name: Runtime OpenAPI contract drift check
@@ -94,8 +94,12 @@ jobs:
           PAYOUT_CRYPTO_KEYRING_B64: '{"1":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}'
         run: python scripts/update_openapi_snapshot.py --check
       - run: ruff check .
+      - name: Type check (fails only on errors missing from .basedpyright/baseline.json)
+        run: basedpyright
       - name: Pre-production static verification
         run: scripts/verify_preprod.sh --static-only
+      - name: Python dependency vulnerability audit
+        run: pip-audit -r requirements-production.txt --require-hashes --disable-pip --progress-spinner off
 
   backend_tests:
     name: backend tests · shard ${{ matrix.shard }}
@@ -407,6 +411,8 @@ jobs:
             || (echo "::error::openapi.json and src/lib/api/schema.d.ts are out of sync — regenerate with 'python scripts/update_openapi_snapshot.py' then 'npm run api:types' and commit." && exit 1)
 
       - run: npm run build
+      - name: Frontend dependency vulnerability audit
+        run: npm audit --audit-level=high
 
   coverage:
     name: changed-code coverage policy

@@ -23,4 +23,7 @@ USER cardvert
 
 EXPOSE 8000
 
+# uvicorn's --workers defaults to $WEB_CONCURRENCY; override it at run time.
+ENV WEB_CONCURRENCY=2
+
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

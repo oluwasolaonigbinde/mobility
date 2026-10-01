@@ -13,7 +13,7 @@ from starlette import status
 
 from app.core.config import Settings
 from app.core.errors import AppError
-from app.core.security import hash_password
+from app.core.security import hash_password_async
 from app.models.driver import DriverOnboardingStatus, DriverProfile
 from app.models.driver_application import (
     DriverApplication,
@@ -42,8 +42,8 @@ def status_reference_hash(reference: str) -> str:
     return hashlib.sha256(reference.encode("utf-8")).hexdigest()
 
 
-def _unreachable_password_hash() -> str:
-    return hash_password(secrets.token_urlsafe(96))
+async def _unreachable_password_hash() -> str:
+    return await hash_password_async(secrets.token_urlsafe(96))
 
 
 def _access_token_value(access: DriverApplicationAccessToken, settings: Settings) -> str:
@@ -296,7 +296,7 @@ async def submit_driver_application(
 
     user = User(
         email=payload.email,
-        password_hash=_unreachable_password_hash(),
+        password_hash=await _unreachable_password_hash(),
         full_name=payload.full_name,
         phone=payload.phone,
         role=UserRole.DRIVER.value,

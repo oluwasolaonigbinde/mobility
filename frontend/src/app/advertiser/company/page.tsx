@@ -2,10 +2,8 @@ import type { Metadata } from "next";
 import { createApiClient } from "@/lib/api/client";
 import { isAdvertiserViewer, requireRole } from "@/lib/auth/current-user";
 import { getSessionToken } from "@/lib/auth/session";
-import { Button } from "@/components/ui/button";
-import { Field } from "@/components/ui/field";
+import { CompanyProfileForm } from "@/components/company/company-profile-form";
 import { PageHeader } from "@/components/ui/page-header";
-import { Panel } from "@/components/ui/panel";
 import { updateCompanyAction } from "./actions";
 
 export const metadata: Metadata = { title: "Company profile" };
@@ -34,78 +32,7 @@ export default async function CompanyPage({
           ? "You have view-only access. Only company owners and managers can change these details."
           : "These are contact details only. When email is switched on, campaign update emails go to each team member's sign-in email."}
       </p>
-      <Panel className="p-6">
-        <form action={updateCompanyAction}>
-          <fieldset disabled={viewer} className="grid gap-5 md:grid-cols-2">
-            <Field name="name" label="Legal or trading name" defaultValue={company.name} required />
-            <Field name="industry" label="Industry" defaultValue={company.industry ?? ""} />
-            <Field
-              name="billing_email"
-              label="Billing email"
-              type="email"
-              defaultValue={company.billing_email ?? ""}
-            />
-            <Field
-              name="billing_contact_name"
-              label="Billing contact"
-              defaultValue={company.billing_contact_name ?? ""}
-            />
-            <Field
-              name="billing_contact_phone"
-              label="Billing phone"
-              defaultValue={company.billing_contact_phone ?? ""}
-            />
-            <Field
-              name="operational_contact_name"
-              label="Operations contact"
-              defaultValue={company.operational_contact_name ?? ""}
-            />
-            <Field
-              name="operational_contact_email"
-              label="Operations email"
-              type="email"
-              defaultValue={company.operational_contact_email ?? ""}
-            />
-            <Field
-              name="operational_contact_phone"
-              label="Operations phone"
-              defaultValue={company.operational_contact_phone ?? ""}
-            />
-            <Field
-              name="address_line_1"
-              label="Address line 1"
-              defaultValue={company.address_line_1 ?? ""}
-            />
-            <Field
-              name="address_line_2"
-              label="Address line 2"
-              defaultValue={company.address_line_2 ?? ""}
-            />
-            <Field name="address_city" label="City" defaultValue={company.address_city ?? ""} />
-            <Field
-              name="address_region"
-              label="State / region"
-              defaultValue={company.address_region ?? ""}
-            />
-            <Field
-              name="address_postal_code"
-              label="Postal code"
-              defaultValue={company.address_postal_code ?? ""}
-            />
-            <Field
-              name="address_country_code"
-              label="Country code"
-              maxLength={2}
-              defaultValue={company.address_country_code ?? ""}
-            />
-            {viewer ? null : (
-              <div className="md:col-span-2">
-                <Button type="submit">Save company profile</Button>
-              </div>
-            )}
-          </fieldset>
-        </form>
-      </Panel>
+      <CompanyProfileForm company={company} action={updateCompanyAction} readOnly={viewer} />
     </div>
   );
 }

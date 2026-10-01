@@ -1,4 +1,5 @@
 import asyncio
+import threading
 from datetime import UTC, datetime, timedelta
 
 import jwt
@@ -132,16 +133,28 @@ def test_unknown_and_wrong_password_paths_both_verify_argon2(
     monkeypatch,
 ) -> None:
     create_test_user(db_sessionmaker, email="known@example.com", password=PASSWORD)
+    from app.core import security
     from app.services import auth as auth_service
 
-    calls: list[str] = []
-    original = auth_service.verify_password
+    calls: list[tuple[str, int]] = []
+    original = security.verify_password
 
     def recording_verify(password: str, password_hash: str) -> bool:
-        calls.append(password)
+        calls.append((password, threading.get_ident()))
         return original(password, password_hash)
 
+    loop_threads: list[int] = []
+    original_audit = auth_service.create_audit_event
+
+    async def recording_audit(*args, **kwargs):
+        loop_threads.append(threading.get_ident())
+        return await original_audit(*args, **kwargs)
+
+    monkeypatch.setattr(auth_service, "create_audit_event", recording_audit)
+    # The unknown-user equaliser verifies through the auth module's import; the
+    # known-user path verifies through the security module's async helper.
     monkeypatch.setattr(auth_service, "verify_password", recording_verify)
+    monkeypatch.setattr(security, "verify_password", recording_verify)
     missing = db_client.post(
         "/api/v1/auth/login",
         json={"email": "missing@example.com", "password": "wrong"},
@@ -151,7 +164,45 @@ def test_unknown_and_wrong_password_paths_both_verify_argon2(
         json={"email": "known@example.com", "password": "wrong"},
     )
     assert missing.status_code == wrong.status_code == 401
-    assert calls == ["wrong", "wrong"]
+    assert [password for password, _ in calls] == ["wrong", "wrong"]
+    assert loop_threads and not {thread for _, thread in calls} & set(loop_threads)
+
+
+def test_password_work_runs_in_threads_bounded_by_the_limiter(monkeypatch) -> None:
+    from app.core import security
+
+    release = threading.Event()
+    running: list[int] = []
+    peak: list[int] = []
+    guard = threading.Lock()
+
+    def blocking_hash(password: str) -> str:
+        with guard:
+            running.append(threading.get_ident())
+            peak.append(len(running))
+        release.wait(timeout=10)
+        with guard:
+            running.remove(threading.get_ident())
+        return f"hash-{password}"
+
+    real_hash = security.hash_password("right-password")
+    monkeypatch.setattr(security, "hash_password", blocking_hash)
+
+    async def exercise() -> list[str]:
+        loop_thread = threading.get_ident()
+        tasks = [asyncio.create_task(security.hash_password_async(str(n))) for n in range(6)]
+        while security._PASSWORD_WORK_LIMITER.borrowed_tokens < 4:
+            await asyncio.sleep(0.01)
+        await asyncio.sleep(0.05)
+        assert security._PASSWORD_WORK_LIMITER.borrowed_tokens == 4
+        assert loop_thread not in running
+        release.set()
+        return await asyncio.gather(*tasks)
+
+    assert asyncio.run(exercise()) == [f"hash-{n}" for n in range(6)]
+    assert max(peak) == 4
+    assert asyncio.run(security.verify_password_async("right-password", real_hash)) is True
+    assert asyncio.run(security.verify_password_async("wrong-password", real_hash)) is False
 
 
 def test_password_timing_equalizer_is_warmed_once(monkeypatch) -> None:

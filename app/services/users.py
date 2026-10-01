@@ -11,7 +11,7 @@ from starlette import status
 
 from app.core.config import Settings
 from app.core.errors import AppError
-from app.core.security import hash_password, verify_password
+from app.core.security import hash_password_async, verify_password_async
 from app.models.disbursement import CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID
 from app.models.driver_application import DriverAccountSetupToken, DriverApplication
 from app.models.user import User, UserRole, UserStatus
@@ -115,7 +115,10 @@ async def _reauthenticate_admin(
             details={"retry_after_seconds": decision.retry_after_seconds},
             headers={"Retry-After": str(decision.retry_after_seconds)},
         )
-    if current_password is None or not verify_password(current_password, actor.password_hash):
+    if current_password is None or not await verify_password_async(
+        current_password, actor.password_hash
+    ):
+        await rate_limiter.record_failure(client_ip, actor.email)
         raise AppError(
             "INVALID_CREDENTIALS",
             "Invalid email or password",
@@ -152,7 +155,7 @@ async def create_user(
 
     user = User(
         email=normalized_email,
-        password_hash=hash_password(payload.password),
+        password_hash=await hash_password_async(payload.password),
         full_name=payload.full_name,
         phone=payload.phone,
         role=payload.role,

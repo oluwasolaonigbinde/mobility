@@ -12,8 +12,6 @@ import {
   type DriverApplicationStatusState,
   type DriverOnboardingAccessState,
 } from "./actions";
-import { PersonPayeeForm } from "./person-payee-form";
-import { VehicleForm } from "./vehicle-form";
 import { presentApplicationStage } from "./application-status";
 
 const initialApplicationState: DriverApplicationState = {};
@@ -196,8 +194,6 @@ export function DriverApplicationForms() {
           ) : null}
         </form>
       </Panel>
-      <PersonPayeeForm />
-      <VehicleForm />
     </div>
   );
 }

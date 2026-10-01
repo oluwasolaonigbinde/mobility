@@ -22,13 +22,16 @@ test("ops queues a physical check and sends failure into the fraud hold", async 
   await login(page);
   await page.goto("/admin/fraud");
 
-  await page.getByLabel("Assignment ID").fill(assignmentId!);
-  await page.getByLabel("Trip ID").fill(tripId!);
-  await page
+  // A trip without a review uses the collapsed fallback form.
+  const fallback = page.locator("details", { hasText: "Check a trip without a flag" });
+  await fallback.locator("summary").click();
+  await fallback.getByLabel("Assignment ID").fill(assignmentId!);
+  await fallback.getByLabel("Trip ID").fill(tripId!);
+  await fallback
     .getByLabel("Why this physical check is needed")
     .fill("Synthetic in-person verification");
-  await page.getByRole("button", { name: "Queue physical spot check" }).click();
-  await expect(page.getByText("Physical spot check queued")).toBeVisible();
+  await fallback.getByRole("button", { name: "Queue physical spot check" }).click();
+  await expect(fallback.getByText("Physical spot check queued")).toBeVisible();
 
   const pending = page.getByText(`Assignment ${assignmentId!.slice(0, 8)}`).locator("..");
   await pending
