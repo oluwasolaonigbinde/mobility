@@ -23,6 +23,13 @@ from app.core.rate_limit import (
 from app.models.user import UserRole
 
 
+@pytest.fixture(autouse=True)
+def _reenable_rate_limit_logger(monkeypatch: pytest.MonkeyPatch) -> None:
+    # In-process Alembic migrations can disable loggers imported earlier in CI.
+    # Restore this module's logger for each test without changing application logging.
+    monkeypatch.setattr(logging.getLogger("app.core.rate_limit"), "disabled", False)
+
+
 class BlockingLimiter:
     async def reserve(self, ip: str, email: str) -> RateLimitDecision:
         del ip, email
