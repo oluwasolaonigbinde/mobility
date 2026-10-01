@@ -49,7 +49,7 @@ decisions. For each piece of work:
    architecture amendment, all in the same commit. Never invent a client value;
    an unanswered value stays unset and fails closed, and the question becomes a
    `NEEDS ANSWER` request.
-3. **Build on a branch.** Apply the delivery gates below. Locally, run only the
+3. Apply the delivery gates below. Locally, run only the
    test files the change touches.
 4. **Merge only after full CI passes (D41).** With the owner's approval, push
    the branch and merge it into `master` only after the full GitHub CI run on
