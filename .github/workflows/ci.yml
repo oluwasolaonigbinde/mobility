@@ -68,7 +68,7 @@ jobs:
       run:
         working-directory: .
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -81,7 +81,7 @@ jobs:
             exit 1
           fi
           echo "exact candidate SHA: $actual"
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -145,7 +145,7 @@ jobs:
       REPORT_STORAGE_SECRET_ACCESS_KEY: cardvert-local-secret
       COVERAGE_FILE: coverage/shard-${{ matrix.shard }}/.coverage.${{ matrix.shard }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -166,7 +166,7 @@ jobs:
             -e MINIO_ROOT_PASSWORD="$LOCAL_MINIO_SECRET_KEY" \
             minio/minio:RELEASE.2025-07-23T15-54-02Z server /data
           docker run -d --name clamav -p 3310:3310 clamav/clamav:1.4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -199,7 +199,7 @@ jobs:
             echo "caddy=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: steps.shard_plan.outputs.browser_stack == 'true'
         with:
           node-version-file: frontend/.nvmrc
@@ -260,7 +260,7 @@ jobs:
             --coverage-file "$COVERAGE_FILE" \
             --execution-report "$shard_dir/execution.xml" \
             --elapsed-seconds "$elapsed_seconds"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: r17-backend-shard-${{ matrix.shard }}
           path: |
@@ -288,7 +288,7 @@ jobs:
             echo "::error::backend prerequisites failed: static=$STATIC_RESULT tests=$TESTS_RESULT"
             exit 1
           fi
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
@@ -300,13 +300,13 @@ jobs:
             echo "::error::evidence tree is $actual, not candidate $expected"
             exit 1
           fi
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: pyproject.toml
       - run: pip install "coverage[toml]==7.16.0"
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: r17-backend-shard-*
           path: coverage/artifacts/backend
@@ -355,7 +355,7 @@ jobs:
               json.dumps(provenance, indent=2, sort_keys=True) + "\n"
           )
           PY
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: r17-backend-lcov
           path: |
@@ -371,7 +371,7 @@ jobs:
       # Check out the candidate commit itself. On pull_request the default ref is a
       # synthetic merge commit, so a green run would be evidence for a SHA that
       # exists nowhere and cannot be re-checked at closure time.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Verify exact candidate SHA
@@ -384,7 +384,7 @@ jobs:
           fi
           echo "exact candidate SHA: $actual"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: frontend/.nvmrc
           cache: npm
@@ -395,7 +395,7 @@ jobs:
       - run: npm run test -- --coverage
         env:
           NODE_OPTIONS: --localstorage-file=${{ runner.temp }}/r17-vitest-localstorage
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: r17-frontend-lcov
           path: ${{ github.workspace }}/coverage/frontend/lcov.info
@@ -422,18 +422,18 @@ jobs:
       run:
         working-directory: .
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: r17-backend-lcov
           path: coverage/artifacts/backend
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: r17-frontend-lcov
           path: coverage/artifacts/frontend
@@ -459,7 +459,7 @@ jobs:
       # Check out the candidate commit itself. On pull_request the default ref is a
       # synthetic merge commit, so a green run would be evidence for a SHA that
       # exists nowhere and cannot be re-checked at closure time.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Verify exact candidate SHA
@@ -509,7 +509,7 @@ jobs:
           docker compose exec -T api alembic upgrade head
           docker compose exec -T api python -m app.seeds.demo
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: frontend/.nvmrc
           cache: npm
@@ -525,7 +525,7 @@ jobs:
           # 5-attempt default and never trips the limiter.
           LOGIN_RATE_LIMIT_ACCOUNT_MAX_FAILURES: "50"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
@@ -540,7 +540,7 @@ jobs:
       run:
         working-directory: .
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Verify exact candidate SHA
@@ -548,7 +548,7 @@ jobs:
           expected="${{ github.event.pull_request.head.sha || github.sha }}"
           actual="$(git rev-parse HEAD)"
           test "$expected" = "$actual"
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version-file: frontend/.nvmrc
           cache: npm
@@ -561,7 +561,7 @@ jobs:
         run: |
           ./scripts/ci_load_minio_images.sh
           ./scripts/run_r59_real_stack.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: r59-real-stack
