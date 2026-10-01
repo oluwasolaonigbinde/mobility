@@ -288,7 +288,7 @@ Admins can pause automatic payouts, get the alerts in the Finance section of
 person doing this the Finance Officer; in Cardvert it is any admin. Switching
 automatic payouts on: [REQ-048](requests.md).
 
-**Still open:** [REQ-026](requests.md) transfer fee. Optional hardening:
+**Paystack's transfer fee is paid by the driver** (deducted from the payout; [REQ-053](requests.md) builds it). Optional hardening:
 [REQ-036](requests.md), [REQ-040](requests.md).
 
 **History:**
@@ -297,6 +297,7 @@ automatic payouts on: [REQ-048](requests.md).
 - **2026-09-28** — Owner added: the first payment to any new bank account goes to a person (D40b, security review). Built in `3b6b396`.
 - **2026-09-30** — Owner: payout alerts go to every admin (as built), not named people (REQ-030).
 - **2026-10-01** — Client chose daily payouts and no run limit (D43e–f, REQ-017, REQ-029).
+- **2026-10-01** — Client: drivers bear Paystack's transfer fee (REQ-026; build REQ-053).
 
 ### Fraud holds and earnings release
 
