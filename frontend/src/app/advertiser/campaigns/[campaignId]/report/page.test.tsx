@@ -29,21 +29,19 @@ describe("CampaignReportPage fail-closed states", () => {
         params: Promise.resolve({ campaignId: "00000000-0000-4000-8000-000000000001" }),
       }),
     );
-    expect(screen.getByText("No report is available yet")).toBeInTheDocument();
+    expect(screen.getByText("Your campaign report is being prepared")).toBeInTheDocument();
     expect(screen.queryByText(/integrity check/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/daily breakdown/i)).not.toBeInTheDocument();
   });
 
   it("explains the privacy gate rather than implying corrupted data", async () => {
-    get.mockRejectedValue(
-      new ApiError(503, { code: "PRIVACY_LIVE_USE_BLOCKED", message: "blocked" }),
-    );
+    get.mockRejectedValue(new ApiError(503, { code: "PROVIDER_UNAVAILABLE", message: "blocked" }));
     render(
       await CampaignReportPage({
         params: Promise.resolve({ campaignId: "00000000-0000-4000-8000-000000000001" }),
       }),
     );
-    expect(screen.getByText("Campaign results aren't switched on yet")).toBeInTheDocument();
+    expect(screen.getByText("Campaign results can't be shown")).toBeInTheDocument();
     expect(screen.queryByText(/could not be verified|integrity/i)).not.toBeInTheDocument();
   });
 
@@ -64,10 +62,10 @@ describe("CampaignReportPage fail-closed states", () => {
     expect(screen.queryByText(/modelled potential contacts/i)).not.toBeInTheDocument();
   });
 
-  it("renders an explicit unavailable state for a blocked live analysis", async () => {
+  it("renders an explicit unavailable state for a pending analysis", async () => {
     get.mockRejectedValue(
       new ApiError(503, {
-        code: "MEASUREMENT_LIVE_ISSUANCE_BLOCKED",
+        code: "CAMPAIGN_REPORT_PENDING",
         message: "blocked",
       }),
     );
@@ -76,8 +74,8 @@ describe("CampaignReportPage fail-closed states", () => {
         params: Promise.resolve({ campaignId: "00000000-0000-4000-8000-000000000001" }),
       }),
     );
-    expect(screen.getByText("Live analysis is unavailable")).toBeInTheDocument();
-    expect(screen.getByText(/not been approved for live use/)).toBeInTheDocument();
+    expect(screen.getByText("Your campaign report is being prepared")).toBeInTheDocument();
+    expect(screen.getByText(/Check back/)).toBeInTheDocument();
     expect(screen.queryByText(/daily breakdown/i)).not.toBeInTheDocument();
   });
 

@@ -17,14 +17,11 @@ from app.services.reports import advertiser_campaign_summary
 def live_settings() -> Settings:
     return Settings(
         environment="test",
-        privacy_disclosure_live_authorized=True,
         privacy_legal_approval_reference="synthetic-legal-approval-v1",
-        privacy_disclosure_config_reference="synthetic-disclosure-config-v1",
-        privacy_query_history_retention_reference="synthetic-retention-v1",
     )
 
 
-def test_three_query_cross_endpoint_and_principal_composition_is_suppressed(
+def test_three_query_cross_endpoint_and_principal_composition_is_recorded(
     postgis_db_sessionmaker,
 ) -> None:
     tenant_id = uuid4()
@@ -83,7 +80,7 @@ def test_three_query_cross_endpoint_and_principal_composition_is_suppressed(
 
     assert asyncio.run(run()) == [
         "served",
-        "overlapping_query_differencing",
+        "served",
         "served",
     ]
 

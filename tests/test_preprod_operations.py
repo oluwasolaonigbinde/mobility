@@ -66,13 +66,11 @@ def test_production_render_has_one_public_edge_and_no_development_mounts() -> No
     assert services["frontend"]["environment"]["LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER"] == "true"
     assert services["api"]["environment"]["LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER"] == "true"
     assert (
-        services["api"]["environment"]["LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS"]
-        == "10.255.254.10/32"
+        services["api"]["environment"]["LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS"] == "10.255.254.10/32"
     )
     assert services["frontend"]["networks"]["app"]["ipv4_address"] == "10.255.254.10"
     assert model["networks"]["app"]["ipam"]["config"] == [{"subnet": "10.255.254.0/24"}]
     assert services["api"]["environment"]["ALLOW_DEMO_SEED"] == "false"
-    assert services["api"]["environment"]["PRIVACY_DISCLOSURE_LIVE_AUTHORIZED"] == "false"
     assert services["api"]["environment"]["PRIVACY_LEGAL_APPROVAL_REFERENCE"] == ""
     assert model["networks"]["app"]["internal"] is True
     assert model["networks"]["data"]["internal"] is True

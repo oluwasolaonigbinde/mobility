@@ -65,7 +65,7 @@ export default async function CampaignReportPage({
     );
   }
   if (!report || isUnissued(report)) {
-    return <GovernedAnalysisState code="SAFE_MEASUREMENT_RUN_REQUIRED" />;
+    return <GovernedAnalysisState code="CAMPAIGN_REPORT_PENDING" />;
   }
   const authority = validateMeasurementAuthority(report);
   if (!authority.ok) {

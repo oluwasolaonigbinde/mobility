@@ -660,7 +660,8 @@ def test_admin_heatmap_filters_global_campaign_org_and_vehicle_type(
     assert organization_response.json()["features"][0]["properties"]["ping_count"] == 2
     assert vehicle_type_response.json()["metadata"]["vehicle_type"] == "car"
     assert vehicle_type_response.json()["features"][0]["properties"]["ping_count"] == 2
-    assert empty_vehicle_type.json()["features"] == []
+    assert empty_vehicle_type.status_code == http_status.HTTP_409_CONFLICT
+    assert empty_vehicle_type.json()["error"]["code"] == "DISCLOSURE_SUPPRESSED"
     assert invalid_vehicle_type.status_code == http_status.HTTP_422_UNPROCESSABLE_CONTENT
     assert invalid_vehicle_type.json()["error"]["code"] == "VALIDATION_ERROR"
     assert advertiser.role == UserRole.ADVERTISER
@@ -686,7 +687,9 @@ def test_admin_heatmap_service_requires_active_admin_and_allows_one(
         role=UserRole.ADMIN,
         user_status=UserStatus.DISABLED,
     )
-    settings = Settings(environment="test", privacy_disclosure_synthetic_test_mode=True)
+    settings = Settings(
+        environment="test",
+    )
     query = heatmaps.HeatmapQuery(
         bbox=[3.30, 6.40, 3.55, 6.60],
         resolution_m=500,
@@ -734,7 +737,7 @@ def test_admin_heatmap_service_requires_active_admin_and_allows_one(
     asyncio.run(run())
 
 
-def test_heatmap_empty_feature_collection(
+def test_heatmap_empty_cohort_is_suppressed(
     postgis_db_client,
     postgis_db_sessionmaker,
 ) -> None:
@@ -751,9 +754,8 @@ def test_heatmap_empty_feature_collection(
         },
     )
 
-    assert response.status_code == http_status.HTTP_200_OK
-    assert response.json()["type"] == "FeatureCollection"
-    assert response.json()["features"] == []
+    assert response.status_code == http_status.HTTP_409_CONFLICT
+    assert response.json()["error"]["code"] == "DISCLOSURE_SUPPRESSED"
     assert len(fetch_location_pings(postgis_db_sessionmaker)) == 2
 
 

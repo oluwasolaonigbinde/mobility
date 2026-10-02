@@ -235,17 +235,10 @@ def test_e2e_stack_uses_only_explicit_synthetic_disclosure_authority(workflow: d
 
     override = yaml.safe_load(E2E_COMPOSE_OVERRIDE_PATH.read_text(encoding="utf-8"))
     environment = override["services"]["api"]["environment"]
-    assert environment == {
-        "ENVIRONMENT": "test",
-        "PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE": "true",
-        "PRIVACY_DISCLOSURE_LIVE_AUTHORIZED": "false",
-    }
-
-    default_compose = yaml.safe_load((REPO_ROOT / "docker-compose.yml").read_text())
+    assert environment == {"ENVIRONMENT": "test"}
+    default_compose = yaml.safe_load((REPO_ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
     default_environment = default_compose["services"]["api"]["environment"]
     assert default_environment["ENVIRONMENT"] == "local"
-    assert default_environment["PRIVACY_DISCLOSURE_LIVE_AUTHORIZED"].endswith(":-false}")
-    assert "PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE" not in default_environment
 
 
 def test_backend_job_requires_real_integration_authority(workflow: dict) -> None:
@@ -287,7 +280,7 @@ def test_backend_job_limits_browser_dependencies_to_the_owning_shard(workflow: d
 
     plan = next(step for step in steps if step.get("id") == "shard_plan")
     assert 'grep -Fxq -e "tests/test_storage_csp_origin.py"' in plan["run"]
-    assert 'tests/test_w403b_synthetic_path.py' in plan["run"]
+    assert "tests/test_w403b_synthetic_path.py" in plan["run"]
     assert 'echo "browser_stack=true" >> "$GITHUB_OUTPUT"' in plan["run"]
     assert "tests/test_preprod_operations.py" in plan["run"]
     assert 'echo "caddy=true" >> "$GITHUB_OUTPUT"' in plan["run"]
@@ -321,7 +314,7 @@ def test_backend_matrix_is_six_disjoint_fail_complete_shards(workflow: dict) -> 
     assert job["strategy"]["matrix"]["shard"] == [0, 1, 2, 3, 4, 5]
     run = "\n".join(str(step.get("run", "")) for step in job["steps"])
     assert "scripts/pytest_shard.py plan" in run
-    assert '--shard-count 6' in run
+    assert "--shard-count 6" in run
     assert (
         'coverage run -m pytest --junitxml="$shard_dir/execution.xml" -- "${shard_files[@]}"' in run
     )
@@ -378,20 +371,28 @@ def test_preprod_tests_execute_only_inside_authoritative_matrix(workflow: dict) 
     verify_preprod = (REPO_ROOT / "scripts/verify_preprod.sh").read_text()
     assert "--static-only" in verify_preprod
     assert (
-        "tests/test_preprod_operations.py tests/test_w403a_release_preparation.py"
-        in verify_preprod
+        "tests/test_preprod_operations.py tests/test_w403a_release_preparation.py" in verify_preprod
     )
 
-@pytest.mark.parametrize("job,step_name,startup", [
-    ("backend_tests", "Start real MinIO and ClamAV", "docker run"),
-    ("r59_real_stack", "Run the isolated real-stack release journey",
-     "./scripts/run_r59_real_stack.sh"),
-])
+
+@pytest.mark.parametrize(
+    "job,step_name,startup",
+    [
+        ("backend_tests", "Start real MinIO and ClamAV", "docker run"),
+        (
+            "r59_real_stack",
+            "Run the isolated real-stack release journey",
+            "./scripts/run_r59_real_stack.sh",
+        ),
+    ],
+)
 def test_backend_loads_identical_minio_images_before_startup(
-    workflow: dict, job: str, step_name: str, startup: str,
+    workflow: dict,
+    job: str,
+    step_name: str,
+    startup: str,
 ) -> None:
-    step = next(s for s in workflow["jobs"][job]["steps"]
-                if s.get("name") == step_name)
+    step = next(s for s in workflow["jobs"][job]["steps"] if s.get("name") == step_name)
     run = step["run"]
     assert run.index(MINIO_LOADER) < run.index(startup)
 
@@ -400,10 +401,14 @@ def test_minio_loader_pins_checksummed_exports_of_the_pinned_images() -> None:
     script = (REPO_ROOT / "scripts/ci_load_minio_images.sh").read_text(encoding="utf-8")
     assert "set -euo pipefail" in script
     for export_sha, tag in (
-        ("8367872214ecc1ca919b7b7e3a28e4e13cfd9b6ca7609b4028dbfa4be03d7610",
-         "minio/minio:RELEASE.2025-07-23T15-54-02Z"),
-        ("ef6be78bd425b192300ad2acc614a9e3d61f805d3d07b0fddc52a64789ecec1a",
-         "minio/mc:RELEASE.2025-07-21T05-28-08Z"),
+        (
+            "8367872214ecc1ca919b7b7e3a28e4e13cfd9b6ca7609b4028dbfa4be03d7610",
+            "minio/minio:RELEASE.2025-07-23T15-54-02Z",
+        ),
+        (
+            "ef6be78bd425b192300ad2acc614a9e3d61f805d3d07b0fddc52a64789ecec1a",
+            "minio/mc:RELEASE.2025-07-21T05-28-08Z",
+        ),
     ):
         assert export_sha in script
         assert tag in script

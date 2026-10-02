@@ -298,18 +298,12 @@ def test_performance_issuance_replay_worker_download_and_tamper_fail_closed(
     assert tampered.json()["error"]["code"] == "STORED_FILE_OBJECT_MISMATCH"
 
 
-def test_approved_non_synthetic_configuration_journey_rechecks_revoked_authority(
+def test_report_publication_and_download_need_no_legal_approval(
     db_client, db_sessionmaker, settings, report_storage
 ) -> None:
     approved_settings = settings.model_copy(
         update={
-            "privacy_disclosure_synthetic_test_mode": False,
-            "privacy_disclosure_live_authorized": True,
             "privacy_legal_approval_reference": "approved-legal-fixture-v1",
-            "privacy_disclosure_config_reference": "approved-disclosure-fixture-v1",
-            "privacy_query_history_retention_reference": "approved-retention-fixture-v1",
-            "measurement_live_issuance_authorized": True,
-            "measurement_report_method_reference": "measurement-contract-v1",
         }
     )
     db_client.app.dependency_overrides[get_settings] = lambda: approved_settings
@@ -339,9 +333,7 @@ def test_approved_non_synthetic_configuration_journey_rechecks_revoked_authority
     )
     assert download.status_code == 200, download.text
 
-    revoked_settings = approved_settings.model_copy(
-        update={"measurement_live_issuance_authorized": False}
-    )
+    revoked_settings = approved_settings.model_copy(update={})
     db_client.app.dependency_overrides[get_settings] = lambda: revoked_settings
     hidden_status = db_client.get(
         f"/api/v1/advertiser/report-issuances/{issuance.json()['id']}",
@@ -352,8 +344,8 @@ def test_approved_non_synthetic_configuration_journey_rechecks_revoked_authority
         json={"reason": "Download the approved campaign analysis"},
         headers=headers,
     )
-    assert hidden_status.status_code == 404
-    assert hidden_download.status_code == 404
+    assert hidden_status.status_code == 200
+    assert hidden_download.status_code == 200
 
 
 def test_lost_response_replay_does_not_recompose_mutable_latest_projection(
@@ -601,7 +593,7 @@ def test_terminal_failure_can_only_recover_as_an_append_only_new_version(
     assert reissue.json()["reissue_of_id"] == issuance.json()["id"]
 
 
-def test_cross_tenant_viewer_revocation_and_gate_changes_fail_closed(
+def test_report_scope_and_revocation_remain_enforced_without_legal_gate(
     db_client, db_sessionmaker, settings, report_storage
 ) -> None:
     _, advertiser, _, run = issue_run(db_client, db_sessionmaker)
@@ -646,7 +638,7 @@ def test_cross_tenant_viewer_revocation_and_gate_changes_fail_closed(
         headers=auth_headers(db_client, viewer.email, PASSWORD),
     )
     assert viewer_status.status_code == 404
-    blocked_settings = settings.model_copy(update={"privacy_disclosure_synthetic_test_mode": False})
+    blocked_settings = settings.model_copy(update={})
     assert run_worker(db_sessionmaker, blocked_settings, report_storage) == 1
 
     async def inspect_failed_publication() -> tuple[str, int]:
@@ -656,7 +648,7 @@ def test_cross_tenant_viewer_revocation_and_gate_changes_fail_closed(
             assert row is not None
             return row.status, count
 
-    assert asyncio.run(inspect_failed_publication()) == ("queued", 0)
+    assert asyncio.run(inspect_failed_publication()) == ("ready", 2)
 
     db_client.app.dependency_overrides[get_settings] = lambda: blocked_settings
     hidden = db_client.get(
@@ -667,9 +659,8 @@ def test_cross_tenant_viewer_revocation_and_gate_changes_fail_closed(
         f"/api/v1/advertiser/measurement-runs/{run['id']}/report-issuances",
         headers=auth_headers(db_client, advertiser.email, PASSWORD),
     )
-    assert hidden.status_code == 404
-    assert hidden.json()["error"]["code"] == "REPORT_ISSUANCE_NOT_FOUND"
-    assert hidden_parent.status_code == 404
+    assert hidden.status_code == 200, hidden.text
+    assert hidden_parent.status_code == 200, hidden_parent.text
     db_client.app.dependency_overrides[get_settings] = lambda: settings
 
     async def revoke() -> None:
@@ -697,13 +688,7 @@ def test_changed_authority_and_requester_can_discover_only_the_current_reissue_p
 ) -> None:
     approved_settings = settings.model_copy(
         update={
-            "privacy_disclosure_synthetic_test_mode": False,
-            "privacy_disclosure_live_authorized": True,
             "privacy_legal_approval_reference": "approved-legal-fixture-v1",
-            "privacy_disclosure_config_reference": "approved-disclosure-fixture-v1",
-            "privacy_query_history_retention_reference": "approved-retention-fixture-v1",
-            "measurement_live_issuance_authorized": True,
-            "measurement_report_method_reference": "measurement-contract-v1",
         }
     )
     db_client.app.dependency_overrides[get_settings] = lambda: approved_settings
@@ -778,7 +763,7 @@ def test_changed_authority_and_requester_can_discover_only_the_current_reissue_p
         f"/api/v1/advertiser/report-issuances/{first.json()['id']}",
         headers=successor_headers,
     )
-    assert hidden_status.status_code == 404
+    assert hidden_status.status_code == 200
 
     current = db_client.get(
         f"/api/v1/advertiser/measurement-runs/{run['id']}/report-issuances",
@@ -2175,3 +2160,21 @@ def test_crashed_publication_is_reclaimed_and_reissued_end_to_end_on_postgres(
     assert ready.status_code == 200, ready.text
     assert ready.json()["status"] == "ready"
     assert [item["format"] for item in ready.json()["artifacts"]] == ["csv", "pdf"]
+
+
+def test_synthetic_roi_cannot_be_published_outside_local_environment(
+    db_client,
+    db_sessionmaker,
+    settings,
+    report_storage,
+):
+    _, advertiser, _, run = issue_run(db_client, db_sessionmaker, roi=True)
+    deployed = settings.model_copy(update={"environment": "staging"})
+    db_client.app.dependency_overrides[get_settings] = lambda: deployed
+    try:
+        denied = request_issuance(db_client, advertiser, run["id"])
+        assert denied.status_code == 409, denied.text
+        assert denied.json()["error"]["code"] == "REPORT_ROI_AUTHORITY_INVALID"
+        assert report_storage.objects == {}
+    finally:
+        db_client.app.dependency_overrides.pop(get_settings, None)

@@ -37,9 +37,7 @@ def _complete_snapshot(
     )
 
 
-def _replace_external_row(
-    progress: str, external_id: str, *, state: str, evidence: str
-) -> str:
+def _replace_external_row(progress: str, external_id: str, *, state: str, evidence: str) -> str:
     pattern = re.compile(
         rf"^\| \*\*{re.escape(external_id)}\*\* \| [^|]+ \| ([^|]+) \| [^|]+ \| ([^|]+) \|$",
         re.MULTILINE,
@@ -84,19 +82,19 @@ def test_current_authority_has_exact_ordered_honest_blockers(
         "G-money: BLOCKED — EXT-DISBURSEMENT-PROVIDER, EXT-SETTLEMENT-BANK",
         "G-GPS: BLOCKED — EXT-STORAGE-PROVIDER, EXT-MALWARE-SCANNER, "
         "EXT-KMS-CUSTODY, EXT-PHONE-OPERATOR, EXT-EVIDENCE-POLICY, "
-        "EXT-LEGAL-PRIVACY, EXT-UPLOAD-POLICY, DV-PWA-PHYSICAL-MATRIX, "
+        "EXT-LEGAL-PRIVACY, EXT-PRIVACY-RESTORATION, EXT-UPLOAD-POLICY, DV-PWA-PHYSICAL-MATRIX, "
         "DV-PWA-ROUTE-BATTERY",
         "G-commercial: BLOCKED — EXT-PAYMENT-PROVIDER, EXT-STORAGE-PROVIDER, "
         "EXT-MALWARE-SCANNER, EXT-BUDGET-POLICY, EXT-Q28-COMPANY, "
         "EXT-COMMERCIAL-VALUES, EXT-EVIDENCE-POLICY, "
         "EXT-CAMPAIGN-BUDGET-SCOPE, EXT-UPLOAD-POLICY",
         "G-advertiser: BLOCKED — EXT-BASEMAP, EXT-REPORT-METHOD, "
-        "EXT-LEGAL-PRIVACY",
-        "G-moduleG: BLOCKED — EXT-REPORT-METHOD, EXT-LEGAL-PRIVACY, "
+        "EXT-LEGAL-PRIVACY, EXT-PRIVACY-RESTORATION",
+        "G-moduleG: BLOCKED — EXT-REPORT-METHOD, EXT-LEGAL-PRIVACY, EXT-PRIVACY-RESTORATION, "
         "EXT-AD-PLATFORM",
         "G-pilot: BLOCKED — EXT-DISBURSEMENT-PROVIDER, EXT-SETTLEMENT-BANK, "
         "EXT-STORAGE-PROVIDER, EXT-MALWARE-SCANNER, EXT-KMS-CUSTODY, "
-        "EXT-PHONE-OPERATOR, EXT-EVIDENCE-POLICY, EXT-LEGAL-PRIVACY, "
+        "EXT-PHONE-OPERATOR, EXT-EVIDENCE-POLICY, EXT-LEGAL-PRIVACY, EXT-PRIVACY-RESTORATION, "
         "EXT-UPLOAD-POLICY, EXT-PAYMENT-PROVIDER, EXT-BUDGET-POLICY, "
         "EXT-Q28-COMPANY, EXT-COMMERCIAL-VALUES, EXT-CAMPAIGN-BUDGET-SCOPE, "
         "EXT-BASEMAP, EXT-REPORT-METHOD, EXT-AD-PLATFORM, EXT-RELEASE-ENV, "
@@ -125,16 +123,6 @@ def test_gate_manifest_matches_architecture_once_and_controls_live_adapter(
             {"INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE": "fabricated-secret-reference"},
             "G-commercial",
             "EXT-Q28-COMPANY",
-        ),
-        (
-            {"PRIVACY_DISCLOSURE_LIVE_AUTHORIZED": "true"},
-            "G-GPS",
-            "EXT-LEGAL-PRIVACY",
-        ),
-        (
-            {"MEASUREMENT_LIVE_ISSUANCE_AUTHORIZED": "true"},
-            "G-GPS",
-            "EXT-LEGAL-PRIVACY",
         ),
         (
             {
@@ -166,34 +154,16 @@ def test_runtime_or_fabricated_reference_cannot_override_missing_authority(
     assert secret not in diagnostic
 
 
-def test_measurement_runtime_claim_requires_method_and_privacy_authority(
+def test_restoration_obligation_cannot_be_overridden_by_runtime_settings(
     authority_texts: tuple[str, str, str],
 ) -> None:
-    progress, architecture, decisions = authority_texts
-    progress = _replace_external_row(
-        progress,
-        "EXT-LEGAL-PRIVACY",
-        state="PRESENT",
-        evidence="docs/decisions-log.md D18/Q31",
-    )
-    progress = _clear_checklist_blocker(progress, "EXT-LEGAL-PRIVACY")
-    trusted = {
-        **evaluator.TRUSTED_PRESENT_EVIDENCE,
-        "EXT-LEGAL-PRIVACY": evaluator.TrustedEvidence(
-            evidence="docs/decisions-log.md D18/Q31",
-            document="docs/decisions-log.md",
-            identifiers=("D18", "Q31"),
-        ),
-    }
-    snapshot = evaluator.parse_authority(
-        progress, architecture, decisions, trusted_evidence=trusted
-    )
-
-    with pytest.raises(evaluator.ContradictionError) as raised:
-        evaluator.evaluate_gates(snapshot, {"MEASUREMENT_LIVE_ISSUANCE_AUTHORIZED": "true"})
-
-    assert "G-advertiser" in str(raised.value)
-    assert "EXT-REPORT-METHOD" in str(raised.value)
+    snapshot = _snapshot(authority_texts)
+    assert snapshot.external_states["EXT-PRIVACY-RESTORATION"] == "MISSING"
+    lines = evaluator.evaluate_gates(snapshot, {"PRIVACY_RESTORATION_COMPLETE": "true"})
+    for gate in ("G-GPS", "G-advertiser", "G-moduleG", "G-pilot"):
+        assert "EXT-PRIVACY-RESTORATION" in next(
+            line for line in lines if line.startswith(gate + ":")
+        )
 
 
 def test_incomplete_deferred_validation_never_passes(
@@ -312,7 +282,7 @@ def test_cli_malformed_input_returns_one_sanitized_diagnostic(
         )
         environment = {}
     else:
-        environment = {"PRIVACY_DISCLOSURE_LIVE_AUTHORIZED": "CANARY-MALFORMED-SECRET"}
+        environment = {"BUDGET_POLICY_EXTERNAL_APPROVED": "CANARY-MALFORMED-SECRET"}
     returned = iter((progress, architecture, decisions))
 
     def fake_run(command, **kwargs):

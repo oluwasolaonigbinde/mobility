@@ -361,8 +361,6 @@ def _runtime_settings(
         update={
             "database_url": environment.database_url,
             "redis_url": environment.redis_url,
-            "privacy_disclosure_synthetic_test_mode": True,
-            "privacy_collection_synthetic_test_mode": True,
             "privacy_min_vehicles_per_cell": 1,
             "privacy_min_trips_per_cell": 1,
             "privacy_min_days_per_cell": 1,

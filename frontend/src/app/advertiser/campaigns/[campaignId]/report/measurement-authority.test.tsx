@@ -248,7 +248,7 @@ describe("frozen measurement authority", () => {
     expect(screen.queryByText(/ROI/i)).not.toBeInTheDocument();
   });
 
-  it("renders a test-only ROI section only for a fully consistent included result", () => {
+  it("renders ROI only for a fully consistent included result without internal labels", () => {
     const authority = validateMeasurementAuthority(reportFixture({ roi: true }));
     expect(authority.ok).toBe(true);
 
@@ -256,7 +256,7 @@ describe("frozen measurement authority", () => {
 
     expect(screen.getByText("Return on investment")).toBeInTheDocument();
     expect(screen.getByText("100%")).toBeInTheDocument();
-    expect(screen.getByText(/synthetic test-only result/i)).toBeInTheDocument();
+    expect(screen.queryByText(/synthetic test-only result/i)).not.toBeInTheDocument();
     expect(screen.getByText("Synthetic campaign conversion rule.")).toBeInTheDocument();
     expect(screen.getByText("SYNTHETIC_TEST_ONLY conversion fixture")).toBeInTheDocument();
     expect(

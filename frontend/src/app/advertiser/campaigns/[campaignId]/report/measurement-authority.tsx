@@ -250,19 +250,12 @@ export function MeasurementAuthorityPanel({ authority }: { authority: Measuremen
         <div className="border-edge mt-5 border-t pt-5" aria-label="Conditional financial result">
           <div className="flex flex-wrap items-center gap-3">
             <h3 className="font-medium">{projection.roi.label}</h3>
-            {authority.testOnlyRoi ? (
-              <StatusChip tone="amber">synthetic test-only result</StatusChip>
-            ) : null}
           </div>
           <p className="mt-2 text-2xl font-semibold">{exactFrozenValue(projection.roi.percent)}%</p>
           <p className="micro text-faint mt-1 font-mono">
             {projection.roi.currency} · method {projection.roi.method_revision}
           </p>
           <dl className="text-muted mt-3 grid gap-2 text-xs md:grid-cols-2">
-            <div>
-              <dt className="font-medium">Approval</dt>
-              <dd>{projection.roi.method.approval_reference}</dd>
-            </div>
             <div>
               <dt className="font-medium">Attribution rule</dt>
               <dd>{projection.roi.method.attribution_rule}</dd>
@@ -308,13 +301,9 @@ export function MeasurementAuthorityPanel({ authority }: { authority: Measuremen
 }
 
 const stateCopy: Record<string, { title: string; body: string }> = {
-  SAFE_MEASUREMENT_RUN_REQUIRED: {
-    title: "No report is available yet",
-    body: "Campaign results appear here once Terrax Media issues a verified report for this campaign.",
-  },
-  PRIVACY_LIVE_USE_BLOCKED: {
-    title: "Campaign results aren't switched on yet",
-    body: "Results, maps and reports become available once privacy approval for campaign results is complete.",
+  CAMPAIGN_REPORT_PENDING: {
+    title: "Your campaign report is being prepared",
+    body: "Check back here for your campaign results.",
   },
   ZONE_PROJECTION_UNAVAILABLE: {
     title: "The area map isn't available for this report",
@@ -323,10 +312,6 @@ const stateCopy: Record<string, { title: string; body: string }> = {
   ZONE_PROJECTION_INTEGRITY_FAILURE: {
     title: "The area map doesn't match this report",
     body: "No map is shown because the area data doesn't match the issued report. Terrax Media needs to reissue the analysis.",
-  },
-  MEASUREMENT_LIVE_ISSUANCE_BLOCKED: {
-    title: "Live analysis is unavailable",
-    body: "Live campaign results can't be shown because the reporting method has not been approved for live use.",
   },
   MEASUREMENT_RUN_INTEGRITY_FAILURE: {
     title: "This report failed its integrity check",

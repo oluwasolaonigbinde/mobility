@@ -6,7 +6,6 @@ import pytest
 from conftest import auth_headers
 from sqlalchemy import func, select, update
 from test_exposure_segments import PASSWORD, _create_link_and_run
-from test_measurement_runs import issue_payload
 
 from app.adapters.ad_platforms import (
     AdPlatformActivationRequest,
@@ -35,9 +34,7 @@ from app.services.audience_delivery import (
 
 
 def _issued_segment(db_client, db_sessionmaker, settings):
-    advertiser, other, link_id, run_id = _create_link_and_run(
-        db_client, db_sessionmaker
-    )
+    advertiser, other, link_id, run_id = _create_link_and_run(db_client, db_sessionmaker)
 
     async def issue() -> tuple[UUID, User]:
         async with db_sessionmaker() as session:
@@ -59,16 +56,6 @@ def _issued_segment(db_client, db_sessionmaker, settings):
 
 
 def _approval_payload(operation: str) -> dict:
-    if operation == "csv_export":
-        return {
-            "operation": operation,
-            "purpose_code": "aggregate_campaign_planning",
-            "provider": "controlled-csv-v1",
-            "provider_account_reference": None,
-            "budget_ceiling": None,
-            "legal_approval_reference": "synthetic-test-privacy-approval",
-            "valid_until": (datetime.now(UTC) + timedelta(days=1)).isoformat(),
-        }
     return {
         "operation": operation,
         "purpose_code": "aggregate_contextual_activation",
@@ -116,9 +103,7 @@ def test_ad_platform_adapters_preserve_disabled_and_synthetic_behavior() -> None
         False,
         False,
     )
-    with pytest.raises(
-        RuntimeError, match="disabled ad-platform adapter cannot be invoked"
-    ):
+    with pytest.raises(RuntimeError, match="disabled ad-platform adapter cannot be invoked"):
         asyncio.run(disabled.activate(request))
 
     fake = FakeAdPlatformAdapter()
@@ -133,20 +118,7 @@ def test_recommendations_export_and_unsafe_payload_rejection_api(
     advertiser, other, admin, link_id, run_id, segment_id = _issued_segment(
         db_client, db_sessionmaker, settings
     )
-    approval_id = _approve_delivery(db_client, admin, segment_id, "csv_export")
     headers = auth_headers(db_client, advertiser.email, PASSWORD)
-
-    async def assert_approval_audit_identity() -> None:
-        async with db_sessionmaker() as session:
-            event = await session.scalar(
-                select(AuditEvent).where(
-                    AuditEvent.entity_id == str(approval_id),
-                    AuditEvent.action == "audience_delivery.approved",
-                )
-            )
-            assert event is not None
-
-    asyncio.run(assert_approval_audit_identity())
 
     recommendations = db_client.get(
         f"/api/v1/advertiser/retargeting-source-links/{link_id}/recommendations",
@@ -155,16 +127,12 @@ def test_recommendations_export_and_unsafe_payload_rejection_api(
     assert recommendations.status_code == 200, recommendations.text
     assert recommendations.json()["state"] == "ready"
     assert recommendations.json()["segment_id"] == str(segment_id)
-    assert recommendations.json()["export_approval_id"] == str(approval_id)
+    assert "export_approval_id" not in recommendations.json()
     assert recommendations.json()["recommendations"][0] == {
         "rank": 1,
         "coverage_cell": "grid-50m:0:0",
-        "window_start_at": recommendations.json()["recommendations"][0][
-            "window_start_at"
-        ],
-        "window_end_at": recommendations.json()["recommendations"][0][
-            "window_end_at"
-        ],
+        "window_start_at": recommendations.json()["recommendations"][0]["window_start_at"],
+        "window_end_at": recommendations.json()["recommendations"][0]["window_end_at"],
         "campaign_context": "vehicle_transit",
         "rationale": (
             "Prioritize this aggregate cell and time window because it has the strongest "
@@ -185,14 +153,14 @@ def test_recommendations_export_and_unsafe_payload_rejection_api(
         f"/api/v1/advertiser/exposure-segments/{segment_id}/exports",
         headers=auth_headers(db_client, other.email, PASSWORD)
         | {"Idempotency-Key": "cross-tenant-export"},
-        json={"approval_id": str(approval_id)},
+        json={},
     )
     assert isolated_export.status_code == 404
 
     rejected = db_client.post(
         f"/api/v1/advertiser/exposure-segments/{segment_id}/exports",
         headers=headers | {"Idempotency-Key": f"unsafe-{uuid4()}"},
-        json={"approval_id": str(approval_id), "driver_id": str(uuid4())},
+        json={"driver_id": str(uuid4())},
     )
     assert rejected.status_code == 422, rejected.text
 
@@ -201,14 +169,8 @@ def test_recommendations_export_and_unsafe_payload_rejection_api(
         headers=headers | {"Idempotency-Key": "stable-export"},
         json={},
     )
-    assert exported.status_code == 422, exported.text
-    exported = db_client.post(
-        f"/api/v1/advertiser/exposure-segments/{segment_id}/exports",
-        headers=headers | {"Idempotency-Key": "stable-export"},
-        json={"approval_id": str(approval_id)},
-    )
     assert exported.status_code == 201, exported.text
-    assert exported.json()["approval_id"] == str(approval_id)
+    assert "approval_id" not in exported.json()
     assert exported.json()["csv_sha256"]
     csv_content = exported.json()["csv_content"]
     assert csv_content.splitlines()[0] == (
@@ -231,7 +193,7 @@ def test_recommendations_export_and_unsafe_payload_rejection_api(
     replay = db_client.post(
         f"/api/v1/advertiser/exposure-segments/{segment_id}/exports",
         headers=headers | {"Idempotency-Key": "stable-export"},
-        json={"approval_id": str(approval_id)},
+        json={},
     )
     assert replay.status_code == 201
     assert replay.json() == exported.json()
@@ -245,12 +207,8 @@ def test_recommendations_export_and_unsafe_payload_rejection_api(
     asyncio.run(assert_synthetic_receipt())
 
 
-def test_empty_and_suppressed_recommendation_states(
-    db_client, db_sessionmaker, settings
-) -> None:
-    advertiser, _other, link_id, run_id = _create_link_and_run(
-        db_client, db_sessionmaker
-    )
+def test_empty_and_suppressed_recommendation_states(db_client, db_sessionmaker, settings) -> None:
+    advertiser, _other, link_id, run_id = _create_link_and_run(db_client, db_sessionmaker)
     headers = auth_headers(db_client, advertiser.email, PASSWORD)
     empty = db_client.get(
         f"/api/v1/advertiser/retargeting-source-links/{link_id}/recommendations",
@@ -296,7 +254,6 @@ def test_empty_and_suppressed_recommendation_states(
                     settings=raised,
                     actor_user_id=advertiser.id,
                     segment_id=segment_id,
-                    approval_id=uuid4(),
                     idempotency_key="suppressed-export",
                 )
             assert error.value.code == "AUDIENCE_AGGREGATE_SUPPRESSED"
@@ -381,15 +338,14 @@ def test_stale_recommendations_redact_cells_and_governed_provenance(
             "recommendations": [],
             "provenance": None,
             "disclaimer": response.json()["disclaimer"],
-                "uncertainty": None,
-                "export_approval_id": None,
-            }
+            "uncertainty": None,
+        }
 
     export = db_client.post(
         f"/api/v1/advertiser/exposure-segments/{segment_id}/exports",
         headers=auth_headers(db_client, advertiser.email, PASSWORD)
         | {"Idempotency-Key": f"stale-export-{parent_cause}"},
-        json={"approval_id": str(uuid4())},
+        json={},
     )
     activation = db_client.post(
         f"/api/v1/admin/exposure-segments/{segment_id}/activations",
@@ -408,9 +364,7 @@ def test_current_disclosure_floor_is_rechecked_before_output(
     advertiser, _other, _admin, link_id, _run_id, segment_id = _issued_segment(
         db_client, db_sessionmaker, settings
     )
-    raised_floor = settings.model_copy(
-        update={"privacy_min_vehicles_per_cell": 5}
-    )
+    raised_floor = settings.model_copy(update={"privacy_min_vehicles_per_cell": 5})
 
     async def scenario() -> None:
         async with db_sessionmaker() as session:
@@ -429,7 +383,6 @@ def test_current_disclosure_floor_is_rechecked_before_output(
                     settings=raised_floor,
                     actor_user_id=advertiser.id,
                     segment_id=segment_id,
-                    approval_id=uuid4(),
                     idempotency_key="raised-floor",
                 )
             assert blocked.value.code == "EXPOSURE_SEGMENT_GOVERNANCE_STALE"
@@ -449,22 +402,19 @@ def test_delivery_approval_denial_matrix_and_tampered_cells_fail_closed(
     invalid_legal = db_client.post(
         f"/api/v1/admin/exposure-segments/{segment_id}/delivery-approvals",
         headers=admin_headers | {"Idempotency-Key": "invalid-legal"},
-        json=_approval_payload("csv_export")
+        json=_approval_payload("ad_platform_activation")
         | {"legal_approval_reference": "EXT-LEGAL-PRIVACY"},
     )
     assert invalid_legal.status_code == 409
     assert invalid_legal.json()["error"]["code"] == "AUDIENCE_DELIVERY_APPROVAL_INVALID"
 
-    activation_approval = _approve_delivery(
-        db_client, admin, segment_id, "ad_platform_activation"
-    )
+    activation_approval = _approve_delivery(db_client, admin, segment_id, "ad_platform_activation")
     wrong_operation = db_client.post(
         f"/api/v1/advertiser/exposure-segments/{segment_id}/exports",
         headers=advertiser_headers | {"Idempotency-Key": "wrong-operation"},
         json={"approval_id": str(activation_approval)},
     )
-    assert wrong_operation.status_code == 409
-    assert wrong_operation.json()["error"]["code"] == "AUDIENCE_DELIVERY_APPROVAL_MISMATCH"
+    assert wrong_operation.status_code == 422
 
     wrong_provider_payload = _approval_payload("ad_platform_activation") | {
         "provider": "different-synthetic-adapter"
@@ -489,7 +439,7 @@ def test_delivery_approval_denial_matrix_and_tampered_cells_fail_closed(
     finally:
         db_client.app.dependency_overrides.pop(get_ad_platform_adapter, None)
 
-    expired_approval = _approve_delivery(db_client, admin, segment_id, "csv_export")
+    expired_approval = _approve_delivery(db_client, admin, segment_id, "ad_platform_activation")
 
     async def expire_and_tamper() -> None:
         async with db_sessionmaker() as session:
@@ -505,15 +455,15 @@ def test_delivery_approval_denial_matrix_and_tampered_cells_fail_closed(
             await session.commit()
 
     asyncio.run(expire_and_tamper())
+    db_client.app.dependency_overrides[get_ad_platform_adapter] = lambda: fake
     expired = db_client.post(
-        f"/api/v1/advertiser/exposure-segments/{segment_id}/exports",
-        headers=advertiser_headers | {"Idempotency-Key": "expired-approval"},
+        f"/api/v1/admin/exposure-segments/{segment_id}/activations",
+        headers=admin_headers | {"Idempotency-Key": "expired-approval"},
         json={"approval_id": str(expired_approval)},
     )
+    db_client.app.dependency_overrides.pop(get_ad_platform_adapter, None)
     assert expired.status_code == 409
     assert expired.json()["error"]["code"] == "AUDIENCE_DELIVERY_APPROVAL_MISMATCH"
-
-    current_approval = _approve_delivery(db_client, admin, segment_id, "csv_export")
 
     async def tamper_cell() -> None:
         async with db_sessionmaker() as session:
@@ -528,50 +478,10 @@ def test_delivery_approval_denial_matrix_and_tampered_cells_fail_closed(
     tampered = db_client.post(
         f"/api/v1/advertiser/exposure-segments/{segment_id}/exports",
         headers=advertiser_headers | {"Idempotency-Key": "tampered-cell"},
-        json={"approval_id": str(current_approval)},
+        json={},
     )
     assert tampered.status_code == 409
     assert tampered.json()["error"]["code"] == "EXPOSURE_SEGMENT_GOVERNANCE_STALE"
-
-    async def campaign_id() -> UUID:
-        async with db_sessionmaker() as session:
-            run = await session.get(MeasurementRun, run_id)
-            assert run is not None
-            return run.campaign_id
-
-    replacement_run = db_client.post(
-        "/api/v1/admin/measurement-runs",
-        headers=admin_headers,
-        json=issue_payload(asyncio.run(campaign_id())),
-    )
-    assert replacement_run.status_code == 201, replacement_run.text
-
-    async def issue_replacement_segment() -> UUID:
-        async with db_sessionmaker() as session:
-            segment = await materialize_exposure_segment(
-                session,
-                settings=settings,
-                source_link_id=link_id,
-                measurement_run_id=UUID(replacement_run.json()["id"]),
-            )
-            await session.commit()
-            return segment.id
-
-    replacement_segment_id = asyncio.run(issue_replacement_segment())
-    wrong_segment = db_client.post(
-        f"/api/v1/advertiser/exposure-segments/{replacement_segment_id}/exports",
-        headers=advertiser_headers | {"Idempotency-Key": "wrong-segment"},
-        json={"approval_id": str(current_approval)},
-    )
-    assert wrong_segment.status_code == 409
-    assert wrong_segment.json()["error"]["code"] == "AUDIENCE_DELIVERY_APPROVAL_MISMATCH"
-
-    async def assert_no_delivery_side_effects() -> None:
-        async with db_sessionmaker() as session:
-            count = await session.scalar(select(func.count()).select_from(AudienceDelivery))
-            assert count == 0
-
-    asyncio.run(assert_no_delivery_side_effects())
 
 
 class TrapLiveAdapter:
@@ -594,9 +504,7 @@ def test_activation_rejects_payloads_retries_and_fails_closed_before_adapter(
         db_client, db_sessionmaker, settings
     )
     admin_headers = auth_headers(db_client, admin.email, PASSWORD)
-    approval_id = _approve_delivery(
-        db_client, admin, segment_id, "ad_platform_activation"
-    )
+    approval_id = _approve_delivery(db_client, admin, segment_id, "ad_platform_activation")
     fake = FakeAdPlatformAdapter()
     db_client.app.dependency_overrides[get_ad_platform_adapter] = lambda: fake
     try:
@@ -614,8 +522,7 @@ def test_activation_rejects_payloads_retries_and_fails_closed_before_adapter(
         ):
             rejected = db_client.post(
                 f"/api/v1/admin/exposure-segments/{segment_id}/activations",
-                headers=admin_headers
-                | {"Idempotency-Key": f"unsafe-activation-{field}"},
+                headers=admin_headers | {"Idempotency-Key": f"unsafe-activation-{field}"},
                 json={"approval_id": str(approval_id), field: str(uuid4())},
             )
             assert rejected.status_code == 422, rejected.text
@@ -663,16 +570,13 @@ def test_activation_rejects_payloads_retries_and_fails_closed_before_adapter(
 
         async def assert_audit() -> None:
             async with db_sessionmaker() as session:
-                delivery = await session.get(
-                    AudienceDelivery, UUID(activated.json()["id"])
-                )
+                delivery = await session.get(AudienceDelivery, UUID(activated.json()["id"]))
                 assert delivery is not None
                 assert delivery.status == "completed"
                 event = await session.scalar(
                     select(AuditEvent).where(
                         AuditEvent.entity_id == str(delivery.id),
-                        AuditEvent.action
-                        == "audience_segment.activation_submitted",
+                        AuditEvent.action == "audience_segment.activation_submitted",
                     )
                 )
                 assert event is not None
@@ -713,12 +617,8 @@ def test_changed_approval_reuse_conflicts_without_invoking_adapter(
     _advertiser, _other, admin, _link_id, _run_id, segment_id = _issued_segment(
         db_client, db_sessionmaker, settings
     )
-    first_approval_id = _approve_delivery(
-        db_client, admin, segment_id, "ad_platform_activation"
-    )
-    second_approval_id = _approve_delivery(
-        db_client, admin, segment_id, "ad_platform_activation"
-    )
+    first_approval_id = _approve_delivery(db_client, admin, segment_id, "ad_platform_activation")
+    second_approval_id = _approve_delivery(db_client, admin, segment_id, "ad_platform_activation")
     fake = FakeAdPlatformAdapter()
 
     async def scenario() -> None:
@@ -756,9 +656,7 @@ def test_concurrent_activation_converges_once_on_postgres(
     _advertiser, _other, admin, _link_id, _run_id, segment_id = _issued_segment(
         postgis_db_client, postgis_db_sessionmaker, settings
     )
-    approval_id = _approve_delivery(
-        postgis_db_client, admin, segment_id, "ad_platform_activation"
-    )
+    approval_id = _approve_delivery(postgis_db_client, admin, segment_id, "ad_platform_activation")
     fake = FakeAdPlatformAdapter()
 
     async def activate_once() -> UUID:
@@ -780,11 +678,9 @@ def test_concurrent_activation_converges_once_on_postgres(
         assert first == second
         assert len(fake.calls) == 1
         async with postgis_db_sessionmaker() as session:
-            assert int(
-                await session.scalar(
-                    select(func.count()).select_from(AudienceDelivery)
-                )
-                or 0
-            ) == 1
+            assert (
+                int(await session.scalar(select(func.count()).select_from(AudienceDelivery)) or 0)
+                == 1
+            )
 
     asyncio.run(scenario())

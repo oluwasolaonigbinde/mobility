@@ -7,10 +7,23 @@ import sys
 import pytest
 from test_measurement_runs import create_measurement_graph
 
+from scripts import evaluate_pilot_gates
 from scripts import run_w403b_synthetic_journey as journey
 
 
-def test_stage_contract_and_current_committed_blockers_are_exact() -> None:
+def reviewed_evaluator(*, environment):
+    # Supply the reviewed source snapshot while preserving the command's HEAD-only
+    # read contract; this verifies the integrated change before its first commit.
+    def read_authority(command, **kwargs):
+        assert command[:2] == ["git", "show"]
+        assert command[2].startswith("HEAD:")
+        path = journey.ROOT / command[2].removeprefix("HEAD:")
+        return subprocess.CompletedProcess(command, 0, path.read_text(encoding="utf-8"), "")
+
+    return evaluate_pilot_gates.main(environment=environment, runner=read_authority)
+
+
+def test_stage_contract_and_reviewed_blockers_are_exact() -> None:
     assert journey.STAGES == (
         "advertiser",
         "admin",
@@ -23,7 +36,10 @@ def test_stage_contract_and_current_committed_blockers_are_exact() -> None:
         "payout instruction",
         "incident/recovery",
     )
-    assert journey.evaluate_live_boundaries({}) == journey.EXPECTED_BLOCKERS
+    assert (
+        journey.evaluate_live_boundaries({}, evaluator=reviewed_evaluator)
+        == journey.EXPECTED_BLOCKERS
+    )
 
 
 def test_shared_measurement_fixture_preserves_legacy_defaults() -> None:
@@ -39,10 +55,9 @@ def test_fabricated_runtime_approval_fails_the_real_command_boundary() -> None:
     with pytest.raises(journey.JourneyError):
         journey.evaluate_live_boundaries(
             {
-                "PRIVACY_DISCLOSURE_LIVE_AUTHORIZED": "true",
-                "MEASUREMENT_LIVE_ISSUANCE_AUTHORIZED": "true",
                 "INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE": "fabricated-runtime-approval",
-            }
+            },
+            evaluator=reviewed_evaluator,
         )
 
 

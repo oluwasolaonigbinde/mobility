@@ -14,6 +14,7 @@ from uuid import UUID, uuid5
 import pytest
 from conftest import auth_headers, create_test_organization, create_test_user
 from sqlalchemy import func, select
+from test_heatmaps import add_ping_batch
 from test_measurement_runs import DAY_1, PASSWORD, create_measurement_graph, issue_payload
 from test_retargeting_source_links import source_payload
 
@@ -272,7 +273,11 @@ async def _receipt(
         )
 
 
-def test_correlated_synthetic_pilot_journey(db_client, db_sessionmaker, settings) -> None:
+def test_correlated_synthetic_pilot_journey(
+    postgis_db_client, postgis_db_sessionmaker, settings
+) -> None:
+    db_client = postgis_db_client
+    db_sessionmaker = postgis_db_sessionmaker
     completed: list[str] = []
     admin, advertiser, campaign = create_measurement_graph(
         db_sessionmaker,
@@ -290,6 +295,21 @@ def test_correlated_synthetic_pilot_journey(db_client, db_sessionmaker, settings
     completed.append("admin")
 
     zone_id = asyncio.run(_add_abuja_zone(db_sessionmaker, campaign.id, advertiser.id))
+
+    async def report_trip_id() -> UUID:
+        async with db_sessionmaker() as session:
+            trip_id = await session.scalar(
+                select(TripSession.id).where(TripSession.campaign_id == campaign.id)
+            )
+            assert trip_id is not None
+            return trip_id
+
+    add_ping_batch(
+        db_sessionmaker,
+        trip_id=asyncio.run(report_trip_id()),
+        points=[(DAY_1 + timedelta(minutes=10), 9.08, 7.40)],
+        idempotency_key=f"{CORRELATION_ID}-report-authority",
+    )
     advertiser_headers = auth_headers(db_client, advertiser.email, PASSWORD)
     source = db_client.post(
         "/api/v1/advertiser/retargeting-sources",
@@ -493,8 +513,6 @@ def test_correlated_synthetic_pilot_journey(db_client, db_sessionmaker, settings
     forged = dict(os.environ)
     forged.update(
         {
-            "PRIVACY_DISCLOSURE_LIVE_AUTHORIZED": "true",
-            "MEASUREMENT_LIVE_ISSUANCE_AUTHORIZED": "true",
             "INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE": "fabricated-runtime-approval",
         }
     )

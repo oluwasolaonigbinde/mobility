@@ -41,7 +41,6 @@ from app.services.audience import (
     _cell_snapshot,
     _derive_authoritative_cells,
     _link_access,
-    _privacy_gate,
     exposure_segment_is_stale,
 )
 from app.services.audit import create_audit_event
@@ -153,11 +152,10 @@ async def create_audience_delivery_approval(
     synthetic = segment.synthetic
     legal_reference = payload.legal_approval_reference.strip()
     if synthetic:
-        if (
-            settings.environment not in {"test", "testing"}
-            or not settings.privacy_disclosure_synthetic_test_mode
-            or not legal_reference.lower().startswith("synthetic-test-")
-        ):
+        if settings.environment not in {
+            "test",
+            "testing",
+        } or not legal_reference.lower().startswith("synthetic-test-"):
             raise AppError(
                 "AUDIENCE_DELIVERY_APPROVAL_INVALID",
                 "Synthetic approval authority is restricted to explicit test mode",
@@ -314,16 +312,11 @@ def _approval_matches_segment(
     provider: str,
     now: datetime,
 ) -> bool:
-    purpose_code = (
-        "aggregate_campaign_planning"
-        if operation == "csv_export"
-        else "aggregate_contextual_activation"
-    )
+    purpose_code = "aggregate_contextual_activation"
     legal_authority_matches = (
         approval.synthetic
         and segment.synthetic
         and settings.environment in {"test", "testing"}
-        and settings.privacy_disclosure_synthetic_test_mode
         and approval.legal_approval_reference.lower().startswith("synthetic-test-")
     ) or (
         not approval.synthetic
@@ -377,7 +370,6 @@ async def _segment_access(
     write: bool,
     admin: bool,
 ) -> tuple[ExposureSegment, RetargetingSourceLink]:
-    await _privacy_gate(settings)
     organization_id: UUID | None = None
     if admin:
         await require_active_admin(session, actor_user_id)
@@ -594,38 +586,6 @@ def _provenance(segment: ExposureSegment) -> RecommendationProvenance:
     )
 
 
-async def _current_export_approval_id(
-    session: AsyncSession, *, settings: Settings, segment: ExposureSegment
-) -> UUID | None:
-    now = await database_clock(session)
-    approvals = list(
-        await session.scalars(
-            select(AudienceDeliveryApproval)
-            .where(
-                AudienceDeliveryApproval.segment_id == segment.id,
-                AudienceDeliveryApproval.operation == "csv_export",
-                AudienceDeliveryApproval.valid_from <= now,
-                AudienceDeliveryApproval.valid_until > now,
-            )
-            .order_by(
-                AudienceDeliveryApproval.created_at.desc(),
-                AudienceDeliveryApproval.id.desc(),
-            )
-        )
-    )
-    for approval in approvals:
-        if _approval_matches_segment(
-            approval,
-            settings=settings,
-            segment=segment,
-            operation="csv_export",
-            provider="controlled-csv-v1",
-            now=now,
-        ):
-            return approval.id
-    return None
-
-
 async def _recommendations_for_segment(
     session: AsyncSession,
     *,
@@ -663,11 +623,6 @@ async def _recommendations_for_segment(
         ),
     )
     state = "ready" if ranked else "suppressed"
-    export_approval_id = (
-        await _current_export_approval_id(session, settings=settings, segment=segment)
-        if ranked
-        else None
-    )
     if cells:
         await _record_audience_release(
             session,
@@ -700,7 +655,6 @@ async def _recommendations_for_segment(
         provenance=_provenance(segment),
         disclaimer=RECOMMENDATION_DISCLAIMER,
         uncertainty=_measurement_uncertainty(run),
-        export_approval_id=export_approval_id,
     )
 
 
@@ -877,7 +831,6 @@ async def export_exposure_segment(
     settings: Settings,
     actor_user_id: UUID,
     segment_id: UUID,
-    approval_id: UUID,
     idempotency_key: str,
 ) -> AudienceExportRead:
     segment, link = await _segment_access(
@@ -898,20 +851,11 @@ async def export_exposure_segment(
         cells=cells,
         commit_served=False,
     )
-    approval = await _require_delivery_approval(
-        session,
-        settings=settings,
-        segment=segment,
-        approval_id=approval_id,
-        operation="csv_export",
-        provider="controlled-csv-v1",
-    )
     payload_dict = payload.model_dump(mode="json")
     payload_sha256 = _canonical_hash(payload_dict)
     request_fingerprint = _canonical_hash(
         {
             "segment_id": str(segment.id),
-            "approval_snapshot_sha256": approval.snapshot_sha256,
             "payload_sha256": payload_sha256,
         }
     )
@@ -933,8 +877,7 @@ async def export_exposure_segment(
             id=replay.id,
             segment_id=replay.segment_id,
             operation="csv_export",
-            approval_id=approval.id,
-            purpose_code=approval.purpose_code,
+            purpose_code="aggregate_campaign_planning",
             payload_sha256=replay.payload_sha256,
             csv_content=replay.result["csv_content"],
             csv_sha256=replay.result["csv_sha256"],
@@ -951,9 +894,6 @@ async def export_exposure_segment(
         organization_id=segment.organization_id,
         campaign_id=segment.campaign_id,
         segment_id=segment.id,
-        approval_id=approval.id,
-        approval_snapshot_sha256=approval.snapshot_sha256,
-        purpose_code=approval.purpose_code,
         actor_user_id=actor_user_id,
         operation="csv_export",
         idempotency_key=idempotency_key,
@@ -977,9 +917,7 @@ async def export_exposure_segment(
             "organization_id": str(segment.organization_id),
             "campaign_id": str(segment.campaign_id),
             "segment_id": str(segment.id),
-            "approval_id": str(approval.id),
-            "approval_snapshot_sha256": approval.snapshot_sha256,
-            "purpose_code": approval.purpose_code,
+            "purpose_code": "aggregate_campaign_planning",
             "payload_sha256": payload_sha256,
         },
     )
@@ -988,8 +926,7 @@ async def export_exposure_segment(
         id=delivery.id,
         segment_id=delivery.segment_id,
         operation="csv_export",
-        approval_id=approval.id,
-        purpose_code=approval.purpose_code,
+        purpose_code="aggregate_campaign_planning",
         payload_sha256=delivery.payload_sha256,
         csv_content=result["csv_content"],
         csv_sha256=result["csv_sha256"],
@@ -1031,7 +968,6 @@ async def activate_exposure_segment(
         not adapter.enabled
         or not adapter.synthetic
         or settings.environment not in {"test", "testing"}
-        or not settings.privacy_disclosure_synthetic_test_mode
     ):
         raise AppError(
             "AD_PLATFORM_LIVE_ACTIVATION_BLOCKED",

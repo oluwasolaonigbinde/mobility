@@ -33,15 +33,13 @@ describe("IssueMeasurementForm", () => {
     issueMeasurement.mockReset();
   });
 
-  it("submits the selected campaign, UTC period and synthetic flag and reports the result", async () => {
+  it("submits the selected campaign, UTC period and reports the result", async () => {
     issueMeasurement.mockResolvedValue({
       done: "Results calculation recorded. Open it to review.",
     });
     const user = userEvent.setup();
     render(<IssueMeasurementForm />);
-    expect(screen.getByText(/does not\s+issue downloads, confirm physical activity/)).toBeTruthy();
     await fillPeriod(user);
-    await user.click(screen.getByRole("checkbox", { name: "Synthetic test data only" }));
     await user.click(screen.getByRole("button", { name: "Prepare results calculation" }));
 
     expect(await screen.findByRole("status")).toHaveTextContent("Results calculation recorded");
@@ -51,7 +49,6 @@ describe("IssueMeasurementForm", () => {
       campaign_id: "44444444-4444-4444-8444-444444444444",
       period_start_at: "2026-09-01T00:00:00Z",
       period_end_at: "2026-10-01T00:00:00Z",
-      test_only: "on",
     });
     expect(sent.client_request_id).toMatch(/^[0-9a-f-]{36}$/);
     expect(screen.queryByRole("alert")).toBeNull();

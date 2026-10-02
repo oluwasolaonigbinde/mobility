@@ -514,7 +514,6 @@ export default async function CampaignHub({
                   >
                     <p>{formatDateRange(run.period_start_at, run.period_end_at)}</p>
                     <p className="text-muted text-sm">
-                      {run.test_only ? "Synthetic test · " : ""}
                       {run.superseded ? "Replaced results · " : ""}
                       {run.reproducible
                         ? "Saved results can be reproduced"

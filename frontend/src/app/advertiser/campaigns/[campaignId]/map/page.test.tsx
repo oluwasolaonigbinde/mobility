@@ -237,7 +237,7 @@ describe("CampaignMapPage", () => {
     render(await CampaignMapPage({ params: Promise.resolve({ campaignId: CAMPAIGN_ID }) }));
 
     expect(governedMap).not.toHaveBeenCalled();
-    expect(screen.getByText("No report is available yet")).toBeInTheDocument();
+    expect(screen.getByText("Your campaign report is being prepared")).toBeInTheDocument();
     expect(screen.queryByText(/integrity check/i)).not.toBeInTheDocument();
   });
 

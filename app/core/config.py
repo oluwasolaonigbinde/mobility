@@ -327,19 +327,10 @@ class Settings(BaseSettings):
     heatmap_max_date_range_days: int = 90
     heatmap_max_cells: int = 5000
     heatmap_min_trips_per_cell: int = 1
-    privacy_disclosure_live_authorized: bool = False
-    privacy_disclosure_synthetic_test_mode: bool = False
-    privacy_collection_live_authorized: bool = False
-    privacy_collection_synthetic_test_mode: bool = False
     privacy_legal_approval_reference: str = ""
-    privacy_disclosure_config_reference: str = ""
-    privacy_query_history_retention_reference: str = ""
     privacy_query_history_retention_days: int = 30
-    # Provider-neutral issuance controls. Production stays denied until an
-    # approved report method is configured; local/test synthetic runs remain
-    # explicitly labelled test-only.
-    measurement_live_issuance_authorized: bool = False
-    measurement_report_method_reference: str = ""
+    # Real ROI requires the approved financial method reference. Synthetic ROI
+    # remains restricted to local/test environments.
     measurement_roi_method_reference: str = ""
     privacy_min_vehicles_per_cell: int = 3
     privacy_min_trips_per_cell: int = 5
@@ -803,7 +794,6 @@ class Settings(BaseSettings):
         return normalized
 
     @field_validator(
-        "measurement_report_method_reference",
         "measurement_roi_method_reference",
     )
     @classmethod
@@ -987,9 +977,9 @@ class Settings(BaseSettings):
                 )
             if environment not in LOCAL_ENVIRONMENTS:
                 public = urlsplit(self.public_origin.strip())
-                if (
-                    not self.public_origin.strip()
-                    or (split.scheme, split.netloc) != (public.scheme, public.netloc)
+                if not self.public_origin.strip() or (split.scheme, split.netloc) != (
+                    public.scheme,
+                    public.netloc,
                 ):
                     raise ValueError(
                         "PAYSTACK_CHECKOUT_RETURN_URL must use the configured PUBLIC_ORIGIN"
@@ -1005,10 +995,6 @@ class Settings(BaseSettings):
             )
         if self.impression_min_confidence > self.impression_max_confidence:
             raise ValueError("IMPRESSION_MIN_CONFIDENCE must not exceed IMPRESSION_MAX_CONFIDENCE")
-        if self.privacy_disclosure_synthetic_test_mode and self.environment.lower() != "test":
-            raise ValueError("PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE requires environment=test")
-        if self.privacy_collection_synthetic_test_mode and self.environment.lower() != "test":
-            raise ValueError("PRIVACY_COLLECTION_SYNTHETIC_TEST_MODE requires environment=test")
         if (
             self.dsr_approved_exception_references
             and self.environment.lower() != "test"

@@ -1144,7 +1144,6 @@ async def advertiser_campaign_impression_summary(
         settings=settings,
         route_id="advertiser.campaign.impressions_summary",
         user_id=user_id,
-        requires_measurement_run=False,
     )
     campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
     await lock_trip_disclosure_snapshot(

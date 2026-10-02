@@ -11,6 +11,8 @@ how an operator uses it.
 
 ## Gate and authority
 
+D56/REQ-072/089 opens built development GPS/ID collection and advertiser results without runtime legal locks; tenant isolation, aggregation limits and query recording remain, and legal/privacy plus advertiser overlap/differencing protections must be restored before real users (`EXT-PRIVACY-RESTORATION`), superseding the runtime-gate wording below without claiming legal approval.
+
 `EXT-LEGAL-PRIVACY` is MISSING. The client has been asked for Q26/Q31 wording,
 the named privacy owner, retention/DSR decisions, and legal approval; no answer
 or evidence has been supplied. The register therefore sets

@@ -422,15 +422,12 @@ key-management service (D44).
 
 ### Legal, privacy and retention
 
-**Current rule:** Terrax Media's legal/compliance adviser approves the privacy
-policy, consent wording and retention (Q31). Live GPS, onboarding documents,
-reports and retargeting stay gated until the legal pack arrives. Retention is
-configurable; the client's "keep old files 6 months" must be reconciled with
-legal retention for KYC and money records (client answers items 11 and 17).
+**Current rule:** Built GPS, ID collection, results and reports are accessible during development without legal approval switches; tenant isolation, aggregation limits and query recording remain, and legal/privacy plus overlap/differencing protections must be restored before real users (D56, REQ-072/089).
 
 **Still open:** [REQ-031](requests.md) lawyer's name, [REQ-032](requests.md) legal pack.
 
 **History:**
+- **2026-10-02** — Owner replaced the prior rule gating GPS, documents, reports and retargeting until legal approval with D56 development access and seed-only client-input substitutes; actual legal/retention answers remain open.
 - **2026-08-14** — Client confirmed the approval owner (Q31, D18).
 - **2026-09-24** — Legal pack in progress; 6-month file retention requested (client answers items 11, 17).
 
@@ -464,7 +461,7 @@ The API image defaults to two configurable workers (D45).
 **Current rule:** Use realistic seed-backed content for missing external inputs
 in demo/staging, without sample badges, and list every placeholder, location,
 real replacement input and waiting request in `docs/placeholders.md` (D46,
-REQ-059). Existing synthetic modes and fail-closed controls remain binding.
+REQ-059). D56 removes legal display/collection switches for development while retaining real provider, money, tenant and aggregation protections.
 Never substitute real accepted legal/consent text, real verified invoice or
 payment bank details, or pay/payout values. Missing features are built from
 seed-backed functionality or omitted; no hard-coded fake UI or nonworking

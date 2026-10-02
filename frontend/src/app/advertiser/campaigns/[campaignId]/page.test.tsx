@@ -59,7 +59,7 @@ const input = {
   params: Promise.resolve({ campaignId: campaign.id }),
   searchParams: Promise.resolve({}),
 };
-const failure = (status = 503, code = "PRIVACY_LIVE_USE_BLOCKED") =>
+const failure = (status = 503, code = "PROVIDER_UNAVAILABLE") =>
   new ApiError(status, { code, message: "Private backend detail" });
 function healthy(path: string) {
   if (path.endsWith("/summary"))

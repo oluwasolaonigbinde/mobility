@@ -2392,6 +2392,8 @@ policy; it does not block the recommendation/offer/assignment architecture.
 
 ## 22. Retargeting & the audience privacy boundary (D6, D11, D20)
 
+**[BUILT development policy — D56/REQ-072/089]:** Built GPS/ID collection and advertiser results/report publication have no legal display switches; reports use only frozen measurement snapshots, aggregation limits and query recording remain, blanket overlap blocking is removed, and `EXT-PRIVACY-RESTORATION` requires legal/privacy and advertiser overlap/differencing protection before real users (older runtime-gate descriptions below are superseded).
+
 **[BUILT — Cardvert Phase II measurement discovery]:** scoped, named
 `GET /admin/measurement-runs` exposes bounded summary and reproducibility
 context, current/superseded runs and existing report-issuance status. Consumers
@@ -3510,6 +3512,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.113 | 2026-10-02 | **Development access (D56, REQ-072/089).** Remove legal display/collection/issuance switches and dynamic advertiser reports; retain immutable results, tenant/aggregation/export boundaries and query recording, and register real-user legal/privacy plus differencing restoration as an unresolved launch obligation. |
 | v1.112 | 2026-10-02 | **Admin follow-up locally verified (D55, REQ-077–086).** Bounded staff list options, streamed request-local badges, drawer-only trip context, truthful driver/pay status and guarded recorded operational-pause Resume. §27.5 records pause provenance and access boundaries; API baselines and denial coverage move together. Local evidence: issues/testing/l2-1-followup-2026-10-02.md; no launch or CI/D33 claim. |
 | v1.111 | 2026-10-02 | **Unread notification inbox (D54, REQ-075).** The shared notification feed excludes read rows before totals/pagination; read/read-all removes notices after refetch. Stored records, recipient isolation, email preferences and the accessible close control remain. Focused regression coverage verifies unread paging, clear-all, later arrivals and failed-mutation retry. Local implementation; no release claim. |
 | v1.108 | 2026-10-01 | **Admin portal design in progress (D46-D48, REQ-058-REQ-062).** §27.5 and §30 record the two-batch hub/search design and approved company/phone reads. Existing document, money and account authority is retained. D47 narrows company logins and placeholder replacement. D49 records the owner's one-off expedited local 70% coverage target. Additional financial-summary/area reads, final verification and review remain open; this is not a delivery or launch-gate promotion. |

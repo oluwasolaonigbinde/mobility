@@ -24,7 +24,6 @@ from app.services.admin_authorization import require_active_admin
 from app.services.campaigns import get_advertiser_campaign
 from app.services.disclosure import (
     DisclosureQuery,
-    ensure_disclosure_live_gate,
     record_heatmap_disclosure,
     require_governed_advertiser_output,
 )
@@ -121,17 +120,12 @@ def parse_heatmap_query(
     settings: Settings,
 ) -> HeatmapQuery:
     parsed_bbox = parse_bbox(bbox)
-    resolution = (
-        settings.heatmap_default_resolution_m if resolution_m is None else resolution_m
-    )
+    resolution = settings.heatmap_default_resolution_m if resolution_m is None else resolution_m
     minimum_resolution = max(
         settings.heatmap_min_resolution_m,
         settings.privacy_min_resolution_m,
     )
-    if (
-        resolution < minimum_resolution
-        or resolution > settings.heatmap_max_resolution_m
-    ):
+    if resolution < minimum_resolution or resolution > settings.heatmap_max_resolution_m:
         raise AppError(
             "INVALID_HEATMAP_RESOLUTION",
             "resolution_m is outside the configured heatmap bounds",
@@ -245,7 +239,6 @@ async def advertiser_campaign_heatmap(
         settings=settings,
         route_id="advertiser.campaign.heatmap",
         user_id=user_id,
-        requires_measurement_run=False,
     )
     campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
     result = await build_heatmap(
@@ -290,7 +283,6 @@ async def admin_heatmap(
     organization_id: UUID | None,
     vehicle_type: str | None,
 ) -> HeatmapFeatureCollection:
-    ensure_disclosure_live_gate(settings, requires_measurement_run=False)
     await require_active_admin(session, user_id)
     disclosure_tenant_id = await ensure_admin_filter_consistency(
         session,

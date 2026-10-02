@@ -3622,6 +3622,21 @@
         "title": "AudienceActivationRead",
         "type": "object"
       },
+      "AudienceActivationRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "approval_id": {
+            "format": "uuid",
+            "title": "Approval Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "approval_id"
+        ],
+        "title": "AudienceActivationRequest",
+        "type": "object"
+      },
       "AudienceDeliveryApprovalCreate": {
         "additionalProperties": false,
         "properties": {
@@ -3648,10 +3663,7 @@
             "type": "string"
           },
           "operation": {
-            "enum": [
-              "csv_export",
-              "ad_platform_activation"
-            ],
+            "const": "ad_platform_activation",
             "title": "Operation",
             "type": "string"
           },
@@ -3676,10 +3688,7 @@
             "title": "Provider Account Reference"
           },
           "purpose_code": {
-            "enum": [
-              "aggregate_campaign_planning",
-              "aggregate_contextual_activation"
-            ],
+            "const": "aggregate_contextual_activation",
             "title": "Purpose Code",
             "type": "string"
           },
@@ -3738,10 +3747,7 @@
             "type": "string"
           },
           "operation": {
-            "enum": [
-              "csv_export",
-              "ad_platform_activation"
-            ],
+            "const": "ad_platform_activation",
             "title": "Operation",
             "type": "string"
           },
@@ -3814,28 +3820,8 @@
         "title": "AudienceDeliveryApprovalRead",
         "type": "object"
       },
-      "AudienceDeliveryRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "approval_id": {
-            "format": "uuid",
-            "title": "Approval Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "approval_id"
-        ],
-        "title": "AudienceDeliveryRequest",
-        "type": "object"
-      },
       "AudienceExportRead": {
         "properties": {
-          "approval_id": {
-            "format": "uuid",
-            "title": "Approval Id",
-            "type": "string"
-          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -3877,7 +3863,6 @@
           "id",
           "segment_id",
           "operation",
-          "approval_id",
           "purpose_code",
           "payload_sha256",
           "csv_content",
@@ -3885,6 +3870,12 @@
           "created_at"
         ],
         "title": "AudienceExportRead",
+        "type": "object"
+      },
+      "AudienceExportRequest": {
+        "additionalProperties": false,
+        "properties": {},
+        "title": "AudienceExportRequest",
         "type": "object"
       },
       "AuditEventListResponse": {
@@ -21645,18 +21636,6 @@
             "title": "Disclaimer",
             "type": "string"
           },
-          "export_approval_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Export Approval Id"
-          },
           "provenance": {
             "anyOf": [
               {
@@ -31441,7 +31420,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AudienceDeliveryRequest"
+                "$ref": "#/components/schemas/AudienceActivationRequest"
               }
             }
           },
@@ -40728,7 +40707,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AudienceDeliveryRequest"
+                "$ref": "#/components/schemas/AudienceExportRequest"
               }
             }
           },

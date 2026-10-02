@@ -33,7 +33,7 @@ const summary = {
   assignments: { active: 1 },
   trips: { total: 2 },
 };
-const fail = (status = 503, code = "PRIVACY_LIVE_USE_BLOCKED") =>
+const fail = (status = 503, code = "PROVIDER_UNAVAILABLE") =>
   new ApiError(status, { code, message: "Sensitive failure" });
 
 describe("resilient advertiser overview", () => {

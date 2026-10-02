@@ -1,6 +1,8 @@
 import asyncio
 import inspect
+from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
+from unittest.mock import patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -128,7 +130,10 @@ def _create_link_and_run(db_client, db_sessionmaker, *, points=None):
             return zone.id
 
     zone_id = asyncio.run(add_zone())
+    if points is None and db_sessionmaker.kw["bind"].dialect.name == "postgresql":
+        points = [(DAY_1 + timedelta(minutes=10), 6.05, 3.05)]
     if points is not None:
+
         async def trip_id() -> UUID:
             async with db_sessionmaker() as session:
                 value = await session.scalar(
@@ -162,11 +167,46 @@ def _create_link_and_run(db_client, db_sessionmaker, *, points=None):
         },
     )
     assert link.status_code == 201, link.text
-    run = db_client.post(
-        "/api/v1/admin/measurement-runs",
-        headers=auth_headers(db_client, admin.email, PASSWORD),
-        json=issue_payload(campaign.id),
+
+    async def sqlite_authority(session, **kwargs):
+        # SQLite cannot perform PostGIS cell intersection. Freeze explicit unit-test
+        # authority at issuance; the PostGIS test above uses real recorded pings.
+        trips = (
+            await session.scalars(select(TripSession).where(TripSession.id.in_(kwargs["trip_ids"])))
+        ).all()
+        return {
+            "schema_version": "audience-exposure-authority-v1",
+            "formula_version": "audience_exposure_v1",
+            "resolution_m": kwargs["resolution_m"],
+            "window_start_at": kwargs["window_start_at"].isoformat(),
+            "window_end_at": kwargs["window_end_at"].isoformat(),
+            "rows": [
+                {
+                    "zone_id": str(zone_id),
+                    "grid_x": 0,
+                    "grid_y": 0,
+                    "trip_session_id": str(trip.id),
+                    "vehicle_id": str(trip.vehicle_id),
+                    "cell_ping_count": 1,
+                    "total_ping_count": 1,
+                    "recorded_days": [DAY_1.date().isoformat()],
+                }
+                for trip in trips
+            ],
+        }
+
+    backend = db_sessionmaker.kw["bind"].dialect.name
+    authority = (
+        patch("app.services.measurement._audience_exposure_authority", sqlite_authority)
+        if backend == "sqlite"
+        else nullcontext()
     )
+    with authority:
+        run = db_client.post(
+            "/api/v1/admin/measurement-runs",
+            headers=auth_headers(db_client, admin.email, PASSWORD),
+            json=issue_payload(campaign.id),
+        )
     assert run.status_code == 201, run.text
     return advertiser, other, UUID(link.json()["id"]), UUID(run.json()["id"])
 
@@ -183,9 +223,7 @@ def test_postgis_materialization_uses_measurement_frozen_ping_authority(
         postgis_db_sessionmaker,
         points=original_points,
     )
-    governed = settings.model_copy(
-        update={"privacy_disclosure_synthetic_test_mode": True}
-    )
+    governed = settings.model_copy(update={})
 
     async def frozen_trip_id() -> UUID:
         async with postgis_db_sessionmaker() as session:
@@ -226,7 +264,7 @@ def test_materialization_suppresses_isolates_retries_and_reissues(
     db_client, db_sessionmaker, settings
 ) -> None:
     advertiser, other, link_id, run_id = _create_link_and_run(db_client, db_sessionmaker)
-    governed = settings.model_copy(update={"privacy_disclosure_synthetic_test_mode": True})
+    governed = settings.model_copy(update={})
 
     async def scenario() -> None:
         async with db_sessionmaker() as session:
@@ -266,9 +304,7 @@ def test_materialization_suppresses_isolates_retries_and_reissues(
         async with db_sessionmaker() as session:
             second = await materialize_exposure_segment(
                 session,
-                settings=governed.model_copy(
-                    update={"privacy_min_vehicles_per_cell": 2}
-                ),
+                settings=governed.model_copy(update={"privacy_min_vehicles_per_cell": 2}),
                 source_link_id=link_id,
                 measurement_run_id=run_id,
             )
@@ -295,12 +331,16 @@ def test_materialization_suppresses_isolates_retries_and_reissues(
             assert isolated.value.code == "RETARGETING_SOURCE_LINK_NOT_FOUND"
             frozen = await session.get(ExposureSegment, first_id)
             assert frozen is not None and frozen.version == 1
-            assert int(
-                await session.scalar(select(func.count()).select_from(ExposureSegment)) or 0
-            ) == 2
-            assert int(
-                await session.scalar(select(func.count()).select_from(ExposureSegmentCell)) or 0
-            ) == 1
+            assert (
+                int(await session.scalar(select(func.count()).select_from(ExposureSegment)) or 0)
+                == 2
+            )
+            assert (
+                int(
+                    await session.scalar(select(func.count()).select_from(ExposureSegmentCell)) or 0
+                )
+                == 1
+            )
 
         async with db_sessionmaker() as session:
             frozen = await session.get(ExposureSegment, first_id)
@@ -331,11 +371,23 @@ def test_concurrent_worker_materialization_converges_on_postgres(
     admin, advertiser, campaign = create_measurement_graph(postgis_db_sessionmaker)
     governed = Settings(
         environment="test",
-        privacy_disclosure_synthetic_test_mode=True,
         privacy_min_vehicles_per_cell=1,
         privacy_min_trips_per_cell=1,
         privacy_min_days_per_cell=1,
         privacy_max_contributor_share=1,
+    )
+
+    async def spatial_trip_id():
+        async with postgis_db_sessionmaker() as session:
+            return await session.scalar(
+                select(TripSession.id).where(TripSession.campaign_id == campaign.id)
+            )
+
+    add_ping_batch(
+        postgis_db_sessionmaker,
+        trip_id=asyncio.run(spatial_trip_id()),
+        points=[(DAY_1 + timedelta(minutes=10), 6.05, 3.05)],
+        idempotency_key="concurrent-segment-pings",
     )
 
     async def prepare() -> tuple[UUID, UUID]:
@@ -381,6 +433,7 @@ def test_concurrent_worker_materialization_converges_on_postgres(
             return link.id, run.id
 
     link_id, run_id = asyncio.run(prepare())
+
     async def materialize_once() -> UUID:
         async with postgis_db_sessionmaker() as session:
             segment = await materialize_exposure_segment(
@@ -396,11 +449,15 @@ def test_concurrent_worker_materialization_converges_on_postgres(
         first, second = await asyncio.gather(materialize_once(), materialize_once())
         assert first == second
         async with postgis_db_sessionmaker() as session:
-            assert int(
-                await session.scalar(select(func.count()).select_from(ExposureSegment)) or 0
-            ) == 1
-            assert int(
-                await session.scalar(select(func.count()).select_from(ExposureSegmentCell)) or 0
-            ) == 1
+            assert (
+                int(await session.scalar(select(func.count()).select_from(ExposureSegment)) or 0)
+                == 1
+            )
+            assert (
+                int(
+                    await session.scalar(select(func.count()).select_from(ExposureSegmentCell)) or 0
+                )
+                == 1
+            )
 
     asyncio.run(scenario())

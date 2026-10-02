@@ -301,9 +301,7 @@ def _validate_external_tls_file(name: str, value: str, *, private_key: bool) -> 
 
 
 def _openssl(*args: str) -> bytes:
-    result = subprocess.run(
-        ["openssl", *args], check=False, capture_output=True
-    )
+    result = subprocess.run(["openssl", *args], check=False, capture_output=True)
     if result.returncode:
         raise ContractError("Bundled TLS certificate validation failed")
     return result.stdout
@@ -375,9 +373,7 @@ def validate_data_service_urls(environment: Mapping[str, str]) -> str:
     redis_names = [name.lower() for name, _ in redis_query]
     authority_names = {"host", "port", "user", "username", "password", "database", "dbname"}
     database_ssl = [value for name, value in database_query if name.lower() == "ssl"]
-    redis_cert_reqs = [
-        value for name, value in redis_query if name.lower() == "ssl_cert_reqs"
-    ]
+    redis_cert_reqs = [value for name, value in redis_query if name.lower() == "ssl_cert_reqs"]
     if (
         database.scheme != "postgresql+asyncpg"
         or not _deployable_runtime_host(database.hostname)
@@ -397,10 +393,9 @@ def validate_data_service_urls(environment: Mapping[str, str]) -> str:
         or [value.lower() for value in redis_cert_reqs] != ["required"]
     ):
         raise ContractError("REDIS_URL must use authenticated Redis with verified TLS")
-    if (
-        unquote(database.password) != _require(environment, "POSTGRES_PASSWORD")
-        or unquote(redis.password) != _require(environment, "REDIS_PASSWORD")
-    ):
+    if unquote(database.password) != _require(environment, "POSTGRES_PASSWORD") or unquote(
+        redis.password
+    ) != _require(environment, "REDIS_PASSWORD"):
         raise ContractError("Database and Redis URL credentials must match supplied secrets")
 
     database_bundled = (
@@ -414,9 +409,7 @@ def validate_data_service_urls(environment: Mapping[str, str]) -> str:
         raise ContractError("Database and Redis must use one coherent release adapter")
     if not database_bundled:
         return "managed"
-    redis_ca_paths = [
-        value for name, value in redis_query if name.lower() == "ssl_ca_certs"
-    ]
+    redis_ca_paths = [value for name, value in redis_query if name.lower() == "ssl_ca_certs"]
     if redis_ca_paths != ["/run/secrets/redis_tls_ca"]:
         raise ContractError("Bundled Redis must use its mounted release CA")
     return "bundled"
@@ -545,12 +538,6 @@ def _validate_live_adapters(environment: Mapping[str, str]) -> None:
             raise ContractError(f"{name} must be an integer") from exc
         if value <= 0 or name.endswith("PORT") and value > 65535:
             raise ContractError(f"{name} is outside its accepted range")
-
-    if not _is_true(environment.get("PRIVACY_COLLECTION_LIVE_AUTHORIZED")):
-        raise ContractError("PRIVACY_COLLECTION_LIVE_AUTHORIZED must be true")
-    _require(environment, "PRIVACY_LEGAL_APPROVAL_REFERENCE")
-    if _is_true(environment.get("PRIVACY_COLLECTION_SYNTHETIC_TEST_MODE")):
-        raise ContractError("PRIVACY_COLLECTION_SYNTHETIC_TEST_MODE must be false")
 
     if _require(environment, "EMAIL_PROVIDER").lower() != "smtp":
         raise ContractError("EMAIL_PROVIDER must select the accepted smtp adapter")
@@ -772,8 +759,6 @@ def validate_release_environment(
     for name in (
         "ALLOW_DEMO_SEED",
         "DEMO_LOGIN_ENABLED",
-        "PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE",
-        "PRIVACY_COLLECTION_SYNTHETIC_TEST_MODE",
     ):
         if _is_true(environment.get(name)):
             raise ContractError(f"{name} must be false")
@@ -785,8 +770,7 @@ def validate_release_environment(
     if (
         not _is_true(environment.get("LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER"))
         or not _is_true(environment.get("LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER"))
-        or environment.get("LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS", "").strip()
-        != "10.255.254.10/32"
+        or environment.get("LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS", "").strip() != "10.255.254.10/32"
     ):
         raise ContractError("Login client-IP forwarding must use the exact private BFF authority")
     if (
@@ -936,8 +920,12 @@ def _validate_compatibility_probe_outputs(
             not isinstance(readiness_checks.get(name), Mapping)
             or readiness_checks[name].get("status") != expected
             for name, expected in {
-                "api": "ok", "broker": "ok", "scanner": "ok", "trip_evidence_signing": "ok",
-                "storage": "private_read_write_delete_ok", "worker": "quiesced_for_qualification",
+                "api": "ok",
+                "broker": "ok",
+                "scanner": "ok",
+                "trip_evidence_signing": "ok",
+                "storage": "private_read_write_delete_ok",
+                "worker": "quiesced_for_qualification",
             }.items()
         )
     ):
@@ -1106,9 +1094,8 @@ def validate_compatibility_evidence(
             key_id=key_id,
             signing_secret=signing_secret,
         )
-        if (
-            not SHA256_RE.fullmatch(accepted_receipt_hmac)
-            or not hmac.compare_digest(accepted_receipt_hmac, expected_acceptance_hmac)
+        if not SHA256_RE.fullmatch(accepted_receipt_hmac) or not hmac.compare_digest(
+            accepted_receipt_hmac, expected_acceptance_hmac
         ):
             raise ContractError("Compatibility accepted receipt authority is invalid")
         anchored = True

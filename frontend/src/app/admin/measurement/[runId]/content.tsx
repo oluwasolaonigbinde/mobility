@@ -51,18 +51,12 @@ export default async function MeasurementDetail({
           ? "The saved results can be reproduced."
           : "The results could not be reproduced. Do not use them or issue a report."}
       </p>
-      <p className="text-muted my-4">
-        {data.test_only ? "Synthetic test evidence. " : ""}Reproducing the results does not prove
-        that all source records are complete or give permission to publish a live report.
-      </p>
       <div className="grid gap-3">
         {metrics.map((m, i) => (
           <section className="border-edge rounded-xl border p-4" key={m.id ?? i}>
             <h2 className="font-medium">{m.label ?? "Measure"}</h2>
             <p className="text-muted">
-              {m.class === "modelled_measure"
-                ? "Estimated advertising result"
-                : "Recorded operational or financial facts"}
+              {m.class === "modelled_measure" ? "Estimated advertising result" : "Recorded results"}
             </p>
             <p>{m.value ?? "See the saved results; this measure has no single total."}</p>
             <p className="text-muted text-sm">

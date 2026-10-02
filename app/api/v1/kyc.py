@@ -31,7 +31,6 @@ from app.services.kyc import (
     submit_driver_kyc,
     submit_vehicle_evidence,
 )
-from app.services.privacy_authority import require_collection_authority
 
 router = APIRouter(tags=["Protected KYC"])
 
@@ -92,7 +91,6 @@ async def create_driver_kyc_submission(
     session: SessionDependency,
     settings: SettingsDependency,
 ) -> DriverKycSubmissionRead:
-    require_collection_authority(settings)
     view = await submit_driver_kyc(
         session,
         actor_user_id=user.id,

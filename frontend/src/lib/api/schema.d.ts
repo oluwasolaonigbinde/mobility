@@ -6229,6 +6229,14 @@ export interface components {
             /** Synthetic */
             synthetic: boolean;
         };
+        /** AudienceActivationRequest */
+        AudienceActivationRequest: {
+            /**
+             * Approval Id
+             * Format: uuid
+             */
+            approval_id: string;
+        };
         /** AudienceDeliveryApprovalCreate */
         AudienceDeliveryApprovalCreate: {
             /** Budget Ceiling */
@@ -6237,18 +6245,18 @@ export interface components {
             legal_approval_reference: string;
             /**
              * Operation
-             * @enum {string}
+             * @constant
              */
-            operation: "csv_export" | "ad_platform_activation";
+            operation: "ad_platform_activation";
             /** Provider */
             provider: string;
             /** Provider Account Reference */
             provider_account_reference?: string | null;
             /**
              * Purpose Code
-             * @enum {string}
+             * @constant
              */
-            purpose_code: "aggregate_campaign_planning" | "aggregate_contextual_activation";
+            purpose_code: "aggregate_contextual_activation";
             /**
              * Valid Until
              * Format: date-time
@@ -6283,9 +6291,9 @@ export interface components {
             legal_approval_reference: string;
             /**
              * Operation
-             * @enum {string}
+             * @constant
              */
-            operation: "csv_export" | "ad_platform_activation";
+            operation: "ad_platform_activation";
             /**
              * Organization Id
              * Format: uuid
@@ -6317,21 +6325,8 @@ export interface components {
              */
             valid_until: string;
         };
-        /** AudienceDeliveryRequest */
-        AudienceDeliveryRequest: {
-            /**
-             * Approval Id
-             * Format: uuid
-             */
-            approval_id: string;
-        };
         /** AudienceExportRead */
         AudienceExportRead: {
-            /**
-             * Approval Id
-             * Format: uuid
-             */
-            approval_id: string;
             /**
              * Created At
              * Format: date-time
@@ -6361,6 +6356,8 @@ export interface components {
              */
             segment_id: string;
         };
+        /** AudienceExportRequest */
+        AudienceExportRequest: Record<string, never>;
         /** AuditEventListResponse */
         AuditEventListResponse: {
             /** Items */
@@ -13029,8 +13026,6 @@ export interface components {
             campaign_id: string | null;
             /** Disclaimer */
             disclaimer: string;
-            /** Export Approval Id */
-            export_approval_id?: string | null;
             provenance: components["schemas"]["RecommendationProvenance"] | null;
             /** Recommendations */
             recommendations: components["schemas"]["AggregateRecommendation"][];
@@ -17229,7 +17224,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AudienceDeliveryRequest"];
+                "application/json": components["schemas"]["AudienceActivationRequest"];
             };
         };
         responses: {
@@ -22083,7 +22078,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AudienceDeliveryRequest"];
+                "application/json": components["schemas"]["AudienceExportRequest"];
             };
         };
         responses: {

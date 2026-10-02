@@ -51,7 +51,9 @@ def test_planning_links_follow_campaign_mutability_policy(db_sessionmaker) -> No
     organization, _ = create_test_organization(db_sessionmaker, owner_user_id=advertiser.id)
     start_at = datetime.now(UTC) + timedelta(days=2)
     end_at = start_at + timedelta(days=2)
-    settings = Settings(environment="test", privacy_disclosure_synthetic_test_mode=True)
+    settings = Settings(
+        environment="test",
+    )
     mutable = {
         CampaignStatus.DRAFT,
         CampaignStatus.PENDING_REVIEW,
@@ -357,7 +359,7 @@ def test_link_lifecycle_compatibility_retry_staleness_and_isolation(
                 await list_retargeting_source_links(
                     session,
                     settings=Settings(
-                        environment="test", privacy_disclosure_synthetic_test_mode=True
+                        environment="test",
                     ),
                     actor_user_id=advertiser.id,
                     admin=True,
@@ -426,24 +428,6 @@ def test_link_lifecycle_compatibility_retry_staleness_and_isolation(
     assert asyncio.run(counts()) == (1, 2, 2)
 
 
-def test_link_gate_runs_before_any_database_read() -> None:
-    class NoReadSession:
-        async def scalars(self, *_args, **_kwargs):
-            raise AssertionError("privacy gate must run first")
-
-    async def scenario() -> None:
-        with pytest.raises(AppError) as blocked:
-            await list_retargeting_source_links(
-                NoReadSession(),
-                settings=Settings(),
-                actor_user_id=uuid4(),
-                admin=True,  # type: ignore[arg-type]
-            )
-        assert blocked.value.code == "PRIVACY_LIVE_USE_BLOCKED"
-
-    asyncio.run(scenario())
-
-
 def test_source_and_link_replays_are_bound_to_the_current_tenant(
     db_sessionmaker,
 ) -> None:
@@ -473,7 +457,9 @@ def test_source_and_link_replays_are_bound_to_the_current_tenant(
         start_at=start_at - timedelta(days=1),
         end_at=end_at + timedelta(days=1),
     )
-    settings = Settings(environment="test", privacy_disclosure_synthetic_test_mode=True)
+    settings = Settings(
+        environment="test",
+    )
     source_input = TypeAdapter(RetargetingSourceCreate).validate_python(
         source_payload(end_at + timedelta(days=5))
     )
@@ -500,9 +486,7 @@ def test_source_and_link_replays_are_bound_to_the_current_tenant(
                 session,
                 settings=settings,
                 actor_user_id=advertiser.id,
-                payload=source_input.model_copy(
-                    update={"confidence_band": "high"}
-                ),
+                payload=source_input.model_copy(update={"confidence_band": "high"}),
                 idempotency_key="tenant-source-deactivate-create",
             )
             link_input = RetargetingSourceLinkCreate(
@@ -627,7 +611,9 @@ def test_concurrent_link_create_and_remove_retries_converge_on_postgres(
         start_at=start_at - timedelta(days=1),
         end_at=end_at + timedelta(days=1),
     )
-    settings = Settings(environment="test", privacy_disclosure_synthetic_test_mode=True)
+    settings = Settings(
+        environment="test",
+    )
 
     async def prepare() -> tuple[UUID, UUID]:
         async with postgis_db_sessionmaker() as session:

@@ -258,8 +258,7 @@ async def create_fixture(sessionmaker, settings) -> DriverApplication:
 
 
 async def main() -> None:
-    original_settings = validate_isolated_e2e_settings(get_settings())
-    settings = original_settings.model_copy(update={"privacy_collection_synthetic_test_mode": True})
+    settings = validate_isolated_e2e_settings(get_settings())
     assert settings.database_url is not None
     engine = create_async_engine(settings.database_url)
     sessionmaker = async_sessionmaker(engine, expire_on_commit=False)

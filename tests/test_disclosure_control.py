@@ -25,7 +25,7 @@ from sqlalchemy.exc import IntegrityError
 from starlette import status
 from test_heatmaps import BBOX, PASSWORD, RECORDED_AT, add_ping_batch, create_heatmap_graph
 
-from app.core.config import Settings, get_settings
+from app.core.config import Settings
 from app.core.errors import AppError
 from app.db.integrity import integrity_constraint_name
 from app.jobs.disclosure_retention import purge_expired_disclosure_query_history
@@ -47,7 +47,6 @@ from app.services import audience, audience_delivery, heatmaps, impressions, rep
 from app.services.disclosure import (
     DISCLOSURE_ROUTE_INVENTORY,
     DisclosureQuery,
-    ensure_disclosure_live_gate,
     frozen_manifest_meets_disclosure_floor,
     record_heatmap_disclosure,
     require_governed_advertiser_output,
@@ -58,10 +57,7 @@ from app.services.disclosure import (
 def live_test_settings(**overrides) -> Settings:
     values = {
         "environment": "test",
-        "privacy_disclosure_live_authorized": True,
         "privacy_legal_approval_reference": "synthetic-legal-approval-v1",
-        "privacy_disclosure_config_reference": "synthetic-disclosure-config-v1",
-        "privacy_query_history_retention_reference": "synthetic-retention-v1",
     }
     values.update(overrides)
     return Settings(**values)
@@ -77,39 +73,6 @@ def query(*, route_id: str = "advertiser.campaign.heatmap", metric: str = "ping_
         end_at=datetime(2026, 8, 8, tzinfo=UTC),
         filters={"bbox": [7.3, 9.0, 7.4, 9.1], "resolution_m": 500, "metric": metric},
     )
-
-
-def test_live_gate_is_default_deny_and_thresholds_cannot_enable_it() -> None:
-    with pytest.raises(AppError) as missing:
-        ensure_disclosure_live_gate(Settings(), requires_measurement_run=False)
-    assert missing.value.code == "PRIVACY_LIVE_USE_BLOCKED"
-    assert missing.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-
-    thresholds_only = Settings(
-        privacy_min_vehicles_per_cell=100,
-        privacy_min_trips_per_cell=100,
-        privacy_min_days_per_cell=30,
-        privacy_max_contributor_share=0.01,
-    )
-    with pytest.raises(AppError, match="privacy approval"):
-        ensure_disclosure_live_gate(thresholds_only, requires_measurement_run=False)
-
-    with pytest.raises(ValueError, match="environment=test"):
-        Settings(
-            environment="production",
-            database_url=(
-                "postgresql+asyncpg://mobility:synthetic-db-secret@db:5432/mobility?ssl=require"
-            ),
-            redis_url="rediss://:synthetic-redis-secret@redis:6379/0",
-            jwt_secret_key="production-test-secret-key-that-is-long-enough",
-            privacy_disclosure_synthetic_test_mode=True,
-        )
-
-
-def test_report_outputs_remain_blocked_after_legal_gate_until_safe_runs() -> None:
-    with pytest.raises(AppError) as blocked:
-        ensure_disclosure_live_gate(live_test_settings(), requires_measurement_run=True)
-    assert blocked.value.code == "SAFE_MEASUREMENT_RUN_REQUIRED"
 
 
 def test_frozen_measurement_manifest_caps_each_released_metric() -> None:
@@ -197,9 +160,9 @@ def test_frozen_report_authority_rechecks_daily_and_measurement_contributions() 
     assert frozen_manifest_meets_disclosure_floor(manifest, settings=settings) is False
     authority["contributions"]["daily:trip_count:2026-08-01"][second_vehicle] = "1"
     assert frozen_manifest_meets_disclosure_floor(manifest, settings=settings) is False
-    authority["contributions"]["measurement:analytics:active_tracking_seconds"][
-        second_vehicle
-    ] = "1000"
+    authority["contributions"]["measurement:analytics:active_tracking_seconds"][second_vehicle] = (
+        "1000"
+    )
     assert frozen_manifest_meets_disclosure_floor(manifest, settings=settings) is True
 
 
@@ -254,24 +217,6 @@ def test_route_inventory_covers_every_current_output_at_the_service_boundary() -
         assert boundary in heatmap_source
 
 
-def test_live_gate_runs_before_advertiser_membership_read() -> None:
-    class NoReadSession:
-        async def execute(self, *_args, **_kwargs):
-            raise AssertionError("the blocked live gate must run before database reads")
-
-    async def run() -> None:
-        with pytest.raises(AppError) as blocked:
-            await require_governed_advertiser_output(
-                NoReadSession(),  # type: ignore[arg-type]
-                settings=Settings(),
-                route_id="advertiser.dashboard.summary",
-                user_id=uuid4(),
-            )
-        assert blocked.value.code == "PRIVACY_LIVE_USE_BLOCKED"
-
-    asyncio.run(run())
-
-
 def test_governed_output_resolves_the_single_active_company_membership(
     db_sessionmaker,
 ) -> None:
@@ -300,7 +245,6 @@ def test_governed_output_resolves_the_single_active_company_membership(
                 settings=live_test_settings(),
                 route_id="advertiser.dashboard.summary",
                 user_id=advertiser.id,
-                requires_measurement_run=False,
             )
             assert selected == active_org.id
 
@@ -344,9 +288,7 @@ def test_advertiser_reads_keep_the_disclosure_authorized_tenant(
 
     def assert_authorized_reads() -> None:
         responses = {
-            "dashboard": db_client.get(
-                "/api/v1/advertiser/dashboard/summary", headers=headers
-            ),
+            "dashboard": db_client.get("/api/v1/advertiser/dashboard/summary", headers=headers),
             "summary": db_client.get(
                 f"/api/v1/advertiser/campaigns/{campaign.id}/summary", headers=headers
             ),
@@ -375,16 +317,17 @@ def test_advertiser_reads_keep_the_disclosure_authorized_tenant(
         assert {
             name: (response.status_code, response.text)
             for name, response in responses.items()
-            if response.status_code != status.HTTP_200_OK
+            if response.status_code != (409 if name == "report" else status.HTTP_200_OK)
             and not (
                 name == "heatmap"
                 and response.status_code == status.HTTP_400_BAD_REQUEST
                 and response.json()["error"]["code"] == "POSTGIS_REQUIRED"
             )
         } == {}
+        assert responses["report"].json()["error"]["code"] == "CAMPAIGN_REPORT_PENDING"
         assert responses["dashboard"].json()["organization_id"] == str(authorized_org.id)
         assert responses["summary"].json()["campaign"]["id"] == str(campaign.id)
-        for name in ("daily_metrics", "trips", "report", "score", "impressions"):
+        for name in ("daily_metrics", "trips", "score", "impressions"):
             assert responses[name].json()["campaign_id"] == str(campaign.id)
 
     async def set_membership_authority(
@@ -406,9 +349,7 @@ def test_advertiser_reads_keep_the_disclosure_authorized_tenant(
             unauthorized = by_organization[unauthorized_org.id]
             authorized.created_at = datetime(2026, 1, 1, tzinfo=UTC)
             unauthorized.created_at = (
-                authorized.created_at
-                if tied
-                else datetime(2026, 1, 2, tzinfo=UTC)
+                authorized.created_at if tied else datetime(2026, 1, 2, tzinfo=UTC)
             )
             authorized.status = MembershipStatus.ACTIVE
             unauthorized.status = unauthorized_membership_status
@@ -448,57 +389,7 @@ def test_advertiser_reads_keep_the_disclosure_authorized_tenant(
     assert_authorized_reads()
 
 
-def test_every_current_output_is_default_denied_without_history_writes(
-    db_client,
-    db_sessionmaker,
-    settings,
-) -> None:
-    admin, advertiser, _, campaign, *_ = create_heatmap_graph(db_sessionmaker)
-    advertiser_headers = auth_headers(db_client, advertiser.email, PASSWORD)
-    admin_headers = auth_headers(db_client, admin.email, PASSWORD)
-    blocked_settings = settings.model_copy(
-        update={"privacy_disclosure_synthetic_test_mode": False}
-    )
-    db_client.app.dependency_overrides[get_settings] = lambda: blocked_settings
-    requests = [
-        ("/api/v1/advertiser/dashboard/summary", advertiser_headers, {}),
-        (f"/api/v1/advertiser/campaigns/{campaign.id}/summary", advertiser_headers, {}),
-        (f"/api/v1/advertiser/campaigns/{campaign.id}/daily-metrics", advertiser_headers, {}),
-        (f"/api/v1/advertiser/campaigns/{campaign.id}/trips", advertiser_headers, {}),
-        (f"/api/v1/advertiser/campaigns/{campaign.id}/report", advertiser_headers, {}),
-        (
-            f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary",
-            advertiser_headers,
-            {},
-        ),
-        (
-            f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
-            advertiser_headers,
-            {"bbox": BBOX},
-        ),
-        ("/api/v1/admin/heatmap", admin_headers, {"bbox": BBOX}),
-    ]
-    responses = [
-        db_client.get(path, headers=headers, params=params) for path, headers, params in requests
-    ]
-
-    assert [response.status_code for response in responses] == [
-        status.HTTP_503_SERVICE_UNAVAILABLE
-    ] * len(requests)
-    assert {response.json()["error"]["code"] for response in responses} == {
-        "PRIVACY_LIVE_USE_BLOCKED"
-    }
-
-    async def history_count() -> int:
-        async with db_sessionmaker() as session:
-            return int(
-                await session.scalar(select(func.count()).select_from(DisclosureQueryDecision)) or 0
-            )
-
-    assert asyncio.run(history_count()) == 0
-
-
-def test_history_replays_exact_query_and_suppresses_overlapping_variant(
+def test_history_replays_exact_query_and_records_overlapping_variant(
     db_sessionmaker,
 ) -> None:
     initial = query()
@@ -528,15 +419,14 @@ def test_history_replays_exact_query_and_suppresses_overlapping_variant(
                 result_hash="a" * 64,
             )
         async with db_sessionmaker() as session:
-            with pytest.raises(AppError) as suppressed:
-                await record_heatmap_disclosure(
-                    session,
-                    query=overlapping,
-                    settings=live_test_settings(),
-                    has_releasable_cells=True,
-                    result_hash="a" * 64,
-                )
-            assert suppressed.value.details == {"reason": "overlapping_query_differencing"}
+            await record_heatmap_disclosure(
+                session,
+                query=overlapping,
+                settings=live_test_settings(),
+                has_releasable_cells=True,
+                result_hash="a" * 64,
+            )
+
         async with db_sessionmaker() as session:
             count = await session.scalar(select(func.count()).select_from(DisclosureQueryDecision))
             decisions = set(
@@ -551,7 +441,7 @@ def test_history_replays_exact_query_and_suppresses_overlapping_variant(
             )
             return int(count or 0), decisions
 
-    assert asyncio.run(run()) == (2, {"served", "suppressed"})
+    assert asyncio.run(run()) == (2, {"served"})
 
 
 def test_minimum_floor_suppression_is_sticky_on_retry(db_sessionmaker) -> None:
@@ -568,9 +458,7 @@ def test_minimum_floor_suppression_is_sticky_on_retry(db_sessionmaker) -> None:
                         has_releasable_cells=False,
                         result_hash="0" * 64,
                     )
-                assert suppressed.value.details == {
-                    "reason": "minimum_counts_or_contributor_cap"
-                }
+                assert suppressed.value.details == {"reason": "minimum_counts_or_contributor_cap"}
         async with db_sessionmaker() as session:
             return int(
                 await session.scalar(select(func.count()).select_from(DisclosureQueryDecision)) or 0
@@ -594,15 +482,14 @@ def test_same_request_with_changed_result_is_not_treated_as_an_exact_retry(
                 result_hash="a" * 64,
             )
         async with db_sessionmaker() as session:
-            with pytest.raises(AppError) as suppressed:
-                await record_heatmap_disclosure(
-                    session,
-                    query=disclosure_query,
-                    settings=live_test_settings(),
-                    has_releasable_cells=True,
-                    result_hash="b" * 64,
-                )
-            assert suppressed.value.details == {"reason": "overlapping_query_differencing"}
+            await record_heatmap_disclosure(
+                session,
+                query=disclosure_query,
+                settings=live_test_settings(),
+                has_releasable_cells=True,
+                result_hash="b" * 64,
+            )
+
         async with db_sessionmaker() as session:
             return int(
                 await session.scalar(select(func.count()).select_from(DisclosureQueryDecision)) or 0
@@ -613,7 +500,7 @@ def test_same_request_with_changed_result_is_not_treated_as_an_exact_retry(
 
 @pytest.mark.parametrize("parent_kind", ["organization", "global"])
 @pytest.mark.parametrize("parent_first", [True, False])
-def test_parent_and_child_scopes_suppress_differencing_in_both_orders(
+def test_parent_and_child_scopes_record_views_in_both_orders(
     db_sessionmaker,
     parent_kind: str,
     parent_first: bool,
@@ -640,17 +527,16 @@ def test_parent_and_child_scopes_suppress_differencing_in_both_orders(
                 result_hash="a" * 64,
             )
         async with db_sessionmaker() as session:
-            with pytest.raises(AppError) as suppressed:
-                await record_heatmap_disclosure(
-                    session,
-                    query=second,
-                    settings=live_test_settings(),
-                    has_releasable_cells=True,
-                    result_hash="a" * 64,
-                )
-            return "served", suppressed.value.details["reason"]
+            await record_heatmap_disclosure(
+                session,
+                query=second,
+                settings=live_test_settings(),
+                has_releasable_cells=True,
+                result_hash="a" * 64,
+            )
+            return "served", "served"
 
-    assert asyncio.run(run()) == ("served", "overlapping_query_differencing")
+    assert asyncio.run(run()) == ("served", "served")
 
 
 @pytest.mark.parametrize("parent_kind", ["organization", "global"])
@@ -689,10 +575,7 @@ def test_parent_child_scope_overlap_serializes_concurrently(
         ordered = (parent, child) if parent_first else (child, parent)
         return sorted(await asyncio.gather(*(attempt(item) for item in ordered)))
 
-    assert asyncio.run(run()) == [
-        "served",
-        "suppressed",
-    ]
+    assert asyncio.run(run()) == ["served", "served"]
 
 
 def test_scheduled_retention_preserves_protection_without_source_retirement_authority(
@@ -723,9 +606,7 @@ def test_scheduled_retention_preserves_protection_without_source_retirement_auth
                     )
                 )
             await session.commit()
-        result = await purge_expired_disclosure_query_history(
-            {"sessionmaker": db_sessionmaker}
-        )
+        result = await purge_expired_disclosure_query_history({"sessionmaker": db_sessionmaker})
         async with db_sessionmaker() as session:
             remaining = int(
                 await session.scalar(select(func.count()).select_from(DisclosureQueryDecision)) or 0
@@ -736,7 +617,7 @@ def test_scheduled_retention_preserves_protection_without_source_retirement_auth
 
 
 @pytest.mark.parametrize("run_scheduled_job", [False, True])
-def test_delayed_overlapping_query_cannot_outlive_disclosure_protection(
+def test_expired_history_remains_recorded_when_overlapping_views_are_served(
     db_sessionmaker, run_scheduled_job
 ):
     initial = query()
@@ -759,24 +640,23 @@ def test_delayed_overlapping_query_cannot_outlive_disclosure_protection(
         if run_scheduled_job:
             await purge_expired_disclosure_query_history({"sessionmaker": db_sessionmaker})
         async with db_sessionmaker() as session:
-            with pytest.raises(AppError) as suppressed:
-                await record_heatmap_disclosure(
-                    session,
-                    query=overlapping,
-                    settings=live_test_settings(),
-                    has_releasable_cells=True,
-                    result_hash="b" * 64,
-                )
-            assert suppressed.value.details == {"reason": "overlapping_query_differencing"}
+            await record_heatmap_disclosure(
+                session,
+                query=overlapping,
+                settings=live_test_settings(),
+                has_releasable_cells=True,
+                result_hash="b" * 64,
+            )
+
         async with db_sessionmaker() as session:
             decisions = list(await session.scalars(select(DisclosureQueryDecision)))
             assert len(decisions) == 2
-            assert {row.decision for row in decisions} == {"served", "suppressed"}
+            assert {row.decision for row in decisions} == {"served"}
 
     asyncio.run(run())
 
 
-def test_concurrent_overlapping_queries_serialize_to_one_served_one_suppressed(
+def test_concurrent_overlapping_views_are_both_recorded(
     postgis_db_sessionmaker,
 ) -> None:
     initial = query()
@@ -802,7 +682,7 @@ def test_concurrent_overlapping_queries_serialize_to_one_served_one_suppressed(
     async def run() -> list[str]:
         return sorted(await asyncio.gather(attempt(initial), attempt(variant)))
 
-    assert asyncio.run(run()) == ["served", "suppressed"]
+    assert asyncio.run(run()) == ["served", "served"]
 
 
 def test_heatmap_floor_enforces_exact_vehicle_trip_day_and_metric_contributor_edges(
@@ -1237,7 +1117,9 @@ def test_heatmap_suppresses_when_an_unselected_serialized_metric_is_dominated(
 @pytest.mark.parametrize("snapshot_first", [True, False])
 @pytest.mark.parametrize("ledger_status", [None, "available", "paid", "reconciliation"])
 def test_disclosure_snapshot_and_fraud_review_share_trip_lock_order(
-    postgis_db_sessionmaker, snapshot_first, ledger_status,
+    postgis_db_sessionmaker,
+    snapshot_first,
+    ledger_status,
 ):
     from sqlalchemy import text
     from test_fraud_assessments import create_flag
@@ -1276,8 +1158,11 @@ def test_disclosure_snapshot_and_fraud_review_share_trip_lock_order(
 
         async def resolve(session):
             await resolve_fraud_flag(
-                session, flag_id=flag.id, actor_user_id=graph.admin.id,
-                outcome=outcome, resolution_note="Reviewed overlapping snapshot",
+                session,
+                flag_id=flag.id,
+                actor_user_id=graph.admin.id,
+                outcome=outcome,
+                resolution_note="Reviewed overlapping snapshot",
             )
 
         async def follower():
@@ -1330,11 +1215,13 @@ def test_disclosure_snapshot_and_fraud_review_share_trip_lock_order(
             )
             await resolve(session)
             await session.commit()
-            reversals = list(await session.scalars(
-                select(EarningsLedgerEntry).where(
-                    EarningsLedgerEntry.source_fraud_flag_id == flag.id
+            reversals = list(
+                await session.scalars(
+                    select(EarningsLedgerEntry).where(
+                        EarningsLedgerEntry.source_fraud_flag_id == flag.id
+                    )
                 )
-            ))
+            )
             assert len(reversals) == (1 if confirmed else 0)
             if reversals:
                 assert reversals[0].amount == Decimal("125.50")

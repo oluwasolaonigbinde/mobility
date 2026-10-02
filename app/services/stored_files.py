@@ -42,7 +42,6 @@ from app.schemas.stored_files import FileUploadCreate
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.organizations import get_advertiser_organization_for_user
-from app.services.privacy_authority import require_collection_authority
 from app.services.stored_object_deletions import (
     delete_stored_object,
     ensure_stored_object_deletion,
@@ -329,8 +328,6 @@ async def _create_upload_intent(
     storage: StorageProvider,
     settings: Settings,
 ) -> tuple[FileUploadIntent, PresignedPost]:
-    if payload.purpose in {FilePurpose.DRIVER_KYC, FilePurpose.VEHICLE_EVIDENCE}:
-        require_collection_authority(settings)
     fingerprint = _fingerprint(payload)
     existing = await session.scalar(
         select(FileUploadIntent).where(
@@ -623,8 +620,6 @@ async def _confirm_upload(
         raise _error(
             "FILE_UPLOAD_NOT_FOUND", "File upload was not found", status.HTTP_404_NOT_FOUND
         )
-    if intent.purpose in {FilePurpose.DRIVER_KYC, FilePurpose.VEHICLE_EVIDENCE}:
-        require_collection_authority(settings)
     existing = await session.scalar(
         select(StoredFile).where(StoredFile.upload_intent_id == intent.id)
     )

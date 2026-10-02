@@ -9,7 +9,7 @@ from conftest import auth_headers, create_test_organization, create_test_user
 from pydantic import TypeAdapter, ValidationError
 from sqlalchemy import func, select
 
-from app.core.config import Settings, get_settings
+from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.audit import AuditEvent
 from app.models.retargeting_source import RetargetingSource, RetargetingSourceEvent
@@ -89,15 +89,21 @@ def test_registry_lifecycle_retry_history_tenant_and_admin_monitoring(
     db_client, db_sessionmaker
 ) -> None:
     advertiser = create_test_user(
-        db_sessionmaker, email="source-owner@example.com", password=PASSWORD,
+        db_sessionmaker,
+        email="source-owner@example.com",
+        password=PASSWORD,
         role=UserRole.ADVERTISER,
     )
     other = create_test_user(
-        db_sessionmaker, email="source-other@example.com", password=PASSWORD,
+        db_sessionmaker,
+        email="source-other@example.com",
+        password=PASSWORD,
         role=UserRole.ADVERTISER,
     )
     admin = create_test_user(
-        db_sessionmaker, email="source-admin@example.com", password=PASSWORD,
+        db_sessionmaker,
+        email="source-admin@example.com",
+        password=PASSWORD,
         role=UserRole.ADMIN,
     )
     create_test_organization(db_sessionmaker, owner_user_id=advertiser.id)
@@ -128,9 +134,12 @@ def test_registry_lifecycle_retry_history_tenant_and_admin_monitoring(
     assert conflict.status_code == 409
     assert conflict.json()["error"]["code"] == "RETARGETING_SOURCE_IDEMPOTENCY_CONFLICT"
 
-    assert db_client.get(
-        f"/api/v1/advertiser/retargeting-sources/{source['id']}", headers=other_headers
-    ).status_code == 404
+    assert (
+        db_client.get(
+            f"/api/v1/advertiser/retargeting-sources/{source['id']}", headers=other_headers
+        ).status_code
+        == 404
+    )
     monitor = db_client.get("/api/v1/admin/retargeting-sources", headers=admin_headers)
     assert monitor.status_code == 200
     assert monitor.json()["total"] == 1
@@ -174,21 +183,6 @@ def test_registry_lifecycle_retry_history_tenant_and_admin_monitoring(
     assert asyncio.run(counts()) == (1, 2, 2)
 
 
-def test_live_gate_runs_before_admin_registry_read() -> None:
-    class NoReadSession:
-        async def scalars(self, *_args, **_kwargs):
-            raise AssertionError("privacy gate must run before database reads")
-
-    async def scenario() -> None:
-        with pytest.raises(AppError) as blocked:
-            await list_admin_retargeting_sources(
-                NoReadSession(), settings=Settings(), actor_user_id=uuid4()
-            )  # type: ignore[arg-type]
-        assert blocked.value.code == "PRIVACY_LIVE_USE_BLOCKED"
-
-    asyncio.run(scenario())
-
-
 def test_admin_source_services_require_active_admin_and_allow_one(
     db_sessionmaker,
 ) -> None:
@@ -212,7 +206,9 @@ def test_admin_source_services_require_active_admin_and_allow_one(
         user_status=UserStatus.DISABLED,
     )
     create_test_organization(db_sessionmaker, owner_user_id=advertiser.id)
-    settings = Settings(environment="test", privacy_disclosure_synthetic_test_mode=True)
+    settings = Settings(
+        environment="test",
+    )
 
     async def scenario() -> UUID:
         async with db_sessionmaker() as session:
@@ -266,7 +262,9 @@ def test_admin_source_services_require_active_admin_and_allow_one(
 
 def test_expired_source_is_derived_without_history_rewrite(db_client, db_sessionmaker) -> None:
     advertiser = create_test_user(
-        db_sessionmaker, email="source-expiry@example.com", password=PASSWORD,
+        db_sessionmaker,
+        email="source-expiry@example.com",
+        password=PASSWORD,
         role=UserRole.ADVERTISER,
     )
     create_test_organization(db_sessionmaker, owner_user_id=advertiser.id)
@@ -295,25 +293,6 @@ def test_expired_source_is_derived_without_history_rewrite(db_client, db_session
     assert [event["event_type"] for event in history["events"]] == ["created"]
 
 
-def test_registry_rejects_when_synthetic_gate_is_disabled(
-    db_client, db_sessionmaker, settings
-) -> None:
-    advertiser = create_test_user(
-        db_sessionmaker, email="source-blocked@example.com", password=PASSWORD,
-        role=UserRole.ADVERTISER,
-    )
-    create_test_organization(db_sessionmaker, owner_user_id=advertiser.id)
-    db_client.app.dependency_overrides[get_settings] = lambda: settings.model_copy(
-        update={"privacy_disclosure_synthetic_test_mode": False}
-    )
-    response = db_client.get(
-        "/api/v1/advertiser/retargeting-sources",
-        headers=auth_headers(db_client, advertiser.email, PASSWORD),
-    )
-    assert response.status_code == 503
-    assert response.json()["error"]["code"] == "PRIVACY_LIVE_USE_BLOCKED"
-
-
 def test_concurrent_create_retry_converges_on_postgres(postgis_db_sessionmaker) -> None:
     advertiser = create_test_user(
         postgis_db_sessionmaker,
@@ -323,7 +302,9 @@ def test_concurrent_create_retry_converges_on_postgres(postgis_db_sessionmaker) 
     )
     create_test_organization(postgis_db_sessionmaker, owner_user_id=advertiser.id)
     typed = TypeAdapter(RetargetingSourceCreate).validate_python(payload("manual-insight"))
-    settings = Settings(environment="test", privacy_disclosure_synthetic_test_mode=True)
+    settings = Settings(
+        environment="test",
+    )
 
     async def create_once():
         async with postgis_db_sessionmaker() as session:
@@ -341,21 +322,28 @@ def test_concurrent_create_retry_converges_on_postgres(postgis_db_sessionmaker) 
         first, second = await asyncio.gather(create_once(), create_once())
         assert first == second
         async with postgis_db_sessionmaker() as session:
-            assert int(
-                await session.scalar(select(func.count()).select_from(RetargetingSource)) or 0
-            ) == 1
-            assert int(
-                await session.scalar(select(func.count()).select_from(RetargetingSourceEvent))
-                or 0
-            ) == 1
-            assert int(
-                await session.scalar(
-                    select(func.count())
-                    .select_from(AuditEvent)
-                    .where(AuditEvent.entity_type == "retargeting_source")
+            assert (
+                int(await session.scalar(select(func.count()).select_from(RetargetingSource)) or 0)
+                == 1
+            )
+            assert (
+                int(
+                    await session.scalar(select(func.count()).select_from(RetargetingSourceEvent))
+                    or 0
                 )
-                or 0
-            ) == 1
+                == 1
+            )
+            assert (
+                int(
+                    await session.scalar(
+                        select(func.count())
+                        .select_from(AuditEvent)
+                        .where(AuditEvent.entity_type == "retargeting_source")
+                    )
+                    or 0
+                )
+                == 1
+            )
             changed = TypeAdapter(RetargetingSourceCreate).validate_python(
                 payload("manual-insight") | {"confidence_band": "high"}
             )

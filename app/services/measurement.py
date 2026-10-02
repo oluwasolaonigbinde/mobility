@@ -11,7 +11,7 @@ from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
-from app.core.config import LOCAL_ENVIRONMENTS, Settings
+from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.campaign import Campaign, CampaignCreative
 from app.models.campaign_assignment import (
@@ -40,7 +40,7 @@ from app.services.heatmaps import (
 )
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock
 from app.services.report_cohorts import economic_ledger_amount, select_report_cohort
-from app.services.reports import build_dynamic_campaign_report
+from app.services.reports import build_measurement_report_snapshot
 
 MEASUREMENT_FORMULA_VERSION = "measurement-result-v2"
 MEASUREMENT_METHOD_REVISION = "measurement-contract-v2"
@@ -375,22 +375,6 @@ def measurement_run_reproducible(run: MeasurementRun) -> bool:
 
 
 def _validate_issuance(payload: MeasurementRunCreate, settings: Settings) -> None:
-    local = settings.environment.lower() in LOCAL_ENVIRONMENTS
-    if payload.test_only:
-        if not local:
-            raise AppError(
-                "SYNTHETIC_MEASUREMENT_RUN_FORBIDDEN",
-                "Synthetic measurement runs are limited to local and test environments",
-                status_code=status.HTTP_409_CONFLICT,
-            )
-    elif not settings.measurement_live_issuance_authorized or not _approved_reference(
-        settings.measurement_report_method_reference
-    ):
-        raise AppError(
-            "MEASUREMENT_LIVE_ISSUANCE_BLOCKED",
-            "Live measurement issuance is not authorized for this deployment",
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        )
     if payload.mode == "roi_enabled":
         roi = payload.roi
         if roi is None:
@@ -400,6 +384,18 @@ def _validate_issuance(payload: MeasurementRunCreate, settings: Settings) -> Non
                 status_code=status.HTTP_409_CONFLICT,
             )
         if payload.test_only:
+            if settings.environment.lower() not in {
+                "local",
+                "test",
+                "testing",
+                "development",
+                "dev",
+            }:
+                raise AppError(
+                    "ROI_PREREQUISITES_REQUIRED",
+                    "Synthetic ROI inputs are limited to local and test environments",
+                    status_code=status.HTTP_409_CONFLICT,
+                )
             if not roi.synthetic or roi.method.approval_reference != "SYNTHETIC_TEST_ONLY":
                 raise AppError(
                     "ROI_PREREQUISITES_REQUIRED",
@@ -469,9 +465,7 @@ async def _audience_exposure_authority(
                     "vehicle_id": str(row["vehicle_id"]),
                     "cell_ping_count": int(row["cell_ping_count"]),
                     "total_ping_count": int(row["total_ping_count"]),
-                    "recorded_days": [
-                        day.isoformat() for day in row["recorded_days"]
-                    ],
+                    "recorded_days": [day.isoformat() for day in row["recorded_days"]],
                 }
                 for row in zone_rows
             )
@@ -629,11 +623,7 @@ async def issue_measurement_run(
         session, campaign_id=campaign.id, assignment_ids=assignment_ids
     )
     proof_sha = canonical_sha256(proof_manifest)
-    method_revision = (
-        MEASUREMENT_METHOD_REVISION
-        if payload.test_only
-        else settings.measurement_report_method_reference
-    )
+    method_revision = MEASUREMENT_METHOD_REVISION
     measured_trip_ids = sorted(
         {row.trip_session_id for row in analytics_rows if row.status == "computed"},
         key=str,
@@ -810,13 +800,13 @@ async def issue_measurement_run(
             "An active advertiser is required to freeze the campaign report",
             status_code=status.HTTP_409_CONFLICT,
         )
-    report = await build_dynamic_campaign_report(
+    report = await build_measurement_report_snapshot(
         session,
         user_id=report_user_id,
         campaign_id=campaign.id,
         start_at=payload.period_start_at,
         end_at=payload.period_end_at,
-        settings=settings.model_copy(update={"privacy_disclosure_synthetic_test_mode": True}),
+        settings=settings,
         cohort=report_cohort,
     )
     report_snapshot = report.model_dump(

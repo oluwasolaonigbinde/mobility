@@ -232,27 +232,15 @@ export default async function PlanningSourcesPage() {
                                     "No suggestions yet. They appear once the campaign has run in this area.")}
                             </p>
                           </div>
-                          {ready &&
-                          recommendation.segment_id &&
-                          recommendation.export_approval_id ? (
+                          {ready && recommendation.segment_id ? (
                             <form
                               action={`/api/advertiser/exposure-segments/${recommendation.segment_id}/export`}
                               method="post"
                             >
-                              <input
-                                type="hidden"
-                                name="approval_id"
-                                value={recommendation.export_approval_id}
-                              />
                               <button className="border-edge hover:border-coral rounded-lg border px-3 py-2 text-sm">
                                 Download suggestions (CSV)
                               </button>
                             </form>
-                          ) : null}
-                          {ready && !recommendation.export_approval_id ? (
-                            <p className="micro text-faint">
-                              Downloads stay off until privacy approval is in place.
-                            </p>
                           ) : null}
                         </div>
                         {ready

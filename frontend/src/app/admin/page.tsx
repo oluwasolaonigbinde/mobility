@@ -83,9 +83,7 @@ export default async function AdminWorkQueuePage({
               ))}
           </nav>
         </>
-      ) : (
-        <p className="text-muted mb-4 text-sm">Oldest five items from each work list.</p>
-      )}
+      ) : null}
       <div className="grid gap-4 md:grid-cols-2">
         {cards.map((card) => (
           <Panel key={card.department} className="p-5">

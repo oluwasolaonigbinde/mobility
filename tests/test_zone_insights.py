@@ -2,11 +2,9 @@ import asyncio
 from decimal import Decimal
 from uuid import UUID
 
-import pytest
 from conftest import auth_headers
 from test_exposure_segments import PASSWORD, _create_link_and_run
 
-from app.core.errors import AppError
 from app.models.campaign_zone import CampaignZone
 from app.models.exposure_segment import ExposureSegment
 from app.models.measurement import MeasurementRun
@@ -168,27 +166,3 @@ def test_zone_insights_are_governed_authorized_and_frozen_into_segment_history(
     assert stale["items"] == []
     assert stale["provenance"] is None
     assert "Changed after issuance" not in str(stale)
-
-
-def test_zone_insight_live_disclosure_gate_runs_before_authority_reads(
-    db_sessionmaker, settings
-) -> None:
-    blocked = settings.model_copy(
-        update={
-            "privacy_disclosure_synthetic_test_mode": False,
-            "privacy_disclosure_live_authorized": False,
-        }
-    )
-
-    async def scenario() -> None:
-        async with db_sessionmaker() as session:
-            with pytest.raises(AppError) as error:
-                await high_exposure_zone_insights(
-                    session,
-                    settings=blocked,
-                    actor_user_id=UUID("00000000-0000-0000-0000-000000000099"),
-                    campaign_id=UUID("00000000-0000-0000-0000-000000000098"),
-                )
-            assert error.value.code == "PRIVACY_LIVE_USE_BLOCKED"
-
-    asyncio.run(scenario())

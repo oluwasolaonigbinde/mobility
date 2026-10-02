@@ -2,7 +2,6 @@ import { Panel } from "@/components/ui/panel";
 import type { UnavailableReason } from "@/lib/advertiser/page-data";
 
 const details: Record<UnavailableReason, string> = {
-  gated: "Available once privacy approval for campaign results is complete.",
   forbidden: "Your account doesn't have access to this.",
   missing: "This information couldn't be found.",
   operational: "This couldn't be loaded right now.",

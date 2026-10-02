@@ -100,6 +100,7 @@ GATES = (
             "EXT-PHONE-OPERATOR",
             "EXT-EVIDENCE-POLICY",
             "EXT-LEGAL-PRIVACY",
+            "EXT-PRIVACY-RESTORATION",
             "EXT-UPLOAD-POLICY",
             "DV-PWA-PHYSICAL-MATRIX",
             "DV-PWA-ROUTE-BATTERY",
@@ -132,13 +133,23 @@ GATES = (
         name="G-advertiser",
         checklists=("W3-00C", "W3-00E", "W3-02B", "W4-02B"),
         evidence=("RM15", "RM16", "D20"),
-        required_inputs=("EXT-BASEMAP", "EXT-REPORT-METHOD", "EXT-LEGAL-PRIVACY"),
+        required_inputs=(
+            "EXT-BASEMAP",
+            "EXT-REPORT-METHOD",
+            "EXT-LEGAL-PRIVACY",
+            "EXT-PRIVACY-RESTORATION",
+        ),
     ),
     Gate(
         name="G-moduleG",
         checklists=("W3-00C", "W3-00E", "W3-01D"),
         evidence=("RM15", "RM16", "D18", "D20"),
-        required_inputs=("EXT-REPORT-METHOD", "EXT-LEGAL-PRIVACY", "EXT-AD-PLATFORM"),
+        required_inputs=(
+            "EXT-REPORT-METHOD",
+            "EXT-LEGAL-PRIVACY",
+            "EXT-PRIVACY-RESTORATION",
+            "EXT-AD-PLATFORM",
+        ),
     ),
     Gate(
         name="G-pilot",
@@ -165,6 +176,7 @@ GATES = (
             "EXT-PHONE-OPERATOR",
             "EXT-EVIDENCE-POLICY",
             "EXT-LEGAL-PRIVACY",
+            "EXT-PRIVACY-RESTORATION",
             "EXT-UPLOAD-POLICY",
             "EXT-PAYMENT-PROVIDER",
             "EXT-BUDGET-POLICY",
@@ -193,11 +205,6 @@ CONTROLLED_CHECKLISTS: Mapping[str, tuple[str, ...]] = {
 
 
 BOOLEAN_RUNTIME_CLAIMS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("PRIVACY_DISCLOSURE_LIVE_AUTHORIZED", ("EXT-LEGAL-PRIVACY",)),
-    (
-        "MEASUREMENT_LIVE_ISSUANCE_AUTHORIZED",
-        ("EXT-REPORT-METHOD", "EXT-LEGAL-PRIVACY"),
-    ),
     ("BUDGET_POLICY_EXTERNAL_APPROVED", ("EXT-BUDGET-POLICY",)),
     ("PHONE_OPERATOR_EXTERNAL_APPROVED", ("EXT-PHONE-OPERATOR",)),
 )
@@ -265,9 +272,7 @@ def _architecture_gate_names(architecture: str) -> tuple[str, ...]:
     )
     if match is None:
         raise AuthorityError("architecture §35.3 gate table is missing")
-    names = tuple(
-        re.findall(r"^\| \*\*(G-[A-Za-z0-9-]+)\*\* \|", match.group(1), re.MULTILINE)
-    )
+    names = tuple(re.findall(r"^\| \*\*(G-[A-Za-z0-9-]+)\*\* \|", match.group(1), re.MULTILINE))
     expected = tuple(gate.name for gate in GATES)
     if names != expected or len(names) != len(set(names)):
         raise AuthorityError("architecture §35.3 gate identities/order contradict the evaluator")
@@ -329,10 +334,7 @@ def parse_authority(
         deferred_states[_plain(cells[0])] = _plain(cells[1])
 
     required_external = {
-        item
-        for gate in GATES
-        for item in gate.required_inputs
-        if item.startswith("EXT-")
+        item for gate in GATES for item in gate.required_inputs if item.startswith("EXT-")
     }
     documents = {
         "docs/progress.md": progress,
@@ -384,31 +386,23 @@ def _input_complete(snapshot: AuthoritySnapshot, input_id: str) -> bool:
     return snapshot.deferred_states.get(input_id) == "COMPLETE"
 
 
-def evaluate_gates(
-    snapshot: AuthoritySnapshot, runtime: Mapping[str, str]
-) -> tuple[str, ...]:
+def evaluate_gates(snapshot: AuthoritySnapshot, runtime: Mapping[str, str]) -> tuple[str, ...]:
     claims = _runtime_claims(runtime)
     lines: list[str] = []
     for gate in GATES:
         blockers = tuple(
-            input_id
-            for input_id in gate.required_inputs
-            if not _input_complete(snapshot, input_id)
+            input_id for input_id in gate.required_inputs if not _input_complete(snapshot, input_id)
         )
         for input_id in gate.required_inputs:
             if input_id in claims and snapshot.external_states.get(input_id) == "MISSING":
-                raise ContradictionError(
-                    f"runtime contradiction for {gate.name} / {input_id}"
-                )
+                raise ContradictionError(f"runtime contradiction for {gate.name} / {input_id}")
         for checklist in gate.checklists:
             if snapshot.checklist_states.get(checklist) == "DONE":
                 continue
             controlled_by = CONTROLLED_CHECKLISTS.get(checklist, ())
             if controlled_by and any(input_id in blockers for input_id in controlled_by):
                 continue
-            raise ContradictionError(
-                f"checklist contradiction for {gate.name} / {checklist}"
-            )
+            raise ContradictionError(f"checklist contradiction for {gate.name} / {checklist}")
         if blockers:
             lines.append(f"{gate.name}: BLOCKED — {', '.join(blockers)}")
         else:
@@ -434,9 +428,7 @@ def _load_head_authority(
 
 
 def _runtime_snapshot(environment: Mapping[str, str]) -> dict[str, str]:
-    names = {
-        name for name, _external_ids in BOOLEAN_RUNTIME_CLAIMS + REFERENCE_RUNTIME_CLAIMS
-    }
+    names = {name for name, _external_ids in BOOLEAN_RUNTIME_CLAIMS + REFERENCE_RUNTIME_CLAIMS}
     names.update(name for group, _external_ids in GROUP_RUNTIME_CLAIMS for name in group)
     return {name: environment.get(name, "") for name in names}
 

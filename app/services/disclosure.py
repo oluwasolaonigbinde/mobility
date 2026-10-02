@@ -9,7 +9,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from sqlalchemy import and_, or_, select, text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
@@ -67,45 +67,15 @@ def _approved_reference(value: str) -> bool:
     return normalized not in _PLACEHOLDERS and not normalized.startswith("ext-")
 
 
-def ensure_disclosure_live_gate(settings: Settings, *, requires_measurement_run: bool) -> None:
-    if settings.privacy_disclosure_synthetic_test_mode:
-        return
-    references = (
-        settings.privacy_legal_approval_reference,
-        settings.privacy_disclosure_config_reference,
-        settings.privacy_query_history_retention_reference,
-    )
-    if not settings.privacy_disclosure_live_authorized or not all(
-        _approved_reference(reference) for reference in references
-    ):
-        raise AppError(
-            "PRIVACY_LIVE_USE_BLOCKED",
-            "Advertiser analytics are unavailable until privacy approval and disclosure "
-            "controls are complete",
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        )
-    if requires_measurement_run:
-        raise AppError(
-            "SAFE_MEASUREMENT_RUN_REQUIRED",
-            "This output remains unavailable until immutable measurement runs are implemented",
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        )
-
-
 async def require_governed_advertiser_output(
     session: AsyncSession,
     *,
     settings: Settings,
     route_id: str,
     user_id: UUID,
-    requires_measurement_run: bool = True,
 ) -> UUID:
     if route_id not in DISCLOSURE_ROUTE_INVENTORY:
         raise RuntimeError(f"Unregistered disclosure route: {route_id}")
-    ensure_disclosure_live_gate(
-        settings,
-        requires_measurement_run=requires_measurement_run,
-    )
     row = (
         await session.execute(
             select(AdvertiserOrganization.id)
@@ -152,10 +122,7 @@ async def lock_trip_disclosure_snapshot(
         campaign_filters.append(Campaign.id == campaign_id)
     campaign_ids = list(
         await session.scalars(
-            select(Campaign.id)
-            .where(*campaign_filters)
-            .order_by(Campaign.id)
-            .with_for_update()
+            select(Campaign.id).where(*campaign_filters).order_by(Campaign.id).with_for_update()
         )
     )
     if not campaign_ids:
@@ -281,9 +248,7 @@ def _add_contribution(
         contributions.setdefault(metric, Counter())[vehicle_id] += amount
 
 
-def frozen_manifest_meets_disclosure_floor(
-    manifest: dict[str, Any], *, settings: Settings
-) -> bool:
+def frozen_manifest_meets_disclosure_floor(manifest: dict[str, Any], *, settings: Settings) -> bool:
     authority = manifest.get("disclosure_authority")
     if isinstance(authority, dict):
         frozen_contributions: dict[str, Counter[UUID]] = {}
@@ -303,8 +268,7 @@ def frozen_manifest_meets_disclosure_floor(
             and authority.get("day_count") >= settings.privacy_min_days_per_cell
             and all(
                 len(values) >= settings.privacy_min_vehicles_per_cell
-                and sum(values.values(), Decimal("0"))
-                >= settings.privacy_min_trips_per_cell
+                and sum(values.values(), Decimal("0")) >= settings.privacy_min_trips_per_cell
                 for metric, values in frozen_contributions.items()
                 if metric.startswith("daily:trip_count:")
             )
@@ -385,8 +349,7 @@ def frozen_manifest_meets_disclosure_floor(
         len(set(vehicle_by_trip.values())) >= settings.privacy_min_vehicles_per_cell
         and len(trip_ids) >= settings.privacy_min_trips_per_cell
         and len(days) >= settings.privacy_min_days_per_cell
-        and _maximum_contributor_share(contributions)
-        <= settings.privacy_max_contributor_share
+        and _maximum_contributor_share(contributions) <= settings.privacy_max_contributor_share
     )
 
 
@@ -754,7 +717,7 @@ async def record_governed_trip_output(
     contribution_manifest: dict[str, Any] | None = None,
 ) -> None:
     serialized = result.model_dump(mode="json") if hasattr(result, "model_dump") else result
-    has_releasable_cells = settings.privacy_disclosure_synthetic_test_mode or (
+    has_releasable_cells = (
         frozen_manifest_meets_disclosure_floor(contribution_manifest, settings=settings)
         if contribution_manifest is not None
         else await trip_cohort_meets_disclosure_floor(
@@ -795,9 +758,6 @@ async def record_disclosure(
 ) -> None:
     if query.route_id not in DISCLOSURE_ROUTE_INVENTORY:
         raise RuntimeError(f"Unregistered disclosure route: {query.route_id}")
-    ensure_disclosure_live_gate(settings, requires_measurement_run=False)
-    if settings.privacy_disclosure_synthetic_test_mode:
-        return
     principal_hash = _principal_hash(query.principal_id)
     scope_hash = _canonical_hash(
         {
@@ -831,39 +791,9 @@ async def record_disclosure(
             raise disclosure_suppressed(exact.reason)
         return
 
-    if query.tenant_id is None:
-        overlap_scope = True
-    elif query.campaign_id is None:
-        overlap_scope = or_(
-            DisclosureQueryDecision.tenant_id.is_(None),
-            DisclosureQueryDecision.tenant_id == query.tenant_id,
-        )
-    else:
-        overlap_scope = or_(
-            DisclosureQueryDecision.tenant_id.is_(None),
-            and_(
-                DisclosureQueryDecision.tenant_id == query.tenant_id,
-                or_(
-                    DisclosureQueryDecision.campaign_id.is_(None),
-                    DisclosureQueryDecision.campaign_id == query.campaign_id,
-                ),
-            ),
-        )
-    prior = await session.scalar(
-        select(DisclosureQueryDecision.id)
-        .where(
-            overlap_scope,
-            DisclosureQueryDecision.window_start <= window_end,
-            DisclosureQueryDecision.window_end >= window_start,
-        )
-        .limit(1)
-    )
     decision = "served"
     reason = "privacy_floor_passed"
-    if prior is not None:
-        decision = "suppressed"
-        reason = "overlapping_query_differencing"
-    elif not has_releasable_cells:
+    if not has_releasable_cells:
         decision = "suppressed"
         reason = "minimum_counts_or_contributor_cap"
     session.add(

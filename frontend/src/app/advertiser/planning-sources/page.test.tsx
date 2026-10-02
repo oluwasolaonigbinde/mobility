@@ -15,9 +15,8 @@ const LINK_ID = "00000000-0000-4000-8000-000000000002";
 const CAMPAIGN_ID = "00000000-0000-4000-8000-000000000003";
 const ZONE_ID = "00000000-0000-4000-8000-000000000004";
 const SEGMENT_ID = "00000000-0000-4000-8000-000000000005";
-const APPROVAL_ID = "00000000-0000-4000-8000-000000000006";
 
-function mockReadyRecommendation(exportApprovalId: string | null) {
+function mockReadyRecommendation() {
   get.mockImplementation(async (path: string) => {
     if (path === "/api/v1/advertiser/retargeting-sources") {
       return {
@@ -66,7 +65,6 @@ function mockReadyRecommendation(exportApprovalId: string | null) {
         provenance: { segment_version: 3, segment_snapshot_sha256: "c".repeat(64) },
         disclaimer: "Aggregate disclaimer",
         uncertainty: "Model uncertainty",
-        export_approval_id: exportApprovalId,
       },
     };
   });
@@ -77,12 +75,12 @@ describe("PlanningSourcesPage", () => {
     get.mockReset();
   });
 
-  it("explains the privacy gate instead of crashing and offers no forms", async () => {
+  it("shows a temporary service error instead of crashing and offers no forms", async () => {
     get.mockImplementation(async (path: string) => {
       if (path === "/api/v1/advertiser/campaigns") return { data: { items: [] } };
       throw new ApiError(503, {
-        code: "PRIVACY_LIVE_USE_BLOCKED",
-        message: "Advertiser analytics are unavailable until privacy approval",
+        code: "PROVIDER_UNAVAILABLE",
+        message: "The service is temporarily unavailable",
         details: {},
       });
     });
@@ -92,13 +90,13 @@ describe("PlanningSourcesPage", () => {
     expect(
       screen.getByRole("heading", { name: "Retargeting isn't available yet" }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/Available once privacy approval/)).toBeInTheDocument();
+    expect(screen.getByText(/This couldn't be loaded right now./)).toBeInTheDocument();
     expect(screen.queryByTestId("planning-source-form")).not.toBeInTheDocument();
     expect(screen.queryByTestId("planning-source-link-form")).not.toBeInTheDocument();
   });
 
   it("describes a declared audience in plain words without showing its fingerprint", async () => {
-    mockReadyRecommendation(null);
+    mockReadyRecommendation();
 
     const { container } = render(await PlanningSourcesPage());
 
@@ -179,30 +177,17 @@ describe("PlanningSourcesPage", () => {
     expect(screen.queryByText("Stale uncertainty must stay hidden")).not.toBeInTheDocument();
   });
 
-  it("withholds controlled export until a current approval is returned", async () => {
-    mockReadyRecommendation(null);
-
-    render(await PlanningSourcesPage());
-
-    expect(
-      screen.getByText("Downloads stay off until privacy approval is in place."),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Download suggestions (CSV)" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("submits the server-issued approval with the controlled export", async () => {
-    mockReadyRecommendation(APPROVAL_ID);
+  it("offers aggregate export without an approval form", async () => {
+    mockReadyRecommendation();
 
     const { container } = render(await PlanningSourcesPage());
 
     expect(screen.getByRole("button", { name: "Download suggestions (CSV)" })).toBeInTheDocument();
-    expect(container.querySelector('input[name="approval_id"]')).toHaveValue(APPROVAL_ID);
+    expect(container.querySelector('input[name="approval_id"]')).toBeNull();
   });
 
   it("names linked campaigns and zones without exposing their internal identifiers", async () => {
-    mockReadyRecommendation(null);
+    mockReadyRecommendation();
 
     render(await PlanningSourcesPage());
 

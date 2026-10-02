@@ -34,6 +34,7 @@ from app.models.trip_analytics import FraudFlag, FraudFlagStatus
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus, VehicleType
 from app.services.impressions import profile_metadata
+from app.services.reports import build_measurement_report_snapshot
 
 PASSWORD = "long-secure-password"
 DAY_1 = datetime(2026, 6, 1, 10, 0, tzinfo=UTC)
@@ -318,7 +319,9 @@ def add_payout_calculation(
     asyncio.run(create())
 
 
-def test_advertiser_dashboard_campaign_summary_daily_metrics_and_report(db_client, db_sessionmaker):
+def test_advertiser_dashboard_campaign_summary_daily_metrics_and_report(
+    db_client, db_sessionmaker, settings
+):
     admin = create_test_user(db_sessionmaker, email="admin@example.com", password=PASSWORD)
     advertiser = create_test_user(
         db_sessionmaker,
@@ -492,8 +495,23 @@ def test_advertiser_dashboard_campaign_summary_daily_metrics_and_report(db_clien
     assert daily_data["items"][0]["trip_count"] == 1
     assert daily_data["items"][0]["average_confidence_score"] == "0.1000"
 
-    assert report.status_code == http_status.HTTP_200_OK
-    report_data = report.json()
+    assert report.status_code == http_status.HTTP_409_CONFLICT
+    assert report.json()["error"]["code"] == "CAMPAIGN_REPORT_PENDING"
+
+    async def snapshot():
+        async with db_sessionmaker() as session:
+            return (
+                await build_measurement_report_snapshot(
+                    session,
+                    user_id=advertiser.id,
+                    campaign_id=campaign.id,
+                    settings=settings,
+                    start_at=None,
+                    end_at=None,
+                )
+            ).model_dump(mode="json")
+
+    report_data = asyncio.run(snapshot())
     assert "items" not in report_data
     assert "driver" not in str(report_data).lower()
     assert report_data["summary"]["id"] == str(campaign.id)
@@ -502,7 +520,7 @@ def test_advertiser_dashboard_campaign_summary_daily_metrics_and_report(db_clien
 
 
 def test_campaign_report_uses_half_open_trip_cohort_and_latest_payout_once(
-    db_client, db_sessionmaker
+    db_client, db_sessionmaker, settings
 ) -> None:
     admin = create_test_user(db_sessionmaker, email="admin-cohort@example.com", password=PASSWORD)
     advertiser = create_test_user(
@@ -583,8 +601,23 @@ def test_campaign_report_uses_half_open_trip_cohort_and_latest_payout_once(
         headers=auth_headers(db_client, advertiser.email, PASSWORD),
     )
 
-    assert response.status_code == http_status.HTTP_200_OK, response.text
-    report = response.json()
+    assert response.status_code == http_status.HTTP_409_CONFLICT, response.text
+    assert response.json()["error"]["code"] == "CAMPAIGN_REPORT_PENDING"
+
+    async def snapshot():
+        async with db_sessionmaker() as session:
+            return (
+                await build_measurement_report_snapshot(
+                    session,
+                    user_id=advertiser.id,
+                    campaign_id=campaign.id,
+                    settings=settings,
+                    start_at=DAY_1,
+                    end_at=DAY_2,
+                )
+            ).model_dump(mode="json")
+
+    report = asyncio.run(snapshot())
     assert report["trip_summary"]["total"] == 1
     assert report["impression_summary"]["estimated_impressions"] == "500.00"
     assert report["cost_summary"]["totals_by_currency"][0]["final_payout_total"] == "700.00"
@@ -703,7 +736,7 @@ def test_campaign_trip_report_is_aggregate_only_and_rbac_protected(
     )
 
 
-def test_reporting_zero_state_cross_org_date_validation_and_no_auto_calculation(
+def test_reporting_empty_cohort_suppression_cross_org_date_validation_and_no_auto_calculation(
     db_client,
     db_sessionmaker,
 ) -> None:
@@ -783,35 +816,12 @@ def test_reporting_zero_state_cross_org_date_validation_and_no_auto_calculation(
         headers=headers,
     )
 
-    assert summary.status_code == http_status.HTTP_200_OK
-    assert dashboard.status_code == http_status.HTTP_200_OK
-    assert dashboard.json()["campaigns"] == {
-        "total": 4,
-        "draft": 0,
-        "pending_review": 1,
-        "approved": 1,
-        "rejected": 1,
-        "scheduled": 0,
-        "active": 1,
-        "paused": 0,
-        "completed": 0,
-        "cancelled": 0,
-    }
-    data = summary.json()
-    assert data["trips"] == {"total": 0, "ended": 0, "active": 0}
-    assert data["impressions"]["estimated_impressions"] == "0.00"
-    assert data["costs"]["totals_by_currency"][0]["final_payout_total"] == "0.00"
-    assert data["fraud_flags"] == {
-        "open": 0,
-        "acknowledged": 0,
-        "confirmed": 0,
-        "dismissed": 0,
-        "low": 0,
-        "medium": 0,
-        "high": 0,
-    }
-    assert daily.json()["items"] == []
-    assert trips.json()["trips"] == {"total": 0, "ended": 0, "active": 0}
+    for response in (summary, dashboard, daily, trips):
+        assert response.status_code == http_status.HTTP_409_CONFLICT
+        assert response.json()["error"]["code"] == "DISCLOSURE_SUPPRESSED"
+        assert response.json()["error"]["details"] == {
+            "reason": "minimum_counts_or_contributor_cap"
+        }
     assert cross_org.status_code == http_status.HTTP_404_NOT_FOUND
     assert cross_org_trips.status_code == http_status.HTTP_404_NOT_FOUND
     assert invalid_range.status_code == http_status.HTTP_400_BAD_REQUEST

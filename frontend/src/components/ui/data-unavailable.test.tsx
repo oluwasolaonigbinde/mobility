@@ -23,7 +23,6 @@ describe("section unavailable presentation", () => {
     },
   );
   it.each([
-    ["gated", "Available once privacy approval for campaign results is complete."],
     ["forbidden", "Your account doesn't have access to this."],
     ["missing", "This information couldn't be found."],
   ] as const)("explains %s concisely without a pointless retry", (reason, detail) => {

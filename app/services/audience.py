@@ -51,9 +51,7 @@ from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.disclosure import (
     DisclosureQuery,
-    _approved_reference,
     audience_disclosure_policy,
-    ensure_disclosure_live_gate,
     exposure_cell_meets_disclosure_floor,
     record_disclosure,
 )
@@ -187,12 +185,6 @@ def _source_not_found() -> AppError:
     )
 
 
-async def _privacy_gate(settings: Settings) -> None:
-    # This is intentionally first in every public source operation: no source,
-    # membership, idempotency, or organization query is permitted before it.
-    ensure_disclosure_live_gate(settings, requires_measurement_run=False)
-
-
 async def _advertiser_membership(
     session: AsyncSession, *, actor_user_id: UUID, write: bool
 ) -> OrganizationMembership:
@@ -281,7 +273,6 @@ async def create_retargeting_source(
     payload: RetargetingSourceCreate,
     idempotency_key: str,
 ) -> RetargetingSource:
-    await _privacy_gate(settings)
     membership = await _advertiser_membership(session, actor_user_id=actor_user_id, write=True)
     snapshot = payload.model_dump(mode="json")
     fingerprint = _canonical_hash(snapshot)
@@ -353,7 +344,6 @@ async def create_retargeting_source(
 async def list_advertiser_retargeting_sources(
     session: AsyncSession, *, settings: Settings, actor_user_id: UUID
 ) -> list[RetargetingSource]:
-    await _privacy_gate(settings)
     membership = await _advertiser_membership(session, actor_user_id=actor_user_id, write=False)
     return list(
         await session.scalars(
@@ -367,7 +357,6 @@ async def list_advertiser_retargeting_sources(
 async def get_advertiser_retargeting_source(
     session: AsyncSession, *, settings: Settings, actor_user_id: UUID, source_id: UUID
 ) -> RetargetingSource:
-    await _privacy_gate(settings)
     membership = await _advertiser_membership(session, actor_user_id=actor_user_id, write=False)
     source = await session.scalar(
         select(RetargetingSource).where(
@@ -400,7 +389,6 @@ async def deactivate_retargeting_source(
     source_id: UUID,
     idempotency_key: str,
 ) -> RetargetingSource:
-    await _privacy_gate(settings)
     membership = await _advertiser_membership(session, actor_user_id=actor_user_id, write=True)
     fingerprint = _canonical_hash({"source_id": str(source_id)})
     await _idempotency_lock(
@@ -477,7 +465,6 @@ async def deactivate_retargeting_source(
 async def list_admin_retargeting_sources(
     session: AsyncSession, *, settings: Settings, actor_user_id: UUID
 ) -> list[RetargetingSource]:
-    await _privacy_gate(settings)
     await require_active_admin(session, actor_user_id)
     return list(
         await session.scalars(
@@ -489,7 +476,6 @@ async def list_admin_retargeting_sources(
 async def get_admin_retargeting_source(
     session: AsyncSession, *, settings: Settings, actor_user_id: UUID, source_id: UUID
 ) -> RetargetingSource:
-    await _privacy_gate(settings)
     await require_active_admin(session, actor_user_id)
     source = await session.get(RetargetingSource, source_id)
     if source is None:
@@ -596,7 +582,6 @@ async def create_retargeting_source_link(
     payload: RetargetingSourceLinkCreate,
     idempotency_key: str,
 ) -> RetargetingSourceLink:
-    await _privacy_gate(settings)
     membership = await _advertiser_membership(session, actor_user_id=actor_user_id, write=True)
     request = payload.model_dump(mode="json")
     fingerprint = _canonical_hash(request)
@@ -757,7 +742,6 @@ async def _link_access(
     write: bool,
     admin: bool = False,
 ) -> RetargetingSourceLink:
-    await _privacy_gate(settings)
     organization_id: UUID | None = None
     if admin:
         await require_active_admin(session, actor_user_id)
@@ -787,7 +771,6 @@ async def list_retargeting_source_links(
     actor_user_id: UUID,
     admin: bool = False,
 ) -> list[RetargetingSourceLink]:
-    await _privacy_gate(settings)
     statement = select(RetargetingSourceLink).order_by(RetargetingSourceLink.created_at.desc())
     if admin:
         await require_active_admin(session, actor_user_id)
@@ -819,7 +802,6 @@ async def remove_retargeting_source_link(
     link_id: UUID,
     idempotency_key: str,
 ) -> RetargetingSourceLink:
-    await _privacy_gate(settings)
     membership = await _advertiser_membership(session, actor_user_id=actor_user_id, write=True)
     fingerprint = _canonical_hash({"link_id": str(link_id)})
     await _link_idempotency_lock(session, actor_user_id, "remove", idempotency_key)
@@ -936,14 +918,10 @@ async def link_is_stale(session: AsyncSession, link: RetargetingSourceLink) -> b
     )
 
 
-async def _exposure_materialization_lock(
-    session: AsyncSession, source_link_id: UUID
-) -> None:
+async def _exposure_materialization_lock(session: AsyncSession, source_link_id: UUID) -> None:
     if session.get_bind().dialect.name != "postgresql":
         return
-    digest = hashlib.sha256(
-        f"exposure-segment-v1:{source_link_id}".encode()
-    ).digest()[:8]
+    digest = hashlib.sha256(f"exposure-segment-v1:{source_link_id}".encode()).digest()[:8]
     await session.execute(
         text("SELECT pg_advisory_xact_lock(:key)"),
         {"key": int.from_bytes(digest, "big", signed=True)},
@@ -1128,24 +1106,6 @@ async def _derive_authoritative_cells(
             status_code=status.HTTP_409_CONFLICT,
         ) from exc
     synthetic = run.test_only
-    if (
-        not rows
-        and settings.environment in {"test", "testing"}
-        and settings.privacy_disclosure_synthetic_test_mode
-    ):
-        rows = [
-            {
-                "grid_x": 0,
-                "grid_y": 0,
-                "trip_session_id": trip_id,
-                "vehicle_id": vehicle_id,
-                "cell_ping_count": 1,
-                "total_ping_count": 1,
-                "recorded_days": [start_at.date()],
-            }
-            for trip_id, vehicle_id in sorted(trip_vehicles.items())
-        ]
-        synthetic = True
     cells = _aggregate_authoritative_rows(
         rows=rows,
         trip_vehicles=trip_vehicles,
@@ -1171,7 +1131,6 @@ async def materialize_exposure_segment(
     source_link_id: UUID,
     measurement_run_id: UUID,
 ) -> ExposureSegment:
-    await _privacy_gate(settings)
     await _exposure_materialization_lock(session, source_link_id)
     link = await session.scalar(
         select(RetargetingSourceLink)
@@ -1207,12 +1166,6 @@ async def materialize_exposure_segment(
         raise AppError(
             "EXPOSURE_SEGMENT_MEASUREMENT_RUN_INVALID",
             "The immutable measurement run did not reproduce",
-            status_code=status.HTTP_409_CONFLICT,
-        )
-    if not run.test_only and settings.privacy_disclosure_synthetic_test_mode:
-        raise AppError(
-            "EXPOSURE_SEGMENT_LIVE_RUN_FORBIDDEN",
-            "Synthetic materialization cannot consume a live measurement run",
             status_code=status.HTTP_409_CONFLICT,
         )
     from app.services.exposure_scores import exposure_score_is_stale
@@ -1514,9 +1467,6 @@ async def high_exposure_zone_insights(
     measurement_run_id: UUID | None = None,
     record_history: bool = True,
 ) -> HighExposureZoneInsightsRead:
-    # The central disclosure gate is deliberately first: no membership,
-    # campaign, run, score, segment, zone label, or ranking fact is read before it.
-    await _privacy_gate(settings)
     organization_id: UUID | None = None
     if admin:
         await require_active_admin(session, actor_user_id)
@@ -1557,14 +1507,6 @@ async def high_exposure_zone_insights(
         return _zone_insight_response(campaign_id=campaign.id, state="empty")
     if not measurement_run_reproducible(run):
         return _zone_insight_response(campaign_id=campaign.id, state="stale")
-    if not settings.privacy_disclosure_synthetic_test_mode and (
-        run.test_only
-        or not settings.measurement_live_issuance_authorized
-        or not _approved_reference(settings.measurement_report_method_reference)
-        or run.method_revision != settings.measurement_report_method_reference
-    ):
-        return _zone_insight_response(campaign_id=campaign.id, state="unavailable")
-
     score = await session.scalar(
         select(ExposureScore)
         .where(

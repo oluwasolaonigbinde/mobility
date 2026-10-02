@@ -221,13 +221,7 @@ def test_measurement_run_replays_reproduces_reissues_and_drives_report(
 
     live_settings = settings.model_copy(
         update={
-            "privacy_disclosure_synthetic_test_mode": False,
-            "privacy_disclosure_live_authorized": True,
-            "privacy_legal_approval_reference": "approved-legal-v1",
-            "privacy_disclosure_config_reference": "approved-disclosure-v1",
-            "privacy_query_history_retention_reference": "approved-retention-v1",
-            "measurement_live_issuance_authorized": True,
-            "measurement_report_method_reference": "measurement-contract-v1",
+            "privacy_legal_approval_reference": "",
         }
     )
     db_client.app.dependency_overrides[get_settings] = lambda: live_settings
@@ -239,8 +233,8 @@ def test_measurement_run_replays_reproduces_reissues_and_drives_report(
         },
         headers=advertiser_headers,
     )
-    assert blocked_live.status_code == 503
-    assert blocked_live.json()["error"]["code"] == "MEASUREMENT_LIVE_ISSUANCE_BLOCKED"
+    assert blocked_live.status_code == 200, blocked_live.text
+    assert blocked_live.json()["measurement_run"]["id"] == second_body["id"]
 
     async def count_runs() -> int:
         async with db_sessionmaker() as session:
@@ -408,7 +402,9 @@ def test_measurement_run_fails_closed_without_proof_or_roi_prerequisites(
     assert response.json()["error"]["code"] == "ROI_PREREQUISITES_REQUIRED"
 
 
-def test_synthetic_roi_run_freezes_complete_method_and_inputs(db_client, db_sessionmaker) -> None:
+def test_synthetic_roi_run_freezes_complete_method_and_inputs(
+    db_client, db_sessionmaker, settings
+) -> None:
     admin, _, campaign = create_measurement_graph(db_sessionmaker)
     payload = issue_payload(campaign.id)
     payload["mode"] = "roi_enabled"
@@ -445,20 +441,35 @@ def test_synthetic_roi_run_freezes_complete_method_and_inputs(db_client, db_sess
         "decision": "INCLUDE",
         "test_only": True,
     }
+    deployed = settings.model_copy(update={"environment": "staging"})
+    db_client.app.dependency_overrides[get_settings] = lambda: deployed
+    try:
+        payload["client_request_id"] = str(uuid4())
+        refused = db_client.post(
+            "/api/v1/admin/measurement-runs",
+            json=payload,
+            headers=auth_headers(db_client, admin.email, PASSWORD),
+        )
+        assert refused.status_code == 409
+        assert refused.json()["error"]["code"] == "ROI_PREREQUISITES_REQUIRED"
+        performance = db_client.post(
+            "/api/v1/admin/measurement-runs",
+            json=issue_payload(campaign.id),
+            headers=auth_headers(db_client, admin.email, PASSWORD),
+        )
+        assert performance.status_code == 201, performance.text
+    finally:
+        db_client.app.dependency_overrides.pop(get_settings, None)
 
 
-def test_production_measurement_issuance_stays_default_denied(
+def test_measurement_issuance_does_not_require_legal_or_method_authorization(
     db_client, db_sessionmaker, settings
 ) -> None:
     admin, _, campaign = create_measurement_graph(db_sessionmaker)
     headers = auth_headers(db_client, admin.email, PASSWORD)
     live_settings = settings.model_copy(
         update={
-            "privacy_disclosure_synthetic_test_mode": False,
-            "privacy_disclosure_live_authorized": True,
-            "privacy_legal_approval_reference": "approved-legal-v1",
-            "privacy_disclosure_config_reference": "approved-disclosure-v1",
-            "privacy_query_history_retention_reference": "approved-retention-v1",
+            "privacy_legal_approval_reference": "",
         }
     )
     db_client.app.dependency_overrides[get_settings] = lambda: live_settings
@@ -467,8 +478,8 @@ def test_production_measurement_issuance_stays_default_denied(
         json={**issue_payload(campaign.id), "test_only": False},
         headers=headers,
     )
-    assert response.status_code == 503
-    assert response.json()["error"]["code"] == "MEASUREMENT_LIVE_ISSUANCE_BLOCKED"
+    assert response.status_code == 201, response.text
+    assert response.json()["reproducible"] is True
 
 
 def test_measurement_result_manifest_is_canonical_json() -> None:

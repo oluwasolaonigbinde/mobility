@@ -27,7 +27,6 @@ describe("aggregate targeting export BFF", () => {
     });
 
     const form = new FormData();
-    form.set("approval_id", "00000000-0000-4000-8000-000000000075");
     const response = await POST(new Request("http://localhost", { method: "POST", body: form }), {
       params: Promise.resolve({ segmentId }),
     });
@@ -40,7 +39,7 @@ describe("aggregate targeting export BFF", () => {
           path: { segment_id: segmentId },
           header: { "Idempotency-Key": `w3-01d-export-${segmentId}` },
         },
-        body: { approval_id: "00000000-0000-4000-8000-000000000075" },
+        body: {},
       },
     );
     expect(response.headers.get("content-type")).toBe("text/csv; charset=utf-8");

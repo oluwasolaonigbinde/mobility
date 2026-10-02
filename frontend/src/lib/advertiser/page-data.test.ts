@@ -32,8 +32,8 @@ describe("advertiser page data", () => {
     },
   );
   it.each([
-    [503, "PRIVACY_LIVE_USE_BLOCKED", "gated"],
-    [403, "PRIVACY_LIVE_USE_BLOCKED", "gated"],
+    [503, "PROVIDER_UNAVAILABLE", "operational"],
+    [403, "PROVIDER_UNAVAILABLE", "forbidden"],
     [403, "FORBIDDEN", "forbidden"],
     [404, "NOT_FOUND", "missing"],
     [429, "RATE_LIMITED", "operational"],
@@ -60,7 +60,7 @@ describe("advertiser page data", () => {
   it("redirects every 401 before classifying even a gate-shaped error", async () => {
     await expect(
       loadAdvertiserPageData(async () => {
-        throw new ApiError(401, { code: "PRIVACY_LIVE_USE_BLOCKED", message: "Private" });
+        throw new ApiError(401, { code: "PROVIDER_UNAVAILABLE", message: "Private" });
       }),
     ).rejects.toThrow("redirect:/login");
     expect(redirect).toHaveBeenCalledWith("/login");

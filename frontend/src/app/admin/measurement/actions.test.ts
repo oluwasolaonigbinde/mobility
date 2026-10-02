@@ -152,7 +152,7 @@ describe("issueMeasurement", () => {
         client_request_id: request,
         period_start_at: "2026-09-01T00:00:00Z",
         period_end_at: "2026-10-01T00:00:00Z",
-        test_only: true,
+        test_only: false,
         mode: "performance_only",
       },
     });

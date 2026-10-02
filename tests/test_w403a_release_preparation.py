@@ -78,7 +78,6 @@ def test_live_environment_examples_cover_current_settings_source() -> None:
         "REQUEST_ID_HEADER",
         "JWT_ALGORITHM",
         "ALLOW_DEMO_SEED",
-        "PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE",
     }
 
 
@@ -287,8 +286,6 @@ def valid_release_environment(tmp_path: Path) -> dict[str, str]:
                 "Email-receipt-secret-with-more-than-thirty-two-characters-2026!"
             ),
             "EMAIL_RECEIPT_KEY_ID": "email-receipt-2026-01",
-            "PRIVACY_COLLECTION_LIVE_AUTHORIZED": "true",
-            "PRIVACY_COLLECTION_SYNTHETIC_TEST_MODE": "false",
             "PRIVACY_LEGAL_APPROVAL_REFERENCE": "legal-approval-reference-2026-01",
             "NEXT_PUBLIC_MAP_STYLE_URL": (
                 "https://maps.client-owned-domain.com/styles/cardvert.json"
@@ -296,9 +293,6 @@ def valid_release_environment(tmp_path: Path) -> dict[str, str]:
             "SESSION_COOKIE_NAME": "__Host-cardvert_session",
             "ALLOW_DEMO_SEED": "false",
             "DEMO_LOGIN_ENABLED": "false",
-            "PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE": "false",
-            "MEASUREMENT_LIVE_ISSUANCE_AUTHORIZED": "false",
-            "PRIVACY_DISCLOSURE_LIVE_AUTHORIZED": "false",
             "LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER": "true",
             "LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER": "true",
             "LOGIN_RATE_LIMIT_TRUSTED_PROXY_CIDRS": "10.255.254.10/32",
@@ -420,7 +414,6 @@ def test_production_builds_pin_base_images_and_dependency_graphs() -> None:
         ("BACKEND_IMAGE", "registry.invalid/cardvert/backend:latest"),
         ("ALLOW_DEMO_SEED", "true"),
         ("DEMO_LOGIN_ENABLED", "true"),
-        ("PRIVACY_DISCLOSURE_SYNTHETIC_TEST_MODE", "true"),
         ("OBJECT_STORAGE_ENDPOINT_URL", "http://objects.client-storage.net"),
         (
             "OBJECT_STORAGE_ENDPOINT_URL",
@@ -506,9 +499,9 @@ def test_release_evidence_secret_must_use_dedicated_custody(
         keyring = json.loads(environment[source_name])
         environment["RELEASE_EVIDENCE_SIGNING_SECRET"] = keyring[environment[version_name]]
     elif source_name == "BACKUP_PASSPHRASE_FILE":
-        environment["RELEASE_EVIDENCE_SIGNING_SECRET"] = Path(
-            environment[source_name]
-        ).read_text().strip()
+        environment["RELEASE_EVIDENCE_SIGNING_SECRET"] = (
+            Path(environment[source_name]).read_text().strip()
+        )
     else:
         environment["RELEASE_EVIDENCE_SIGNING_SECRET"] = environment[source_name]
 
@@ -554,9 +547,6 @@ def test_complete_synthetic_environment_validates_settings_and_renders_compose(
         ("MALWARE_SCANNER_HOST", "scanner.invalid", "MALWARE_SCANNER_HOST"),
         ("MALWARE_SCANNER_PORT", "0", "MALWARE_SCANNER_PORT"),
         ("MALWARE_SCANNER_TIMEOUT_SECONDS", "0", "MALWARE_SCANNER_TIMEOUT_SECONDS"),
-        ("PRIVACY_COLLECTION_LIVE_AUTHORIZED", "false", "PRIVACY_COLLECTION"),
-        ("PRIVACY_LEGAL_APPROVAL_REFERENCE", "", "PRIVACY_LEGAL"),
-        ("PRIVACY_COLLECTION_SYNTHETIC_TEST_MODE", "true", "SYNTHETIC_TEST_MODE"),
         ("EMAIL_PROVIDER", "", "EMAIL_PROVIDER"),
         ("EMAIL_SENDER_ADDRESS", "", "EMAIL_SENDER_ADDRESS"),
         ("EMAIL_SMTP_HOST", "", "EMAIL_SMTP_HOST"),
@@ -785,9 +775,7 @@ def test_w403a_rehearsal_supplies_verified_tls_data_service_material() -> None:
         "2606:4700:4700::1111",
     ],
 )
-def test_release_environment_rejects_every_edge_ip_literal(
-    tmp_path: Path, hostname: str
-) -> None:
+def test_release_environment_rejects_every_edge_ip_literal(tmp_path: Path, hostname: str) -> None:
     environment = valid_release_environment(tmp_path)
     environment["EDGE_HOSTNAME"] = hostname
     environment["PUBLIC_ORIGIN"] = (
@@ -815,9 +803,7 @@ def test_release_environment_rejects_every_edge_ip_literal(
         "cardvert.example.org",
     ],
 )
-def test_release_environment_rejects_reserved_edge_dns_names(
-    tmp_path: Path, hostname: str
-) -> None:
+def test_release_environment_rejects_reserved_edge_dns_names(tmp_path: Path, hostname: str) -> None:
     environment = valid_release_environment(tmp_path)
     environment["EDGE_HOSTNAME"] = hostname
     environment["PUBLIC_ORIGIN"] = f"https://{hostname}"
@@ -898,7 +884,6 @@ def test_production_settings_fail_closed_on_missing_services_and_test_switches()
             database_url=None,
             redis_url=None,
             allow_demo_seed=True,
-            privacy_disclosure_synthetic_test_mode=True,
             payout_crypto_keyring_b64=('{"1":"yPdM2Hgg3Q1M+MS4iF26TyMQmmuUOMf7p9hNSMlcycI="}'),
         )
 
@@ -1118,19 +1103,22 @@ def test_compatibility_evidence_binds_previous_image_and_forward_schema() -> Non
     generated_at = datetime(2026, 8, 28, 12, 0, tzinfo=UTC)
     evidence = compatibility_receipt(generated_at=generated_at)
 
-    assert validate_compatibility_evidence(
-        evidence,
-        target_release_id=evidence["target_release_id"],
-        target_revision=evidence["target_revision"],
-        target_backend_image=evidence["target_backend_image"],
-        previous_release_id=evidence["previous_release_id"],
-        previous_revision=evidence["previous_revision"],
-        previous_backend_image=evidence["previous_backend_image"],
-        forward_alembic_revision=evidence["forward_alembic_revision"],
-        signing_secret=RELEASE_EVIDENCE_SECRET,
-        key_id=RELEASE_EVIDENCE_KEY_ID,
-        now=generated_at + timedelta(minutes=1),
-    )["result"] == "passed"
+    assert (
+        validate_compatibility_evidence(
+            evidence,
+            target_release_id=evidence["target_release_id"],
+            target_revision=evidence["target_revision"],
+            target_backend_image=evidence["target_backend_image"],
+            previous_release_id=evidence["previous_release_id"],
+            previous_revision=evidence["previous_revision"],
+            previous_backend_image=evidence["previous_backend_image"],
+            forward_alembic_revision=evidence["forward_alembic_revision"],
+            signing_secret=RELEASE_EVIDENCE_SECRET,
+            key_id=RELEASE_EVIDENCE_KEY_ID,
+            now=generated_at + timedelta(minutes=1),
+        )["result"]
+        == "passed"
+    )
 
 
 RELEASE_EVIDENCE_SECRET = "Release-evidence-secret-that-is-dedicated-and-random-2026!"
@@ -1158,8 +1146,10 @@ def compatibility_receipt(
         "authority_sha256": "a" * 64,
         "checks": {
             "database": {"alembic_revision": forward_revision, "postgis_version": "3.4"},
-            "api": {"status": "ok"}, "broker": {"status": "ok"},
-            "scanner": {"status": "ok"}, "trip_evidence_signing": {"status": "ok"},
+            "api": {"status": "ok"},
+            "broker": {"status": "ok"},
+            "scanner": {"status": "ok"},
+            "trip_evidence_signing": {"status": "ok"},
             "storage": {"status": "private_read_write_delete_ok"},
             "worker": {"status": "quiesced_for_qualification"},
         },
@@ -1225,9 +1215,7 @@ def validate_test_compatibility_receipt(evidence: dict, *, now: datetime | None 
         (("probes", "report_schema", "output", "status"), "failed"),
     ],
 )
-def test_compatibility_receipt_rejects_tampering(
-    path: tuple[str, ...], changed_value: str
-) -> None:
+def test_compatibility_receipt_rejects_tampering(path: tuple[str, ...], changed_value: str) -> None:
     evidence = copy.deepcopy(compatibility_receipt())
     target = evidence
     for name in path[:-1]:
@@ -1255,9 +1243,7 @@ def test_compatibility_receipt_rejects_every_changed_signature_byte(
 
 @pytest.mark.parametrize("probe_name", ["readiness", "report_schema"])
 @pytest.mark.parametrize("field", ["output", "output_sha256"])
-def test_compatibility_receipt_rejects_missing_probe_output(
-    probe_name: str, field: str
-) -> None:
+def test_compatibility_receipt_rejects_missing_probe_output(probe_name: str, field: str) -> None:
     evidence = compatibility_receipt()
     del evidence["probes"][probe_name][field]
 
@@ -1352,19 +1338,22 @@ def test_first_release_uses_signed_bootstrap_receipt_without_inventing_predecess
     assert evidence["previous_revision"] is None
     assert evidence["previous_backend_image"] is None
     assert evidence["probes"] is None
-    assert validate_compatibility_evidence(
-        evidence,
-        target_release_id=evidence["target_release_id"],
-        target_revision=evidence["target_revision"],
-        target_backend_image=evidence["target_backend_image"],
-        previous_release_id="",
-        previous_revision="",
-        previous_backend_image="",
-        forward_alembic_revision=evidence["forward_alembic_revision"],
-        signing_secret=RELEASE_EVIDENCE_SECRET,
-        key_id=RELEASE_EVIDENCE_KEY_ID,
-        now=generated_at,
-    )["result"] == "passed"
+    assert (
+        validate_compatibility_evidence(
+            evidence,
+            target_release_id=evidence["target_release_id"],
+            target_revision=evidence["target_revision"],
+            target_backend_image=evidence["target_backend_image"],
+            previous_release_id="",
+            previous_revision="",
+            previous_backend_image="",
+            forward_alembic_revision=evidence["forward_alembic_revision"],
+            signing_secret=RELEASE_EVIDENCE_SECRET,
+            key_id=RELEASE_EVIDENCE_KEY_ID,
+            now=generated_at,
+        )["result"]
+        == "passed"
+    )
 
 
 def test_unaccepted_stale_compatibility_receipt_fails_but_exact_release_anchor_survives() -> None:
@@ -1569,10 +1558,7 @@ def test_backup_completion_binds_ciphertext_manifest_state_and_retention() -> No
 
 
 def test_restore_database_url_preserves_percent_encoded_password_and_tls_query() -> None:
-    original = (
-        "postgresql+asyncpg://mobility:p%40ss%2Fword%3A2026@db:5432/mobility"
-        "?ssl=verify-full"
-    )
+    original = "postgresql+asyncpg://mobility:p%40ss%2Fword%3A2026@db:5432/mobility?ssl=verify-full"
 
     assert database_url_for_name(original, "cardvert_restore_verify_1234") == (
         "postgresql+asyncpg://mobility:p%40ss%2Fword%3A2026@db:5432/"
@@ -1625,7 +1611,7 @@ def test_release_scripts_never_run_alembic_downgrade() -> None:
     assert (
         '"${current_backend_image}" == "$(jq -r \'.backend_image\' "${CURRENT_STATE}")"'
     ) in recovery
-    assert release.index('--stage compatibility') < release.index(
+    assert release.index("--stage compatibility") < release.index(
         "python -m app.operations.readiness --write-canary"
     )
     assert '"${previous_compose[@]}" stop api worker' not in release

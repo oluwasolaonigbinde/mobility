@@ -44,7 +44,6 @@ from app.services.payees import (
     read_applicant_verified_bank_account,
     verification_reference_hash,
 )
-from app.services.privacy_authority import require_collection_authority
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,7 +156,6 @@ async def submit_application_person_payee(
     crypto: CryptoProvider,
     settings: Settings,
 ) -> PersonPayeeView:
-    require_collection_authority(settings)
     application = await application_from_access_token(
         session,
         token=payload.application_access_token.get_secret_value(),

@@ -19,7 +19,7 @@ from app.adapters.storage import (
     StorageUnavailable,
     StorageWriteUncertain,
 )
-from app.core.config import Settings
+from app.core.config import LOCAL_ENVIRONMENTS, Settings
 from app.core.errors import AppError
 from app.models.campaign import Campaign
 from app.models.exposure_score import ExposureScore
@@ -111,43 +111,16 @@ def _approved_reference(value: str) -> bool:
 
 
 def _authority_document(run: MeasurementRun, settings: Settings) -> dict[str, object]:
-    if run.test_only:
-        if (
-            settings.environment.lower() != "test"
-            or not settings.privacy_disclosure_synthetic_test_mode
-        ):
-            raise _error(
-                "REPORT_SYNTHETIC_ISSUANCE_BLOCKED",
-                "Synthetic report issuance is limited to the explicit test authority",
-                status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-        authority_mode = "synthetic_test_only"
-    else:
-        required_privacy_references = (
-            settings.privacy_legal_approval_reference,
-            settings.privacy_disclosure_config_reference,
-            settings.privacy_query_history_retention_reference,
-        )
-        if (
-            not settings.privacy_disclosure_live_authorized
-            or not all(_approved_reference(value) for value in required_privacy_references)
-            or not settings.measurement_live_issuance_authorized
-            or not _approved_reference(settings.measurement_report_method_reference)
-            or run.method_revision != settings.measurement_report_method_reference
-        ):
-            raise _error(
-                "REPORT_LIVE_ISSUANCE_BLOCKED",
-                "Live report issuance is unavailable until legal and method approval exists",
-                status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
-        authority_mode = "approved_live"
     result = MeasurementResultRead.model_validate(run.result_manifest)
     if result.roi_gate.decision == "INCLUDE":
         roi_input = run.input_manifest.get("roi")
         method = roi_input.get("method") if isinstance(roi_input, dict) else None
         approval_reference = method.get("approval_reference") if isinstance(method, dict) else None
         if run.test_only:
-            if approval_reference != "SYNTHETIC_TEST_ONLY":
+            if (
+                settings.environment.lower() not in LOCAL_ENVIRONMENTS
+                or approval_reference != "SYNTHETIC_TEST_ONLY"
+            ):
                 raise _error(
                     "REPORT_ROI_AUTHORITY_INVALID",
                     "The frozen financial result has no valid synthetic approval authority",
@@ -164,24 +137,15 @@ def _authority_document(run: MeasurementRun, settings: Settings) -> dict[str, ob
             )
     return {
         "schema_version": "report-issuance-authority-v1",
-        "mode": authority_mode,
+        "mode": "measurement",
         "run_id": str(run.id),
         "run_method_revision": run.method_revision,
         "run_roi_method_revision": run.roi_method_revision,
-        "privacy_live_authorized": settings.privacy_disclosure_live_authorized,
-        "privacy_synthetic_test_mode": settings.privacy_disclosure_synthetic_test_mode,
-        "privacy_legal_approval_reference": settings.privacy_legal_approval_reference,
-        "privacy_disclosure_config_reference": settings.privacy_disclosure_config_reference,
-        "privacy_query_history_retention_reference": (
-            settings.privacy_query_history_retention_reference
-        ),
         "privacy_min_vehicles_per_cell": settings.privacy_min_vehicles_per_cell,
         "privacy_min_trips_per_cell": settings.privacy_min_trips_per_cell,
         "privacy_min_days_per_cell": settings.privacy_min_days_per_cell,
         "privacy_max_contributor_share": settings.privacy_max_contributor_share,
         "privacy_min_resolution_m": settings.privacy_min_resolution_m,
-        "measurement_live_issuance_authorized": (settings.measurement_live_issuance_authorized),
-        "measurement_report_method_reference": settings.measurement_report_method_reference,
         "measurement_roi_method_reference": settings.measurement_roi_method_reference,
     }
 

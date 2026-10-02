@@ -94,7 +94,7 @@ describe("AdminPlanningSourcesPage", () => {
   it("shows the privacy gate instead of crashing", async () => {
     get.mockRejectedValue(
       new ApiError(503, {
-        code: "PRIVACY_LIVE_USE_BLOCKED",
+        code: "PROVIDER_UNAVAILABLE",
         message: "Advertiser analytics are unavailable until privacy approval",
         details: {},
       }),

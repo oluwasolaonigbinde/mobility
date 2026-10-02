@@ -102,8 +102,7 @@ CANONICAL_ITEMS = (
     (
         "W4-03A",
         "PKG-08",
-        "leaf: R17-A, W4-01D, W4-02B; external-live: EXT-RELEASE-ENV, "
-        "EXT-STAGING-APPROVAL",
+        "leaf: R17-A, W4-01D, W4-02B; external-live: EXT-RELEASE-ENV, EXT-STAGING-APPROVAL",
     ),
     (
         "W4-03B",
@@ -251,6 +250,7 @@ CANONICAL_EXTERNAL_IDS = (
     "EXT-COMMERCIAL-VALUES",
     "EXT-EVIDENCE-POLICY",
     "EXT-LEGAL-PRIVACY",
+    "EXT-PRIVACY-RESTORATION",
     "EXT-DISBURSEMENT-PROVIDER",
     "EXT-AD-PLATFORM",
     "EXT-PILOT-PERMITS",
@@ -345,9 +345,7 @@ def _authoritative_view(text: str, errors: list[str]) -> str:
         end = text.find("-->", start + 4)
         pieces.append(text[position:start])
         if end < 0:
-            errors.append(
-                f"line {text[:start].count(chr(10)) + 1}: unterminated HTML comment"
-            )
+            errors.append(f"line {text[:start].count(chr(10)) + 1}: unterminated HTML comment")
             pieces.append(_blank_preserving_newlines(text[start:]))
             break
         pieces.append(_blank_preserving_newlines(text[start : end + 3]))
@@ -368,9 +366,7 @@ def _authoritative_view(text: str, errors: list[str]) -> str:
 def _check_unique_authority_markers(text: str, errors: list[str]) -> None:
     for heading in AUTHORITATIVE_HEADINGS:
         title = heading.removeprefix("## ")
-        occurrences = re.findall(
-            rf"^#{{1,6}}\s+{re.escape(title)}\b.*$", text, re.MULTILINE
-        )
+        occurrences = re.findall(rf"^#{{1,6}}\s+{re.escape(title)}\b.*$", text, re.MULTILINE)
         if len(occurrences) != 1:
             errors.append(
                 f"authoritative heading {title!r} must appear exactly once at any "
@@ -379,9 +375,7 @@ def _check_unique_authority_markers(text: str, errors: list[str]) -> None:
     for label in CONTROLLER_LABELS:
         count = len(re.findall(rf"\*\*{label}:\*\*", text))
         if count != 1:
-            errors.append(
-                f"controller field {label!r} must appear exactly once; found {count}"
-            )
+            errors.append(f"controller field {label!r} must appear exactly once; found {count}")
 
 
 def _section(text: str, heading: str, next_heading: str) -> tuple[str, int]:
@@ -507,9 +501,7 @@ def validate_text(text: str, contracts_text: str | None = None) -> list[str]:
         )
 
     try:
-        deferred_rows = _table(
-            external_section, "| Validation | State |", external_line
-        )
+        deferred_rows = _table(external_section, "| Validation | State |", external_line)
     except ValueError as exc:
         errors.append(str(exc))
         deferred_rows = []
@@ -571,9 +563,7 @@ def validate_text(text: str, contracts_text: str | None = None) -> list[str]:
         if package.package_id == "PKG-10":
             allowed_prerequisites.add("none — remediation DAG gates entry")
         if package.prerequisites not in allowed_prerequisites:
-            errors.append(
-                f"line {package.line}: package entry must use its pinned DAG authority"
-            )
+            errors.append(f"line {package.line}: package entry must use its pinned DAG authority")
 
     try:
         contract_section, contract_line = _section(
@@ -605,13 +595,10 @@ def validate_text(text: str, contracts_text: str | None = None) -> list[str]:
             )
             if owns_count != 1:
                 errors.append(
-                    "package card PKG-10 must declare exactly `Owns: remediation "
-                    "slices R01–R60.`"
+                    "package card PKG-10 must declare exactly `Owns: remediation slices R01–R60.`"
                 )
             continue
-        owns_matches = re.findall(
-            r"- \*\*Owns:\*\* checklist (\d+)[–-](\d+)", card_body
-        )
+        owns_matches = re.findall(r"- \*\*Owns:\*\* checklist (\d+)[–-](\d+)", card_body)
         if len(owns_matches) != 1:
             errors.append(
                 f"package card {card_id} must declare exactly one Owns: checklist "
@@ -688,8 +675,7 @@ def validate_text(text: str, contracts_text: str | None = None) -> list[str]:
     if len(remediation_ids) != len(set(remediation_ids)):
         errors.append("remediation slice ids must be unique")
     remediation_by_id = {
-        remediation_slice.slice_id: remediation_slice
-        for remediation_slice in remediation_slices
+        remediation_slice.slice_id: remediation_slice for remediation_slice in remediation_slices
     }
     remediation_dependencies: dict[str, list[str]] = {}
     for remediation_slice in remediation_slices:
@@ -756,13 +742,9 @@ def validate_text(text: str, contracts_text: str | None = None) -> list[str]:
                 f"{remediation_slice.status!r}"
             )
         if remediation_slice.plan_review not in {"PENDING", f"PASS — {slice_id}-P"}:
-            errors.append(
-                f"line {remediation_slice.line}: invalid {slice_id} plan-review receipt"
-            )
+            errors.append(f"line {remediation_slice.line}: invalid {slice_id} plan-review receipt")
         if remediation_slice.diff_review not in {"PENDING", f"PASS — {slice_id}-M"}:
-            errors.append(
-                f"line {remediation_slice.line}: invalid {slice_id} diff-review receipt"
-            )
+            errors.append(f"line {remediation_slice.line}: invalid {slice_id} diff-review receipt")
         if not (checkpoint_pending or checkpoint_pass):
             errors.append(
                 f"line {remediation_slice.line}: invalid {slice_id} domain-checkpoint receipt"
@@ -904,9 +886,7 @@ def validate_text(text: str, contracts_text: str | None = None) -> list[str]:
     item_ids = [item.item_id for item in items]
     if len(item_ids) != len(set(item_ids)):
         errors.append("checklist ids must be unique")
-    actual_manifest = tuple(
-        (item.item_id, item.package_id, item.prerequisites) for item in items
-    )
+    actual_manifest = tuple((item.item_id, item.package_id, item.prerequisites) for item in items)
     if actual_manifest != CANONICAL_ITEMS:
         for number, (actual, expected) in enumerate(
             zip(actual_manifest, CANONICAL_ITEMS, strict=False), start=1
@@ -988,18 +968,16 @@ def validate_text(text: str, contracts_text: str | None = None) -> list[str]:
         live_package_ids = re.findall(r"^### (PKG-\d{2}) —", live_packages, re.MULTILINE)
         if live_package_ids != package_card_ids:
             errors.append("live package contracts do not match progress package cards")
-        live_package_chunks = re.split(
-            r"^### PKG-\d{2} —.*$", live_packages, flags=re.MULTILINE
-        )[1:]
+        live_package_chunks = re.split(r"^### PKG-\d{2} —.*$", live_packages, flags=re.MULTILINE)[
+            1:
+        ]
         for package_id, chunk in zip(live_package_ids, live_package_chunks, strict=False):
             if "- **Owns:**" not in chunk or len(chunk.strip()) < 100:
                 errors.append(f"live package contract {package_id} lacks detail")
         live_spec_ids = re.findall(r"^#### ([A-Z0-9-]+) —", live_specs, re.MULTILINE)
         if live_spec_ids != item_ids:
             errors.append("live checklist specifications do not match progress checklist rows")
-        live_spec_chunks = re.split(
-            r"^#### [A-Z0-9-]+ —.*$", live_specs, flags=re.MULTILINE
-        )[1:]
+        live_spec_chunks = re.split(r"^#### [A-Z0-9-]+ —.*$", live_specs, flags=re.MULTILINE)[1:]
         for item_id, chunk in zip(live_spec_ids, live_spec_chunks, strict=False):
             for obligation in ("Scope / authority", "Acceptance", "Verify / review"):
                 match = re.search(
@@ -1134,8 +1112,7 @@ def validate_text(text: str, contracts_text: str | None = None) -> list[str]:
     for package in packages:
         if package.package_id == "PKG-10":
             all_remediation_complete = bool(remediation_slices) and all(
-                remediation_slice.status == "COMPLETE"
-                for remediation_slice in remediation_slices
+                remediation_slice.status == "COMPLETE" for remediation_slice in remediation_slices
             )
             if package.status == "DONE" and not all_remediation_complete:
                 errors.append(
@@ -1210,16 +1187,17 @@ def validate_text(text: str, contracts_text: str | None = None) -> list[str]:
                         "dependency-satisfied QUEUED work"
                     )
             if not active_remediation_slices and not any(
-                remediation_runnable(remediation_slice)
-                for remediation_slice in remediation_slices
+                remediation_runnable(remediation_slice) for remediation_slice in remediation_slices
             ):
                 errors.append("active PKG-10 has no ACTIVE or runnable remediation slice")
         else:
             owned_active = package_items.get(active.package_id, [])
             # A REVIEW package with every owned item DONE is the consolidated
             # closure review; any other active state still needs runnable work.
-            closure_review = active.status == "REVIEW" and bool(owned_active) and all(
-                item.status == "DONE" for item in owned_active
+            closure_review = (
+                active.status == "REVIEW"
+                and bool(owned_active)
+                and all(item.status == "DONE" for item in owned_active)
             )
             if not checkpoint_match:
                 errors.append("active package requires a Current checkpoint")
@@ -1235,11 +1213,13 @@ def validate_text(text: str, contracts_text: str | None = None) -> list[str]:
             if not closure_review and not any(runnable(item) for item in owned_active):
                 errors.append("active package has no runnable TODO checklist item")
     elif not active_packages:
-        all_complete = bool(packages and items and remediation_slices) and all(
-            package.status == "DONE" for package in packages
-        ) and all(item.status == "DONE" for item in items) and all(
-            remediation_slice.status == "COMPLETE"
-            for remediation_slice in remediation_slices
+        all_complete = (
+            bool(packages and items and remediation_slices)
+            and all(package.status == "DONE" for package in packages)
+            and all(item.status == "DONE" for item in items)
+            and all(
+                remediation_slice.status == "COMPLETE" for remediation_slice in remediation_slices
+            )
         )
         if controller_state == "COMPLETE":
             if not all_complete:
@@ -1286,9 +1266,7 @@ def validate_text(text: str, contracts_text: str | None = None) -> list[str]:
                 errors.append("paused controller requires a Current checkpoint")
             else:
                 checkpoint_package, checkpoint_id = checkpoint_match.groups()
-                checkpoint = next(
-                    (item for item in items if item.item_id == checkpoint_id), None
-                )
+                checkpoint = next((item for item in items if item.item_id == checkpoint_id), None)
                 if (
                     not pointed
                     or checkpoint_package != pointed.package_id
@@ -1302,14 +1280,11 @@ def validate_text(text: str, contracts_text: str | None = None) -> list[str]:
             elif external_states[paused_external] != "MISSING":
                 errors.append("paused controller external id is not MISSING")
             if any(runnable(item) for item in items) or any(
-                remediation_runnable(remediation_slice)
-                for remediation_slice in remediation_slices
+                remediation_runnable(remediation_slice) for remediation_slice in remediation_slices
             ):
                 errors.append("paused controller is invalid while runnable TODO work exists")
             if not checkpoint or paused_external not in blocker_ids(checkpoint.item_id):
-                errors.append(
-                    "paused controller external id does not block the current checkpoint"
-                )
+                errors.append("paused controller external id does not block the current checkpoint")
     else:
         errors.append(f"exactly one package may be active; found {len(active_packages)}")
 

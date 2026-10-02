@@ -95,21 +95,17 @@ def test_r59_compose_is_local_isolated_and_uses_production_commands() -> None:
 
     for service in ("db", "redis", "minio", "clamav", "mailpit", "api", "worker", "frontend"):
         assert re.search(rf"(?m)^  {service}:$", compose)
-    assert '127.0.0.1:${R59_API_PORT:-48159}:8000' in compose
-    assert '127.0.0.1:${R59_FRONTEND_PORT:-34159}:3000' in compose
+    assert "127.0.0.1:${R59_API_PORT:-48159}:8000" in compose
+    assert "127.0.0.1:${R59_FRONTEND_PORT:-34159}:3000" in compose
     assert compose.count("ports: !reset []") >= 4
     assert "uvicorn app.main:app --host 0.0.0.0 --port 8000" in compose
     assert "--reload" not in compose
     assert "arq app.jobs.worker_entry.WorkerSettings" in compose
     assert "ENVIRONMENT: test" in compose
-    assert "ALLOW_DEMO_SEED: \"true\"" in compose
-    assert "F7_SEED_MAX_TRIPS_PER_DAY: \"1\"" in compose
-    assert "PRIVACY_DISCLOSURE_LIVE_AUTHORIZED: \"false\"" in compose
-    assert "MEASUREMENT_LIVE_ISSUANCE_AUTHORIZED: \"false\"" in compose
-    assert "BUDGET_POLICY_EXTERNAL_APPROVED: \"false\"" in compose
-    assert "PHONE_OPERATOR_EXTERNAL_APPROVED: \"false\"" in compose
-    assert "PRIVACY_COLLECTION_LIVE_AUTHORIZED: \"false\"" in compose
-    assert "PRIVACY_COLLECTION_SYNTHETIC_TEST_MODE: \"true\"" in compose
+    assert 'ALLOW_DEMO_SEED: "true"' in compose
+    assert 'F7_SEED_MAX_TRIPS_PER_DAY: "1"' in compose
+    assert 'BUDGET_POLICY_EXTERNAL_APPROVED: "false"' in compose
+    assert 'PHONE_OPERATOR_EXTERNAL_APPROVED: "false"' in compose
 
 
 def test_wrapper_scopes_every_compose_mutation_and_always_tears_down() -> None:
@@ -119,7 +115,7 @@ def test_wrapper_scopes_every_compose_mutation_and_always_tears_down() -> None:
     assert "docker compose ls --all --format json" in wrapper
     assert 'compose=(docker compose -p "$R59_PROJECT"' in wrapper
     assert "docker-compose.r59.yml" in wrapper
-    assert 'trap cleanup EXIT INT TERM' in wrapper
+    assert "trap cleanup EXIT INT TERM" in wrapper
     assert "trap - EXIT INT TERM" in wrapper
     assert '"${compose[@]}" down -v --remove-orphans' in wrapper
     assert '"${compose[@]}" down -v --remove-orphans || down_status=$?' in wrapper
@@ -146,8 +142,6 @@ def test_stack_helper_enforces_project_scope_and_sanitized_receipt() -> None:
     assert "assertNoSensitiveReceiptData" in helper
     assert "R59_REAL_STACK_RECEIPT.json" in helper
     for live_value in (
-        'PRIVACY_DISCLOSURE_LIVE_AUTHORIZED: "true"',
-        'MEASUREMENT_LIVE_ISSUANCE_AUTHORIZED: "true"',
         'BUDGET_POLICY_EXTERNAL_APPROVED: "true"',
         'PHONE_OPERATOR_EXTERNAL_APPROVED: "true"',
     ):

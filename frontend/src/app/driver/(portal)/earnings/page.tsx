@@ -138,8 +138,8 @@ export default async function DriverEarningsPage({
                     {heldTripIds.size} active {heldTripIds.size === 1 ? "trip hold" : "trip holds"}
                   </p>
                   <p className="text-faint mt-1 text-[11px]">
-                    Pending ledger total {formatMoney(t.pending_amount, t.currency)}; not a
-                    held-only total
+                    Pending earnings {formatMoney(t.pending_amount, t.currency)}; not a held-only
+                    total
                   </p>
                 </Panel>
                 <Panel className="p-4">

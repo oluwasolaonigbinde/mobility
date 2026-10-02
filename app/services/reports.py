@@ -48,7 +48,6 @@ from app.schemas.reports import (
 )
 from app.services.campaigns import get_advertiser_campaign, get_required_advertiser_context
 from app.services.disclosure import (
-    _approved_reference,
     lock_trip_disclosure_snapshot,
     record_governed_trip_output,
     require_governed_advertiser_output,
@@ -716,7 +715,6 @@ async def advertiser_dashboard_summary(
         settings=settings,
         route_id="advertiser.dashboard.summary",
         user_id=user_id,
-        requires_measurement_run=False,
     )
     organization, _ = await get_required_advertiser_context(session, user_id)
     await lock_trip_disclosure_snapshot(
@@ -783,13 +781,13 @@ async def advertiser_campaign_summary(
     end_at: datetime | None,
     settings: Settings,
     cohort: ReportCohort | None = None,
+    record_history: bool = True,
 ) -> CampaignSummary:
     organization_id = await require_governed_advertiser_output(
         session,
         settings=settings,
         route_id="advertiser.campaign.summary",
         user_id=user_id,
-        requires_measurement_run=False,
     )
     campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
     await lock_trip_disclosure_snapshot(
@@ -851,18 +849,19 @@ async def advertiser_campaign_summary(
             )
         ),
     )
-    await record_governed_trip_output(
-        session,
-        settings=settings,
-        route_id="advertiser.campaign.summary",
-        principal_id=user_id,
-        tenant_id=organization_id,
-        campaign_id=campaign.id,
-        start_at=start_at,
-        end_at=end_at,
-        filters={},
-        result=result,
-    )
+    if record_history:
+        await record_governed_trip_output(
+            session,
+            settings=settings,
+            route_id="advertiser.campaign.summary",
+            principal_id=user_id,
+            tenant_id=organization_id,
+            campaign_id=campaign.id,
+            start_at=start_at,
+            end_at=end_at,
+            filters={},
+            result=result,
+        )
     return result
 
 
@@ -877,13 +876,13 @@ async def daily_metrics_for_campaign(
     offset: int,
     settings: Settings,
     cohort: ReportCohort | None = None,
+    record_history: bool = True,
 ) -> DailyMetricsResponse:
     organization_id = await require_governed_advertiser_output(
         session,
         settings=settings,
         route_id="advertiser.campaign.daily_metrics",
         user_id=user_id,
-        requires_measurement_run=False,
     )
     campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
     await lock_trip_disclosure_snapshot(
@@ -1031,18 +1030,19 @@ async def daily_metrics_for_campaign(
         limit=limit,
         offset=offset,
     )
-    await record_governed_trip_output(
-        session,
-        settings=settings,
-        route_id="advertiser.campaign.daily_metrics",
-        principal_id=user_id,
-        tenant_id=organization_id,
-        campaign_id=campaign.id,
-        start_at=start_at,
-        end_at=end_at,
-        filters={"limit": limit, "offset": offset},
-        result=result,
-    )
+    if record_history:
+        await record_governed_trip_output(
+            session,
+            settings=settings,
+            route_id="advertiser.campaign.daily_metrics",
+            principal_id=user_id,
+            tenant_id=organization_id,
+            campaign_id=campaign.id,
+            start_at=start_at,
+            end_at=end_at,
+            filters={"limit": limit, "offset": offset},
+            result=result,
+        )
     return result
 
 
@@ -1083,7 +1083,6 @@ async def advertiser_campaign_trips(
         settings=settings,
         route_id="advertiser.campaign.trips",
         user_id=user_id,
-        requires_measurement_run=False,
     )
     campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
     await lock_trip_disclosure_snapshot(
@@ -1156,7 +1155,6 @@ async def advertiser_campaign_report(
         settings=settings,
         route_id="advertiser.campaign.report",
         user_id=user_id,
-        requires_measurement_run=False,
     )
     await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
     await lock_trip_disclosure_snapshot(
@@ -1183,43 +1181,10 @@ async def advertiser_campaign_report(
         .limit(1)
     )
     if run is None:
-        if settings.privacy_disclosure_synthetic_test_mode:
-            result = await build_dynamic_campaign_report(
-                session,
-                user_id=user_id,
-                campaign_id=campaign_id,
-                start_at=start_at,
-                end_at=end_at,
-                settings=settings,
-            )
-            await record_governed_trip_output(
-                session,
-                settings=settings,
-                route_id="advertiser.campaign.report",
-                principal_id=user_id,
-                tenant_id=organization_id,
-                campaign_id=campaign_id,
-                start_at=start_at,
-                end_at=end_at,
-                filters={"measurement_run_id": None},
-                result=result,
-            )
-            return result
         raise AppError(
-            "SAFE_MEASUREMENT_RUN_REQUIRED",
-            "An immutable measurement run is required for this report",
-            status_code=503,
-        )
-    if not settings.privacy_disclosure_synthetic_test_mode and (
-        run.test_only
-        or not settings.measurement_live_issuance_authorized
-        or not _approved_reference(settings.measurement_report_method_reference)
-        or run.method_revision != settings.measurement_report_method_reference
-    ):
-        raise AppError(
-            "MEASUREMENT_LIVE_ISSUANCE_BLOCKED",
-            "Live measurement issuance is not authorized for this deployment",
-            status_code=503,
+            "CAMPAIGN_REPORT_PENDING",
+            "Your campaign report is being prepared",
+            status_code=409,
         )
     from app.services.measurement import measurement_run_reproducible
 
@@ -1292,7 +1257,7 @@ async def advertiser_campaign_report(
     return report
 
 
-async def build_dynamic_campaign_report(
+async def build_measurement_report_snapshot(
     session: AsyncSession,
     *,
     user_id: UUID,
@@ -1334,6 +1299,7 @@ async def build_dynamic_campaign_report(
         end_at=end_at,
         settings=settings,
         cohort=cohort,
+        record_history=False,
     )
     daily_metrics = await daily_metrics_for_campaign(
         session,
@@ -1345,6 +1311,7 @@ async def build_dynamic_campaign_report(
         offset=0,
         settings=settings,
         cohort=cohort,
+        record_history=False,
     )
     return CampaignReportResponse(
         campaign_id=summary.campaign.id,

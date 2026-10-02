@@ -12,10 +12,11 @@ from app.api.v1.dependencies import (
 )
 from app.schemas.audience_delivery import (
     AudienceActivationRead,
+    AudienceActivationRequest,
     AudienceDeliveryApprovalCreate,
     AudienceDeliveryApprovalRead,
-    AudienceDeliveryRequest,
     AudienceExportRead,
+    AudienceExportRequest,
     RecommendationsRead,
 )
 from app.schemas.zone_insights import HighExposureZoneInsightsRead
@@ -28,9 +29,7 @@ from app.services.audience_delivery import (
 )
 
 router = APIRouter(tags=["Audience Recommendations and Delivery"])
-IdempotencyKey = Annotated[
-    str, Header(alias="Idempotency-Key", min_length=1, max_length=255)
-]
+IdempotencyKey = Annotated[str, Header(alias="Idempotency-Key", min_length=1, max_length=255)]
 
 
 @router.post(
@@ -141,7 +140,7 @@ async def admin_recommendations(
 )
 async def export_segment(
     segment_id: UUID,
-    payload: AudienceDeliveryRequest,
+    payload: AudienceExportRequest,
     user: AdvertiserUserDependency,
     session: SessionDependency,
     settings: SettingsDependency,
@@ -152,7 +151,6 @@ async def export_segment(
         settings=settings,
         actor_user_id=user.id,
         segment_id=segment_id,
-        approval_id=payload.approval_id,
         idempotency_key=idempotency_key,
     )
     await session.commit()
@@ -166,7 +164,7 @@ async def export_segment(
 )
 async def activate_segment(
     segment_id: UUID,
-    payload: AudienceDeliveryRequest,
+    payload: AudienceActivationRequest,
     user: AdminUserDependency,
     session: SessionDependency,
     settings: SettingsDependency,

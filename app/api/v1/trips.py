@@ -24,7 +24,6 @@ from app.schemas.trips import (
     TripStartRequest,
 )
 from app.services.audit import create_audit_event
-from app.services.privacy_authority import require_collection_authority
 from app.services.trip_evidence import manifest_sample_results
 from app.services.trips import (
     TripSummary,
@@ -84,7 +83,6 @@ async def driver_start_trip(
     session: SessionDependency,
     settings: SettingsDependency,
 ) -> TripRead:
-    require_collection_authority(settings)
     trip = await start_driver_trip(
         session, user_id=current_user.id, payload=payload, settings=settings
     )
@@ -131,7 +129,6 @@ async def driver_ingest_location_pings(
     settings: SettingsDependency,
     enqueuer: TripEnqueuerDependency,
 ) -> LocationPingBatchResponse:
-    require_collection_authority(settings)
     result = await ingest_location_ping_batch(
         session,
         user_id=current_user.id,

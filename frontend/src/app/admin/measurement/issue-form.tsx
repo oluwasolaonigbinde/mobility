@@ -36,14 +36,7 @@ export function IssueMeasurementForm({ campaignId }: { campaignId?: string }) {
             className="border-edge bg-raised block w-full rounded border p-2"
           />
         </label>
-        <label>
-          <input type="checkbox" name="test_only" /> Synthetic test data only
-        </label>
-        <p className="text-muted text-sm">
-          Saves a results calculation using the existing reporting method. It does not issue
-          downloads, confirm physical activity, or calculate ROI. Live method and privacy approval
-          remain required.
-        </p>
+        <p className="text-muted text-sm">Calculate results for the selected campaign period.</p>
         <button disabled={pending} className="bg-amber text-bg rounded p-3">
           {pending ? "Preparing…" : "Prepare results calculation"}
         </button>

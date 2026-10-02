@@ -412,8 +412,6 @@ async def _startup(ctx: dict[str, Any]) -> None:
         database_url=os.environ["R58_DATABASE_URL"],
         redis_url=os.environ["R58_REDIS_URL"],
         payout_crypto_keyring_b64=('{"1":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}'),
-        privacy_disclosure_synthetic_test_mode=True,
-        privacy_collection_synthetic_test_mode=True,
         privacy_min_vehicles_per_cell=1,
         privacy_min_trips_per_cell=1,
         privacy_min_days_per_cell=1,

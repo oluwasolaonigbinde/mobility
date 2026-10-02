@@ -75,21 +75,19 @@ export async function issueMeasurement(_state: { error?: string; done?: string }
       client_request_id: z.string().uuid(),
       period_start_at: z.string().datetime(),
       period_end_at: z.string().datetime(),
-      test_only: z.boolean(),
     })
     .safeParse({
       campaign_id: form.get("campaign_id"),
       client_request_id: form.get("client_request_id"),
       period_start_at: form.get("period_start_at"),
       period_end_at: form.get("period_end_at"),
-      test_only: form.get("test_only") === "on",
     });
   if (!parsed.success)
     return { error: "Select a campaign and enter complete UTC period timestamps." };
   try {
     const { data } = await createApiClient(await getSessionToken()).POST(
       "/api/v1/admin/measurement-runs",
-      { body: { ...parsed.data, mode: "performance_only" } },
+      { body: { ...parsed.data, mode: "performance_only", test_only: false } },
     );
     if (!data) return { error: "No run was confirmed. Retry the same request." };
     revalidatePath("/admin/campaigns/[campaignId]", "page");

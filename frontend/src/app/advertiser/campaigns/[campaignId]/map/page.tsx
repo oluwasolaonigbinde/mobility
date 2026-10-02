@@ -58,7 +58,7 @@ export default async function CampaignMapPage({
     );
   }
   if (!report || isUnissued(report)) {
-    return <GovernedAnalysisState code="SAFE_MEASUREMENT_RUN_REQUIRED" />;
+    return <GovernedAnalysisState code="CAMPAIGN_REPORT_PENDING" />;
   }
   const authority = validateMeasurementAuthority(report);
   if (!authority.ok) return <GovernedAnalysisState code="MEASUREMENT_RUN_INTEGRITY_FAILURE" />;
