@@ -253,6 +253,8 @@ async def payout_batch_summaries(
     offset: int = 0,
     batch_status: str | None = None,
     approval_mode: str | None = None,
+    oldest_first: bool = False,
+    needs_attention: bool = False,
 ) -> dict:
     _page(limit, offset)
     query = select(PayoutBatch)
@@ -260,10 +262,32 @@ async def payout_batch_summaries(
         query = query.where(PayoutBatch.status == batch_status)
     if approval_mode:
         query = query.where(PayoutBatch.approval_mode == approval_mode)
+    if needs_attention:
+        from sqlalchemy import and_, or_
+
+        failed_line = (
+            select(PayoutBatchLine.id)
+            .where(PayoutBatchLine.batch_id == PayoutBatch.id, PayoutBatchLine.status == "failed")
+            .correlate(PayoutBatch)
+            .exists()
+        )
+        query = query.where(
+            or_(
+                and_(
+                    PayoutBatch.status == "reserved",
+                    PayoutBatch.approval_mode == "maker_checker",
+                    PayoutBatch.approved_at.is_(None),
+                ),
+                failed_line,
+            )
+        )
     total = await session.scalar(select(func.count()).select_from(query.subquery()))
     batches = (
         await session.scalars(
-            query.order_by(PayoutBatch.created_at.desc(), PayoutBatch.id.desc())
+            query.order_by(
+                PayoutBatch.created_at.asc() if oldest_first else PayoutBatch.created_at.desc(),
+                PayoutBatch.id.desc(),
+            )
             .limit(limit)
             .offset(offset)
         )

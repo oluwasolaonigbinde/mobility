@@ -115,9 +115,7 @@ async def _affected_driver_ids(
         .distinct()
         .where(
             TripSession.campaign_id == campaign_id,
-            TripSession.status.in_(
-                [TripSessionStatus.ENDED.value, TripSessionStatus.SEALED.value]
-            ),
+            TripSession.status.in_([TripSessionStatus.ENDED.value, TripSessionStatus.SEALED.value]),
             TripSession.ended_at.is_not(None),
             TripSession.started_at < day_end,
             TripSession.ended_at >= day_start,
@@ -362,6 +360,7 @@ async def list_correction_orders(
     offset: int,
     campaign_id: UUID | None = None,
     order_status: PayoutCorrectionOrderStatus | None = None,
+    oldest_first: bool = False,
 ) -> tuple[list[PayoutCorrectionOrder], int]:
     conditions = []
     if campaign_id is not None:
@@ -375,7 +374,10 @@ async def list_correction_orders(
         select(PayoutCorrectionOrder)
         .where(*conditions)
         .order_by(
-            PayoutCorrectionOrder.created_at.desc(), PayoutCorrectionOrder.id.desc()
+            PayoutCorrectionOrder.created_at.asc()
+            if oldest_first
+            else PayoutCorrectionOrder.created_at.desc(),
+            PayoutCorrectionOrder.id.desc(),
         )
         .limit(limit)
         .offset(offset)
@@ -518,15 +520,9 @@ def _execution_result_payload(
                         "previous_posted_amount": str(trip.previous_posted_amount),
                         "target_amount": str(trip.target_amount),
                         "delta_amount": str(trip.delta_amount),
-                        "entry_id": (
-                            str(trip.entry.id) if trip.entry is not None else None
-                        ),
-                        "entry_type": (
-                            trip.entry.entry_type if trip.entry is not None else None
-                        ),
-                        "entry_status": (
-                            trip.entry.status if trip.entry is not None else None
-                        ),
+                        "entry_id": (str(trip.entry.id) if trip.entry is not None else None),
+                        "entry_type": (trip.entry.entry_type if trip.entry is not None else None),
+                        "entry_status": (trip.entry.status if trip.entry is not None else None),
                         "voided": trip.voided,
                         **(
                             {

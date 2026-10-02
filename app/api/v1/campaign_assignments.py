@@ -258,12 +258,14 @@ async def admin_list_campaign_assignments(
     driver_profile_id: UUID | None = None,
     vehicle_id: UUID | None = None,
     q: Annotated[str | None, Query(max_length=120)] = None,
+    oldest_first: bool = False,
 ) -> CampaignAssignmentListResponse:
     del current_user
     await expire_due_assignment_offers(session)
     await session.commit()
     assignments, total = await list_admin_assignments(
         session,
+        oldest_first=oldest_first,
         limit=limit,
         offset=offset,
         assignment_status=status,

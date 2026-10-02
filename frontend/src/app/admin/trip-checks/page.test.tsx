@@ -25,6 +25,11 @@ import TripChecks from "./page";
 const date = "2026-09-03T07:15:00Z";
 const flag = {
   id: "flag",
+  flag_type: "impossible_speed",
+  driver_name: "Ada Driver",
+  vehicle_plate: "ABJ-101",
+  campaign_name: "PalmPay Wuse",
+  trip_started_at: date,
   trip_session_id: "trip",
   assignment_id: "job",
   campaign_id: "campaign",
@@ -47,6 +52,13 @@ const flag = {
 };
 const late = {
   id: "late",
+  driver_profile_id: "driver",
+  campaign_id: "campaign",
+  assignment_id: "job",
+  driver_name: "Ada Driver",
+  vehicle_plate: "ABJ-101",
+  campaign_name: "PalmPay Wuse",
+  trip_started_at: date,
   trip_session_id: "trip",
   status: "quarantined",
   received_at: "2026-09-20T00:00:00Z",
@@ -154,11 +166,16 @@ describe("Trip check work lists", () => {
         return { data: { items: [{ ...flag, escalated_at: date }], total: 1 } };
       if (path.endsWith("/fraud-disputes")) {
         const start = Number(options.params?.query?.offset ?? 0);
-        return { data: { items: disputes.slice(start, start + 100), total: 101 } };
+        return {
+          data: {
+            items: disputes.slice(start, start + Number(options.params?.query?.limit)),
+            total: 101,
+          },
+        };
       }
       return defaultRead(path, options);
     });
-    render(await page({ flag: "flag" }));
+    render(await page({ flag: "flag", disputes_offset: "100" }));
     expect(screen.getByText(/this review is unresolved and pay stays held/)).toBeVisible();
     expect(screen.getByRole("list", { name: "Detection evidence" })).toBeVisible();
     expect(screen.getByText("Driver explanation 100")).toBeVisible();
@@ -226,13 +243,24 @@ describe("Trip check work lists", () => {
       assignment_id: "job",
       driver_profile_id: "driver",
       campaign_id: "campaign",
+      status: "pending",
+      verification_type: "physical_spot_check",
       issued_at: date,
+      driver_name: "Ada Driver",
+      vehicle_plate: "ABJ-101",
+      campaign_name: "PalmPay Wuse",
+      trip_started_at: date,
     }));
     get.mockImplementation(async (path, options) =>
       path.endsWith("/evidence-verifications")
         ? {
             data: {
-              items: rows.slice(options.params.query.offset, options.params.query.offset + 100),
+              items: options.params.query.verification_id
+                ? rows.filter((r) => r.id === options.params.query.verification_id)
+                : rows.slice(
+                    options.params.query.offset,
+                    options.params.query.offset + options.params.query.limit,
+                  ),
               total: 101,
             },
           }
@@ -243,21 +271,25 @@ describe("Trip check work lists", () => {
     expect(get).toHaveBeenCalledWith("/api/v1/admin/evidence-verifications", {
       params: {
         query: {
-          limit: 100,
+          limit: 25,
           offset: 100,
+          verification_id: undefined,
+          trip_session_id: undefined,
+          driver_profile_id: undefined,
+          campaign_id: undefined,
           status: "pending",
           verification_type: "physical_spot_check",
         },
       },
     });
   });
-  it("never renders partial late context as a completed or empty section", async () => {
+  it("loads list context without an analytics request", async () => {
     get.mockImplementation(async (path, options) => {
       if (path.endsWith("/analytics")) throw new Error("offline");
       return defaultRead(path, options);
     });
     render(await page({ tab: "late" }));
-    expect(screen.getByRole("alert")).toBeVisible();
-    expect(screen.queryByText("Nothing matches these filters.")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(get.mock.calls.some(([path]) => path.endsWith("/analytics"))).toBe(false);
   });
 });

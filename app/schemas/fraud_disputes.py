@@ -35,6 +35,7 @@ class DriverFraudDisputeRead(BaseModel):
 
 
 class AdminFraudDisputeRead(BaseModel):
+    driver_name: str | None = None
     id: UUID
     fraud_flag_id: UUID
     driver_profile_id: UUID

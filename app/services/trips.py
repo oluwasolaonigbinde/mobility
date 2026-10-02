@@ -384,9 +384,7 @@ async def start_driver_trip(
         now=now,
         lock=True,
     )
-    await assert_new_work_authorized(
-        session, campaign_id=campaign.id, assignment_id=assignment.id
-    )
+    await assert_new_work_authorized(session, campaign_id=campaign.id, assignment_id=assignment.id)
     await ensure_current_activation_snapshot(session, assignment=assignment, lock=True)
     await ensure_no_active_trip_for_driver_or_vehicle(
         session,
@@ -494,9 +492,7 @@ async def summarize_trip(session: AsyncSession, trip: TripSession) -> TripSummar
 
 async def count_trip_batches(session: AsyncSession, trip_id: UUID) -> int:
     count = await session.scalar(
-        select(func.count(LocationPingBatch.id)).where(
-            LocationPingBatch.trip_session_id == trip_id
-        )
+        select(func.count(LocationPingBatch.id)).where(LocationPingBatch.trip_session_id == trip_id)
     )
     return int(count or 0)
 
@@ -608,9 +604,7 @@ async def end_driver_trip(
                 entries=[],
             )
         validate_manifest(trip.id, manifest)
-        descriptors = {
-            entry.idempotency_key: entry for entry in manifest.entries
-        }
+        descriptors = {entry.idempotency_key: entry for entry in manifest.entries}
         for batch in existing_batches:
             descriptor = descriptors.get(batch.idempotency_key)
             if descriptor is None or (
@@ -652,32 +646,18 @@ async def end_driver_trip(
             ended_at=now,
             end_reason=payload.end_reason,
             client_batch_count=(
-                len(manifest.entries)
-                if manifest is not None
-                else payload.client_batch_count
+                len(manifest.entries) if manifest is not None else payload.client_batch_count
             ),
             client_ping_count=(
-                manifest.ping_count
-                if manifest is not None
-                else payload.client_ping_count
+                manifest.ping_count if manifest is not None else payload.client_ping_count
             ),
             client_complete=(
-                manifest.complete
-                if manifest is not None
-                else payload.client_complete
+                manifest.complete if manifest is not None else payload.client_complete
             ),
-            evidence_manifest_version=(
-                manifest.version if manifest else None
-            ),
-            evidence_manifest_root_sha256=(
-                manifest.root_sha256 if manifest else None
-            ),
-            evidence_manifest_batch_count=(
-                len(manifest.entries) if manifest else None
-            ),
-            evidence_manifest_ping_count=(
-                manifest.ping_count if manifest else None
-            ),
+            evidence_manifest_version=(manifest.version if manifest else None),
+            evidence_manifest_root_sha256=(manifest.root_sha256 if manifest else None),
+            evidence_manifest_batch_count=(len(manifest.entries) if manifest else None),
+            evidence_manifest_ping_count=(manifest.ping_count if manifest else None),
             evidence_manifest_committed_at=(now if manifest else None),
             updated_at=now,
         )
@@ -693,11 +673,7 @@ async def end_driver_trip(
     sealed_now = False
     if trip.evidence_protocol_version == 2:
         completeness = await manifest_completeness(session, trip, settings)
-        if (
-            manifest
-            and manifest.complete
-            and completeness.complete
-        ):
+        if manifest and manifest.complete and completeness.complete:
             trip.evidence_manifest_complete = True
             trip.evidence_manifest_verified_at = now
             sign_manifest_receipt(trip, settings)
@@ -996,14 +972,11 @@ async def ingest_location_ping_batch(
         )
     )
     if existing_batch is not None:
-        if (
-            existing_batch.payload_hash != digest
-            or (
-                trip.evidence_protocol_version == 2
-                and (
-                    existing_batch.batch_sequence != payload.batch_sequence
-                    or not verify_batch_receipt(existing_batch, settings)
-                )
+        if existing_batch.payload_hash != digest or (
+            trip.evidence_protocol_version == 2
+            and (
+                existing_batch.batch_sequence != payload.batch_sequence
+                or not verify_batch_receipt(existing_batch, settings)
             )
         ):
             raise AppError(
@@ -1016,10 +989,7 @@ async def ingest_location_ping_batch(
     ensure_ping_batch_size(payload, settings)
     received_at = utc_now()
 
-    if (
-        trip.status == TripSessionStatus.SEALED.value
-        or trip.evidence_adjudicated_at is not None
-    ):
+    if trip.status == TripSessionStatus.SEALED.value or trip.evidence_adjudicated_at is not None:
         # A finally adjudicated trip is closed to live delivery for the same
         # reason a sealed one is: its authority is settled. The payload is
         # still preserved, never discarded, and stays admin-reviewable.
@@ -1175,14 +1145,11 @@ async def quarantine_ping_batch(
         )
     )
     if existing is not None:
-        if (
-            existing.payload_hash != digest
-            or (
-                trip.evidence_protocol_version == 2
-                and (
-                    existing.batch_sequence != payload.batch_sequence
-                    or not verify_quarantine_receipt(existing, settings)
-                )
+        if existing.payload_hash != digest or (
+            trip.evidence_protocol_version == 2
+            and (
+                existing.batch_sequence != payload.batch_sequence
+                or not verify_quarantine_receipt(existing, settings)
             )
         ):
             raise AppError(
@@ -1321,15 +1288,25 @@ async def list_quarantined_ping_batches(
     batch_status: str | None,
     limit: int,
     offset: int,
+    quarantine_id: UUID | None = None,
+    driver_profile_id: UUID | None = None,
+    campaign_id: UUID | None = None,
 ) -> tuple[list[QuarantinedPingBatch], int]:
     conditions = []
     if trip_id is not None:
         conditions.append(QuarantinedPingBatch.trip_session_id == trip_id)
     if batch_status is not None:
         conditions.append(QuarantinedPingBatch.status == batch_status)
-    total = await session.scalar(
-        select(func.count(QuarantinedPingBatch.id)).where(*conditions)
-    )
+    if quarantine_id is not None:
+        conditions.append(QuarantinedPingBatch.id == quarantine_id)
+    if driver_profile_id is not None or campaign_id is not None:
+        scope = select(TripSession.id)
+        if driver_profile_id is not None:
+            scope = scope.where(TripSession.driver_profile_id == driver_profile_id)
+        if campaign_id is not None:
+            scope = scope.where(TripSession.campaign_id == campaign_id)
+        conditions.append(QuarantinedPingBatch.trip_session_id.in_(scope))
+    total = await session.scalar(select(func.count(QuarantinedPingBatch.id)).where(*conditions))
     result = await session.execute(
         select(QuarantinedPingBatch)
         .where(*conditions)
@@ -1401,18 +1378,14 @@ async def apply_quarantined_ping_batch(
     quarantine, trip = await get_quarantined_batch_for_review(
         session, trip_id=trip_id, quarantine_id=quarantine_id
     )
-    if trip.evidence_protocol_version == 2 and not verify_quarantine_receipt(
-        quarantine, settings
-    ):
+    if trip.evidence_protocol_version == 2 and not verify_quarantine_receipt(quarantine, settings):
         raise AppError(
             "TRIP_EVIDENCE_RECEIPT_INVALID",
             "Quarantined trip evidence receipt is invalid",
             status_code=status.HTTP_409_CONFLICT,
         )
     calculation_exists = await session.scalar(
-        select(PayoutCalculation.id)
-        .where(PayoutCalculation.trip_session_id == trip.id)
-        .limit(1)
+        select(PayoutCalculation.id).where(PayoutCalculation.trip_session_id == trip.id).limit(1)
     )
     if calculation_exists is None:
         raise AppError(
@@ -1499,9 +1472,7 @@ async def apply_quarantined_ping_batch(
                 ping_metadata=ping.metadata,
             )
         )
-        lagos_days.add(
-            as_aware_utc(ping.recorded_at).astimezone(LAGOS_TZ).date().isoformat()
-        )
+        lagos_days.add(as_aware_utc(ping.recorded_at).astimezone(LAGOS_TZ).date().isoformat())
     await session.flush()
     if trip.evidence_protocol_version == 2:
         sign_batch_receipt(batch, settings)

@@ -152,6 +152,8 @@ export function adminTone(value: string): "green" | "amber" | "coral" | "default
   return "default";
 }
 const actions: Record<string, string> = {
+  "admin.campaign.resumed": "Campaign resumed",
+  "admin.campaign.paused": "Campaign paused",
   "driver.profile.updated": "Driver updated their details",
   "admin.driver_profile.created": "Driver profile created",
   "admin.driver_profile.updated": "Driver details or status updated",
@@ -164,5 +166,7 @@ const actions: Record<string, string> = {
   "admin.campaign.activated": "Campaign started",
 };
 export function adminActivity(action: string): string {
-  return actions[action] ?? "Activity recorded";
+  if (actions[action]) return actions[action];
+  const words = action.replace(/^(admin|advertiser|driver)\./, "").replaceAll(/[._]/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }

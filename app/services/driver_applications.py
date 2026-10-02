@@ -356,6 +356,7 @@ async def list_driver_applications(
     history: bool = False,
     user_id: UUID | None = None,
     driver_profile_id: UUID | None = None,
+    oldest_first: bool = False,
 ) -> tuple[list[DriverApplication], int]:
     """Read the pending queue only after locking and validating the admin."""
 
@@ -382,7 +383,12 @@ async def list_driver_applications(
     result = await session.execute(
         select(DriverApplication)
         .where(*filters)
-        .order_by(DriverApplication.created_at.desc(), DriverApplication.id.desc())
+        .order_by(
+            DriverApplication.created_at.asc()
+            if oldest_first
+            else DriverApplication.created_at.desc(),
+            DriverApplication.id.desc(),
+        )
         .limit(limit)
         .offset(offset)
     )

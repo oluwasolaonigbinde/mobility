@@ -141,6 +141,7 @@ async def list_admin_vehicles(
     plate_country_code: str | None,
     driver_profile_id: UUID | None,
     q: str | None = None,
+    oldest_first: bool = False,
 ) -> tuple[list[tuple[Vehicle, DriverProfile, User]], int]:
     filters = []
     if q and q.strip():
@@ -170,7 +171,11 @@ async def list_admin_vehicles(
 
     total = await session.scalar(count_statement)
     result = await session.execute(
-        statement.order_by(Vehicle.created_at.desc(), Vehicle.id).limit(limit).offset(offset)
+        statement.order_by(
+            Vehicle.created_at.asc() if oldest_first else Vehicle.created_at.desc(), Vehicle.id
+        )
+        .limit(limit)
+        .offset(offset)
     )
     return [(row[0], row[1], row[2]) for row in result.all()], int(total or 0)
 

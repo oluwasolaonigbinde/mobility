@@ -288,7 +288,7 @@ def test_review_commands_do_not_use_held_read(db_client, db_sessionmaker, monkey
     async def fail(*args, **kwargs):
         raise RuntimeError("held read unavailable")
 
-    monkeypatch.setattr("app.api.v1.trip_analytics.read_held_trip_pay", fail)
+    monkeypatch.setattr("app.services.admin_worklist_reads.flag_list_money", fail)
     base = f"/api/v1/admin/fraud-flags/{flag.id}/review"
     ack = db_client.post(base + "/acknowledge", headers=headers)
     assert ack.status_code == 200

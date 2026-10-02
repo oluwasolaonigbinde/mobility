@@ -709,6 +709,8 @@ async def list_manual_driver_contact_tasks(
     offset: int,
     history: bool = False,
     driver_profile_id: UUID | None = None,
+    oldest_first: bool = False,
+    open_only: bool = False,
 ) -> tuple[list[tuple[ManualDriverContactTask, DriverPhoneVersion]], int]:
     newer_phone = aliased(DriverPhoneVersion)
     has_newer_phone = (
@@ -742,6 +744,10 @@ async def list_manual_driver_contact_tasks(
     )
     if driver_profile_id is not None:
         base = base.where(ManualDriverContactTask.driver_profile_id == driver_profile_id)
+    if open_only:
+        base = base.where(
+            ManualDriverContactTask.status == "open", ManualDriverContactTask.completed_at.is_(None)
+        )
     if not history:
         base = base.where(visible)
     total = int(await session.scalar(select(func.count()).select_from(base.subquery())) or 0)
@@ -749,7 +755,9 @@ async def list_manual_driver_contact_tasks(
         (
             await session.execute(
                 base.order_by(
-                    ManualDriverContactTask.created_at.desc(),
+                    ManualDriverContactTask.created_at.asc()
+                    if oldest_first
+                    else ManualDriverContactTask.created_at.desc(),
                     ManualDriverContactTask.id.desc(),
                 )
                 .limit(limit)

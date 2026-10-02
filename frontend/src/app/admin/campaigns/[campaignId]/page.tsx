@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { readCampaign } from "../../entity-reads";
+import { readPayTerms } from "../pay-terms-read";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
@@ -67,11 +69,7 @@ export default async function CampaignHub({
   const api = createApiClient(await getSessionToken());
   let campaign;
   try {
-    campaign = (
-      await api.GET("/api/v1/admin/campaigns/{campaign_id}", {
-        params: { path: { campaign_id: campaignId } },
-      })
-    ).data;
+    campaign = (await readCampaign(campaignId)).data;
   } catch (error) {
     if (error instanceof ApiError && [403, 404, 422].includes(error.status)) notFound();
     throw error;
@@ -79,7 +77,7 @@ export default async function CampaignHub({
   if (!campaign) notFound();
   const offset = (value?: string) =>
     Number.isFinite(Number(value)) ? Math.max(0, Math.floor(Number(value))) : 0;
-  const [commercial, artwork, jobs, history, changes, results, reviews, activity, rules] =
+  const [commercial, artwork, jobs, history, changes, results, reviews, activity, terms] =
     await Promise.all([
       api
         .GET("/api/v1/admin/campaigns/{campaign_id}/commercial", {
@@ -109,7 +107,11 @@ export default async function CampaignHub({
           },
         })
         .catch(() => ({ data: undefined })),
-      api.GET("/api/v1/admin/campaign-change-requests/pending").catch(() => ({ data: undefined })),
+      api
+        .GET("/api/v1/admin/campaign-change-requests/pending", {
+          params: { query: { campaign_id: campaignId, limit: 25 } },
+        })
+        .catch(() => ({ data: undefined })),
       api
         .GET("/api/v1/admin/measurement-runs", {
           params: {
@@ -136,11 +138,7 @@ export default async function CampaignHub({
           },
         })
         .catch(() => ({ data: undefined })),
-      api
-        .GET("/api/v1/admin/campaigns/{campaign_id}/payout-rules", {
-          params: { path: { campaign_id: campaignId }, query: { limit: 100 } },
-        })
-        .catch(() => ({ data: undefined })),
+      readPayTerms(campaignId),
     ]);
   const drawer = ["invoice", "closeout"].includes(query.drawer ?? "")
     ? query.drawer
@@ -195,7 +193,7 @@ export default async function CampaignHub({
     spent != null && budget != null && Number(budget) > 0
       ? Math.min(100, Math.max(0, (Number(spent) / Number(budget)) * 100))
       : undefined;
-  const rule = rules.data?.items.find((r) => r.status === "active");
+
   let selectedRun =
     drawer === "run" ? results.data?.items.find((run) => run.id === query.run) : undefined;
   let runLookupFailed = false;
@@ -231,7 +229,13 @@ export default async function CampaignHub({
         actions={
           campaign.status === "pending_review" ? (
             <ReviewActions campaignId={campaignId} />
-          ) : campaign.status === "paused" && latestBudget?.resume_allowed ? (
+          ) : campaign.status === "paused" &&
+            campaign.pause?.resume_allowed &&
+            campaign.pause.pause_id ? (
+            <ResumeForm campaignId={campaignId} pauseId={campaign.pause.pause_id} />
+          ) : campaign.status === "paused" &&
+            campaign.pause?.kind === "budget" &&
+            latestBudget?.resume_allowed ? (
             <ResumeForm campaignId={campaignId} />
           ) : undefined
         }
@@ -247,6 +251,17 @@ export default async function CampaignHub({
           {campaign.organization.name}
         </Link>
       </div>
+      {campaign.status === "paused" ? (
+        <div className="border-amber/40 mb-5 rounded-lg border p-4">
+          <p className="font-medium">
+            {campaign.pause?.reason ?? "The reason for this pause was not recorded."}
+          </p>
+          <p className="text-muted mt-1 text-sm">
+            {campaign.pause?.resume_explanation ??
+              "Staff cannot resume until the pause reason is recorded."}
+          </p>
+        </div>
+      ) : null}
       {percentage !== undefined ? (
         <div className="mb-5">
           <label htmlFor="campaign-budget" className="text-muted text-sm">
@@ -261,7 +276,7 @@ export default async function CampaignHub({
           />
         </div>
       ) : null}
-      {artwork.data && commercial.data && jobs.data && rules.data ? (
+      {artwork.data && commercial.data && jobs.data && terms ? (
         <HubChecklist
           title="Launch checklist"
           items={[
@@ -300,8 +315,8 @@ export default async function CampaignHub({
             },
             {
               label: "Pay terms set",
-              state: rule ? "Current pay terms recorded" : "Review pay terms",
-              done: Boolean(rule),
+              state: terms?.summary ?? "Review pay terms",
+              done: terms?.ready,
               section: "pay-terms",
             },
             {
@@ -661,4 +676,13 @@ export default async function CampaignHub({
       ) : null}
     </div>
   );
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ campaignId: string }> }) {
+  try {
+    const { data } = await readCampaign((await params).campaignId);
+    return { title: data?.name ?? "Campaign" };
+  } catch {
+    return { title: "Campaign" };
+  }
 }

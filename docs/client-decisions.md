@@ -478,6 +478,8 @@ One advertiser login per company remains the current scope (D47). Review
 documents through the existing audited access controls, and use existing
 server decisions for activation, funding, pay and report issuance.
 
+Staff Resume is permitted only for a recorded operational pause, classified on the server. Budget-related and unknown pauses are refused with a plain explanation; current start requirements are rechecked and the actor, reason and pause identity are logged (D55, REQ-081). Staff list totals, oldest-first paging and row names are approved to bound badges, work lists and Trip checks (D55, REQ-077/078/083/085).
+
 The task home/menu label is **Work queue** (D50, REQ-065). The owner explicitly
 authorized starting L2-1b on the incomplete expedited A checkpoint (REQ-064);
 A acceptance remains open; the owner authorized the two source commits while tracked acceptance gaps remain. The four specified read additions, the
@@ -493,6 +495,7 @@ list, completed check or zero balance.
 
 **History:**
 
+- **2026-10-02** — Owner confirmed guarded staff Resume and bounded read options (D55); local implementation and verification in progress.
 - **2026-10-02** — Owner approved the two staff reads for suspicious-trip
   recorded routes and actual held pay (D53, REQ-069).
 - **2026-10-02** — Earlier explicit old-URL preservation ended: the owner

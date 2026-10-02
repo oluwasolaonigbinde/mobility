@@ -514,10 +514,12 @@ async def admin_list_payout_rule_revisions(
     session: SessionDependency,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
+    effective_before: datetime | None = None,
 ) -> CampaignPayoutRuleRevisionListResponse:
     del current_user
     revisions, total = await list_payout_rule_revisions(
         session,
+        effective_before=effective_before,
         campaign_id=campaign_id,
         rule_id=rule_id,
         limit=limit,
@@ -861,17 +863,27 @@ async def admin_list_correction_orders(
     offset: Annotated[int, Query(ge=0)] = 0,
     campaign_id: UUID | None = None,
     status: PayoutCorrectionOrderStatus | None = None,
+    oldest_first: bool = False,
 ) -> PayoutCorrectionOrderListResponse:
     del current_user
     orders, total = await list_correction_orders(
         session,
+        oldest_first=oldest_first,
         limit=limit,
         offset=offset,
         campaign_id=campaign_id,
         order_status=status,
     )
+    from app.services.admin_worklist_reads import staff_names
+
+    _, names = await staff_names(session, set(), {order.campaign_id for order in orders})
     return PayoutCorrectionOrderListResponse(
-        items=[correction_order_response(order) for order in orders],
+        items=[
+            correction_order_response(order).model_copy(
+                update={"campaign_name": names.get(order.campaign_id)}
+            )
+            for order in orders
+        ],
         total=total,
         limit=limit,
         offset=offset,

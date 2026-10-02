@@ -212,6 +212,8 @@ it("keeps exact audited document identities and blocks generic activation for a 
   expect(screen.queryByText("Phone verified")).toBeNull();
   expect(screen.queryByText("Terms accepted")).toBeNull();
   expect(screen.queryByText(/in this view/)).toBeNull();
+  expect(screen.queryByText(/Transfer confirmation is separate/)).toBeNull();
+  expect(screen.queryByText(/Recent trip pay calculations/)).toBeNull();
 });
 
 it.each(["approved", "pending_review"])(
@@ -494,3 +496,27 @@ it.each([false, true])(
     ).toBe(false);
   },
 );
+
+it("uses actual active staff-added driver and car states without inventing document approval", async () => {
+  const original = mocks.get.getMockImplementation()!;
+  mocks.get.mockImplementation(async (path, options) => {
+    if (path.endsWith("/drivers/{driver_profile_id}"))
+      return { data: { ...driver, onboarding_status: "active" } };
+    if (path.endsWith("/driver-applications")) return { data: { items: [], total: 0 } };
+    if (path.endsWith("/vehicles"))
+      return {
+        data: {
+          items: [
+            { id: "car", status: "active", plate_number: "ABJ-101", driver_profile_id: driverId },
+          ],
+          total: 1,
+        },
+      };
+    return original(path, options);
+  });
+  render(await DriverHub({ driverId }));
+  expect(screen.getByText("Added by staff")).toBeVisible();
+  expect(screen.queryByText("Next: review identity documents and bank details.")).toBeNull();
+  expect(screen.queryByText("Identity documents")).toBeNull();
+  expect(screen.getByText("Active car recorded")).toBeVisible();
+});

@@ -240,9 +240,28 @@ async def admin_list_driver_applications(
     history: bool = False,
     user_id: UUID | None = None,
     driver_profile_id: UUID | None = None,
+    oldest_first: bool = False,
+    include_staff_added: bool = False,
 ) -> DriverApplicationAdminListResponse:
+    if include_staff_added:
+        from app.schemas.driver_applications import AdminApplicantRead
+        from app.services.admin_authorization import require_active_admin
+        from app.services.admin_worklist_reads import applicants
+
+        await require_active_admin(session, current_user.id)
+        rows, total = await applicants(
+            session, q=q, limit=limit, offset=offset, oldest_first=oldest_first
+        )
+        return DriverApplicationAdminListResponse(
+            items=[],
+            applicants=[AdminApplicantRead.model_validate(row) for row in rows],
+            total=total,
+            limit=limit,
+            offset=offset,
+        )
     applications, total = await list_driver_applications(
         session,
+        oldest_first=oldest_first,
         admin_user_id=current_user.id,
         limit=limit,
         offset=offset,

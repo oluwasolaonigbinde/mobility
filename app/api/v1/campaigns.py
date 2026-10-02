@@ -20,12 +20,14 @@ from app.models.organization import AdvertiserOrganization
 from app.schemas.campaigns import (
     AdminCampaignListResponse,
     AdminCampaignOrganizationSummary,
+    AdminCampaignPauseRead,
     AdminCampaignRead,
     AdminCreativeReviewItem,
     AdminCreativeReviewListResponse,
     CampaignCreate,
     CampaignListResponse,
     CampaignRead,
+    CampaignResumeRequest,
     CampaignReviewEventListResponse,
     CampaignReviewEventRead,
     CampaignReviewReject,
@@ -612,10 +614,12 @@ async def admin_list_campaigns_endpoint(
     organization_id: UUID | None = None,
     status: CampaignStatus | None = None,
     q: Annotated[str | None, Query(max_length=120)] = None,
+    oldest_first: bool = False,
 ) -> AdminCampaignListResponse:
     del current_user
     campaigns, total = await list_admin_campaigns(
         session,
+        oldest_first=oldest_first,
         limit=limit,
         offset=offset,
         organization_id=organization_id,
@@ -668,10 +672,12 @@ async def admin_list_pending_campaign_reviews(
     session: SessionDependency,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
+    oldest_first: bool = False,
 ) -> AdminCampaignListResponse:
     del current_user
     campaigns, total = await list_admin_campaigns(
         session,
+        oldest_first=oldest_first,
         limit=limit,
         offset=offset,
         organization_id=None,
@@ -786,4 +792,31 @@ async def admin_get_campaign_endpoint(
             status_code=status.HTTP_404_NOT_FOUND,
         )
     campaign, organization = row
+    result = admin_campaign_response(campaign, organization)
+    if campaign.status == "paused":
+        from app.services.campaign_resume import pause_info
+
+        result.pause = AdminCampaignPauseRead.model_validate(await pause_info(session, campaign))
+    return result
+
+
+@router.post("/admin/campaigns/{campaign_id}/resume", response_model=AdminCampaignRead)
+async def admin_resume_campaign(
+    campaign_id: UUID,
+    payload: CampaignResumeRequest,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+) -> AdminCampaignRead:
+    from app.services.campaign_resume import resume_campaign
+
+    campaign = await resume_campaign(
+        session,
+        campaign_id=campaign_id,
+        actor_user_id=current_user.id,
+        pause_id=payload.pause_id,
+        reason=payload.reason,
+    )
+    organization = await session.get(AdvertiserOrganization, campaign.organization_id)
+    assert organization is not None
+    await session.commit()
     return admin_campaign_response(campaign, organization)

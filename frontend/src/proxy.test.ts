@@ -31,3 +31,19 @@ describe("driver proxy session transitions", () => {
     expect(response.headers.get("set-cookie")).toBeNull();
   });
 });
+
+it("overwrites a caller's admin pathname hint and strips it from other pages", async () => {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 503 }));
+  const admin = await proxy(
+    new NextRequest("http://localhost/admin/settings/staff", {
+      headers: { cookie: "mobility_session=token", "x-cardvert-admin-path": "/admin" },
+    }),
+  );
+  expect(admin.headers.get("x-middleware-request-x-cardvert-admin-path")).toBe(
+    "/admin/settings/staff",
+  );
+  const publicPage = await proxy(
+    new NextRequest("http://localhost/login", { headers: { "x-cardvert-admin-path": "/admin" } }),
+  );
+  expect(publicPage.headers.get("x-middleware-request-x-cardvert-admin-path")).toBeNull();
+});

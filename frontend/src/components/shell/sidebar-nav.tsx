@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { ReactNode } from "react";
 import { cx } from "@/lib/cx";
 
 export interface NavItem {
@@ -12,6 +13,7 @@ export interface NavItem {
   /** Optional section heading shown above the first item of a group (sidebar only). */
   group?: string;
   count?: number;
+  badge?: ReactNode;
 }
 
 export function SidebarNav({
@@ -45,6 +47,7 @@ export function SidebarNav({
               )}
             >
               {item.label}
+              {item.badge}
               {item.count ? (
                 <span
                   className="bg-amber/15 text-amber ml-2 rounded-full px-2 py-0.5"

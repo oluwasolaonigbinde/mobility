@@ -91,8 +91,10 @@ async def require_history_assignment(
 async def evidence_response(
     session: SessionDependency,
     submission: InstallationEvidenceSubmission,
+    photos: list | None = None,
 ) -> InstallationEvidenceRead:
-    photos = await list_photos(session, submission.id)
+    if photos is None:
+        photos = await list_photos(session, submission.id)
     return InstallationEvidenceRead(
         id=submission.id,
         assignment_id=submission.assignment_id,
@@ -326,8 +328,43 @@ async def admin_submit_evidence(
 async def admin_pending_evidence(
     user: AdminUserDependency,
     session: SessionDependency,
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+    offset: Annotated[int, Query(ge=0)] = 0,
 ) -> InstallationEvidenceList:
-    rows = await list_evidence(session, pending_only=True)
+    from sqlalchemy import func
+
+    from app.models.installation_evidence import InstallationEvidencePhoto
+    from app.services.admin_worklist_reads import staff_names
+
+    query = select(InstallationEvidenceSubmission).where(
+        InstallationEvidenceSubmission.status == "pending_review"
+    )
+    total = int(await session.scalar(select(func.count()).select_from(query.subquery())) or 0)
+    rows = list(
+        (
+            await session.scalars(
+                query.order_by(
+                    InstallationEvidenceSubmission.submitted_at, InstallationEvidenceSubmission.id
+                )
+                .limit(limit)
+                .offset(offset)
+            )
+        ).all()
+    )
+    drivers, campaigns = await staff_names(
+        session, {row.driver_profile_id for row in rows}, {row.campaign_id for row in rows}
+    )
+    from collections import defaultdict
+
+    photos = defaultdict(list)
+    for photo in (
+        await session.scalars(
+            select(InstallationEvidencePhoto)
+            .where(InstallationEvidencePhoto.submission_id.in_({row.id for row in rows}))
+            .order_by(InstallationEvidencePhoto.view_code)
+        )
+    ).all():
+        photos[photo.submission_id].append(photo)
     await create_audit_event(
         session,
         actor_user_id=user.id,
@@ -337,7 +374,20 @@ async def admin_pending_evidence(
         metadata={"result_count": len(rows)},
     )
     await session.commit()
-    return InstallationEvidenceList(items=[await evidence_response(session, row) for row in rows])
+    return InstallationEvidenceList(
+        items=[
+            (await evidence_response(session, row, photos=photos[row.id])).model_copy(
+                update={
+                    "driver_name": drivers.get(row.driver_profile_id),
+                    "campaign_name": campaigns.get(row.campaign_id),
+                }
+            )
+            for row in rows
+        ],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get(
@@ -485,16 +535,46 @@ async def admin_evidence_verifications(
     verification_type: EvidenceVerificationType | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 100,
     offset: Annotated[int, Query(ge=0)] = 0,
+    oldest_first: bool = False,
+    verification_id: UUID | None = None,
+    driver_profile_id: UUID | None = None,
+    campaign_id: UUID | None = None,
+    trip_session_id: UUID | None = None,
 ) -> AdminEvidenceVerificationList:
     rows, total = await list_admin_verifications(
         session,
+        oldest_first=oldest_first,
+        verification_id=verification_id,
+        driver_profile_id=driver_profile_id,
+        campaign_id=campaign_id,
+        trip_session_id=trip_session_id,
         verification_status=(verification_status.value if verification_status else None),
         verification_type=(verification_type.value if verification_type else None),
         limit=limit,
         offset=offset,
     )
+    from app.schemas.evidence_verification import AdminEvidenceVerificationRead
+    from app.services.admin_worklist_reads import trip_contexts
+
+    context = await trip_contexts(session, {row.source_trip_session_id for row in rows})
     return AdminEvidenceVerificationList(
-        items=[verification_response(row) for row in rows], total=total, limit=limit, offset=offset
+        items=[
+            AdminEvidenceVerificationRead(
+                **{
+                    **verification_response(row).model_dump(),
+                    **{
+                        key: value
+                        for key, value in context.get(row.source_trip_session_id, {}).items()
+                        if key
+                        in {"driver_name", "campaign_name", "vehicle_plate", "trip_started_at"}
+                    },
+                }
+            )
+            for row in rows
+        ],
+        total=total,
+        limit=limit,
+        offset=offset,
     )
 
 

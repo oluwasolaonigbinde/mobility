@@ -1,7 +1,7 @@
 "use client";
 import { useActionState } from "react";
 import { resumeCampaign } from "./actions";
-export function ResumeForm({ campaignId }: { campaignId: string }) {
+export function ResumeForm({ campaignId, pauseId }: { campaignId: string; pauseId?: string }) {
   const [state, action, pending] = useActionState(
     resumeCampaign,
     {} as { error?: string; done?: string },
@@ -11,6 +11,7 @@ export function ResumeForm({ campaignId }: { campaignId: string }) {
       <summary className="text-cyan cursor-pointer">Resume</summary>
       <form action={action} className="mt-3 grid gap-3">
         <input type="hidden" name="campaign_id" value={campaignId} />
+        {pauseId ? <input type="hidden" name="pause_id" value={pauseId} /> : null}
         <label className="text-sm">
           Reason
           <textarea

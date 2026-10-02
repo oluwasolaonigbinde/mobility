@@ -665,9 +665,7 @@ async def recompute_trip_analytics(
     recorded_end = as_aware_utc(trip.ended_at)
     effective_end = min(recorded_end, cutoff) if cutoff is not None else recorded_end
     effective_end = max(as_aware_utc(trip.started_at), effective_end)
-    pings = await load_ordered_pings(
-        session, trip.id, recorded_through=effective_end
-    )
+    pings = await load_ordered_pings(session, trip.id, recorded_through=effective_end)
     valid_pings = [ping for ping in pings if is_valid_ping(ping)]
     ping_count = len(pings)
     valid_ping_count = len(valid_pings)
@@ -899,20 +897,26 @@ async def list_fraud_flags(
     campaign_id: UUID | None,
     driver_profile_id: UUID | None,
     trip_session_id: UUID | None,
+    oldest_first: bool = False,
+    flag_id: UUID | None = None,
+    unresolved_only: bool = False,
+    group_by_trip: bool = False,
 ) -> tuple[list[FraudFlag], int]:
-    filters = []
-    if flag_status is not None:
-        filters.append(FraudFlag.status == flag_status)
-    if severity is not None:
-        filters.append(FraudFlag.severity == severity)
-    if flag_type is not None:
-        filters.append(FraudFlag.flag_type == flag_type)
-    if campaign_id is not None:
-        filters.append(FraudFlag.campaign_id == campaign_id)
-    if driver_profile_id is not None:
-        filters.append(FraudFlag.driver_profile_id == driver_profile_id)
-    if trip_session_id is not None:
-        filters.append(FraudFlag.trip_session_id == trip_session_id)
+    filters = [
+        column == value
+        for column, value in (
+            (FraudFlag.id, flag_id),
+            (FraudFlag.status, flag_status),
+            (FraudFlag.severity, severity),
+            (FraudFlag.flag_type, flag_type),
+            (FraudFlag.campaign_id, campaign_id),
+            (FraudFlag.driver_profile_id, driver_profile_id),
+            (FraudFlag.trip_session_id, trip_session_id),
+        )
+        if value is not None
+    ]
+    if unresolved_only:
+        filters.append(FraudFlag.status.in_(("open", "acknowledged")))
 
     statement = select(FraudFlag)
     count_statement = select(func.count()).select_from(FraudFlag)
@@ -920,9 +924,34 @@ async def list_fraud_flags(
         statement = statement.where(filter_expression)
         count_statement = count_statement.where(filter_expression)
 
+    if group_by_trip:
+        ranked = (
+            select(
+                FraudFlag.id.label("id"),
+                func.row_number()
+                .over(
+                    partition_by=FraudFlag.trip_session_id,
+                    order_by=(FraudFlag.detected_at, FraudFlag.id),
+                )
+                .label("position"),
+            )
+            .where(*filters)
+            .subquery()
+        )
+        statement = select(FraudFlag).where(
+            FraudFlag.id.in_(select(ranked.c.id).where(ranked.c.position == 1))
+        )
+        count_statement = select(func.count(func.distinct(FraudFlag.trip_session_id))).where(
+            *filters
+        )
     total = await session.scalar(count_statement)
     result = await session.execute(
-        statement.order_by(FraudFlag.detected_at.desc(), FraudFlag.id).limit(limit).offset(offset)
+        statement.order_by(
+            FraudFlag.detected_at.asc() if oldest_first else FraudFlag.detected_at.desc(),
+            FraudFlag.id,
+        )
+        .limit(limit)
+        .offset(offset)
     )
     return list(result.scalars().all()), int(total or 0)
 

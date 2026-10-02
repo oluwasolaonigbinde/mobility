@@ -129,10 +129,14 @@ async def admin_payout_batch_summaries(
     offset: int = Query(default=0, ge=0),
     batch_status: PayoutBatchStatus | None = None,
     approval_mode: PayoutBatchApprovalMode | None = None,
+    oldest_first: bool = False,
+    needs_attention: bool = False,
 ) -> PayoutBatchSummaryListRead:
     return PayoutBatchSummaryListRead.model_validate(
         await payout_batch_summaries(
             session,
+            needs_attention=needs_attention,
+            oldest_first=oldest_first,
             limit=limit,
             offset=offset,
             batch_status=batch_status,

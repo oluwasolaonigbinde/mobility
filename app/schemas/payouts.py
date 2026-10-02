@@ -550,6 +550,7 @@ class PayoutCorrectionOrderExecuteRequest(BaseModel):
 
 
 class PayoutCorrectionOrderRead(BaseModel):
+    campaign_name: str | None = None
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID

@@ -1,3 +1,4 @@
+export const metadata = { title: "Money" };
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/current-user";
 import { PageHeader } from "@/components/ui/page-header";

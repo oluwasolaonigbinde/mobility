@@ -63,7 +63,7 @@ const REASON_LABELS: Record<string, string> = {
   fraud_flag: "Trip had a review flag",
   open_dispute: "Driver has an open dispute",
   assessment_not_current: "Trip check not up to date",
-  payee_unverified: "Bank account not verified",
+  payee_unverified: "Check and verify the driver’s bank details before paying",
   new_bank_destination: "First payment to this bank account",
   debt_outstanding: "Driver owes money back",
   adjusted_trip: "Pay was corrected",

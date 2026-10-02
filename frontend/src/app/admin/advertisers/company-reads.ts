@@ -115,5 +115,5 @@ export async function readCompanyInvoices(
 
 export function exactCompanyMoney(amount: string, currency: string) {
   const [whole = "0", fraction] = amount.split(".");
-  return `${currency} ${BigInt(whole).toLocaleString("en-NG")}.${fraction}`;
+  return `${currency === "NGN" ? "₦" : currency + " "}${BigInt(whole).toLocaleString("en-NG")}.${fraction}`;
 }

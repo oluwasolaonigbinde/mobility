@@ -92,10 +92,15 @@ async def admin_automatic_payout_alerts(
     alert_status: Literal["open", "resolved", "all"] = Query(default="open"),
     limit: int = Query(default=25, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    oldest_first: bool = False,
 ) -> AutomaticPayoutAlertListRead:
     return AutomaticPayoutAlertListRead.model_validate(
         await list_automatic_payout_alerts(
-            session, alert_status=alert_status, limit=limit, offset=offset
+            session,
+            oldest_first=oldest_first,
+            alert_status=alert_status,
+            limit=limit,
+            offset=offset,
         )
     )
 

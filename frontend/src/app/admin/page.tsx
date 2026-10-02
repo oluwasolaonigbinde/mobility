@@ -4,7 +4,7 @@ import { requireRole } from "@/lib/auth/current-user";
 import { Panel } from "@/components/ui/panel";
 import { Pagination } from "@/components/ui/pagination";
 import { QueueUnavailable } from "./queue-search";
-import { departments, readWorkQueue } from "./work-queue";
+import { departments, readWorkQueue, readQueueSource, sources } from "./work-queue";
 export const metadata: Metadata = { title: "Work queue" };
 function age(at: string) {
   const hours = Math.max(0, Math.floor((Date.now() - Date.parse(at)) / 3600000));
@@ -17,39 +17,46 @@ function age(at: string) {
 export default async function AdminWorkQueuePage({
   searchParams,
 }: {
-  searchParams: Promise<{ department?: string; offset?: string }>;
+  searchParams: Promise<{ department?: string; source?: string; offset?: string }>;
 }) {
   await requireRole("admin");
   const p = await searchParams;
-  const selected = departments.find((department) => department === p.department);
+  const selected = departments.find((d) => d === p.department);
+  const source = selected
+    ? (sources.find((s) => s.department === selected && s.id === p.source) ??
+      sources.find((s) => s.department === selected))
+    : undefined;
   const offset = Number.isFinite(Number(p.offset)) ? Math.max(0, Math.floor(Number(p.offset))) : 0;
-  const queue = await readWorkQueue();
-  const cards = [];
-  for (const department of selected ? [selected] : departments) {
-    const all = queue[department];
-    if (!all) {
-      cards.push({ department });
-      continue;
-    }
-    const visible = all.slice(selected ? offset : 0, selected ? offset + 25 : 5);
-    try {
-      const rows = [];
-      for (let i = 0; i < visible.length; i += 4)
-        rows.push(
-          ...(await Promise.all(
-            visible.slice(i, i + 4).map(async (task) => ({
+  const [queue, expanded] = await Promise.all([
+    readWorkQueue(),
+    source ? readQueueSource(source.id, 25, offset) : undefined,
+  ]);
+  const cards = await Promise.all(
+    (selected ? [selected] : departments).map(async (department) => {
+      const list = selected
+        ? expanded
+        : queue[department]
+          ? { items: queue[department], total: queue[department].total ?? 0 }
+          : undefined;
+      if (!list) return { department, rows: undefined, total: undefined };
+      try {
+        return {
+          department,
+          total: list.total,
+          rows: await Promise.all(
+            list.items.map(async (task) => ({
               ...(await task.describe()),
               key: task.key,
               at: task.at,
               event: task.event,
             })),
-          )),
-        );
-      cards.push({ department, rows, total: all.length });
-    } catch {
-      cards.push({ department });
-    }
-  }
+          ),
+        };
+      } catch {
+        return { department, rows: undefined, total: undefined };
+      }
+    }),
+  );
   return (
     <div className="animate-rise mx-auto max-w-6xl">
       <h1 className="font-display text-3xl font-semibold tracking-tight">Work queue</h1>
@@ -57,15 +64,36 @@ export default async function AdminWorkQueuePage({
         Work for each Terrax Media department. Open an item to deal with it.
       </p>
       {selected ? (
-        <Link href="/admin" className="text-cyan mb-4 inline-block underline">
-          All departments
-        </Link>
-      ) : null}
+        <>
+          <Link href="/admin" className="text-cyan mb-4 inline-block underline">
+            All departments
+          </Link>
+          <nav aria-label="Work lists" className="mb-4 flex flex-wrap gap-3">
+            {sources
+              .filter((s) => s.department === selected)
+              .map((s) => (
+                <Link
+                  key={s.id}
+                  href={`/admin?department=${encodeURIComponent(selected)}&source=${s.id}`}
+                  aria-current={source?.id === s.id ? "page" : undefined}
+                  className="text-cyan text-sm underline"
+                >
+                  {s.title}
+                </Link>
+              ))}
+          </nav>
+        </>
+      ) : (
+        <p className="text-muted mb-4 text-sm">Oldest five items from each work list.</p>
+      )}
       <div className="grid gap-4 md:grid-cols-2">
         {cards.map((card) => (
           <Panel key={card.department} className="p-5">
             <section aria-label={card.department}>
-              <h2 className="font-medium">{card.department}</h2>
+              <h2 className="font-medium">
+                {card.department}
+                {selected && source ? ` · ${source.title}` : ""}
+              </h2>
               {!card.rows ? (
                 <div className="mt-3">
                   <QueueUnavailable />
@@ -90,13 +118,13 @@ export default async function AdminWorkQueuePage({
                       ))}
                     </ul>
                   )}
-                  {selected ? (
+                  {selected && source ? (
                     <Pagination
                       total={card.total ?? 0}
                       limit={25}
                       offset={offset}
-                      hrefFor={(next) =>
-                        `/admin?department=${encodeURIComponent(card.department)}&offset=${next}`
+                      hrefFor={(n) =>
+                        `/admin?department=${encodeURIComponent(card.department)}&source=${source.id}&offset=${n}`
                       }
                     />
                   ) : (

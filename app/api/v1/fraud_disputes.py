@@ -112,17 +112,27 @@ async def admin_get_fraud_disputes(
     status: FraudDisputeStatus | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
+    oldest_first: bool = False,
 ) -> AdminFraudDisputeList:
     del current_user
     items, total = await list_admin_disputes(
         session,
+        oldest_first=oldest_first,
         flag_ids=flag_id,
         dispute_status=status.value if status is not None else None,
         limit=limit,
         offset=offset,
     )
+    from app.services.admin_worklist_reads import staff_names
+
+    names, _ = await staff_names(session, {item.driver_profile_id for item in items}, set())
     return AdminFraudDisputeList(
-        items=[admin_dispute_response(item) for item in items],
+        items=[
+            admin_dispute_response(item).model_copy(
+                update={"driver_name": names.get(item.driver_profile_id)}
+            )
+            for item in items
+        ],
         total=total,
         limit=limit,
         offset=offset,

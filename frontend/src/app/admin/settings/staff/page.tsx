@@ -1,3 +1,4 @@
+export const metadata = { title: "Staff logins" };
 import Link from "next/link";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";

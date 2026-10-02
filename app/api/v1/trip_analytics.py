@@ -31,7 +31,7 @@ from app.schemas.trip_analytics import (
     FraudFlagResolveRequest,
     TripAnalyticsRead,
 )
-from app.services.admin_trip_review import HeldTripPay, read_flag_route, read_held_trip_pay
+from app.services.admin_trip_review import read_flag_route
 from app.services.audit import create_audit_event
 from app.services.earnings_release import fraud_flag_money_effect
 from app.services.fraud_holds import acknowledge_fraud_flag, resolve_fraud_flag
@@ -87,22 +87,6 @@ async def admin_fraud_flag_response(
             reversal_entry_id=effect.reversal_entry_id,
             reversal_recommended=effect.reversal_recommended,
         ),
-    )
-
-
-async def admin_fraud_flag_list_item(
-    session: AsyncSession, *, flag: FraudFlag, review_sla_days: int, held_pay: HeldTripPay
-) -> AdminFraudFlagListItemRead:
-    base = await admin_fraud_flag_response(session, flag=flag, review_sla_days=review_sla_days)
-    return AdminFraudFlagListItemRead(
-        **{
-            **base.model_dump(),
-            "money_effect": AdminFraudFlagListMoneyEffectRead(
-                **base.money_effect.model_dump(),
-                held_pending_net=held_pay.amount,
-                held_currency=held_pay.currency,
-            ),
-        }
     )
 
 
@@ -226,10 +210,18 @@ async def admin_list_fraud_flags(
     campaign_id: UUID | None = None,
     driver_profile_id: UUID | None = None,
     trip_session_id: UUID | None = None,
+    oldest_first: bool = False,
+    flag_id: UUID | None = None,
+    unresolved_only: bool = False,
+    group_by_trip: bool = False,
 ) -> FraudFlagListResponse:
     del current_user
     flags, total = await list_fraud_flags(
         session,
+        oldest_first=oldest_first,
+        flag_id=flag_id,
+        unresolved_only=unresolved_only,
+        group_by_trip=group_by_trip,
         limit=limit,
         offset=offset,
         flag_status=status,
@@ -239,17 +231,42 @@ async def admin_list_fraud_flags(
         driver_profile_id=driver_profile_id,
         trip_session_id=trip_session_id,
     )
-    held_by_trip = {
-        trip_id: await read_held_trip_pay(session, trip_id=trip_id)
-        for trip_id in {flag.trip_session_id for flag in flags}
-    }
+    from app.services.admin_worklist_reads import flag_list_money, trip_contexts
+
+    money = await flag_list_money(session, flags)
+    context = await trip_contexts(session, {flag.trip_session_id for flag in flags})
+    from sqlalchemy import func, select
+
+    counts = (
+        {
+            trip_id: count
+            for trip_id, count in (
+                await session.execute(
+                    select(FraudFlag.trip_session_id, func.count())
+                    .where(
+                        FraudFlag.trip_session_id.in_({flag.trip_session_id for flag in flags}),
+                        FraudFlag.status.in_(("open", "acknowledged")),
+                    )
+                    .group_by(FraudFlag.trip_session_id)
+                )
+            ).all()
+        }
+        if flags
+        else {}
+    )
     return FraudFlagListResponse(
         items=[
-            await admin_fraud_flag_list_item(
-                session,
-                flag=flag,
-                review_sla_days=settings.fraud_review_sla_days,
-                held_pay=held_by_trip[flag.trip_session_id],
+            AdminFraudFlagListItemRead(
+                **fraud_flag_response(flag).model_dump(),
+                review_due_at=flag.detected_at + timedelta(days=settings.fraud_review_sla_days),
+                escalated_at=flag.escalated_at,
+                money_effect=AdminFraudFlagListMoneyEffectRead(**money[flag.id]),
+                **{
+                    key: value
+                    for key, value in context.get(flag.trip_session_id, {}).items()
+                    if key in {"driver_name", "campaign_name", "vehicle_plate", "trip_started_at"}
+                },
+                problem_count=counts.get(flag.trip_session_id, 0),
             )
             for flag in flags
         ],

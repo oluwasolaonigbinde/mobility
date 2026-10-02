@@ -93,8 +93,22 @@ class DriverApplicationAdminRead(BaseModel):
     vehicle: AdminVehicleStageRead = Field(default_factory=AdminVehicleStageRead)
 
 
+class AdminApplicantRead(BaseModel):
+    kind: Literal["application", "staff_added"]
+    id: UUID
+    application_id: UUID | None
+    driver_profile_id: UUID
+    user_id: UUID
+    full_name: str
+    email: str
+    phone: str | None
+    service_city: str | None
+    created_at: datetime
+
+
 class DriverApplicationAdminListResponse(BaseModel):
     items: list[DriverApplicationAdminRead]
+    applicants: list[AdminApplicantRead] | None = None
     total: int
     limit: int
     offset: int

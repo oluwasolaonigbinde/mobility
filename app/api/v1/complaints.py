@@ -297,9 +297,11 @@ async def admin_list_complaints(
     organization_id: UUID | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 25,
     offset: Annotated[int, Query(ge=0)] = 0,
+    oldest_first: bool = False,
 ) -> StaffComplaintList:
     items, total = await list_staff_complaints(
         session,
+        oldest_first=oldest_first,
         complaint_status=status.value if status is not None else None,
         party=party.value if party is not None else None,
         assigned_to_user_id=current_user.id if assigned_to_me else None,

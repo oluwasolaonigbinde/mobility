@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { readDriver, readApplication } from "../entity-reads";
 import { notFound } from "next/navigation";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
@@ -66,20 +67,11 @@ export default async function DriverHub({
   let driver;
   try {
     if (applicationId) {
-      application = (
-        await api.GET("/api/v1/admin/driver-applications/{application_id}", {
-          params: { path: { application_id: applicationId } },
-        })
-      ).data;
+      application = (await readApplication(applicationId)).data;
       if (!application) notFound();
       driverId = application.driver_profile_id;
     }
-    if (driverId)
-      driver = (
-        await api.GET("/api/v1/admin/drivers/{driver_profile_id}", {
-          params: { path: { driver_profile_id: driverId } },
-        })
-      ).data;
+    if (driverId) driver = (await readDriver(driverId)).data;
   } catch (error) {
     if (error instanceof ApiError && [403, 404, 422].includes(error.status)) notFound();
     throw error;
@@ -231,40 +223,68 @@ export default async function DriverHub({
         }
       />
       <StatusChip tone={adminTone(status)}>{adminStatus(status, "driver")}</StatusChip>
+      {applicationAvailable && !application ? (
+        <p className="text-muted mt-3 text-sm">Added by staff</p>
+      ) : null}
       {applicationAvailable && accounts.data ? (
         <p className="text-muted my-4 text-sm">
-          {p?.status !== "approved"
-            ? "Next: review identity documents and bank details."
-            : v?.status !== "approved"
-              ? "Next: check the car and its documents."
-              : account?.status === "invited"
-                ? "Next: complete sign-in setup."
-                : "Current document and car decisions are recorded."}
+          {status === "suspended"
+            ? "Next: review why this driver is suspended."
+            : account?.status === "invited"
+              ? "Next: complete sign-in setup."
+              : application && p?.status !== "approved"
+                ? "Next: review identity documents and bank details."
+                : application && v?.status !== "approved"
+                  ? "Next: check the car and its documents."
+                  : status === "pending"
+                    ? "Next: review this driver's status."
+                    : null}
         </p>
       ) : null}
       {applicationAvailable ? (
         <HubChecklist
           title="Ready to drive?"
-          items={[
-            {
-              label: "Identity documents",
-              state: adminStatus(p?.status, "review"),
-              done: p?.status === "approved",
-              section: "documents",
-            },
-            {
-              label: "Bank details",
-              state: p?.bank_account_verified ? "Verified" : "Check bank details",
-              done: p?.bank_account_verified,
-              section: "documents",
-            },
-            {
-              label: "Car approved",
-              state: adminStatus(v?.status, "review"),
-              done: v?.status === "approved",
-              section: "cars",
-            },
-          ]}
+          items={
+            application
+              ? [
+                  {
+                    label: "Identity documents",
+                    state: adminStatus(p?.status, "review"),
+                    done: p?.status === "approved",
+                    section: "documents",
+                  },
+                  {
+                    label: "Bank details",
+                    state: p?.bank_account_verified ? "Verified" : "Check bank details",
+                    done: p?.bank_account_verified,
+                    section: "documents",
+                  },
+                  {
+                    label: "Car approved",
+                    state: adminStatus(v?.status, "review"),
+                    done: v?.status === "approved",
+                    section: "cars",
+                  },
+                ]
+              : [
+                  {
+                    label: "Driver status",
+                    state: adminStatus(status, "driver"),
+                    done: status === "active",
+                    section: "details",
+                  },
+                  ...(cars.data?.items.some((car) => car.status === "active")
+                    ? [
+                        {
+                          label: "Car ready",
+                          state: "Active car recorded",
+                          done: true,
+                          section: "cars",
+                        },
+                      ]
+                    : []),
+                ]
+          }
         />
       ) : null}
       <HubNav sections={sections} />
@@ -515,13 +535,7 @@ export default async function DriverHub({
                   ))}
                 </dl>
               ) : null}
-              {balance ? (
-                <p className="text-muted mb-4 text-sm">
-                  Transfer confirmation is separate; this total does not confirm money reached the
-                  driver.
-                </p>
-              ) : null}
-              <h3 className="mb-3 font-medium">Recent trip pay calculations</h3>
+              <h3 className="mb-3 font-medium">Trip earnings</h3>
               {trips.data ? (
                 <>
                   {!trips.data.items.length ? (

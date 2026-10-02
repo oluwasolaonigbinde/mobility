@@ -77,6 +77,7 @@ class CampaignChangeDecision(BaseModel):
 
 
 class CampaignChangeRead(BaseModel):
+    campaign_name: str | None = None
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
@@ -100,6 +101,9 @@ class CampaignChangeRead(BaseModel):
 
 class CampaignChangeList(BaseModel):
     items: list[CampaignChangeRead]
+    total: int | None = None
+    limit: int | None = None
+    offset: int | None = None
 
 
 class CampaignChangeRevisionRead(BaseModel):

@@ -237,6 +237,7 @@ async def list_admin_disputes(
     dispute_status: str | None,
     limit: int,
     offset: int,
+    oldest_first: bool = False,
 ) -> tuple[list[FraudDispute], int]:
     filters = []
     if flag_ids:
@@ -251,7 +252,12 @@ async def list_admin_disputes(
             await session.scalars(
                 select(FraudDispute)
                 .where(*filters)
-                .order_by(FraudDispute.created_at.desc(), FraudDispute.id.desc())
+                .order_by(
+                    FraudDispute.created_at.asc()
+                    if oldest_first
+                    else FraudDispute.created_at.desc(),
+                    FraudDispute.id.desc(),
+                )
                 .limit(limit)
                 .offset(offset)
             )

@@ -726,6 +726,7 @@ async def list_staff_complaints(
     offset: int,
     user_id: UUID | None = None,
     organization_id: UUID | None = None,
+    oldest_first: bool = False,
 ) -> tuple[list[Complaint], int]:
     filters = []
     if user_id is not None:
@@ -745,7 +746,12 @@ async def list_staff_complaints(
         await session.scalars(
             select(Complaint)
             .where(*filters)
-            .order_by(Complaint.last_message_at.desc(), Complaint.id.desc())
+            .order_by(
+                Complaint.last_message_at.asc()
+                if oldest_first
+                else Complaint.last_message_at.desc(),
+                Complaint.id.desc(),
+            )
             .limit(limit)
             .offset(offset)
         )

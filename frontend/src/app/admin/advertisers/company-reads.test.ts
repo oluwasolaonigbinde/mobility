@@ -36,7 +36,7 @@ describe("company outstanding invoices", () => {
       invoice({ effective_obligation_amount: "9007199254740993.01", funded_amount: "0.00" }),
     ])[0]!;
     expect(amount.amount).toBe("9007199254740993.01");
-    expect(exactCompanyMoney(amount.amount, amount.currency)).toBe("NGN 9,007,199,254,740,993.01");
+    expect(exactCompanyMoney(amount.amount, amount.currency)).toBe("₦9,007,199,254,740,993.01");
   });
   it.each(["NaN", "-1.00", "1.001", "1e2", ""])("rejects malformed amount %s", (value) => {
     expect(() => outstandingInvoices([invoice({ effective_obligation_amount: value })])).toThrow();

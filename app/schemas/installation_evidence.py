@@ -53,6 +53,8 @@ class InstallationEvidencePhotoRead(BaseModel):
 
 
 class InstallationEvidenceRead(BaseModel):
+    driver_name: str | None = None
+    campaign_name: str | None = None
     id: UUID
     assignment_id: UUID
     campaign_id: UUID
@@ -74,6 +76,9 @@ class InstallationEvidenceRead(BaseModel):
 
 class InstallationEvidenceList(BaseModel):
     items: list[InstallationEvidenceRead]
+    total: int | None = None
+    limit: int | None = None
+    offset: int | None = None
 
 
 class InstallationEvidencePolicyRead(BaseModel):

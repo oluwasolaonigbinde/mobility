@@ -1,7 +1,6 @@
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
-from sqlalchemy import select
 
 from app.api.v1.dependencies import (
     AdminUserDependency,
@@ -10,11 +9,6 @@ from app.api.v1.dependencies import (
     SettingsDependency,
     TripEnqueuerDependency,
 )
-from app.models.campaign import Campaign
-from app.models.driver import DriverProfile
-from app.models.trip import TripSession
-from app.models.user import User
-from app.models.vehicle import Vehicle
 from app.schemas.trips import (
     CurrentTripResponse,
     LocationPingBatchCreate,
@@ -159,7 +153,7 @@ async def driver_ingest_location_pings(
         )
     await session.commit()
     if result.sealed_now:
-        # Fail-open latency optimization; the sweep is the guaranteed path (§14.3.2).
+        # Fail-open latency optimization; the sweep is the guaranteed path (Â§14.3.2).
         await enqueuer.enqueue_trip_processing(trip_id)
     if result.quarantine is not None:
         row = result.quarantine
@@ -240,7 +234,7 @@ async def driver_end_trip(
     await session.commit()
     if result.sealed_now:
         # Fail-open latency optimization; the sweep is the guaranteed path
-        # (§14.3.2). Unsealed v2 ends wait for exact late data and reconcile;
+        # (Â§14.3.2). Unsealed v2 ends wait for exact late data and reconcile;
         # grace records an audit marker but never opens the money chain (D25).
         await enqueuer.enqueue_trip_processing(trip.id)
     return trip_response(await summarize_trip(session, trip))
@@ -354,35 +348,27 @@ async def admin_list_quarantined_batches(
     status_filter: str | None = Query(default=None, alias="status"),
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
+    quarantine_id: UUID | None = None,
+    driver_profile_id: UUID | None = None,
+    campaign_id: UUID | None = None,
 ) -> QuarantinedPingBatchListResponse:
     items, total = await list_quarantined_ping_batches(
         session,
+        quarantine_id=quarantine_id,
+        driver_profile_id=driver_profile_id,
+        campaign_id=campaign_id,
         trip_id=trip_id,
         batch_status=status_filter,
         limit=limit,
         offset=offset,
     )
+    from app.services.admin_worklist_reads import trip_contexts
+
+    context = await trip_contexts(session, {row.trip_session_id for row in items})
     projected = []
     for row in items:
-        context = (
-            await session.execute(
-                select(User.full_name, Campaign.name, Vehicle.plate_number)
-                .select_from(TripSession)
-                .join(DriverProfile, TripSession.driver_profile_id == DriverProfile.id)
-                .join(User, DriverProfile.user_id == User.id)
-                .join(Campaign, TripSession.campaign_id == Campaign.id)
-                .join(Vehicle, TripSession.vehicle_id == Vehicle.id)
-                .where(TripSession.id == row.trip_session_id)
-            )
-        ).one_or_none()
         projected.append(
-            quarantine_response(row).model_copy(
-                update={
-                    "driver_name": context[0] if context else None,
-                    "campaign_name": context[1] if context else None,
-                    "vehicle_plate": context[2] if context else None,
-                }
-            )
+            quarantine_response(row).model_copy(update=context.get(row.trip_session_id, {}))
         )
     return QuarantinedPingBatchListResponse(
         items=projected,

@@ -121,9 +121,7 @@ async def create_campaign(
     currency = (payload.currency or organization.currency).upper()
     if payload.client_request_id is not None:
         existing = await session.scalar(
-            select(Campaign)
-            .where(Campaign.id == payload.client_request_id)
-            .with_for_update()
+            select(Campaign).where(Campaign.id == payload.client_request_id).with_for_update()
         )
         if existing is not None:
             exact_match = (
@@ -620,6 +618,7 @@ async def list_admin_campaigns(
     campaign_status: str | None,
     lock_campaigns: bool = False,
     q: str | None = None,
+    oldest_first: bool = False,
 ) -> tuple[list[tuple[Campaign, AdvertiserOrganization]], int]:
     filters = []
     if q and q.strip():
@@ -644,7 +643,14 @@ async def list_admin_campaigns(
 
     total = await session.scalar(count_statement)
     result = await session.execute(
-        statement.order_by(Campaign.created_at.desc(), Campaign.id).limit(limit).offset(offset)
+        statement.order_by(
+            (Campaign.updated_at if campaign_status == "paused" else Campaign.created_at).asc()
+            if oldest_first
+            else Campaign.created_at.desc(),
+            Campaign.id,
+        )
+        .limit(limit)
+        .offset(offset)
     )
     return [(row[0], row[1]) for row in result.all()], int(total or 0)
 
@@ -671,9 +677,7 @@ async def create_campaign_creative(
     campaign_id: UUID,
     payload: CreativeCreate,
 ) -> tuple[CampaignCreative, bool]:
-    organization, _ = await get_required_advertiser_context(
-        session, user_id, require_write=True
-    )
+    organization, _ = await get_required_advertiser_context(session, user_id, require_write=True)
     campaign = await session.scalar(
         select(Campaign)
         .where(Campaign.id == campaign_id, Campaign.organization_id == organization.id)
@@ -726,9 +730,7 @@ async def create_campaign_creative(
             status_code=status.HTTP_409_CONFLICT,
         )
     existing = await session.scalar(
-        select(CampaignCreative).where(
-            CampaignCreative.stored_file_id == stored_file.id
-        )
+        select(CampaignCreative).where(CampaignCreative.stored_file_id == stored_file.id)
     )
     if existing is not None:
         if _creative_create_matches(existing, campaign.id, payload, stored_file):
@@ -937,9 +939,7 @@ async def update_campaign_creative(
                 "stored_file_id cannot be null",
                 status_code=status.HTTP_400_BAD_REQUEST,
             )
-        campaign = await get_advertiser_campaign(
-            session, user_id=user_id, campaign_id=campaign_id
-        )
+        campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
         stored_file = await session.scalar(
             select(StoredFile)
             .where(
@@ -1047,9 +1047,7 @@ async def _locked_advertiser_creative(
     campaign_id: UUID,
     creative_id: UUID,
 ) -> tuple[Campaign, CampaignCreative, StoredFile]:
-    campaign = await _locked_advertiser_campaign(
-        session, user_id=user_id, campaign_id=campaign_id
-    )
+    campaign = await _locked_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
     creative = await session.scalar(
         select(CampaignCreative)
         .where(
@@ -1333,9 +1331,7 @@ async def list_pending_creative_reviews(
     offset: int,
 ) -> tuple[list[tuple[CampaignCreative, Campaign, AdvertiserOrganization]], int]:
     filters = [CampaignCreative.status == CreativeStatus.PENDING_REVIEW.value]
-    total = await session.scalar(
-        select(func.count()).select_from(CampaignCreative).where(*filters)
-    )
+    total = await session.scalar(select(func.count()).select_from(CampaignCreative).where(*filters))
     rows = (
         await session.execute(
             select(CampaignCreative, Campaign, AdvertiserOrganization)

@@ -1,108 +1,82 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError } from "@/lib/api/errors";
-
-const mocks = vi.hoisted(() => ({ get: vi.fn() }));
-vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: mocks.get }) }));
-vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
-vi.mock("../payouts/rules/actions", () => ({
-  publishDailyRateAction: vi.fn(),
-  createRevisionAction: vi.fn(),
-  saveRuleAction: vi.fn(),
-}));
-vi.mock("../payouts/rules/rule-form", () => ({
-  RuleForm: () => <p>hourly or legacy rule form</p>,
-}));
-vi.mock("../payouts/rules/revisions-panel", () => ({
-  RevisionsPanel: () => <p>hourly revisions panel</p>,
-}));
-vi.mock("../payouts/rules/daily-rate-panel", () => ({
-  DailyRatePanel: ({
-    publishingEnabled,
-    revisions,
-  }: {
-    publishingEnabled: boolean;
-    revisions: unknown[];
-  }) => (
-    <p>
-      daily rate panel · switched {publishingEnabled ? "on" : "off"} · {revisions.length} revisions
-    </p>
-  ),
-}));
-
-import PayTermsSection from "./pay-terms-section";
-
-const CAMPAIGN = { id: "7f9c1f4e-8a5b-4c3d-9e2f-1a2b3c4d5e6f", name: "Wuse Blitz" };
-
-function api({
-  rule,
-  status = true,
-  failStatus = false,
-  failRevisions = false,
-}: {
-  rule?: { id: string; status: string; formula_version: string };
-  status?: boolean;
-  failStatus?: boolean;
-  failRevisions?: boolean;
-}) {
-  mocks.get.mockImplementation(async (path: string) => {
-    if (path === "/api/v1/admin/campaigns") return { data: { items: [CAMPAIGN] } };
-    if (path === "/api/v1/admin/campaigns/{campaign_id}/payout-rules") {
-      return { data: { items: rule ? [rule] : [] } };
-    }
-    if (path.endsWith("/revisions")) {
-      if (failRevisions) throw new ApiError(502, { code: "UPSTREAM", message: "down" });
-      return { data: { items: [{ id: "r1" }, { id: "r2" }] } };
-    }
-    if (path === "/api/v1/admin/payout-v4/status") {
-      if (failStatus) throw new ApiError(502, { code: "UPSTREAM", message: "down" });
-      return { data: { publishing_enabled: status } };
-    }
-    throw new Error(`Unexpected request: ${path}`);
+const { get } = vi.hoisted(() => ({ get: vi.fn() }));
+vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: get }) }));
+vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
+vi.mock("../payouts/rules/rule-form", () => ({ RuleForm: () => <p>Legacy editor</p> }));
+vi.mock("../payouts/rules/revisions-panel", () => ({ RevisionsPanel: () => <p>Hourly editor</p> }));
+vi.mock("../payouts/rules/daily-rate-panel", () => ({ DailyRatePanel: () => <p>Daily editor</p> }));
+import Section from "./pay-terms-section";
+import { readPayTerms } from "./pay-terms-read";
+const current = {
+  id: "revision",
+  payout_rule_id: "rule",
+  effective_from: "2026-01-01T00:00:00Z",
+  formula_version: "payout_v4",
+  daily_rate_naira: "10000.00",
+  daily_target_miles: "70",
+  currency: "NGN",
+};
+function mock(version = "payout_v4", revision: Record<string, unknown> | undefined = current) {
+  get.mockImplementation(async (path, options) => {
+    if (path.endsWith("/payout-rules"))
+      return {
+        data: {
+          items: [{ id: "rule", status: "active", formula_version: version, currency: "NGN" }],
+        },
+      };
+    if (path.endsWith("/revisions"))
+      return {
+        data: {
+          items: options.params.query.effective_before ? (revision ? [revision] : []) : [],
+          total: revision ? 1 : 0,
+        },
+      };
+    if (path.endsWith("/status")) return { data: { publishing_enabled: true } };
+    throw Error("Unexpected read");
   });
 }
-
-const page = () => PayTermsSection({ campaignId: CAMPAIGN.id });
-
-describe("PayoutRulesPage", () => {
+describe("Current Pay terms", () => {
   beforeEach(() => vi.clearAllMocks());
-
-  it("governs a daily-rate campaign only through the daily-rate panel", async () => {
-    api({ rule: { id: "rule-4", status: "active", formula_version: "payout_v4" } });
-    render(await page());
-
-    expect(screen.getByText(/daily rate panel · switched on · 2 revisions/)).toBeInTheDocument();
-    expect(screen.queryByText("hourly revisions panel")).not.toBeInTheDocument();
-    expect(screen.queryByText("hourly or legacy rule form")).not.toBeInTheDocument();
+  it("shows current daily amount and target before a collapsed editor and uses the same readiness result", async () => {
+    mock();
+    const terms = await readPayTerms("campaign");
+    expect(terms?.ready).toBe(true);
+    render(await Section({ campaignId: "campaign" }));
+    expect(screen.getByText(/10,000.*per day for 70 miles/)).toBeVisible();
+    expect(screen.getByText("Change pay terms").closest("details")).not.toHaveAttribute("open");
+    expect(screen.queryByText("Legacy editor")).toBeNull();
+    const query = get.mock.calls.find(
+      ([p, o]) => p.endsWith("/revisions") && o.params.query.effective_before,
+    )?.[1].params.query;
+    expect(query.limit).toBe(1);
+    expect(query.effective_before).toBeTruthy();
   });
-
-  it("offers both the rule form and the switched-off daily rate when no rule exists", async () => {
-    api({ status: false });
-    render(await page());
-    expect(screen.getByText("hourly or legacy rule form")).toBeInTheDocument();
-    expect(screen.getByText(/daily rate panel · switched off · 0 revisions/)).toBeInTheDocument();
-  });
-
-  it("keeps hourly campaigns on the hourly chain without the daily-rate panel", async () => {
-    api({ rule: { id: "rule-2", status: "active", formula_version: "payout_v2" } });
-    render(await page());
-    expect(screen.getByText("hourly revisions panel")).toBeInTheDocument();
-    expect(screen.queryByText(/daily rate panel/)).not.toBeInTheDocument();
-  });
-
-  it("shows a retry state when the daily-rate data cannot load", async () => {
-    api({ failStatus: true });
-    render(await page());
-    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
-  });
-
-  it("still surfaces an hourly revision load failure to the error boundary", async () => {
-    api({
-      rule: { id: "rule-2", status: "active", formula_version: "payout_v2" },
-      failRevisions: true,
+  it("shows hourly rate, premium and daily cap for v3 terms on an hourly rule", async () => {
+    mock("payout_v2", {
+      ...current,
+      formula_version: "payout_v3",
+      hourly_rate_naira: "1000.00",
+      premium_hourly_rate_naira: "1500.00",
+      daily_payable_hours_cap: "8",
     });
-    render(await page());
+    render(await Section({ campaignId: "campaign" }));
+    expect(screen.getByText(/1,000.*per hour, up to 8 payable hours/)).toBeVisible();
+    expect(screen.getByText(/1,500.*premium area/)).toBeVisible();
+  });
+  it("future-only terms never tick the launch checklist", async () => {
+    mock("payout_v4", { ...current, effective_from: "2099-01-01T00:00:00Z" });
+    expect((await readPayTerms("campaign"))?.ready).toBe(false);
+  });
+  it("failed current reads show one section failure", async () => {
+    get.mockRejectedValue(new Error("offline"));
+    render(await Section({ campaignId: "campaign" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
-    expect(screen.queryByText("hourly revisions panel")).toBeNull();
+  });
+  it("keeps legacy terms truthful and their editor closed", async () => {
+    mock("payout_v1");
+    render(await Section({ campaignId: "campaign" }));
+    expect(screen.getByText(/older distance and zone pay terms/)).toBeVisible();
+    expect(screen.getByText("Legacy editor").closest("details")).not.toHaveAttribute("open");
   });
 });

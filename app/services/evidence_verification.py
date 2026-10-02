@@ -709,18 +709,34 @@ async def list_admin_verifications(
     verification_type: str | None = None,
     limit: int = 100,
     offset: int = 0,
+    oldest_first: bool = False,
+    verification_id: UUID | None = None,
+    driver_profile_id: UUID | None = None,
+    campaign_id: UUID | None = None,
+    trip_session_id: UUID | None = None,
 ) -> tuple[list[EvidenceVerification], int]:
     query = select(EvidenceVerification)
     if verification_status is not None:
         query = query.where(EvidenceVerification.status == verification_status)
     if verification_type is not None:
         query = query.where(EvidenceVerification.verification_type == verification_type)
+    for field, value in (
+        (EvidenceVerification.id, verification_id),
+        (EvidenceVerification.driver_profile_id, driver_profile_id),
+        (EvidenceVerification.campaign_id, campaign_id),
+        (EvidenceVerification.source_trip_session_id, trip_session_id),
+    ):
+        if value is not None:
+            query = query.where(field == value)
     total = int(await session.scalar(select(func.count()).select_from(query.subquery())) or 0)
     rows = list(
         (
             await session.scalars(
                 query.order_by(
-                    EvidenceVerification.issued_at.desc(), EvidenceVerification.id.desc()
+                    EvidenceVerification.issued_at.asc()
+                    if oldest_first
+                    else EvidenceVerification.issued_at.desc(),
+                    EvidenceVerification.id.desc(),
                 )
                 .limit(limit)
                 .offset(offset)

@@ -25,6 +25,18 @@ it("uses the existing guarded resume operation with a required reason", async ()
   );
   expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/campaigns/" + id);
 });
+it("sends the recorded pause ID to the staff Resume operation and never changes its reason category", async () => {
+  const input = form(" Inspection complete ");
+  input.set("pause_id", id);
+  expect(await resumeCampaign({}, input)).toEqual({ done: "Campaign resumed" });
+  expect(mocks.post).toHaveBeenCalledExactlyOnceWith(
+    "/api/v1/admin/campaigns/{campaign_id}/resume",
+    {
+      params: { path: { campaign_id: id } },
+      body: { pause_id: id, reason: "Inspection complete" },
+    },
+  );
+});
 it.each(["", " ".repeat(3), "x".repeat(1001)])(
   "does not resume without a valid reason",
   async (reason) => {

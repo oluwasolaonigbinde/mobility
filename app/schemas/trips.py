@@ -187,6 +187,10 @@ class TripEvidenceReconcileResponse(BaseModel):
 
 
 class QuarantinedPingBatchRead(BaseModel):
+    driver_profile_id: UUID | None = None
+    campaign_id: UUID | None = None
+    assignment_id: UUID | None = None
+    trip_started_at: datetime | None = None
     driver_name: str | None = None
     campaign_name: str | None = None
     vehicle_plate: str | None = None
@@ -226,6 +230,6 @@ class QuarantineApplyResponse(BaseModel):
     trip_id: UUID
     applied_batch_id: UUID
     accepted_count: int
-    # Africa/Lagos calendar days the applied pings touch — the admin runs the
+    # Africa/Lagos calendar days the applied pings touch â€” the admin runs the
     # recompute-day tool for these; applying never auto-recomputes money.
     affected_lagos_days: list[str]

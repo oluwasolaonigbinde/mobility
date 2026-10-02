@@ -1244,6 +1244,7 @@ async def list_automatic_payout_alerts(
     limit: int = 25,
     offset: int = 0,
     alert_id: UUID | None = None,
+    oldest_first: bool = False,
 ) -> dict[str, object]:
     _page(limit, offset)
     query = select(PayoutAutomaticAlert)
@@ -1266,7 +1267,12 @@ async def list_automatic_payout_alerts(
             .outerjoin(driver, driver.id == DriverProfile.user_id)
             .outerjoin(resolver, resolver.id == PayoutAutomaticAlert.resolved_by_user_id)
             .where(PayoutAutomaticAlert.id.in_(query.with_only_columns(PayoutAutomaticAlert.id)))
-            .order_by(PayoutAutomaticAlert.created_at.desc(), PayoutAutomaticAlert.id.desc())
+            .order_by(
+                PayoutAutomaticAlert.created_at.asc()
+                if oldest_first
+                else PayoutAutomaticAlert.created_at.desc(),
+                PayoutAutomaticAlert.id.desc(),
+            )
             .limit(limit)
             .offset(offset)
         )

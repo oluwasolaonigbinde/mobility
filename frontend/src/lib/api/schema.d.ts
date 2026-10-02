@@ -589,6 +589,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/campaigns/{campaign_id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Resume Campaign */
+        post: operations["admin_resume_campaign_api_v1_admin_campaigns__campaign_id__resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/campaigns/{campaign_id}/review-history": {
         parameters: {
             query?: never;
@@ -4791,6 +4808,44 @@ export interface components {
         ActiveCampaignAssignmentResponse: {
             assignment: components["schemas"]["CampaignAssignmentRead"] | null;
         };
+        /** AdminApplicantRead */
+        AdminApplicantRead: {
+            /** Application Id */
+            application_id: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /** Email */
+            email: string;
+            /** Full Name */
+            full_name: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "application" | "staff_added";
+            /** Phone */
+            phone: string | null;
+            /** Service City */
+            service_city: string | null;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
         /** AdminCampaignListResponse */
         AdminCampaignListResponse: {
             /** Items */
@@ -4814,6 +4869,19 @@ export interface components {
             /** Name */
             name: string;
             status: components["schemas"]["OrganizationStatus"];
+        };
+        /** AdminCampaignPauseRead */
+        AdminCampaignPauseRead: {
+            /** Kind */
+            kind: string;
+            /** Pause Id */
+            pause_id: string | null;
+            /** Reason */
+            reason: string;
+            /** Resume Allowed */
+            resume_allowed: boolean;
+            /** Resume Explanation */
+            resume_explanation: string;
         };
         /** AdminCampaignRead */
         AdminCampaignRead: {
@@ -4849,6 +4917,7 @@ export interface components {
              * Format: uuid
              */
             organization_id: string;
+            pause?: components["schemas"]["AdminCampaignPauseRead"] | null;
             /** Start At */
             start_at: string | null;
             status: components["schemas"]["CampaignStatus"];
@@ -4919,13 +4988,79 @@ export interface components {
         /** AdminEvidenceVerificationList */
         AdminEvidenceVerificationList: {
             /** Items */
-            items: components["schemas"]["EvidenceVerificationRead"][];
+            items: components["schemas"]["AdminEvidenceVerificationRead"][];
             /** Limit */
             limit: number;
             /** Offset */
             offset: number;
             /** Total */
             total: number;
+        };
+        /** AdminEvidenceVerificationRead */
+        AdminEvidenceVerificationRead: {
+            /**
+             * Assignment Id
+             * Format: uuid
+             */
+            assignment_id: string;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /** Campaign Name */
+            campaign_name?: string | null;
+            /** Display Proof Id */
+            display_proof_id: string | null;
+            /** Driver Name */
+            driver_name?: string | null;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /** Due At */
+            due_at: string | null;
+            /** Fraud Flag Id */
+            fraud_flag_id: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Issued At
+             * Format: date-time
+             */
+            issued_at: string;
+            /** Issued By User Id */
+            issued_by_user_id: string | null;
+            /** Metadata */
+            metadata: {
+                [key: string]: unknown;
+            };
+            /** Resolved At */
+            resolved_at: string | null;
+            /** Resolved By User Id */
+            resolved_by_user_id: string | null;
+            /** Result Note */
+            result_note: string | null;
+            /**
+             * Source Trip Session Id
+             * Format: uuid
+             */
+            source_trip_session_id: string;
+            status: components["schemas"]["EvidenceVerificationStatus"];
+            /** Trip Started At */
+            trip_started_at?: string | null;
+            /**
+             * Vehicle Id
+             * Format: uuid
+             */
+            vehicle_id: string;
+            /** Vehicle Plate */
+            vehicle_plate?: string | null;
+            verification_type: components["schemas"]["EvidenceVerificationType"];
         };
         /** AdminFraudDisputeList */
         AdminFraudDisputeList: {
@@ -4945,6 +5080,8 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+            /** Driver Name */
+            driver_name?: string | null;
             /**
              * Driver Profile Id
              * Format: uuid
@@ -4992,6 +5129,8 @@ export interface components {
              * Format: uuid
              */
             campaign_id: string;
+            /** Campaign Name */
+            campaign_name?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -5004,6 +5143,8 @@ export interface components {
              * Format: date-time
              */
             detected_at: string;
+            /** Driver Name */
+            driver_name?: string | null;
             /**
              * Driver Profile Id
              * Format: uuid
@@ -5022,6 +5163,11 @@ export interface components {
              */
             id: string;
             money_effect: components["schemas"]["AdminFraudFlagListMoneyEffectRead"];
+            /**
+             * Problem Count
+             * @default 0
+             */
+            problem_count: number;
             /** Resolution Note */
             resolution_note: string | null;
             /**
@@ -5042,6 +5188,8 @@ export interface components {
              * Format: uuid
              */
             trip_session_id: string;
+            /** Trip Started At */
+            trip_started_at?: string | null;
             /**
              * Updated At
              * Format: date-time
@@ -5052,6 +5200,8 @@ export interface components {
              * Format: uuid
              */
             vehicle_id: string;
+            /** Vehicle Plate */
+            vehicle_plate?: string | null;
         };
         /** AdminFraudFlagListMoneyEffectRead */
         AdminFraudFlagListMoneyEffectRead: {
@@ -7008,6 +7158,12 @@ export interface components {
         CampaignChangeList: {
             /** Items */
             items: components["schemas"]["CampaignChangeRead"][];
+            /** Limit */
+            limit?: number | null;
+            /** Offset */
+            offset?: number | null;
+            /** Total */
+            total?: number | null;
         };
         /** CampaignChangePreviewCreate */
         CampaignChangePreviewCreate: {
@@ -7058,6 +7214,8 @@ export interface components {
              * Format: uuid
              */
             campaign_id: string;
+            /** Campaign Name */
+            campaign_name?: string | null;
             /** Classifications */
             classifications: string[];
             /**
@@ -7631,6 +7789,16 @@ export interface components {
             summary: components["schemas"]["CampaignReadSummary"];
             trip_summary: components["schemas"]["TripStatusCounts"];
             zone_summary: components["schemas"]["ZoneTypeCounts"];
+        };
+        /** CampaignResumeRequest */
+        CampaignResumeRequest: {
+            /**
+             * Pause Id
+             * Format: uuid
+             */
+            pause_id: string;
+            /** Reason */
+            reason: string;
         };
         /** CampaignReviewEventListResponse */
         CampaignReviewEventListResponse: {
@@ -8883,6 +9051,8 @@ export interface components {
         };
         /** DriverApplicationAdminListResponse */
         DriverApplicationAdminListResponse: {
+            /** Applicants */
+            applicants?: components["schemas"]["AdminApplicantRead"][] | null;
             /** Items */
             items: components["schemas"]["DriverApplicationAdminRead"][];
             /** Limit */
@@ -10534,6 +10704,12 @@ export interface components {
         InstallationEvidenceList: {
             /** Items */
             items: components["schemas"]["InstallationEvidenceRead"][];
+            /** Limit */
+            limit?: number | null;
+            /** Offset */
+            offset?: number | null;
+            /** Total */
+            total?: number | null;
         };
         /** InstallationEvidencePhotoRead */
         InstallationEvidencePhotoRead: {
@@ -10574,6 +10750,8 @@ export interface components {
              * Format: uuid
              */
             campaign_id: string;
+            /** Campaign Name */
+            campaign_name?: string | null;
             /**
              * Captured At
              * Format: date-time
@@ -10584,6 +10762,8 @@ export interface components {
              * Format: uuid
              */
             device_id: string;
+            /** Driver Name */
+            driver_name?: string | null;
             /**
              * Driver Profile Id
              * Format: uuid
@@ -12031,6 +12211,8 @@ export interface components {
              * Format: uuid
              */
             campaign_id: string;
+            /** Campaign Name */
+            campaign_name?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -12521,6 +12703,10 @@ export interface components {
         QuarantinedPingBatchRead: {
             /** Applied Batch Id */
             applied_batch_id?: string | null;
+            /** Assignment Id */
+            assignment_id?: string | null;
+            /** Campaign Id */
+            campaign_id?: string | null;
             /** Campaign Name */
             campaign_name?: string | null;
             /**
@@ -12530,6 +12716,8 @@ export interface components {
             created_at: string;
             /** Driver Name */
             driver_name?: string | null;
+            /** Driver Profile Id */
+            driver_profile_id?: string | null;
             /**
              * Id
              * Format: uuid
@@ -12557,6 +12745,8 @@ export interface components {
              * Format: uuid
              */
             trip_session_id: string;
+            /** Trip Started At */
+            trip_started_at?: string | null;
             /** Vehicle Plate */
             vehicle_plate?: string | null;
         };
@@ -15031,6 +15221,7 @@ export interface operations {
                 driver_profile_id?: string | null;
                 vehicle_id?: string | null;
                 q?: string | null;
+                oldest_first?: boolean;
             };
             header?: never;
             path?: never;
@@ -15392,7 +15583,12 @@ export interface operations {
     };
     admin_list_pending_campaign_change_requests_api_v1_admin_campaign_change_requests_pending_get: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+                offset?: number;
+                status?: string | null;
+                campaign_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -15497,6 +15693,7 @@ export interface operations {
                 organization_id?: string | null;
                 status?: components["schemas"]["CampaignStatus"] | null;
                 q?: string | null;
+                oldest_first?: boolean;
             };
             header?: never;
             path?: never;
@@ -15529,6 +15726,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
+                oldest_first?: boolean;
             };
             header?: never;
             path?: never;
@@ -15927,6 +16125,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
+                effective_before?: string | null;
             };
             header?: never;
             path: {
@@ -16133,6 +16332,41 @@ export interface operations {
             };
         };
     };
+    admin_resume_campaign_api_v1_admin_campaigns__campaign_id__resume_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignResumeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCampaignRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     admin_list_campaign_review_history_api_v1_admin_campaigns__campaign_id__review_history_get: {
         parameters: {
             query?: {
@@ -16208,6 +16442,7 @@ export interface operations {
                 organization_id?: string | null;
                 limit?: number;
                 offset?: number;
+                oldest_first?: boolean;
             };
             header?: never;
             path?: never;
@@ -16510,6 +16745,8 @@ export interface operations {
                 history?: boolean;
                 user_id?: string | null;
                 driver_profile_id?: string | null;
+                oldest_first?: boolean;
+                include_staff_added?: boolean;
             };
             header?: never;
             path?: never;
@@ -16854,6 +17091,11 @@ export interface operations {
                 verification_type?: components["schemas"]["EvidenceVerificationType"] | null;
                 limit?: number;
                 offset?: number;
+                oldest_first?: boolean;
+                verification_id?: string | null;
+                driver_profile_id?: string | null;
+                campaign_id?: string | null;
+                trip_session_id?: string | null;
             };
             header?: never;
             path?: never;
@@ -17065,6 +17307,7 @@ export interface operations {
                 status?: components["schemas"]["FraudDisputeStatus"] | null;
                 limit?: number;
                 offset?: number;
+                oldest_first?: boolean;
             };
             header?: never;
             path?: never;
@@ -17138,6 +17381,10 @@ export interface operations {
                 campaign_id?: string | null;
                 driver_profile_id?: string | null;
                 trip_session_id?: string | null;
+                oldest_first?: boolean;
+                flag_id?: string | null;
+                unresolved_only?: boolean;
+                group_by_trip?: boolean;
             };
             header?: never;
             path?: never;
@@ -17346,7 +17593,10 @@ export interface operations {
     };
     admin_pending_evidence_api_v1_admin_installation_evidence_pending_get: {
         parameters: {
-            query?: never;
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -17652,6 +17902,8 @@ export interface operations {
                 offset?: number;
                 history?: boolean;
                 driver_profile_id?: string | null;
+                oldest_first?: boolean;
+                open_only?: boolean;
             };
             header?: never;
             path?: never;
@@ -18353,6 +18605,8 @@ export interface operations {
                 offset?: number;
                 batch_status?: components["schemas"]["PayoutBatchStatus"] | null;
                 approval_mode?: components["schemas"]["PayoutBatchApprovalMode"] | null;
+                oldest_first?: boolean;
+                needs_attention?: boolean;
             };
             header?: never;
             path?: never;
@@ -18677,6 +18931,7 @@ export interface operations {
                 alert_status?: "open" | "resolved" | "all";
                 limit?: number;
                 offset?: number;
+                oldest_first?: boolean;
             };
             header?: never;
             path?: never;
@@ -18907,6 +19162,7 @@ export interface operations {
                 offset?: number;
                 campaign_id?: string | null;
                 status?: components["schemas"]["PayoutCorrectionOrderStatus"] | null;
+                oldest_first?: boolean;
             };
             header?: never;
             path?: never;
@@ -19979,6 +20235,9 @@ export interface operations {
                 status?: string | null;
                 limit?: number;
                 offset?: number;
+                quarantine_id?: string | null;
+                driver_profile_id?: string | null;
+                campaign_id?: string | null;
             };
             header?: never;
             path?: never;
@@ -20327,6 +20586,7 @@ export interface operations {
                 plate_country_code?: string | null;
                 driver_profile_id?: string | null;
                 q?: string | null;
+                oldest_first?: boolean;
             };
             header?: never;
             path?: never;

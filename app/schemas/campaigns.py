@@ -173,7 +173,31 @@ class AdminCampaignOrganizationSummary(BaseModel):
     status: OrganizationStatus
 
 
+class AdminCampaignPauseRead(BaseModel):
+    kind: str
+    reason: str
+    pause_id: UUID | None
+    resume_allowed: bool
+    resume_explanation: str
+
+
+class CampaignResumeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    pause_id: UUID
+    reason: str = Field(min_length=1, max_length=1000)
+
+    @field_validator("reason")
+    @classmethod
+    def trim_resume_reason(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("Give a reason for resuming the campaign")
+        return value
+
+
 class AdminCampaignRead(CampaignRead):
+    pause: AdminCampaignPauseRead | None = None
     organization: AdminCampaignOrganizationSummary
 
 
@@ -235,6 +259,7 @@ class CreativeCreate(BaseModel):
     def trim_name(cls, value: str) -> str:
         return normalize_required_text(value)
 
+
 class CreativeUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -254,6 +279,7 @@ class CreativeUpdate(BaseModel):
         if value is None:
             return None
         return normalize_required_text(value)
+
 
 class CreativeRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)

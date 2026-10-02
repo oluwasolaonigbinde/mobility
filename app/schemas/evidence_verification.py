@@ -65,7 +65,15 @@ class EvidenceVerificationList(BaseModel):
     items: list[EvidenceVerificationRead]
 
 
+class AdminEvidenceVerificationRead(EvidenceVerificationRead):
+    driver_name: str | None = None
+    campaign_name: str | None = None
+    vehicle_plate: str | None = None
+    trip_started_at: datetime | None = None
+
+
 class AdminEvidenceVerificationList(EvidenceVerificationList):
+    items: list[AdminEvidenceVerificationRead]
     total: int
     limit: int
     offset: int

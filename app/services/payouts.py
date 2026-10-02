@@ -1009,17 +1009,22 @@ async def list_payout_rule_revisions(
     rule_id: UUID,
     limit: int,
     offset: int,
+    effective_before: datetime | None = None,
 ) -> tuple[list[CampaignPayoutRuleRevision], int]:
     await get_campaign_payout_rule(session, campaign_id=campaign_id, rule_id=rule_id)
+    conditions = [CampaignPayoutRuleRevision.campaign_id == campaign_id]
+    if effective_before is not None:
+        conditions.append(CampaignPayoutRuleRevision.effective_from <= effective_before)
     total = await session.scalar(
-        select(func.count())
-        .select_from(CampaignPayoutRuleRevision)
-        .where(CampaignPayoutRuleRevision.campaign_id == campaign_id)
+        select(func.count()).select_from(CampaignPayoutRuleRevision).where(*conditions)
     )
     result = await session.execute(
         select(CampaignPayoutRuleRevision)
-        .where(CampaignPayoutRuleRevision.campaign_id == campaign_id)
-        .order_by(CampaignPayoutRuleRevision.revision_number.desc())
+        .where(*conditions)
+        .order_by(
+            CampaignPayoutRuleRevision.effective_from.desc(),
+            CampaignPayoutRuleRevision.revision_number.desc(),
+        )
         .limit(limit)
         .offset(offset)
     )
@@ -3713,8 +3718,7 @@ async def driver_earnings_summary(
                 func.sum(
                     case(
                         (
-                            EarningsLedgerEntry.status
-                            != EarningsLedgerEntryStatus.VOIDED.value,
+                            EarningsLedgerEntry.status != EarningsLedgerEntryStatus.VOIDED.value,
                             signed_amount,
                         ),
                         else_=0,
@@ -4437,9 +4441,7 @@ async def compute_payout_day_targets(
                 "currency": rule.currency,
             }
 
-        contract_window_end = (
-            window_end_at if formula_version == PAYOUT_V3 else campaign.end_at
-        )
+        contract_window_end = window_end_at if formula_version == PAYOUT_V3 else campaign.end_at
         economic_end, effective_window_end, financial_cutoff = await payout_time_bounds(
             session, trip=trip, window_end_at=contract_window_end
         )

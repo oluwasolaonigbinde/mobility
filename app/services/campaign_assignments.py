@@ -381,9 +381,7 @@ async def activation_production_start(
     campaign_id: UUID,
 ) -> ProductionStart:
     production_start = await session.scalar(
-        select(ProductionStart)
-        .where(ProductionStart.campaign_id == campaign_id)
-        .with_for_update()
+        select(ProductionStart).where(ProductionStart.campaign_id == campaign_id).with_for_update()
     )
     if production_start is None:
         raise AppError(
@@ -492,9 +490,7 @@ async def create_campaign_assignment(
         vehicle_id=payload.vehicle_id,
     )
     campaign = await session.scalar(
-        select(Campaign)
-        .where(Campaign.id == payload.campaign_id)
-        .with_for_update()
+        select(Campaign).where(Campaign.id == payload.campaign_id).with_for_update()
     )
     if campaign is None:
         raise AppError(
@@ -506,9 +502,7 @@ async def create_campaign_assignment(
     if payload.recommendation_context is not None:
         await ensure_recommendation_context_current(session, payload=payload, now=now)
     driver_profile = await session.scalar(
-        select(DriverProfile)
-        .where(DriverProfile.id == payload.driver_profile_id)
-        .with_for_update()
+        select(DriverProfile).where(DriverProfile.id == payload.driver_profile_id).with_for_update()
     )
     if driver_profile is None:
         raise AppError(
@@ -937,6 +931,7 @@ async def list_admin_assignments(
     driver_profile_id: UUID | None,
     vehicle_id: UUID | None,
     q: str | None = None,
+    oldest_first: bool = False,
 ) -> tuple[list[CampaignAssignment], int]:
     query_now = await database_clock(session)
     due_offer = (
@@ -979,7 +974,12 @@ async def list_admin_assignments(
 
     total = await session.scalar(count_statement)
     result = await session.execute(
-        statement.order_by(CampaignAssignment.created_at.desc(), CampaignAssignment.id)
+        statement.order_by(
+            CampaignAssignment.accepted_at.asc()
+            if oldest_first
+            else CampaignAssignment.created_at.desc(),
+            CampaignAssignment.id,
+        )
         .limit(limit)
         .offset(offset)
     )
@@ -1078,9 +1078,7 @@ async def expire_assignment_offer(
     if campaign is None:
         return False
     assignment = await session.scalar(
-        select(CampaignAssignment)
-        .where(CampaignAssignment.id == assignment_id)
-        .with_for_update()
+        select(CampaignAssignment).where(CampaignAssignment.id == assignment_id).with_for_update()
     )
     if assignment is None:
         return False
@@ -1096,17 +1094,21 @@ async def expire_due_assignment_offers(
     """Idempotently sweep due offers in deterministic campaign/assignment order."""
     now = await database_clock(session)
     ids = (
-        await session.execute(
-            select(CampaignAssignment.id)
-            .where(
-                CampaignAssignment.status == CampaignAssignmentStatus.OFFERED.value,
-                CampaignAssignment.expires_at.is_not(None),
-                CampaignAssignment.expires_at <= now,
+        (
+            await session.execute(
+                select(CampaignAssignment.id)
+                .where(
+                    CampaignAssignment.status == CampaignAssignmentStatus.OFFERED.value,
+                    CampaignAssignment.expires_at.is_not(None),
+                    CampaignAssignment.expires_at <= now,
+                )
+                .order_by(CampaignAssignment.campaign_id, CampaignAssignment.id)
+                .limit(limit)
             )
-            .order_by(CampaignAssignment.campaign_id, CampaignAssignment.id)
-            .limit(limit)
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     expired = 0
     for assignment_id in ids:
         if await expire_assignment_offer(session, assignment_id):
@@ -1238,10 +1240,7 @@ def _offer_terms_complete(terms: dict | None, terms_sha256: str | None) -> bool:
         or not isinstance(payout.get("eligibility_params"), dict)
         or (
             "currency" in payout
-            and (
-                not _valid_frozen_currency(payout_currency)
-                or payout_currency != currency
-            )
+            and (not _valid_frozen_currency(payout_currency) or payout_currency != currency)
         )
     ):
         return False
@@ -1451,12 +1450,8 @@ async def build_offer_terms(
             "A target service area is required before offering",
             status_code=status.HTTP_409_CONFLICT,
         )
-    target_rows = [
-        {"id": str(row[0]), "name": row[2], "wkt": str(row[3])} for row in targets
-    ]
-    exclusion_rows = [
-        {"id": str(row[0]), "name": row[2], "wkt": str(row[3])} for row in exclusions
-    ]
+    target_rows = [{"id": str(row[0]), "name": row[2], "wkt": str(row[3])} for row in targets]
+    exclusion_rows = [{"id": str(row[0]), "name": row[2], "wkt": str(row[3])} for row in exclusions]
     if any(not row["wkt"] or row["wkt"] == "None" for row in target_rows + exclusion_rows):
         raise AppError(
             "CAMPAIGN_ZONE_GEOMETRY_REQUIRED",
@@ -2196,9 +2191,7 @@ async def activate_admin_assignment(
         "production_start_id": str(production_start.id),
         "production_authority_basis": production_start.authority_basis,
         "production_waiver_id": (
-            str(production_start.waiver_id)
-            if production_start.waiver_id is not None
-            else None
+            str(production_start.waiver_id) if production_start.waiver_id is not None else None
         ),
         "installation_evidence_submission_id": str(evidence.id),
         "installation_evidence_revision": evidence.revision,
@@ -2361,9 +2354,8 @@ async def cancel_admin_assignment(
     now = await database_clock(session)
     if await expire_assignment_if_due(session, assignment, now=now):
         raise OfferExpiredError("The assignment offer expired before it could be cancelled")
-    if (
-        assignment.status == CampaignAssignmentStatus.OFFERED.value
-        and _offer_terms_complete(assignment.offer_terms, assignment.offer_terms_sha256)
+    if assignment.status == CampaignAssignmentStatus.OFFERED.value and _offer_terms_complete(
+        assignment.offer_terms, assignment.offer_terms_sha256
     ):
         raise AppError(
             "OFFER_DECISION_REQUIRED",

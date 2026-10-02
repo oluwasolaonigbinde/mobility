@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readableEvidence } from "./evidence";
+import { readableEvidence, tripReviewReason } from "./evidence";
 
 describe("readableEvidence", () => {
   it("reads each detector's evidence as a sentence", () => {
@@ -113,3 +113,12 @@ describe("readableEvidence", () => {
     );
   });
 });
+
+
+it.each([
+ ["exclusion_zone_presence","Driving recorded in an excluded area"],
+ ["route_replay","Route matches an earlier trip"],
+ ["missed_display_challenge","Driver missed the display check"],
+ ["concurrent_session_day","Overlapping trips recorded on the same day"],
+ ["physical_spot_check_failed","In-person check found a problem"],
+])("explains %s in plain words",(kind,label)=>expect(tripReviewReason(kind)).toBe(label));

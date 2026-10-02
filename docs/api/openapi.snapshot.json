@@ -28,6 +28,94 @@
         "title": "ActiveCampaignAssignmentResponse",
         "type": "object"
       },
+      "AdminApplicantRead": {
+        "properties": {
+          "application_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Application Id"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "driver_profile_id": {
+            "format": "uuid",
+            "title": "Driver Profile Id",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "application",
+              "staff_added"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "service_city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Service City"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "id",
+          "application_id",
+          "driver_profile_id",
+          "user_id",
+          "full_name",
+          "email",
+          "phone",
+          "service_city",
+          "created_at"
+        ],
+        "title": "AdminApplicantRead",
+        "type": "object"
+      },
       "AdminCampaignListResponse": {
         "properties": {
           "items": {
@@ -85,6 +173,47 @@
           "status"
         ],
         "title": "AdminCampaignOrganizationSummary",
+        "type": "object"
+      },
+      "AdminCampaignPauseRead": {
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "pause_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pause Id"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "resume_allowed": {
+            "title": "Resume Allowed",
+            "type": "boolean"
+          },
+          "resume_explanation": {
+            "title": "Resume Explanation",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "reason",
+          "pause_id",
+          "resume_allowed",
+          "resume_explanation"
+        ],
+        "title": "AdminCampaignPauseRead",
         "type": "object"
       },
       "AdminCampaignRead": {
@@ -164,6 +293,16 @@
             "format": "uuid",
             "title": "Organization Id",
             "type": "string"
+          },
+          "pause": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdminCampaignPauseRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "start_at": {
             "anyOf": [
@@ -359,7 +498,7 @@
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/EvidenceVerificationRead"
+              "$ref": "#/components/schemas/AdminEvidenceVerificationRead"
             },
             "title": "Items",
             "type": "array"
@@ -384,6 +523,205 @@
           "offset"
         ],
         "title": "AdminEvidenceVerificationList",
+        "type": "object"
+      },
+      "AdminEvidenceVerificationRead": {
+        "properties": {
+          "assignment_id": {
+            "format": "uuid",
+            "title": "Assignment Id",
+            "type": "string"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "campaign_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Name"
+          },
+          "display_proof_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Proof Id"
+          },
+          "driver_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driver Name"
+          },
+          "driver_profile_id": {
+            "format": "uuid",
+            "title": "Driver Profile Id",
+            "type": "string"
+          },
+          "due_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Due At"
+          },
+          "fraud_flag_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fraud Flag Id"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "issued_at": {
+            "format": "date-time",
+            "title": "Issued At",
+            "type": "string"
+          },
+          "issued_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issued By User Id"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          },
+          "resolved_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved By User Id"
+          },
+          "result_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result Note"
+          },
+          "source_trip_session_id": {
+            "format": "uuid",
+            "title": "Source Trip Session Id",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/EvidenceVerificationStatus"
+          },
+          "trip_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trip Started At"
+          },
+          "vehicle_id": {
+            "format": "uuid",
+            "title": "Vehicle Id",
+            "type": "string"
+          },
+          "vehicle_plate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle Plate"
+          },
+          "verification_type": {
+            "$ref": "#/components/schemas/EvidenceVerificationType"
+          }
+        },
+        "required": [
+          "id",
+          "assignment_id",
+          "campaign_id",
+          "driver_profile_id",
+          "vehicle_id",
+          "source_trip_session_id",
+          "verification_type",
+          "status",
+          "issued_by_user_id",
+          "resolved_by_user_id",
+          "due_at",
+          "display_proof_id",
+          "fraud_flag_id",
+          "result_note",
+          "metadata",
+          "issued_at",
+          "resolved_at"
+        ],
+        "title": "AdminEvidenceVerificationRead",
         "type": "object"
       },
       "AdminFraudDisputeList": {
@@ -423,6 +761,17 @@
             "format": "date-time",
             "title": "Created At",
             "type": "string"
+          },
+          "driver_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driver Name"
           },
           "driver_profile_id": {
             "format": "uuid",
@@ -520,6 +869,17 @@
             "title": "Campaign Id",
             "type": "string"
           },
+          "campaign_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Name"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -533,6 +893,17 @@
             "format": "date-time",
             "title": "Detected At",
             "type": "string"
+          },
+          "driver_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driver Name"
           },
           "driver_profile_id": {
             "format": "uuid",
@@ -566,6 +937,11 @@
           },
           "money_effect": {
             "$ref": "#/components/schemas/AdminFraudFlagListMoneyEffectRead"
+          },
+          "problem_count": {
+            "default": 0,
+            "title": "Problem Count",
+            "type": "integer"
           },
           "resolution_note": {
             "anyOf": [
@@ -630,6 +1006,18 @@
             "title": "Trip Session Id",
             "type": "string"
           },
+          "trip_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trip Started At"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
@@ -639,6 +1027,17 @@
             "format": "uuid",
             "title": "Vehicle Id",
             "type": "string"
+          },
+          "vehicle_plate": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle Plate"
           }
         },
         "required": [
@@ -5812,6 +6211,39 @@
             },
             "title": "Items",
             "type": "array"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
           }
         },
         "required": [
@@ -5982,6 +6414,17 @@
             "format": "uuid",
             "title": "Campaign Id",
             "type": "string"
+          },
+          "campaign_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Name"
           },
           "classifications": {
             "items": {
@@ -8037,6 +8480,28 @@
           "fraud_summary"
         ],
         "title": "CampaignReportResponse",
+        "type": "object"
+      },
+      "CampaignResumeRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "pause_id": {
+            "format": "uuid",
+            "title": "Pause Id",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pause_id",
+          "reason"
+        ],
+        "title": "CampaignResumeRequest",
         "type": "object"
       },
       "CampaignReviewEventListResponse": {
@@ -11268,6 +11733,20 @@
       },
       "DriverApplicationAdminListResponse": {
         "properties": {
+          "applicants": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/AdminApplicantRead"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Applicants"
+          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/DriverApplicationAdminRead"
@@ -15481,6 +15960,39 @@
             },
             "title": "Items",
             "type": "array"
+          },
+          "limit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Limit"
+          },
+          "offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Offset"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
           }
         },
         "required": [
@@ -15594,6 +16106,17 @@
             "title": "Campaign Id",
             "type": "string"
           },
+          "campaign_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Name"
+          },
           "captured_at": {
             "format": "date-time",
             "title": "Captured At",
@@ -15603,6 +16126,17 @@
             "format": "uuid",
             "title": "Device Id",
             "type": "string"
+          },
+          "driver_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driver Name"
           },
           "driver_profile_id": {
             "format": "uuid",
@@ -19213,6 +19747,17 @@
             "title": "Campaign Id",
             "type": "string"
           },
+          "campaign_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Name"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -20428,6 +20973,30 @@
             ],
             "title": "Applied Batch Id"
           },
+          "assignment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignment Id"
+          },
+          "campaign_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Id"
+          },
           "campaign_name": {
             "anyOf": [
               {
@@ -20454,6 +21023,18 @@
               }
             ],
             "title": "Driver Name"
+          },
+          "driver_profile_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driver Profile Id"
           },
           "id": {
             "format": "uuid",
@@ -20516,6 +21097,18 @@
             "format": "uuid",
             "title": "Trip Session Id",
             "type": "string"
+          },
+          "trip_started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trip Started At"
           },
           "vehicle_plate": {
             "anyOf": [
@@ -26993,6 +27586,16 @@
               ],
               "title": "Q"
             }
+          },
+          {
+            "in": "query",
+            "name": "oldest_first",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Oldest First",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -27587,6 +28190,65 @@
     "/api/v1/admin/campaign-change-requests/pending": {
       "get": {
         "operationId": "admin_list_pending_campaign_change_requests_api_v1_admin_campaign_change_requests_pending_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^(pending_admin|pending_funding)$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "campaign_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campaign Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -27803,6 +28465,16 @@
               ],
               "title": "Q"
             }
+          },
+          {
+            "in": "query",
+            "name": "oldest_first",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Oldest First",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -27863,6 +28535,16 @@
               "minimum": 0,
               "title": "Offset",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "oldest_first",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Oldest First",
+              "type": "boolean"
             }
           }
         ],
@@ -28591,6 +29273,23 @@
               "title": "Offset",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "effective_before",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Effective Before"
+            }
           }
         ],
         "responses": {
@@ -28924,6 +29623,64 @@
         ]
       }
     },
+    "/api/v1/admin/campaigns/{campaign_id}/resume": {
+      "post": {
+        "operationId": "admin_resume_campaign_api_v1_admin_campaigns__campaign_id__resume_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampaignResumeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminCampaignRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Resume Campaign",
+        "tags": [
+          "Campaigns"
+        ]
+      }
+    },
     "/api/v1/admin/campaigns/{campaign_id}/review-history": {
       "get": {
         "operationId": "admin_list_campaign_review_history_api_v1_admin_campaigns__campaign_id__review_history_get",
@@ -29144,6 +29901,16 @@
               "minimum": 0,
               "title": "Offset",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "oldest_first",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Oldest First",
+              "type": "boolean"
             }
           }
         ],
@@ -29712,6 +30479,26 @@
                 }
               ],
               "title": "Driver Profile Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "oldest_first",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Oldest First",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "include_staff_added",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Include Staff Added",
+              "type": "boolean"
             }
           }
         ],
@@ -30396,6 +31183,84 @@
               "title": "Offset",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "oldest_first",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Oldest First",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "verification_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Verification Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "driver_profile_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Driver Profile Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "campaign_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campaign Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "trip_session_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Trip Session Id"
+            }
           }
         ],
         "responses": {
@@ -30793,6 +31658,16 @@
               "title": "Offset",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "oldest_first",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Oldest First",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -31010,6 +31885,53 @@
                 }
               ],
               "title": "Trip Session Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "oldest_first",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Oldest First",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "flag_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Flag Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "unresolved_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Unresolved Only",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "group_by_trip",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Group By Trip",
+              "type": "boolean"
             }
           }
         ],
@@ -31560,6 +32482,31 @@
     "/api/v1/admin/installation-evidence/pending": {
       "get": {
         "operationId": "admin_pending_evidence_api_v1_admin_installation_evidence_pending_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -32075,6 +33022,26 @@
                 }
               ],
               "title": "Driver Profile Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "oldest_first",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Oldest First",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "open_only",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Open Only",
+              "type": "boolean"
             }
           }
         ],
@@ -33335,6 +34302,26 @@
               ],
               "title": "Approval Mode"
             }
+          },
+          {
+            "in": "query",
+            "name": "oldest_first",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Oldest First",
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "needs_attention",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Needs Attention",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -33977,6 +34964,16 @@
               "title": "Offset",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "oldest_first",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Oldest First",
+              "type": "boolean"
+            }
           }
         ],
         "responses": {
@@ -34380,6 +35377,16 @@
                 }
               ],
               "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "oldest_first",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Oldest First",
+              "type": "boolean"
             }
           }
         ],
@@ -36160,6 +37167,57 @@
               "title": "Offset",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "quarantine_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Quarantine Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "driver_profile_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Driver Profile Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "campaign_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campaign Id"
+            }
           }
         ],
         "responses": {
@@ -36895,6 +37953,16 @@
                 }
               ],
               "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "oldest_first",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Oldest First",
+              "type": "boolean"
             }
           }
         ],

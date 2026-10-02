@@ -48,8 +48,14 @@ async function responseWithRefresh(request: NextRequest, response: NextResponse)
 }
 
 export default async function proxy(request: NextRequest) {
+  const forwardedHeaders = new Headers(request.headers);
+  forwardedHeaders.delete("x-cardvert-admin-path");
+  if (request.nextUrl.pathname.startsWith("/admin")) {
+    forwardedHeaders.set("x-cardvert-admin-path", request.nextUrl.pathname);
+  }
+  const next = () => NextResponse.next({ request: { headers: forwardedHeaders } });
   if (request.nextUrl.pathname.startsWith("/api/")) {
-    return (await mutationBoundary(request)) ?? NextResponse.next();
+    return (await mutationBoundary(request)) ?? next();
   }
   const hasSession = request.cookies.has(SESSION_COOKIE);
   const { pathname } = request.nextUrl;
@@ -58,7 +64,7 @@ export default async function proxy(request: NextRequest) {
   // (credentials mode "omit"), so an auth redirect breaks installability.
   // It contains no user data — app name, icons, colors only.
   if (pathname === "/driver/manifest.webmanifest") {
-    return NextResponse.next();
+    return next();
   }
 
   const isAppRoute =
@@ -73,7 +79,7 @@ export default async function proxy(request: NextRequest) {
     return responseWithRefresh(request, NextResponse.redirect(login));
   }
 
-  return responseWithRefresh(request, NextResponse.next());
+  return responseWithRefresh(request, next());
 }
 
 export const config = {

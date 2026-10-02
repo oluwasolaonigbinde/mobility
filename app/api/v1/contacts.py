@@ -218,9 +218,17 @@ async def admin_contact_tasks(
     offset: Annotated[int, Query(ge=0)] = 0,
     history: bool = False,
     driver_profile_id: UUID | None = None,
+    oldest_first: bool = False,
+    open_only: bool = False,
 ) -> ManualContactTaskListRead:
     rows, total = await list_manual_driver_contact_tasks(
-        session, limit=limit, offset=offset, history=history, driver_profile_id=driver_profile_id
+        session,
+        open_only=open_only,
+        oldest_first=oldest_first,
+        limit=limit,
+        offset=offset,
+        history=history,
+        driver_profile_id=driver_profile_id,
     )
     names = dict(
         (

@@ -96,7 +96,22 @@ function reads({
   photoStatus?: string;
 } = {}) {
   mocks.get.mockImplementation(async (path: string) => {
-    if (path === "/api/v1/admin/campaigns/{campaign_id}") return { data: { ...campaign, status } };
+    if (path === "/api/v1/admin/campaigns/{campaign_id}")
+      return {
+        data: {
+          ...campaign,
+          status,
+          pause:
+            status === "paused"
+              ? {
+                  kind: "budget",
+                  reason: "Reached budget",
+                  resume_allowed: false,
+                  resume_explanation: "Finance can resume after the budget check permits it.",
+                }
+              : undefined,
+        },
+      };
     if (path.endsWith("/commercial"))
       return {
         data: {

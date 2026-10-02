@@ -101,6 +101,11 @@ class AdminFraudFlagListMoneyEffectRead(FraudFlagMoneyEffectRead):
 
 
 class AdminFraudFlagListItemRead(AdminFraudFlagRead):
+    driver_name: str | None = None
+    campaign_name: str | None = None
+    vehicle_plate: str | None = None
+    trip_started_at: datetime | None = None
+    problem_count: int = 0
     money_effect: AdminFraudFlagListMoneyEffectRead
 
 

@@ -151,10 +151,12 @@ async def admin_list_vehicles(
     plate_country_code: Annotated[str | None, Query(min_length=2, max_length=2)] = None,
     driver_profile_id: UUID | None = None,
     q: Annotated[str | None, Query(max_length=120)] = None,
+    oldest_first: bool = False,
 ) -> AdminVehicleListResponse:
     del current_user
     vehicles, total = await list_admin_vehicles(
         session,
+        oldest_first=oldest_first,
         limit=limit,
         offset=offset,
         vehicle_status=status,
