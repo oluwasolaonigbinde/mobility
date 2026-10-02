@@ -6,24 +6,28 @@ import { Button } from "@/components/ui/button";
 
 const initialState: ProcessTripState = {};
 
-export function ProcessTripForm() {
+export function ProcessTripForm({ tripId }: { tripId?: string }) {
   const [state, formAction, pending] = useActionState(processTripAction, initialState);
 
   return (
     <form action={formAction} className="flex flex-col gap-3">
-      <label htmlFor="pt-trip" className="micro text-muted">
-        Trip ID
-      </label>
+      {!tripId ? (
+        <label htmlFor="pt-trip" className="micro text-muted">
+          Trip ID
+        </label>
+      ) : null}
       <div className="flex gap-2">
         <input
           id="pt-trip"
           name="trip_id"
+          type={tripId ? "hidden" : "text"}
+          value={tripId}
           required
           placeholder="paste a trip UUID"
           className="border-edge bg-raised text-ink placeholder:text-faint focus:border-amber h-11 flex-1 rounded-lg border px-3.5 font-mono text-xs focus:outline-none"
         />
         <Button type="submit" disabled={pending} className="shrink-0">
-          {pending ? "Processing…" : "Run pipeline"}
+          {pending ? "Recalculating…" : "Recalculate this trip"}
         </Button>
       </div>
 

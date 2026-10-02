@@ -45,7 +45,7 @@ export function RevisionsPanel({
         <input type="hidden" name="rule_id" value={ruleId} />
 
         <fieldset className="grid gap-4 sm:grid-cols-3">
-          <legend className="micro text-muted mb-3">New revision — hourly pay (NGN)</legend>
+          <legend className="micro text-muted mb-3">New version — hourly pay (NGN)</legend>
           <Field
             label="Base hourly rate"
             name="hourly_rate_naira"
@@ -80,7 +80,7 @@ export function RevisionsPanel({
             type="datetime-local"
             className="font-mono"
           />
-          <Field label="Reason (audited)" name="reason" placeholder="why the rates change" />
+          <Field label="Reason (logged)" name="reason" placeholder="why the rates change" />
         </fieldset>
 
         {state.error ? (
@@ -93,22 +93,23 @@ export function RevisionsPanel({
         ) : null}
         {state.created && !state.error ? (
           <p className="border-green/40 bg-green/10 text-green rounded-lg border px-3.5 py-2.5 text-sm">
-            ✓ Revision created — trips accepted from its effective time pay under these terms.
+            ✓ Version created — trips accepted from its effective time pay under these terms.
           </p>
         ) : null}
 
         <Button type="submit" disabled={pending} className="w-full">
-          {pending ? "Creating…" : "Create revision"}
+          {pending ? "Creating…" : "Create version"}
         </Button>
         <p className="micro text-faint">
-          Rule values are immutable — each change appends a future-dated revision. Drivers keep the
-          terms frozen at acceptance; retroactive changes go through a correction order.
+          Saved pay terms cannot be edited — each change creates a version that starts in the
+          future. Drivers keep the terms they accepted; changes to earlier pay need a pay
+          correction.
         </p>
       </form>
 
       <div className="border-edge bg-raised/40 rounded-xl border p-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h3 className="micro text-muted">Frozen stationary detector</h3>
+          <h3 className="micro text-muted">Saved stop detection settings</h3>
           <span className="font-mono text-xs">stationary-rd-v1 · provisional/tunable</span>
         </div>
         <p className="text-muted mt-2 text-sm">
@@ -126,13 +127,13 @@ export function RevisionsPanel({
           km/h teleport, {policyValue("max_ping_gap_seconds", 120)}s GPS gap.
         </p>
         <p className="micro text-faint mt-2">
-          Every new acceptance snapshots these complete values; later settings or revisions do not
-          change that trip&apos;s replay.
+          Each acceptance saves these complete settings. Later settings or versions do not change
+          how that trip is checked again.
         </p>
       </div>
 
       <div>
-        <h3 className="micro text-muted mb-3">Revision history</h3>
+        <h3 className="micro text-muted mb-3">Version history</h3>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-sm">
             <thead>
@@ -149,7 +150,7 @@ export function RevisionsPanel({
             <tbody>
               {revisions.map((r) => (
                 <tr key={r.id} className="border-edge/60 border-b font-mono text-xs last:border-0">
-                  <td className="py-3 pr-4">r{r.revision_number}</td>
+                  <td className="py-3 pr-4">Version {r.revision_number}</td>
                   <td className="px-4 py-3">{formatDateTime(r.effective_from)}</td>
                   <td className="px-4 py-3 text-right">{formatMoneyExact(r.hourly_rate_naira)}</td>
                   <td className="px-4 py-3 text-right">

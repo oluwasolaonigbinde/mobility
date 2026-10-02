@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { installationViewLabel } from "@/lib/assignments/installation-views";
 import { postJson, uploadInstallationImage } from "@/lib/files/installation-evidence-upload";
+import { driverStatus } from "@/lib/status/driver";
 
 function deviceId(): string {
   const key = "cardvert-installation-device-id";
@@ -112,7 +113,7 @@ export function InstallationEvidenceActions({
         </div>
       ) : null}
       <p className="text-muted mt-1 text-xs">
-        Latest review: {latestEvidenceStatus?.replaceAll("_", " ") ?? "not submitted"}
+        Latest review: {driverStatus(latestEvidenceStatus ?? "not_submitted")}
       </p>
       {latestEvidenceStatus !== "pending_review" ? (
         <div className="mt-3 flex flex-col gap-3">

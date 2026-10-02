@@ -196,7 +196,7 @@ describe("submitCreativeForReviewAction", () => {
       },
     );
     expect(mocks.revalidatePath).toHaveBeenCalledWith(`/advertiser/campaigns/${CAMPAIGN_ID}`);
-    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/approvals");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/campaigns");
   });
 
   it("does not submit malformed creative identifiers", async () => {
@@ -322,7 +322,7 @@ describe("campaign change preview and confirmation", () => {
       },
     );
     expect(mocks.revalidatePath).not.toHaveBeenCalledWith(`/advertiser/campaigns/${CAMPAIGN_ID}`);
-    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/approvals");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/campaigns");
   });
 
   it("rejects an empty change or missing reason before calling the API", async () => {

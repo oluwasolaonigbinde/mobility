@@ -16,7 +16,7 @@ vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ PATCH: mocks.patc
 import { updateCompanyAction } from "./actions";
 
 const ORG_ID = "00000000-0000-4000-8000-000000000001";
-const PATH = `/admin/advertisers/${ORG_ID}/company`;
+const PATH = `/admin/advertisers/${ORG_ID}`;
 
 function form(): FormData {
   const data = new FormData();
@@ -49,7 +49,7 @@ it("keeps the campaign context and revalidates its billing page", async () => {
   await expect(updateCompanyAction(ORG_ID, "campaign-1", form())).rejects.toThrow(
     `REDIRECT ${PATH}?campaign=campaign-1&saved=1`,
   );
-  expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/billing/campaign-1");
+  expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/campaigns/campaign-1");
 });
 
 it("returns the API message on failure, with and without campaign context", async () => {

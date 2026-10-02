@@ -47,9 +47,7 @@ export function RuleForm({ campaignId, rule }: { campaignId: string; rule: Rule 
       noValidate
     >
       <input type="hidden" name="campaign_id" value={campaignId} />
-      {rule && !replacesExisting ? (
-        <input type="hidden" name="rule_id" value={rule.id} />
-      ) : null}
+      {rule && !replacesExisting ? <input type="hidden" name="rule_id" value={rule.id} /> : null}
       <input type="hidden" name="formula_version" value={model} />
 
       <fieldset>
@@ -75,7 +73,7 @@ export function RuleForm({ campaignId, rule }: { campaignId: string; rule: Rule 
         </div>
         {replacesExisting ? (
           <p className="micro text-amber mt-2">
-            Saving creates a new active {model === "payout_v2" ? "hourly" : "per-km"} rule and
+            Saving creates a new active {model === "payout_v2" ? "hourly" : "per-km"} pay terms and
             deactivates the current one — computed payouts are never rewritten.
           </p>
         ) : null}
@@ -83,7 +81,7 @@ export function RuleForm({ campaignId, rule }: { campaignId: string; rule: Rule 
 
       {model === "payout_v2" ? (
         <fieldset className="grid gap-4 sm:grid-cols-2">
-          <legend className="micro text-muted mb-3">Hourly pay (NGN · D2, D4)</legend>
+          <legend className="micro text-muted mb-3">Hourly pay (NGN)</legend>
           <Field
             label="Hourly rate"
             name="hourly_rate_naira"
@@ -96,9 +94,7 @@ export function RuleForm({ campaignId, rule }: { campaignId: string; rule: Rule 
             label="Daily payable-hours cap"
             name="daily_payable_hours_cap"
             inputMode="decimal"
-            defaultValue={
-              existingModel === "payout_v2" ? d(rule?.daily_payable_hours_cap) : ""
-            }
+            defaultValue={existingModel === "payout_v2" ? d(rule?.daily_payable_hours_cap) : ""}
             placeholder="e.g. 8"
             className="font-mono"
           />
@@ -119,9 +115,7 @@ export function RuleForm({ campaignId, rule }: { campaignId: string; rule: Rule 
               label="Per active hour"
               name="base_rate_per_active_hour"
               inputMode="decimal"
-              defaultValue={
-                existingModel === "payout_v1" ? d(rule?.base_rate_per_active_hour) : ""
-              }
+              defaultValue={existingModel === "payout_v1" ? d(rule?.base_rate_per_active_hour) : ""}
               placeholder="e.g. 120"
               className="font-mono"
             />
@@ -154,9 +148,7 @@ export function RuleForm({ campaignId, rule }: { campaignId: string; rule: Rule 
               name="estimated_impression_rate_per_1000"
               inputMode="decimal"
               defaultValue={
-                existingModel === "payout_v1"
-                  ? d(rule?.estimated_impression_rate_per_1000)
-                  : ""
+                existingModel === "payout_v1" ? d(rule?.estimated_impression_rate_per_1000) : ""
               }
               placeholder="e.g. 80"
               className="font-mono"
@@ -185,7 +177,7 @@ export function RuleForm({ campaignId, rule }: { campaignId: string; rule: Rule 
 
           <fieldset className="grid gap-4 sm:grid-cols-3">
             <legend className="micro text-muted mb-3">
-              Fraud multipliers (0–1 · applied by flag severity)
+              Suspicious-trip pay adjustments (0–1 · based on severity)
             </legend>
             <Field
               label="Low severity"
@@ -199,9 +191,7 @@ export function RuleForm({ campaignId, rule }: { campaignId: string; rule: Rule 
               label="Medium severity"
               name="medium_fraud_multiplier"
               inputMode="decimal"
-              defaultValue={
-                existingModel === "payout_v1" ? d(rule?.medium_fraud_multiplier) : ""
-              }
+              defaultValue={existingModel === "payout_v1" ? d(rule?.medium_fraud_multiplier) : ""}
               placeholder="0.70"
               className="font-mono"
             />
@@ -227,21 +217,17 @@ export function RuleForm({ campaignId, rule }: { campaignId: string; rule: Rule 
       ) : null}
       {state.saved && !state.error ? (
         <p className="border-green/40 bg-green/10 text-green rounded-lg border px-3.5 py-2.5 text-sm">
-          ✓ Rule saved — new trips on this campaign pay under these terms.
+          ✓ Pay terms saved — new trips on this campaign pay under these terms.
         </p>
       ) : null}
 
       <Button type="submit" disabled={pending} className="w-full">
-        {pending
-          ? "Saving…"
-          : rule && !replacesExisting
-            ? "Update rule"
-            : "Create rule"}
+        {pending ? "Saving…" : rule && !replacesExisting ? "Update pay terms" : "Create pay terms"}
       </Button>
       <p className="micro text-faint">
         {model === "payout_v2"
           ? "Pay = hourly rate × verified payable time, truncated at the daily cap before pricing. Already-calculated payouts are never rewritten."
-          : "Empty fields fall back to platform defaults. Already-calculated payouts are never rewritten — rules apply from the next calculation onward."}
+          : "Empty fields fall back to platform defaults. Already-calculated payouts are never rewritten — pay terms apply from the next calculation onward."}
       </p>
     </form>
   );

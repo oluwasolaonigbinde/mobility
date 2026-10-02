@@ -7,12 +7,12 @@ import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
 
 function path(campaignId: string) {
-  return `/admin/billing/${campaignId}`;
+  return `/admin/campaigns/${campaignId}`;
 }
 
 function fail(campaignId: string, error: unknown): never {
   const message = error instanceof ApiError ? error.message : "The billing action failed";
-  redirect(`${path(campaignId)}?error=${encodeURIComponent(message)}`);
+  redirect(`${path(campaignId)}?error=${encodeURIComponent(message)}#money`);
 }
 
 export async function recordRevisionAction(
@@ -26,7 +26,9 @@ export async function recordRevisionAction(
       params: { path: { quote_request_id: quoteRequestId } },
       body: {
         quote_reference: String(formData.get("quote_reference") ?? "").trim(),
-        currency: String(formData.get("currency") ?? "").trim().toUpperCase(),
+        currency: String(formData.get("currency") ?? "")
+          .trim()
+          .toUpperCase(),
         line_items: [
           {
             code: "MEDIA",
@@ -42,8 +44,7 @@ export async function recordRevisionAction(
           campaign_end_date: String(formData.get("campaign_end_date") ?? "").trim(),
         },
         payment_class: String(formData.get("payment_class")) as
-          | "standard_prepaid"
-          | "approved_corporate_credit",
+          "standard_prepaid" | "approved_corporate_credit",
         payment_terms: { notes: String(formData.get("payment_terms") ?? "").trim() },
         tax_rate: String(formData.get("tax_rate") ?? "").trim(),
       },
@@ -52,7 +53,7 @@ export async function recordRevisionAction(
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
-  redirect(`${path(campaignId)}?saved=quotation`);
+  redirect(`${path(campaignId)}?saved=quotation#money`);
 }
 
 export async function recordManualTransferAction(
@@ -71,7 +72,9 @@ export async function recordManualTransferAction(
         observed_amount: String(formData.get("observed_amount") ?? "").trim(),
         expected_amount: String(formData.get("expected_amount") ?? "").trim(),
         allocation_amount: String(formData.get("allocation_amount") ?? "").trim() || null,
-        currency: String(formData.get("currency") ?? "").trim().toUpperCase(),
+        currency: String(formData.get("currency") ?? "")
+          .trim()
+          .toUpperCase(),
         payer_name: String(formData.get("payer_name") ?? "").trim(),
         evidence_reference: String(formData.get("evidence_reference") ?? "").trim(),
         observed_at: new Date().toISOString(),
@@ -81,7 +84,7 @@ export async function recordManualTransferAction(
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
-  redirect(`${path(campaignId)}?saved=transfer`);
+  redirect(`${path(campaignId)}?saved=transfer#money`);
 }
 
 export async function createInvoiceAction(campaignId: string, termsId: string) {
@@ -92,7 +95,7 @@ export async function createInvoiceAction(campaignId: string, termsId: string) {
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
-  redirect(`${path(campaignId)}?saved=invoice`);
+  redirect(`${path(campaignId)}?saved=invoice#money`);
 }
 
 export async function reverseReceiptAction(
@@ -110,7 +113,7 @@ export async function reverseReceiptAction(
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
-  redirect(`${path(campaignId)}?saved=reversal`);
+  redirect(`${path(campaignId)}?saved=reversal#money`);
 }
 
 export async function recordRefundAction(
@@ -135,7 +138,7 @@ export async function recordRefundAction(
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
-  redirect(`${path(campaignId)}?saved=refund`);
+  redirect(`${path(campaignId)}?saved=refund#money`);
 }
 
 export async function recordInvoiceCorrectionAction(
@@ -159,7 +162,7 @@ export async function recordInvoiceCorrectionAction(
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
-  redirect(`${path(campaignId)}?saved=correction`);
+  redirect(`${path(campaignId)}?saved=correction#money`);
 }
 
 export async function recordFinancialAuthorityAction(
@@ -177,12 +180,8 @@ export async function recordFinancialAuthorityAction(
         authority_type: isCredit ? "approved_credit" : "prepaid_cash",
         max_driver_liability: String(formData.get("max_driver_liability") ?? "").trim(),
         reason: String(formData.get("reason") ?? "").trim(),
-        credit_limit: isCredit
-          ? String(formData.get("credit_limit") ?? "").trim()
-          : null,
-        due_at: isCredit
-          ? new Date(String(formData.get("due_at") ?? "")).toISOString()
-          : null,
+        credit_limit: isCredit ? String(formData.get("credit_limit") ?? "").trim() : null,
+        due_at: isCredit ? new Date(String(formData.get("due_at") ?? "")).toISOString() : null,
         approved_by_user_id: isCredit ? approverId : null,
         credit_terms: isCredit
           ? { notes: String(formData.get("credit_terms") ?? "").trim() }
@@ -195,13 +194,10 @@ export async function recordFinancialAuthorityAction(
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
-  redirect(`${path(campaignId)}?saved=authority`);
+  redirect(`${path(campaignId)}?saved=authority#money`);
 }
 
-export async function recordProductionStartAction(
-  campaignId: string,
-  waiverId: string | null,
-) {
+export async function recordProductionStartAction(campaignId: string, waiverId: string | null) {
   try {
     const api = createApiClient(await getSessionToken());
     await api.POST("/api/v1/admin/campaigns/{campaign_id}/production-start", {
@@ -212,7 +208,7 @@ export async function recordProductionStartAction(
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
-  redirect(`${path(campaignId)}?saved=production`);
+  redirect(`${path(campaignId)}?saved=production#money`);
 }
 
 export async function recordBudgetBlockedStateAction(campaignId: string) {
@@ -225,5 +221,5 @@ export async function recordBudgetBlockedStateAction(campaignId: string) {
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
-  redirect(`${path(campaignId)}?saved=budget`);
+  redirect(`${path(campaignId)}?saved=budget#money`);
 }

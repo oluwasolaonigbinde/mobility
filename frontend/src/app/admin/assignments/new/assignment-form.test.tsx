@@ -42,7 +42,7 @@ it("requires an explicit recommended candidate and clears its evidence after a m
   await user.click(screen.getByRole("button", { name: "Find campaign" }));
   await user.click(await screen.findByRole("button", { name: /Pilot/ }));
   await user.type(screen.getByLabelText("Service city"), "Lagos");
-  await user.click(screen.getByRole("button", { name: "Find candidates" }));
+  await user.click(screen.getByRole("button", { name: "Find drivers" }));
   expect(await screen.findByText("Ada Driver · ABC-123")).toBeInTheDocument();
   expect(container.querySelector('[name="recommendation_fingerprint"]')).toBeNull();
   await user.click(screen.getByRole("button", { name: "Choose candidate" }));

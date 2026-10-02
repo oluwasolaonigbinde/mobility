@@ -9,7 +9,7 @@ import { getSessionToken } from "@/lib/auth/session";
 
 function companyPath(organizationId: string, campaignId?: string) {
   const query = campaignId ? `?campaign=${encodeURIComponent(campaignId)}` : "";
-  return `/admin/advertisers/${organizationId}/company${query}`;
+  return `/admin/advertisers/${organizationId}${query}`;
 }
 
 export async function updateCompanyAction(
@@ -30,6 +30,6 @@ export async function updateCompanyAction(
     );
   }
   revalidatePath(companyPath(organizationId));
-  if (campaignId) revalidatePath(`/admin/billing/${campaignId}`);
+  if (campaignId) revalidatePath(`/admin/campaigns/${campaignId}`);
   redirect(`${companyPath(organizationId, campaignId)}${campaignId ? "&" : "?"}saved=1`);
 }

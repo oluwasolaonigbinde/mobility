@@ -114,6 +114,6 @@ describe("CampaignChangePanel", () => {
     expect(
       screen.getByText(/only be requested while a campaign is scheduled, live or paused/),
     ).toBeInTheDocument();
-    expect(screen.getByText("applied")).toBeInTheDocument();
+    expect(screen.getByText("Applied")).toBeInTheDocument();
   });
 });

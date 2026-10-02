@@ -13,18 +13,20 @@ const steps: Record<VStatus, Array<{ to: VStatus; label: string; danger?: boolea
     { to: "suspended", label: "Suspend", danger: true },
     { to: "inactive", label: "Retire" },
   ],
-  suspended: [{ to: "active", label: "Reinstate" }],
-  inactive: [{ to: "active", label: "Reactivate" }],
+  suspended: [{ to: "active", label: "Restore" }],
+  inactive: [{ to: "active", label: "Restore" }],
 };
 
 export function VehicleStatusMenu({
   vehicleId,
   vehicleLabel,
   status,
+  activationBlocked = false,
 }: {
   vehicleId: string;
   vehicleLabel: string;
   status: VStatus;
+  activationBlocked?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string>();
@@ -52,7 +54,12 @@ export function VehicleStatusMenu({
             ref={s.danger ? triggerRef : undefined}
             key={s.to}
             type="button"
-            disabled={pending}
+            disabled={pending || (activationBlocked && s.to === "active")}
+            title={
+              activationBlocked && s.to === "active"
+                ? "Use the current car document review to approve or restore this car."
+                : undefined
+            }
             onClick={() => run(s.to, s.danger)}
             className={
               "micro transition-colors disabled:opacity-50 " +

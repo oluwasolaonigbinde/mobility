@@ -43,7 +43,7 @@ export async function resolveOperation(_state: { error?: string; done?: string }
         params: { path: { trip_id: trip, quarantine_id: id } },
         body: { note },
       });
-    revalidatePath(kind === "contact" ? "/admin/contact" : "/admin/late-data");
+    revalidatePath(kind === "contact" ? "/admin/support" : "/admin/trip-checks");
     return {
       done:
         kind === "contact"

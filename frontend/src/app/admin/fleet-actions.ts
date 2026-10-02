@@ -6,9 +6,11 @@ import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
+import { requireRole } from "@/lib/auth/current-user";
 
 export interface AdminActionState {
   error?: string;
+  saved?: boolean;
 }
 
 function toState(error: unknown): AdminActionState {
@@ -60,6 +62,8 @@ export async function createDriverProfileAction(
     return toState(error);
   }
   revalidatePath("/admin/drivers");
+  revalidatePath("/admin/drivers/[driverId]", "page");
+  revalidatePath("/admin/drivers/applicant/[applicationId]", "page");
   redirect("/admin/drivers");
 }
 
@@ -83,10 +87,55 @@ export async function updateDriverOnboardingAction(
     return toState(error);
   }
   revalidatePath("/admin/drivers");
+  revalidatePath("/admin/drivers/[driverId]", "page");
+  revalidatePath("/admin/drivers/applicant/[applicationId]", "page");
   return {};
 }
 
 // --- vehicles ------------------------------------------------------------------
+
+export async function updateDriverDetailsAction(
+  _prev: AdminActionState,
+  formData: FormData,
+): Promise<AdminActionState> {
+  await requireRole("admin");
+  const parsed = createDriverSchema
+    .extend({
+      license_number: z
+        .string()
+        .trim()
+        .max(128)
+        .transform((v) => (v === "" ? null : v)),
+      service_city: z
+        .string()
+        .trim()
+        .max(128)
+        .transform((v) => (v === "" ? null : v)),
+    })
+    .safeParse({
+      user_id: formData.get("driver_profile_id"),
+      license_number: formData.get("license_number") ?? "",
+      service_city: formData.get("service_city") ?? "",
+      country_code: formData.get("country_code") ?? "",
+    });
+  if (!parsed.success)
+    return { error: parsed.error.issues[0]?.message ?? "Check the driver details." };
+  const { user_id: driver_profile_id, ...body } = parsed.data;
+  try {
+    await createApiClient(await getSessionToken()).PATCH(
+      "/api/v1/admin/drivers/{driver_profile_id}",
+      {
+        params: { path: { driver_profile_id } },
+        body,
+      },
+    );
+  } catch (error) {
+    return toState(error);
+  }
+  revalidatePath("/admin/drivers");
+  revalidatePath("/admin/drivers/[driverId]", "page");
+  return { saved: true };
+}
 
 const createVehicleSchema = z.object({
   user_id: z.string().uuid("Pick the driver user"),
@@ -135,17 +184,25 @@ export async function createVehicleAction(
   });
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Invalid input" };
   const { user_id, ...vehicle } = parsed.data;
+  let driverProfileId: string | undefined;
   try {
     const api = createApiClient(await getSessionToken());
-    await api.POST("/api/v1/admin/drivers/{user_id}/vehicles", {
+    const { data } = await api.POST("/api/v1/admin/drivers/{user_id}/vehicles", {
       params: { path: { user_id } },
       body: { ...vehicle, status: "active" },
     });
+    driverProfileId = data?.driver_profile_id;
   } catch (error) {
     return toState(error);
   }
-  revalidatePath("/admin/vehicles");
-  redirect("/admin/vehicles");
+  revalidatePath("/admin/drivers");
+  revalidatePath("/admin/drivers/[driverId]", "page");
+  revalidatePath("/admin/drivers/applicant/[applicationId]", "page");
+  redirect(
+    driverProfileId
+      ? `/admin/drivers/${driverProfileId}#cars`
+      : "/admin/drivers?source=cars&tab=active",
+  );
 }
 
 const vehicleStatusSchema = z.object({
@@ -167,6 +224,8 @@ export async function updateVehicleStatusAction(
   } catch (error) {
     return toState(error);
   }
-  revalidatePath("/admin/vehicles");
+  revalidatePath("/admin/drivers");
+  revalidatePath("/admin/drivers/[driverId]", "page");
+  revalidatePath("/admin/drivers/applicant/[applicationId]", "page");
   return {};
 }

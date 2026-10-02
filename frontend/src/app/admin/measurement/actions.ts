@@ -37,7 +37,7 @@ export async function manageReport(_state: ReportState, form: FormData): Promise
         body: { client_request_id: p.request },
       });
       if (!data) return { error: "No report request was confirmed. Retry the same request." };
-      revalidatePath("/admin/measurement");
+      revalidatePath("/admin/campaigns/[campaignId]", "page");
       return { report: data };
     }
     if (!p.issuance) return { error: "Select a recorded report first." };
@@ -45,7 +45,7 @@ export async function manageReport(_state: ReportState, form: FormData): Promise
       params: { path: { issuance_id: p.issuance } },
     });
     if (!report || report.measurement_run_id !== p.run)
-      return { error: "This report does not belong to the selected snapshot." };
+      return { error: "This report does not belong to the selected results." };
     if (p.command === "refresh") return { report };
     const { data } = await api.POST(
       "/api/v1/admin/report-issuances/{issuance_id}/artifacts/{artifact_format}/download",
@@ -92,9 +92,9 @@ export async function issueMeasurement(_state: { error?: string; done?: string }
       { body: { ...parsed.data, mode: "performance_only" } },
     );
     if (!data) return { error: "No run was confirmed. Retry the same request." };
-    revalidatePath("/admin/measurement");
+    revalidatePath("/admin/campaigns/[campaignId]", "page");
     return {
-      done: "Measurement run recorded. Open it to review completeness and reproduction before issuing a report.",
+      done: "Results calculation recorded. Open it to check the saved results before issuing a report.",
     };
   } catch (error) {
     return {

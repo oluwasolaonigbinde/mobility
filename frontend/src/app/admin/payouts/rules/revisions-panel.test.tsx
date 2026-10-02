@@ -52,12 +52,12 @@ describe("RevisionsPanel", () => {
 
     const [newest, oldest] = screen.getAllByRole("row").slice(1); // drop the header row
     if (!newest || !oldest) throw new Error("expected two revision rows");
-    expect(within(newest).getByText("r2")).toBeInTheDocument();
+    expect(within(newest).getByText("Version 2")).toBeInTheDocument();
     expect(within(newest).getByText(/1,500\.00/)).toBeInTheDocument();
     expect(within(newest).getByText(/1,800\.00/)).toBeInTheDocument();
     expect(within(newest).getByText("festive-season rate bump")).toBeInTheDocument();
     expect(within(newest).getByText(/^11111111/)).toBeInTheDocument();
-    expect(within(oldest).getByText("r1")).toBeInTheDocument();
+    expect(within(oldest).getByText("Version 1")).toBeInTheDocument();
     expect(within(oldest).getByText("8h")).toBeInTheDocument();
   });
 
@@ -68,11 +68,11 @@ describe("RevisionsPanel", () => {
     expect(screen.getByLabelText("Premium hourly rate (optional)")).toBeInTheDocument();
     expect(screen.getByLabelText("Daily payable-hours cap")).toBeInTheDocument();
     expect(screen.getByLabelText("Effective from (future)")).toBeInTheDocument();
-    expect(screen.getByLabelText("Reason (audited)")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Create revision" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Reason (logged)")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create version" })).toBeInTheDocument();
     // Immutability messaging replaces the retired update path.
     expect(screen.queryByRole("button", { name: /update rule/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/values are immutable/i)).toBeInTheDocument();
+    expect(screen.getByText(/Saved pay terms cannot be edited/i)).toBeInTheDocument();
   });
 
   it("prefills the form from the latest revision's values", () => {
@@ -89,8 +89,6 @@ describe("RevisionsPanel", () => {
     expect(screen.getByText("stationary-rd-v1 · provisional/tunable")).toBeInTheDocument();
     expect(screen.getByText(/120s windows.*120s stride.*≤25m/)).toBeInTheDocument();
     expect(screen.getByText(/Legacy 200m \/ 300s stay check.*240s trip grace/)).toBeInTheDocument();
-    expect(
-      screen.getByText(/Every new acceptance snapshots these complete values/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Each acceptance saves these complete settings/)).toBeInTheDocument();
   });
 });

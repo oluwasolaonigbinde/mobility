@@ -26,7 +26,7 @@ from starlette import status as http_status
 
 from app.core.config import Settings
 from app.core.errors import AppError
-from app.models.campaign import CampaignStatus
+from app.models.campaign import Campaign, CampaignStatus
 from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.driver import DriverOnboardingStatus
 from app.models.impression import ImpressionEstimate
@@ -137,9 +137,7 @@ def create_payout_graph(
         activated_at=BASE_TIME,
     )
     ended_at = (
-        BASE_TIME + timedelta(minutes=30)
-        if trip_status != TripSessionStatus.ACTIVE
-        else None
+        BASE_TIME + timedelta(minutes=30) if trip_status != TripSessionStatus.ACTIVE else None
     )
     trip = create_test_trip_session(
         db_sessionmaker,
@@ -234,14 +232,10 @@ def add_fraud_flag(
                     evidence={},
                     detected_at=datetime.now(UTC),
                     reviewed_by_user_id=(
-                        None
-                        if flag_status == FraudFlagStatus.OPEN.value
-                        else reviewed_by_user_id
+                        None if flag_status == FraudFlagStatus.OPEN.value else reviewed_by_user_id
                     ),
                     reviewed_at=(
-                        None
-                        if flag_status == FraudFlagStatus.OPEN.value
-                        else datetime.now(UTC)
+                        None if flag_status == FraudFlagStatus.OPEN.value else datetime.now(UTC)
                     ),
                     resolution_note=(
                         "Test review resolution."
@@ -267,9 +261,7 @@ def add_fraud_flag(
             for open_severity, count in rows.all():
                 counts[str(open_severity)] = int(count)
             estimate = await session.scalar(
-                select(ImpressionEstimate).where(
-                    ImpressionEstimate.trip_session_id == trip.id
-                )
+                select(ImpressionEstimate).where(ImpressionEstimate.trip_session_id == trip.id)
             )
             metadata = dict(estimate.estimate_metadata)
             metadata["fraud_flag_counts"] = counts
@@ -1111,15 +1103,13 @@ def test_payout_calculation_statuses_and_expected_errors(db_client, db_sessionma
         json={},
     )
 
-    _, _, analytics_blocked_campaign, _, _, _, analytics_blocked_trip, _, _ = (
-        create_payout_graph(
-            db_sessionmaker,
-            admin=admin,
-            advertiser_email="adv-analytics-blocked@example.com",
-            driver_email="driver-analytics-blocked@example.com",
-            plate_number="ABL-1",
-            analytics_status="blocked",
-        )
+    _, _, analytics_blocked_campaign, _, _, _, analytics_blocked_trip, _, _ = create_payout_graph(
+        db_sessionmaker,
+        admin=admin,
+        advertiser_email="adv-analytics-blocked@example.com",
+        driver_email="driver-analytics-blocked@example.com",
+        plate_number="ABL-1",
+        analytics_status="blocked",
     )
     create_test_payout_rule(
         db_sessionmaker,
@@ -1284,6 +1274,16 @@ def test_admin_payout_calculation_endpoints_enforce_rbac_and_filter_driver_profi
         campaign_id=other_campaign.id,
         created_by_user_id=admin.id,
     )
+    async def name_other_campaign() -> None:
+        async with db_sessionmaker() as session:
+            await session.execute(
+                update(Campaign).where(Campaign.id == other_campaign.id).values(name="Other campaign")
+            )
+            await session.commit()
+
+    asyncio.run(name_other_campaign())
+    other_campaign.name = "Other campaign"
+    assert other_campaign.name != campaign.name
     headers = admin_headers(db_client)
 
     first = db_client.post(
@@ -1308,6 +1308,26 @@ def test_admin_payout_calculation_endpoints_enforce_rbac_and_filter_driver_profi
     assert filtered.status_code == http_status.HTTP_200_OK
     assert filtered.json()["total"] == 1
     assert filtered.json()["items"][0]["id"] == first.json()["id"]
+    projected = filtered.json()["items"][0]
+    assert projected["campaign_name"] == campaign.name
+    assert datetime.fromisoformat(projected["trip_started_at"]) == trip.started_at
+    assert projected["trip_started_at"] != projected["calculated_at"]
+    assert "trip_started_at" not in first.json()
+    assert "campaign_name" not in first.json()
+    pages = [
+        db_client.get(f"/api/v1/admin/payout-calculations?limit=1&offset={offset}", headers=headers)
+        for offset in (0, 1)
+    ]
+    assert all(page.status_code == 200 for page in pages)
+    assert all(page.json()["total"] == 2 for page in pages)
+    by_id = {page.json()["items"][0]["id"]: page.json()["items"][0] for page in pages}
+    assert set(by_id) == {first.json()["id"], second.json()["id"]}
+    assert by_id[first.json()["id"]]["campaign_name"] == campaign.name
+    assert by_id[second.json()["id"]]["campaign_name"] == other_campaign.name
+    assert (
+        datetime.fromisoformat(by_id[second.json()["id"]]["trip_started_at"])
+        == other_trip.started_at
+    )
     for denied_headers in [advertiser_headers, driver_headers]:
         assert (
             db_client.post(
@@ -1417,13 +1437,15 @@ def test_driver_earnings_are_scoped_and_append_only(db_client, db_sessionmaker) 
         http_status.HTTP_405_METHOD_NOT_ALLOWED,
     }
     assert (
-        db_client.get("/api/v1/driver/earnings/summary", headers=admin_headers(db_client))
-        .status_code
+        db_client.get(
+            "/api/v1/driver/earnings/summary", headers=admin_headers(db_client)
+        ).status_code
         == http_status.HTTP_403_FORBIDDEN
     )
     assert (
-        db_client.get("/api/v1/driver/earnings/ledger", headers=admin_headers(db_client))
-        .status_code
+        db_client.get(
+            "/api/v1/driver/earnings/ledger", headers=admin_headers(db_client)
+        ).status_code
         == http_status.HTTP_403_FORBIDDEN
     )
     assert (
@@ -1563,8 +1585,7 @@ def test_advertiser_cost_summary_is_scoped_and_aggregates_stored_calculations(
         headers=advertiser_headers,
     )
     naive_datetime = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/cost-summary"
-        "?start_at=2026-01-01T00:00:00",
+        f"/api/v1/advertiser/campaigns/{campaign.id}/cost-summary?start_at=2026-01-01T00:00:00",
         headers=advertiser_headers,
     )
     other_advertiser = create_test_user(

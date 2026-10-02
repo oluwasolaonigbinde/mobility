@@ -125,8 +125,8 @@ export default async function AdminPayoutsPage({
           manage payout batches →
         </Link>{" "}
         · Earning terms are set per campaign —{" "}
-        <Link href="/admin/payouts/rules" className="text-amber hover:underline">
-          edit payout rules →
+        <Link href="/admin/campaigns" className="text-amber hover:underline">
+          edit campaign pay terms →
         </Link>{" "}
         · Retroactive day fixes run through maker-checker{" "}
         <Link href="/admin/payouts/corrections" className="text-amber hover:underline">

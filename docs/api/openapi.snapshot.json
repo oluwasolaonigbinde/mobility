@@ -829,6 +829,328 @@
         "title": "AdminOrganizationCreateResponse",
         "type": "object"
       },
+      "AdminOrganizationListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdvertiserOrganizationRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "AdminOrganizationListResponse",
+        "type": "object"
+      },
+      "AdminPayoutCalculationRead": {
+        "properties": {
+          "active_time_component": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Time Component"
+          },
+          "assignment_id": {
+            "format": "uuid",
+            "title": "Assignment Id",
+            "type": "string"
+          },
+          "bonus_zone_bonus_component": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bonus Zone Bonus Component"
+          },
+          "calculated_at": {
+            "format": "date-time",
+            "title": "Calculated At",
+            "type": "string"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "campaign_name": {
+            "title": "Campaign Name",
+            "type": "string"
+          },
+          "cap_adjustment": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cap Adjustment"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "distance_component": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Component"
+          },
+          "driver_profile_id": {
+            "format": "uuid",
+            "title": "Driver Profile Id",
+            "type": "string"
+          },
+          "eligible_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eligible Seconds"
+          },
+          "excluded_seconds_by_reason": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "integer"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excluded Seconds By Reason"
+          },
+          "final_payout": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Final Payout"
+          },
+          "formula_version": {
+            "title": "Formula Version",
+            "type": "string"
+          },
+          "fraud_multiplier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fraud Multiplier"
+          },
+          "gross_payout": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gross Payout"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "impression_component": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Impression Component"
+          },
+          "impression_estimate_id": {
+            "format": "uuid",
+            "title": "Impression Estimate Id",
+            "type": "string"
+          },
+          "inputs_fingerprint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inputs Fingerprint"
+          },
+          "ledger_entry": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PayoutLedgerEntrySummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "payable_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payable Seconds"
+          },
+          "payout_rule_id": {
+            "format": "uuid",
+            "title": "Payout Rule Id",
+            "type": "string"
+          },
+          "quality_multiplier": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quality Multiplier"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PayoutCalculationStatus"
+          },
+          "target_zone_bonus_component": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Zone Bonus Component"
+          },
+          "trip_analytics_id": {
+            "format": "uuid",
+            "title": "Trip Analytics Id",
+            "type": "string"
+          },
+          "trip_session_id": {
+            "format": "uuid",
+            "title": "Trip Session Id",
+            "type": "string"
+          },
+          "trip_started_at": {
+            "format": "date-time",
+            "title": "Trip Started At",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "vehicle_id": {
+            "format": "uuid",
+            "title": "Vehicle Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "trip_session_id",
+          "trip_analytics_id",
+          "impression_estimate_id",
+          "payout_rule_id",
+          "assignment_id",
+          "campaign_id",
+          "driver_profile_id",
+          "vehicle_id",
+          "formula_version",
+          "status",
+          "currency",
+          "distance_component",
+          "active_time_component",
+          "target_zone_bonus_component",
+          "bonus_zone_bonus_component",
+          "impression_component",
+          "gross_payout",
+          "quality_multiplier",
+          "fraud_multiplier",
+          "cap_adjustment",
+          "final_payout",
+          "eligible_seconds",
+          "payable_seconds",
+          "excluded_seconds_by_reason",
+          "inputs_fingerprint",
+          "calculated_at",
+          "created_at",
+          "updated_at",
+          "trip_started_at",
+          "campaign_name"
+        ],
+        "title": "AdminPayoutCalculationRead",
+        "type": "object"
+      },
       "AdminPersonPayeeStageRead": {
         "properties": {
           "bank_account_verified": {
@@ -18102,7 +18424,7 @@
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/PayoutCalculationRead"
+              "$ref": "#/components/schemas/AdminPayoutCalculationRead"
             },
             "title": "Items",
             "type": "array"
@@ -25634,6 +25956,82 @@
   "openapi": "3.1.0",
   "paths": {
     "/api/v1/admin/advertiser-organizations": {
+      "get": {
+        "operationId": "admin_list_advertiser_organizations_api_v1_admin_advertiser_organizations_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 120,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminOrganizationListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List advertiser companies",
+        "tags": [
+          "Admin Users"
+        ]
+      },
       "post": {
         "operationId": "admin_create_advertiser_organization_api_v1_admin_advertiser_organizations_post",
         "requestBody": {
@@ -28802,6 +29200,40 @@
               "default": false,
               "title": "History",
               "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "user_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "User Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "driver_profile_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Driver Profile Id"
             }
           }
         ],

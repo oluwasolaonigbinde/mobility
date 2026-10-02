@@ -114,8 +114,9 @@ export async function createAssignmentAction(
     if (error instanceof ApiError) return { error: error.message };
     return { error: "Could not reach the server." };
   }
-  revalidatePath("/admin/assignments");
-  redirect("/admin/assignments");
+  revalidatePath("/admin/campaigns");
+  revalidatePath("/admin/campaigns/[campaignId]", "page");
+  redirect(`/admin/campaigns/${parsed.data.campaign_id}#drivers`);
 }
 
 export async function cancelAssignmentAction(
@@ -136,7 +137,8 @@ export async function cancelAssignmentAction(
     if (error instanceof ApiError) return { error: error.message };
     return { error: "Could not reach the server." };
   }
-  revalidatePath("/admin/assignments");
+  revalidatePath("/admin/campaigns");
+  revalidatePath("/admin/campaigns/[campaignId]", "page");
   return {};
 }
 
@@ -152,6 +154,7 @@ export async function activateAssignmentAction(assignmentId: string): Promise<Ad
     if (error instanceof ApiError) return { error: error.message };
     return { error: "Could not reach the server." };
   }
-  revalidatePath("/admin/assignments");
+  revalidatePath("/admin/campaigns");
+  revalidatePath("/admin/campaigns/[campaignId]", "page");
   return {};
 }

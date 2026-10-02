@@ -14,9 +14,8 @@ vi.mock("./vehicles/vehicle-status-menu", () => ({
   VehicleStatusMenu: () => <button>Vehicle actions</button>,
 }));
 
-import AdminUsersPage from "./users/page";
+import AdminUsersPage from "./settings/staff/page";
 import AdminDriversPage from "./drivers/page";
-import AdminVehiclesPage from "./vehicles/page";
 
 const props = <T extends Record<string, string>>(params: T) => ({
   searchParams: Promise.resolve(params),
@@ -30,9 +29,11 @@ function enabledPageLinks() {
 }
 
 describe("admin named discovery pages", () => {
-  beforeEach(() => mocks.get.mockReset());
+  beforeEach(() => {
+    mocks.get.mockReset();
+  });
 
-  it("users: passes search and role, and keeps both across role filters and pages", async () => {
+  it("staff: searches only staff and preserves the search in pagination", async () => {
     mocks.get.mockResolvedValue({
       data: {
         items: [
@@ -40,7 +41,7 @@ describe("admin named discovery pages", () => {
             id: "u1",
             full_name: "Ada Okafor",
             email: "ada@example.com",
-            role: "driver",
+            role: "admin",
             status: "active",
           },
         ],
@@ -49,132 +50,153 @@ describe("admin named discovery pages", () => {
     });
     render(await AdminUsersPage(props({ q: "Okafor", role: "driver", offset: "25.7" })));
     expect(mocks.get).toHaveBeenCalledWith("/api/v1/admin/users", {
-      params: { query: { limit: 25, offset: 25, q: "Okafor", role: "driver" } },
+      params: { query: { limit: 25, offset: 25, q: "Okafor", role: "admin" } },
     });
-    expect(screen.getByText("30 matching accounts")).toBeTruthy();
+    expect(screen.getByText("30 matching staff sign-ins")).toBeTruthy();
     expect(screen.getByText("Ada Okafor")).toBeTruthy();
-    expect(screen.getByLabelText("Search this work list")).toHaveValue("Okafor");
-    expect(document.querySelector('input[type="hidden"][name="role"]')).toHaveAttribute(
-      "value",
-      "driver",
-    );
-    expect(screen.getByRole("link", { name: "All" })).toHaveAttribute(
+    expect(screen.getByLabelText("Search staff")).toHaveValue("Okafor");
+    expect(screen.getByRole("link", { name: "Add staff login" })).toHaveAttribute(
       "href",
-      "/admin/users?q=Okafor",
-    );
-    expect(screen.getByRole("link", { name: "admin" })).toHaveAttribute(
-      "href",
-      "/admin/users?role=admin&q=Okafor",
+      "/admin/settings/staff/new",
     );
     expect(screen.getByRole("link", { name: /Prev/ })).toHaveAttribute(
       "href",
-      "/admin/users?role=driver&q=Okafor",
+      "/admin/settings/staff?q=Okafor&offset=0",
     );
   });
-
-  it("users: ignores an unknown role and reports an unavailable list distinctly", async () => {
+  it("staff: failed reads show one section failure without a field fallback", async () => {
     mocks.get.mockResolvedValue({ data: undefined });
     render(await AdminUsersPage(props({ role: "owner", offset: "-3" })));
     expect(mocks.get).toHaveBeenCalledWith("/api/v1/admin/users", {
-      params: { query: { limit: 25, offset: 0, q: undefined } },
+      params: { query: { limit: 25, offset: 0, q: undefined, role: "admin" } },
     });
-    expect(screen.getByText("Account count unavailable")).toBeTruthy();
-    expect(screen.getByRole("alert")).toHaveTextContent("No empty or complete result");
-    expect(screen.getByRole("link", { name: "All" })).toHaveAttribute("href", "/admin/users");
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
+    expect(screen.queryByText(/count unavailable/)).toBeNull();
   });
 
-  it("users: labels a single match without a plural", async () => {
-    mocks.get.mockResolvedValue({ data: { items: [], total: 1 } });
-    render(await AdminUsersPage(props({})));
-    expect(screen.getByText("1 matching account")).toBeTruthy();
-    expect(screen.queryByRole("alert")).toBeNull();
-  });
-
-  it("drivers: searches named profiles and keeps the search in pagination", async () => {
-    mocks.get.mockResolvedValue({
-      data: {
-        items: [
-          {
-            id: "d1",
-            full_name: "Chinedu Okafor",
-            email: "chinedu@example.com",
-            license_number: null,
-            service_city: "Abuja",
-            onboarding_status: "active",
-          },
-        ],
-        total: 26,
-      },
-    });
-    render(await AdminDriversPage(props({ q: "Okafor" })));
+  it("drivers: searches the chosen status and preserves the search in pagination", async () => {
+    mocks.get.mockImplementation(async (path: string) => ({
+      data: path.endsWith("/drivers")
+        ? {
+            items: [
+              {
+                id: "d1",
+                full_name: "Chinedu Okafor",
+                phone: "+2348039876543",
+                service_city: "Abuja",
+                onboarding_status: "active",
+              },
+            ],
+            total: 26,
+          }
+        : { items: [{ plate_number: "ABC-123-XY" }], total: 1 },
+    }));
+    render(await AdminDriversPage(props({ q: "Okafor", tab: "active" })));
     expect(mocks.get).toHaveBeenCalledWith("/api/v1/admin/drivers", {
-      params: { query: { limit: 25, offset: 0, q: "Okafor" } },
+      params: { query: { limit: 25, offset: 0, q: "Okafor", onboarding_status: "active" } },
     });
     expect(screen.getByText("26 matching driver profiles")).toBeTruthy();
-    expect(screen.getByText("Chinedu Okafor")).toBeTruthy();
-    expect(enabledPageLinks()).toEqual(["/admin/drivers?q=Okafor&offset=25"]);
+    expect(screen.getByRole("link", { name: /Chinedu Okafor/ })).toHaveAttribute(
+      "href",
+      "/admin/drivers/d1",
+    );
+    expect(screen.getByText("ABC-123-XY")).toBeTruthy();
+    expect(enabledPageLinks()).toEqual([
+      "/admin/drivers?tab=active&source=profiles&q=Okafor&history=false&offset=25",
+    ]);
   });
-
-  it("drivers: reports an unavailable list and a single match", async () => {
-    mocks.get.mockRejectedValueOnce(new Error("network"));
-    const { unmount } = render(await AdminDriversPage(props({})));
-    expect(screen.getByText("Driver count unavailable")).toBeTruthy();
-    expect(screen.getByRole("alert")).toBeTruthy();
-    unmount();
-    mocks.get.mockResolvedValue({ data: { items: [], total: 1 } });
-    render(await AdminDriversPage(props({})));
-    expect(screen.getByText("1 matching driver profile")).toBeTruthy();
+  it("drivers: a failed car read is unavailable rather than a claim of no cars", async () => {
+    mocks.get.mockImplementation(async (path: string) => {
+      if (path.endsWith("/vehicles")) throw new Error("offline");
+      return {
+        data: { items: [{ id: "d1", full_name: "Ada", onboarding_status: "active" }], total: 1 },
+      };
+    });
+    render(await AdminDriversPage(props({ tab: "active" })));
+    expect(screen.getByText("Couldn't load this section — try again")).toBeTruthy();
+    expect(screen.queryByText("No cars recorded")).toBeNull();
   });
-
-  it("vehicles: searches plates and describes partial vehicle details", async () => {
+  it("cars: plate results open the actual driver's Cars section", async () => {
     mocks.get.mockResolvedValue({
       data: {
         items: [
           {
-            id: "v1",
-            plate_number: "DEMO-001",
-            year: 2021,
-            make: "Toyota",
-            model: null,
-            color: "White",
-            vehicle_type: "car",
+            id: "car",
+            driver_profile_id: "driver",
+            driver_profile: { full_name: "Ada", phone: "+2348031234567" },
+            plate_number: "ABC-123-XY",
             status: "active",
-          },
-          {
-            id: "v2",
-            plate_number: "DEMO-002",
-            year: null,
-            make: null,
-            model: null,
-            color: null,
-            vehicle_type: "van",
-            status: "inactive",
           },
         ],
         total: 51,
       },
     });
-    render(await AdminVehiclesPage(props({ q: "DEMO", offset: "25" })));
-    expect(mocks.get).toHaveBeenCalledWith("/api/v1/admin/vehicles", {
-      params: { query: { limit: 25, offset: 25, q: "DEMO" } },
+    render(
+      await AdminDriversPage(props({ tab: "active", source: "cars", q: "ABC", offset: "25" })),
+    );
+    expect(mocks.get).toHaveBeenCalledExactlyOnceWith("/api/v1/admin/vehicles", {
+      params: { query: { limit: 25, offset: 25, q: "ABC" } },
     });
-    expect(screen.getByText("51 matching vehicles")).toBeTruthy();
-    expect(screen.getByText("2021 Toyota White")).toBeTruthy();
-    expect(screen.getByText("—")).toBeTruthy();
-    expect(enabledPageLinks()).toEqual([
-      "/admin/vehicles?q=DEMO&offset=0",
-      "/admin/vehicles?q=DEMO&offset=50",
-    ]);
+    expect(screen.getByRole("link", { name: /Ada.*ABC-123-XY/ })).toHaveAttribute(
+      "href",
+      "/admin/drivers/driver#cars",
+    );
+    expect(enabledPageLinks()).toHaveLength(2);
   });
+  it("applicants: preserves the history filter and keeps document contents off the work list", async () => {
+    mocks.get.mockResolvedValue({
+      data: {
+        items: [
+          {
+            id: "application",
+            driver_profile_id: "driver",
+            full_name: "Ada Applicant",
+            status: "pending",
+            person_payee: { status: "pending_review", masked_nin: "*******8901" },
+          },
+        ],
+        total: 1,
+      },
+    });
+    render(await AdminDriversPage(props({ history: "true", source: "applications" })));
+    expect(mocks.get).toHaveBeenCalledWith("/api/v1/admin/driver-applications", {
+      params: { query: { limit: 25, offset: 0, q: undefined, history: true } },
+    });
+    expect(screen.getByRole("link", { name: /Ada Applicant/ })).toHaveAttribute(
+      "href",
+      "/admin/drivers/driver?application=application",
+    );
+    expect(screen.queryByText(/8901/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Approve" })).toBeNull();
+  });
+  it("drivers: failed reads do not turn into an empty list", async () => {
+    mocks.get.mockRejectedValue(new Error("offline"));
+    render(await AdminDriversPage(props({})));
+    expect(screen.getAllByRole("alert")).toHaveLength(2);
+    expect(screen.queryByText(/No matching drivers/)).toBeNull();
+  });
+});
 
-  it("vehicles: reports an unavailable list and a single match", async () => {
-    mocks.get.mockResolvedValueOnce({ data: undefined });
-    const { unmount } = render(await AdminVehiclesPage(props({})));
-    expect(screen.getByText("Vehicle count unavailable")).toBeTruthy();
-    expect(screen.getByRole("alert")).toBeTruthy();
-    unmount();
-    mocks.get.mockResolvedValue({ data: { items: [], total: 1 } });
-    render(await AdminVehiclesPage(props({})));
-    expect(screen.getByText("1 matching vehicle")).toBeTruthy();
+it("Applicants includes applications and other pending profiles with independent pages", async () => {
+  mocks.get.mockImplementation(async (path: string) => ({
+    data: path.endsWith("/driver-applications")
+      ? { items: [{ id: "a", full_name: "New applicant", status: "pending" }], total: 26 }
+      : path.endsWith("/drivers")
+        ? {
+            items: [{ id: "d", full_name: "Pending profile", onboarding_status: "pending" }],
+            total: 30,
+          }
+        : { items: [], total: 0 },
+  }));
+  render(await AdminDriversPage(props({ applications_offset: "25" })));
+  expect(screen.getByRole("link", { name: /New applicant/ })).toBeTruthy();
+  expect(screen.getByRole("link", { name: /Pending profile/ })).toBeTruthy();
+  expect(mocks.get).toHaveBeenCalledWith("/api/v1/admin/drivers", {
+    params: { query: { limit: 25, offset: 0, q: undefined, onboarding_status: "pending" } },
   });
+  expect(screen.getAllByRole("link", { name: "Next →" })[1]).toHaveAttribute(
+    "href",
+    "/admin/drivers?applications_offset=25&tab=applicants&profiles_offset=25",
+  );
 });

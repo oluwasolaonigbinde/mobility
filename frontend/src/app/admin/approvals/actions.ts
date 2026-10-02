@@ -43,7 +43,8 @@ export async function reviewCampaignChangeAction(
     if (error instanceof ApiError) return { error: error.message };
     return { error: "Could not reach the server." };
   }
-  revalidatePath("/admin/approvals");
+  revalidatePath("/admin/campaigns");
+  revalidatePath("/admin/campaigns/[campaignId]", "page");
   return { done: parsed.data.intent === "approve" ? "Change approved" : "Change rejected" };
 }
 
@@ -85,7 +86,8 @@ export async function reviewCampaignAction(
     return { error: "Could not reach the server." };
   }
 
-  revalidatePath("/admin/approvals");
+  revalidatePath("/admin/campaigns");
+  revalidatePath("/admin/campaigns/[campaignId]", "page");
   return { done: parsed.data.intent === "approve" ? "Campaign approved" : "Campaign rejected" };
 }
 
@@ -127,7 +129,8 @@ export async function reviewCreativeAction(
     return { error: "Could not reach the server." };
   }
 
-  revalidatePath("/admin/approvals");
+  revalidatePath("/admin/campaigns");
+  revalidatePath("/admin/campaigns/[campaignId]", "page");
   return { done: parsed.data.intent === "approve" ? "Creative approved" : "Creative rejected" };
 }
 
@@ -170,7 +173,8 @@ export async function reviewInstallationEvidenceAction(
     if (error instanceof ApiError) return { error: error.message };
     return { error: "Could not reach the server." };
   }
-  revalidatePath("/admin/approvals");
+  revalidatePath("/admin/campaigns");
+  revalidatePath("/admin/campaigns/[campaignId]", "page");
   return {
     done: parsed.data.intent === "approve" ? "Installation approved" : "Installation rejected",
   };

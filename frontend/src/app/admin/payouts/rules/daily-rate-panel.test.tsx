@@ -80,7 +80,7 @@ describe("DailyRatePanel", () => {
       "Minimum miles for any pay (0 for none)",
       "Share of miles outside the campaign area that count (0 to 1)",
       "Starts (future)",
-      "Reason (audited)",
+      "Reason (logged)",
     ]) {
       expect(screen.getByLabelText(label)).toBeInTheDocument();
     }
@@ -109,7 +109,7 @@ describe("DailyRatePanel", () => {
   it("shows the empty history and the not-switched-on state with the form disabled", () => {
     render(<DailyRatePanel campaignId={CAMPAIGN_ID} publishingEnabled={false} revisions={[]} />);
 
-    expect(screen.getByText("No pay revisions for this campaign yet.")).toBeInTheDocument();
+    expect(screen.getByText("No pay versions for this campaign yet.")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Daily-rate pay is not switched on yet.");
     expect(screen.getByLabelText("Day rate (₦)")).toBeDisabled();
     expect(screen.getByRole("button", { name: "Publish daily rate" })).toBeDisabled();

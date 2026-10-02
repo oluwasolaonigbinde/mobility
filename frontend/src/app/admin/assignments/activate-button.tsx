@@ -23,7 +23,7 @@ export function ActivateAssignmentButton({ assignmentId }: { assignmentId: strin
         disabled={pending}
         className="micro text-amber hover:text-amber-soft transition-colors disabled:opacity-50"
       >
-        {pending ? "…" : "Activate"}
+        {pending ? "…" : "Start"}
       </button>
       {error ? (
         <p role="alert" className="text-coral text-xs">

@@ -96,7 +96,7 @@ export function ReportForm({
       </form>
       <p className="text-muted mt-3 text-sm">
         Preparation uses the existing approved reporting method. Downloads remain subject to current
-        access, privacy, and report-readiness checks.
+        access, privacy, and checks before a report can be issued.
       </p>
     </section>
   );

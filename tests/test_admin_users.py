@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 from conftest import (
     auth_headers,
@@ -9,7 +11,8 @@ from starlette import status as http_status
 
 from app.api.v1.dependencies import get_login_rate_limiter
 from app.core.rate_limit import RateLimitDecision
-from app.models.user import UserRole, UserStatus
+from app.models.disbursement import CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID
+from app.models.user import User, UserRole, UserStatus
 
 PASSWORD = "long-secure-password"
 
@@ -277,6 +280,56 @@ def test_admin_can_list_users_with_pagination_shape(db_client, db_sessionmaker) 
     assert data["limit"] == 1
     assert data["offset"] == 0
     assert "password_hash" not in response.text
+
+
+def test_list_users_excludes_automatic_actor_before_search_count_and_paging(
+    db_client, db_sessionmaker
+) -> None:
+    admin = create_test_user(
+        db_sessionmaker,
+        email="human-admin@example.com",
+        password=PASSWORD,
+        full_name="Terrax admin",
+    )
+    other = create_test_user(
+        db_sessionmaker,
+        email="human-staff@example.com",
+        password=PASSWORD,
+        full_name="Terrax staff",
+    )
+
+    async def add_actor() -> None:
+        async with db_sessionmaker() as session:
+            session.add(
+                User(
+                    id=CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID,
+                    email="automatic-payouts@cardvert.invalid",
+                    full_name="Terrax automatic payouts",
+                    password_hash="disabled-system-account",
+                    role=UserRole.ADMIN,
+                    status=UserStatus.DISABLED,
+                )
+            )
+            await session.commit()
+
+    asyncio.run(add_actor())
+    headers = auth_headers(db_client, admin.email, PASSWORD)
+    pages = [
+        db_client.get(
+            f"/api/v1/admin/users?role=admin&q=Terrax&limit=1&offset={offset}", headers=headers
+        )
+        for offset in (0, 1)
+    ]
+    assert all(page.status_code == 200 for page in pages)
+    assert all(page.json()["total"] == 2 for page in pages)
+    assert {page.json()["items"][0]["id"] for page in pages} == {str(admin.id), str(other.id)}
+    actor_search = db_client.get("/api/v1/admin/users?q=automatic-payouts", headers=headers)
+    assert actor_search.status_code == 200
+    assert actor_search.json()["items"] == []
+    assert actor_search.json()["total"] == 0
+    unfiltered = db_client.get("/api/v1/admin/users", headers=headers)
+    assert unfiltered.json()["total"] == 2
+    assert str(CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID) not in unfiltered.text
 
 
 def test_admin_can_update_allowed_user_fields(db_client, db_sessionmaker) -> None:

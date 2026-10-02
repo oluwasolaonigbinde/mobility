@@ -56,7 +56,7 @@ describe("resolveOperation", () => {
       "/api/v1/admin/manual-driver-contact-tasks/{task_id}/complete",
       { params: { path: { task_id: TASK } }, body: { note: "Reached driver", outcome: "reached" } },
     );
-    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/contact");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/support");
     expect(result).toEqual({
       done: "Contact outcome recorded. This does not confirm provider delivery.",
     });
@@ -94,7 +94,7 @@ describe("resolveOperation", () => {
           body: { note: "Reviewed pings" },
         },
       );
-      expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/late-data");
+      expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/trip-checks");
       expect(result).toEqual({
         done: "Evidence decision recorded. Earnings and issued reports were not repriced or rewritten.",
       });

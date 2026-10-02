@@ -43,7 +43,7 @@ describe("reviewCampaignAction", () => {
     expect(mocks.post).toHaveBeenCalledWith("/api/v1/admin/campaigns/{campaign_id}/approve", {
       params: { path: { campaign_id: CAMPAIGN_ID } },
     });
-    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/approvals");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/campaigns");
   });
 
   it("requires and trims a rejection reason before using the dedicated endpoint", async () => {
@@ -108,7 +108,7 @@ describe("reviewCampaignChangeAction", () => {
         body: { reason: "Funded headroom verified" },
       },
     );
-    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/approvals");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/campaigns");
   });
 });
 
@@ -147,7 +147,7 @@ describe("reviewCreativeAction", () => {
       params: { path: { creative_id: CREATIVE_ID } },
       body: { reason: "Replace the low-resolution asset." },
     });
-    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/approvals");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/campaigns");
   });
 });
 

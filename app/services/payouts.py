@@ -3606,7 +3606,7 @@ async def list_payout_calculations(
     vehicle_id: UUID | None,
     calculation_status: str | None,
     currency: str | None,
-) -> tuple[list[PayoutCalculation], int]:
+) -> tuple[list[tuple[PayoutCalculation, datetime, str]], int]:
     filters = []
     if campaign_id is not None:
         filters.append(PayoutCalculation.campaign_id == campaign_id)
@@ -3622,7 +3622,11 @@ async def list_payout_calculations(
     if normalized_currency is not None:
         filters.append(PayoutCalculation.currency == normalized_currency)
 
-    statement = select(PayoutCalculation)
+    statement = (
+        select(PayoutCalculation, TripSession.started_at, Campaign.name)
+        .join(TripSession, TripSession.id == PayoutCalculation.trip_session_id)
+        .join(Campaign, Campaign.id == PayoutCalculation.campaign_id)
+    )
     count_statement = select(func.count()).select_from(PayoutCalculation)
     for filter_expression in filters:
         statement = statement.where(filter_expression)
@@ -3634,7 +3638,7 @@ async def list_payout_calculations(
         .limit(limit)
         .offset(offset)
     )
-    return list(result.scalars().all()), int(total or 0)
+    return [(row[0], row[1], row[2]) for row in result.all()], int(total or 0)
 
 
 async def driver_earnings_summary(

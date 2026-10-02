@@ -62,6 +62,8 @@ acceptances unless a D-row says otherwise (D14, D21).
 - [Legal, privacy and retention](#legal-privacy-and-retention)
 - [File uploads](#file-uploads)
 - [Sign-in security and availability](#sign-in-security-and-availability)
+- [Demo and staging external-input placeholders](#demo-and-staging-external-input-placeholders)
+- [Admin portal](#admin-portal)
 
 ---
 
@@ -86,11 +88,14 @@ Compliance, Finance, Customer Service, Admin) are sections of the admin
 "Waiting for you" work queue, not separate logins (D38e). The client's
 "Finance Officer" is whichever admin handles money. One admin may complete all
 driver approval checks; advertiser logins belong to one company (D29).
+For now, set up one advertiser login per company; do not add invitations for
+additional company staff (D47, REQ-060).
 
 **History:**
 - **2026-09-02** — Owner decision on single-company advertiser logins and one admin for driver checks (D29).
 - **2026-09-24** — Client named its departments; owner mapped them to work-queue sections (D38e). Built in `7a9ceb0` (REQ-001).
 - **2026-09-30** — Owner: no named people per department; everyone uses the one admin role (REQ-031).
+- **2026-10-01** — Owner kept one advertiser login per company for the admin redesign; the proposed additional-person invitation is omitted (D47, REQ-060). Existing membership history and access constraints remain.
 
 ### Pricing and quotations
 
@@ -135,9 +140,11 @@ details: Terrax Media Company Ltd, 73 Lome Crescent, Wuse Zone 7, FCT Abuja,
 (D43g); fields include serial number, RC number, client and CEO signature
 lines, campaign duration, quantity (the number of advert campaigns) and bank
 details (client answers item 6). The invoice leads with the VAT-inclusive
-total; staff still enter prices before VAT. Bank details stay blank ("Not yet
-recorded") until Terrax supplies them, and a real invoice cannot be issued
-without them or without the accountant's sign-off (D42).
+total; staff still enter prices before VAT. Real invoice bank details stay
+unset until Terrax supplies them, and a real invoice cannot be issued without
+them or without the accountant's sign-off (D42). Demo/staging sample invoices
+may use registered seed-backed bank placeholders under D46; these never
+become verified issuer facts or real payment instructions.
 
 **Still open:** [REQ-041](requests.md) OPay bank details;
 [REQ-042](requests.md) accountant's confirmation and [REQ-052](requests.md) someone to check the sample invoice.
@@ -147,6 +154,7 @@ without them or without the accountant's sign-off (D42).
 - **2026-09-24** — Client supplied company details and invoice fields (client answers item 6).
 - **2026-09-29** — Owner approved the invoice layout: bank slots left blank until the real OPay details arrive, prices still entered before VAT (D42, REQ-009). Built in `0b53eab`.
 - **2026-10-01** — Client confirmed 2521515778093 is the TIN and gave the RC number 8688553 (D43g, REQ-019).
+- **2026-10-01** — Owner's authoritative admin design allows registered bank placeholders only on demo/staging sample invoices (D46, REQ-059); real issuance remains fail closed.
 
 ### Budgets and alerts
 
@@ -439,3 +447,54 @@ The API image defaults to two configurable workers (D45).
 **History:**
 - **Before Lane 1 integration** — The global login-failure bucket could block all sign-ins, and password work ran on the request event loop.
 - **2026-10-01** — Owner requested integration of Lane 1's availability and password-work controls, preserving automatic-payout account protection (D45, REQ-054).
+
+### Demo and staging external-input placeholders
+
+**Current rule:** Use realistic seed-backed content for missing external inputs
+in demo/staging, without sample badges, and list every placeholder, location,
+real replacement input and waiting request in `docs/placeholders.md` (D46,
+REQ-059). Existing synthetic modes and fail-closed controls remain binding.
+Never substitute real accepted legal/consent text, real verified invoice or
+payment bank details, or pay/payout values. Missing features are built from
+seed-backed functionality or omitted; no hard-coded fake UI or nonworking
+buttons. The owner expects the registered demo inputs to be replaced before
+launch; replacement is a launch checklist task, with no additional runtime
+blocker authorized by that clarification.
+
+**History:**
+- **2026-10-01** — The earlier L2-1 preview proposed labelled demo cards. The owner's authoritative design section 11 superseded it with realistic registered external-input placeholders (D46, REQ-059).
+- **2026-10-01** — Owner clarified that demo inputs will be replaced before launch and questioned a new code gate. Keep the replacement checklist and existing fail-closed checks; no new backend gate is approved.
+
+### Admin portal
+
+**Current rule:** The authoritative 1 October design governs the task-based
+admin menu, named search, driver/campaign/company hubs and section drawers
+(D48, REQ-058). The latest owner review applies development replacement policy:
+remove obsolete admin routes and redirects, and update current callers to the
+canonical hubs/work lists (D51, REQ-067). Settings staff logins list Terrax
+staff only and hide the automatic-payout account. Driver and advertiser logins
+live with their own records; campaign Pay terms belong on the campaign hub.
+One advertiser login per company remains the current scope (D47). Review
+documents through the existing audited access controls, and use existing
+server decisions for activation, funding, pay and report issuance.
+
+The task home/menu label is **Work queue** (D50, REQ-065). The owner explicitly
+authorized starting L2-1b on the incomplete expedited A checkpoint (REQ-064);
+A acceptance remains open; the owner authorized the two source commits while tracked acceptance gaps remain. The four specified read additions, the
+company-list move and phone search are approved. Actual trip dates/campaign names on the pay list are separately approved (REQ-068). Other B read approvals and their evidence are recorded in the second batch. Other additional reads remain
+subject to the owner's decision. REQ-062 records the open pay-summary and
+campaign-area gap. A data-read failure must never appear as a confirmed empty
+list, completed check or zero balance.
+
+**History:**
+
+- **2026-10-02** — Earlier explicit old-URL preservation ended: the owner
+  requires removal of obsolete route pages and redirects under the development
+  policy, plus glossary/failure/performance fixes (D51, REQ-067). Read-only
+  physical-check paging and trip-date/campaign-name details were approved
+  separately (REQ-066, REQ-068). The owner will perform the browser walkthrough.
+- **2026-10-02** — The owner renamed the task home/menu Work queue (D50, REQ-065) and explicitly authorized starting the next batch while A gaps remain tracked (REQ-064).
+- **2026-10-02** — Deadline exception: target approximately 70% changed-code coverage locally for L2-1a, document unfinished requirements and proceed to the next batch (D49, REQ-063). Existing correctness/access checks and normal CI policy remain.
+- **2026-10-01** — The owner replaced the earlier menu/page preview with the authoritative admin design and its two-batch order (D48, REQ-058).
+- **2026-10-01** — The owner moved company search to the first batch, kept one company login and required demo inputs to be replaced before launch through the documented checklist (D47).
+- **2026-10-01** — Phone-number matching in the existing driver search was separately approved (REQ-061).

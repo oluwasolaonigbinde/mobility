@@ -10,10 +10,16 @@ import { SearchSelect } from "../../search-select";
 import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 
-export function AssignmentForm() {
+export function AssignmentForm({
+  campaignId,
+  driverId,
+}: {
+  campaignId?: string;
+  driverId?: string;
+}) {
   const [state, action, pending] = useActionState(createAssignmentAction, {} as AdminActionState);
-  const [campaign, setCampaign] = useState("");
-  const [driver, setDriver] = useState("");
+  const [campaign, setCampaign] = useState(campaignId ?? "");
+  const [driver, setDriver] = useState(driverId ?? "");
   const [vehicle, setVehicle] = useState("");
   const [city, setCity] = useState("");
   const [recommendations, setRecommendations] = useState<AssignmentRecommendation[]>([]);
@@ -22,30 +28,38 @@ export function AssignmentForm() {
   const [finding, start] = useTransition();
   return (
     <form action={action} className="flex flex-col gap-5">
+      {campaignId ? (
+        <input type="hidden" name="campaign_id" value={campaignId} />
+      ) : (
+        <SearchSelect
+          kind="campaign"
+          name="campaign_id"
+          label="Campaign"
+          value={campaign}
+          onSelect={(id) => {
+            setCampaign(id);
+            setSelected(undefined);
+            setRecommendations([]);
+          }}
+        />
+      )}
+      {driverId ? (
+        <input type="hidden" name="driver_profile_id" value={driverId} />
+      ) : (
+        <SearchSelect
+          kind="driver"
+          name="driver_profile_id"
+          label="Driver"
+          value={driver}
+          onSelect={(id) => {
+            setDriver(id);
+            setVehicle("");
+            setSelected(undefined);
+          }}
+        />
+      )}
       <SearchSelect
-        kind="campaign"
-        name="campaign_id"
-        label="Campaign"
-        value={campaign}
-        onSelect={(id) => {
-          setCampaign(id);
-          setSelected(undefined);
-          setRecommendations([]);
-        }}
-      />
-      <SearchSelect
-        kind="driver"
-        name="driver_profile_id"
-        label="Driver"
-        value={driver}
-        onSelect={(id) => {
-          setDriver(id);
-          setVehicle("");
-          setSelected(undefined);
-        }}
-      />
-      <SearchSelect
-        key={driver}
+        key={`vehicle-${driver}`}
         kind="vehicle"
         name="vehicle_id"
         label="Vehicle"
@@ -57,7 +71,7 @@ export function AssignmentForm() {
         }}
       />
       <SearchSelect
-        key={campaign}
+        key={`creative-${campaign}`}
         kind="creative"
         name="creative_id"
         label="Approved artwork"
@@ -82,13 +96,17 @@ export function AssignmentForm() {
                 campaign_id: campaign,
                 service_city: city,
               });
-              setRecommendations(next.candidates ?? []);
+              setRecommendations(
+                (next.candidates ?? []).filter(
+                  (candidate) => !driverId || candidate.driver_profile_id === driverId,
+                ),
+              );
               setError(next.error);
               setSelected(undefined);
             })
           }
         >
-          {finding ? "Finding…" : "Find candidates"}
+          {finding ? "Finding…" : "Find drivers"}
         </Button>
         {error ? <p role="alert">{error}</p> : null}
         {recommendations.map((c) => (

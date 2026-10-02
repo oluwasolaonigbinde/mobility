@@ -1,31 +1,33 @@
 import type { ReactNode } from "react";
 import { requireRole } from "@/lib/auth/current-user";
 import { AppShell, type NavItem } from "@/components/shell/app-shell";
-
-const nav: NavItem[] = [
-  { href: "/admin", label: "Overview", exact: true },
-  { href: "/admin/users", label: "Users", group: "People & cars" },
-  { href: "/admin/drivers", label: "Drivers", group: "People & cars" },
-  { href: "/admin/driver-applications", label: "Driver applications", group: "People & cars" },
-  { href: "/admin/vehicles", label: "Vehicles", group: "People & cars" },
-  { href: "/admin/contact", label: "Driver contact", group: "People & cars" },
-  { href: "/admin/complaints", label: "Customer Service", group: "People & cars" },
-  { href: "/admin/approvals", label: "Approvals", group: "Campaigns" },
-  { href: "/admin/assignments", label: "Assignments", group: "Campaigns" },
-  { href: "/admin/planning-sources", label: "Planning sources", group: "Campaigns" },
-  { href: "/admin/fraud", label: "Fraud", group: "Trips & money" },
-  { href: "/admin/late-data", label: "Late trip evidence", group: "Trips & money" },
-  { href: "/admin/payouts", label: "Payouts", group: "Trips & money" },
-  { href: "/admin/billing", label: "Billing", group: "Trips & money" },
-  { href: "/admin/measurement", label: "Measurement & reports", group: "Reports & records" },
-  { href: "/admin/traffic", label: "Traffic", group: "Reports & records" },
-  { href: "/admin/audit", label: "Audit", group: "Reports & records" },
-];
+import { createApiClient } from "@/lib/api/client";
+import { getSessionToken } from "@/lib/auth/session";
+import { GlobalSearch } from "./global-search";
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const me = await requireRole("admin");
+  const api = createApiClient(await getSessionToken());
+  const counts = await Promise.allSettled([
+    api.GET("/api/v1/admin/driver-applications", { params: { query: { limit: 1 } } }),
+    api.GET("/api/v1/admin/campaigns/pending-review", { params: { query: { limit: 1 } } }),
+    api.GET("/api/v1/admin/creatives/pending-review", { params: { query: { limit: 1 } } }),
+  ]);
+  const count = (index: number) => {
+    const result = counts[index];
+    return result?.status === "fulfilled" ? result.value.data?.total : undefined;
+  };
+  const campaignCount =
+    count(1) !== undefined && count(2) !== undefined ? count(1)! + count(2)! : undefined;
+  const nav: NavItem[] = [
+    { href: "/admin", label: "Work queue", exact: true },
+    { href: "/admin/drivers", label: "Drivers", count: count(0) },
+    { href: "/admin/campaigns", label: "Campaigns", count: campaignCount },
+    { href: "/admin/advertisers", label: "Advertisers" },
+    { href: "/admin/settings/staff", label: "Settings" },
+  ];
   return (
-    <AppShell me={me} nav={nav}>
+    <AppShell me={me} nav={nav} search={<GlobalSearch />}>
       {children}
     </AppShell>
   );

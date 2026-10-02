@@ -9,44 +9,48 @@ import { cx } from "@/lib/cx";
 const initialState: AdminActionState = {};
 
 const ROLES = [
-  { value: "advertiser", label: "Advertiser", hint: "Runs campaigns; gets an organization" },
+  { value: "advertiser", label: "Advertiser", hint: "Runs campaigns; gets a company" },
   { value: "driver", label: "Driver", hint: "Drives, tracks trips, earns" },
-  { value: "admin", label: "Admin / Ops", hint: "Full network control" },
+  { value: "admin", label: "Terrax staff", hint: "Full network control" },
 ] as const;
 
-export function CreateUserForm() {
+export function CreateUserForm({ fixedRole }: { fixedRole?: "admin" | "driver" | "advertiser" }) {
   const [state, formAction, pending] = useActionState(createUserAction, initialState);
-  const [role, setRole] = useState<string>("advertiser");
+  const [role, setRole] = useState<string>(fixedRole ?? "advertiser");
 
   return (
     <form action={formAction} className="flex flex-col gap-5" noValidate>
-      <fieldset>
-        <legend className="micro text-muted mb-2">Role</legend>
-        <div className="grid gap-2 sm:grid-cols-3">
-          {ROLES.map((r) => (
-            <label
-              key={r.value}
-              className={cx(
-                "min-w-0 cursor-pointer rounded-lg border p-3.5 transition-colors",
-                role === r.value
-                  ? "border-amber/60 bg-amber/10"
-                  : "border-edge bg-raised hover:border-edge-strong",
-              )}
-            >
-              <input
-                type="radio"
-                name="role"
-                value={r.value}
-                checked={role === r.value}
-                onChange={() => setRole(r.value)}
-                className="sr-only"
-              />
-              <span className="block text-sm font-medium">{r.label}</span>
-              <span className="micro text-faint mt-0.5 block">{r.hint}</span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      {fixedRole ? (
+        <input type="hidden" name="role" value={fixedRole} />
+      ) : (
+        <fieldset>
+          <legend className="micro text-muted mb-2">Role</legend>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {ROLES.map((r) => (
+              <label
+                key={r.value}
+                className={cx(
+                  "min-w-0 cursor-pointer rounded-lg border p-3.5 transition-colors",
+                  role === r.value
+                    ? "border-amber/60 bg-amber/10"
+                    : "border-edge bg-raised hover:border-edge-strong",
+                )}
+              >
+                <input
+                  type="radio"
+                  name="role"
+                  value={r.value}
+                  checked={role === r.value}
+                  onChange={() => setRole(r.value)}
+                  className="sr-only"
+                />
+                <span className="block text-sm font-medium">{r.label}</span>
+                <span className="micro text-faint mt-0.5 block">{r.hint}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Full name" name="full_name" required placeholder="e.g. Amina Yusuf" />
@@ -83,10 +87,10 @@ export function CreateUserForm() {
       {role === "advertiser" ? (
         <div className="border-edge flex flex-col gap-4 rounded-xl border border-dashed p-4">
           <p className="micro text-muted">
-            Advertiser organization{" "}
+            Advertiser company{" "}
             <span className="text-faint">(optional — created with this user as owner)</span>
           </p>
-          <Field label="Organization name" name="org_name" placeholder="e.g. MTN Nigeria" />
+          <Field label="Company name" name="org_name" placeholder="e.g. MTN Nigeria" />
           <Field
             label="Currency"
             name="org_currency"

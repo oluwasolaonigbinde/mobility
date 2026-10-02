@@ -129,7 +129,9 @@ async def list_driver_profiles(
     if q and q.strip():
         from app.services.operator_search import operator_search
 
-        filters.append(operator_search(q, User.full_name, User.email, DriverProfile.service_city))
+        filters.append(
+            operator_search(q, User.full_name, User.email, User.phone, DriverProfile.service_city)
+        )
     if onboarding_status is not None:
         filters.append(DriverProfile.onboarding_status == onboarding_status)
     normalized_country_code = normalize_optional_country_code(country_code)

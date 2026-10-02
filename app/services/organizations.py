@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
@@ -42,6 +42,27 @@ ADVERTISER_PROFILE_FIELDS = frozenset(
 ADMIN_PROFILE_FIELDS = ADVERTISER_PROFILE_FIELDS | frozenset(
     {"country_code", "currency", "status", "profile_notes"}
 )
+
+
+async def list_advertiser_organizations(
+    session: AsyncSession, *, q: str | None, limit: int, offset: int
+) -> tuple[list[AdvertiserOrganization], int]:
+    from app.services.operator_search import operator_search
+
+    filters = []
+    if q and q.strip():
+        filters.append(operator_search(q, AdvertiserOrganization.name))
+    total = await session.scalar(
+        select(func.count()).select_from(AdvertiserOrganization).where(*filters)
+    )
+    result = await session.scalars(
+        select(AdvertiserOrganization)
+        .where(*filters)
+        .order_by(AdvertiserOrganization.name, AdvertiserOrganization.id)
+        .limit(limit)
+        .offset(offset)
+    )
+    return list(result), int(total or 0)
 
 
 def _normalize_profile_value(field: str, value: object) -> str | None:

@@ -184,8 +184,9 @@ async def list_users(
     user_status: str | None,
     q: str | None = None,
 ) -> tuple[list[User], int]:
-    statement: Select[tuple[User]] = select(User)
-    count_statement = select(func.count()).select_from(User)
+    human_account = User.id != CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID
+    statement: Select[tuple[User]] = select(User).where(human_account)
+    count_statement = select(func.count()).select_from(User).where(human_account)
     if q and q.strip():
         search = operator_search(q, User.full_name, User.email)
         statement = statement.where(search)

@@ -420,8 +420,13 @@ class PayoutCalculationRead(DecimalStringMixin):
     updated_at: datetime
 
 
+class AdminPayoutCalculationRead(PayoutCalculationRead):
+    trip_started_at: datetime
+    campaign_name: str
+
+
 class PayoutCalculationListResponse(BaseModel):
-    items: list[PayoutCalculationRead]
+    items: list[AdminPayoutCalculationRead]
     total: int
     limit: int
     offset: int

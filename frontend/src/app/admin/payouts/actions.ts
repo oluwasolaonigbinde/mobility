@@ -76,5 +76,6 @@ export async function processTripAction(
   }
 
   revalidatePath("/admin/payouts");
+  revalidatePath("/admin/drivers/[driverId]", "page");
   return { steps };
 }

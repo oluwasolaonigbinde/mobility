@@ -25,7 +25,12 @@ from app.schemas.driver_onboarding import (
     PersonPayeeReviewDecisionCreate,
     VehicleReviewDecisionCreate,
 )
-from app.schemas.organizations import AdminOrganizationCreateResponse, AdvertiserOrganizationCreate
+from app.schemas.organizations import (
+    AdminOrganizationCreateResponse,
+    AdminOrganizationListResponse,
+    AdvertiserOrganizationCreate,
+    AdvertiserOrganizationRead,
+)
 from app.schemas.users import UserCreate, UserListResponse, UserRead, UserUpdate
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
@@ -35,7 +40,10 @@ from app.services.driver_onboarding import (
     application_person_payee_view,
     review_application_person_payee,
 )
-from app.services.organizations import create_advertiser_organization
+from app.services.organizations import (
+    create_advertiser_organization,
+    list_advertiser_organizations,
+)
 from app.services.users import create_user, list_users, update_user
 from app.services.vehicle_onboarding import (
     VehicleStageView,
@@ -92,6 +100,30 @@ def _admin_vehicle_response(view: VehicleStageView) -> AdminVehicleStageRead:
         decided_at=decision.created_at if decision else None,
         document_file_ids=view.document_file_ids,
         decided_by_user_id=decision.decided_by_user_id if decision else None,
+    )
+
+
+@router.get(
+    "/advertiser-organizations",
+    response_model=AdminOrganizationListResponse,
+    summary="List advertiser companies",
+)
+async def admin_list_advertiser_organizations(
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+    q: Annotated[str | None, Query(max_length=120)] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> AdminOrganizationListResponse:
+    del current_user
+    organizations, total = await list_advertiser_organizations(
+        session, q=q, limit=limit, offset=offset
+    )
+    return AdminOrganizationListResponse(
+        items=[AdvertiserOrganizationRead.model_validate(org) for org in organizations],
+        total=total,
+        limit=limit,
+        offset=offset,
     )
 
 
@@ -169,6 +201,8 @@ async def admin_list_driver_applications(
     offset: Annotated[int, Query(ge=0)] = 0,
     q: Annotated[str | None, Query(max_length=120)] = None,
     history: bool = False,
+    user_id: UUID | None = None,
+    driver_profile_id: UUID | None = None,
 ) -> DriverApplicationAdminListResponse:
     applications, total = await list_driver_applications(
         session,
@@ -177,6 +211,8 @@ async def admin_list_driver_applications(
         offset=offset,
         q=q,
         history=history,
+        user_id=user_id,
+        driver_profile_id=driver_profile_id,
     )
     items = []
     for application in applications:

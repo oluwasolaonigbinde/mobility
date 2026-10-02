@@ -78,7 +78,8 @@ export async function saveRuleAction(
     if (error instanceof ApiError) return { error: error.message };
     return { error: "Could not reach the server." };
   }
-  revalidatePath("/admin/payouts/rules");
+  revalidatePath("/admin/campaigns");
+  revalidatePath("/admin/campaigns/[campaignId]", "page");
   return { saved: true };
 }
 
@@ -127,7 +128,8 @@ export async function createRevisionAction(
     if (error instanceof ApiError) return { error: error.message };
     return { error: "Could not reach the server." };
   }
-  revalidatePath("/admin/payouts/rules");
+  revalidatePath("/admin/campaigns");
+  revalidatePath("/admin/campaigns/[campaignId]", "page");
   return { created: true };
 }
 
@@ -180,6 +182,7 @@ export async function publishDailyRateAction(
     }
     return { error: "Could not reach the server. Try again.", values: raw };
   }
-  revalidatePath("/admin/payouts/rules");
+  revalidatePath("/admin/campaigns");
+  revalidatePath("/admin/campaigns/[campaignId]", "page");
   return { created: true };
 }

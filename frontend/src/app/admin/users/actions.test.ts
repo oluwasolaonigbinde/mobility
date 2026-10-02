@@ -1,11 +1,16 @@
 import { beforeEach, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ post: vi.fn(), patch: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  post: vi.fn(),
+  patch: vi.fn(),
+  get: vi.fn(),
+  redirect: vi.fn(),
+}));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
+vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
 vi.mock("@/lib/api/client", () => ({
-  createApiClient: () => ({ POST: mocks.post, PATCH: mocks.patch }),
+  createApiClient: () => ({ POST: mocks.post, PATCH: mocks.patch, GET: mocks.get }),
 }));
 import { createUserAction, updateUserStatusAction } from "./actions";
 
@@ -55,4 +60,16 @@ it("forwards reactivation proof without putting it in returned state", async () 
     body: { status: "active", current_password: " proof with spaces " },
   });
   expect(result).toEqual({});
+});
+
+it.each([["admin", "/admin/settings/staff"], ["driver", "/admin/drivers"], ["advertiser", "/admin/advertisers"]])("uses the canonical destination for %s", async (role, destination) => {
+  await createUserAction({}, form(role, role === "admin" ? "proof" : undefined));
+  expect(mocks.redirect).toHaveBeenCalledWith(destination);
+});
+it("opens the actual created company, not the advertiser login", async () => {
+  const data = form("advertiser");
+  data.set("org_name", "Company");
+  mocks.post.mockResolvedValueOnce({ data: { id: "login-id" } }).mockResolvedValueOnce({ data: { organization: { id: "actual-company" } } });
+  await createUserAction({}, data);
+  expect(mocks.redirect).toHaveBeenCalledWith("/admin/advertisers/actual-company");
 });

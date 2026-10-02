@@ -29,18 +29,22 @@ async function fillPeriod(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("IssueMeasurementForm", () => {
-  beforeEach(() => issueMeasurement.mockReset());
+  beforeEach(() => {
+    issueMeasurement.mockReset();
+  });
 
   it("submits the selected campaign, UTC period and synthetic flag and reports the result", async () => {
-    issueMeasurement.mockResolvedValue({ done: "Measurement run recorded. Open it to review." });
+    issueMeasurement.mockResolvedValue({
+      done: "Results calculation recorded. Open it to review.",
+    });
     const user = userEvent.setup();
     render(<IssueMeasurementForm />);
     expect(screen.getByText(/does not\s+issue downloads, confirm physical activity/)).toBeTruthy();
     await fillPeriod(user);
     await user.click(screen.getByRole("checkbox", { name: "Synthetic test data only" }));
-    await user.click(screen.getByRole("button", { name: "Prepare measurement run" }));
+    await user.click(screen.getByRole("button", { name: "Prepare results calculation" }));
 
-    expect(await screen.findByRole("status")).toHaveTextContent("Measurement run recorded");
+    expect(await screen.findByRole("status")).toHaveTextContent("Results calculation recorded");
     expect(issueMeasurement).toHaveBeenCalledTimes(1);
     const sent = Object.fromEntries((issueMeasurement.mock.calls[0]![1] as FormData).entries());
     expect(sent).toMatchObject({
@@ -60,11 +64,11 @@ describe("IssueMeasurementForm", () => {
     const user = userEvent.setup();
     render(<IssueMeasurementForm />);
     await fillPeriod(user);
-    await user.click(screen.getByRole("button", { name: "Prepare measurement run" }));
+    await user.click(screen.getByRole("button", { name: "Prepare results calculation" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("complete UTC period timestamps");
 
     await fillPeriod(user);
-    await user.click(screen.getByRole("button", { name: "Prepare measurement run" }));
+    await user.click(screen.getByRole("button", { name: "Prepare results calculation" }));
     await vi.waitFor(() => expect(issueMeasurement).toHaveBeenCalledTimes(2));
     const [first, second] = issueMeasurement.mock.calls.map((call) =>
       (call[1] as FormData).get("client_request_id"),

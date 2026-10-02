@@ -3,6 +3,7 @@
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { SensitiveReview } from "./sensitive-review";
+import { adminDocumentLabel } from "@/lib/status/admin";
 import {
   reviewVehicleAction,
   reviewVehicleEvidenceAction,
@@ -71,7 +72,7 @@ export function VehicleDecisionActions({
         <input type="hidden" name="vehicle_id" value={vehicleId} />
         <input type="hidden" name="submission_id" value={submissionId} />
         <input type="hidden" name="client_request_id" value={decisionRequestId} />
-        <p className="micro text-muted">Current approved vehicle</p>
+        <p className="micro text-muted">Current approved car</p>
         <Button
           type="submit"
           name="intent"
@@ -97,14 +98,14 @@ export function VehicleDecisionActions({
   }
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <p className="micro text-muted">Audited vehicle revision review</p>
+      <p className="micro text-muted">Review this car’s current documents (logged)</p>
       {Object.entries(documentFileIds).map(([name, fileId]) => (
-        <SensitiveReview key={fileId} purpose="Vehicle approval">
+        <SensitiveReview key={fileId} purpose="Car approval">
           <EvidenceRead
             key={fileId}
             fileId={fileId}
             submissionId={submissionId}
-            label={`Review ${name.replaceAll("_", " ")}`}
+            label={`Review ${adminDocumentLabel(name)}`}
           />
         </SensitiveReview>
       ))}
@@ -117,7 +118,7 @@ export function VehicleDecisionActions({
           <input type="checkbox" name="owner_match_confirmed" /> Owner matches
         </label>
         <label className="text-muted flex items-center gap-2 text-xs">
-          <input type="checkbox" name="vehicle_identity_confirmed" /> Vehicle identity matches
+          <input type="checkbox" name="vehicle_identity_confirmed" /> Car details match
         </label>
         <label className="text-muted flex items-center gap-2 text-xs">
           <input type="checkbox" name="roadworthy_confirmed" /> Roadworthy
@@ -144,13 +145,13 @@ export function VehicleDecisionActions({
             defaultValue="unreadable_evidence"
             className="border-edge bg-raised text-ink rounded-lg border px-2 py-2 text-xs"
           >
-            <option value="unreadable_evidence">Unreadable evidence</option>
+            <option value="unreadable_evidence">Unreadable documents</option>
             <option value="vehicle_identity_mismatch">Vehicle identity mismatch</option>
             <option value="owner_mismatch">Owner mismatch</option>
             <option value="not_roadworthy">Not roadworthy</option>
             <option value="not_pilot_eligible">Not pilot eligible</option>
-            <option value="unsafe_evidence">Unsafe evidence</option>
-            <option value="missing_evidence">Missing evidence</option>
+            <option value="unsafe_evidence">Unsafe documents</option>
+            <option value="missing_evidence">Missing documents</option>
           </select>
         </label>
         <div className="flex flex-wrap gap-2">

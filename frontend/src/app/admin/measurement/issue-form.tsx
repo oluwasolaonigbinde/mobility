@@ -2,7 +2,7 @@
 import { useActionState, useState } from "react";
 import { issueMeasurement } from "./actions";
 import { SearchSelect } from "../search-select";
-export function IssueMeasurementForm() {
+export function IssueMeasurementForm({ campaignId }: { campaignId?: string }) {
   const [request] = useState(() => crypto.randomUUID());
   const [state, action, pending] = useActionState(
     issueMeasurement,
@@ -10,10 +10,14 @@ export function IssueMeasurementForm() {
   );
   return (
     <details className="border-edge mb-6 rounded-xl border p-4">
-      <summary className="cursor-pointer">Prepare a measurement run</summary>
+      <summary className="cursor-pointer">Prepare a results calculation</summary>
       <form action={action} className="mt-4 grid gap-3">
         <input type="hidden" name="client_request_id" value={request} />
-        <SearchSelect kind="campaign" name="campaign_id" label="Campaign" />
+        {campaignId ? (
+          <input type="hidden" name="campaign_id" value={campaignId} />
+        ) : (
+          <SearchSelect kind="campaign" name="campaign_id" label="Campaign" />
+        )}
         <label>
           Period start (UTC)
           <input
@@ -36,12 +40,12 @@ export function IssueMeasurementForm() {
           <input type="checkbox" name="test_only" /> Synthetic test data only
         </label>
         <p className="text-muted text-sm">
-          Creates an immutable measurement snapshot using the existing reporting method. It does not
-          issue downloads, confirm physical activity, or calculate ROI. Live method and privacy
-          approval remain required.
+          Saves a results calculation using the existing reporting method. It does not issue
+          downloads, confirm physical activity, or calculate ROI. Live method and privacy approval
+          remain required.
         </p>
         <button disabled={pending} className="bg-amber text-bg rounded p-3">
-          {pending ? "Preparing…" : "Prepare measurement run"}
+          {pending ? "Preparing…" : "Prepare results calculation"}
         </button>
         {state.error ? <p role="alert">{state.error}</p> : null}
         {state.done ? <p role="status">{state.done}</p> : null}

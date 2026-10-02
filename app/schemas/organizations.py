@@ -42,6 +42,13 @@ class OrganizationMembershipRead(BaseModel):
     status: MembershipStatus
 
 
+class AdminOrganizationListResponse(BaseModel):
+    items: list[AdvertiserOrganizationRead]
+    total: int
+    limit: int
+    offset: int
+
+
 class AdminOrganizationCreateResponse(BaseModel):
     organization: AdvertiserOrganizationRead
     owner_membership: OrganizationMembershipRead | None

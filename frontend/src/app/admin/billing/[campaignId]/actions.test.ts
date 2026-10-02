@@ -33,7 +33,7 @@ describe("recordRevisionAction", () => {
     form.set("payment_terms", "Pay before printing");
 
     await expect(recordRevisionAction("campaign-1", "quote-1", form)).rejects.toThrow(
-      "redirect:/admin/billing/campaign-1?saved=quotation",
+      "redirect:/admin/campaigns/campaign-1?saved=quotation#money",
     );
     expect(post).toHaveBeenCalledWith("/api/v1/admin/quote-requests/{quote_request_id}/revisions", {
       params: { path: { quote_request_id: "quote-1" } },

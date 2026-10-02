@@ -13,7 +13,7 @@ beforeEach(() => {
 it("requires a masked password to activate an administrator and clears it after submission", async () => {
   const user = userEvent.setup();
   render(<UserStatusMenu userId="target" userLabel="Ada Admin" role="admin" status="invited" />);
-  await user.click(screen.getByRole("button", { name: "Reactivate" }));
+  await user.click(screen.getByRole("button", { name: "Restore" }));
   expect(update).not.toHaveBeenCalled();
   const proof = screen.getByLabelText("Your current password");
   expect(proof).toHaveAttribute("type", "password");
@@ -33,7 +33,7 @@ it("keeps ordinary driver reactivation free of elevation proof", async () => {
   render(
     <UserStatusMenu userId="driver" userLabel="Tunde Driver" role="driver" status="suspended" />,
   );
-  await user.click(screen.getByRole("button", { name: "Reactivate" }));
+  await user.click(screen.getByRole("button", { name: "Restore" }));
   expect(update).toHaveBeenCalledWith({ userId: "driver", status: "active" });
 });
 

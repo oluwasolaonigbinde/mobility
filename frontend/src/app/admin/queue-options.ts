@@ -2,8 +2,10 @@
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { z } from "zod";
+import { adminStatus } from "@/lib/status/admin";
 
-export type SelectionKind = "campaign" | "driver" | "vehicle" | "creative";
+export type SelectionKind =
+  "campaign" | "campaign_any" | "driver" | "driver_any" | "vehicle" | "creative";
 export type SelectionOption = {
   id: string;
   label: string;
@@ -19,7 +21,7 @@ export async function searchOperatorOptions(input: {
 }): Promise<{ items: SelectionOption[]; total: number; error?: string }> {
   const parsed = z
     .object({
-      kind: z.enum(["campaign", "driver", "vehicle", "creative"]),
+      kind: z.enum(["campaign", "campaign_any", "driver", "driver_any", "vehicle", "creative"]),
       q: z.string().max(120),
       offset: z.number().int().nonnegative(),
       parentId: z.string().uuid().optional(),
@@ -29,7 +31,7 @@ export async function searchOperatorOptions(input: {
   const { kind, q, offset, parentId } = parsed.data;
   const api = createApiClient(await getSessionToken());
   try {
-    if (kind === "campaign") {
+    if (kind === "campaign" || kind === "campaign_any") {
       const { data } = await api.GET("/api/v1/admin/campaigns", {
         params: { query: { q, limit: 25, offset } },
       });
@@ -39,14 +41,15 @@ export async function searchOperatorOptions(input: {
         items: data.items.map((c) => ({
           id: c.id,
           label: c.name,
-          detail: `${c.status} · ${c.id.slice(0, 8)}`,
-          unavailable: ["approved", "scheduled", "active"].includes(c.status)
-            ? undefined
-            : "Campaign approval required",
+          detail: adminStatus(c.status, "campaign"),
+          unavailable:
+            kind === "campaign_any" || ["approved", "scheduled", "active"].includes(c.status)
+              ? undefined
+              : "Campaign approval required",
         })),
       };
     }
-    if (kind === "driver") {
+    if (kind === "driver" || kind === "driver_any") {
       const { data } = await api.GET("/api/v1/admin/drivers", {
         params: { query: { q, limit: 25, offset } },
       });
@@ -58,7 +61,9 @@ export async function searchOperatorOptions(input: {
           label: d.full_name,
           detail: `${d.email} · ${d.service_city ?? "No city"}`,
           unavailable:
-            d.onboarding_status === "active" ? undefined : `Driver ${d.onboarding_status}`,
+            kind === "driver_any" || d.onboarding_status === "active"
+              ? undefined
+              : `Driver: ${adminStatus(d.onboarding_status, "driver")}`,
         })),
       };
     }
@@ -73,7 +78,7 @@ export async function searchOperatorOptions(input: {
         items: data.items.map((v) => ({
           id: v.id,
           label: v.plate_number,
-          detail: [v.make, v.model, v.status].filter(Boolean).join(" · "),
+          detail: [v.make, v.model, adminStatus(v.status)].filter(Boolean).join(" · "),
           unavailable:
             v.status === "active" && v.vehicle_type === "car"
               ? undefined
@@ -91,7 +96,7 @@ export async function searchOperatorOptions(input: {
       items: data.items.map((c) => ({
         id: c.id,
         label: c.name,
-        detail: `${c.placement} · ${c.status} · ${c.id.slice(0, 8)}`,
+        detail: adminStatus(c.status, "review"),
         fileId: c.stored_file_id ?? undefined,
         unavailable:
           c.status === "approved" && c.scan_status === "clean"

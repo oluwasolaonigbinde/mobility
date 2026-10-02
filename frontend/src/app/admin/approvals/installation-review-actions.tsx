@@ -54,9 +54,11 @@ async function loadEvidencePhoto(fileId: string): Promise<PhotoResult> {
 export function InstallationReviewActions({
   submissionId,
   photos,
+  canReview = true,
 }: {
   submissionId: string;
   photos: { view: string; stored_file_id: string }[];
+  canReview?: boolean;
 }) {
   const [state, formAction] = useActionState(reviewInstallationEvidenceAction, initialState);
   const [openingFileId, setOpeningFileId] = useState<string>();
@@ -137,17 +139,21 @@ export function InstallationReviewActions({
           </figcaption>
         </figure>
       ) : null}
-      <label className="flex w-full flex-col gap-1">
-        <span className="micro text-muted">Rejection reason</span>
-        <textarea
-          name="reason"
-          maxLength={2000}
-          aria-label="Installation evidence rejection reason"
-          placeholder="Explain which installation view must change"
-          className="border-edge bg-raised text-ink focus:border-amber min-h-20 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none"
-        />
-      </label>
-      <DecisionButtons />
+      {canReview ? (
+        <>
+          <label className="flex w-full flex-col gap-1">
+            <span className="micro text-muted">Rejection reason</span>
+            <textarea
+              name="reason"
+              maxLength={2000}
+              aria-label="Installation evidence rejection reason"
+              placeholder="Explain which installation view must change"
+              className="border-edge bg-raised text-ink focus:border-amber min-h-20 w-full rounded-lg border px-3 py-2 text-sm focus:outline-none"
+            />
+          </label>
+          <DecisionButtons />
+        </>
+      ) : null}
       <div aria-live="polite">
         {state.error ? (
           <p role="alert" className="text-coral text-right text-xs">

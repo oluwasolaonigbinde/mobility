@@ -35,6 +35,6 @@ describe("cancelAssignmentAction", () => {
         body: { reason: "Vehicle removed from campaign scope" },
       },
     );
-    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/assignments");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/campaigns");
   });
 });

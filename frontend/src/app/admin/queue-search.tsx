@@ -29,8 +29,7 @@ export function QueueSearch({
 export function QueueUnavailable() {
   return (
     <p role="alert" className="border-coral/40 text-coral rounded-lg border p-4">
-      This work list is unavailable. Reload to try again. No empty or complete result has been
-      confirmed.
+      Couldn&apos;t load this section — try again
     </p>
   );
 }

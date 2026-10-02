@@ -23,7 +23,7 @@ const createUserSchema = z
     role: z.enum(["admin", "advertiser", "driver"]),
     password: z.string().min(12, "Password must be at least 12 characters"),
     current_password: z.string().optional(),
-    // Advertiser onboarding: optionally create the organization in the same step
+    // Advertiser onboarding optionally creates its company.
     org_name: z
       .string()
       .trim()
@@ -49,7 +49,7 @@ const createUserSchema = z
       ctx.addIssue({
         code: "custom",
         path: ["org_name"],
-        message: "Organizations attach to advertiser users",
+        message: "Companies attach to advertiser logins",
       });
     }
   });
@@ -76,6 +76,7 @@ export async function createUserAction(
 
   const api = createApiClient(await getSessionToken());
   let userId: string;
+  let organizationId: string | undefined;
   try {
     const { data } = await api.POST("/api/v1/admin/users", {
       body: { ...user, status: "active", ...(user.role === "admin" ? { current_password } : {}) },
@@ -89,7 +90,7 @@ export async function createUserAction(
 
   if (org_name) {
     try {
-      await api.POST("/api/v1/admin/advertiser-organizations", {
+      const { data } = await api.POST("/api/v1/admin/advertiser-organizations", {
         body: {
           name: org_name,
           currency: org_currency ?? "NGN",
@@ -97,16 +98,25 @@ export async function createUserAction(
           status: "active",
         },
       });
+      organizationId = data?.organization.id;
     } catch (error) {
       const reason = error instanceof ApiError ? error.message : "server unreachable";
       return {
-        error: `User created, but the organization failed: ${reason}. Create it again from this page.`,
+        error: `Login created, but the company failed: ${reason}.`,
       };
     }
   }
 
-  revalidatePath("/admin/users");
-  redirect("/admin/users");
+  const destination =
+    user.role === "admin"
+      ? "/admin/settings/staff"
+      : user.role === "advertiser"
+        ? organizationId
+          ? `/admin/advertisers/${organizationId}`
+          : "/admin/advertisers"
+        : "/admin/drivers";
+  revalidatePath(destination);
+  redirect(destination);
 }
 
 const userStatusSchema = z.object({
@@ -135,6 +145,6 @@ export async function updateUserStatusAction(
     if (error instanceof ApiError) return { error: error.message };
     return { error: "Could not reach the server." };
   }
-  revalidatePath("/admin/users");
+  revalidatePath("/admin/settings/staff");
   return {};
 }

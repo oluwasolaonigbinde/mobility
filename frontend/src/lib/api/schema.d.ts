@@ -11,7 +11,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** List advertiser companies */
+        get: operations["admin_list_advertiser_organizations_api_v1_admin_advertiser_organizations_get"];
         put?: never;
         /** Create an advertiser organization */
         post: operations["admin_create_advertiser_organization_api_v1_admin_advertiser_organizations_post"];
@@ -5079,6 +5080,127 @@ export interface components {
         AdminOrganizationCreateResponse: {
             organization: components["schemas"]["AdvertiserOrganizationRead"];
             owner_membership: components["schemas"]["OrganizationMembershipRead"] | null;
+        };
+        /** AdminOrganizationListResponse */
+        AdminOrganizationListResponse: {
+            /** Items */
+            items: components["schemas"]["AdvertiserOrganizationRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** AdminPayoutCalculationRead */
+        AdminPayoutCalculationRead: {
+            /** Active Time Component */
+            active_time_component: string | null;
+            /**
+             * Assignment Id
+             * Format: uuid
+             */
+            assignment_id: string;
+            /** Bonus Zone Bonus Component */
+            bonus_zone_bonus_component: string | null;
+            /**
+             * Calculated At
+             * Format: date-time
+             */
+            calculated_at: string;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /** Campaign Name */
+            campaign_name: string;
+            /** Cap Adjustment */
+            cap_adjustment: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Currency */
+            currency: string;
+            /** Distance Component */
+            distance_component: string | null;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /** Eligible Seconds */
+            eligible_seconds: number | null;
+            /** Excluded Seconds By Reason */
+            excluded_seconds_by_reason: {
+                [key: string]: number;
+            } | null;
+            /** Final Payout */
+            final_payout: string | null;
+            /** Formula Version */
+            formula_version: string;
+            /** Fraud Multiplier */
+            fraud_multiplier: string | null;
+            /** Gross Payout */
+            gross_payout: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Impression Component */
+            impression_component: string | null;
+            /**
+             * Impression Estimate Id
+             * Format: uuid
+             */
+            impression_estimate_id: string;
+            /** Inputs Fingerprint */
+            inputs_fingerprint: string | null;
+            ledger_entry?: components["schemas"]["PayoutLedgerEntrySummary"] | null;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Payable Seconds */
+            payable_seconds: number | null;
+            /**
+             * Payout Rule Id
+             * Format: uuid
+             */
+            payout_rule_id: string;
+            /** Quality Multiplier */
+            quality_multiplier: string | null;
+            status: components["schemas"]["PayoutCalculationStatus"];
+            /** Target Zone Bonus Component */
+            target_zone_bonus_component: string | null;
+            /**
+             * Trip Analytics Id
+             * Format: uuid
+             */
+            trip_analytics_id: string;
+            /**
+             * Trip Session Id
+             * Format: uuid
+             */
+            trip_session_id: string;
+            /**
+             * Trip Started At
+             * Format: date-time
+             */
+            trip_started_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Vehicle Id
+             * Format: uuid
+             */
+            vehicle_id: string;
         };
         /** AdminPersonPayeeStageRead */
         AdminPersonPayeeStageRead: {
@@ -11562,7 +11684,7 @@ export interface components {
         /** PayoutCalculationListResponse */
         PayoutCalculationListResponse: {
             /** Items */
-            items: components["schemas"]["PayoutCalculationRead"][];
+            items: components["schemas"]["AdminPayoutCalculationRead"][];
             /** Limit */
             limit: number;
             /** Offset */
@@ -14444,6 +14566,39 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    admin_list_advertiser_organizations_api_v1_admin_advertiser_organizations_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOrganizationListResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     admin_create_advertiser_organization_api_v1_admin_advertiser_organizations_post: {
         parameters: {
             query?: never;
@@ -16130,6 +16285,8 @@ export interface operations {
                 offset?: number;
                 q?: string | null;
                 history?: boolean;
+                user_id?: string | null;
+                driver_profile_id?: string | null;
             };
             header?: never;
             path?: never;

@@ -26,6 +26,7 @@ from app.models.payout import (
 )
 from app.schemas.campaigns import ensure_timezone_aware
 from app.schemas.payouts import (
+    AdminPayoutCalculationRead,
     CalculatePayoutRequest,
     CampaignCostCurrencySummary,
     CampaignCostSummary,
@@ -596,7 +597,12 @@ async def admin_list_payout_calculations(
         currency=currency,
     )
     items = [
-        await payout_calculation_response(session, calculation) for calculation in calculations
+        AdminPayoutCalculationRead(
+            **(await payout_calculation_response(session, calculation)).model_dump(),
+            trip_started_at=trip_started_at,
+            campaign_name=campaign_name,
+        )
+        for calculation, trip_started_at, campaign_name in calculations
     ]
     return PayoutCalculationListResponse(items=items, total=total, limit=limit, offset=offset)
 

@@ -9,7 +9,13 @@ const initialState: AdminActionState = {};
 
 const TYPES = ["car", "van", "minibus", "bus", "motorcycle", "tricycle", "other"] as const;
 
-export function VehicleForm({ users }: { users: Array<{ id: string; label: string }> }) {
+export function VehicleForm({
+  users,
+  fixedUserId,
+}: {
+  users: Array<{ id: string; label: string }>;
+  fixedUserId?: string;
+}) {
   const [state, formAction, pending] = useActionState(createVehicleAction, initialState);
 
   const selectClass =
@@ -17,21 +23,25 @@ export function VehicleForm({ users }: { users: Array<{ id: string; label: strin
 
   return (
     <form action={formAction} className="flex flex-col gap-5" noValidate>
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="v-user" className="micro text-muted">
-          Driver user
-        </label>
-        <select id="v-user" name="user_id" required defaultValue="" className={selectClass}>
-          <option value="" disabled>
-            Select the owning driver…
-          </option>
-          {users.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.label}
+      {fixedUserId ? (
+        <input type="hidden" name="user_id" value={fixedUserId} />
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="v-user" className="micro text-muted">
+            Driver
+          </label>
+          <select id="v-user" name="user_id" required defaultValue="" className={selectClass}>
+            <option value="" disabled>
+              Select the owning driver…
             </option>
-          ))}
-        </select>
-      </div>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field

@@ -354,6 +354,8 @@ async def list_driver_applications(
     offset: int,
     q: str | None = None,
     history: bool = False,
+    user_id: UUID | None = None,
+    driver_profile_id: UUID | None = None,
 ) -> tuple[list[DriverApplication], int]:
     """Read the pending queue only after locking and validating the admin."""
 
@@ -361,6 +363,10 @@ async def list_driver_applications(
     from app.services.operator_search import operator_search
 
     filters = [] if history else [DriverApplication.status == DriverApplicationStatus.PENDING.value]
+    if user_id is not None:
+        filters.append(DriverApplication.user_id == user_id)
+    if driver_profile_id is not None:
+        filters.append(DriverApplication.driver_profile_id == driver_profile_id)
     if q and q.strip():
         filters.append(
             operator_search(

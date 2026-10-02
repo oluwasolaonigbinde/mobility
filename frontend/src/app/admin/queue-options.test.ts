@@ -18,6 +18,29 @@ const UNAVAILABLE = { items: [], total: 0, error: "Selection list is unavailable
 
 describe("searchOperatorOptions", () => {
   beforeEach(() => vi.resetAllMocks());
+  it("can find a suspended driver's hub without allowing them to receive a job", async () => {
+    mocks.GET.mockResolvedValue({
+      data: {
+        items: [
+          {
+            id: DRIVER,
+            full_name: "Ada",
+            email: "ada@example.test",
+            service_city: "Abuja",
+            onboarding_status: "suspended",
+          },
+        ],
+        total: 1,
+      },
+    });
+    expect(
+      (await searchOperatorOptions({ kind: "driver_any", q: "Ada", offset: 0 })).items[0]
+        ?.unavailable,
+    ).toBeUndefined();
+    expect(
+      (await searchOperatorOptions({ kind: "driver", q: "Ada", offset: 0 })).items[0]?.unavailable,
+    ).toBe("Driver: Suspended");
+  });
 
   it("rejects malformed searches before reading any list", async () => {
     expect(await searchOperatorOptions({ kind: "driver", q: "x".repeat(121), offset: 0 })).toEqual({
@@ -55,10 +78,10 @@ describe("searchOperatorOptions", () => {
     });
     expect(result.total).toBe(60);
     expect(result.items.map((i) => [i.label, i.detail, i.unavailable])).toEqual([
-      ["Approved", "approved · aaaaaaaa", undefined],
-      ["Scheduled", "scheduled · bbbbbbbb", undefined],
-      ["Live", "active · cccccccc", undefined],
-      ["Draft", "draft · dddddddd", "Campaign approval required"],
+      ["Approved", "Approved", undefined],
+      ["Scheduled", "Scheduled", undefined],
+      ["Live", "Live", undefined],
+      ["Draft", "Draft", "Campaign approval required"],
     ]);
   });
 
@@ -99,7 +122,7 @@ describe("searchOperatorOptions", () => {
         id: "44444444-4444-4444-8444-444444444444",
         label: "Pending Pat",
         detail: "pat@example.test · No city",
-        unavailable: "Driver pending",
+        unavailable: "Driver: Applicant",
       },
     ]);
   });
@@ -152,9 +175,9 @@ describe("searchOperatorOptions", () => {
       params: { query: { q: "CAR", limit: 25, offset: 0, driver_profile_id: DRIVER } },
     });
     expect(result.items.map((i) => [i.label, i.detail, i.unavailable])).toEqual([
-      ["CAR-001", "Toyota · Corolla · active", undefined],
-      ["BIKE-002", "Okada · active", "An active approved car is required"],
-      ["CAR-003", "Honda · suspended", "An active approved car is required"],
+      ["CAR-001", "Toyota · Corolla · Active", undefined],
+      ["BIKE-002", "Okada · Active", "An active approved car is required"],
+      ["CAR-003", "Honda · Suspended", "An active approved car is required"],
     ]);
   });
 
@@ -211,21 +234,21 @@ describe("searchOperatorOptions", () => {
         {
           id: "eeeeeeee-0000-4000-8000-000000000001",
           label: "Clean art",
-          detail: "rear_window · approved · eeeeeeee",
+          detail: "Approved",
           fileId: FILE,
           unavailable: undefined,
         },
         {
           id: "ffffffff-0000-4000-8000-000000000002",
           label: "Scanning art",
-          detail: "side_panel · approved · ffffffff",
+          detail: "Approved",
           fileId: undefined,
           unavailable: "Approved, scan-clean artwork is required",
         },
         {
           id: "99999999-0000-4000-8000-000000000003",
           label: "Rejected art",
-          detail: "side_panel · rejected · 99999999",
+          detail: "Not approved",
           fileId: undefined,
           unavailable: "Approved, scan-clean artwork is required",
         },

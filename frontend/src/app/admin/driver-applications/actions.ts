@@ -62,7 +62,7 @@ export async function reviewPersonPayeeEvidenceAction(
         params: { path: { submission_id: parsed.data.submission_id } },
         body: { purpose: "person_payee_approval" },
       });
-      return { done: "NIN read audited.", sensitiveValue: data?.nin };
+      return { done: "NIN access logged.", sensitiveValue: data?.nin };
     }
     if (parsed.data.kind === "account") {
       const { data } = await api.POST(
@@ -73,7 +73,7 @@ export async function reviewPersonPayeeEvidenceAction(
         },
       );
       return {
-        done: "Account read audited.",
+        done: "Bank details access logged.",
         sensitiveValue: data
           ? `${data.account_name} · ${data.bank_code} · ${data.account_number}`
           : undefined,
@@ -86,7 +86,7 @@ export async function reviewPersonPayeeEvidenceAction(
         reason: `person_payee_approval:${parsed.data.submission_id}`,
       },
     });
-    return { done: "Document read audited.", downloadUrl: data?.url };
+    return { done: "Document access logged.", downloadUrl: data?.url };
   } catch (error) {
     if (error instanceof ApiError) return { error: error.message };
     return { error: "Could not reach the protected evidence service." };
@@ -120,8 +120,10 @@ export async function verifyPersonPayeeAccountAction(
     if (error instanceof ApiError) return { error: error.message };
     return { error: "Could not reach the payout-authority service." };
   }
-  revalidatePath("/admin/driver-applications");
-  return { done: "Exact account version verified for payout review." };
+  revalidatePath("/admin/drivers");
+  revalidatePath("/admin/drivers/[driverId]", "page");
+  revalidatePath("/admin/drivers/applicant/[applicationId]", "page");
+  return { done: "These bank details have been checked for payouts." };
 }
 
 const schema = z.object({
@@ -204,8 +206,12 @@ export async function reviewPersonPayeeAction(
     if (error instanceof ApiError) return { error: error.message };
     return { error: "Could not reach the onboarding service." };
   }
-  revalidatePath("/admin/driver-applications");
-  return { done: `Person/payee evidence ${decision}.` };
+  revalidatePath("/admin/drivers");
+  revalidatePath("/admin/drivers/[driverId]", "page");
+  revalidatePath("/admin/drivers/applicant/[applicationId]", "page");
+  return {
+    done: `Identity documents and bank details ${decision === "rejected" ? "not approved" : decision}.`,
+  };
 }
 
 const vehicleEvidenceSchema = z.object({
@@ -233,7 +239,7 @@ export async function reviewVehicleEvidenceAction(
         },
       },
     );
-    return { done: "Vehicle evidence read audited.", downloadUrl: data?.url };
+    return { done: "Car document access logged.", downloadUrl: data?.url };
   } catch (error) {
     if (error instanceof ApiError) return { error: error.message };
     return { error: "Could not reach the protected evidence service." };
@@ -339,8 +345,10 @@ export async function reviewVehicleAction(
     if (error instanceof ApiError) return { error: error.message };
     return { error: "Could not reach the vehicle approval service." };
   }
-  revalidatePath("/admin/driver-applications");
-  return { done: `Vehicle evidence ${decision}.` };
+  revalidatePath("/admin/drivers");
+  revalidatePath("/admin/drivers/[driverId]", "page");
+  revalidatePath("/admin/drivers/applicant/[applicationId]", "page");
+  return { done: `Car documents ${decision === "rejected" ? "not approved" : decision}.` };
 }
 
 const accountSetupSchema = z.object({
@@ -369,7 +377,9 @@ export async function initiateDriverAccountSetupAction(
     if (error instanceof ApiError) return { error: error.message };
     return { error: "Could not reach the driver account setup service." };
   }
-  revalidatePath(`/admin/driver-applications/${parsed.data.application_id}`);
+  revalidatePath(`/admin/drivers/applicant/${parsed.data.application_id}`);
+  revalidatePath("/admin/drivers/[driverId]", "page");
+  revalidatePath("/admin/drivers/applicant/[applicationId]", "page");
   return {
     done: "A one-use setup link was created and queued for delivery to the applicant's stored email. Delivery is not confirmed.",
   };

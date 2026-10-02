@@ -61,7 +61,7 @@ export function DailyRatePanel({
       <form action={formAction} className="flex flex-col gap-6" noValidate>
         <input type="hidden" name="campaign_id" value={campaignId} />
         <fieldset className="grid gap-4 sm:grid-cols-2" disabled={notSwitchedOn || pending}>
-          <legend className="micro text-muted mb-3">New revision — daily rate (NGN)</legend>
+          <legend className="micro text-muted mb-3">New version — daily rate (NGN)</legend>
           <Field
             label="Day rate (₦)"
             name="daily_rate_naira"
@@ -136,7 +136,7 @@ export function DailyRatePanel({
             error={fieldError("effective_from")}
           />
           <Field
-            label="Reason (audited)"
+            label="Reason (logged)"
             name="reason"
             defaultValue={previous("reason")}
             placeholder="for example: on-request areas"
@@ -168,9 +168,9 @@ export function DailyRatePanel({
       </form>
 
       <div>
-        <h3 className="micro text-muted mb-3">Revision history</h3>
+        <h3 className="micro text-muted mb-3">Version history</h3>
         {revisions.length === 0 ? (
-          <p className="text-muted text-sm">No pay revisions for this campaign yet.</p>
+          <p className="text-muted text-sm">No pay versions for this campaign yet.</p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-sm">
@@ -189,7 +189,7 @@ export function DailyRatePanel({
               <tbody>
                 {revisions.map((r) => (
                   <tr key={r.id} className="border-edge/60 border-b text-xs last:border-0">
-                    <td className="py-3 pr-4 font-mono">r{r.revision_number}</td>
+                    <td className="py-3 pr-4 font-mono">Version {r.revision_number}</td>
                     <td className="px-4 py-3 font-mono">{formatDateTime(r.effective_from)}</td>
                     {r.formula_version === "payout_v4" ? (
                       <>

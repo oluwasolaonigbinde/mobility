@@ -14,7 +14,7 @@ const steps: Record<Onboarding, Array<{ to: Onboarding; label: string; danger?: 
     { to: "rejected", label: "Reject", danger: true },
   ],
   active: [{ to: "suspended", label: "Suspend", danger: true }],
-  suspended: [{ to: "active", label: "Reinstate" }],
+  suspended: [{ to: "active", label: "Restore" }],
   rejected: [{ to: "pending", label: "Re-review" }],
 };
 
@@ -22,10 +22,12 @@ export function DriverOnboardingMenu({
   driverProfileId,
   driverName,
   status,
+  activationBlocked = false,
 }: {
   driverProfileId: string;
   driverName: string;
   status: Onboarding;
+  activationBlocked?: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string>();
@@ -53,7 +55,12 @@ export function DriverOnboardingMenu({
             ref={s.danger ? triggerRef : undefined}
             key={s.to}
             type="button"
-            disabled={pending}
+            disabled={pending || (s.to === "active" && activationBlocked)}
+            title={
+              s.to === "active" && activationBlocked
+                ? "Complete the current document and car review below."
+                : undefined
+            }
             onClick={() => run(s.to, s.danger)}
             className={
               "micro transition-colors disabled:opacity-50 " +

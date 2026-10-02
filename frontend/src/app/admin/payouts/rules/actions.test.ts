@@ -19,7 +19,7 @@ function form(overrides: Record<string, string> = {}): FormData {
     deduction_per_mile_naira: "140",
     minimum_miles: "0",
     outside_area_weight: "0.5",
-    effective_from: new Date(Date.now() + 3_600_000).toISOString().slice(0, 16),
+    effective_from: new Date(Date.now() + 86_400_000).toISOString().slice(0, 16),
     reason: "synthetic",
     ...overrides,
   };
@@ -47,7 +47,7 @@ describe("publishDailyRateAction", () => {
       reason: "synthetic",
     });
     expect(request.body).not.toHaveProperty("campaign_id");
-    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/payouts/rules");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/campaigns");
   });
 
   it("refuses invalid input without calling the API and keeps what was typed", async () => {

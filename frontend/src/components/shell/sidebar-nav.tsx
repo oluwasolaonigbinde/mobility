@@ -11,6 +11,7 @@ export interface NavItem {
   exact?: boolean;
   /** Optional section heading shown above the first item of a group (sidebar only). */
   group?: string;
+  count?: number;
 }
 
 export function SidebarNav({
@@ -25,9 +26,10 @@ export function SidebarNav({
   const list = (
     <>
       {items.map((item, index) => {
+        const destination = item.href.split("?")[0];
         const active = item.exact
-          ? pathname === item.href
-          : pathname === item.href || pathname.startsWith(`${item.href}/`);
+          ? pathname === destination
+          : pathname === destination || pathname.startsWith(`${destination}/`);
         const heading =
           !horizontal && item.group && item.group !== items[index - 1]?.group ? item.group : null;
         return (
@@ -43,6 +45,14 @@ export function SidebarNav({
               )}
             >
               {item.label}
+              {item.count ? (
+                <span
+                  className="bg-amber/15 text-amber ml-2 rounded-full px-2 py-0.5"
+                  aria-label={`${item.count} waiting`}
+                >
+                  {item.count}
+                </span>
+              ) : null}
             </Link>
           </div>
         );

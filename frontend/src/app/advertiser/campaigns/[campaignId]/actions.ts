@@ -295,7 +295,7 @@ export async function confirmCampaignChangeAction(
       body,
     });
     if (!data) return { error: "The confirmation result is unavailable. Preview again." };
-    revalidatePath("/admin/approvals");
+    revalidatePath("/admin/campaigns");
     return {
       commandId: parsed.data.clientRequestId,
       done: "Campaign change confirmed.",
@@ -358,7 +358,7 @@ export async function submitCreativeForReviewAction(
   }
 
   revalidatePath(`/advertiser/campaigns/${parsed.data.campaignId}`);
-  revalidatePath("/admin/approvals");
+  revalidatePath("/admin/campaigns");
   return { done: "Artwork sent to Terrax Media for review." };
 }
 
@@ -402,6 +402,6 @@ export async function replaceCreativeAndSubmitAction(
   }
 
   revalidatePath(`/advertiser/campaigns/${parsed.data.campaignId}`);
-  revalidatePath("/admin/approvals");
+  revalidatePath("/admin/campaigns");
   return { done: "Replacement artwork sent to Terrax Media for review." };
 }

@@ -6,6 +6,7 @@ import { formatDate, formatMoney } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
+import { advertiserStatus } from "@/lib/status/advertiser";
 import {
   confirmCampaignChangeAction,
   previewCampaignChangeAction,
@@ -260,7 +261,7 @@ export function CampaignChangePanel({
                         : "amber"
                   }
                 >
-                  {request.status.replaceAll("_", " ")}
+                  {advertiserStatus(request.status)}
                 </StatusChip>
                 <span className="micro text-faint">{formatDate(request.created_at)}</span>
               </div>

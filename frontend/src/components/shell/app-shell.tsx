@@ -22,10 +22,12 @@ export function AppShell({
   me,
   nav,
   children,
+  search,
 }: {
   me: MeResponse;
   nav: NavItem[];
   children: ReactNode;
+  search?: ReactNode;
 }) {
   const org = me.advertiser_organization;
   const canManageAdvertiserPreferences =
@@ -65,28 +67,39 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Topbar */}
-        <header className="border-edge bg-bg/85 sticky top-0 z-40 flex h-14 items-center justify-between border-b px-4 backdrop-blur md:px-6">
-          <div className="flex items-center gap-3 md:hidden">
+        <header className="border-edge bg-bg/85 sticky top-0 z-40 flex min-h-14 flex-wrap items-center justify-between gap-3 border-b px-4 py-2 backdrop-blur md:px-6">
+          <div className={search ? "hidden" : "flex items-center gap-3 md:hidden"}>
             <Link href="/" className="font-display text-lg font-semibold">
               Cardvert<span className="text-amber">.</span>
             </Link>
           </div>
-          <div className="micro text-muted hidden md:block">
+          <div
+            className={search ? "text-ink text-sm font-medium" : "micro text-muted hidden md:block"}
+          >
             {org ? (
               <>
                 {org.name} · <span className="text-amber">{org.currency}</span>
               </>
             ) : (
-              <>Network · {roleLabel[me.user.role] ?? me.user.role}</>
+              <>
+                {me.user.role === "admin"
+                  ? "Terrax Media operations"
+                  : `Network · ${roleLabel[me.user.role] ?? me.user.role}`}
+              </>
             )}
           </div>
+          {search ? (
+            <div className="order-last w-full md:order-none md:w-auto md:min-w-64 md:flex-1">
+              {search}
+            </div>
+          ) : null}
           <div className="micro text-muted flex items-center gap-2">
             <NotificationCenter
               canManageAdvertiserPreferences={canManageAdvertiserPreferences}
               sessionScope={me.user.id}
             />
             <span aria-label="Workspace context" className="hidden md:inline">
-              Workspace
+              {me.user.role === "admin" ? me.user.full_name : "Workspace"}
             </span>
             <details className="relative md:hidden">
               <summary className="hover:text-ink cursor-pointer list-none transition-colors">

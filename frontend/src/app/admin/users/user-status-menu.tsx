@@ -27,7 +27,7 @@ export function UserStatusMenu({
   const triggerRef = useRef<HTMLButtonElement>(null);
 
   const target: UserStatus = status === "active" ? "suspended" : "active";
-  const label = status === "active" ? "Suspend" : "Reactivate";
+  const label = status === "active" ? "Suspend" : "Restore";
 
   // D28: an invited driver is still an applicant. Their account is activated by
   // driver account setup after the application is approved, never from here.

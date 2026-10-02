@@ -12,6 +12,34 @@ from app.models.user import UserRole
 PASSWORD = "long-secure-password"
 
 
+def test_admin_driver_search_matches_phone_without_widening_access(db_client, db_sessionmaker):
+    create_test_user(db_sessionmaker, email="phone-staff@example.com", password=PASSWORD)
+    driver = create_test_user(
+        db_sessionmaker,
+        email="phone-driver@example.com",
+        password=PASSWORD,
+        role=UserRole.DRIVER,
+        phone="+2348039876543",
+    )
+    profile = create_test_driver_profile(db_sessionmaker, user_id=driver.id)
+    headers = auth_headers(db_client, "phone-staff@example.com", PASSWORD)
+    response = db_client.get("/api/v1/admin/drivers", headers=headers, params={"q": "398765"})
+    assert response.status_code == 200
+    assert response.json()["total"] == 1
+    assert response.json()["items"][0]["id"] == str(profile.id)
+    assert (
+        db_client.get("/api/v1/admin/drivers", headers=headers, params={"q": "%"}).json()["total"]
+        == 0
+    )
+    driver_headers = auth_headers(db_client, "phone-driver@example.com", PASSWORD)
+    assert (
+        db_client.get(
+            "/api/v1/admin/drivers", headers=driver_headers, params={"q": "398765"}
+        ).status_code
+        == 403
+    )
+
+
 def test_admin_can_create_driver_profile_with_normalization_and_audit(
     db_client,
     db_sessionmaker,

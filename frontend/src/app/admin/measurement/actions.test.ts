@@ -71,7 +71,7 @@ it("revalidates the work list after a confirmed issuance", async () => {
     "/api/v1/admin/measurement-runs/{run_id}/report-issuances",
     { params: { path: { run_id: run } }, body: { client_request_id: request } },
   );
-  expect(revalidatePath).toHaveBeenCalledWith("/admin/measurement");
+  expect(revalidatePath).toHaveBeenCalledWith("/admin/campaigns/[campaignId]", "page");
 });
 it("requires a recorded report before refreshing or downloading", async () => {
   const f = form("refresh");
@@ -156,8 +156,8 @@ describe("issueMeasurement", () => {
         mode: "performance_only",
       },
     });
-    expect(revalidatePath).toHaveBeenCalledWith("/admin/measurement");
-    expect(result.done).toMatch(/^Measurement run recorded/);
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/campaigns/[campaignId]", "page");
+    expect(result.done).toMatch(/^Results calculation recorded/);
   });
   it("records a live-data run when the synthetic box is unchecked", async () => {
     mocks.POST.mockResolvedValue({ data: { id: run } });
