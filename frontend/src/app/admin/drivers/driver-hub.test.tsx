@@ -236,6 +236,41 @@ it("allows the existing activation action after a successful scoped read confirm
     expect.objectContaining({ activationBlocked: false }),
   );
 });
+it("uses identity-scoped complaint and contact reads and opens their exact Support selection", async () => {
+  const original = mocks.get.getMockImplementation()!;
+  mocks.get.mockImplementation(async (path, options) => {
+    if (path.endsWith("/complaints"))
+      return {
+        data: {
+          items: [{ id: "complaint", status: "open", created_at: "2026-09-29T10:00:00Z" }],
+          total: 1,
+        },
+      };
+    if (path.endsWith("/manual-driver-contact-tasks"))
+      return {
+        data: {
+          items: [{ id: "task", status: "completed", created_at: "2026-09-29T10:00:00Z" }],
+          total: 1,
+        },
+      };
+    return original(path, options);
+  });
+  render(await DriverHub({ driverId, query: { complaints_offset: "25", contacts_offset: "50" } }));
+  expect(mocks.get).toHaveBeenCalledWith("/api/v1/admin/complaints", {
+    params: { query: { user_id: userId, limit: 25, offset: 25 } },
+  });
+  expect(mocks.get).toHaveBeenCalledWith("/api/v1/admin/manual-driver-contact-tasks", {
+    params: { query: { driver_profile_id: driverId, history: true, limit: 25, offset: 50 } },
+  });
+  expect(screen.getByRole("link", { name: /Needs a reply/ })).toHaveAttribute(
+    "href",
+    `/admin/support?tab=complaints&user_id=${userId}&complaint=complaint`,
+  );
+  expect(screen.getByRole("link", { name: /Completed/ })).toHaveAttribute(
+    "href",
+    `/admin/support?tab=contact&driver_profile_id=${driverId}&task=task`,
+  );
+});
 it.each(["invited", "active"])(
   "account setup is available only for an approved invited account (%s)",
   async (status) => {
@@ -304,13 +339,7 @@ it.each([1, 25])("bounds cold hub reads independently of row count (%s)", async 
       query: { trips_offset: "25", jobs_offset: "25", currency: "NGN" },
     }),
   );
-  expect(mocks.get).toHaveBeenCalledTimes(9);
-  expect(
-    mocks.get.mock.calls.some(
-      ([path]) => path.endsWith("/complaints") || path.endsWith("/manual-driver-contact-tasks"),
-    ),
-  ).toBe(false);
-  expect(document.querySelector('a[href^="/admin/support"]')).toBeNull();
+  expect(mocks.get).toHaveBeenCalledTimes(11);
   expect(mocks.get).toHaveBeenCalledWith("/api/v1/admin/driver-applications", {
     params: { query: { driver_profile_id: driverId, user_id: userId, history: true, limit: 1 } },
   });
@@ -357,13 +386,11 @@ it("keeps failed secondary reads unavailable instead of claiming empty records o
   expect(screen.queryByText("No calculated trip pay recorded.")).toBeNull();
   expect(screen.queryByText("No activity recorded for this driver.")).toBeNull();
   expect(screen.queryByText("₦0.00")).toBeNull();
-  const phoneSection = document.getElementById("phone")!;
-  expect(within(phoneSection).queryByRole("alert")).toBeNull();
-  expect(within(phoneSection).getByText(driver.phone)).toBeTruthy();
   for (const sectionId of [
     "details",
     "documents",
     "cars",
+    "phone",
     "jobs",
     "trips-and-pay",
     "reviews",
@@ -415,8 +442,10 @@ it("shows driver's own reviews and activity and preserves each page's filters", 
     return normal(path, options);
   });
   render(await DriverHub({ driverId, query: { reviews_offset: "25", activity_offset: "25" } }));
-  expect(screen.getByText("Unusual trip speed")).toBeTruthy();
-  expect(screen.queryByRole("link", { name: /Unusual trip speed/ })).toBeNull();
+  expect(screen.getByRole("link", { name: /Unusual trip speed/ })).toHaveAttribute(
+    "href",
+    `/admin/trip-checks?tab=suspicious&driver_profile_id=${driverId}&flag=review`,
+  );
   expect(screen.getByText(/Driver details or status updated/)).toHaveTextContent(
     "staff@example.invalid",
   );
@@ -457,7 +486,7 @@ it.each([false, true])(
     render(
       await DriverHub({ driverId, query: { application: appId, trip: "trip", currency: "NGN" } }),
     );
-    expect(mocks.get).toHaveBeenCalledTimes(failCandidate ? 10 : 9);
+    expect(mocks.get).toHaveBeenCalledTimes(failCandidate ? 12 : 11);
     expect(
       mocks.get.mock.calls.some(
         ([path]) => path.endsWith("/readiness") || path.endsWith("/analytics"),

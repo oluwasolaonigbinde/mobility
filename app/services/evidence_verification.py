@@ -6,7 +6,7 @@ from decimal import Decimal, InvalidOperation
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
@@ -707,16 +707,24 @@ async def list_admin_verifications(
     *,
     verification_status: str | None = None,
     verification_type: str | None = None,
-) -> list[EvidenceVerification]:
+    limit: int = 100,
+    offset: int = 0,
+) -> tuple[list[EvidenceVerification], int]:
     query = select(EvidenceVerification)
     if verification_status is not None:
         query = query.where(EvidenceVerification.status == verification_status)
     if verification_type is not None:
         query = query.where(EvidenceVerification.verification_type == verification_type)
-    return list(
+    total = int(await session.scalar(select(func.count()).select_from(query.subquery())) or 0)
+    rows = list(
         (
             await session.scalars(
-                query.order_by(EvidenceVerification.issued_at.desc()).limit(100)
+                query.order_by(
+                    EvidenceVerification.issued_at.desc(), EvidenceVerification.id.desc()
+                )
+                .limit(limit)
+                .offset(offset)
             )
         ).all()
     )
+    return rows, total

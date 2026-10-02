@@ -69,10 +69,39 @@ class FraudFlagMoneyEffectRead(BaseModel):
         return str(value)
 
 
+class AdminTripRoutePointRead(BaseModel):
+    id: UUID
+    recorded_at: datetime
+    latitude: float = Field(ge=-90, le=90, allow_inf_nan=False)
+    longitude: float = Field(ge=-180, le=180, allow_inf_nan=False)
+
+
+class AdminTripRouteRead(BaseModel):
+    flag_id: UUID
+    trip_session_id: UUID
+    items: list[AdminTripRoutePointRead]
+    total: int
+    limit: int
+    offset: int
+
+
 class AdminFraudFlagRead(FraudFlagRead):
     review_due_at: datetime
     escalated_at: datetime | None
     money_effect: FraudFlagMoneyEffectRead
+
+
+class AdminFraudFlagListMoneyEffectRead(FraudFlagMoneyEffectRead):
+    held_pending_net: Decimal
+    held_currency: str | None
+
+    @field_serializer("held_pending_net")
+    def serialize_held_net(self, value: Decimal) -> str:
+        return str(value)
+
+
+class AdminFraudFlagListItemRead(AdminFraudFlagRead):
+    money_effect: AdminFraudFlagListMoneyEffectRead
 
 
 class FraudFlagResolveRequest(BaseModel):
@@ -132,7 +161,7 @@ class TripAnalyticsRead(DecimalStringMixin):
 
 
 class FraudFlagListResponse(BaseModel):
-    items: list[AdminFraudFlagRead]
+    items: list[AdminFraudFlagListItemRead]
     total: int
     limit: int
     offset: int

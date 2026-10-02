@@ -329,8 +329,10 @@ it("keeps named artwork, history, reviews and activity within their campaign", a
   expect(screen.getByRole("button", { name: "Review artwork" })).toBeTruthy();
   expect(screen.getByText(/Fix artwork/)).toBeTruthy();
   expect(screen.getByRole("button", { name: "Review change" })).toBeTruthy();
-  expect(screen.getByText(/Trip needs checking/)).toBeTruthy();
-  expect(screen.queryByRole("link", { name: /Trip needs checking/ })).toBeNull();
+  expect(screen.getByRole("link", { name: /Trip needs checking/ })).toHaveAttribute(
+    "href",
+    `/admin/trip-checks?tab=suspicious&campaign_id=${id}&flag=review`,
+  );
   expect(screen.getByText(/Campaign approved/)).toBeTruthy();
   expect(screen.getAllByRole("link", { name: "Next →" }).length).toBeGreaterThanOrEqual(4);
 });

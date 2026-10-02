@@ -37,13 +37,13 @@ describe("reviewFraudFlagAction", () => {
 
   it("acknowledges through the typed review endpoint and revalidates the queue", async () => {
     await expect(reviewFraudFlagAction({}, reviewForm("acknowledge"))).resolves.toEqual({
-      done: "Review acknowledged",
+      done: "Review started",
     });
     expect(mocks.post).toHaveBeenCalledWith(
       "/api/v1/admin/fraud-flags/{flag_id}/review/acknowledge",
       { params: { path: { flag_id: FLAG_ID } } },
     );
-    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/fraud");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/trip-checks");
   });
 
   it("trims the mandatory resolution note before sending it", async () => {
@@ -82,7 +82,7 @@ describe("replyFraudDisputeAction", () => {
       params: { path: { dispute_id: DISPUTE_ID } },
       body: { reply: "We reviewed the route and cleared the hold." },
     });
-    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/fraud");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/trip-checks");
   });
 
   it("rejects a blank reply without touching the backend", async () => {
@@ -110,7 +110,7 @@ describe("physical spot-check actions", () => {
     form.set("note", "  Inspect the display in person.  ");
 
     await expect(queueSpotCheckAction({}, form)).resolves.toEqual({
-      done: "Physical spot check queued",
+      done: "In-person check requested",
     });
     expect(mocks.post).toHaveBeenCalledWith(
       "/api/v1/admin/evidence-verifications/physical-spot-checks",
@@ -132,7 +132,7 @@ describe("physical spot-check actions", () => {
     form.set("note", "  Display was not present.  ");
 
     await expect(resolveSpotCheckAction({}, form)).resolves.toEqual({
-      done: "Failure sent to fraud review",
+      done: "Failure sent to trip review",
     });
     expect(mocks.post).toHaveBeenCalledWith(
       "/api/v1/admin/evidence-verifications/{verification_id}/physical-spot-check-result",

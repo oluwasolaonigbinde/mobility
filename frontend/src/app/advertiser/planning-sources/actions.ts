@@ -137,7 +137,7 @@ export async function deactivateSourceAction(
     };
   }
   revalidatePath("/advertiser/planning-sources");
-  revalidatePath("/admin/planning-sources");
+  revalidatePath("/admin/settings/audiences");
   return { success: "Audience no longer used.", operationKey: idempotencyKey };
 }
 
@@ -176,7 +176,7 @@ export async function createSourceLinkAction(
     };
   }
   revalidatePath("/advertiser/planning-sources");
-  revalidatePath("/admin/planning-sources");
+  revalidatePath("/admin/settings/audiences");
   return {
     success: "Audience connected to the campaign area.",
     operationKey: idempotencyKey,
@@ -207,6 +207,6 @@ export async function removeSourceLinkAction(
     };
   }
   revalidatePath("/advertiser/planning-sources");
-  revalidatePath("/admin/planning-sources");
+  revalidatePath("/admin/settings/audiences");
   return { success: "Audience disconnected from the campaign area.", operationKey: idempotencyKey };
 }

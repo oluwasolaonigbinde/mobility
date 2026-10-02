@@ -28,8 +28,11 @@ from app.schemas.driver_onboarding import (
 from app.schemas.organizations import (
     AdminOrganizationCreateResponse,
     AdminOrganizationListResponse,
+    AdminOrganizationMemberListResponse,
+    AdminOrganizationMemberRead,
     AdvertiserOrganizationCreate,
     AdvertiserOrganizationRead,
+    OrganizationMembershipRead,
 )
 from app.schemas.users import UserCreate, UserListResponse, UserRead, UserUpdate
 from app.services.admin_authorization import require_active_admin
@@ -42,7 +45,9 @@ from app.services.driver_onboarding import (
 )
 from app.services.organizations import (
     create_advertiser_organization,
+    get_company_profile,
     list_advertiser_organizations,
+    list_organization_members,
 )
 from app.services.users import create_user, list_users, update_user
 from app.services.vehicle_onboarding import (
@@ -160,6 +165,38 @@ async def admin_create_user(
     )
     await session.commit()
     return UserRead.model_validate(user)
+
+
+@router.get(
+    "/advertiser-organizations/{organization_id}/members",
+    response_model=AdminOrganizationMemberListResponse,
+    summary="List company sign-in accounts",
+)
+async def admin_list_organization_members(
+    organization_id: UUID,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+    limit: Annotated[int, Query(ge=1, le=100)] = 25,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> AdminOrganizationMemberListResponse:
+    await get_company_profile(
+        session, actor_user_id=current_user.id, organization_id=organization_id
+    )
+    rows, total = await list_organization_members(
+        session, organization_id=organization_id, limit=limit, offset=offset
+    )
+    return AdminOrganizationMemberListResponse(
+        items=[
+            AdminOrganizationMemberRead(
+                user=UserRead.model_validate(user),
+                membership=OrganizationMembershipRead.model_validate(membership),
+            )
+            for membership, user in rows
+        ],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.get("/users", response_model=UserListResponse, summary="List users")

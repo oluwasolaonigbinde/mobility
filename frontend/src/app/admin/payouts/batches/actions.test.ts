@@ -95,7 +95,7 @@ describe("payout batch actions", () => {
     form.set("currency", "NGN");
     form.set("ledger_entry_ids", "22222222-2222-4222-8222-222222222222");
     const result = await createAndReserveBatchAction({}, form);
-    expect(result.done).toMatch(/Existing batch recovered; no new reservation/);
+    expect(result.done).toMatch(/Existing payment run recovered; no new reservation/);
     expect(result.done).not.toMatch(/Reservation confirmed/);
   });
 
@@ -119,7 +119,7 @@ describe("payout batch actions", () => {
     form.set("currency", "NGN");
     form.set("ledger_entry_ids", "not-a-uuid");
     const result = await createAndReserveBatchAction({}, form);
-    expect(result.error).toMatch(/valid ledger entry/i);
+    expect(result.error).toMatch(/available earnings record/i);
     expect(mocks.batchApi).not.toHaveBeenCalled();
   });
 

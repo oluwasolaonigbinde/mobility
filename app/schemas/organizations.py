@@ -49,6 +49,18 @@ class AdminOrganizationListResponse(BaseModel):
     offset: int
 
 
+class AdminOrganizationMemberRead(BaseModel):
+    user: UserRead
+    membership: OrganizationMembershipRead
+
+
+class AdminOrganizationMemberListResponse(BaseModel):
+    items: list[AdminOrganizationMemberRead]
+    total: int
+    limit: int
+    offset: int
+
+
 class AdminOrganizationCreateResponse(BaseModel):
     organization: AdvertiserOrganizationRead
     owner_membership: OrganizationMembershipRead | None

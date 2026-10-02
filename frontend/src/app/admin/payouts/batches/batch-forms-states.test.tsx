@@ -90,7 +90,7 @@ describe("payout form states", () => {
     expect(screen.getByText(/Debt already deducted: .*10\.02/)).toBeTruthy();
     expect(screen.getByText(/Outstanding debt: .*5\.00/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Allocate debt" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Review masked destination" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Show bank details (logged)" })).toBeTruthy();
   });
 
   it("states when no credits match and keeps creation disabled", () => {
@@ -147,9 +147,9 @@ describe("payout form states", () => {
     await screen.findByText(/Advisory selected total/);
     await clickWhenEnabled(user, "Create and reserve selected credits");
     expect(await screen.findByRole("status")).toHaveTextContent("Reservation confirmed");
-    expect(screen.getByRole("link", { name: "Review this batch" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Review payment run" })).toHaveAttribute(
       "href",
-      "/admin/payouts/batches/batch-1",
+      "/admin/money?tab=payouts&batch=batch-1",
     );
     await clickWhenEnabled(user, "Finish recovery");
     expect(localStorage.getItem("cardvert-payout-draft:maker")).toBeNull();
@@ -186,13 +186,13 @@ describe("payout form states", () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     calls.mask.mockResolvedValueOnce({ error: "Administrator access is required." });
     const { unmount } = render(<MaskedDestination versionId="version" />);
-    await userEvent.click(screen.getByRole("button", { name: "Review masked destination" }));
+    await userEvent.click(screen.getByRole("button", { name: "Show bank details (logged)" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Administrator access is required.");
     unmount();
 
     calls.mask.mockResolvedValueOnce({ mask: "Bank 058 · account ending 6789" });
     render(<MaskedDestination versionId="version" />);
-    await userEvent.click(screen.getByRole("button", { name: "Review masked destination" }));
+    await userEvent.click(screen.getByRole("button", { name: "Show bank details (logged)" }));
     expect(await screen.findByText(/account ending 6789/)).toBeTruthy();
     Object.defineProperty(document, "hidden", { configurable: true, value: true });
     act(() => {
@@ -207,7 +207,7 @@ describe("payout form states", () => {
     calls.transition.mockResolvedValue({ error: "A different administrator must approve." });
     render(<BatchActions batchId="batch-1" status="reserved" />);
     await userEvent.click(screen.getByRole("button", { name: "Void reservation" }));
-    expect(confirm).toHaveBeenCalledWith("Release this batch's pre-provider reservations?");
+    expect(confirm).toHaveBeenCalledWith("Release this payment run's unsent reservations?");
     expect(calls.transition).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "Queue submission" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("different administrator");
@@ -217,14 +217,39 @@ describe("payout form states", () => {
   it("reports line verification results and refusals", async () => {
     calls.poll.mockResolvedValueOnce({ done: "Verified provider result applied to this line" });
     const { unmount } = render(<PollLineAction lineId="line-1" />);
-    await userEvent.click(screen.getByRole("button", { name: "Verify line" }));
+    await userEvent.click(screen.getByRole("button", { name: "Check provider result" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Verified provider result");
     expect((calls.poll.mock.calls[0]![1] as FormData).get("line_id")).toBe("line-1");
     unmount();
 
     calls.poll.mockResolvedValueOnce({ error: "Manual verification requires another admin." });
     render(<PollLineAction lineId="line-1" />);
-    await userEvent.click(screen.getByRole("button", { name: "Verify line" }));
+    await userEvent.click(screen.getByRole("button", { name: "Check provider result" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("another admin");
+  });
+  it("keeps list context when opening the actual confirmed replacement run", async () => {
+    calls.transition.mockResolvedValue({ batchId: "confirmed-replacement" });
+    render(
+      <BatchActions
+        batchId="old"
+        status="failed"
+        query={{
+          tab: "payouts",
+          day: "2026-10-01",
+          runs: "2",
+          credits: "1",
+          batch: "old",
+          line: "old-line",
+          history_page: "3",
+        }}
+      />,
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: "Request replacement for failed payments" }),
+    );
+    expect(await screen.findByRole("link", { name: "Review replacement run" })).toHaveAttribute(
+      "href",
+      "/admin/money?tab=payouts&day=2026-10-01&runs=2&credits=1&batch=confirmed-replacement",
+    );
   });
 });

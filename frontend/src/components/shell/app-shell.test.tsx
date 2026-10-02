@@ -11,7 +11,7 @@ vi.mock("@/components/auth/change-password-form", () => ({
   ChangePasswordForm: () => <form aria-label="Change password" />,
 }));
 vi.mock("@/lib/auth/actions", () => ({ signOutAction: vi.fn() }));
-vi.mock("next/navigation", () => ({ usePathname: () => "/admin/users" }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/admin/settings/staff" }));
 
 const me = {
   user: {
@@ -49,9 +49,9 @@ describe("AppShell account controls", () => {
         me={me}
         nav={[
           { href: "/admin", label: "Overview", exact: true },
-          { href: "/admin/users", label: "Users", group: "People & cars" },
+          { href: "/admin/settings/staff", label: "Users", group: "People & cars" },
           { href: "/admin/drivers", label: "Drivers", group: "People & cars" },
-          { href: "/admin/payouts", label: "Payouts", group: "Trips & money" },
+          { href: "/admin/money", label: "Payouts", group: "Trips & money" },
         ]}
       >
         <p>Admin content</p>

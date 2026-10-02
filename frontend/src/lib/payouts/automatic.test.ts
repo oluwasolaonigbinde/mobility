@@ -50,13 +50,15 @@ describe("automatic payout copy helpers", () => {
     expect(missingSettingLabel("PAYOUT_AUTOMATIC_FREQUENCY")).toBe(
       "How often drivers are paid has not been set",
     );
-    expect(missingSettingLabel("SOMETHING_ELSE")).toBe("SOMETHING_ELSE");
+    expect(missingSettingLabel("SOMETHING_ELSE")).toBe(
+      "An automatic payout setting has not been supplied",
+    );
     expect(alertLabel("duplicate_payment")).toBe("A possible duplicate payment");
-    expect(alertLabel("new_kind")).toBe("new kind");
+    expect(alertLabel("new_kind")).toBe("Payment problem to review");
     expect(manualReasonLabel("open_dispute")).toBe("Driver has an open dispute");
-    expect(manualReasonLabel("other_reason")).toBe("other reason");
+    expect(manualReasonLabel("other_reason")).toBe("Payment needs a staff review");
     expect(outcomeText("succeeded")).toBe("Paid");
-    expect(outcomeText("some_state")).toBe("some state");
+    expect(outcomeText("some_state")).toBe("Payment result not known");
   });
 
   it("explains each alert's detail without codes", () => {

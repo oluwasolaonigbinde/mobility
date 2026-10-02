@@ -3,33 +3,19 @@
 import { useActionState } from "react";
 import { newOrderAction, type NewOrderState } from "./actions";
 import { Button } from "@/components/ui/button";
+import { SearchSelect } from "../../search-select";
 import { formatMoneyExact } from "@/lib/format";
 
 const initialState: NewOrderState = {};
 
-export function NewOrderForm({ campaigns }: { campaigns: { id: string; name: string }[] }) {
+export function NewOrderForm() {
   const [state, formAction, pending] = useActionState(newOrderAction, initialState);
   const p = state.projection;
 
   return (
     <form action={formAction} className="flex flex-col gap-4" noValidate>
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="flex flex-col gap-1.5">
-          <label htmlFor="co-campaign" className="micro text-muted">
-            Campaign
-          </label>
-          <select
-            id="co-campaign"
-            name="campaign_id"
-            className="border-edge bg-raised text-ink focus:border-amber h-11 rounded-lg border px-3.5 text-sm focus:outline-none"
-          >
-            {campaigns.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <SearchSelect kind="campaign" name="campaign_id" label="Campaign" />
         <div className="flex flex-col gap-1.5">
           <label htmlFor="co-day" className="micro text-muted">
             Day, Nigeria time (WAT)
@@ -43,7 +29,7 @@ export function NewOrderForm({ campaigns }: { campaigns: { id: string; name: str
         </div>
         <div className="flex flex-col gap-1.5">
           <label htmlFor="co-reason" className="micro text-muted">
-            Reason (audited)
+            Reason (logged)
           </label>
           <input
             id="co-reason"
@@ -64,21 +50,21 @@ export function NewOrderForm({ campaigns }: { campaigns: { id: string; name: str
       ) : null}
       {state.created && !state.error ? (
         <p className="border-green/40 bg-green/10 text-green rounded-lg border px-3.5 py-2.5 text-sm">
-          ✓ Draft order created — submit it below for independent approval.
+          ✓ Pay correction created — open it in the list and submit it for a second approval.
         </p>
       ) : null}
 
       {p ? (
         <div className="border-edge bg-raised/50 rounded-lg border px-4 py-3">
           <p className="micro text-muted mb-2">
-            Projected delta (read-only preview — the order re-projects on creation)
+            Expected pay change (preview; checked again when saved)
           </p>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-1 font-mono text-xs sm:grid-cols-4">
-            <dt className="text-faint">Posted today</dt>
+            <dt className="text-faint">Current total</dt>
             <dd>{formatMoneyExact(p.previousTotal, p.currency)}</dd>
             <dt className="text-faint">Correct total</dt>
             <dd>{formatMoneyExact(p.targetTotal, p.currency)}</dd>
-            <dt className="text-faint">Delta</dt>
+            <dt className="text-faint">Change</dt>
             <dd className={p.deltaTotal.startsWith("-") ? "text-coral" : "text-green"}>
               {formatMoneyExact(p.deltaTotal, p.currency)}
             </dd>
@@ -87,7 +73,10 @@ export function NewOrderForm({ campaigns }: { campaigns: { id: string; name: str
               {p.tripCount} ({p.adjustmentCount} up · {p.reversalCount} down)
             </dd>
           </dl>
-          <p className="micro text-faint mt-2 break-all">projection {p.fingerprint}</p>
+          <details className="micro text-faint mt-2 break-all">
+            <summary>Recorded preview details</summary>
+            {p.fingerprint}
+          </details>
         </div>
       ) : null}
 
@@ -100,15 +89,15 @@ export function NewOrderForm({ campaigns }: { campaigns: { id: string; name: str
           className="flex-1"
           variant="ghost"
         >
-          {pending ? "Working…" : "Preview delta"}
+          {pending ? "Working…" : "Preview change"}
         </Button>
         <Button type="submit" name="intent" value="create" disabled={pending} className="flex-1">
-          {pending ? "Working…" : "Create draft order"}
+          {pending ? "Working…" : "Create pay correction"}
         </Button>
       </div>
       <p className="micro text-faint">
-        Direct day recompute is retired — corrections execute only through an approved order
-        (creator ≠ approver). Positive deltas release to drivers at the date set on execution.
+        A different staff member must approve each correction. Extra pay becomes available to
+        drivers on the date chosen when the correction runs.
       </p>
     </form>
   );

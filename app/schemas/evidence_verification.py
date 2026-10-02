@@ -63,3 +63,9 @@ class EvidenceVerificationRead(BaseModel):
 
 class EvidenceVerificationList(BaseModel):
     items: list[EvidenceVerificationRead]
+
+
+class AdminEvidenceVerificationList(EvidenceVerificationList):
+    total: int
+    limit: int
+    offset: int

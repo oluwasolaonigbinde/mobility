@@ -53,14 +53,14 @@ describe("payout action failure paths", () => {
   it("keeps the current line authoritative when polling fails or input is invalid", async () => {
     const invalid = new FormData();
     invalid.set("line_id", "line");
-    expect(await pollLineAction({}, invalid)).toEqual({ error: "Invalid payout line" });
+    expect(await pollLineAction({}, invalid)).toEqual({ error: "Invalid selected payment" });
 
     mocks.batchApi.mockRejectedValueOnce(new Error("timeout"));
     const form = new FormData();
     form.set("line_id", entry);
     expect(await pollLineAction({}, form)).toEqual({
       error:
-        "No verified result could be confirmed. The current line status remains authoritative.",
+        "No verified result could be confirmed. The current payment status remains authoritative.",
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
@@ -70,7 +70,7 @@ describe("payout action failure paths", () => {
     malformed.set("driver_profile_id", entry);
     malformed.set("currency", "NAIRA");
     expect(await allocateDebtAction({}, malformed)).toEqual({
-      error: "Enter a valid driver profile ID and currency",
+      error: "Select a driver and currency.",
     });
     expect(mocks.batchApi).not.toHaveBeenCalled();
 

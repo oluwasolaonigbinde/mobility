@@ -84,14 +84,14 @@ export async function reviewFraudFlagAction(
     return { error: "Could not reach the server." };
   }
 
-  revalidatePath("/admin/fraud");
+  revalidatePath("/admin/trip-checks");
   return {
     done:
       intent === "acknowledge"
-        ? "Review acknowledged"
+        ? "Review started"
         : intent === "confirm"
-          ? "Fraud confirmed"
-          : "Flag dismissed",
+          ? "Problem confirmed"
+          : "Trip cleared",
   };
 }
 
@@ -119,7 +119,7 @@ export async function replyFraudDisputeAction(
     return { error: "Could not reach the server." };
   }
 
-  revalidatePath("/admin/fraud");
+  revalidatePath("/admin/trip-checks");
   return { done: "Reply sent to driver" };
 }
 
@@ -148,8 +148,8 @@ export async function queueSpotCheckAction(
     if (error instanceof ApiError) return { error: error.message };
     return { error: "Could not reach the server." };
   }
-  revalidatePath("/admin/fraud");
-  return { done: "Physical spot check queued" };
+  revalidatePath("/admin/trip-checks");
+  return { done: "In-person check requested" };
 }
 
 export async function resolveSpotCheckAction(
@@ -182,6 +182,6 @@ export async function resolveSpotCheckAction(
     if (error instanceof ApiError) return { error: error.message };
     return { error: "Could not reach the server." };
   }
-  revalidatePath("/admin/fraud");
-  return { done: outcome === "passed" ? "Spot check passed" : "Failure sent to fraud review" };
+  revalidatePath("/admin/trip-checks");
+  return { done: outcome === "passed" ? "In-person check passed" : "Failure sent to trip review" };
 }

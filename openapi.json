@@ -355,6 +355,37 @@
         "title": "AdminDriverProfileRead",
         "type": "object"
       },
+      "AdminEvidenceVerificationList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceVerificationRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "AdminEvidenceVerificationList",
+        "type": "object"
+      },
       "AdminFraudDisputeList": {
         "properties": {
           "items": {
@@ -475,6 +506,224 @@
           "updated_at"
         ],
         "title": "AdminFraudDisputeRead",
+        "type": "object"
+      },
+      "AdminFraudFlagListItemRead": {
+        "properties": {
+          "assignment_id": {
+            "format": "uuid",
+            "title": "Assignment Id",
+            "type": "string"
+          },
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "detected_at": {
+            "format": "date-time",
+            "title": "Detected At",
+            "type": "string"
+          },
+          "driver_profile_id": {
+            "format": "uuid",
+            "title": "Driver Profile Id",
+            "type": "string"
+          },
+          "escalated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Escalated At"
+          },
+          "evidence": {
+            "additionalProperties": true,
+            "title": "Evidence",
+            "type": "object"
+          },
+          "flag_type": {
+            "$ref": "#/components/schemas/FraudFlagType"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "money_effect": {
+            "$ref": "#/components/schemas/AdminFraudFlagListMoneyEffectRead"
+          },
+          "resolution_note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolution Note"
+          },
+          "review_due_at": {
+            "format": "date-time",
+            "title": "Review Due At",
+            "type": "string"
+          },
+          "reviewed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed At"
+          },
+          "reviewed_by_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reviewed By User Id"
+          },
+          "severity": {
+            "$ref": "#/components/schemas/FraudFlagSeverity"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FraudFlagStatus"
+          },
+          "trip_analytics_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trip Analytics Id"
+          },
+          "trip_session_id": {
+            "format": "uuid",
+            "title": "Trip Session Id",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          },
+          "vehicle_id": {
+            "format": "uuid",
+            "title": "Vehicle Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "trip_session_id",
+          "trip_analytics_id",
+          "assignment_id",
+          "campaign_id",
+          "driver_profile_id",
+          "vehicle_id",
+          "flag_type",
+          "severity",
+          "status",
+          "description",
+          "detected_at",
+          "reviewed_by_user_id",
+          "reviewed_at",
+          "resolution_note",
+          "created_at",
+          "updated_at",
+          "review_due_at",
+          "escalated_at",
+          "money_effect"
+        ],
+        "title": "AdminFraudFlagListItemRead",
+        "type": "object"
+      },
+      "AdminFraudFlagListMoneyEffectRead": {
+        "properties": {
+          "available_net": {
+            "title": "Available Net",
+            "type": "string"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "held_currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Held Currency"
+          },
+          "held_pending_net": {
+            "title": "Held Pending Net",
+            "type": "string"
+          },
+          "reversal_entry_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reversal Entry Id"
+          },
+          "reversal_recommended": {
+            "title": "Reversal Recommended",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "available_net",
+          "currency",
+          "reversal_entry_id",
+          "reversal_recommended",
+          "held_pending_net",
+          "held_currency"
+        ],
+        "title": "AdminFraudFlagListMoneyEffectRead",
         "type": "object"
       },
       "AdminFraudFlagRead": {
@@ -858,6 +1107,53 @@
           "offset"
         ],
         "title": "AdminOrganizationListResponse",
+        "type": "object"
+      },
+      "AdminOrganizationMemberListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminOrganizationMemberRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "AdminOrganizationMemberListResponse",
+        "type": "object"
+      },
+      "AdminOrganizationMemberRead": {
+        "properties": {
+          "membership": {
+            "$ref": "#/components/schemas/OrganizationMembershipRead"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserRead"
+          }
+        },
+        "required": [
+          "user",
+          "membership"
+        ],
+        "title": "AdminOrganizationMemberRead",
         "type": "object"
       },
       "AdminPayoutCalculationRead": {
@@ -1421,6 +1717,83 @@
           "masked_phone"
         ],
         "title": "AdminPhoneChallengeRead",
+        "type": "object"
+      },
+      "AdminTripRoutePointRead": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "latitude": {
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Longitude",
+            "type": "number"
+          },
+          "recorded_at": {
+            "format": "date-time",
+            "title": "Recorded At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "recorded_at",
+          "latitude",
+          "longitude"
+        ],
+        "title": "AdminTripRoutePointRead",
+        "type": "object"
+      },
+      "AdminTripRouteRead": {
+        "properties": {
+          "flag_id": {
+            "format": "uuid",
+            "title": "Flag Id",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AdminTripRoutePointRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          },
+          "trip_session_id": {
+            "format": "uuid",
+            "title": "Trip Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "flag_id",
+          "trip_session_id",
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "AdminTripRouteRead",
         "type": "object"
       },
       "AdminVehicleListResponse": {
@@ -14079,7 +14452,7 @@
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/AdminFraudFlagRead"
+              "$ref": "#/components/schemas/AdminFraudFlagListItemRead"
             },
             "title": "Items",
             "type": "array"
@@ -26181,6 +26554,77 @@
         ]
       }
     },
+    "/api/v1/admin/advertiser-organizations/{organization_id}/members": {
+      "get": {
+        "operationId": "admin_list_organization_members_api_v1_admin_advertiser_organizations__organization_id__members_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Organization Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminOrganizationMemberListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List company sign-in accounts",
+        "tags": [
+          "Admin Users"
+        ]
+      }
+    },
     "/api/v1/admin/audit-events": {
       "get": {
         "operationId": "admin_list_audit_events_api_v1_admin_audit_events_get",
@@ -28647,6 +29091,40 @@
           },
           {
             "in": "query",
+            "name": "user_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "User Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "organization_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Organization Id"
+            }
+          },
+          {
+            "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
@@ -29895,6 +30373,29 @@
               ],
               "title": "Verification Type"
             }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -29902,7 +30403,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/EvidenceVerificationList"
+                  "$ref": "#/components/schemas/AdminEvidenceVerificationList"
                 }
               }
             },
@@ -30646,6 +31147,77 @@
           }
         ],
         "summary": "Resolve a fraud flag review",
+        "tags": [
+          "Analytics"
+        ]
+      }
+    },
+    "/api/v1/admin/fraud-flags/{flag_id}/route": {
+      "get": {
+        "operationId": "admin_read_flag_route_api_v1_admin_fraud_flags__flag_id__route_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "flag_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Flag Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 500,
+              "maximum": 1000,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminTripRouteRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Read recorded trip locations for a staff trip review",
         "tags": [
           "Analytics"
         ]
@@ -31486,6 +32058,23 @@
               "default": false,
               "title": "History",
               "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "driver_profile_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Driver Profile Id"
             }
           }
         ],

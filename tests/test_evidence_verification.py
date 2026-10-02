@@ -407,9 +407,7 @@ def test_admin_spot_check_api_and_driver_pending_api_are_role_scoped(
 ) -> None:
     graph = build_graph(db_sessionmaker, "verification-api")
     activate_and_add_earning(db_sessionmaker, graph)
-    admin_headers = auth_headers(
-        db_client, "admin-verification-api@example.com", PASSWORD
-    )
+    admin_headers = auth_headers(db_client, "admin-verification-api@example.com", PASSWORD)
     driver_headers = auth_headers(db_client, graph.driver.email, PASSWORD)
     request_id = uuid4()
 
@@ -427,9 +425,7 @@ def test_admin_spot_check_api_and_driver_pending_api_are_role_scoped(
     assert queued.status_code == 201
     assert queued.json()["status"] == "pending"
 
-    driver_forbidden = db_client.get(
-        "/api/v1/admin/evidence-verifications", headers=driver_headers
-    )
+    driver_forbidden = db_client.get("/api/v1/admin/evidence-verifications", headers=driver_headers)
     assert driver_forbidden.status_code == 403
 
     async def issue_high_earner() -> None:
@@ -443,20 +439,15 @@ def test_admin_spot_check_api_and_driver_pending_api_are_role_scoped(
             await session.commit()
 
     asyncio.run(issue_high_earner())
-    pending = db_client.get(
-        "/api/v1/driver/evidence-verifications/pending", headers=driver_headers
-    )
+    pending = db_client.get("/api/v1/driver/evidence-verifications/pending", headers=driver_headers)
     assert pending.status_code == 200
-    assert {item["assignment_id"] for item in pending.json()["items"]} == {
-        str(graph.assignment.id)
-    }
+    assert {item["assignment_id"] for item in pending.json()["items"]} == {str(graph.assignment.id)}
     assert {item["verification_type"] for item in pending.json()["items"]} == {
         "high_earner_renewal"
     }
 
     resolved = db_client.post(
-        "/api/v1/admin/evidence-verifications/"
-        f"{queued.json()['id']}/physical-spot-check-result",
+        f"/api/v1/admin/evidence-verifications/{queued.json()['id']}/physical-spot-check-result",
         headers=admin_headers,
         json={
             "outcome": "passed",
@@ -515,9 +506,7 @@ def test_admin_can_list_physical_checks_behind_a_backlog_of_newer_renewals(
         headers=admin_headers,
         params={"status": "pending"},
     )
-    assert {item["verification_type"] for item in mixed.json()["items"]} == {
-        "high_earner_renewal"
-    }
+    assert {item["verification_type"] for item in mixed.json()["items"]} == {"high_earner_renewal"}
     physical = db_client.get(
         "/api/v1/admin/evidence-verifications",
         headers=admin_headers,
@@ -525,6 +514,55 @@ def test_admin_can_list_physical_checks_behind_a_backlog_of_newer_renewals(
     )
     assert physical.status_code == 200
     assert [item["id"] for item in physical.json()["items"]] == [queued.json()["id"]]
+
+
+def test_admin_physical_checks_have_complete_filtered_paging(db_client, db_sessionmaker) -> None:
+    graph = build_graph(db_sessionmaker, "physical-paging")
+    headers = auth_headers(db_client, "admin-physical-paging@example.com", PASSWORD)
+    identifiers = sorted((uuid4() for _ in range(103)), reverse=True)
+
+    async def add_checks() -> None:
+        async with db_sessionmaker() as session:
+            session.add_all(
+                EvidenceVerification(
+                    id=identifier,
+                    assignment_id=graph.assignment.id,
+                    campaign_id=graph.campaign.id,
+                    driver_profile_id=graph.profile.id,
+                    vehicle_id=graph.vehicle.id,
+                    source_trip_session_id=graph.trip.id,
+                    verification_type="physical_spot_check",
+                    status="pending",
+                    issued_by_user_id=graph.assignment.assigned_by_user_id,
+                    client_request_id=uuid4(),
+                    request_fingerprint="a" * 64,
+                    issued_at=NOW,
+                )
+                for identifier in identifiers
+            )
+            await session.commit()
+
+    asyncio.run(add_checks())
+    path = "/api/v1/admin/evidence-verifications"
+    filters = {"status": "pending", "verification_type": "physical_spot_check"}
+    first = db_client.get(path, headers=headers, params=filters)
+    assert first.status_code == 200
+    assert first.json()["total"] == 103
+    assert first.json()["limit"] == 100
+    assert first.json()["offset"] == 0
+    assert [row["id"] for row in first.json()["items"]] == [str(i) for i in identifiers[:100]]
+    tail = db_client.get(path, headers=headers, params={**filters, "offset": 100, "limit": 10})
+    assert tail.status_code == 200
+    assert tail.json()["total"] == 103
+    assert [row["id"] for row in tail.json()["items"]] == [str(i) for i in identifiers[100:]]
+    empty = db_client.get(path, headers=headers, params={**filters, "status": "passed"})
+    assert empty.json()["total"] == 0
+    assert empty.json()["items"] == []
+    for invalid in ({"limit": 0}, {"limit": 101}, {"offset": -1}):
+        assert db_client.get(path, headers=headers, params=invalid).status_code == 422
+    driver_headers = auth_headers(db_client, graph.driver.email, PASSWORD)
+    assert db_client.get(path, headers=driver_headers).status_code == 403
+    assert db_client.get(path).status_code == 401
 
 
 def test_worker_reports_unconfigured_high_earner_policy_without_inventing_work(

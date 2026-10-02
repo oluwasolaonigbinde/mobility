@@ -62,14 +62,161 @@ it("forwards reactivation proof without putting it in returned state", async () 
   expect(result).toEqual({});
 });
 
-it.each([["admin", "/admin/settings/staff"], ["driver", "/admin/drivers"], ["advertiser", "/admin/advertisers"]])("uses the canonical destination for %s", async (role, destination) => {
-  await createUserAction({}, form(role, role === "admin" ? "proof" : undefined));
-  expect(mocks.redirect).toHaveBeenCalledWith(destination);
-});
-it("opens the actual created company, not the advertiser login", async () => {
+const createdUserId = "00000000-0000-4000-8000-00000000000a";
+const retryState = {
+  createdUserId,
+  createdEmail: "new@example.com",
+  createdFullName: "New User",
+  createdPhone: null,
+};
+function companyForm() {
   const data = form("advertiser");
-  data.set("org_name", "Company");
-  mocks.post.mockResolvedValueOnce({ data: { id: "login-id" } }).mockResolvedValueOnce({ data: { organization: { id: "actual-company" } } });
-  await createUserAction({}, data);
-  expect(mocks.redirect).toHaveBeenCalledWith("/admin/advertisers/actual-company");
+  data.set("org_name", "Example company");
+  return data;
+}
+it("requires a company name before creating its advertiser login", async () => {
+  expect(await createUserAction({}, form("advertiser"))).toEqual({
+    error: "Company name is required",
+  });
+  expect(mocks.post).not.toHaveBeenCalled();
+});
+it("retains the created login after company creation fails without retaining its password", async () => {
+  mocks.post
+    .mockResolvedValueOnce({ data: { id: createdUserId } })
+    .mockRejectedValueOnce(new Error("offline"));
+  const result = await createUserAction({}, companyForm());
+  expect(result).toEqual({
+    ...retryState,
+    error: expect.stringContaining("Retry the company below"),
+  });
+  expect(result).not.toHaveProperty("password");
+});
+it("retries only the company after checking the actual existing advertiser identity", async () => {
+  mocks.get.mockResolvedValue({
+    data: {
+      items: [
+        {
+          id: createdUserId,
+          role: "advertiser",
+          email: retryState.createdEmail,
+          full_name: retryState.createdFullName,
+        },
+      ],
+      total: 1,
+    },
+  });
+  mocks.post.mockResolvedValue({ data: { organization: { id: "company-id" } } });
+  const data = companyForm();
+  data.delete("password");
+  await createUserAction(retryState, data);
+  expect(mocks.get).toHaveBeenCalledExactlyOnceWith("/api/v1/admin/users", {
+    params: { query: { role: "advertiser", q: retryState.createdEmail, limit: 100, offset: 0 } },
+  });
+  expect(mocks.post).toHaveBeenCalledExactlyOnceWith("/api/v1/admin/advertiser-organizations", {
+    body: {
+      name: "Example company",
+      currency: "NGN",
+      owner_user_id: createdUserId,
+      status: "active",
+    },
+  });
+  expect(mocks.redirect).toHaveBeenCalledWith("/admin/advertisers/company-id");
+});
+it.each(["role", "email", "full_name"])(
+  "refuses a changed existing %s before retrying the company",
+  async (key) => {
+    mocks.get.mockResolvedValue({
+      data: {
+        items: [
+          {
+            id: createdUserId,
+            role: "advertiser",
+            email: retryState.createdEmail,
+            full_name: retryState.createdFullName,
+            [key]: "changed",
+          },
+        ],
+        total: 1,
+      },
+    });
+    expect((await createUserAction(retryState, companyForm())).error).toContain("does not match");
+    expect(mocks.post).not.toHaveBeenCalled();
+  },
+);
+it("finds the exact created login after a full first page without selecting a similar account", async () => {
+  mocks.get
+    .mockResolvedValueOnce({
+      data: {
+        items: Array.from({ length: 100 }, (_, i) => ({
+          id: `similar-${i}`,
+          role: "advertiser",
+          email: retryState.createdEmail,
+          full_name: retryState.createdFullName,
+        })),
+        total: 101,
+      },
+    })
+    .mockResolvedValueOnce({
+      data: {
+        items: [
+          {
+            id: createdUserId,
+            role: "advertiser",
+            email: retryState.createdEmail,
+            full_name: retryState.createdFullName,
+          },
+        ],
+        total: 101,
+      },
+    });
+  mocks.post.mockResolvedValue({ data: { organization: { id: "company-id" } } });
+  await createUserAction(retryState, companyForm());
+  expect(mocks.get).toHaveBeenNthCalledWith(2, "/api/v1/admin/users", {
+    params: { query: { role: "advertiser", q: retryState.createdEmail, limit: 100, offset: 100 } },
+  });
+  expect(mocks.post).toHaveBeenCalledOnce();
+  expect(mocks.post.mock.calls[0]![1].body.owner_user_id).toBe(createdUserId);
+});
+it("refuses an incomplete retry page without creating another login", async () => {
+  mocks.get.mockResolvedValue({ data: { items: [], total: 101 } });
+  expect((await createUserAction(retryState, companyForm())).error).toContain("does not match");
+  expect(mocks.post).not.toHaveBeenCalled();
+});
+it("refuses a malformed retry identity and preserves a valid retry through validation and read errors", async () => {
+  expect(
+    (await createUserAction({ ...retryState, createdUserId: "invalid" }, companyForm())).error,
+  ).toContain("does not match");
+  expect(mocks.get).not.toHaveBeenCalled();
+  const data = companyForm();
+  data.set("org_name", "");
+  expect(await createUserAction(retryState, data)).toEqual({
+    ...retryState,
+    error: "Company name is required",
+  });
+  mocks.get.mockRejectedValue(new Error("offline"));
+  expect(await createUserAction(retryState, companyForm())).toEqual({
+    ...retryState,
+    error: "Could not reach the server.",
+  });
+  expect(mocks.post).not.toHaveBeenCalled();
+});
+
+it.each(["", undefined])(
+  "rejects an incomplete retry id (%s) without creating a login",
+  async (createdUserId) => {
+    expect(
+      (await createUserAction({ ...retryState, createdUserId }, companyForm())).error,
+    ).toContain("does not match");
+    expect(mocks.post).not.toHaveBeenCalled();
+  },
+);
+it("keeps the existing login retry state when company confirmation is empty", async () => {
+  mocks.post
+    .mockResolvedValueOnce({ data: { id: createdUserId } })
+    .mockResolvedValueOnce({ data: undefined });
+  expect(await createUserAction({}, companyForm())).toEqual({
+    ...retryState,
+    error: expect.stringContaining("Retry the company below"),
+  });
+  expect(mocks.redirect).not.toHaveBeenCalled();
 });

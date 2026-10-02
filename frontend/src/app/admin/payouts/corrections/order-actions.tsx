@@ -31,9 +31,9 @@ export function OrderActions({
 
   const terminalNote =
     status === "stale"
-      ? "Projection drifted — this order is void; project a new one."
+      ? "The saved preview has changed — prepare a new pay correction."
       : status === "executed"
-        ? "Executed — differentials are in the ledger."
+        ? "Completed — the pay changes are recorded."
         : status === "rejected"
           ? "Rejected."
           : null;
@@ -84,7 +84,9 @@ export function OrderActions({
             </Button>
           </div>
           {isCreator ? (
-            <p className="micro text-faint">Maker-checker: a different admin must approve.</p>
+            <p className="micro text-faint">
+              Needs a second approval: a different staff member must approve.
+            </p>
           ) : null}
         </>
       ) : null}
@@ -93,7 +95,7 @@ export function OrderActions({
         <>
           {requiresReleaseAt ? (
             <label className="flex flex-col items-end gap-1">
-              <span className="micro text-muted">Release positive deltas at</span>
+              <span className="micro text-muted">Make extra pay available at</span>
               <input
                 name="release_at"
                 type="datetime-local"
@@ -110,7 +112,7 @@ export function OrderActions({
             disabled={pending}
             className="h-9 px-3 text-xs"
           >
-            Execute
+            Run
           </Button>
         </>
       ) : null}

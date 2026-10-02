@@ -2,7 +2,7 @@ from datetime import timedelta
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Body, Query
+from fastapi import APIRouter, Body, Query, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.dependencies import (
@@ -19,7 +19,10 @@ from app.models.trip_analytics import (
     TripAnalytics,
 )
 from app.schemas.trip_analytics import (
+    AdminFraudFlagListItemRead,
+    AdminFraudFlagListMoneyEffectRead,
     AdminFraudFlagRead,
+    AdminTripRouteRead,
     AnalyticsRecomputeRequest,
     DriverTripAnalyticsSummary,
     FraudFlagListResponse,
@@ -28,6 +31,7 @@ from app.schemas.trip_analytics import (
     FraudFlagResolveRequest,
     TripAnalyticsRead,
 )
+from app.services.admin_trip_review import HeldTripPay, read_flag_route, read_held_trip_pay
 from app.services.audit import create_audit_event
 from app.services.earnings_release import fraud_flag_money_effect
 from app.services.fraud_holds import acknowledge_fraud_flag, resolve_fraud_flag
@@ -83,6 +87,22 @@ async def admin_fraud_flag_response(
             reversal_entry_id=effect.reversal_entry_id,
             reversal_recommended=effect.reversal_recommended,
         ),
+    )
+
+
+async def admin_fraud_flag_list_item(
+    session: AsyncSession, *, flag: FraudFlag, review_sla_days: int, held_pay: HeldTripPay
+) -> AdminFraudFlagListItemRead:
+    base = await admin_fraud_flag_response(session, flag=flag, review_sla_days=review_sla_days)
+    return AdminFraudFlagListItemRead(
+        **{
+            **base.model_dump(),
+            "money_effect": AdminFraudFlagListMoneyEffectRead(
+                **base.money_effect.model_dump(),
+                held_pending_net=held_pay.amount,
+                held_currency=held_pay.currency,
+            ),
+        }
     )
 
 
@@ -219,15 +239,61 @@ async def admin_list_fraud_flags(
         driver_profile_id=driver_profile_id,
         trip_session_id=trip_session_id,
     )
+    held_by_trip = {
+        trip_id: await read_held_trip_pay(session, trip_id=trip_id)
+        for trip_id in {flag.trip_session_id for flag in flags}
+    }
     return FraudFlagListResponse(
         items=[
-            await admin_fraud_flag_response(
+            await admin_fraud_flag_list_item(
                 session,
                 flag=flag,
                 review_sla_days=settings.fraud_review_sla_days,
+                held_pay=held_by_trip[flag.trip_session_id],
             )
             for flag in flags
         ],
+        total=total,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get(
+    "/admin/fraud-flags/{flag_id}/route",
+    response_model=AdminTripRouteRead,
+    summary="Read recorded trip locations for a staff trip review",
+)
+async def admin_read_flag_route(
+    flag_id: UUID,
+    response: Response,
+    current_user: AdminUserDependency,
+    session: SessionDependency,
+    limit: Annotated[int, Query(ge=1, le=1000)] = 500,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> AdminTripRouteRead:
+    response.headers["Cache-Control"] = "private, no-store"
+    flag, points, total = await read_flag_route(
+        session, flag_id=flag_id, limit=limit, offset=offset
+    )
+    await create_audit_event(
+        session,
+        actor_user_id=current_user.id,
+        action="admin.fraud_review.route_read",
+        entity_type="fraud_flag",
+        entity_id=str(flag.id),
+        metadata={
+            "trip_session_id": str(flag.trip_session_id),
+            "limit": limit,
+            "offset": offset,
+            "point_count": len(points),
+        },
+    )
+    await session.commit()
+    return AdminTripRouteRead(
+        flag_id=flag.id,
+        trip_session_id=flag.trip_session_id,
+        items=points,
         total=total,
         limit=limit,
         offset=offset,

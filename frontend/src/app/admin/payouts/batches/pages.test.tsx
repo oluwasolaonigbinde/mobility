@@ -1,9 +1,8 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError } from "@/lib/api/errors";
-import PayoutBatchesPage from "./page";
-import BatchDetailPage from "./[batchId]/page";
-import LineHistoryPage from "./[batchId]/lines/[lineId]/page";
+import PayoutBatchesPage from "./content";
+import BatchDetailPage from "./[batchId]/content";
+import LineHistoryPage from "./[batchId]/lines/[lineId]/content";
 
 const mocks = vi.hoisted(() => ({ api: vi.fn(), role: vi.fn(), notFound: vi.fn() }));
 vi.mock("./batch-api", () => ({ batchApi: mocks.api }));
@@ -43,7 +42,7 @@ const line = {
 };
 const detailProps = (page?: string) => ({
   params: Promise.resolve({ batchId: "batch" }),
-  searchParams: Promise.resolve({ page }),
+  searchParams: Promise.resolve({ line_page: page, batch: "batch", day: "2026-09-28", runs: "2" }),
 });
 
 describe("bounded payout pages", () => {
@@ -65,7 +64,7 @@ describe("bounded payout pages", () => {
           q: "Ada%",
           currency: "ngn",
           credits: "1",
-          batches: "2",
+          runs: "2",
           status: "reserved",
         }),
       }),
@@ -79,16 +78,16 @@ describe("bounded payout pages", () => {
       2,
       "/summaries?limit=25&offset=50&batch_status=reserved",
     );
-    expect(screen.getByText("Maker: Ada Maker")).toBeVisible();
+    expect(screen.getByText("Prepared by: Ada Maker")).toBeVisible();
     expect(screen.getByText("₦125.10")).toBeVisible();
     expect(screen.getByText("Queued — not submitted: 2")).toBeVisible();
-    expect(screen.getByRole("link", { name: "Next credits" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Next earnings" })).toHaveAttribute(
       "href",
-      expect.stringContaining("credits=2&batches=2"),
+      expect.stringContaining("credits=2&runs=2"),
     );
-    expect(screen.getByRole("link", { name: "Previous batches" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Previous runs" })).toHaveAttribute(
       "href",
-      expect.stringContaining("credits=1&batches=1"),
+      expect.stringContaining("credits=1&runs=1"),
     );
   });
 
@@ -96,12 +95,12 @@ describe("bounded payout pages", () => {
     mocks.api.mockResolvedValue({ items: [], total: 0 });
     render(
       await PayoutBatchesPage({
-        searchParams: Promise.resolve({ credits: "-3", batches: "oops", currency: "NOTMONEY" }),
+        searchParams: Promise.resolve({ credits: "-3", runs: "oops", currency: "NOTMONEY" }),
       }),
     );
     expect(mocks.api).toHaveBeenCalledWith("/eligible?limit=25&offset=0");
-    expect(screen.getByText("No batches match this page.")).toBeVisible();
-    expect(screen.queryByRole("link", { name: "Next batches" })).not.toBeInTheDocument();
+    expect(screen.getByText("No payment runs match this page.")).toBeVisible();
+    expect(screen.queryByRole("link", { name: "Next runs" })).not.toBeInTheDocument();
   });
 
   it("renders unknown line outcomes without inventing failed or paid finality", async () => {
@@ -116,7 +115,7 @@ describe("bounded payout pages", () => {
       within(screen.getByRole("navigation", { name: "Payment line pages" })).getByRole("link", {
         name: "Next",
       }),
-    ).toHaveAttribute("href", "?page=2");
+    ).toHaveAttribute("href", expect.stringContaining("line_page=2"));
   });
 
   it("shows Cardvert as the approver of an automatic batch and offers no approval", async () => {
@@ -145,7 +144,7 @@ describe("bounded payout pages", () => {
     expect(screen.getByText(/Approved automatically by/)).toHaveTextContent("Cardvert");
     expect(screen.getByRole("link", { name: "Automatic payouts" })).toHaveAttribute(
       "href",
-      "/admin/payouts/automatic",
+      "/admin/money?tab=payouts",
     );
     expect(screen.queryByText("Batch actions")).not.toBeInTheDocument();
     expect(screen.queryByText(/Checker:/)).not.toBeInTheDocument();
@@ -158,7 +157,7 @@ describe("bounded payout pages", () => {
     render(await BatchDetailPage(detailProps()));
     expect(mocks.api).toHaveBeenLastCalledWith("/eligible?limit=25&offset=0&currency=NGN");
     expect(screen.getByText("Credit selection batch")).toBeVisible();
-    expect(screen.getByText("No payment lines on this page.")).toBeVisible();
+    expect(screen.getByText("No payments on this page.")).toBeVisible();
   });
 
   it("does not offer a checker another maker's draft credits", async () => {
@@ -166,7 +165,9 @@ describe("bounded payout pages", () => {
     mocks.api.mockResolvedValue({ summary: { ...summary, status: "draft" }, lines: [], total: 0 });
     render(await BatchDetailPage(detailProps()));
     expect(mocks.api).toHaveBeenCalledTimes(1);
-    expect(screen.getByText("Only the maker can reserve this draft.")).toBeVisible();
+    expect(
+      screen.getByText("Only the person who prepared this draft can reserve it."),
+    ).toBeVisible();
   });
 
   it("shows verified evidence on paid lines and preserves submitted verification action", async () => {
@@ -189,15 +190,17 @@ describe("bounded payout pages", () => {
     expect(screen.getByRole("button", { name: "Verify line" })).toBeVisible();
   });
 
-  it("distinguishes a missing batch from a service error", async () => {
-    mocks.api.mockRejectedValueOnce(new ApiError(404, { code: "NOT_FOUND", message: "Missing" }));
-    await expect(BatchDetailPage(detailProps())).rejects.toThrow("not-found");
+  it("shows one failed-section state when the selected run cannot be read", async () => {
     mocks.api.mockRejectedValueOnce(new Error("offline"));
-    await expect(BatchDetailPage(detailProps())).rejects.toThrow("offline");
+    render(await BatchDetailPage(detailProps()));
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.queryByText("Batch actions")).not.toBeInTheDocument();
   });
 
   it("keeps no history distinct from final failure or payment", async () => {
-    mocks.api.mockResolvedValue({ items: [], total: 0, latest_submission_outcome: null });
+    mocks.api
+      .mockResolvedValueOnce({ id: "batch", lines: [line] })
+      .mockResolvedValueOnce({ items: [], total: 0, latest_submission_outcome: null });
     render(
       await LineHistoryPage({
         params: Promise.resolve({ batchId: "batch", lineId: "line" }),
@@ -212,7 +215,7 @@ describe("bounded payout pages", () => {
   });
 
   it("pages applied and retained provider evidence without changing its meaning", async () => {
-    mocks.api.mockResolvedValue({
+    mocks.api.mockResolvedValueOnce({ id: "batch", lines: [line] }).mockResolvedValueOnce({
       items: [
         {
           id: "1",
@@ -237,12 +240,39 @@ describe("bounded payout pages", () => {
     render(
       await LineHistoryPage({
         params: Promise.resolve({ batchId: "batch", lineId: "line" }),
-        searchParams: Promise.resolve({ page: "1" }),
+        searchParams: Promise.resolve({
+          batch: "batch",
+          line: "line",
+          history_page: "1",
+          day: "2026-09-28",
+          runs: "2",
+        }),
       }),
     );
     expect(mocks.api).toHaveBeenCalledWith("/lines/line/history?limit=25&offset=25");
-    expect(screen.getByText(/succeeded · Applied to this line/)).toBeVisible();
-    expect(screen.getByText(/failed · Retained; did not change this line/)).toBeVisible();
-    expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute("href", "?page=2");
+    expect(screen.getByText(/Verified paid · Applied to this payment/)).toBeVisible();
+    expect(screen.getByText(/Failed · Recorded without changing this payment/)).toBeVisible();
+    expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("history_page=2"),
+    );
+    expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("day=2026-09-28&runs=2"),
+    );
+  });
+  it.each([
+    { id: "other", lines: [line] },
+    { id: "batch", lines: [{ ...line, id: "other" }] },
+  ])("never reads history without the exact selected parent and line", async (parent) => {
+    mocks.api.mockResolvedValue(parent);
+    render(
+      await LineHistoryPage({
+        params: Promise.resolve({ batchId: "batch", lineId: "line" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+    expect(mocks.api).toHaveBeenCalledExactlyOnceWith("/batch");
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
   });
 });

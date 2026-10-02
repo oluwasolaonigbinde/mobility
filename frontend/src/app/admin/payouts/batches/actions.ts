@@ -52,29 +52,32 @@ const moneyErrors: Record<string, string> = {
   DISBURSEMENT_PROVIDER_UNAVAILABLE:
     "Automated submission is not configured. No transfer is confirmed.",
   PAYOUT_BATCH_MAKER_CHECKER_REQUIRED:
-    "The maker cannot approve this batch. Ask a different administrator to review it.",
-  PAYOUT_BATCH_NOT_APPROVED: "A different administrator must approve the batch before submission.",
+    "The person preparing this payment run cannot approve it. Ask a different staff member to review it.",
+  PAYOUT_BATCH_NOT_APPROVED:
+    "A different staff member must approve the payment run before submission.",
   PAYOUT_RECONCILER_SEPARATION_REQUIRED:
-    "Manual verification requires an administrator other than the maker and checker.",
+    "Manual verification requires a staff member other than the person preparing it and the second reviewer.",
   PAYOUT_ENTRY_HELD: "A selected credit is now held for review. Refresh available earnings.",
   PAYOUT_ASSESSMENT_NOT_CURRENT:
     "A selected credit needs a current successful assessment. Refresh available earnings.",
   PAYOUT_DEBT_ALLOCATION_REQUIRED:
     "Carry-forward debt must be allocated first. Refresh available earnings.",
   PAYOUT_ENTRY_ALREADY_RESERVED:
-    "A selected credit already belongs to a payout reservation. Open the existing batch.",
+    "A selected earning is already reserved for a payment run. Open that payment run.",
   PAYOUT_ENTRY_INELIGIBLE: "A selected credit is no longer eligible. Refresh available earnings.",
   PAYOUT_BATCH_NOT_DRAFT:
-    "This draft was already reserved with different credits. Open the existing batch.",
+    "This draft was already reserved with different earnings. Open the existing payment run.",
   PAYOUT_DRAFT_RETRY_CONFLICT:
     "This recovery reference cannot be reused. Open your existing draft.",
-  PAYOUT_PAYEE_VERSION_STALE: "The payee changed. Refresh and review the current destination.",
-  PAYOUT_BANK_ACCOUNT_UNVERIFIED: "The destination requires authorized verification.",
+  PAYOUT_PAYEE_VERSION_STALE:
+    "The bank details changed. Refresh and review the current bank details.",
+  PAYOUT_BANK_ACCOUNT_UNVERIFIED:
+    "The bank details require verification by an authorized staff member.",
   PAYOUT_RESOLVED_LINES_NOT_RETRYABLE:
-    "A terminally failed payment requires a newer verified bank version with a different bank or account number. Re-encryption or re-entering the same destination does not authorize replacement.",
+    "A failed payment requires a newer verified bank version with a different bank or account number. Replacing the encrypted record or entering the same bank details does not allow a replacement payment.",
   PAYOUT_UNRESOLVED_LINES_REMAIN:
-    "Wait for verified outcomes on every provider-visible line before requesting a replacement.",
-  PAYOUT_FAILED_LINES_MISSING: "This batch has no terminally failed lines to replace.",
+    "Wait for verified results on every payment sent to the provider before requesting a replacement.",
+  PAYOUT_FAILED_LINES_MISSING: "This payment run has no failed payments to replace.",
   FORBIDDEN_ROLE: "Your account no longer has administrator access.",
 };
 
@@ -99,7 +102,8 @@ export async function createAndReserveBatchAction(
       .split(/[\s,]+/)
       .filter(Boolean),
   });
-  if (!parsed.success) return { error: "Enter a currency and at least one valid ledger entry ID" };
+  if (!parsed.success)
+    return { error: "Select a currency and at least one available earnings record." };
   try {
     const draft = await batchApi<PayoutBatch>("", {
       method: "POST",
@@ -109,12 +113,12 @@ export async function createAndReserveBatchAction(
       method: "POST",
       body: JSON.stringify({ ledger_entry_ids: parsed.data.ledgerEntryIds }),
     });
-    revalidatePath("/admin/payouts/batches");
+    revalidatePath("/admin/money");
     return {
       done:
         reserved.status === "reserved"
-          ? "Reservation confirmed. Open the batch to review its current status."
-          : "Existing batch recovered; no new reservation was created. Open the batch to review its current status.",
+          ? "Reservation confirmed. Open the payment run to review its current status."
+          : "Existing payment run recovered; no new reservation was created. Open the payment run to review its current status.",
       batchId: draft.id,
     };
   } catch (error) {
@@ -122,7 +126,7 @@ export async function createAndReserveBatchAction(
       error: publicActionError(
         error,
         moneyErrors,
-        "The response could not be confirmed. Retry this saved request or open its draft; do not start a second batch.",
+        "The response could not be confirmed. Retry this saved request or open its draft; do not start a second payment run.",
       ),
       batchId: parsed.data.requestId,
     };
@@ -142,21 +146,21 @@ export async function batchTransitionAction(
     batch_id: String(formData.get("batch_id") ?? ""),
     intent: String(formData.get("intent") ?? ""),
   });
-  if (!parsed.success) return { error: "Invalid batch action" };
+  if (!parsed.success) return { error: "Invalid payment run action" };
   try {
     const endpoint = parsed.data.intent === "retry_failed" ? "retry-failed" : parsed.data.intent;
     const result = await batchApi<PayoutBatch>(`/${parsed.data.batch_id}/${endpoint}`, {
       method: "POST",
     });
-    revalidatePath("/admin/payouts/batches");
+    revalidatePath("/admin/money");
     return {
       done: {
-        approve: "Batch approved by checker",
+        approve: "Payment run approved by the second reviewer",
         submit:
-          "Submission queued. This does not confirm submission or payment; check each line for provider evidence.",
+          "Submission queued. This does not confirm submission or payment; check each payment for provider evidence.",
         retry_failed:
-          "Replacement reserved. Review its new frozen instructions and obtain independent approval before submission.",
-        void: "Pre-provider reservations released",
+          "Replacement reserved. Review its saved instructions and obtain independent approval before submission.",
+        void: "Unsent payment reservations released",
       }[parsed.data.intent],
       ...(parsed.data.intent === "retry_failed" ? { batchId: result.id } : {}),
     };
@@ -165,7 +169,7 @@ export async function batchTransitionAction(
       error: publicActionError(
         error,
         moneyErrors,
-        "The update could not be confirmed. Refresh this batch before retrying.",
+        "The update could not be confirmed. Refresh this payment run before retrying.",
       ),
     };
   }
@@ -178,17 +182,17 @@ export async function pollLineAction(
   formData: FormData,
 ): Promise<BatchActionState> {
   const parsed = pollSchema.safeParse({ line_id: String(formData.get("line_id") ?? "") });
-  if (!parsed.success) return { error: "Invalid payout line" };
+  if (!parsed.success) return { error: "Invalid selected payment" };
   try {
     await batchApi<PayoutBatch>(`/lines/${parsed.data.line_id}/poll`, { method: "POST" });
-    revalidatePath("/admin/payouts/batches");
-    return { done: "Verified provider result applied to this line" };
+    revalidatePath("/admin/money");
+    return { done: "Verified provider result applied to this payment" };
   } catch (error) {
     return {
       error: publicActionError(
         error,
         moneyErrors,
-        "No verified result could be confirmed. The current line status remains authoritative.",
+        "No verified result could be confirmed. The current payment status remains authoritative.",
       ),
     };
   }
@@ -211,13 +215,13 @@ export async function allocateDebtAction(
     driver_profile_id: String(formData.get("driver_profile_id") ?? ""),
     currency: String(formData.get("currency") ?? ""),
   });
-  if (!parsed.success) return { error: "Enter a valid driver profile ID and currency" };
+  if (!parsed.success) return { error: "Select a driver and currency." };
   try {
     await batchApi(`/debt-balances/${parsed.data.driver_profile_id}/allocate`, {
       method: "POST",
       body: JSON.stringify({ currency: parsed.data.currency }),
     });
-    revalidatePath("/admin/payouts/batches");
+    revalidatePath("/admin/money");
     return { done: "Available credits allocated to carry-forward debt" };
   } catch (error) {
     return {

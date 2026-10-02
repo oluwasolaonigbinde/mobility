@@ -1,3 +1,4 @@
+import { adminStatus } from "@/lib/status/admin";
 import type { components } from "@/lib/api/schema";
 
 export type EligiblePayment = components["schemas"]["EligiblePaymentRead"];
@@ -12,14 +13,5 @@ export interface Page<T> {
 }
 
 export function outcomeLabel(outcome: string): string {
-  return (
-    (
-      {
-        queued: "Queued — not submitted",
-        provider_unknown: "Provider outcome unknown",
-        succeeded: "Verified paid",
-        submitted: "Submitted — awaiting verification",
-      } as Record<string, string>
-    )[outcome] ?? outcome.replaceAll("_", " ")
-  );
+  return adminStatus(outcome, "payment_outcome");
 }

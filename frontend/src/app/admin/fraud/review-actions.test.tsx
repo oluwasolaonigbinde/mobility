@@ -20,9 +20,9 @@ describe("ReviewActions", () => {
   it("offers only acknowledgement for an open flag", () => {
     render(<ReviewActions flagId={FLAG_ID} status="open" />);
 
-    expect(screen.getByRole("button", { name: "Acknowledge" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Start review" })).toBeEnabled();
     expect(screen.queryByLabelText("Review note")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Confirm fraud" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Confirm problem" })).not.toBeInTheDocument();
   });
 
   it("requires a note before an acknowledged flag can be resolved", async () => {
@@ -33,11 +33,11 @@ describe("ReviewActions", () => {
     expect(note).toBeRequired();
     expect(note).toHaveAttribute("maxlength", "2000");
 
-    await user.click(screen.getByRole("button", { name: "Dismiss flag" }));
+    await user.click(screen.getByRole("button", { name: "Clear" }));
     expect(reviewActionMock).not.toHaveBeenCalled();
 
     await user.type(note, "Route evidence was not persuasive.");
-    await user.click(screen.getByRole("button", { name: "Dismiss flag" }));
+    await user.click(screen.getByRole("button", { name: "Clear" }));
     expect(reviewActionMock).toHaveBeenCalledTimes(1);
   });
 
@@ -45,7 +45,7 @@ describe("ReviewActions", () => {
     render(<ReviewActions flagId={FLAG_ID} status="acknowledged" reversalRecommended={true} />);
 
     expect(
-      screen.getByRole("button", { name: "Confirm fraud & reverse released earnings" }),
+      screen.getByRole("button", { name: "Confirm problem & reverse released earnings" }),
     ).toBeEnabled();
   });
 
@@ -72,11 +72,11 @@ describe("ReviewActions", () => {
     const user = userEvent.setup();
     render(<ReviewActions flagId={FLAG_ID} status="open" />);
 
-    await user.click(screen.getByRole("button", { name: "Acknowledge" }));
-    expect(screen.getByRole("button", { name: "Acknowledging…" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Start review" }));
+    expect(screen.getByRole("button", { name: "Starting review…" })).toBeDisabled();
 
-    await act(async () => resolveAction({ done: "Review acknowledged" }));
-    expect(await screen.findByText("✓ Review acknowledged")).toBeInTheDocument();
+    await act(async () => resolveAction({ done: "Review started" }));
+    expect(await screen.findByText("✓ Review started")).toBeInTheDocument();
   });
 
   it("surfaces the backend error", async () => {
@@ -84,7 +84,7 @@ describe("ReviewActions", () => {
     const user = userEvent.setup();
     render(<ReviewActions flagId={FLAG_ID} status="open" />);
 
-    await user.click(screen.getByRole("button", { name: "Acknowledge" }));
+    await user.click(screen.getByRole("button", { name: "Start review" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("This flag was already resolved.");
   });
 });

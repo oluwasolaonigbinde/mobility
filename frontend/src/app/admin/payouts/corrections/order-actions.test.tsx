@@ -35,7 +35,7 @@ describe("OrderActions — state × role availability (Q22 maker-checker)", () =
     renderActions({ status: "pending_approval", isCreator: true });
     expect(screen.getByRole("button", { name: "Approve" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "Reject" })).toBeEnabled();
-    expect(screen.getByText(/different admin must approve/i)).toBeInTheDocument();
+    expect(screen.getByText(/different staff member must approve/i)).toBeInTheDocument();
   });
 
   it("pending approval: another admin can approve or reject", () => {
@@ -46,13 +46,13 @@ describe("OrderActions — state × role availability (Q22 maker-checker)", () =
 
   it("approved with positive deltas: execute requires a release date", () => {
     renderActions({ status: "approved", isCreator: true, requiresReleaseAt: true });
-    expect(screen.getByRole("button", { name: "Execute" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Run" })).toBeEnabled();
     expect(screen.getByLabelText("Release at")).toBeRequired();
   });
 
   it("approved with no positive deltas: execute needs no release date", () => {
     renderActions({ status: "approved", isCreator: false });
-    expect(screen.getByRole("button", { name: "Execute" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Run" })).toBeEnabled();
     expect(screen.queryByLabelText("Release at")).not.toBeInTheDocument();
   });
 
@@ -61,8 +61,8 @@ describe("OrderActions — state × role availability (Q22 maker-checker)", () =
     expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 
-  it("stale explains that the projection drifted", () => {
+  it("stale explains that the saved preview has changed", () => {
     renderActions({ status: "stale" });
-    expect(screen.getByText(/projection drifted/i)).toBeInTheDocument();
+    expect(screen.getByText(/saved preview has changed/i)).toBeInTheDocument();
   });
 });

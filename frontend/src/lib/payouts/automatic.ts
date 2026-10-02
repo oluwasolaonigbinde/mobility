@@ -42,7 +42,7 @@ const SETTING_LABELS: Record<string, string> = {
 };
 
 export function missingSettingLabel(name: string): string {
-  return SETTING_LABELS[name] ?? name;
+  return SETTING_LABELS[name] ?? "An automatic payout setting has not been supplied";
 }
 
 const ALERT_LABELS: Record<string, string> = {
@@ -55,7 +55,7 @@ const ALERT_LABELS: Record<string, string> = {
 };
 
 export function alertLabel(kind: string): string {
-  return ALERT_LABELS[kind] ?? kind.replaceAll("_", " ");
+  return ALERT_LABELS[kind] ?? "Payment problem to review";
 }
 
 const REASON_LABELS: Record<string, string> = {
@@ -73,10 +73,12 @@ const REASON_LABELS: Record<string, string> = {
 };
 
 export function manualReasonLabel(reason: string): string {
-  return REASON_LABELS[reason] ?? reason.replaceAll("_", " ");
+  return REASON_LABELS[reason] ?? "Payment needs a staff review";
 }
 
 const OUTCOME_LABELS: Record<string, string> = {
+  reserved: "Waiting to send",
+  unknown: "Payment result not known",
   queued: "Waiting to send",
   provider_unknown: "Sent — result not known yet",
   submitted: "Sent — waiting for the bank",
@@ -86,7 +88,7 @@ const OUTCOME_LABELS: Record<string, string> = {
 };
 
 export function outcomeText(outcome: string): string {
-  return OUTCOME_LABELS[outcome] ?? outcome.replaceAll("_", " ");
+  return OUTCOME_LABELS[outcome] ?? "Payment result not known";
 }
 
 export function alertDetail(alert: AutomaticAlert): string | null {

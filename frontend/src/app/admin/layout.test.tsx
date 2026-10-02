@@ -16,8 +16,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.guard.mockResolvedValue({ user: { full_name: "Terrax staff" } });
 });
-it("provides only available A destinations and known core discovery counts", async () => {
-  mocks.get.mockResolvedValue({ data: { total: 3 } });
+it("provides the eight approved menu items and only known waiting counts", async () => {
+  mocks.get.mockResolvedValue({ data: { items: [], total: 0 } });
   render(await AdminLayout({ children: <p>Hub content</p> }));
   expect(screen.getByText("Hub content")).toBeTruthy();
   const nav = mocks.shell.mock.calls[0]![0].nav;
@@ -26,17 +26,14 @@ it("provides only available A destinations and known core discovery counts", asy
     "Drivers",
     "Campaigns",
     "Advertisers",
+    "Trip checks",
+    "Money",
+    "Support",
     "Settings",
   ]);
-  expect(nav[1].count).toBe(3);
-  expect(nav[2].count).toBe(6);
-  expect(nav[4].href).toBe("/admin/settings/staff");
-  expect(mocks.get).toHaveBeenCalledTimes(3);
-  expect(
-    mocks.get.mock.calls.some(
-      ([url]) => url.includes("fraud") || url.includes("payout") || url.includes("complaint"),
-    ),
-  ).toBe(false);
+  expect(nav[1].count).toBe(0);
+  expect(nav[2].count).toBe(0);
+  expect(nav[7].href).toBe("/admin/settings/staff");
 });
 it("does not invent zero counts when the work lists are unavailable", async () => {
   mocks.get.mockRejectedValue(new Error("offline"));

@@ -195,8 +195,7 @@ export async function replyToComplaintAction(
   } catch (error) {
     return explain(error, "This complaint couldn't be found.");
   }
-  revalidatePath("/admin/complaints");
-  revalidatePath(`/admin/complaints/${complaint_id}`);
+  revalidatePath("/admin/support");
   return { done: body.resolve ? "Reply sent and complaint resolved." : "Reply sent." };
 }
 
@@ -224,7 +223,6 @@ export async function updateComplaintAction(
   } catch (error) {
     return explain(error, "This complaint couldn't be found.");
   }
-  revalidatePath("/admin/complaints");
-  revalidatePath(`/admin/complaints/${complaint_id}`);
+  revalidatePath("/admin/support");
   return { done: "Saved." };
 }

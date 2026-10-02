@@ -8,7 +8,7 @@ describe("demoLoginRoleFromPath", () => {
     ["/driver", "driver"],
     ["/driver/assignments", "driver"],
     ["/admin", "admin"],
-    ["/admin/users", "admin"],
+    ["/admin/settings/staff", "admin"],
   ] as const)("maps %s to %s", (from, role) => {
     expect(demoLoginRoleFromPath(from)).toBe(role);
   });

@@ -293,6 +293,8 @@ async def admin_list_complaints(
     status: ComplaintStatus | None = None,
     party: ComplaintParty | None = None,
     assigned_to_me: bool = False,
+    user_id: UUID | None = None,
+    organization_id: UUID | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 25,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> StaffComplaintList:
@@ -301,6 +303,8 @@ async def admin_list_complaints(
         complaint_status=status.value if status is not None else None,
         party=party.value if party is not None else None,
         assigned_to_user_id=current_user.id if assigned_to_me else None,
+        user_id=user_id,
+        organization_id=organization_id,
         limit=limit,
         offset=offset,
     )

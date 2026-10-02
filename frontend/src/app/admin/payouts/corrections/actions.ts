@@ -47,7 +47,7 @@ export async function newOrderAction(
       await api.POST("/api/v1/admin/payouts/correction-orders", {
         body: { campaign_id, lagos_day, reason },
       });
-      revalidatePath("/admin/payouts/corrections");
+      revalidatePath("/admin/money");
       return { created: true };
     }
     const { data } = await api.GET("/api/v1/admin/payouts/day-projection", {
@@ -123,12 +123,12 @@ export async function orderTransitionAction(
     if (error instanceof ApiError) return { error: error.message };
     return { error: "Could not reach the server." };
   }
-  revalidatePath("/admin/payouts/corrections");
+  revalidatePath("/admin/money");
   const done: Record<typeof intent, string> = {
     submit: "Submitted for approval",
-    approve: "Approved — any admin can now execute",
+    approve: "Approved — ready to run",
     reject: "Rejected",
-    execute: "Executed — ledger differentials written",
+    execute: "Completed — pay changes recorded",
   };
   return { done: done[intent] };
 }

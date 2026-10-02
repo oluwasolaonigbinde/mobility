@@ -11,7 +11,7 @@ vi.mock("./actions", () => ({
   resolveAlertAction: vi.fn(async () => ({})),
 }));
 
-import AutomaticPayoutsPage from "./page";
+import AutomaticPayoutsPage from "./content";
 
 const NOT_SET_UP = {
   switched_on: false,
@@ -145,7 +145,7 @@ describe("AutomaticPayoutsPage", () => {
     api({ status: RUNNING, alerts: [ALERT], day: DAY });
     render(await page("2026-09-28"));
     expect(mocks.get).toHaveBeenCalledWith("/api/v1/admin/payouts/automatic/reconciliation", {
-      params: { query: { day: "2026-09-28", limit: 100 } },
+      params: { query: { day: "2026-09-28", limit: 100, offset: 0 } },
     });
     expect(screen.getByText(/Running — Cardvert pays clean daily-rate earnings/)).toBeVisible();
     expect(screen.getByText("Weekly")).toBeVisible();
@@ -159,9 +159,9 @@ describe("AutomaticPayoutsPage", () => {
     expect(
       within(problem).getByText("Earned ₦12000.00 against a day rate of ₦10000.00."),
     ).toBeVisible();
-    expect(within(problem).getByRole("link", { name: "Open the payout batch" })).toHaveAttribute(
+    expect(within(problem).getByRole("link", { name: "Open payment run" })).toHaveAttribute(
       "href",
-      "/admin/payouts/batches/batch-1",
+      "/admin/money?tab=payouts&day=2026-09-28&batch=batch-1",
     );
     expect(within(problem).getByRole("button", { name: "Mark as followed up" })).toBeVisible();
     expect(screen.getByText("Sent — waiting for the bank")).toBeVisible();
@@ -169,7 +169,7 @@ describe("AutomaticPayoutsPage", () => {
     expect(screen.getByText("Trip had a review flag: 1 · ₦3,000.00")).toBeVisible();
     expect(screen.getByRole("link", { name: "Ada Driver" })).toHaveAttribute(
       "href",
-      "/admin/payouts/batches/batch-1",
+      "/admin/money?tab=payouts&day=2026-09-28&batch=batch-1&line=line-1",
     );
     expect(screen.getByText("3 automatic payments started this day.")).toBeVisible();
   });
@@ -220,8 +220,37 @@ describe("AutomaticPayoutsPage", () => {
   it("keeps each panel's failure separate", async () => {
     api({ status: null, alerts: null, day: null });
     render(await page("not-a-day"));
-    expect(screen.getByText("Couldn't load the status. Refresh to try again.")).toBeVisible();
-    expect(screen.getByText("Couldn't load problems. Refresh to try again.")).toBeVisible();
-    expect(screen.getByText("Couldn't load this day. Refresh to try again.")).toBeVisible();
+    expect(screen.getAllByRole("alert")).toHaveLength(3);
+    expect(screen.getAllByText("Couldn't load this section — try again")).toHaveLength(3);
+  });
+  it("pages daily payments and problems independently while preserving a selected drawer", async () => {
+    api({ status: RUNNING, alerts: [ALERT], day: { ...DAY, total: 250 } });
+    render(
+      await AutomaticPayoutsPage({
+        searchParams: Promise.resolve({
+          day: "2026-09-28",
+          day_page: "1",
+          alerts_page: "2",
+          batch: "selected",
+          line: "payment",
+          runs: "3",
+        }),
+      }),
+    );
+    expect(mocks.get).toHaveBeenCalledWith("/api/v1/admin/payouts/automatic/alerts", {
+      params: { query: { alert_status: "open", limit: 50, offset: 100 } },
+    });
+    expect(mocks.get).toHaveBeenCalledWith("/api/v1/admin/payouts/automatic/reconciliation", {
+      params: { query: { day: "2026-09-28", limit: 100, offset: 100 } },
+    });
+    expect(
+      screen
+        .getAllByRole("link", { name: "Next →" })
+        .some((link) =>
+          link
+            .getAttribute("href")
+            ?.includes("day_page=2&alerts_page=2&batch=selected&line=payment&runs=3"),
+        ),
+    ).toBe(true);
   });
 });

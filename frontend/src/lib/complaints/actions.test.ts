@@ -208,7 +208,7 @@ describe("staff actions", () => {
       body: { message: "Fixed", client_request_id: REQUEST, resolve: true },
     });
     expect(await replyToComplaintAction({}, form(values))).toEqual({ done: "Reply sent." });
-    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/complaints");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/support");
     mocks.post.mockRejectedValueOnce(apiError(404, "COMPLAINT_NOT_FOUND"));
     expect(await replyToComplaintAction({}, form(values))).toEqual({
       error: "This complaint couldn't be found.",

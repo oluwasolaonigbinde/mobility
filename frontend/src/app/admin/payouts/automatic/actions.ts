@@ -49,7 +49,7 @@ export async function switchAutomaticPayoutsAction(
   } catch (error) {
     return failure(error);
   }
-  revalidatePath("/admin/payouts/automatic");
+  revalidatePath("/admin/money");
   return {
     done:
       parsed.data.intent === "pause"
@@ -69,7 +69,7 @@ export async function releaseUnsentAction(
     const { data } = await api.POST("/api/v1/admin/payouts/automatic/release-unsent", {
       body: { reason: parsed.data.reason },
     });
-    revalidatePath("/admin/payouts/automatic");
+    revalidatePath("/admin/money");
     const count = data?.released_count ?? 0;
     return {
       done:
@@ -100,6 +100,6 @@ export async function resolveAlertAction(
   } catch (error) {
     return failure(error);
   }
-  revalidatePath("/admin/payouts/automatic");
+  revalidatePath("/admin/money");
   return { done: "Marked as followed up." };
 }

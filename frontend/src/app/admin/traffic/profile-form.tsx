@@ -24,7 +24,7 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field
-          label="Profile name"
+          label="Reach estimate name"
           name="name"
           required
           defaultValue={profile?.name ?? ""}
@@ -62,8 +62,7 @@ export function ProfileForm({ profile }: { profile: Profile | null }) {
 
       {profile ? (
         <p className="micro text-faint font-mono">
-          Revision {profile.revision} · effective{" "}
-          {new Date(profile.effective_from).toLocaleString()}
+          Version {profile.revision} · effective {new Date(profile.effective_from).toLocaleString()}
         </p>
       ) : null}
 

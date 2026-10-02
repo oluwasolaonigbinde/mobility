@@ -528,14 +528,15 @@ export default async function CampaignHub({
                 <p>No matching trip reviews.</p>
               ) : (
                 reviews.data.items.map((review) => (
-                  <div
+                  <Link
                     className="border-edge mb-2 block rounded-lg border p-3"
                     key={review.id}
+                    href={`/admin/trip-checks?tab=suspicious&campaign_id=${campaignId}&flag=${review.id}`}
                   >
                     <p>
                       {review.description} · {adminStatus(review.status, "review")}
                     </p>
-                  </div>
+                  </Link>
                 ))
               )}
               <Pagination

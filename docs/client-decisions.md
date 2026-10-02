@@ -481,13 +481,20 @@ server decisions for activation, funding, pay and report issuance.
 The task home/menu label is **Work queue** (D50, REQ-065). The owner explicitly
 authorized starting L2-1b on the incomplete expedited A checkpoint (REQ-064);
 A acceptance remains open; the owner authorized the two source commits while tracked acceptance gaps remain. The four specified read additions, the
-company-list move and phone search are approved. Actual trip dates/campaign names on the pay list are separately approved (REQ-068). Other B read approvals and their evidence are recorded in the second batch. Other additional reads remain
+company-list move and phone search are approved. Staff in-person-check paging,
+actual trip dates/campaign names on the pay list, and the held-pay/recorded-route
+staff reads are separately approved (REQ-066, REQ-068, REQ-069; D53).
+The route read logs each staff view before returning coordinates and permits
+no advertiser sharing or caching; held pay reads existing pending ledger facts
+without changing releases or decisions. Other additional reads remain
 subject to the owner's decision. REQ-062 records the open pay-summary and
 campaign-area gap. A data-read failure must never appear as a confirmed empty
 list, completed check or zero balance.
 
 **History:**
 
+- **2026-10-02** — Owner approved the two staff reads for suspicious-trip
+  recorded routes and actual held pay (D53, REQ-069).
 - **2026-10-02** — Earlier explicit old-URL preservation ended: the owner
   requires removal of obsolete route pages and redirects under the development
   policy, plus glossary/failure/performance fixes (D51, REQ-067). Read-only
@@ -498,3 +505,5 @@ list, completed check or zero balance.
 - **2026-10-01** — The owner replaced the earlier menu/page preview with the authoritative admin design and its two-batch order (D48, REQ-058).
 - **2026-10-01** — The owner moved company search to the first batch, kept one company login and required demo inputs to be replaced before launch through the documented checklist (D47).
 - **2026-10-01** — Phone-number matching in the existing driver search was separately approved (REQ-061).
+
+- **2026-10-02** — Core admin source Built in `39eb49c` (L2-1a expedited checkpoint); A-only build, 283 tests and source review passed. Full design acceptance and CI/D33 remain open; B source is delivered separately.

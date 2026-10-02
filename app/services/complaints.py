@@ -724,8 +724,14 @@ async def list_staff_complaints(
     assigned_to_user_id: UUID | None,
     limit: int,
     offset: int,
+    user_id: UUID | None = None,
+    organization_id: UUID | None = None,
 ) -> tuple[list[Complaint], int]:
     filters = []
+    if user_id is not None:
+        filters.append(Complaint.raised_by_user_id == user_id)
+    if organization_id is not None:
+        filters.append(Complaint.advertiser_organization_id == organization_id)
     if complaint_status is not None:
         filters.append(Complaint.status == complaint_status)
     if party is not None:

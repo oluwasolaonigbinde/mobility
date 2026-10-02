@@ -11,7 +11,7 @@ const initialState: AdminActionState = {};
 const ROLES = [
   { value: "advertiser", label: "Advertiser", hint: "Runs campaigns; gets a company" },
   { value: "driver", label: "Driver", hint: "Drives, tracks trips, earns" },
-  { value: "admin", label: "Terrax staff", hint: "Full network control" },
+  { value: "admin", label: "Terrax staff", hint: "Terrax Media operations" },
 ] as const;
 
 export function CreateUserForm({ fixedRole }: { fixedRole?: "admin" | "driver" | "advertiser" }) {
@@ -20,8 +20,8 @@ export function CreateUserForm({ fixedRole }: { fixedRole?: "admin" | "driver" |
 
   return (
     <form action={formAction} className="flex flex-col gap-5" noValidate>
-      {fixedRole ? (
-        <input type="hidden" name="role" value={fixedRole} />
+      {fixedRole || state.createdUserId ? (
+        <input type="hidden" name="role" value={state.createdUserId ? "advertiser" : fixedRole} />
       ) : (
         <fieldset>
           <legend className="micro text-muted mb-2">Role</legend>
@@ -53,22 +53,43 @@ export function CreateUserForm({ fixedRole }: { fixedRole?: "admin" | "driver" |
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Full name" name="full_name" required placeholder="e.g. Amina Yusuf" />
-        <Field label="Phone" name="phone" placeholder="+234 …" autoComplete="off" />
+        <Field
+          key={`name-${state.createdUserId ?? "new"}`}
+          label="Full name"
+          name="full_name"
+          required
+          placeholder="e.g. Amina Yusuf"
+          defaultValue={state.createdFullName}
+          readOnly={Boolean(state.createdUserId)}
+        />
+        <Field
+          key={`phone-${state.createdUserId ?? "new"}`}
+          label="Phone"
+          name="phone"
+          placeholder="+234 …"
+          autoComplete="off"
+          defaultValue={state.createdPhone ?? undefined}
+          readOnly={Boolean(state.createdUserId)}
+        />
       </div>
       <Field
+        key={`email-${state.createdUserId ?? "new"}`}
         label="Email"
         name="email"
         type="email"
         required
         placeholder="them@company.com"
         autoComplete="off"
+        defaultValue={state.createdEmail}
+        readOnly={Boolean(state.createdUserId)}
       />
       <Field
+        key={`password-${state.createdUserId ?? "new"}`}
         label="Temporary password"
         name="password"
         type="text"
-        required
+        required={!state.createdUserId}
+        disabled={Boolean(state.createdUserId)}
         placeholder="min 12 characters — share it with them securely"
         autoComplete="off"
         className="font-mono"
@@ -86,11 +107,8 @@ export function CreateUserForm({ fixedRole }: { fixedRole?: "admin" | "driver" |
 
       {role === "advertiser" ? (
         <div className="border-edge flex flex-col gap-4 rounded-xl border border-dashed p-4">
-          <p className="micro text-muted">
-            Advertiser company{" "}
-            <span className="text-faint">(optional — created with this user as owner)</span>
-          </p>
-          <Field label="Company name" name="org_name" placeholder="e.g. MTN Nigeria" />
+          <p className="micro text-muted">Company and its login</p>
+          <Field label="Company name" name="org_name" required placeholder="e.g. MTN Nigeria" />
           <Field
             label="Currency"
             name="org_currency"
@@ -111,7 +129,7 @@ export function CreateUserForm({ fixedRole }: { fixedRole?: "admin" | "driver" |
       ) : null}
 
       <Button type="submit" disabled={pending} className="w-full">
-        {pending ? "Creating…" : "Create account"}
+        {pending ? "Creating…" : state.createdUserId ? "Retry company creation" : "Create account"}
       </Button>
     </form>
   );

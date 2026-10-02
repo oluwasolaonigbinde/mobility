@@ -5,6 +5,7 @@ import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
+import { adminStatus } from "@/lib/status/admin";
 import { formatMoney } from "@/lib/format";
 
 export interface ProcessTripState {
@@ -44,7 +45,7 @@ export async function processTripAction(
     );
     steps.push(
       analytics
-        ? `Analytics: ${analytics.valid_ping_count}/${analytics.ping_count} valid pings, ${(Number(analytics.distance_m ?? 0) / 1000).toFixed(1)} km, quality ${analytics.quality_score ?? "—"}${(analytics.fraud_flags ?? []).length ? `, ${(analytics.fraud_flags ?? []).length} fraud flag(s)` : ""}`
+        ? `Analytics: ${analytics.valid_ping_count}/${analytics.ping_count} valid pings, ${(Number(analytics.distance_m ?? 0) / 1000).toFixed(1)} km, quality ${analytics.quality_score ?? "—"}${(analytics.fraud_flags ?? []).length ? `, ${(analytics.fraud_flags ?? []).length} trip review(s)` : ""}`
         : "Analytics recomputed",
     );
 
@@ -67,15 +68,15 @@ export async function processTripAction(
     });
     steps.push(
       payout
-        ? `Payout: ${formatMoney(payout.final_payout, payout.currency)} → ledger (${payout.ledger_entry?.status ?? "created"})`
-        : "Payout calculated",
+        ? `Payment breakdown: ${formatMoney(payout.final_payout, payout.currency)} · Pay status: ${adminStatus(payout.ledger_entry?.status)}`
+        : "Payment breakdown calculated",
     );
   } catch (error) {
     const reason = error instanceof ApiError ? error.message : "server unreachable";
     return { error: `${reason}${steps.length ? ` (completed: ${steps.join(" · ")})` : ""}`, steps };
   }
 
-  revalidatePath("/admin/payouts");
+  revalidatePath("/admin/money");
   revalidatePath("/admin/drivers/[driverId]", "page");
   return { steps };
 }

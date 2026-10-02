@@ -13,6 +13,7 @@ import {
   previewSelectionAction,
   type BatchActionState,
 } from "./actions";
+import { moneyHref, type MoneyQuery } from "../../money/navigation";
 import type { EligiblePayment } from "./operation-types";
 import {
   readDraftRecovery,
@@ -88,15 +89,13 @@ export function MaskedDestination({ versionId }: { versionId: string }) {
           type="button"
           onClick={() => {
             if (
-              window.confirm(
-                "View the masked destination for payout review? This access is audited.",
-              )
+              window.confirm("Show masked bank details for payment review? This access is logged.")
             ) {
               start(async () => setResult(await maskedDestinationAction(versionId)));
             }
           }}
         >
-          {pending ? "Checking…" : "Review masked destination"}
+          {pending ? "Checking…" : "Show bank details (logged)"}
         </Button>
       )}
       {result.error ? (
@@ -113,11 +112,13 @@ export function CreateBatchForm({
   actorId,
   draftId,
   draftCurrency,
+  query = {},
 }: {
   entries: EligiblePayment[];
   actorId: string;
   draftId?: string;
   draftCurrency?: string;
+  query?: MoneyQuery;
 }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [recovery, setRecovery] = useState<DraftRecovery | null>(null);
@@ -135,7 +136,7 @@ export function CreateBatchForm({
       } catch {
         setState({
           error:
-            "Saved recovery is unavailable. Check your existing drafts before starting a batch.",
+            "Saved recovery is unavailable. Check your existing drafts before starting a payment run.",
         });
       }
     };
@@ -158,7 +159,9 @@ export function CreateBatchForm({
         try {
           let saved = readDraftRecovery(localStorage, actorId);
           if (draftId && saved && saved.requestId !== draftId) {
-            setState({ error: "Recover the saved batch before working on a different draft." });
+            setState({
+              error: "Recover the saved payment run before working on a different draft.",
+            });
             return;
           }
           if (!saved && draftId) {
@@ -192,8 +195,16 @@ export function CreateBatchForm({
             A saved {recovery.currency} request contains {recovery.ledgerEntryIds.length} credit(s).
             Retry uses the same draft and selection.
           </p>
-          <Link className="underline" href={`/admin/payouts/batches/${recovery.requestId}`}>
-            Open saved draft or batch
+          <Link
+            className="underline"
+            href={moneyHref(query, {
+              batch: recovery.requestId,
+              line: undefined,
+              line_page: undefined,
+              history_page: undefined,
+            })}
+          >
+            Open saved payment run
           </Link>
           {draftId === recovery.requestId ? (
             <Button
@@ -346,8 +357,16 @@ export function CreateBatchForm({
         </p>
       ) : null}
       {state.batchId ? (
-        <Link className="block underline" href={`/admin/payouts/batches/${state.batchId}`}>
-          Review this batch
+        <Link
+          className="block underline"
+          href={moneyHref(query, {
+            batch: state.batchId,
+            line: undefined,
+            line_page: undefined,
+            history_page: undefined,
+          })}
+        >
+          Review payment run
         </Link>
       ) : null}
     </div>
@@ -357,9 +376,11 @@ export function CreateBatchForm({
 export function BatchActions({
   batchId,
   status,
+  query = {},
 }: {
   batchId: string;
   status: "reserved" | "reconciled" | "failed";
+  query?: MoneyQuery;
 }) {
   const [state, action, pending] = useActionState(batchTransitionAction, initialState);
   return (
@@ -370,7 +391,7 @@ export function BatchActions({
         const submitter = (event.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
         if (
           submitter?.value === "void" &&
-          !window.confirm("Release this batch's pre-provider reservations?")
+          !window.confirm("Release this payment run's unsent reservations?")
         )
           event.preventDefault();
       }}
@@ -379,7 +400,7 @@ export function BatchActions({
       {status === "reserved" ? (
         <>
           <Button type="submit" name="intent" value="approve" disabled={pending} variant="ghost">
-            Approve as checker
+            Approve as second reviewer
           </Button>
           <Button type="submit" name="intent" value="void" disabled={pending} variant="ghost">
             Void reservation
@@ -396,7 +417,7 @@ export function BatchActions({
             their original recovery key.
           </p>
           <Button type="submit" name="intent" value="retry_failed" disabled={pending}>
-            Request failed-line replacement
+            Request replacement for failed payments
           </Button>
         </>
       )}
@@ -411,8 +432,16 @@ export function BatchActions({
         </p>
       ) : null}
       {state.batchId ? (
-        <Link className="w-full underline" href={`/admin/payouts/batches/${state.batchId}`}>
-          Review replacement batch
+        <Link
+          className="w-full underline"
+          href={moneyHref(query, {
+            batch: state.batchId,
+            line: undefined,
+            line_page: undefined,
+            history_page: undefined,
+          })}
+        >
+          Review replacement run
         </Link>
       ) : null}
     </form>
@@ -425,7 +454,7 @@ export function PollLineAction({ lineId }: { lineId: string }) {
     <form action={action} className="mt-2">
       <input type="hidden" name="line_id" value={lineId} />
       <Button type="submit" disabled={pending} variant="ghost">
-        {pending ? "Verifying…" : "Verify line"}
+        {pending ? "Verifying…" : "Check provider result"}
       </Button>
       {state.error ? (
         <p role="alert" className="text-coral text-sm">

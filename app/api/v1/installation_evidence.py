@@ -22,6 +22,7 @@ from app.models.evidence_verification import (
 from app.models.installation_evidence import DisplayProof, InstallationEvidenceSubmission
 from app.models.stored_file import StoredFile
 from app.schemas.evidence_verification import (
+    AdminEvidenceVerificationList,
     EvidenceVerificationList,
     EvidenceVerificationRead,
     PhysicalSpotCheckCreate,
@@ -474,7 +475,7 @@ async def driver_pending_evidence_verifications(
 
 @router.get(
     "/admin/evidence-verifications",
-    response_model=EvidenceVerificationList,
+    response_model=AdminEvidenceVerificationList,
     summary="List recurring challenges and physical spot checks",
 )
 async def admin_evidence_verifications(
@@ -482,13 +483,19 @@ async def admin_evidence_verifications(
     session: SessionDependency,
     verification_status: Annotated[EvidenceVerificationStatus | None, Query(alias="status")] = None,
     verification_type: EvidenceVerificationType | None = None,
-) -> EvidenceVerificationList:
-    rows = await list_admin_verifications(
+    limit: Annotated[int, Query(ge=1, le=100)] = 100,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> AdminEvidenceVerificationList:
+    rows, total = await list_admin_verifications(
         session,
         verification_status=(verification_status.value if verification_status else None),
         verification_type=(verification_type.value if verification_type else None),
+        limit=limit,
+        offset=offset,
     )
-    return EvidenceVerificationList(items=[verification_response(row) for row in rows])
+    return AdminEvidenceVerificationList(
+        items=[verification_response(row) for row in rows], total=total, limit=limit, offset=offset
+    )
 
 
 @router.post(

@@ -44,7 +44,7 @@ const profileSchema = z.object({
         .regex(/^[0-9a-f]{64}$/)
         .optional(),
     ),
-  name: z.string().trim().min(1, "Profile name is required").max(255),
+  name: z.string().trim().min(1, "Reach estimate name is required").max(255),
   description: z
     .string()
     .trim()
@@ -120,6 +120,6 @@ export async function saveProfileAction(
     if (error instanceof ApiError) return { error: error.message };
     return { error: "Could not reach the server." };
   }
-  revalidatePath("/admin/traffic");
+  revalidatePath("/admin/settings/reach");
   return { saved: true };
 }

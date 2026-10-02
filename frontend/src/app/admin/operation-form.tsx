@@ -44,7 +44,7 @@ export function OperationForm({
         <input type="checkbox" name="confirmed" required />{" "}
         {contact
           ? "I confirm this outcome was recorded for this task and its exact contact purpose."
-          : "I reviewed this batch. This decision does not change earnings or issued reports."}
+          : "I reviewed this late upload. This decision does not change earnings or issued reports."}
       </label>
       <div className="flex flex-wrap gap-3">
         {contact ? (
@@ -59,7 +59,7 @@ export function OperationForm({
               disabled={pending || !!state.done}
               className="bg-amber text-bg rounded p-2"
             >
-              Apply evidence
+              Add to trip
             </button>
             <button
               name="kind"
@@ -67,7 +67,7 @@ export function OperationForm({
               disabled={pending || !!state.done}
               className="border-edge rounded border p-2"
             >
-              Discard evidence
+              Ignore
             </button>
           </>
         )}

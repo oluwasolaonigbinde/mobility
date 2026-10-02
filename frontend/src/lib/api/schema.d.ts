@@ -40,6 +40,23 @@ export interface paths {
         patch: operations["admin_update_company_api_v1_admin_advertiser_organizations__organization_id__company_patch"];
         trace?: never;
     };
+    "/api/v1/admin/advertiser-organizations/{organization_id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List company sign-in accounts */
+        get: operations["admin_list_organization_members_api_v1_admin_advertiser_organizations__organization_id__members_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/audit-events": {
         parameters: {
             query?: never;
@@ -1078,6 +1095,23 @@ export interface paths {
         put?: never;
         /** Resolve a fraud flag review */
         post: operations["admin_resolve_fraud_flag_api_v1_admin_fraud_flags__flag_id__review_resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/fraud-flags/{flag_id}/route": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read recorded trip locations for a staff trip review */
+        get: operations["admin_read_flag_route_api_v1_admin_fraud_flags__flag_id__route_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -4882,6 +4916,17 @@ export interface components {
              */
             user_id: string;
         };
+        /** AdminEvidenceVerificationList */
+        AdminEvidenceVerificationList: {
+            /** Items */
+            items: components["schemas"]["EvidenceVerificationRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
         /** AdminFraudDisputeList */
         AdminFraudDisputeList: {
             /** Items */
@@ -4934,6 +4979,94 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** AdminFraudFlagListItemRead */
+        AdminFraudFlagListItemRead: {
+            /**
+             * Assignment Id
+             * Format: uuid
+             */
+            assignment_id: string;
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description: string;
+            /**
+             * Detected At
+             * Format: date-time
+             */
+            detected_at: string;
+            /**
+             * Driver Profile Id
+             * Format: uuid
+             */
+            driver_profile_id: string;
+            /** Escalated At */
+            escalated_at: string | null;
+            /** Evidence */
+            evidence?: {
+                [key: string]: unknown;
+            };
+            flag_type: components["schemas"]["FraudFlagType"];
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            money_effect: components["schemas"]["AdminFraudFlagListMoneyEffectRead"];
+            /** Resolution Note */
+            resolution_note: string | null;
+            /**
+             * Review Due At
+             * Format: date-time
+             */
+            review_due_at: string;
+            /** Reviewed At */
+            reviewed_at: string | null;
+            /** Reviewed By User Id */
+            reviewed_by_user_id: string | null;
+            severity: components["schemas"]["FraudFlagSeverity"];
+            status: components["schemas"]["FraudFlagStatus"];
+            /** Trip Analytics Id */
+            trip_analytics_id: string | null;
+            /**
+             * Trip Session Id
+             * Format: uuid
+             */
+            trip_session_id: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+            /**
+             * Vehicle Id
+             * Format: uuid
+             */
+            vehicle_id: string;
+        };
+        /** AdminFraudFlagListMoneyEffectRead */
+        AdminFraudFlagListMoneyEffectRead: {
+            /** Available Net */
+            available_net: string;
+            /** Currency */
+            currency: string | null;
+            /** Held Currency */
+            held_currency: string | null;
+            /** Held Pending Net */
+            held_pending_net: string;
+            /** Reversal Entry Id */
+            reversal_entry_id: string | null;
+            /** Reversal Recommended */
+            reversal_recommended: boolean;
         };
         /** AdminFraudFlagRead */
         AdminFraudFlagRead: {
@@ -5091,6 +5224,22 @@ export interface components {
             offset: number;
             /** Total */
             total: number;
+        };
+        /** AdminOrganizationMemberListResponse */
+        AdminOrganizationMemberListResponse: {
+            /** Items */
+            items: components["schemas"]["AdminOrganizationMemberRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** AdminOrganizationMemberRead */
+        AdminOrganizationMemberRead: {
+            membership: components["schemas"]["OrganizationMembershipRead"];
+            user: components["schemas"]["UserRead"];
         };
         /** AdminPayoutCalculationRead */
         AdminPayoutCalculationRead: {
@@ -5283,6 +5432,44 @@ export interface components {
             status: string;
             /** Verified At */
             verified_at: string | null;
+        };
+        /** AdminTripRoutePointRead */
+        AdminTripRoutePointRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Latitude */
+            latitude: number;
+            /** Longitude */
+            longitude: number;
+            /**
+             * Recorded At
+             * Format: date-time
+             */
+            recorded_at: string;
+        };
+        /** AdminTripRouteRead */
+        AdminTripRouteRead: {
+            /**
+             * Flag Id
+             * Format: uuid
+             */
+            flag_id: string;
+            /** Items */
+            items: components["schemas"]["AdminTripRoutePointRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+            /**
+             * Trip Session Id
+             * Format: uuid
+             */
+            trip_session_id: string;
         };
         /** AdminVehicleListResponse */
         AdminVehicleListResponse: {
@@ -9931,7 +10118,7 @@ export interface components {
         /** FraudFlagListResponse */
         FraudFlagListResponse: {
             /** Items */
-            items: components["schemas"]["AdminFraudFlagRead"][];
+            items: components["schemas"]["AdminFraudFlagListItemRead"][];
             /** Limit */
             limit: number;
             /** Offset */
@@ -14698,6 +14885,40 @@ export interface operations {
             };
         };
     };
+    admin_list_organization_members_api_v1_admin_advertiser_organizations__organization_id__members_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                organization_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOrganizationMemberListResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     admin_list_audit_events_api_v1_admin_audit_events_get: {
         parameters: {
             query?: {
@@ -15983,6 +16204,8 @@ export interface operations {
                 status?: components["schemas"]["ComplaintStatus"] | null;
                 party?: components["schemas"]["ComplaintParty"] | null;
                 assigned_to_me?: boolean;
+                user_id?: string | null;
+                organization_id?: string | null;
                 limit?: number;
                 offset?: number;
             };
@@ -16629,6 +16852,8 @@ export interface operations {
             query?: {
                 status?: components["schemas"]["EvidenceVerificationStatus"] | null;
                 verification_type?: components["schemas"]["EvidenceVerificationType"] | null;
+                limit?: number;
+                offset?: number;
             };
             header?: never;
             path?: never;
@@ -16642,7 +16867,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["EvidenceVerificationList"];
+                    "application/json": components["schemas"]["AdminEvidenceVerificationList"];
                 };
             };
             /** @description Request validation failed */
@@ -16993,6 +17218,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminFraudFlagRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_read_flag_route_api_v1_admin_fraud_flags__flag_id__route_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                flag_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminTripRouteRead"];
                 };
             };
             /** @description Request validation failed */
@@ -17392,6 +17651,7 @@ export interface operations {
                 limit?: number;
                 offset?: number;
                 history?: boolean;
+                driver_profile_id?: string | null;
             };
             header?: never;
             path?: never;

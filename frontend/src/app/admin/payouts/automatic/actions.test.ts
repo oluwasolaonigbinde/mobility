@@ -33,7 +33,7 @@ describe("automatic payout actions", () => {
     expect(mocks.post).toHaveBeenLastCalledWith("/api/v1/admin/payouts/automatic/resume", {
       body: { reason: "All clear" },
     });
-    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/payouts/automatic");
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/money");
   });
 
   it("refuses a short reason before calling the API and shows server errors", async () => {

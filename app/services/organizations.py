@@ -65,6 +65,24 @@ async def list_advertiser_organizations(
     return list(result), int(total or 0)
 
 
+async def list_organization_members(
+    session: AsyncSession, *, organization_id: UUID, limit: int, offset: int
+) -> tuple[list[tuple[OrganizationMembership, User]], int]:
+    filters = [OrganizationMembership.organization_id == organization_id]
+    total = await session.scalar(
+        select(func.count()).select_from(OrganizationMembership).where(*filters)
+    )
+    rows = await session.execute(
+        select(OrganizationMembership, User)
+        .join(User, User.id == OrganizationMembership.user_id)
+        .where(*filters)
+        .order_by(User.full_name, User.id)
+        .limit(limit)
+        .offset(offset)
+    )
+    return [(membership, user) for membership, user in rows], int(total or 0)
+
+
 def _normalize_profile_value(field: str, value: object) -> str | None:
     if value is None:
         return None
@@ -290,8 +308,7 @@ async def _notification_preference_for_organization(
     session: AsyncSession, *, organization_id: UUID, for_update: bool = False
 ) -> AdvertiserOrganizationNotificationPreference:
     statement = select(AdvertiserOrganizationNotificationPreference).where(
-        AdvertiserOrganizationNotificationPreference.advertiser_organization_id
-        == organization_id
+        AdvertiserOrganizationNotificationPreference.advertiser_organization_id == organization_id
     )
     if for_update:
         statement = statement.with_for_update()

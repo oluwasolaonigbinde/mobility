@@ -30,7 +30,7 @@ const sections = [
   { id: "phone", title: "Phone" },
   { id: "jobs", title: "Campaign jobs" },
   { id: "trips-and-pay", title: "Trips and pay" },
-  { id: "reviews", title: "Reviews" },
+  { id: "reviews", title: "Reviews and complaints" },
   { id: "activity", title: "Activity" },
 ];
 export type DriverHubQuery = {
@@ -41,6 +41,8 @@ export type DriverHubQuery = {
   jobs_offset?: string;
   activity_offset?: string;
   reviews_offset?: string;
+  complaints_offset?: string;
+  contacts_offset?: string;
   currency?: string;
 };
 export default async function DriverHub({
@@ -112,7 +114,7 @@ export default async function DriverHub({
     application = candidates?.items.find((a) => a.driver_profile_id === id && a.user_id === userId);
     applicationAvailable = Boolean(candidates && (candidates.total === 0 || application));
   }
-  const [cars, jobs, trips, reviews, activity, accounts] = await Promise.all([
+  const [cars, jobs, trips, reviews, activity, accounts, complaints, contacts] = await Promise.all([
     id
       ? api
           .GET("/api/v1/admin/vehicles", {
@@ -168,6 +170,25 @@ export default async function DriverHub({
         params: { query: { q: person.email, role: "driver", limit: 100 } },
       })
       .catch(() => ({ data: undefined })),
+    api
+      .GET("/api/v1/admin/complaints", {
+        params: { query: { user_id: userId, limit: 25, offset: offset(query.complaints_offset) } },
+      })
+      .catch(() => ({ data: undefined })),
+    id
+      ? api
+          .GET("/api/v1/admin/manual-driver-contact-tasks", {
+            params: {
+              query: {
+                driver_profile_id: id,
+                history: true,
+                limit: 25,
+                offset: offset(query.contacts_offset),
+              },
+            },
+          })
+          .catch(() => ({ data: undefined }))
+      : Promise.resolve({ data: undefined }),
   ]);
   const account = accounts.data?.items.find((u) => u.id === userId);
   const p = application?.person_payee;
@@ -371,7 +392,38 @@ export default async function DriverHub({
           </details>
         </HubSection>
         <HubSection id="phone" title="Phone">
-          <p>{person.phone ?? "No phone recorded"}</p>
+          {id && !contacts.data ? (
+            <QueueUnavailable />
+          ) : (
+            <>
+              <p>{person.phone ?? "No phone recorded"}</p>
+              {contacts.data?.items.map((task) => (
+                <Link
+                  key={task.id}
+                  className="border-edge mt-3 block rounded-lg border p-3"
+                  href={`/admin/support?tab=contact&driver_profile_id=${id}&task=${task.id}`}
+                >
+                  {adminStatus(task.status, "contact")} · {formatDate(task.created_at)}
+                </Link>
+              ))}
+              {contacts.data ? (
+                <Pagination
+                  total={contacts.data.total}
+                  limit={25}
+                  offset={offset(query.contacts_offset)}
+                  hrefFor={(n) => hrefFor("contacts_offset", n, "phone")}
+                />
+              ) : null}
+              {id ? (
+                <Link
+                  className="text-cyan mt-3 inline-block underline"
+                  href={`/admin/support?tab=contact&driver_profile_id=${id}`}
+                >
+                  Contact tasks
+                </Link>
+              ) : null}
+            </>
+          )}
         </HubSection>
         <HubSection id="jobs" title="Campaign jobs">
           {!jobs.data ? (
@@ -505,8 +557,8 @@ export default async function DriverHub({
             </>
           )}
         </HubSection>
-        <HubSection id="reviews" title="Reviews">
-          {id && !reviews.data ? (
+        <HubSection id="reviews" title="Reviews and complaints">
+          {(id && !reviews.data) || !complaints.data ? (
             <QueueUnavailable />
           ) : (
             <>
@@ -514,15 +566,16 @@ export default async function DriverHub({
                 <p>No matching trip reviews.</p>
               ) : (
                 reviews.data?.items.map((review) => (
-                  <div
+                  <Link
                     key={review.id}
                     className="border-edge mb-2 block rounded-lg border p-3"
+                    href={`/admin/trip-checks?tab=suspicious&driver_profile_id=${id}&flag=${review.id}`}
                   >
                     <p>
                       {adminStatus(review.status, "review")} · {formatDate(review.created_at)}
                     </p>
                     <p className="text-muted text-sm">{review.description}</p>
-                  </div>
+                  </Link>
                 ))
               )}
               <Pagination
@@ -531,8 +584,35 @@ export default async function DriverHub({
                 offset={offset(query.reviews_offset)}
                 hrefFor={(n) => hrefFor("reviews_offset", n, "reviews")}
               />
+              <h3 className="my-3 font-medium">Complaints</h3>
+              {!complaints.data.items.length ? (
+                <p>No complaints recorded.</p>
+              ) : (
+                complaints.data.items.map((complaint) => (
+                  <Link
+                    key={complaint.id}
+                    className="border-edge mb-2 block rounded-lg border p-3"
+                    href={`/admin/support?tab=complaints&user_id=${userId}&complaint=${complaint.id}`}
+                  >
+                    {adminStatus(complaint.status, "complaint")} ·{" "}
+                    {formatDate(complaint.created_at)}
+                  </Link>
+                ))
+              )}
+              <Pagination
+                total={complaints.data.total}
+                limit={25}
+                offset={offset(query.complaints_offset)}
+                hrefFor={(n) => hrefFor("complaints_offset", n, "reviews")}
+              />
             </>
           )}
+          <Link
+            className="text-cyan mt-3 inline-block underline"
+            href={`/admin/support?tab=complaints&user_id=${userId}`}
+          >
+            Complaints
+          </Link>
         </HubSection>
         <HubSection id="activity" title="Activity">
           {id && !activity.data ? (

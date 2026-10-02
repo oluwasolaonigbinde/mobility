@@ -27,9 +27,9 @@ export function ReviewActions({
       <p className="micro text-faint text-right">
         {status === "confirmed"
           ? reversalRecorded
-            ? "Confirmed fraud — released earnings were reversed."
-            : "Confirmed fraud — earnings remain held; review is final."
-          : "Dismissed — review is final; hold removed until a current reassessment releases eligible money."}
+            ? "Problem confirmed — released earnings were reversed."
+            : "Problem confirmed — earnings remain held; review is final."
+          : "Cleared — review is final; hold removed until a current reassessment releases eligible money."}
       </p>
     );
   }
@@ -46,7 +46,7 @@ export function ReviewActions({
           disabled={pending}
           className="h-9 px-3 text-xs"
         >
-          {pending ? "Acknowledging…" : "Acknowledge"}
+          {pending ? "Starting review…" : "Start review"}
         </Button>
       ) : (
         <>
@@ -70,7 +70,9 @@ export function ReviewActions({
               variant="danger"
               className="h-9 px-3 text-xs"
             >
-              {reversalRecommended ? "Confirm fraud & reverse released earnings" : "Confirm fraud"}
+              {reversalRecommended
+                ? "Confirm problem & reverse released earnings"
+                : "Confirm problem"}
             </Button>
             <Button
               type="submit"
@@ -80,7 +82,7 @@ export function ReviewActions({
               variant="ghost"
               className="h-9 px-3 text-xs"
             >
-              Dismiss flag
+              Clear
             </Button>
           </div>
         </>
