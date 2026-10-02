@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { CardvertSection } from "@/components/marketing/cardvert-section";
+import { CampaignEnquiry } from "@/components/marketing/campaign-enquiry";
 import { ContactBand } from "@/components/marketing/contact-band";
 import { Hero } from "@/components/marketing/hero";
 import { HowItWorks } from "@/components/marketing/how-it-works";
@@ -42,6 +43,7 @@ export default function HomePage() {
         <CardvertSection />
         <WhyTerrax />
         <ContactBand />
+        <CampaignEnquiry />
       </main>
 
       <SiteFooter />

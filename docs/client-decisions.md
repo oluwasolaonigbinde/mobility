@@ -74,12 +74,19 @@ acceptances unless a D-row says otherwise (D14, D21).
 (reviews, approvals, payments) and "Cardvert" for automatic actions; times read
 "Nigeria time (WAT)" (D38a). Advertiser and driver screens never show hashes,
 run IDs or fingerprints; staff screens and downloads may (D38c). Four visual
-directions remain, with Ivory Ledger as the default (D37).
+directions remain, with Ivory Ledger as the default (D37); two new candidates,
+Directions 5 and 6, are offered for the client's review (REQ-071).
+The public website uses **Request a campaign quote** for its on-site advertiser
+enquiry, **Apply to drive** for `/apply`, and **Sign in** for `/login` (D52,
+REQ-070). Advertiser account setup remains operator-led; the enquiry creates
+neither an account nor a campaign. `/` is the only public landing route.
 
 **History:**
 - **2026-08-14** — Client confirmed the names (Q29, D18).
 - **2026-09-24** — Client rejected seven of eleven visual directions (D37). Built in `d583829`.
 - **2026-09-24** — Owner set the naming, time-label and no-hashes rules (D38a, D38c). Built in `7a9ceb0` (REQ-001).
+- **2026-10-02** — Owner replaced varied campaign/driver CTA labels and “Open Cardvert” with explicit next steps, approved an on-site enquiry form and removed the obsolete `/landing` redirect (D52, REQ-070). Previously advertiser buttons opened a prepared email. Local implementation; merge and live email readiness remain pending.
+- **2026-10-02** — Owner: the four kept directions look too alike, and the menu text is too small. Added Direction 5 (Route, from the public site) and Direction 6 (Wrap, vehicle-wrap blocks) as candidates, and enlarged the menu text in every direction (REQ-071).
 
 ### Staff roles and departments
 
@@ -345,10 +352,14 @@ on by default, which an advertiser company can switch off (D24); drivers are
 contacted on WhatsApp by operations staff; automated SMS/WhatsApp after the
 pilot (Q34). Support phone/WhatsApp 07074200080, run by Customer Service; the
 developer drafts short messages for Terrax to approve (client answers item 15).
+The notification panel is an unread inbox: Mark read removes that item and
+Mark all read clears current unread items, including older pages. Read records
+remain stored; notifications arriving afterward appear normally (D54, REQ-075).
 
 **History:**
 - **2026-08-14** — Client confirmed channels (Q34, D18); **2026-08-24** owner decision on email preferences (D24).
 - **2026-09-24** — Client supplied the support number (client answers items 14–15).
+- **2026-10-02** — Owner clarified that read notifications must disappear from the panel (D54, REQ-075), replacing its earlier history-list presentation. Local implementation pending commit and merge.
 
 ### Advertiser reporting and privacy
 

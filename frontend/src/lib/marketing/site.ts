@@ -51,33 +51,19 @@ export const TAGLINE = "Transforming City Movement into Brand Impact";
 export const META_DESCRIPTION =
   "Terrax Media is an out-of-home advertising company that turns everyday city journeys into real-world brand visibility — and lets drivers earn from the miles they already drive.";
 
-function mailto(subject: string, body: readonly string[]) {
-  const query = new URLSearchParams({ subject, body: body.join("\n") });
-  return `mailto:${CONTACT.email}?${query.toString().replace(/\+/g, "%20")}`;
-}
-
 /** Product entry points. Advertiser organisations remain operator-provisioned,
  * so prospective brands contact Terrax while drivers may apply directly. */
 export const ROUTES = {
+  campaignEnquiry: "#campaign-enquiry",
   driverApplication: "/apply",
   signIn: "/login",
 } as const;
 
-export const MAILTO = {
-  campaign: mailto("Campaign enquiry — Terrax Media", [
-    "Hello Terrax Media,",
-    "",
-    "I would like to discuss a vehicle advertising campaign.",
-    "",
-    "Company:",
-    "Contact name:",
-    "Phone:",
-    "Campaign area(s):",
-    "Preferred start date:",
-    "Campaign length:",
-    "",
-    "Thank you.",
-  ]),
+/** OWNER — REQ-070: labels describe the next step consistently. */
+export const CTA = {
+  campaign: "Request a campaign quote",
+  driver: "Apply to drive",
+  signIn: "Sign in",
 } as const;
 
 export type NavItem = { readonly href: string; readonly label: string };
@@ -193,7 +179,7 @@ export const PATHWAYS: readonly [Pathway, Pathway] = [
       "Build repeated visibility across real city routes",
       "Create location-aware brand experiences",
     ],
-    cta: { label: "Advertise With Terrax", href: MAILTO.campaign },
+    cta: { label: CTA.campaign, href: ROUTES.campaignEnquiry },
   },
   {
     id: "for-drivers",
@@ -206,7 +192,7 @@ export const PATHWAYS: readonly [Pathway, Pathway] = [
       "Access advertising opportunities suited to your vehicle",
       "Participate without changing everyday driving habits",
     ],
-    cta: { label: "Become a Driver Partner", href: ROUTES.driverApplication },
+    cta: { label: CTA.driver, href: ROUTES.driverApplication },
   },
 ];
 
@@ -271,8 +257,8 @@ export const WHY = {
 export const CONTACT_BAND = {
   title: "Ready to put your brand in motion?",
   lead: "Tell us about your campaign or your vehicle, and we'll take it from there.",
-  primary: { label: "Launch a Campaign", href: MAILTO.campaign },
-  secondary: { label: "Join as a Driver", href: ROUTES.driverApplication },
+  primary: { label: CTA.campaign, href: ROUTES.campaignEnquiry },
+  secondary: { label: CTA.driver, href: ROUTES.driverApplication },
   emailPrefix: "Or email us directly at",
 } as const;
 

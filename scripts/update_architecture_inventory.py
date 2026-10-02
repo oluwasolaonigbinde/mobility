@@ -34,7 +34,7 @@ GROUPS = (
     ("/api/v1/notifications/*", "/api/v1/notifications"),
     ("/api/v1/webhooks/*", "/api/v1/webhooks"),
 )
-EXACT_GROUPS = {"/api/v1/me", "/health"}
+EXACT_GROUPS = {"/api/v1/me", "/api/v1/campaign-enquiries", "/health"}
 REQUIRED_ONBOARDING_ROUTES = frozenset(
     {
         "/api/v1/auth/driver-application-status/{reference}",

@@ -239,6 +239,70 @@
     --chart-area-alpha: 0.14;
   }
 
+  /* 5 · Route — the current public Terrax site, carried into the product. */
+  html[data-theme="route"] {
+    color-scheme: light;
+    --font-display: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
+    --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+    --radius-panel: 1.5rem;
+    --color-bg: #ede6d6;
+    --color-panel: #f8f5ed;
+    --color-raised: #ffffff;
+    --color-edge: #ddd4c0;
+    --color-edge-strong: #847b65;
+    --color-ink: #0a1c09;
+    --color-muted: #46543f;
+    --color-faint: #56614f;
+    --color-amber: #b31c2a;
+    --color-amber-soft: #931622;
+    --color-cyan: #7a5230;
+    --color-green: #1f6416;
+    --color-coral: #8c1c13;
+    --color-accent-ink: #ffffff;
+    --selection: rgb(242 201 76 / 0.45);
+    --grid-line: rgb(10 28 9 / 0.05);
+    --atmosphere: var(--color-bg);
+    --shadow-panel: none;
+    --shadow-glow-amber: none;
+    --shadow-glow-cyan: none;
+    --shadow-glow-coral: none;
+    --chart-grid: rgb(10 28 9 / 0.1);
+    --chart-tick: var(--color-muted);
+    --chart-area-alpha: 0.16;
+  }
+
+  /* 6 · Wrap — a vehicle wrap: flat colour blocks, heavy outlines, big type. */
+  html[data-theme="wrap"] {
+    color-scheme: light;
+    --font-display: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+    --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+    --radius-panel: 0;
+    --color-bg: #f3eee4;
+    --color-panel: #ffffff;
+    --color-raised: #f7f3eb;
+    --color-edge: #ddd5c6;
+    --color-edge-strong: #8a8070;
+    --color-ink: #1b1712;
+    --color-muted: #4f4840;
+    --color-faint: #625a4f;
+    --color-amber: #a5351a;
+    --color-amber-soft: #862a13;
+    --color-cyan: #1f5a3a;
+    --color-green: #2c6a24;
+    --color-coral: #9b1c31;
+    --color-accent-ink: #ffffff;
+    --selection: rgb(165 53 26 / 0.2);
+    --grid-line: rgb(27 23 18 / 0.06);
+    --atmosphere: var(--color-bg);
+    --shadow-panel: 4px 4px 0 0 #1b1712;
+    --shadow-glow-amber: 3px 3px 0 0 #1b1712;
+    --shadow-glow-cyan: 3px 3px 0 0 #1b1712;
+    --shadow-glow-coral: 3px 3px 0 0 #1b1712;
+    --chart-grid: rgb(27 23 18 / 0.12);
+    --chart-tick: var(--color-muted);
+    --chart-area-alpha: 0.18;
+  }
+
   body {
     background-color: var(--color-bg);
     color: var(--color-ink);
@@ -284,6 +348,20 @@
  * stable component class-combos so no component ever branches on theme.
  * ─────────────────────────────────────────────────────────────────────────
  */
+
+/* Shell navigation labels are read, not glanced at: one size step above the
+ * other micro labels in every direction. Directions with a condensed face set
+ * their own size in their nav block below. */
+:is(aside, nav).bg-panel a.micro {
+  font-size: 0.8125rem;
+  letter-spacing: 0.05em;
+}
+aside.bg-panel nav p.micro {
+  font-size: 0.8125rem;
+}
+html[data-theme="broadside"] aside.bg-panel nav p.micro {
+  font-size: 1rem;
+}
 
 /* ── 1 · Ivory Ledger — naira paper ──────────────────────────────────────
  * Banknote security-print: a faint guilloché lattice engraved into the
@@ -433,6 +511,9 @@ html[data-theme="broadside"] :is(aside, nav) a.micro {
   border: none;
   border-radius: 0;
   background-color: transparent;
+  /* Big Shoulders is condensed: it needs a larger size to match Inter's 13px */
+  font-size: 1rem;
+  letter-spacing: 0.05em;
 }
 html[data-theme="broadside"] :is(aside, nav) a.micro::after {
   content: "";
@@ -571,4 +652,203 @@ html[data-theme="ledger"] aside a.micro[aria-current="page"]::before {
 html[data-theme="ledger"] :focus-visible {
   outline: 2px solid var(--color-amber);
   outline-offset: 3px;
+}
+
+/* ── 5 · Route — the public site's language ─────────────────────────────
+ * Taken from the live Terrax site: Poppins extra-bold headlines set tight,
+ * the hero's pill eyebrow with a crimson dot, ink pill buttons that turn deep
+ * green on hover, big soft cards, and the gold dashed route line from the
+ * hero visual drawn under every page header. The shell stays light; the
+ * current page is an ink pill with a gold dot. Labels speak in Poppins rather
+ * than mono, as the site does. */
+html[data-theme="route"] :is(h1, h2, h3).font-display,
+html[data-theme="route"] :is(h1, h2, h3) .font-display {
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+html[data-theme="route"] h1.font-display {
+  font-size: clamp(2rem, 1.4rem + 1.6vw, 2.75rem);
+}
+html[data-theme="route"] p.font-display {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+html[data-theme="route"] .micro {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.1em;
+}
+html[data-theme="route"] h1.font-display + p.micro {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 0.75rem;
+  padding: 0.3rem 0.85rem;
+  color: var(--color-muted);
+  background: var(--color-panel);
+  border: 1px solid rgb(10 28 9 / 0.15);
+  border-radius: 999px;
+}
+html[data-theme="route"] h1.font-display + p.micro::before {
+  flex: none;
+  width: 6px;
+  height: 6px;
+  content: "";
+  background: var(--color-amber);
+  border-radius: 50%;
+}
+/* Anchored to the shared PageHeader row, so screens whose page wrapper also
+ * contains the title never draw the line at the foot of the page. */
+html[data-theme="route"] div.mb-8.flex:has(> div > h1.font-display) {
+  padding-bottom: 1.25rem;
+  background: repeating-linear-gradient(90deg, #c99a1e 0 12px, transparent 12px 20px) left
+    bottom / 100% 2px no-repeat;
+}
+html[data-theme="route"] :is(button, a).rounded-lg:not([role="option"]) {
+  font-family: var(--font-display);
+  font-weight: 700;
+  border-radius: 999px;
+}
+html[data-theme="route"] :is(button, a).bg-amber {
+  color: var(--color-panel);
+  background-color: var(--color-ink);
+}
+html[data-theme="route"] :is(button, a).bg-amber:hover:not(:disabled) {
+  background-color: #0e3a0a;
+}
+html[data-theme="route"] aside.bg-panel,
+html[data-theme="route"] nav.bg-panel {
+  background-color: var(--color-bg);
+}
+html[data-theme="route"] :is(aside, nav).bg-panel a.micro[aria-current="page"] {
+  color: var(--color-panel);
+  background-color: var(--color-ink);
+}
+html[data-theme="route"] :is(aside, nav).bg-panel a.micro[aria-current="page"]::before {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 8px;
+  vertical-align: middle;
+  content: "";
+  background: #f2c94c;
+  border-radius: 50%;
+}
+/* Count badges: ink on the light shell, gold on the ink pill. */
+html[data-theme="route"] :is(aside, nav).bg-panel a.micro > span {
+  color: var(--color-ink);
+}
+html[data-theme="route"] :is(aside, nav).bg-panel a.micro[aria-current="page"] > span {
+  background-color: #f2c94c;
+}
+html[data-theme="route"] :focus-visible {
+  outline: 2px solid var(--color-amber);
+  outline-offset: 3px;
+}
+
+/* ── 6 · Wrap — what Cardvert sells, worn by the product ────────────────
+ * A vehicle wrap is flat colour, heavy outlines and type read at a glance.
+ * The shell is a solid clay panel, wider than the others, with the current
+ * page as a black block. Headings are Archivo extra-bold capitals at a larger
+ * scale, panels and controls carry 2px ink outlines and a hard offset shadow
+ * (the --shadow-* tokens), and the page eyebrow is a clay label. */
+html[data-theme="wrap"] :is(h1, h2, h3).font-display,
+html[data-theme="wrap"] :is(h1, h2, h3) .font-display {
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: -0.005em;
+  text-transform: uppercase;
+}
+html[data-theme="wrap"] h1.font-display {
+  font-size: clamp(2.1rem, 1.5rem + 1.8vw, 3rem);
+}
+/* Values stay mixed-case: capitals would mangle currency and unit suffixes. */
+html[data-theme="wrap"] p.font-display {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+html[data-theme="wrap"] h1.font-display + p.micro {
+  display: inline-block;
+  margin-top: 0.6rem;
+  padding: 0.2rem 0.55rem;
+  color: #ffffff;
+  background: var(--color-amber);
+}
+html[data-theme="wrap"] .rounded-panel.border-edge {
+  border: 2px solid var(--color-ink);
+}
+html[data-theme="wrap"] .rounded-panel table thead tr {
+  border-bottom: 2px solid var(--color-ink);
+}
+html[data-theme="wrap"] :is(button, a).rounded-lg:not([role="option"], .micro) {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 2px solid var(--color-ink);
+  border-radius: 0;
+  box-shadow: 3px 3px 0 0 var(--color-ink);
+}
+@media (prefers-reduced-motion: no-preference) {
+  html[data-theme="wrap"] :is(button, a).rounded-lg:not([role="option"], .micro) {
+    transition:
+      transform 0.12s ease,
+      box-shadow 0.12s ease,
+      background-color 0.12s ease;
+  }
+  html[data-theme="wrap"] :is(button, a).rounded-lg:not([role="option"], .micro):hover:not(:disabled) {
+    transform: translate(-1px, -1px);
+    box-shadow: 4px 4px 0 0 var(--color-ink);
+  }
+  html[data-theme="wrap"] :is(button, a).rounded-lg:not([role="option"], .micro):active:not(:disabled) {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0 0 var(--color-ink);
+  }
+}
+
+/* The clay shell. Redefining the ink tokens on it keeps child utilities working. */
+html[data-theme="wrap"] aside.bg-panel,
+html[data-theme="wrap"] nav.bg-panel {
+  --color-ink: #ffffff;
+  --color-muted: #fff1e8;
+  --color-faint: #ffefe5;
+  --color-amber: #ffc9a8;
+  --color-coral: #ffffff;
+  --color-edge: #8f3318;
+  --color-raised: #1b1712;
+  color: #ffffff;
+  background-color: #bb4421;
+  border-color: #1b1712;
+}
+html[data-theme="wrap"] aside.bg-panel {
+  width: 15rem;
+  border-right-width: 2px;
+}
+html[data-theme="wrap"] nav.bg-panel {
+  border-bottom-width: 2px;
+}
+/* Nav items are square blocks in the heading face, not outlined buttons. */
+html[data-theme="wrap"] :is(aside, nav).bg-panel a.micro {
+  font-family: var(--font-display);
+  font-size: 0.875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  border-radius: 0;
+}
+html[data-theme="wrap"] span.micro.rounded-full {
+  border-radius: 0;
+}
+html[data-theme="wrap"] :is(aside, nav).bg-panel a.micro > span {
+  color: #ffffff;
+  background-color: #1b1712;
+}
+html[data-theme="wrap"] :focus-visible {
+  outline: 2px solid var(--color-amber);
+  outline-offset: 3px;
+}
+html[data-theme="wrap"] :is(aside, nav).bg-panel :focus-visible {
+  outline-color: #ffffff;
 }

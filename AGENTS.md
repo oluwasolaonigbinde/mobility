@@ -7,6 +7,30 @@ delivery authority, work tracking, and repository gates; the nearest nested
 owns the execution lifecycle and must apply all of those instructions without
 restating or weakening them.
 
+## Development stage and replacement policy
+
+**Cardvert is still in development. There are no real users or live customer
+data, and no production consumers depend on its existing interfaces.** Treat
+current URLs, APIs, schemas, stored formats and behavior as development artifacts,
+not compatibility commitments.
+
+When the owner asks to change, replace or delete something, implement the new
+design and remove the obsolete implementation within that scope. Do not retain
+old URLs, redirects, aliases, API versions, compatibility shims, fallback paths,
+dual formats or deprecated code solely to support hypothetical existing users.
+Do not add migration, backfill, deprecation, backup or rollback work solely to
+preserve obsolete development behavior or disposable demo/test data. Update
+affected callers, links, tests, fixtures, seeds and documentation together so the
+current design works end to end.
+
+This owner direction supersedes earlier generic requirements to preserve old
+URLs or backward compatibility for the requested replacement. Preserve a legacy
+path only when the owner explicitly asks or a verified current external
+integration requires it. Keep unrelated work, credentials and account-access
+records intact; security, privacy, money correctness, delivery verification and
+explicit approval for commits, external actions and deployment still apply.
+Reassess these assumptions when the owner confirms real-user or production use.
+
 ## Required reading
 
 Before planning or editing, read these sources in order:

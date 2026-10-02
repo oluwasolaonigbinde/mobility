@@ -39,6 +39,8 @@ describe("ThemeSwitcher", () => {
     ["Direction 2", "broadside"],
     ["Direction 3", "dispatch"],
     ["Direction 4", "ledger"],
+    ["Direction 5", "route"],
+    ["Direction 6", "wrap"],
   ])("applies %s and marks it selected", async (name, slug) => {
     const user = userEvent.setup();
     const exact = exactName(name);
@@ -56,8 +58,8 @@ describe("ThemeSwitcher", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
-  it.each(["/", "/landing"])("stays off the public landing route %s", (route) => {
-    pathname.value = route;
+  it("stays off the public landing route", () => {
+    pathname.value = "/";
     const { container } = render(<ThemeSwitcher />);
     expect(container).toBeEmptyDOMElement();
   });

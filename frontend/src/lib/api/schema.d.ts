@@ -3845,6 +3845,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/campaign-enquiries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit Campaign Enquiry */
+        post: operations["submit_campaign_enquiry_api_v1_campaign_enquiries_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/driver/campaign-assignments": {
         parameters: {
             query?: never;
@@ -7352,6 +7369,14 @@ export interface components {
             terminal_failed: string;
             /** Unbatched Available */
             unbatched_available: string;
+        };
+        /** CampaignEnquiryRead */
+        CampaignEnquiryRead: {
+            /**
+             * Status
+             * @default submitted
+             */
+            status: string;
         };
         /** CampaignImpressionSummary */
         CampaignImpressionSummary: {
@@ -23362,6 +23387,53 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DriverApplicationSubmitResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    submit_campaign_enquiry_api_v1_campaign_enquiries_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Brief */
+                    brief: string;
+                    /** Company */
+                    company: string;
+                    /** Contact Name */
+                    contact_name: string;
+                    /** Email */
+                    email: string;
+                    /**
+                     * Phone
+                     * @default
+                     */
+                    phone?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignEnquiryRead"];
                 };
             };
             /** @description Request validation failed */

@@ -45,7 +45,7 @@ export function ThemeSwitcher() {
   if (THEMES.length < 2) return null;
   // Keep the demo control inside the product. It is not marketing chrome, and
   // on the driver PWA it would sit on top of the bottom tab bar.
-  if (pathname === "/" || pathname === "/landing" || pathname?.startsWith("/driver")) return null;
+  if (pathname === "/" || pathname?.startsWith("/driver")) return null;
 
   const activeMeta = THEMES.find((t) => t.slug === active);
 

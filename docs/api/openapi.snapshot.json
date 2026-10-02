@@ -6848,6 +6848,17 @@
         "title": "CampaignDriverMoneyRead",
         "type": "object"
       },
+      "CampaignEnquiryRead": {
+        "properties": {
+          "status": {
+            "default": "submitted",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "title": "CampaignEnquiryRead",
+        "type": "object"
+      },
       "CampaignImpressionSummary": {
         "properties": {
           "average_confidence_score": {
@@ -42661,6 +42672,87 @@
         "summary": "Submit a public driver application",
         "tags": [
           "Auth"
+        ]
+      }
+    },
+    "/api/v1/campaign-enquiries": {
+      "post": {
+        "operationId": "submit_campaign_enquiry_api_v1_campaign_enquiries_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "brief": {
+                    "maxLength": 2000,
+                    "minLength": 1,
+                    "title": "Brief",
+                    "type": "string"
+                  },
+                  "company": {
+                    "maxLength": 160,
+                    "minLength": 1,
+                    "title": "Company",
+                    "type": "string"
+                  },
+                  "contact_name": {
+                    "maxLength": 160,
+                    "minLength": 1,
+                    "title": "Contact Name",
+                    "type": "string"
+                  },
+                  "email": {
+                    "maxLength": 254,
+                    "minLength": 3,
+                    "title": "Email",
+                    "type": "string"
+                  },
+                  "phone": {
+                    "default": "",
+                    "maxLength": 32,
+                    "title": "Phone",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "company",
+                  "contact_name",
+                  "email",
+                  "brief"
+                ],
+                "title": "CampaignEnquiryCreate",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignEnquiryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "summary": "Submit Campaign Enquiry",
+        "tags": [
+          "Campaign enquiries"
         ]
       }
     },

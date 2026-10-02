@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { HERO, MAILTO, ROUTES } from "@/lib/marketing/site";
+import { CTA, HERO, ROUTES } from "@/lib/marketing/site";
 import { MEDIA } from "@/lib/marketing/media";
 import { Icon } from "./icon";
 
@@ -37,17 +37,17 @@ export function Hero() {
 
           <div className="mt-8 flex flex-wrap items-center gap-4">
             <a
-              href={MAILTO.campaign}
+              href={ROUTES.campaignEnquiry}
               className="font-terrax-display bg-terrax-ink text-terrax-card hover:bg-terrax-deep inline-flex items-center gap-2 rounded-full px-7 py-3.5 text-sm font-extrabold transition-colors"
             >
-              Start a Campaign
+              {CTA.campaign}
               <Icon name="arrowRight" className="size-4" />
             </a>
             <a
               href={ROUTES.driverApplication}
               className="font-terrax-display border-terrax-ink/25 text-terrax-ink hover:bg-terrax-ink/5 inline-flex items-center gap-2 rounded-full border px-7 py-3.5 text-sm font-extrabold transition-colors"
             >
-              Drive &amp; Earn
+              {CTA.driver}
             </a>
           </div>
         </div>

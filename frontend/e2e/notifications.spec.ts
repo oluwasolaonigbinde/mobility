@@ -109,8 +109,8 @@ test("advertiser changes the shared email preference while in-app stays mandator
   test.skip(testInfo.project.name !== "chromium", "serialize the persistent preference mutation");
   await login(page, accounts[1]);
   await page.getByRole("button", { name: /notifications/i }).click();
-  await expect(page.getByText("In-app notifications are always on.")).toBeVisible();
-  const emailToggle = page.getByLabel("Transactional email");
+  await expect(page.getByText("Updates always appear here.")).toBeVisible();
+  const emailToggle = page.getByLabel("Also send updates by email");
   const expected = false;
   if ((await emailToggle.isChecked()) !== expected) {
     await emailToggle.click();
@@ -118,6 +118,6 @@ test("advertiser changes the shared email preference while in-app stays mandator
   await expect(emailToggle).toBeChecked({ checked: expected });
   await page.reload();
   await page.getByRole("button", { name: /notifications/i }).click();
-  await expect(page.getByLabel("Transactional email")).toBeChecked({ checked: expected });
-  await expect(page.getByText("In-app notifications are always on.")).toBeVisible();
+  await expect(page.getByLabel("Also send updates by email")).toBeChecked({ checked: expected });
+  await expect(page.getByText("Updates always appear here.")).toBeVisible();
 });

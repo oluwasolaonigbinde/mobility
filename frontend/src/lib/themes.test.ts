@@ -33,12 +33,14 @@ describe("theme registry", () => {
     expect(slugs).toContain(DEFAULT_THEME);
   });
 
-  it("contains only the four retained directions in their new order", () => {
+  it("contains the four retained directions and the two new candidates in order", () => {
     expect(THEMES.map((theme) => [theme.slug, theme.name])).toEqual([
       ["ivory-ledger", "Direction 1"],
       ["broadside", "Direction 2"],
       ["dispatch", "Direction 3"],
       ["ledger", "Direction 4"],
+      ["route", "Direction 5"],
+      ["wrap", "Direction 6"],
     ]);
   });
 
@@ -52,6 +54,8 @@ describe("theme registry", () => {
     ["broadside", "Direction 2", "light"],
     ["dispatch", "Direction 3", "light"],
     ["ledger", "Direction 4", "light"],
+    ["route", "Direction 5", "light"],
+    ["wrap", "Direction 6", "light"],
   ])("registers %s as %s", (slug, name, colorScheme) => {
     const entry = THEMES.find((t) => t.slug === slug);
     expect(entry).toBeDefined();
@@ -71,7 +75,7 @@ describe("theme registry", () => {
 
   // A direction is more than a palette: each one must also ship scoped rules
   // (its design language) in the unlayered section, not just a token block.
-  it.each(["ivory-ledger", "broadside", "dispatch", "ledger"])(
+  it.each(THEMES.map((t) => t.slug))(
     "%s ships a design language beyond its token block",
     (slug) => {
       const scoped = globalsCss.match(new RegExp(`html\\[data-theme="${slug}"\\]`, "g"));

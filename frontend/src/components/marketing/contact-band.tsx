@@ -3,9 +3,8 @@ import { Icon } from "./icon";
 import { Reveal } from "./reveal";
 
 /**
- * The closing call. Both conversion paths appear once more as prepared emails,
- * with the plain address underneath for anyone whose mail client will not open
- * a `mailto:` link.
+ * The closing call repeats the enquiry and driver-application paths, with
+ * the official email address available as an alternative contact method.
  */
 export function ContactBand() {
   return (

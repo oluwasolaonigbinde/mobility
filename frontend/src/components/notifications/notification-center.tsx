@@ -2,7 +2,7 @@
 
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { components } from "@/lib/api/schema";
 import { formatDateTime } from "@/lib/format";
 
@@ -111,6 +111,7 @@ export function NotificationCenter({
   const router = useRouter();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const isVisible = useDocumentVisible();
   const isOnline = useNetworkOnline();
   const countKey = ["notifications", sessionScope, "unread-count"] as const;
@@ -203,7 +204,10 @@ export function NotificationCenter({
   const shownItems = loadedPages
     ? [
         ...new Map(
-          loadedPages.flatMap((page) => page.items).map((item) => [item.id, item]),
+          loadedPages
+            .flatMap((page) => page.items)
+            .filter((item) => !item.read_at)
+            .map((item) => [item.id, item]),
         ).values(),
       ]
     : undefined;
@@ -214,6 +218,7 @@ export function NotificationCenter({
   return (
     <div className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
@@ -235,14 +240,27 @@ export function NotificationCenter({
         >
           <div className="flex items-center justify-between gap-3">
             <p className="font-display text-base font-semibold">Notifications</p>
-            <button
-              type="button"
-              onClick={() => markAllRead.mutate()}
-              disabled={!isOnline || unread === 0 || markAllRead.isPending}
-              className="micro text-amber disabled:text-faint hover:text-amber/80"
-            >
-              Mark all read
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => markAllRead.mutate()}
+                disabled={!isOnline || unread === 0 || markAllRead.isPending}
+                className="micro text-amber disabled:text-faint hover:text-amber/80"
+              >
+                Mark all read
+              </button>
+              <button
+                type="button"
+                aria-label="Close notification panel"
+                onClick={() => {
+                  setOpen(false);
+                  triggerRef.current?.focus();
+                }}
+                className="text-muted hover:text-fg flex size-8 shrink-0 items-center justify-center rounded text-xl"
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            </div>
           </div>
           {markRead.isError ? (
             <div
@@ -330,10 +348,10 @@ export function NotificationCenter({
           ) : null}
           {canManageAdvertiserPreferences ? (
             <div className="border-edge mt-3 border-t pt-3">
-              <p className="micro text-faint mb-2">ORGANIZATION DELIVERY PREFERENCES</p>
-              <p className="text-muted text-sm">In-app notifications are always on.</p>
+              <p className="micro text-faint mb-2">Company notification settings</p>
+              <p className="text-muted text-sm">Updates always appear here.</p>
               <label className="mt-3 flex items-center justify-between gap-3 text-sm">
-                Transactional email
+                Also send updates by email
                 <input
                   type="checkbox"
                   checked={showPreferences?.transactional_email_enabled ?? false}
@@ -349,6 +367,9 @@ export function NotificationCenter({
                   onChange={(event) => updatePreferences.mutate(event.target.checked)}
                 />
               </label>
+              <p className="text-muted mt-2 text-sm">
+                Account and campaign updates. Applies to your whole company.
+              </p>
               {updatePreferences.isError ? (
                 <div
                   id="notification-preference-error"

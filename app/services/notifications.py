@@ -646,6 +646,7 @@ async def list_current_user_notifications(
     query = select(Notification).where(
         Notification.recipient_user_id == recipient_user_id,
         Notification.channel == NotificationChannel.IN_APP.value,
+        Notification.read_at.is_(None),
     )
     total = int(await session.scalar(select(func.count()).select_from(query.subquery())) or 0)
     notices = list(

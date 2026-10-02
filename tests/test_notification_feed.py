@@ -277,9 +277,15 @@ def test_feed_is_recipient_scoped_ordered_sanitized_and_read_idempotent(
     first_read_at = datetime.fromisoformat(first_read.json()["read_at"].replace("Z", "+00:00"))
     second_read_at = datetime.fromisoformat(second_read.json()["read_at"].replace("Z", "+00:00"))
     assert first_read_at == second_read_at
+    remaining = db_client.get("/api/v1/notifications?limit=1", headers=headers).json()
+    assert remaining["total"] == 1
+    assert [item["id"] for item in remaining["items"]] == [str(newer.id)]
     assert db_client.post("/api/v1/notifications/read-all", headers=headers).json() == {
         "unread_count": 0
     }
+    cleared = db_client.get("/api/v1/notifications", headers=headers).json()
+    assert cleared["items"] == []
+    assert cleared["total"] == 0
     assert db_client.get("/api/v1/notifications/unread-count", headers=headers).json() == {
         "unread_count": 0
     }
@@ -287,6 +293,63 @@ def test_feed_is_recipient_scoped_ordered_sanitized_and_read_idempotent(
         "/api/v1/notifications/unread-count",
         headers=auth_headers(db_client, "other-feed@example.com", PASSWORD),
     ).json() == {"unread_count": 1}
+
+
+def test_unread_feed_pages_skip_read_rows_and_read_all_preserves_later_notices(
+    db_client,
+    db_sessionmaker,
+) -> None:
+    user = create_test_user(
+        db_sessionmaker, email="unread-pages@example.com", password=PASSWORD, role=UserRole.DRIVER
+    )
+    headers = auth_headers(db_client, "unread-pages@example.com", PASSWORD)
+    start = datetime(2026, 8, 24, 10, tzinfo=UTC)
+    notices = [
+        _insert_notice(
+            db_sessionmaker,
+            recipient_user_id=user.id,
+            key=f"page-{index}",
+            created_at=start + timedelta(seconds=index),
+        )
+        for index in range(3)
+    ]
+    assert (
+        db_client.post(f"/api/v1/notifications/{notices[2].id}/read", headers=headers).status_code
+        == 200
+    )
+    for offset, expected in enumerate(reversed(notices[:2])):
+        page = db_client.get(
+            f"/api/v1/notifications?limit=1&offset={offset}", headers=headers
+        ).json()
+        assert page["total"] == 2
+        assert [item["id"] for item in page["items"]] == [str(expected.id)]
+    for _ in range(2):
+        assert db_client.post("/api/v1/notifications/read-all", headers=headers).json() == {
+            "unread_count": 0
+        }
+        assert db_client.get("/api/v1/notifications", headers=headers).json()["items"] == []
+
+    async def retained() -> int:
+        async with db_sessionmaker() as session:
+            return await session.scalar(
+                select(func.count())
+                .select_from(Notification)
+                .where(Notification.recipient_user_id == user.id, Notification.read_at.is_not(None))
+            )
+
+    assert asyncio.run(retained()) == 3
+    later = _insert_notice(
+        db_sessionmaker,
+        recipient_user_id=user.id,
+        key="later",
+        created_at=start + timedelta(seconds=4),
+    )
+    page = db_client.get("/api/v1/notifications", headers=headers).json()
+    assert page["total"] == 1
+    assert [item["id"] for item in page["items"]] == [str(later.id)]
+    assert db_client.get("/api/v1/notifications/unread-count", headers=headers).json() == {
+        "unread_count": 1
+    }
 
 
 def test_advertiser_notification_preference_is_shared_audited_and_cross_org_hidden(

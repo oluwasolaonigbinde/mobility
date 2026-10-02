@@ -4,7 +4,7 @@
  * Mechanics: every theme is a set of CSS custom-property overrides scoped to
  * `html[data-theme="<slug>"]` in globals.css. Components never branch on the
  * theme; they wear token classes and the variables re-map underneath them.
- * The default is Ivory Ledger; all four retained directions use an attribute.
+ * The default is Ivory Ledger; every direction uses an attribute.
  */
 export interface ThemeMeta {
   slug: string;
@@ -46,6 +46,20 @@ export const THEMES: ThemeMeta[] = [
     tagline: "",
     colorScheme: "light",
     swatches: ["#eeeae0", "#faf8f3", "#0f5c55", "#256f1a"],
+  },
+  {
+    slug: "route",
+    name: "Direction 5",
+    tagline: "",
+    colorScheme: "light",
+    swatches: ["#ede6d6", "#0a1c09", "#b31c2a", "#f2c94c"],
+  },
+  {
+    slug: "wrap",
+    name: "Direction 6",
+    tagline: "",
+    colorScheme: "light",
+    swatches: ["#f3eee4", "#bb4421", "#1b1712", "#1f5a3a"],
   },
 ];
 

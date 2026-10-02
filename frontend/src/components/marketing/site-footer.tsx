@@ -1,4 +1,4 @@
-import { CONTACT, FOOTER, NAV, ROUTES } from "@/lib/marketing/site";
+import { CONTACT, CTA, FOOTER, NAV, ROUTES } from "@/lib/marketing/site";
 import { Wordmark } from "./wordmark";
 
 /**
@@ -32,13 +32,13 @@ export function SiteFooter() {
             </a>
           ))}
           <a className="hover:text-terrax-gold block transition-colors" href={ROUTES.signIn}>
-            Open Cardvert
+            {CTA.signIn}
           </a>
           <a
             className="hover:text-terrax-gold block transition-colors"
             href={ROUTES.driverApplication}
           >
-            Apply to drive
+            {CTA.driver}
           </a>
         </nav>
 

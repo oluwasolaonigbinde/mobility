@@ -5,7 +5,6 @@ import { expect, test } from "@playwright/test";
  * rest of this suite it needs no backend, no seed and no session.
  */
 const PATH = "/";
-const COMPATIBILITY_PATH = "/landing";
 const EMAIL = "terraxmediacompany@gmail.com";
 const TERRAX_ASSETS = [
   "/brand/terrax/terrax-logo.png",
@@ -22,6 +21,7 @@ function decodedAssetPath(responseUrl: string) {
 
 const VIEWPORTS = [
   { name: "mobile", width: 390, height: 844 },
+  { name: "small tablet", width: 640, height: 960 },
   { name: "tablet", width: 834, height: 1112 },
   { name: "desktop", width: 1440, height: 900 },
 ];
@@ -58,10 +58,59 @@ test("every call to action resolves", async ({ page }) => {
   }
 });
 
-test("the legacy landing address redirects to the public root", async ({ page }) => {
-  await page.goto(COMPATIBILITY_PATH);
-  await expect(page).toHaveURL(/\/$/);
-  await expect(page.locator(".terrax-site")).toBeVisible();
+test("the removed landing address returns not found", async ({ page }) => {
+  const response = await page.goto("/landing");
+  expect(response?.status()).toBe(404);
+});
+
+test("the header exposes driver application and sign-in routes", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(PATH);
+  const header = page.getByRole("banner");
+  await expect(header.getByRole("link", { name: "Apply to drive" })).toHaveAttribute(
+    "href",
+    "/apply",
+  );
+  await expect(header.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
+});
+
+test("the mobile menu exposes both acquisition actions", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(PATH, { waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: /open menu/i }).click();
+  const menu = page.locator("#primary-menu");
+  await expect(menu.getByRole("link", { name: "Apply to drive" })).toHaveAttribute(
+    "href",
+    "/apply",
+  );
+  await menu.getByRole("link", { name: "Request a campaign quote" }).click();
+  await expect(page.getByLabel("Company")).toBeVisible();
+  await expect(menu).toHaveCount(0);
+});
+
+test("synthetic enquiry reaches the local Mailpit inbox", async ({ page, request }) => {
+  test.skip(
+    process.env.CAMPAIGN_ENQUIRY_LOCAL_E2E !== "1",
+    "Requires synthetic local API and Mailpit",
+  );
+  const marker = `Synthetic marketing enquiry ${Date.now()}`;
+  await page.goto(`${PATH}#campaign-enquiry`);
+  await page.getByLabel("Company").fill(marker);
+  await page.getByLabel("Contact name").fill("Synthetic contact");
+  await page.getByLabel("Email address").fill("contact@example.test");
+  await page
+    .getByLabel("Tell us about your campaign")
+    .fill("Synthetic Abuja vehicle campaign next month");
+  await page.getByRole("button", { name: "Send enquiry" }).click();
+  await expect(page.getByRole("status")).toContainText("Your enquiry has been sent");
+  const inbox = await request.get("http://127.0.0.1:8025/api/v1/messages");
+  const messages = (await inbox.json()).messages as {
+    ID: string;
+    To: { Address: string }[];
+    Snippet: string;
+  }[];
+  const match = messages.find((message) => message.Snippet.includes(marker));
+  expect(match?.To[0]?.Address).toBe(EMAIL);
 });
 
 test("the mobile menu opens, navigates and closes", async ({ page }) => {
@@ -105,10 +154,10 @@ test("brand and driver paths resolve to their distinct entry points", async ({ p
   await page.goto(PATH);
 
   await expect(
-    page.locator("#for-brands").getByRole("link", { name: "Advertise With Terrax" }),
-  ).toHaveAttribute("href", new RegExp(`^mailto:${EMAIL}\\?`));
+    page.locator("#for-brands").getByRole("link", { name: "Request a campaign quote" }),
+  ).toHaveAttribute("href", "#campaign-enquiry");
   await expect(
-    page.locator("#for-drivers").getByRole("link", { name: "Become a Driver Partner" }),
+    page.locator("#for-drivers").getByRole("link", { name: "Apply to drive" }),
   ).toHaveAttribute("href", "/apply");
 });
 
@@ -139,9 +188,15 @@ test("the real logo assets load and none 404", async ({ page }) => {
   });
 
   await page.goto(PATH);
-  // Walk the page so the lazily loaded footer and report lockups are requested.
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await page.waitForLoadState("networkidle");
+  // Visit each lazy image; jumping to the footer skips images above the new form.
+  const images = page.locator(".terrax-site img");
+  for (let index = 0; index < (await images.count()); index += 1) {
+    const image = images.nth(index);
+    await image.scrollIntoViewIfNeeded();
+    await expect
+      .poll(() => image.evaluate((node) => (node as HTMLImageElement).naturalWidth))
+      .toBeGreaterThan(0);
+  }
 
   expect(failed).toEqual([]);
   const rendered = await page.locator(".terrax-site img").evaluateAll((nodes) =>

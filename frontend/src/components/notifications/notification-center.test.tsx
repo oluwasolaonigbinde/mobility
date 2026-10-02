@@ -52,6 +52,32 @@ afterEach(() => {
 });
 
 describe("NotificationCenter", () => {
+  it("hides saved read notices and closes the panel without changing notifications", async () => {
+    const fetchMock = vi.fn<(input: string, init?: RequestInit) => Promise<Response>>((input) => {
+      if (input === "/api/notifications/unread-count") return response({ unread_count: 0 });
+      return response({
+        items: [{ ...notice("read-1"), read_at: "2026-08-24T12:00:01Z" }],
+        total: 1,
+        limit: 20,
+        offset: 0,
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    renderCentre();
+    const trigger = screen.getByRole("button", { name: /^notifications/i });
+    fireEvent.click(trigger);
+    await screen.findByText("You are all caught up.");
+    expect(screen.queryByText("Notice read-1")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mark read" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Close notification panel" }));
+    expect(screen.queryByRole("region", { name: "Notifications" })).not.toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(trigger).toHaveFocus();
+    expect(fetchMock.mock.calls.every(([, init]) => !init || !(init as RequestInit).method)).toBe(
+      true,
+    );
+  });
+
   it("polls only the unread count while visible and fetches the list only on open", async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn((input: string) => {
@@ -80,6 +106,56 @@ describe("NotificationCenter", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/notifications?limit=20&offset=0", {});
   });
 
+  it.each(["single", "all"])(
+    "removes %s read notices and keeps unread pagination correct",
+    async (mode) => {
+      let items = Array.from({ length: 42 }, (_, index) => notice(`n${index}`));
+      const fetchMock = vi.fn((input: string, init?: RequestInit) => {
+        if (input === "/api/notifications/unread-count")
+          return response({ unread_count: items.length });
+        if (isList(input)) {
+          const offset = Number(new URL(input, "http://localhost").searchParams.get("offset"));
+          return response({
+            items: items.slice(offset, offset + 20),
+            total: items.length,
+            limit: 20,
+            offset,
+          });
+        }
+        if (input === "/api/notifications/n0/read" && init?.method === "POST") {
+          items = items.filter((item) => item.id !== "n0");
+          return response({ ...notice("n0"), read_at: "2026-08-24T12:00:01Z" });
+        }
+        if (input === "/api/notifications/read-all" && init?.method === "POST") {
+          items = [];
+          return response({ unread_count: 0 });
+        }
+        throw new Error(`Unexpected request: ${input}`);
+      });
+      vi.stubGlobal("fetch", fetchMock);
+      renderCentre();
+      const trigger = screen.getByRole("button", { name: /^notifications/i });
+      fireEvent.click(trigger);
+      await screen.findByText("Notice n0");
+      if (mode === "single") {
+        fireEvent.click(screen.getByRole("button", { name: "Show older" }));
+        await screen.findByText("Notice n39");
+        fireEvent.click(screen.getAllByRole("button", { name: "Mark read" })[0]!);
+        await waitFor(() => expect(screen.queryByText("Notice n0")).not.toBeInTheDocument());
+        await screen.findByText("Notice n40");
+        expect(screen.getAllByText("Notice n20", { exact: true })).toHaveLength(1);
+        expect(trigger).toHaveTextContent("41");
+        fireEvent.click(screen.getByRole("button", { name: "Show older" }));
+        await screen.findByText("Notice n41");
+      }
+      fireEvent.click(screen.getByRole("button", { name: "Mark all read" }));
+      await screen.findByText("You are all caught up.");
+      expect(screen.queryByRole("button", { name: "Mark read" })).not.toBeInTheDocument();
+      expect(trigger).toHaveTextContent(/^Notifications$/);
+      expect(screen.getByRole("button", { name: "Mark all read" })).toBeDisabled();
+    },
+  );
+
   it("sends read commands without a body media type and JSON preferences with one", async () => {
     const fetchMock = vi.fn((input: string, init?: RequestInit) => {
       if (input === "/api/notifications/unread-count") return response({ unread_count: 1 });
@@ -99,7 +175,7 @@ describe("NotificationCenter", () => {
     await screen.findByText("Notice n1");
     fireEvent.click(screen.getByRole("button", { name: "Mark read" }));
     fireEvent.click(screen.getByRole("button", { name: "Mark all read" }));
-    const email = screen.getByLabelText("Transactional email");
+    const email = screen.getByLabelText("Also send updates by email");
     await waitFor(() => expect(email).toBeChecked());
     fireEvent.click(email);
 
@@ -287,13 +363,13 @@ describe("NotificationCenter", () => {
     const { unmount } = renderCentre();
     fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
     await screen.findByText("You are all caught up.");
-    expect(screen.queryByText("ORGANIZATION DELIVERY PREFERENCES")).not.toBeInTheDocument();
+    expect(screen.queryByText("Company notification settings")).not.toBeInTheDocument();
     unmount();
 
     renderCentre(true);
     fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
-    await screen.findByText("In-app notifications are always on.");
-    const email = screen.getByLabelText("Transactional email");
+    await screen.findByText("Updates always appear here.");
+    const email = screen.getByLabelText("Also send updates by email");
     await waitFor(() => expect(email).toBeChecked());
     fireEvent.click(email);
     await waitFor(() =>
@@ -356,10 +432,12 @@ describe("NotificationCenter", () => {
     await screen.findByText("Trip verified");
     fireEvent.click(screen.getByRole("button", { name: "Mark read" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Read request failed");
+    expect(screen.getByText("Trip verified")).toBeVisible();
+    expect(screen.getByRole("button", { name: /^notifications/i })).toHaveTextContent("1");
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(readAttempts).toBe(2));
 
-    const email = screen.getByLabelText("Transactional email");
+    const email = screen.getByLabelText("Also send updates by email");
     fireEvent.click(email);
     await waitFor(() => expect(preferenceAttempts).toBe(1));
     expect(await screen.findByRole("alert")).toHaveTextContent("Preference request failed");

@@ -212,6 +212,10 @@ class Settings(BaseSettings):
     # Production provider and verified sender identity are external inputs.
     # Empty values keep provider dispatch and receipt handling fail closed.
     email_provider: str = ""
+    campaign_enquiry_enabled: bool = False
+    campaign_enquiry_rate_limit_ip_max_attempts: int = Field(default=5, ge=1)
+    campaign_enquiry_rate_limit_global_max_attempts: int = Field(default=100, ge=1)
+    campaign_enquiry_rate_limit_window_seconds: int = Field(default=3600, ge=1)
     email_sender_address: str = ""
     email_sender_name: str = "Cardvert"
     email_smtp_host: str = ""

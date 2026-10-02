@@ -55,6 +55,7 @@ PUBLIC_ROUTES = frozenset(
         ("GET", "/api/v1/health"),
         ("GET", "/api/v1/health/ready"),
         ("GET", "/api/v1/health/partitions"),
+        ("POST", "/api/v1/campaign-enquiries"),
         ("POST", "/api/v1/auth/login"),
         ("POST", "/api/v1/auth/password-reset/request"),
         ("POST", "/api/v1/auth/password-reset/complete"),
