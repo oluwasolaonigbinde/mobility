@@ -23,7 +23,7 @@ describe("OperationForm", () => {
     });
     const user = userEvent.setup();
     render(<OperationForm id={TASK} contact />);
-    expect(screen.queryByRole("button", { name: "Apply evidence" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add to trip" })).toBeNull();
     await user.selectOptions(screen.getByRole("combobox", { name: "Recorded outcome" }), "reached");
     await user.type(screen.getByRole("textbox", { name: "Contact note" }), "Spoke to driver");
     await user.click(screen.getByRole("checkbox", { name: /exact contact purpose/ }));
@@ -49,7 +49,7 @@ describe("OperationForm", () => {
     expect(screen.queryByRole("combobox")).toBeNull();
     await user.type(screen.getByRole("textbox", { name: "Review reason" }), "Duplicate upload");
     await user.click(screen.getByRole("checkbox", { name: /does not change earnings/ }));
-    await user.click(screen.getByRole("button", { name: "Discard evidence" }));
+    await user.click(screen.getByRole("button", { name: "Ignore" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("No result was confirmed");
     expect(submitted()).toEqual({
@@ -60,15 +60,15 @@ describe("OperationForm", () => {
       confirmed: "on",
     });
     expect(screen.queryByRole("status")).toBeNull();
-    expect(screen.getByRole("button", { name: "Apply evidence" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Discard evidence" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Add to trip" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Ignore" })).toBeEnabled();
   });
 
   it("does not submit until the reason and confirmation are provided", async () => {
     const user = userEvent.setup();
     const { container } = render(<OperationForm id={TASK} />);
     expect(container.querySelector('input[name="trip"]')).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Apply evidence" }));
+    await user.click(screen.getByRole("button", { name: "Add to trip" }));
     expect(resolve).not.toHaveBeenCalled();
   });
 });

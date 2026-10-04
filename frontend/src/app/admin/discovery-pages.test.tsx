@@ -96,15 +96,14 @@ describe("admin named discovery pages", () => {
     expect(mocks.get).toHaveBeenCalledWith("/api/v1/admin/drivers", {
       params: { query: { limit: 25, offset: 0, q: "Okafor", onboarding_status: "active" } },
     });
-    expect(screen.getByText("26 matching driver profiles")).toBeTruthy();
+    expect(screen.getByText("26 matching drivers")).toBeTruthy();
     expect(screen.getByRole("link", { name: /Chinedu Okafor/ })).toHaveAttribute(
       "href",
       "/admin/drivers/d1",
     );
-    expect(screen.getByText("ABC-123-XY")).toBeTruthy();
-    expect(enabledPageLinks()).toEqual([
-      "/admin/drivers?tab=active&source=profiles&q=Okafor&history=false&offset=25",
-    ]);
+    expect(mocks.get).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText("Search drivers")).toHaveValue("Okafor");
+    expect(enabledPageLinks()).toEqual(["/admin/drivers?tab=active&q=Okafor&offset=25"]);
   });
   it("drivers: a failed car read is unavailable rather than a claim of no cars", async () => {
     mocks.get.mockImplementation(async (path: string) => {
@@ -113,7 +112,10 @@ describe("admin named discovery pages", () => {
         data: { items: [{ id: "d1", full_name: "Ada", onboarding_status: "active" }], total: 1 },
       };
     });
-    render(await AdminDriversPage(props({ tab: "active" })));
+    render(await AdminDriversPage(props({ tab: "active", source: "cars" })));
+    expect(mocks.get).toHaveBeenCalledExactlyOnceWith("/api/v1/admin/vehicles", {
+      params: { query: { limit: 25, offset: 0, q: undefined } },
+    });
     expect(screen.getByText("Couldn't load this section — try again")).toBeTruthy();
     expect(screen.queryByText("No cars recorded")).toBeNull();
   });
@@ -144,12 +146,14 @@ describe("admin named discovery pages", () => {
     );
     expect(enabledPageLinks()).toHaveLength(2);
   });
-  it("applicants: preserves the history filter and keeps document contents off the work list", async () => {
+  it("applicants: searches the combined list and keeps document contents off the work list", async () => {
     mocks.get.mockResolvedValue({
       data: {
-        items: [
+        applicants: [
           {
             id: "application",
+            kind: "application",
+            application_id: "application",
             driver_profile_id: "driver",
             full_name: "Ada Applicant",
             status: "pending",
@@ -159,9 +163,9 @@ describe("admin named discovery pages", () => {
         total: 1,
       },
     });
-    render(await AdminDriversPage(props({ history: "true", source: "applications" })));
-    expect(mocks.get).toHaveBeenCalledWith("/api/v1/admin/driver-applications", {
-      params: { query: { limit: 25, offset: 0, q: undefined, history: true } },
+    render(await AdminDriversPage(props({ tab: "applicants", q: "Ada" })));
+    expect(mocks.get).toHaveBeenCalledExactlyOnceWith("/api/v1/admin/driver-applications", {
+      params: { query: { limit: 25, offset: 0, q: "Ada", include_staff_added: true } },
     });
     expect(screen.getByRole("link", { name: /Ada Applicant/ })).toHaveAttribute(
       "href",
@@ -173,30 +177,43 @@ describe("admin named discovery pages", () => {
   it("drivers: failed reads do not turn into an empty list", async () => {
     mocks.get.mockRejectedValue(new Error("offline"));
     render(await AdminDriversPage(props({})));
-    expect(screen.getAllByRole("alert")).toHaveLength(2);
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+    expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
     expect(screen.queryByText(/No matching drivers/)).toBeNull();
   });
 });
 
-it("Applicants includes applications and other pending profiles with independent pages", async () => {
-  mocks.get.mockImplementation(async (path: string) => ({
-    data: path.endsWith("/driver-applications")
-      ? { items: [{ id: "a", full_name: "New applicant", status: "pending" }], total: 26 }
-      : path.endsWith("/drivers")
-        ? {
-            items: [{ id: "d", full_name: "Pending profile", onboarding_status: "pending" }],
-            total: 30,
-          }
-        : { items: [], total: 0 },
-  }));
-  render(await AdminDriversPage(props({ applications_offset: "25" })));
-  expect(screen.getByRole("link", { name: /New applicant/ })).toBeTruthy();
-  expect(screen.getByRole("link", { name: /Pending profile/ })).toBeTruthy();
-  expect(mocks.get).toHaveBeenCalledWith("/api/v1/admin/drivers", {
-    params: { query: { limit: 25, offset: 0, q: undefined, onboarding_status: "pending" } },
+it("Applicants includes applications and staff-added pending profiles in one paged search", async () => {
+  mocks.get.mockReset();
+  mocks.get.mockResolvedValue({
+    data: {
+      applicants: [
+        { id: "a", kind: "application", application_id: "a", full_name: "New applicant" },
+        { id: "d", kind: "staff_added", driver_profile_id: "d", full_name: "Pending profile" },
+      ],
+      total: 80,
+    },
   });
-  expect(screen.getAllByRole("link", { name: "Next →" })[1]).toHaveAttribute(
+  render(await AdminDriversPage(props({ tab: "applicants", q: "Pending", offset: "25" })));
+  expect(screen.getByRole("link", { name: /New applicant/ })).toHaveAttribute(
     "href",
-    "/admin/drivers?applications_offset=25&tab=applicants&profiles_offset=25",
+    "/admin/drivers/applicant/a",
+  );
+  expect(screen.getByRole("link", { name: /Pending profile/ })).toHaveAttribute(
+    "href",
+    "/admin/drivers/d",
+  );
+  expect(screen.getByText("Application for review")).toBeVisible();
+  expect(screen.getByText("Added by staff")).toBeVisible();
+  expect(mocks.get).toHaveBeenCalledExactlyOnceWith("/api/v1/admin/driver-applications", {
+    params: { query: { limit: 25, offset: 25, q: "Pending", include_staff_added: true } },
+  });
+  expect(screen.getByRole("link", { name: "Next →" })).toHaveAttribute(
+    "href",
+    "/admin/drivers?tab=applicants&q=Pending&offset=50",
+  );
+  expect(screen.getByRole("link", { name: "← Prev" })).toHaveAttribute(
+    "href",
+    "/admin/drivers?tab=applicants&q=Pending&offset=0",
   );
 });

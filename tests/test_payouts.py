@@ -1277,7 +1277,9 @@ def test_admin_payout_calculation_endpoints_enforce_rbac_and_filter_driver_profi
     async def name_other_campaign() -> None:
         async with db_sessionmaker() as session:
             await session.execute(
-                update(Campaign).where(Campaign.id == other_campaign.id).values(name="Other campaign")
+                update(Campaign)
+                .where(Campaign.id == other_campaign.id)
+                .values(name="Other campaign")
             )
             await session.commit()
 

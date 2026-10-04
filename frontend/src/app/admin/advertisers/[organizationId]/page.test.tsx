@@ -138,9 +138,9 @@ it("shows exact invoice funding and recorded refunds without inventing payment e
   });
   render(await run());
   expect(
-    screen.getByText(/Amount: NGN 9,007,199,254,740,993.01.*Recorded funding: NGN 100.00/),
+    screen.getByText(/Amount: ₦9,007,199,254,740,993.01.*Recorded funding: ₦100.00/),
   ).toBeVisible();
-  expect(screen.getByText(/Refund recorded.*NGN 25.00/)).toBeVisible();
+  expect(screen.getByText(/Refund recorded.*₦25.00/)).toBeVisible();
   expect(screen.queryByText(/Payment recorded/)).toBeNull();
 });
 it("shows a single plain failure for a failed section", async () => {
