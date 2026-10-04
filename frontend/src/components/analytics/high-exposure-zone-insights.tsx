@@ -39,7 +39,15 @@ export function HighExposureZoneInsights({
                   : "default"
           }
         >
-          {insight.state}
+          {
+            {
+              ready: "Ready",
+              empty: "No results yet",
+              suppressed: "Not enough data",
+              stale: "Needs updating",
+              unavailable: "Unavailable",
+            }[insight.state]
+          }
         </StatusChip>
       </div>
 
@@ -60,15 +68,18 @@ export function HighExposureZoneInsights({
                   <p className="text-sm">
                     {formatCount(item.modelled_potential_contacts)} estimated ad exposure
                   </p>
-                  <p className="micro text-faint mt-1">{formatCount(item.trip_count)} trips</p>
+                  <p className="micro text-faint mt-1">
+                    {formatCount(item.trip_count)} area visits
+                  </p>
                 </div>
               </li>
             ))}
           </ol>
-          <p className="micro text-muted mt-4">
-            Campaign activity score: {insight.campaign_exposure_score ?? "—"} / 100 · a separate,
-            uncalibrated index (named “Exposure score” in downloads)
-          </p>
+          {surface !== "report" ? (
+            <p className="micro text-muted mt-4">
+              Campaign activity score: {insight.campaign_exposure_score ?? "—"} / 100
+            </p>
+          ) : null}
           {/* D38(c): run and fingerprint references appear on staff screens only. */}
           {insight.provenance && surface === "admin" ? (
             <details className="micro text-faint mt-2 font-mono break-all">
@@ -95,18 +106,30 @@ export function HighExposureZoneInsights({
               ))}
             </details>
           ) : null}
-          {insight.uncertainty ? (
+          {insight.uncertainty && surface === "admin" ? (
             <p className="micro text-faint mt-3">{insight.uncertainty}</p>
           ) : null}
         </>
       ) : (
         <p className="text-muted mt-4 text-sm">{stateCopy[insight.state]}</p>
       )}
-      <p className="micro text-faint mt-3">
-        Ranks privacy-cleared zones by estimated opportunities to see (named “modelled potential
-        contacts” in downloads). The activity score, impressions and attribution are separate
-        measures. Rankings are not individual people, measured views or guaranteed outcomes.
-      </p>
+      {surface !== "report" ? (
+        <details className="text-muted mt-3 text-sm">
+          <summary className="cursor-pointer">How this is calculated</summary>
+          <p className="mt-2">
+            Areas are ranked by estimated opportunities to see the ad, based on campaign routes and
+            traffic. These are not counts of people, measured views or guaranteed results.
+          </p>
+          <p className="mt-2">
+            The activity score combines distance, tracking time and route quality. It is a separate
+            measure from estimated ad exposure.
+          </p>
+          <p className="mt-2">
+            A trip is counted in each mapped area section and time window it visits. It can
+            contribute more than once to an area’s count.
+          </p>
+        </details>
+      ) : null}
     </Panel>
   );
 }

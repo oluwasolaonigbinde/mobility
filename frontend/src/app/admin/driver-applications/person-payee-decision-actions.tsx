@@ -1,9 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { SensitiveReview } from "./sensitive-review";
-import { adminDocumentLabel } from "@/lib/status/admin";
 import {
   reviewPersonPayeeAction,
   reviewPersonPayeeEvidenceAction,
@@ -70,7 +69,7 @@ function AccountVerification({ versionId }: { versionId: string }) {
     <form action={action} className="border-edge rounded-lg border p-2">
       <input type="hidden" name="bank_account_version_id" value={versionId} />
       <label className="micro text-muted flex flex-col gap-1">
-        Approved bank check reference
+        Bank check reference, from the bank confirmation
         <input
           name="verification_reference"
           type="password"
@@ -98,39 +97,78 @@ export function PersonPayeeDecisionActions({
   status = "pending_review",
 }: {
   applicationId: string;
-  submissionId: string;
-  bankAccountVersionId: string;
+  submissionId?: string | null;
+  bankAccountVersionId?: string | null;
   bankAccountVerified: boolean;
   documentFileIds: Record<string, string>;
   status?: string;
 }) {
   const [state, action, pending] = useActionState(reviewPersonPayeeAction, initialState);
+  const [rejectionReason, setRejectionReason] = useState("");
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <p className="micro text-muted">Review the current documents and bank details (logged)</p>
-      <SensitiveReview purpose="Identity documents and bank details">
-        <EvidenceRead kind="nin" id={submissionId} label="Show NIN (logged)" />
-      </SensitiveReview>
-      <SensitiveReview purpose="Identity documents and bank details">
-        <EvidenceRead kind="account" id={bankAccountVersionId} label="Show bank details (logged)" />
-      </SensitiveReview>
-      {Object.entries(documentFileIds).map(([name, fileId]) => (
-        <SensitiveReview key={fileId} purpose="Identity documents and bank details">
-          <EvidenceRead
-            key={fileId}
-            kind="document"
-            id={fileId}
-            submissionId={submissionId}
-            label={`Review ${adminDocumentLabel(name)}`}
-          />
-        </SensitiveReview>
+      <p className="text-muted mb-2 text-sm">
+        Each view is logged. Evidence is hidden after one minute or when you leave this page.
+      </p>
+      <p className="text-faint mb-2 text-xs">
+        Identity documents are reviewed together. Bank details are checked separately before the
+        combined decision.
+      </p>
+      {[
+        { name: "Identity (NIN)", kind: "nin" as const, id: submissionId },
+        { name: "Driver’s licence", kind: "document" as const, id: documentFileIds.driver_license },
+        { name: "Driver photo", kind: "document" as const, id: documentFileIds.driver_photo },
+        {
+          name: "Signed agreement",
+          kind: "document" as const,
+          id: documentFileIds.signed_agreement,
+        },
+        { name: "Bank account", kind: "account" as const, id: bankAccountVersionId },
+      ].map((row) => (
+        <section
+          key={`${row.name}:${submissionId ?? "missing"}:${row.id ?? "missing"}`}
+          aria-label={row.name}
+          className="border-edge grid gap-3 border-b py-3 sm:grid-cols-[1fr_2fr]"
+        >
+          <div>
+            <h3 className="font-medium">{row.name}</h3>
+            <p className="text-muted mt-1 text-sm">
+              {!row.id
+                ? "Not submitted"
+                : ({
+                    pending_review: "Needs review",
+                    approved: "Approved",
+                    rejected: "Rejected",
+                    expired: "Expired",
+                  }[status] ?? "Status unavailable")}
+            </p>
+            {row.kind === "account" && bankAccountVerified ? (
+              <p className="text-green mt-1 text-xs">Bank details checked</p>
+            ) : null}
+          </div>
+          <div>
+            {row.id ? (
+              <SensitiveReview purpose="Driver application review">
+                <EvidenceRead
+                  kind={row.kind}
+                  id={row.id}
+                  submissionId={row.kind === "document" ? (submissionId ?? undefined) : undefined}
+                  label={row.kind === "nin" ? "Show NIN" : "View"}
+                />
+              </SensitiveReview>
+            ) : (
+              <button type="button" disabled className="text-muted text-sm">
+                {row.kind === "nin" ? "Show NIN" : "View"}
+              </button>
+            )}
+            {row.kind === "account" && row.id && !bankAccountVerified ? (
+              <AccountVerification versionId={row.id} />
+            ) : null}
+          </div>
+        </section>
       ))}
-      {bankAccountVerified ? (
-        <p className="text-green text-xs">These bank details have been checked for payouts.</p>
-      ) : (
-        <AccountVerification versionId={bankAccountVersionId} />
-      )}
-      {status === "pending_review" ? (
+      <h3 className="mt-4 font-medium">Identity and bank decision</h3>
+      {status === "pending_review" && submissionId && bankAccountVersionId ? (
         <form action={action} className="flex flex-col gap-2">
           <input type="hidden" name="application_id" value={applicationId} />
           <input type="hidden" name="client_request_id" value={submissionId} />
@@ -147,9 +185,11 @@ export function PersonPayeeDecisionActions({
             Rejection reason
             <select
               name="reason_code"
-              defaultValue="unreadable_evidence"
+              value={rejectionReason}
+              onChange={(event) => setRejectionReason(event.target.value)}
               className="border-edge bg-raised text-ink rounded-lg border px-2 py-2 text-xs"
             >
+              <option value="">Choose a reason…</option>
               <option value="unreadable_evidence">Unreadable documents</option>
               <option value="identity_mismatch">Identity mismatch</option>
               <option value="bank_account_mismatch">Account mismatch</option>
@@ -172,7 +212,7 @@ export function PersonPayeeDecisionActions({
               type="submit"
               name="intent"
               value="reject"
-              disabled={pending}
+              disabled={pending || !rejectionReason}
               variant="danger"
               className="h-8 px-2 text-xs"
             >
@@ -202,7 +242,14 @@ export function PersonPayeeDecisionActions({
         </form>
       ) : (
         <p className="text-muted text-sm">
-          Current identity decision: {status === "approved" ? "Approved" : "Not approved"}.
+          Current identity decision:{" "}
+          {{
+            approved: "Approved",
+            rejected: "Rejected",
+            expired: "Expired",
+            not_submitted: "Not submitted",
+          }[status] ?? "Unavailable"}
+          .
         </p>
       )}
     </div>

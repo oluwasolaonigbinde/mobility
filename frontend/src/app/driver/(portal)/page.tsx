@@ -68,7 +68,7 @@ export default async function DriverHomePage() {
     <FreshDriverAuthority
       refreshKey={crypto.randomUUID()}
       title="Current driver status hidden while offline"
-      detail="Reconnect while Cardvert is open to verify your current trip, work status and earnings. Previously loaded authority is not shown as current."
+      detail="Reconnect with Cardvert open to check your current trip, jobs and earnings."
       retryHref="/driver"
     >
       <div className="animate-rise flex flex-col gap-4">
@@ -210,7 +210,7 @@ export default async function DriverHomePage() {
             <div className="px-5 py-5">
               <DriverDataUnavailable
                 title="Recent activity unavailable"
-                detail="Cardvert couldn't load the optional recent activity list. Current trip and earnings authority remain unchanged."
+                detail="Your recent activity could not be loaded. Try again shortly."
                 retryHref="/driver"
               />
             </div>

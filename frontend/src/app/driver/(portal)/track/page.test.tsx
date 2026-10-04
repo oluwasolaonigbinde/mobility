@@ -67,6 +67,7 @@ describe("DriverTrackPage ledger statuses", () => {
 
     render(await DriverTrackPage());
 
+    expect(screen.getAllByText("₦1,250.00")).toHaveLength(2);
     expect(screen.getByText("paid")).toHaveClass("text-green");
     expect(screen.getByText("pending")).toHaveClass("text-amber");
   });
@@ -92,6 +93,11 @@ describe("DriverTrackPage ledger statuses", () => {
 
     expect(screen.getByText("Trip tracker")).toBeInTheDocument();
     expect(screen.getByText("Recent activity unavailable")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Campaign names could not be loaded. You can still track your current trip.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.queryByText("private detail")).not.toBeInTheDocument();
   });
 });

@@ -116,18 +116,27 @@ describe("resilient advertiser overview", () => {
   it("labels measured and modelled results in plain language", async () => {
     render(await AdvertiserOverviewPage());
     expect(screen.getByText("Estimated ad exposure")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Estimated opportunities to see the ad, based on routes and traffic. This is not a count of people or measured views.",
-      ),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Estimated opportunities to see the ad")).toBeInTheDocument();
     expect(screen.getByText("Driver pay to date")).toBeInTheDocument();
     expect(
       screen.getByText("Calculated driver pay; your invoice is shown in Billing."),
     ).toBeInTheDocument();
-    expect(screen.getByText("Trip checks waiting for Terrax Media to review")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Trip checks waiting for Terrax Media to review"),
+    ).not.toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(
       /potential contacts|confidence|diagnostic|aggregate measurement|billable inventory/i,
     );
   });
+});
+
+it("never shows staff trip checks when the dashboard contains open flags", async () => {
+  get.mockImplementation(async (path: string) => ({
+    data: path.endsWith("/summary")
+      ? { ...summary, quality: { fraud_flags: { open: 11 } } }
+      : { items: [], total: 0 },
+  }));
+  render(await AdvertiserOverviewPage());
+  expect(screen.queryByText("Open fraud flags")).toBeNull();
+  expect(screen.queryByText("11")).toBeNull();
 });

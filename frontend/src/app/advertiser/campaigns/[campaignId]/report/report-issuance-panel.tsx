@@ -207,8 +207,8 @@ export function ReportIssuancePanel({ measurementRunId }: { measurementRunId: st
         <div>
           <h2 className="font-display text-lg font-semibold">CSV and PDF report</h2>
           <p className="text-muted mt-1 max-w-2xl text-sm">
-            Get this report as a CSV spreadsheet and a PDF. Both files are a fixed copy of the
-            figures on this page, with the same privacy protections.
+            Download a CSV spreadsheet or PDF of this report. Downloads include the original
+            detailed figures.
           </p>
         </div>
         {!request && current.isSuccess && !current.data && !create.isPending ? (

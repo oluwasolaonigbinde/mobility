@@ -1,7 +1,6 @@
 import type { components } from "@/lib/api/schema";
-import { formatCount } from "@/lib/format";
+import { formatCount, formatKm, formatDuration, formatMoneyExact } from "@/lib/format";
 import { Panel } from "@/components/ui/panel";
-import { StatusChip } from "@/components/ui/status-chip";
 import { exactFrozenValue, frozenReportScreenProjection } from "./frozen-report-projection";
 
 type Report = components["schemas"]["CampaignReportResponse"];
@@ -14,9 +13,8 @@ export type ModelledContactsMetric = Extract<Metric, { id: "modelled_potential_c
 export type CostMetric = Extract<Metric, { id: "driver_campaign_cost" }>;
 export type MovementMetric = Extract<Metric, { id: "verified_vehicle_movement" }>;
 
-// Matches completeness_rule.omitted_label in docs/measurement-methodology.json and
-// SUPPRESSED_TOTAL_LABEL in app/services/measurement.py, so all three surfaces agree.
-export const OMITTED_TOTAL_LABEL = "Omitted - insufficient frozen evidence";
+// Screen-only wording. The detailed CSV/PDF labels remain unchanged.
+export const OMITTED_TOTAL_LABEL = "Not enough data";
 
 export function modelledContactsMetric(result: Result): ModelledContactsMetric | undefined {
   return result.metrics.find(
@@ -41,7 +39,7 @@ export function costMetricDisplay(metric: CostMetric): string {
     return OMITTED_TOTAL_LABEL;
   }
   return metric.totals_by_currency
-    .map((total) => `${total.currency} ${exactFrozenValue(total.value)}`)
+    .map((total) => formatMoneyExact(total.value, total.currency))
     .join(" · ");
 }
 
@@ -56,12 +54,32 @@ function sameInstant(left: string, right: string): boolean {
 }
 
 function completenessCopy(value: Completeness): string {
-  const marker = value.suppressed
-    ? " · total not shown rather than counted as zero"
-    : value.complete
-      ? ""
-      : " · period incomplete";
-  return `${formatCount(value.covered_trip_count)} of ${formatCount(value.denominator_trip_count)} completed trips included · ${formatCount(value.insufficient_data_trip_count)} with too little data · ${formatCount(value.excluded_trip_count)} excluded · ${formatCount(value.in_progress_trip_count)} still in progress${marker}`;
+  if (
+    value.complete &&
+    !value.suppressed &&
+    !value.insufficient_data_trip_count &&
+    !value.excluded_trip_count &&
+    !value.in_progress_trip_count
+  )
+    return `Based on all ${formatCount(value.denominator_trip_count)} completed trips`;
+  const parts = [
+    `Based on ${formatCount(value.covered_trip_count)} of ${formatCount(value.denominator_trip_count)} completed trips`,
+  ];
+  if (value.insufficient_data_trip_count)
+    parts.push(`${formatCount(value.insufficient_data_trip_count)} with too little data`);
+  if (value.excluded_trip_count) parts.push(`${formatCount(value.excluded_trip_count)} excluded`);
+  if (value.in_progress_trip_count)
+    parts.push(`${formatCount(value.in_progress_trip_count)} still in progress`);
+  return parts.join(" · ");
+}
+export function reportPeriod(start: string, end: string): string {
+  const fmt = new Intl.DateTimeFormat("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "Africa/Lagos",
+  });
+  return fmt.formatRange(new Date(start), new Date(end)).replace(/\u2009/g, " ");
 }
 
 /**
@@ -163,137 +181,109 @@ export function validateMeasurementAuthority(report: Report): MeasurementAuthori
   };
 }
 
-export function MeasurementAuthorityPanel({ authority }: { authority: MeasurementAuthority }) {
+export function MeasurementAuthorityPanel({
+  authority,
+  activityScore = null,
+}: {
+  authority: MeasurementAuthority;
+  activityScore?: string | null;
+}) {
   if (!authority.ok) return null;
   const { run, result } = authority;
   const projection = frozenReportScreenProjection(run, result);
 
+  const movement = movementMetric(result)!;
+  const contacts = modelledContactsMetric(result)!;
+  const cost = costMetric(result)!;
+  const sameCompleteness = result.metrics.every((metric) =>
+    (Object.keys(contacts.completeness) as (keyof Completeness)[]).every(
+      (key) => metric.completeness[key] === contacts.completeness[key],
+    ),
+  );
   return (
     <Panel className="mt-6 p-6" aria-label="Report basis">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+      <p className="micro text-amber">Campaign results</p>
+      <h2 className="mt-1 font-medium">
+        {reportPeriod(result.period.start_at, result.period.end_at)}
+      </h2>
+      <p className="text-faint mt-1 text-xs">Nigeria time (WAT)</p>
+      {sameCompleteness ? (
+        <p className="text-muted mt-4 text-sm">{completenessCopy(contacts.completeness)}</p>
+      ) : (
+        <div className="text-muted mt-4 space-y-1 text-sm">
+          <p>Distance: {completenessCopy(movement.completeness)}</p>
+          <p>Ad exposure: {completenessCopy(contacts.completeness)}</p>
+          <p>Driver cost: {completenessCopy(cost.completeness)}</p>
+        </div>
+      )}
+      <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <div>
-          <p className="micro text-amber">Report basis</p>
-          <h2 className="mt-1 font-medium">Verified and modelled results</h2>
-          <p className="text-muted mt-1 text-sm">
-            {projection.period} · {projection.timezone} · figures shown exactly as issued
+          <p className="micro text-muted">Distance covered</p>
+          <p className="mt-1 text-lg font-medium">
+            {movement.completeness.suppressed || movement.distance_m === null
+              ? OMITTED_TOTAL_LABEL
+              : formatKm(movement.distance_m)}
+          </p>
+          <p className="text-faint mt-1 text-xs">
+            {movement.completeness.suppressed || movement.active_tracking_seconds === null
+              ? "Tracking time unavailable"
+              : `${formatDuration(movement.active_tracking_seconds)} of tracking`}
           </p>
         </div>
-        <StatusChip tone="green">Verified report</StatusChip>
+        <div>
+          <p className="micro text-muted">Estimated ad exposure</p>
+          <p className="mt-1 text-lg font-medium">
+            {contacts.completeness.suppressed || contacts.value === null
+              ? OMITTED_TOTAL_LABEL
+              : formatCount(contacts.value)}
+          </p>
+          <p className="text-faint mt-1 text-xs">Estimated opportunities to see the ad</p>
+        </div>
+        <div>
+          <p className="micro text-muted">Driver campaign cost</p>
+          <p className="mt-1 text-lg font-medium">{costMetricDisplay(cost)}</p>
+          <p className="text-faint mt-1 text-xs">Driver pay for this campaign</p>
+        </div>
+        <div>
+          <p className="micro text-muted">Campaign activity score</p>
+          <p className="mt-1 text-lg font-medium">
+            {activityScore !== null && Number.isFinite(Number(activityScore))
+              ? `${Number(activityScore).toFixed(2)} / 100`
+              : "—"}
+          </p>
+          <p className="text-faint mt-1 text-xs">
+            Activity from distance, tracking time and route quality
+          </p>
+        </div>
       </div>
-
-      <div className="mt-5 grid gap-4 md:grid-cols-3">
-        {projection.metrics.map((metric) => {
-          if (metric.id === "verified_vehicle_movement") {
-            return (
-              <div key={metric.id}>
-                <p className="micro text-muted">{metric.label}</p>
-                <p className="mt-1 text-lg font-medium">
-                  {metric.distance_m === null
-                    ? OMITTED_TOTAL_LABEL
-                    : `${exactFrozenValue(metric.distance_m)} metres`}
-                </p>
-                <p className="text-faint mt-1 text-xs">
-                  {formatCount(metric.trip_count)} trips ·{" "}
-                  {metric.active_tracking_seconds === null
-                    ? "tracking total not shown"
-                    : `${metric.active_tracking_seconds} seconds of active tracking`}
-                </p>
-                <p className="text-faint mt-2 text-xs">{completenessCopy(metric.completeness)}</p>
-                <p className="text-muted mt-2 text-xs">{metric.uncertainty}</p>
-              </div>
-            );
-          }
-          if (metric.id === "modelled_potential_contacts") {
-            return (
-              <div key={metric.id}>
-                <p className="micro text-muted">Estimated ad exposure</p>
-                <p className="mt-1 text-lg font-medium">
-                  {metric.value === null ? OMITTED_TOTAL_LABEL : exactFrozenValue(metric.value)}
-                </p>
-                <p className="text-faint mt-1 text-xs">
-                  Estimated opportunities to see the ad, based on routes and traffic. This is not a
-                  count of people or measured views. Named “{metric.label}” in downloads.
-                </p>
-                <p className="text-faint mt-1 text-xs">{metric.uncertainty}</p>
-                <p className="text-faint mt-2 text-xs">{completenessCopy(metric.completeness)}</p>
-                <details className="text-faint mt-2 text-xs">
-                  <summary>How this estimate was calculated</summary>
-                  <p className="mt-1">Source: {metric.density_provenance.source}</p>
-                  <p>Calibration: {metric.density_provenance.calibration}</p>
-                  {metric.density_provenance.profiles.map((profile) => (
-                    <p key={`${profile.lineage_id}:${profile.revision}`} className="mt-1">
-                      Traffic profile revision {profile.revision}, effective{" "}
-                      {profile.effective_from}: {profile.traffic_density_per_km} per km ·{" "}
-                      {profile.dwell_impressions_per_minute} per minute stopped ·{" "}
-                      {profile.road_category_method}
-                    </p>
-                  ))}
-                </details>
-              </div>
-            );
-          }
-          return (
-            <div key={metric.id}>
-              <p className="micro text-muted">{metric.label}</p>
-              <p className="mt-1 text-lg font-medium">{costMetricDisplay(metric)}</p>
-              <p className="text-faint mt-1 text-xs">
-                Driver pay recorded for this campaign — not your advertising spend, revenue or
-                return.
-              </p>
-              <p className="text-faint mt-2 text-xs">{completenessCopy(metric.completeness)}</p>
-            </div>
-          );
-        })}
-      </div>
-
+      <details className="text-muted mt-5 text-sm">
+        <summary className="cursor-pointer">How this is calculated</summary>
+        <ul className="mt-3 list-disc space-y-2 pl-5">
+          <li>
+            Ad exposure is estimated from routes and traffic. It is not a count of people or
+            measured views.
+          </li>
+          <li>Model confidence describes the estimate; it is not a statistical interval.</li>
+          <li>Recorded movement does not prove someone saw the ad.</li>
+          <li>
+            Driver campaign cost is driver pay, not your advertising spend, revenue or return.
+          </li>
+          <li>Missing results are left out rather than counted as zero.</li>
+          <li>Areas are ranked by estimated ad exposure from this campaign’s trips.</li>
+          <li>
+            A trip is counted in each mapped area section and time window it visits. It can
+            contribute more than once to an area’s count.
+          </li>
+          <li>The activity score combines distance, tracking time and route quality.</li>
+        </ul>
+      </details>
       {projection.roiGate.decision === "INCLUDE" && projection.roi ? (
         <div className="border-edge mt-5 border-t pt-5" aria-label="Conditional financial result">
-          <div className="flex flex-wrap items-center gap-3">
-            <h3 className="font-medium">{projection.roi.label}</h3>
-          </div>
+          <h3 className="font-medium">{projection.roi.label}</h3>
           <p className="mt-2 text-2xl font-semibold">{exactFrozenValue(projection.roi.percent)}%</p>
-          <p className="micro text-faint mt-1 font-mono">
-            {projection.roi.currency} · method {projection.roi.method_revision}
+          <p className="text-muted mt-3 text-xs">
+            Based on the conversion and revenue figures supplied for this campaign.
           </p>
-          <dl className="text-muted mt-3 grid gap-2 text-xs md:grid-cols-2">
-            <div>
-              <dt className="font-medium">Attribution rule</dt>
-              <dd>{projection.roi.method.attribution_rule}</dd>
-            </div>
-            <div>
-              <dt className="font-medium">Attribution window</dt>
-              <dd>{projection.roi.method.attribution_window}</dd>
-            </div>
-            <div>
-              <dt className="font-medium">Cost basis</dt>
-              <dd>{projection.roi.method.cost_basis}</dd>
-            </div>
-            <div>
-              <dt className="font-medium">Exclusions</dt>
-              <dd>{projection.roi.method.exclusions}</dd>
-            </div>
-            <div>
-              <dt className="font-medium">Corrections</dt>
-              <dd>{projection.roi.method.corrections}</dd>
-            </div>
-            <div>
-              <dt className="font-medium">Late data</dt>
-              <dd>{projection.roi.method.late_data}</dd>
-            </div>
-            <div>
-              <dt className="font-medium">Reporting cutoff</dt>
-              <dd>{projection.roi.provenance.reporting_cutoff}</dd>
-            </div>
-            <div>
-              <dt className="font-medium">Conversion provenance</dt>
-              <dd>{projection.roi.provenance.conversion_provenance}</dd>
-            </div>
-            <div>
-              <dt className="font-medium">Revenue provenance</dt>
-              <dd>{projection.roi.provenance.revenue_provenance}</dd>
-            </div>
-          </dl>
-          <p className="text-muted mt-3 text-xs">{projection.roi.method.limitations}</p>
         </div>
       ) : null}
     </Panel>

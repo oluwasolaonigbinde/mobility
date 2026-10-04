@@ -269,6 +269,7 @@ describe("storage fail-closed (finding 5)", () => {
       expect(screen.getByRole("alert")).toHaveTextContent(/offline storage is unavailable/i),
     );
     expect(screen.getByRole("button", { name: /Start trip/ })).toBeDisabled();
+    expect(screen.getByText(/You earn for verified campaign driving/)).toBeInTheDocument();
   });
 
   it("disables ending when storage failed with an active trip (no false completeness)", async () => {

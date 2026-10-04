@@ -127,7 +127,7 @@ export default async function DriverAssignmentsPage() {
     <FreshDriverAuthority
       refreshKey={crypto.randomUUID()}
       title="Current campaign history hidden while offline"
-      detail="Reconnect to verify current and completed jobs. Previously loaded job authority and assignment actions are hidden."
+      detail="Reconnect to check your current and completed jobs."
       retryHref="/driver/assignments"
     >
       <div className="animate-rise flex flex-col gap-4">

@@ -45,16 +45,22 @@ describe("HighExposureZoneInsights", () => {
     expect(screen.getByText("Top zones by estimated ad exposure")).toBeInTheDocument();
     expect(screen.getByText("#1 Central Abuja")).toBeInTheDocument();
     expect(screen.getByText(/120 estimated ad exposure/i)).toBeInTheDocument();
-    expect(screen.getByText(/campaign activity score: 84\.00 \/ 100/i)).toBeInTheDocument();
-    expect(
-      screen.getByText(/not individual people, measured views or guaranteed outcomes/i),
-    ).toBeInTheDocument();
+    expect(screen.queryByText(/campaign activity score:/i)).toBeNull();
+    expect(screen.getByText("4 area visits")).toBeInTheDocument();
+    // The report contains its own single calculation section for all metrics.
+    expect(screen.queryByText("How this is calculated")).toBeNull();
     expect(screen.queryByText(/governed|uncalibrated operational index/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/ROI/i)).not.toBeInTheDocument();
   });
 
   it("renders a map ranking and fails closed for suppressed output", () => {
     const { rerender } = render(<HighExposureZoneInsights insight={readyInsight} surface="map" />);
+    expect(screen.getByText("How this is calculated").closest("details")).not.toHaveAttribute(
+      "open",
+    );
+    expect(
+      screen.getByText(/not counts of people, measured views or guaranteed results/i),
+    ).toBeInTheDocument();
     expect(screen.getByRole("region", { name: "Zone map ranking" })).toBeInTheDocument();
     expect(screen.getByText("#1 Central Abuja")).toBeInTheDocument();
 

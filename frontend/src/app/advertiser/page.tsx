@@ -28,7 +28,6 @@ export default async function AdvertiserOverviewPage() {
 
   const greeting = new Date().getHours() < 12 ? "Good morning" : "Good evening";
   const costTotal = summary?.costs.totals_by_currency[0];
-  const openFlags = summary?.quality.fraud_flags.open;
 
   return (
     <div className="animate-rise mx-auto max-w-6xl">
@@ -38,7 +37,7 @@ export default async function AdvertiserOverviewPage() {
       <p className="micro text-muted mt-1 mb-8">Campaign overview</p>
 
       {summaryResult.available ? (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-5">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <Stat
             label="Active campaigns"
             value={formatCount(summary?.campaigns.active)}
@@ -54,7 +53,7 @@ export default async function AdvertiserOverviewPage() {
             label="Estimated ad exposure"
             value={formatCount(summary?.impressions.estimated_impressions)}
             tone="cyan"
-            hint="Estimated opportunities to see the ad, based on routes and traffic. This is not a count of people or measured views."
+            hint="Estimated opportunities to see the ad"
           />
           <Stat
             label="Driver pay to date"
@@ -62,12 +61,6 @@ export default async function AdvertiserOverviewPage() {
             value={costTotal ? formatMoney(costTotal.final_payout_total, costTotal.currency) : "—"}
             tone="green"
             hint="Calculated driver pay; your invoice is shown in Billing."
-          />
-          <Stat
-            label="Open fraud flags"
-            value={formatCount(openFlags)}
-            tone={openFlags !== undefined && openFlags > 0 ? "coral" : "green"}
-            hint="Trip checks waiting for Terrax Media to review"
           />
         </div>
       ) : (

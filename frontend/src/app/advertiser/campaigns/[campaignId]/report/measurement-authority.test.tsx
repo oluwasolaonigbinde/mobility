@@ -7,6 +7,7 @@ import {
   MeasurementAuthorityPanel,
   modelledContactsMetric,
   validateMeasurementAuthority,
+  reportPeriod,
 } from "./measurement-authority";
 import { frozenReportScreenProjection } from "./frozen-report-projection";
 
@@ -52,7 +53,7 @@ function reportFixture({ roi = false }: { roi?: boolean } = {}): Report {
     metrics: [
       {
         id: "verified_vehicle_movement" as const,
-        label: "Verified vehicle movement" as const,
+        label: "Distance covered" as const,
         class: "measured_operational_fact" as const,
         trip_count: 4,
         distance_m: "12000.00",
@@ -223,22 +224,16 @@ describe("frozen measurement authority", () => {
 
     expect(screen.getByLabelText("Report basis")).toBeInTheDocument();
     expect(screen.queryByText(/frozen measurement authority/i)).not.toBeInTheDocument();
-    expect(screen.getByText("Verified vehicle movement")).toBeInTheDocument();
+    expect(screen.getByText("Distance covered")).toBeInTheDocument();
     expect(screen.getByText("Estimated ad exposure")).toBeInTheDocument();
-    expect(
-      screen.getByText(/named “Modelled potential contacts” in downloads/i),
-    ).toBeInTheDocument();
+
     expect(screen.getByText(/not your advertising spend/i)).toBeInTheDocument();
     expect(screen.queryByText(/governed trips|no client recalculation/i)).not.toBeInTheDocument();
     expect(screen.getByText("Driver campaign cost")).toBeInTheDocument();
-    expect(screen.getByText(MOVEMENT_CAVEAT)).toBeInTheDocument();
-    expect(screen.getAllByText(/4 of 4 completed trips included/i)).toHaveLength(3);
-    expect(
-      screen.getByText(/configured defaults; no independent field calibration/i),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/2026-08-01T00:00:00.000Z to 2026-08-02T00:00:00.000Z · UTC/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Recorded movement does not prove/)).toBeInTheDocument();
+    expect(screen.getAllByText("Based on all 4 completed trips")).toHaveLength(1);
+
+    expect(screen.getByText(/1\s*–\s*2 Aug 2026/i)).toBeInTheDocument();
     // D38(c): run IDs, manifest hashes and profile fingerprints stay off advertiser screens.
     const panel = screen.getByLabelText("Report basis");
     expect(panel.textContent).not.toMatch(
@@ -257,11 +252,9 @@ describe("frozen measurement authority", () => {
     expect(screen.getByText("Return on investment")).toBeInTheDocument();
     expect(screen.getByText("100%")).toBeInTheDocument();
     expect(screen.queryByText(/synthetic test-only result/i)).not.toBeInTheDocument();
-    expect(screen.getByText("Synthetic campaign conversion rule.")).toBeInTheDocument();
-    expect(screen.getByText("SYNTHETIC_TEST_ONLY conversion fixture")).toBeInTheDocument();
-    expect(
-      screen.getByText("Advertiser-supplied inputs are not verified by Cardvert."),
-    ).toBeInTheDocument();
+    expect(screen.queryByText(/Synthetic campaign/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/SYNTHETIC_TEST_ONLY/)).not.toBeInTheDocument();
+    expect(screen.getByText(/Based on the conversion and revenue/)).toBeInTheDocument();
   });
 
   it("omits an unsupported headline instead of displaying a fabricated zero", () => {
@@ -283,7 +276,7 @@ describe("frozen measurement authority", () => {
     expect(authority.ok).toBe(true);
     render(<MeasurementAuthorityPanel authority={authority} />);
 
-    expect(screen.getByText("Omitted - insufficient frozen evidence")).toBeInTheDocument();
+    expect(screen.getByText("Not enough data")).toBeInTheDocument();
     expect(screen.queryByText(/^0$/)).not.toBeInTheDocument();
   });
 
@@ -300,8 +293,8 @@ describe("frozen measurement authority", () => {
     expect(authority.ok).toBe(true);
     render(<MeasurementAuthorityPanel authority={authority} />);
 
-    expect(screen.getByText("Omitted - insufficient frozen evidence")).toBeInTheDocument();
-    expect(screen.queryByText("—")).not.toBeInTheDocument();
+    expect(screen.getByText("Not enough data")).toBeInTheDocument();
+    expect(screen.getByText("Driver campaign cost").parentElement).not.toHaveTextContent("—");
   });
 
   it("publishes every frozen driver-cost currency without combining their values", () => {
@@ -312,8 +305,8 @@ describe("frozen measurement authority", () => {
 
     const display = costMetricDisplay(cost);
 
-    expect(display).toContain("NGN 1200.00");
-    expect(display).toContain("USD 12.50");
+    expect(display).toContain("₦1,200.00");
+    expect(display).toContain("US$12.50");
     expect(display).toContain(" · ");
   });
 
@@ -362,4 +355,89 @@ describe("frozen metric selectors", () => {
     expect(costMetric(result)?.totals_by_currency).toEqual([{ currency: "NGN", value: "1200.00" }]);
     expect(costMetric(result)?.completeness.suppressed).toBe(false);
   });
+});
+
+it("formats the report dates in Nigeria across UTC midnight", () => {
+  expect(reportPeriod("2026-09-19T23:30:00Z", "2026-10-02T23:30:00Z")).toBe("20 Sept – 3 Oct 2026");
+});
+it("formats measured units and keeps detailed caveats collapsed", () => {
+  const report = reportFixture();
+  const movement = report.measurement_result!.metrics[0]!;
+  if (movement.id !== "verified_vehicle_movement") throw Error("fixture");
+  movement.distance_m = "200397.73";
+  movement.active_tracking_seconds = 42000;
+  const contacts = modelledContactsMetric(report.measurement_result!)!;
+  contacts.value = "164696.13";
+  const cost = costMetric(report.measurement_result!)!;
+  cost.totals_by_currency = [{ currency: "NGN", value: "17504.45" }];
+  render(
+    <MeasurementAuthorityPanel
+      authority={validateMeasurementAuthority(report)}
+      activityScore="81.54"
+    />,
+  );
+  expect(screen.getByText("200 km")).toBeInTheDocument();
+  expect(screen.getAllByText("81.54 / 100")).toHaveLength(1);
+  expect(screen.getByText("11h 40m of tracking")).toBeInTheDocument();
+  expect(screen.getByText("164,696")).toBeInTheDocument();
+  expect(screen.getByText("₦17,504.45")).toBeInTheDocument();
+  expect(screen.getByText("How this is calculated").closest("details")).not.toHaveAttribute("open");
+});
+
+it("deduplicates equal completeness regardless of field order", () => {
+  const report = reportFixture();
+  const metric = report.measurement_result!.metrics[0]!;
+  metric.completeness = Object.fromEntries(
+    Object.entries(metric.completeness).reverse(),
+  ) as typeof metric.completeness;
+  render(<MeasurementAuthorityPanel authority={validateMeasurementAuthority(report)} />);
+  expect(screen.getAllByText("Based on all 4 completed trips")).toHaveLength(1);
+});
+
+it("shows genuine zero measurements without filling missing values with zero", () => {
+  const report = reportFixture();
+  const metric = report.measurement_result!.metrics[0]!;
+  if (metric.id !== "verified_vehicle_movement") throw Error("fixture");
+  metric.distance_m = "0";
+  metric.active_tracking_seconds = null;
+  modelledContactsMetric(report.measurement_result!)!.value = "0";
+  const cost = costMetric(report.measurement_result!)!;
+  cost.totals_by_currency = [{ currency: "NGN", value: "0" }];
+  render(<MeasurementAuthorityPanel authority={validateMeasurementAuthority(report)} />);
+  expect(screen.getByText("0 km")).toBeInTheDocument();
+  expect(screen.getByText("0")).toBeInTheDocument();
+  expect(screen.getByText("₦0.00")).toBeInTheDocument();
+  expect(screen.getByText("Tracking time unavailable")).toBeInTheDocument();
+});
+it("shows incomplete trip reasons once without inventing zero exposure", () => {
+  const report = reportFixture();
+  report.measurement_result!.metrics.forEach((m) => {
+    m.completeness = {
+      ...m.completeness,
+      covered_trip_count: 2,
+      insufficient_data_trip_count: 1,
+      excluded_trip_count: 1,
+      in_progress_trip_count: 2,
+      complete: false,
+    };
+  });
+  render(<MeasurementAuthorityPanel authority={validateMeasurementAuthority(report)} />);
+  expect(screen.getAllByText(/Based on 2 of 4 completed trips/)).toHaveLength(1);
+  expect(
+    screen.getByText(/1 with too little data · 1 excluded · 2 still in progress/),
+  ).toBeInTheDocument();
+});
+
+it.each([
+  [null, "—"],
+  ["0", "0.00 / 100"],
+  ["invalid", "—"],
+])("shows a truthful activity score for %s", (value, expected) => {
+  render(
+    <MeasurementAuthorityPanel
+      authority={validateMeasurementAuthority(reportFixture())}
+      activityScore={value}
+    />,
+  );
+  expect(screen.getByText("Campaign activity score").parentElement).toHaveTextContent(expected);
 });

@@ -293,7 +293,7 @@ export default async function DriverTripEarningsPage({
           <>
             {hasTierBreakdown ? (
               <Panel className="p-5">
-                <h2 className="micro text-muted mb-3">Frozen tier breakdown</h2>
+                <h2 className="micro text-muted mb-3">Pay breakdown</h2>
                 <div className="divide-edge/60 divide-y">
                   <div className="grid grid-cols-[1fr_auto] gap-4 py-2.5">
                     <div>

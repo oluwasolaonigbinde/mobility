@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 vi.mock("./actions", () => ({
   reviewPersonPayeeAction: vi.fn(),
@@ -9,16 +9,7 @@ vi.mock("./actions", () => ({
 }));
 import { PersonPayeeDecisionActions } from "./person-payee-decision-actions";
 import { VehicleDecisionActions } from "./vehicle-decision-actions";
-function openReviews() {
-  for (const field of screen.getAllByLabelText("Review purpose")) {
-    const select = field as HTMLSelectElement;
-    const panel = within(select.closest("div")!);
-    fireEvent.change(select, { target: { value: select.options[1]!.value } });
-    fireEvent.click(panel.getByRole("checkbox"));
-    fireEvent.click(panel.getByRole("button", { name: "Confirm and open protected review" }));
-  }
-}
-it("uses clear identity document labels behind the existing protected-review confirmation", () => {
+it("uses clear identity document labels with direct audited reads", () => {
   render(
     <PersonPayeeDecisionActions
       applicationId="application"
@@ -32,11 +23,20 @@ it("uses clear identity document labels behind the existing protected-review con
       }}
     />,
   );
-  expect(screen.queryByRole("button", { name: "Review driving licence" })).toBeNull();
-  openReviews();
-  expect(screen.getByRole("button", { name: "Review driving licence" })).toBeVisible();
-  expect(screen.getByRole("button", { name: "Review signed agreement" })).toBeVisible();
-  expect(screen.getByRole("button", { name: "Review driver photo" })).toBeVisible();
+  for (const name of [
+    "Identity (NIN)",
+    "Driver’s licence",
+    "Driver photo",
+    "Signed agreement",
+    "Bank account",
+  ]) {
+    const row = within(screen.getByRole("region", { name }));
+    expect(
+      row.getByRole("button", { name: name === "Identity (NIN)" ? "Show NIN" : "View" }),
+    ).toBeEnabled();
+    expect(row.queryByRole("checkbox")).toBeNull();
+    expect(row.getByText(/Purpose:/)).toBeInTheDocument();
+  }
 });
 it("uses car document labels and hides unknown internal document keys", () => {
   render(
@@ -53,10 +53,11 @@ it("uses car document labels and hides unknown internal document keys", () => {
       status="pending_review"
     />,
   );
-  openReviews();
-  expect(screen.getByRole("button", { name: "Review car registration" })).toBeVisible();
-  expect(screen.getByRole("button", { name: "Review car insurance" })).toBeVisible();
-  expect(screen.getByRole("button", { name: "Review car photo" })).toBeVisible();
-  expect(screen.getByRole("button", { name: "Review document" })).toBeVisible();
+  for (const name of ["car registration", "car insurance", "car photo", "document"]) {
+    const row = within(screen.getByRole("region", { name }));
+    expect(row.getByRole("button", { name: "View" })).toBeEnabled();
+    expect(row.getByText("Purpose: Vehicle review")).toBeVisible();
+    expect(row.queryByRole("checkbox")).toBeNull();
+  }
   expect(screen.queryByText(/private wire key|private_wire_key/)).toBeNull();
 });

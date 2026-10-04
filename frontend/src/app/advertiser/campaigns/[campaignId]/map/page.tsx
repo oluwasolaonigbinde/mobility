@@ -101,14 +101,11 @@ export default async function CampaignMapPage({
 
       <p className="micro text-amber mb-2">Campaign coverage map</p>
       <div className="mb-2 flex flex-wrap items-center gap-3">
-        <h1 className="font-display text-3xl font-semibold tracking-tight">
-          Target zones by estimated exposure
-        </h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">Campaign areas</h1>
         <StatusChip tone={statusTone[campaign.status]}>{statusLabel[campaign.status]}</StatusChip>
       </div>
       <p className="text-muted mb-6 max-w-2xl text-sm">
-        View only disclosure-cleared target zones ranked by the same frozen measurement run used for
-        Campaign Performance Analysis.
+        Areas ranked by estimated ad exposure from this campaign’s trips.
       </p>
 
       <div className="flex flex-col gap-4">

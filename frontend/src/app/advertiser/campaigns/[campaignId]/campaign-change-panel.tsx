@@ -90,7 +90,7 @@ export function CampaignChangePanel({
     ...requests.filter((item) => !localRequests.some((confirmed) => confirmed.id === item.id)),
   ];
   return (
-    <Panel className="mt-6 p-6" aria-label="Governed campaign changes">
+    <Panel className="mt-6 p-6" aria-label="Campaign changes">
       <div className="mb-5">
         <h2 className="font-display text-xl font-semibold">Campaign changes</h2>
         <p className="text-muted mt-1 text-sm">

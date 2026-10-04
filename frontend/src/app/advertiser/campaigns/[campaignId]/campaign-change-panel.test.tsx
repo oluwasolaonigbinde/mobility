@@ -117,3 +117,17 @@ describe("CampaignChangePanel", () => {
     expect(screen.getByText("Applied")).toBeInTheDocument();
   });
 });
+
+it("uses a plain campaign-change section name", () => {
+  render(
+    <CampaignChangePanel
+      campaignId={CAMPAIGN_ID}
+      clientRequestId={FIRST_REQUEST_ID}
+      currency="NGN"
+      editable={false}
+      requests={[]}
+    />,
+  );
+  expect(screen.getByLabelText("Campaign changes")).toBeInTheDocument();
+  expect(screen.queryByLabelText(/Governed/)).toBeNull();
+});

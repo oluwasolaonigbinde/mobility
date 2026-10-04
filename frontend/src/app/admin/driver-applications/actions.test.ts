@@ -93,6 +93,36 @@ describe("reviewPersonPayeeAction", () => {
     });
   });
 
+  it("audits every direct document read with the automatic application-review purpose", async () => {
+    const document = new FormData();
+    document.set("kind", "document");
+    document.set("file_id", FILE_ID);
+    document.set("submission_id", SUBMISSION_ID);
+    mocks.post.mockResolvedValue({ data: { url: "https://private.test/review" } });
+    await reviewPersonPayeeEvidenceAction({}, document);
+    await reviewPersonPayeeEvidenceAction({}, document);
+    expect(mocks.post).toHaveBeenCalledTimes(2);
+    for (const args of mocks.post.mock.calls)
+      expect(args).toEqual([
+        "/api/v1/admin/files/{file_id}/download",
+        {
+          params: { path: { file_id: FILE_ID } },
+          body: { purpose: "kyc_review", reason: `person_payee_approval:${SUBMISSION_ID}` },
+        },
+      ]);
+  });
+  it("refuses empty Reject reason but permits empty reason for Approve and Expire", async () => {
+    const reject = form("reject");
+    reject.set("reason_code", "");
+    expect(await reviewPersonPayeeAction({}, reject)).toHaveProperty("error");
+    expect(mocks.post).not.toHaveBeenCalled();
+    for (const intent of ["approve", "expire"] as const) {
+      const data = form(intent);
+      data.set("reason_code", "");
+      expect(await reviewPersonPayeeAction({}, data)).toHaveProperty("done");
+    }
+    expect(mocks.post).toHaveBeenCalledTimes(2);
+  });
   it("promotes only the exact account version with an authorized reference", async () => {
     const data = new FormData();
     data.set("bank_account_version_id", VERSION_ID);
@@ -224,4 +254,21 @@ describe("reviewPersonPayeeAction", () => {
       },
     );
   });
+});
+
+it("logs every vehicle View with automatic vehicle-review purpose and current IDs", async () => {
+  mocks.post.mockReset();
+  mocks.post.mockResolvedValue({ data: { url: "https://private.test/vehicle" } });
+  const evidence = new FormData();
+  evidence.set("file_id", FILE_ID);
+  evidence.set("submission_id", SUBMISSION_ID);
+  for (let attempt = 0; attempt < 2; attempt++) await reviewVehicleEvidenceAction({}, evidence);
+  expect(mocks.post).toHaveBeenCalledTimes(2);
+  for (const [endpoint, request] of mocks.post.mock.calls) {
+    expect(endpoint).toBe("/api/v1/admin/files/{file_id}/download");
+    expect(request).toEqual({
+      params: { path: { file_id: FILE_ID } },
+      body: { purpose: "kyc_review", reason: "vehicle_approval:" + SUBMISSION_ID },
+    });
+  }
 });

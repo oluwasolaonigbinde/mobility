@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { requireRole } from "@/lib/auth/current-user";
-import { formatDate, formatMoney } from "@/lib/format";
+import { formatDate, formatMoneyExact } from "@/lib/format";
 import { Panel } from "@/components/ui/panel";
 import { DriverDataUnavailable } from "@/components/driver/data-unavailable";
 import { TripTracker } from "./trip-tracker";
@@ -53,7 +53,7 @@ export default async function DriverTrackPage() {
       {assignments.state !== "ready" ? (
         <DriverDataUnavailable
           title="Campaign labels unavailable"
-          detail="Cardvert couldn't load optional campaign names. This does not change the current trip or its tracking authority."
+          detail="Campaign names could not be loaded. You can still track your current trip."
           retryHref="/driver/track"
         />
       ) : null}
@@ -105,7 +105,9 @@ export default async function DriverTrackPage() {
                   <p className="micro text-faint mt-0.5">{formatDate(entry.occurred_at)}</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-mono text-sm">{formatMoney(entry.amount, entry.currency)}</p>
+                  <p className="font-mono text-sm">
+                    {formatMoneyExact(entry.amount, entry.currency)}
+                  </p>
                   <p
                     className={`micro mt-0.5 ${
                       entry.status === "available" || entry.status === "paid"
