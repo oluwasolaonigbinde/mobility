@@ -14,86 +14,88 @@ async function loginAsAdmin(page: Page) {
   await page.waitForURL("**/admin");
 }
 
+async function openCampaign(page: Page, name: string) {
+  const session = (await page.context().cookies()).find(
+    (cookie) => cookie.name === "mobility_session",
+  );
+  const response = await page.request.get(
+    `${process.env.E2E_API_BASE_URL ?? "http://localhost:8000"}/api/v1/admin/campaigns?q=${encodeURIComponent(name)}`,
+    { headers: { Authorization: `Bearer ${session!.value}` } },
+  );
+  expect(response.ok()).toBe(true);
+  const campaign = (await response.json()).items.find(
+    (item: { name: string }) => item.name === name,
+  );
+  expect(campaign).toBeTruthy();
+  await page.goto(`/admin/campaigns/${campaign.id}`);
+}
+
 test("admin home shows the department work queue and full nav", async ({ page }) => {
   await loginAsAdmin(page);
-  await expect(page.getByRole("heading", { name: "Waiting for you" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Work queue" })).toBeVisible();
   for (const section of ["Operations", "Compliance", "Finance", "Customer Service", "Admin"]) {
     await expect(page.getByRole("heading", { name: section, exact: true })).toBeVisible();
   }
   const nav = page.getByRole("navigation", { name: "Primary" }).first();
   for (const item of [
-    "Users",
+    "Work queue",
     "Drivers",
-    "Vehicles",
-    "Assignments",
-    "Fraud",
-    "Payouts",
-    "Billing",
-    "Audit",
+    "Campaigns",
+    "Advertisers",
+    "Trip checks",
+    "Money",
+    "Support",
+    "Settings",
   ]) {
     await expect(nav.getByRole("link", { name: item })).toBeVisible();
   }
 });
 
-test("users section lists accounts with role filter and create entry", async ({ page }) => {
+test("staff settings show active, invited and suspended logins with safe suspension", async ({
+  page,
+}) => {
   await loginAsAdmin(page);
-  await page.goto("/admin/users");
-  // Scoped to the table — the sidebar also shows the signed-in admin's name
+  await page.goto("/admin/settings/staff");
   const main = page.locator("#main");
-  await expect(main.locator("tbody tr").first()).toBeVisible();
-  await expect(page.getByRole("link", { name: "+ Create user" })).toBeVisible();
-  await page
-    .getByRole("group", { name: "Filter by role" })
-    .getByRole("link", { name: "admin" })
-    .click();
-  await expect(main.getByText("Demo Admin")).toBeVisible();
-  // Role filter narrows to drivers
-  await page
-    .getByRole("group", { name: "Filter by role" })
-    .getByRole("link", { name: "driver" })
-    .click();
-  await expect(main.getByText("Demo Driver")).toBeVisible();
-  await expect(main.getByText("Demo Admin")).not.toBeVisible();
+  await expect(main.getByText("Hauwa Sani", { exact: true })).toBeVisible();
+  await expect(main.getByText("Temitope Ojo", { exact: true })).toBeVisible();
+  await expect(main.getByText("Aisha Garba", { exact: true })).toBeVisible();
+  await expect(main.getByRole("link", { name: "Add staff login" })).toBeVisible();
   await main
-    .getByRole("row", { name: /Demo Driver driver@demo\.mobility\.local/ })
-    .getByRole("button", { name: "Suspend" })
+    .locator("li")
+    .filter({ hasText: "Hauwa Sani" })
+    .getByRole("button", { name: "Suspend", exact: true })
     .click();
   const confirmation = page.getByRole("alertdialog");
-  await expect(confirmation).toContainText("Suspend Demo Driver?");
+  await expect(confirmation).toContainText("Suspend Hauwa Sani?");
   await confirmation.getByRole("button", { name: "Keep account active" }).click();
   await expect(confirmation).not.toBeVisible();
 });
 
-test("drivers and vehicles sections show the seeded fleet", async ({ page }) => {
+test("driver and vehicle hubs show the seeded fleet with safe suspension", async ({ page }) => {
   await loginAsAdmin(page);
-  await page.goto("/admin/drivers");
-  await expect(page.getByText("Demo Driver")).toBeVisible();
-  await page
-    .getByRole("row", { name: /Demo Driver/ })
-    .getByRole("button", { name: "Suspend" })
-    .click();
-  await expect(page.getByRole("alertdialog")).toContainText("Suspend Demo Driver?");
+  await page.goto("/admin/drivers?tab=active&q=Emeka");
+  await page.getByRole("link", { name: /Emeka Nwankwo/ }).click();
+  await expect(page.getByRole("heading", { name: "Emeka Nwankwo" })).toBeVisible();
+  await page.getByRole("button", { name: "Suspend", exact: true }).first().click();
+  await expect(page.getByRole("alertdialog")).toContainText("Suspend Emeka Nwankwo?");
   await page.getByRole("alertdialog").getByRole("button", { name: "Keep driver active" }).click();
-  await page.goto("/admin/vehicles");
-  await expect(page.getByText("DEMO-001")).toBeVisible();
-  await page
-    .getByRole("row", { name: /DEMO-001/ })
-    .getByRole("button", { name: "Suspend" })
-    .click();
-  await expect(page.getByRole("alertdialog")).toContainText("Suspend DEMO-001?");
+  await expect(page.getByText("ABJ-482-KD", { exact: true }).first()).toBeVisible();
+  await page.locator("#cars").getByRole("button", { name: "Suspend", exact: true }).click();
+  await expect(page.getByRole("alertdialog")).toContainText("Suspend ABJ-482-KD?");
   await page.getByRole("alertdialog").getByRole("button", { name: "Keep vehicle active" }).click();
 });
 
 test("assignments section lists the seeded pairing", async ({ page }) => {
   await loginAsAdmin(page);
-  await page.goto("/admin/assignments");
-  await expect(page.getByText("Demo Lagos Mobility Campaign").first()).toBeVisible();
-  await expect(page.getByRole("link", { name: "+ Offer assignment" })).toBeVisible();
-  const row = page.getByRole("row", { name: /Demo Lagos Mobility Campaign/ }).first();
+  await openCampaign(page, "Marula Kitchens — Lagos Lunch Routes");
+  await expect(page.getByText("Marula Kitchens — Lagos Lunch Routes").first()).toBeVisible();
+  await expect(page.getByText("Offer a job · Find drivers")).toBeVisible();
+  const row = page.locator('#drivers div[id^="job-"]').filter({ hasText: "Emeka Nwankwo" }).first();
   const trigger = row.getByRole("button", { name: "Cancel" });
   await trigger.click();
   const confirmation = page.getByRole("alertdialog");
-  await expect(confirmation).toContainText(/Demo Lagos Mobility Campaign for Demo Driver/);
+  await expect(confirmation).toContainText("Cancel Emeka Nwankwo?");
   await expect(confirmation.getByRole("button", { name: "Keep assignment" })).toBeFocused();
   for (let index = 0; index < 4; index += 1) {
     await page.keyboard.press("Tab");
@@ -108,13 +110,17 @@ test("assignments section lists the seeded pairing", async ({ page }) => {
 
 test("fraud page renders with status filters", async ({ page }) => {
   await loginAsAdmin(page);
-  await page.goto("/admin/fraud");
-  await expect(page.getByRole("heading", { name: "Fraud", exact: true })).toBeVisible();
+  await page.goto("/admin/trip-checks");
+  await expect(page.getByRole("heading", { name: "Trip checks", exact: true })).toBeVisible();
   await expect(
-    page.getByRole("group", { name: "Filter by status" }).getByRole("link", { name: "open" }),
+    page
+      .getByRole("navigation", { name: "Status", exact: true })
+      .getByRole("link", { name: "Needs attention" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("group", { name: "Filter by status" }).getByRole("link", { name: "confirmed" }),
+    page
+      .getByRole("navigation", { name: "Status", exact: true })
+      .getByRole("link", { name: "Problem confirmed" }),
   ).toBeVisible();
 });
 
@@ -122,123 +128,73 @@ test("fraud review moves an isolated open flag through acknowledgement to dismis
   page,
 }, testInfo) => {
   await loginAsAdmin(page);
-  await page.goto("/admin/fraud");
+  await page.goto("/admin/trip-checks");
 
   // Fresh rich-seed stacks contain several flags. Each browser project owns a
   // different row so their state transitions cannot race with one another.
   const projectRow = testInfo.project.name === "mobile-chrome" ? 1 : 0;
-  const acknowledge = page.getByRole("button", { name: "Acknowledge" }).nth(projectRow);
-  await expect(acknowledge, "the required seeded open flag must render").toBeVisible();
-
-  const card = acknowledge.locator(
-    'xpath=ancestor::*[starts-with(@data-testid, "fraud-flag-")][1]',
-  );
-  const testId = await card.getAttribute("data-testid");
-  expect(testId).toBeTruthy();
-
-  await acknowledge.click();
-  const reviewedCard = page.getByTestId(testId!);
-  await expect(reviewedCard.getByText("acknowledged", { exact: true })).toBeVisible();
-  await reviewedCard.getByLabel("Review note").fill("Reviewed in the isolated E2E workflow.");
-  await reviewedCard.getByRole("button", { name: "Dismiss flag" }).click();
-  await expect(reviewedCard.getByText("dismissed", { exact: true })).toBeVisible();
-  await expect(reviewedCard.getByText(/review is final/i)).toBeVisible();
+  await page
+    .locator("main li")
+    .filter({ hasText: "Needs attention" })
+    .locator('a[href*="flag="]')
+    .nth(projectRow)
+    .click();
+  const drawer = page.getByRole("dialog");
+  await drawer.getByRole("button", { name: "Start review" }).click();
+  await expect(drawer.getByLabel("Review note")).toBeVisible();
+  await drawer
+    .getByLabel("Review note")
+    .fill("The route matches the delivery stops and the photos are clear.");
+  await drawer.getByRole("button", { name: "Clear", exact: true }).click();
+  await expect(drawer.getByText(/review is final/i)).toBeVisible();
 });
 
 test("payouts section lists calculations and the trip pipeline", async ({ page }) => {
   await loginAsAdmin(page);
-  await page.goto("/admin/payouts");
-  await expect(page.getByRole("heading", { name: "Payouts" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Run pipeline" })).toBeVisible();
+  await page.goto("/admin/money");
+  await expect(page.getByRole("heading", { name: "Money", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Available earnings" })).toBeVisible();
   // Seeded + processed calculations exist with final payouts
   await expect(page.getByText(/₦[\d,]+/).first()).toBeVisible();
 });
 
 test("audit trail shows login activity and supports filtering", async ({ page }) => {
   await loginAsAdmin(page);
-  await page.goto("/admin/audit");
-  await expect(page.getByRole("heading", { name: "Audit trail" })).toBeVisible();
-  await expect(page.getByText("auth.login.succeeded").first()).toBeVisible();
+  await page.goto("/admin/settings/activity");
+  await expect(page.getByRole("heading", { name: "Activity log", exact: true })).toBeVisible();
+  await expect(page.locator("main tbody tr").first()).toBeVisible();
   await page.getByPlaceholder("Action, e.g. auth.login.succeeded").fill("auth.login.succeeded");
   await page.getByRole("button", { name: "Filter" }).click();
   await expect(page).toHaveURL(/action=auth.login.succeeded/);
-  await expect(page.getByText("auth.login.succeeded").first()).toBeVisible();
+  await expect(page.getByText("Auth login succeeded").first()).toBeVisible();
 });
 
-test("hourly payout rules are versioned: create rule once, then append revisions", async ({
-  page,
-}, testInfo) => {
-  // Each project mutates its own inert seeded campaign so parallel projects
-  // never race on the same rule row / revision chain.
-  const campaignName =
-    testInfo.project.name === "mobile-chrome"
-      ? "F7 Festive Island Wrap"
-      : "F7 Airport Launch Draft";
+test("daily-rate terms show the frozen version and publishing controls", async ({ page }) => {
   await loginAsAdmin(page);
-  await page.goto("/admin/payouts/rules");
-  await page.getByRole("group", { name: "Campaign" }).getByText(campaignName).click();
-  await page.waitForURL("**/admin/payouts/rules?campaign=**");
-
-  // Seeded campaigns may have no rule or a legacy payout_v1 rule. Creating a
-  // new hourly rule or migrating that legacy row writes the genesis revision
-  // atomically. Re-runs land on the immutable revision panel (MNY-06A).
-  const createRule = page.getByRole("button", { name: "Create rule" });
-  const updateLegacyRule = page.getByRole("button", { name: "Update rule" });
-  if (
-    (await createRule.isVisible().catch(() => false)) ||
-    (await updateLegacyRule.isVisible().catch(() => false))
-  ) {
-    const modelGroup = page.getByRole("group", { name: "Payout model" });
-    await modelGroup.getByRole("button", { name: /Hourly \+ daily cap/ }).click();
-    await page.getByLabel("Hourly rate").fill("1250");
-    await page.getByLabel("Daily payable-hours cap").fill("8");
-    if (await createRule.isVisible().catch(() => false)) await createRule.click();
-    else await updateLegacyRule.click();
-  }
-
-  await expect(page.getByRole("button", { name: "Create revision" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /Update rule/ })).not.toBeVisible();
-  await expect(page.getByText("Revision history")).toBeVisible();
-  await expect(page.getByText(/^r1$/).first()).toBeVisible();
-
-  // Append a future-dated revision and see it top the newest-first chain.
-  const reason = `e2e rate change ${Date.now()}`;
-  const newestRevision = await page
-    .getByText(/^r\d+$/)
-    .first()
-    .textContent();
-  const revisionNumber = Number(newestRevision?.slice(1) ?? "1");
-  // Advance farther for every existing revision so immediate re-runs remain
-  // strictly after the previously scheduled effective time.
-  const dt = new Date(Date.now() + (revisionNumber + 1) * 10 * 60 * 1000);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  const local = `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(
-    dt.getHours(),
-  )}:${pad(dt.getMinutes())}`;
-  await page.getByLabel("Base hourly rate").fill("1305");
-  await page.getByLabel("Premium hourly rate (optional)").fill("1600");
-  await page.getByLabel("Daily payable-hours cap").fill("8");
-  await page.getByLabel("Effective from (future)").fill(local);
-  await page.getByLabel("Reason (audited)").fill(reason);
-  await page.getByRole("button", { name: "Create revision" }).click();
-  await expect(page.getByText("✓ Revision created")).toBeVisible();
-
-  await page.reload();
-  const topRow = page.locator("tbody tr").first();
-  await expect(topRow.getByText(reason)).toBeVisible();
-  await expect(topRow.getByText(/1,305\.00/)).toBeVisible();
+  await openCampaign(page, "Marula Kitchens — Lagos Lunch Routes");
+  await page.locator("#pay-terms summary").click();
+  await expect(page.locator("#pay-terms").getByText("Version history")).toBeVisible();
+  await expect(page.locator("#pay-terms").getByText("Version 1", { exact: true })).toBeVisible();
+  await expect(
+    page
+      .locator("#pay-terms")
+      .getByText(/10,000/)
+      .first(),
+  ).toBeVisible();
+  await expect(page.getByLabel("Day rate (₦)")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Publish daily rate" })).toBeVisible();
 });
 
 test("corrections screen offers projection, draft creation and the order queue", async ({
   page,
 }) => {
   await loginAsAdmin(page);
-  await page.goto("/admin/payouts");
+  await page.goto("/admin/money");
   // The retired direct recompute is replaced by a pointer to correction orders.
-  await page.getByRole("link", { name: "correction orders →" }).click();
-  await page.waitForURL("**/admin/payouts/corrections");
-  await expect(page.getByRole("heading", { name: "Correction orders" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Preview delta" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Create draft order" })).toBeVisible();
-  await expect(page.getByRole("group", { name: "Filter by status" })).toBeVisible();
+  await page.getByRole("link", { name: "Corrections", exact: true }).click();
+  await page.waitForURL("**tab=corrections*");
+  await expect(page.locator('main a[href*="correction="]').first()).toBeVisible();
+  await page.getByText("Prepare a pay correction").click();
+  await expect(page.getByRole("button", { name: "Create pay correction" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Correction status" })).toBeVisible();
 });

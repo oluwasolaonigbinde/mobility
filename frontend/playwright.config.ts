@@ -3,7 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 /**
  * E2E tests run against the real Next.js app, which proxies to the FastAPI
  * backend. Start the backend first: `docker compose up -d` from the repo root
- * (plus migrations + demo seed) — see frontend/README.md.
+ * (plus migrations + demo seed) â€” see frontend/README.md.
  */
 // Specialist modes are opt-in and mutually exclusive. Ordinary real-stack E2E
 // never inherits their mock servers, deployment assumptions, or authority.
@@ -40,6 +40,31 @@ const specialistSpecByMode = {
 const baseURL =
   process.env.PLAYWRIGHT_BASE_URL ??
   (w401dSynthetic ? "http://127.0.0.1:34101" : "http://localhost:3000");
+
+for (const target of [baseURL, process.env.E2E_API_BASE_URL, process.env.API_BASE_URL]) {
+  if (!target) continue;
+  const url = new URL(target);
+  const host = url.hostname.toLowerCase().replace(/\.$/, "");
+  const loopback = ["localhost", "127.0.0.1", "[::1]"].includes(host);
+  if (
+    host === "trycloudflare.com" ||
+    host.endsWith(".trycloudflare.com") ||
+    host.startsWith("cardvertpreview-") ||
+    (loopback && ["3333", "3334", "18080"].includes(url.port))
+  ) {
+    throw new Error(
+      "E2E suites cannot run against the client preview. Use an isolated test stack.",
+    );
+  }
+}
+if (
+  process.env.E2E_DATABASE_NAME?.toLowerCase().startsWith("cardvert_preview") ||
+  process.env.E2E_DATABASE_CONTAINER?.toLowerCase().startsWith("cardvertpreview-")
+) {
+  throw new Error(
+    "E2E suites cannot use the client preview database. Use an isolated test database.",
+  );
+}
 
 export default defineConfig({
   testDir: "./e2e",

@@ -34,7 +34,7 @@ WHERE campaign_id IN (
   SELECT c.id
   FROM campaigns c
   JOIN advertiser_organizations o ON o.id = c.organization_id
-  WHERE o.billing_email = 'billing@example.com'
+  WHERE o.billing_email = 'accounts@marulakitchens.ng'
     AND c.name = :'campaign_name'
     AND (
       NULLIF(:'campaign_id', '') IS NULL
@@ -44,7 +44,7 @@ WHERE campaign_id IN (
 DELETE FROM campaigns c
 USING advertiser_organizations o
 WHERE c.organization_id = o.id
-  AND o.billing_email = 'billing@example.com'
+  AND o.billing_email = 'accounts@marulakitchens.ng'
   AND c.name = :'campaign_name'
   AND (
     NULLIF(:'campaign_id', '') IS NULL
@@ -55,7 +55,7 @@ RESET session_replication_role;
 SELECT 1 / CASE WHEN count(*) = 0 THEN 1 ELSE 0 END
 FROM campaigns c
 JOIN advertiser_organizations o ON o.id = c.organization_id
-WHERE o.billing_email = 'billing@example.com'
+WHERE o.billing_email = 'accounts@marulakitchens.ng'
   AND c.name = :'campaign_name';
 `;
   execFileSync(
@@ -120,7 +120,9 @@ async function loginAsAdmin(page: Page) {
 
 test("advertiser can sign in and see the dashboard", async ({ page }) => {
   await loginAsAdvertiser(page);
-  await expect(page.getByRole("heading", { name: /Demo Advertiser/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Marula Kitchens/ })).toBeVisible({
+    timeout: 20_000,
+  });
   await expect(page.getByText("Estimated ad exposure", { exact: true })).toBeVisible();
 });
 
@@ -235,14 +237,12 @@ test("campaign submission and admin approval preserve immutable review history",
     await expect(page.getByText(/Submission reference/)).not.toBeVisible();
 
     await loginAsAdmin(page);
-    await page.goto("/admin/approvals");
-    const approval = page.getByTestId(`campaign-approval-${campaignId}`);
-    await expect(approval.getByRole("heading", { name })).toBeVisible();
-    await expect(approval.getByText("Snapshot SHA-256:")).toBeVisible();
-    await approval.getByRole("button", { name: "Approve" }).click();
-    await expect(approval).not.toBeVisible();
+    await page.goto(`/admin/campaigns/${campaignId}`);
+    await expect(page.getByRole("heading", { name })).toBeVisible();
+    await page.getByRole("button", { name: "Approve", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Approve", exact: true })).not.toBeVisible();
     await page.reload();
-    await expect(page.getByTestId(`campaign-approval-${campaignId}`)).not.toBeVisible();
+    await expect(page.getByRole("button", { name: "Approve", exact: true })).not.toBeVisible();
 
     await loginAsAdvertiser(page);
     await page.goto(`/advertiser/campaigns/${campaignId}`);

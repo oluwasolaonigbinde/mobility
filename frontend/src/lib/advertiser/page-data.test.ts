@@ -32,6 +32,7 @@ describe("advertiser page data", () => {
     },
   );
   it.each([
+    [409, "DISCLOSURE_SUPPRESSED", "insufficient"],
     [503, "PROVIDER_UNAVAILABLE", "operational"],
     [403, "PROVIDER_UNAVAILABLE", "forbidden"],
     [403, "FORBIDDEN", "forbidden"],

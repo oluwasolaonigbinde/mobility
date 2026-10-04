@@ -638,19 +638,19 @@ def test_report_scope_and_revocation_remain_enforced_without_legal_gate(
         headers=auth_headers(db_client, viewer.email, PASSWORD),
     )
     assert viewer_status.status_code == 404
-    blocked_settings = settings.model_copy(update={})
-    assert run_worker(db_sessionmaker, blocked_settings, report_storage) == 1
+    settings_copy = settings.model_copy(update={})
+    assert run_worker(db_sessionmaker, settings_copy, report_storage) == 1
 
-    async def inspect_failed_publication() -> tuple[str, int]:
+    async def inspect_publication() -> tuple[str, int]:
         async with db_sessionmaker() as session:
             row = await session.get(ReportIssuance, UUID(issuance.json()["id"]))
             count = int(await session.scalar(select(func.count()).select_from(ReportArtifact)) or 0)
             assert row is not None
             return row.status, count
 
-    assert asyncio.run(inspect_failed_publication()) == ("ready", 2)
+    assert asyncio.run(inspect_publication()) == ("ready", 2)
 
-    db_client.app.dependency_overrides[get_settings] = lambda: blocked_settings
+    db_client.app.dependency_overrides[get_settings] = lambda: settings_copy
     hidden = db_client.get(
         f"/api/v1/advertiser/report-issuances/{issuance.json()['id']}",
         headers=auth_headers(db_client, advertiser.email, PASSWORD),

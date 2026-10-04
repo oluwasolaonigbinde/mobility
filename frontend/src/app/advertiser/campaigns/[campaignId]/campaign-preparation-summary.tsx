@@ -143,10 +143,6 @@ export function CampaignPreparationSummary({
           .
         </p>
       ) : null}
-      <p className="text-faint mt-4 text-xs">
-        This checklist shows what has been recorded so far. It does not authorize production,
-        assignment, installation or launch.
-      </p>
     </Panel>
   );
 }

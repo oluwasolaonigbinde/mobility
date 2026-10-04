@@ -21,9 +21,6 @@ describe("CampaignPreparationSummary", () => {
       <CampaignPreparationSummary campaign={campaign} commercial={commercial} creatives={[]} />,
     );
     expect(screen.getByText(/Next action: Request the custom quotation/)).toBeInTheDocument();
-    expect(
-      screen.getByText(/does not authorize production, assignment, installation or launch/),
-    ).toBeInTheDocument();
   });
 
   it("prioritizes rejected artwork after accepted terms", () => {

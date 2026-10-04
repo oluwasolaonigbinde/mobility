@@ -62,6 +62,27 @@ from app.services.trip_evidence import (
 )
 
 
+@pytest.fixture(autouse=True)
+def seed_private_storage(monkeypatch):
+    from test_stored_files import FakeStorageProvider
+
+    from app.adapters.scanner import MalwareScanResult, MalwareScanVerdict
+    from app.seeds import demo_authority
+
+    storage = FakeStorageProvider()
+
+    class Scanner:
+        async def scan(self, chunks):
+            data = b"".join([chunk async for chunk in chunks])
+            assert data.startswith(b"\x89PNG\r\n\x1a\n")
+            return MalwareScanResult(verdict=MalwareScanVerdict.CLEAN)
+
+    monkeypatch.setattr(demo_authority, "build_storage_provider", lambda settings: storage)
+    monkeypatch.setattr("app.adapters.storage.build_storage_provider", lambda settings: storage)
+    monkeypatch.setattr(demo_authority, "build_malware_scanner", lambda settings: Scanner())
+    return storage
+
+
 def test_demo_seed_refuses_production_even_with_override() -> None:
     settings = Settings(
         environment="production",
@@ -178,7 +199,7 @@ def test_demo_seed_refuses_an_existing_user_with_an_incompatible_role(
                 session,
                 email="advertiser@demo.mobility.local",
                 password=DEMO_PASSWORDS["advertiser@demo.mobility.local"],
-                full_name="Demo Advertiser",
+                full_name="Marula Kitchens",
                 role=demo.UserRole.ADVERTISER,
                 settings=settings,
             )
@@ -190,9 +211,7 @@ def test_demo_seed_refuses_an_existing_user_with_an_incompatible_role(
 
 def test_demo_seed_refuses_a_vehicle_owned_by_another_driver() -> None:
     profile = SimpleNamespace(id=UUID("11111111-1111-4111-8111-111111111111"))
-    vehicle = SimpleNamespace(
-        driver_profile_id=UUID("22222222-2222-4222-8222-222222222222")
-    )
+    vehicle = SimpleNamespace(driver_profile_id=UUID("22222222-2222-4222-8222-222222222222"))
     session = SimpleNamespace(scalar=AsyncMock(return_value=vehicle))
 
     with pytest.raises(AppError) as exc:
@@ -353,6 +372,13 @@ def test_demo_seed_command_runs_the_guarded_seed_and_prints_its_summary(
     monkeypatch.setattr(demo, "build_demo_graph", build)
     monkeypatch.setattr(demo, "counts", count_seeded_records)
     monkeypatch.setattr(demo, "print_summary", summary)
+    from app.services import report_issuances
+
+    publication = AsyncMock()
+    monkeypatch.setattr(report_issuances, "sweep_report_issuances", publication)
+    from app.adapters import storage
+
+    monkeypatch.setattr(storage, "build_storage_provider", lambda selected: object())
 
     assert asyncio.run(demo.run_seed()) is graph
     guard.assert_called_once_with(settings)
@@ -361,6 +387,7 @@ def test_demo_seed_command_runs_the_guarded_seed_and_prints_its_summary(
     count_seeded_records.assert_awaited_once_with(session, graph)
     session.commit.assert_awaited_once_with()
     summary.assert_called_once_with(graph, {"campaigns": 1})
+    publication.assert_awaited_once()
 
 
 def test_demo_seed_summary_is_human_readable(capsys: pytest.CaptureFixture[str]) -> None:
@@ -481,10 +508,28 @@ def seed_demo_graph(
     settings: Settings,
 ):
     async def seed():
+        from app.models.disbursement import CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID
+
+        async with sessionmaker() as session:
+            actor_exists = await session.get(User, CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID)
+        if actor_exists is None:
+            from test_automatic_payouts import install_automatic
+
+            await asyncio.to_thread(install_automatic, sessionmaker)
         async with sessionmaker() as session:
             graph = await build_demo_graph(session, settings)
             await session.commit()
-            return graph
+        from app.adapters.storage import build_storage_provider
+        from app.services.report_issuances import sweep_report_issuances
+
+        await sweep_report_issuances(
+            {
+                "sessionmaker": sessionmaker,
+                "settings": settings,
+                "storage": build_storage_provider(settings),
+            }
+        )
+        return graph
 
     return asyncio.run(seed())
 
@@ -493,11 +538,19 @@ def fetch_seed_counts(sessionmaker: async_sessionmaker[AsyncSession]) -> dict[st
     async def fetch() -> dict[str, int]:
         async with sessionmaker() as session:
             campaign = await session.scalar(
-                select(Campaign).where(Campaign.name == "Demo Lagos Mobility Campaign")
+                select(Campaign).where(Campaign.name == "Marula Kitchens — Lagos Lunch Routes")
             )
             assert campaign is not None
+            profile_id = await session.scalar(
+                select(DriverProfile.id)
+                .join(User)
+                .where(User.email == "driver@demo.mobility.local")
+            )
             trip_result = await session.execute(
-                select(TripSession).where(TripSession.campaign_id == campaign.id)
+                select(TripSession).where(
+                    TripSession.campaign_id == campaign.id,
+                    TripSession.driver_profile_id == profile_id,
+                )
             )
             demo_trips = [
                 trip
@@ -517,7 +570,7 @@ def fetch_seed_counts(sessionmaker: async_sessionmaker[AsyncSession]) -> dict[st
                 "organizations": int(
                     await session.scalar(
                         select(func.count(AdvertiserOrganization.id)).where(
-                            AdvertiserOrganization.name == "Demo Advertiser"
+                            AdvertiserOrganization.name == "Marula Kitchens"
                         )
                     )
                     or 0
@@ -530,14 +583,14 @@ def fetch_seed_counts(sessionmaker: async_sessionmaker[AsyncSession]) -> dict[st
                 ),
                 "vehicles": int(
                     await session.scalar(
-                        select(func.count(Vehicle.id)).where(Vehicle.plate_number == "DEMO-001")
+                        select(func.count(Vehicle.id)).where(Vehicle.plate_number == "ABJ-482-KD")
                     )
                     or 0
                 ),
                 "campaigns": int(
                     await session.scalar(
                         select(func.count(Campaign.id)).where(
-                            Campaign.name == "Demo Lagos Mobility Campaign"
+                            Campaign.name == "Marula Kitchens — Lagos Lunch Routes"
                         )
                     )
                     or 0
@@ -717,7 +770,8 @@ def fetch_rich_snapshot(sessionmaker: async_sessionmaker[AsyncSession]) -> dict:
                     (
                         await session.execute(
                             select(FraudFlag.evidence).where(
-                                FraudFlag.trip_session_id.in_(trip_ids)
+                                FraudFlag.trip_session_id.in_(trip_ids),
+                                FraudFlag.flag_type != "physical_spot_check_failed",
                             )
                         )
                     ).scalars()
@@ -761,7 +815,19 @@ def fetch_rich_snapshot(sessionmaker: async_sessionmaker[AsyncSession]) -> dict:
                 "vehicles": int(
                     await session.scalar(
                         select(func.count(Vehicle.id)).where(
-                            Vehicle.plate_number.in_([f"DEMO-{index}" for index in range(101, 110)])
+                            Vehicle.plate_number.in_(
+                                [
+                                    "LSR-219-XY",
+                                    "KJA-637-BD",
+                                    "FKJ-824-CN",
+                                    "LND-315-HG",
+                                    "EPE-926-KL",
+                                    "AKD-458-PQ",
+                                    "MUS-763-RS",
+                                    "SMK-592-TV",
+                                    "AAA-681-WZ",
+                                ]
+                            )
                         )
                     )
                     or 0
@@ -959,7 +1025,7 @@ def fetch_palmpay_market_snapshot(
     async def fetch() -> dict[str, object]:
         async with sessionmaker() as session:
             campaign = await session.scalar(
-                select(Campaign).where(Campaign.name == "PalmPay Market Routes")
+                select(Campaign).where(Campaign.name == "Beryl Lane Grocers — Market Routes")
             )
             assert campaign is not None
             assignment = await session.scalar(
@@ -1130,7 +1196,11 @@ def fetch_seed_evidence_snapshot(
                     )
                 ).all()
             )
-            batches_by_trip = {batch.trip_session_id: batch for batch in batches}
+            batches_by_trip = {
+                batch.trip_session_id: batch
+                for batch in batches
+                if batch.evidence_scope == "manifest"
+            }
             entries_by_trip = {entry.trip_session_id: entry for entry in entries}
             pings_by_batch: dict[object, list[LocationPing]] = {}
             for ping in pings:
@@ -1261,7 +1331,7 @@ def test_demo_seed_reuses_legacy_organization_billing_identity(
     async def scenario() -> None:
         async with postgis_db_sessionmaker() as session:
             legacy = AdvertiserOrganization(
-                name="Demo Advertiser",
+                name="Marula Kitchens",
                 billing_email="billing@demo.mobility.local",
                 country_code="NG",
                 currency="NGN",
@@ -1275,17 +1345,350 @@ def test_demo_seed_reuses_legacy_organization_billing_identity(
             current = await demo.upsert_organization(session)
             await session.commit()
             assert current.id == legacy_id
-            assert current.billing_email == "billing@example.com"
+            assert current.billing_email == "accounts@marulakitchens.ng"
             assert (
                 await session.scalar(
                     select(func.count(AdvertiserOrganization.id)).where(
-                        AdvertiserOrganization.name == "Demo Advertiser"
+                        AdvertiserOrganization.name == "Marula Kitchens"
                     )
                 )
                 == 1
             )
 
     asyncio.run(scenario())
+
+
+def test_seed_business_ownership_and_applicant_financial_separation(
+    postgis_db_sessionmaker,
+    postgis_db_client,
+    settings,
+    monkeypatch,
+):
+    import json
+
+    from conftest import auth_headers
+
+    from app.adapters.crypto.envelope import (
+        AssociatedData,
+        CiphertextEnvelope,
+        EnvelopeCryptoProvider,
+    )
+    from app.models.billing import (
+        CommercialQuotationRevision,
+        CommercialTerms,
+        Invoice,
+        PaymentReceipt,
+    )
+    from app.models.disbursement import PayoutAutomaticAlert, PayoutBatch, PayoutBatchLine
+    from app.models.driver_application import DriverApplication, DriverApplicationAccessToken
+    from app.models.exposure_segment import ExposureSegment
+    from app.models.installation_evidence import (
+        InstallationEvidencePhoto,
+        InstallationEvidenceSubmission,
+    )
+    from app.models.kyc import DriverKycDocument, DriverKycReviewDecision, DriverKycSubmission
+    from app.models.measurement import MeasurementRun
+    from app.models.notification import Notification
+    from app.models.payee import (
+        Payee,
+        PayeeBankAccount,
+        PayeeBankAccountPayoutVerification,
+        PayeeBankAccountVersion,
+    )
+    from app.models.report_issuance import ReportIssuance
+    from app.models.retargeting_source import RetargetingSource
+    from app.models.retargeting_source_link import RetargetingSourceLink
+    from app.models.stored_file import StoredFile
+
+    monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
+    graph = seed_demo_graph(postgis_db_sessionmaker, settings)
+
+    async def check():
+        async with postgis_db_sessionmaker() as session:
+            companies = {
+                row.id: row for row in await session.scalars(select(AdvertiserOrganization))
+            }
+            campaigns = list(await session.scalars(select(Campaign)))
+            memberships = list(await session.scalars(select(OrganizationMembership)))
+            owners = {
+                (row.organization_id, row.user_id) for row in memberships if row.role == "owner"
+            }
+            for campaign in campaigns:
+                assert campaign.name.split(" — ")[0] == companies[campaign.organization_id].name
+                assert (campaign.organization_id, campaign.created_by_user_id) in owners
+                assert campaign.created_at <= campaign.updated_at <= datetime.now(UTC)
+            assert (
+                sum(row.updated_at < datetime.now(UTC) - timedelta(hours=1) for row in campaigns)
+                >= len(campaigns) * 0.7
+            )
+            marula = [row for row in campaigns if row.organization_id == graph.organization.id]
+            assert {
+                "draft",
+                "pending_review",
+                "scheduled",
+                "active",
+                "paused",
+                "completed",
+                "cancelled",
+            } <= {row.status for row in marula}
+            assert max(row.created_at for row in campaigns) - min(
+                row.created_at for row in campaigns
+            ) > timedelta(weeks=4)
+            for invoice in await session.scalars(select(Invoice)):
+                campaign = await session.get(Campaign, invoice.campaign_id)
+                assert invoice.organization_id == campaign.organization_id
+                assert invoice.customer_snapshot["name"] == companies[campaign.organization_id].name
+                if invoice.issuer_snapshot:
+                    assert invoice.issuer_snapshot["bank_account_number"] == "0000000000"
+            for terms in await session.scalars(select(CommercialTerms)):
+                campaign = await session.get(Campaign, terms.campaign_id)
+                assert terms.organization_id == campaign.organization_id
+                assert terms.accepted_by_user_id == campaign.created_by_user_id
+                assert campaign.created_at <= terms.accepted_at
+            for model in (CommercialQuotationRevision, MeasurementRun, ReportIssuance):
+                for row in await session.scalars(select(model)):
+                    campaign = await session.get(Campaign, row.campaign_id)
+                    assert row.organization_id == campaign.organization_id
+            for receipt in await session.scalars(select(PaymentReceipt)):
+                assert receipt.payer_name == companies[receipt.organization_id].name
+            for creative in await session.scalars(select(CampaignCreative)):
+                campaign = await session.get(Campaign, creative.campaign_id)
+                stored = await session.get(StoredFile, creative.stored_file_id)
+                assert stored.organization_id == campaign.organization_id
+                assert stored.uploader_user_id == campaign.created_by_user_id
+            for link in await session.scalars(select(RetargetingSourceLink)):
+                campaign = await session.get(Campaign, link.campaign_id)
+                source = await session.get(RetargetingSource, link.source_id)
+                assert source.organization_id == link.organization_id == campaign.organization_id
+            for segment in await session.scalars(select(ExposureSegment)):
+                campaign = await session.get(Campaign, segment.campaign_id)
+                assert segment.organization_id == campaign.organization_id
+            applicant_ids = list(await session.scalars(select(DriverApplication.driver_profile_id)))
+            for model in (
+                EarningsLedgerEntry,
+                PayoutCalculation,
+                PayoutAutomaticAlert,
+            ):
+                assert (
+                    await session.scalar(
+                        select(func.count())
+                        .select_from(model)
+                        .where(model.driver_profile_id.in_(applicant_ids))
+                    )
+                    == 0
+                )
+            assert (
+                await session.scalar(
+                    select(func.count(PayoutBatchLine.id))
+                    .join(
+                        EarningsLedgerEntry,
+                        EarningsLedgerEntry.id == PayoutBatchLine.ledger_entry_id,
+                    )
+                    .where(EarningsLedgerEntry.driver_profile_id.in_(applicant_ids))
+                )
+                == 0
+            )
+            for alert in await session.scalars(select(PayoutAutomaticAlert)):
+                if alert.driver_profile_id:
+                    profile = await session.get(DriverProfile, alert.driver_profile_id)
+                    person = await session.get(User, profile.user_id)
+                    assert profile.onboarding_status == person.status == "active"
+            for profile_id in await session.scalars(
+                select(EarningsLedgerEntry.driver_profile_id).distinct()
+            ):
+                profile = await session.get(DriverProfile, profile_id)
+                person = await session.get(User, profile.user_id)
+                assert profile.onboarding_status == person.status == "active"
+            catering = next(
+                row for row in campaigns if row.name == "Marula Kitchens — Wuse Weekend Catering"
+            )
+            offers = list(
+                await session.scalars(
+                    select(CampaignAssignment).where(CampaignAssignment.campaign_id == catering.id)
+                )
+            )
+            assert len(offers) == 5
+            assert sum(row.status == "offered" for row in offers) == 3
+            assert sum(row.status == "accepted" for row in offers) == 2
+            for submission in await session.scalars(select(InstallationEvidenceSubmission)):
+                offer = await session.get(CampaignAssignment, submission.assignment_id)
+                assert offer.offered_at <= offer.accepted_at <= submission.captured_at
+                assert submission.captured_at <= submission.submitted_at
+                if submission.reviewed_at is not None:
+                    assert submission.submitted_at <= submission.reviewed_at
+                    if offer.activated_at is not None:
+                        assert submission.reviewed_at <= offer.activated_at
+                for photo in await session.scalars(
+                    select(InstallationEvidencePhoto).where(
+                        InstallationEvidencePhoto.submission_id == submission.id
+                    )
+                ):
+                    stored = await session.get(StoredFile, photo.stored_file_id)
+                    assert submission.captured_at <= stored.created_at <= submission.submitted_at
+                    assert stored.scanned_at <= submission.submitted_at
+            for line in await session.scalars(select(PayoutBatchLine)):
+                batch = await session.get(PayoutBatch, line.batch_id)
+                if batch.approval_mode != "maker_checker":
+                    continue
+                entry = await session.get(EarningsLedgerEntry, line.ledger_entry_id)
+                trip = await session.get(TripSession, entry.trip_session_id)
+                assert trip.ended_at <= entry.created_at <= batch.created_at <= line.created_at
+                for calculation in await session.scalars(
+                    select(PayoutCalculation).where(
+                        PayoutCalculation.trip_session_id == entry.trip_session_id
+                    )
+                ):
+                    assert calculation.created_at <= batch.created_at
+                if batch.approved_at:
+                    assert batch.created_at <= batch.approved_at <= batch.submitted_at
+                    assert line.created_at <= line.reconciled_at
+            crypto = EnvelopeCryptoProvider(
+                keys=settings.payout_crypto_keys,
+                active_key_version=settings.payout_crypto_key_version,
+            )
+            for version in await session.scalars(select(PayeeBankAccountVersion)):
+                account = await session.get(PayeeBankAccount, version.bank_account_id)
+                payee = await session.get(Payee, account.payee_id)
+                details = json.loads(
+                    crypto.decrypt(
+                        CiphertextEnvelope.from_mapping(version.encrypted_details),
+                        AssociatedData(
+                            tenant_id=payee.tenant_id,
+                            record_id=account.id,
+                            field_name="bank_account.details",
+                        ),
+                    )
+                )
+                assert details["account_number"] == "0000000000"
+                assert details["bank_code"] == "999"
+            assert all(row.phone is None for row in await session.scalars(select(User)))
+            submissions = list(
+                await session.scalars(
+                    select(DriverKycSubmission).where(
+                        DriverKycSubmission.driver_profile_id.in_(applicant_ids)
+                    )
+                )
+            )
+            assert len({row.created_at for row in submissions}) == 3
+            assert max(row.created_at for row in submissions) - min(
+                row.created_at for row in submissions
+            ) > timedelta(days=7)
+            for submission in submissions:
+                application = await session.scalar(
+                    select(DriverApplication).where(
+                        DriverApplication.driver_profile_id == submission.driver_profile_id
+                    )
+                )
+                access = await session.scalar(
+                    select(DriverApplicationAccessToken).where(
+                        DriverApplicationAccessToken.application_id == application.id
+                    )
+                )
+                bank = await session.get(
+                    PayeeBankAccountVersion, submission.bank_account_version_id
+                )
+                assert (
+                    application.created_at
+                    < access.created_at
+                    < bank.created_at
+                    <= submission.created_at
+                )
+                assert bank.verified_at <= submission.created_at
+                for document in await session.scalars(
+                    select(DriverKycDocument).where(
+                        DriverKycDocument.submission_id == submission.id
+                    )
+                ):
+                    stored = await session.get(StoredFile, document.stored_file_id)
+                    assert (
+                        access.created_at
+                        < stored.created_at
+                        <= stored.scanned_at
+                        <= submission.created_at
+                    )
+                decision = await session.scalar(
+                    select(DriverKycReviewDecision).where(
+                        DriverKycReviewDecision.submission_id == submission.id
+                    )
+                )
+                if decision:
+                    assert submission.created_at < decision.created_at
+                    if decision.decision == "approved":
+                        verification = await session.scalar(
+                            select(PayeeBankAccountPayoutVerification).where(
+                                PayeeBankAccountPayoutVerification.bank_account_version_id
+                                == bank.id
+                            )
+                        )
+                        assert (
+                            submission.created_at <= verification.created_at <= decision.created_at
+                        )
+            reports = list(await session.scalars(select(ReportIssuance)))
+            ready_campaigns = {row.campaign_id for row in reports if row.status == "ready"}
+            assert {row.id for row in campaigns if row.status == "completed"} <= ready_campaigns
+            in_progress = [
+                row for row in campaigns if row.status == "active" and row.id not in ready_campaigns
+            ]
+            assert [row.name for row in in_progress] == ["Marula Kitchens — Wuse Lunch Rush"]
+            notifications = list(await session.scalars(select(Notification)))
+            assert max(row.created_at for row in notifications) - min(
+                row.created_at for row in notifications
+            ) > timedelta(days=1)
+            for zone in await session.scalars(select(CampaignZone)):
+                assert "bonus" not in zone.name.lower()
+                assert zone.description != f"Visibility around {zone.name}."
+                if zone.zone_type == "exclusion":
+                    assert "avoid" in zone.description.lower()
+            return campaigns
+
+    campaigns = asyncio.run(check())
+    headers = auth_headers(
+        postgis_db_client, graph.advertiser.email, DEMO_PASSWORDS[graph.advertiser.email]
+    )
+    response = postgis_db_client.get("/api/v1/advertiser/campaigns?limit=100", headers=headers)
+    assert response.status_code == 200
+    assert all(item["name"].startswith("Marula Kitchens — ") for item in response.json()["items"])
+    overview = postgis_db_client.get("/api/v1/advertiser/dashboard/summary", headers=headers)
+    assert overview.status_code == 200
+    for company, _name, email in rich.BUSINESS_CONTACTS:
+        own_headers = auth_headers(postgis_db_client, email, "AbujaBusiness2026!")
+        own_list = postgis_db_client.get(
+            "/api/v1/advertiser/campaigns?limit=100", headers=own_headers
+        )
+        assert own_list.status_code == 200
+        assert own_list.json()["items"]
+        assert all(item["name"].startswith(company + " — ") for item in own_list.json()["items"])
+        for item in own_list.json()["items"]:
+            if item["status"] == "completed":
+                report = postgis_db_client.get(
+                    f"/api/v1/advertiser/campaigns/{item['id']}/report", headers=own_headers
+                )
+                assert report.status_code == 200
+                assert report.json()["daily_metrics"]
+                assert all(row["trip_count"] >= 5 for row in report.json()["daily_metrics"])
+                assert Decimal(report.json()["impression_summary"]["estimated_impressions"]) > 0
+        assert (
+            postgis_db_client.get(
+                f"/api/v1/advertiser/campaigns/{graph.campaign.id}", headers=own_headers
+            ).status_code
+            == 404
+        )
+    for campaign in campaigns:
+        if campaign.organization_id == graph.organization.id and campaign.status == "completed":
+            report = postgis_db_client.get(
+                f"/api/v1/advertiser/campaigns/{campaign.id}/report", headers=headers
+            )
+            assert report.status_code == 200
+            assert report.json()["daily_metrics"]
+            assert all(row["trip_count"] >= 5 for row in report.json()["daily_metrics"])
+            assert Decimal(report.json()["impression_summary"]["estimated_impressions"]) > 0
+        if campaign.organization_id != graph.organization.id:
+            assert (
+                postgis_db_client.get(
+                    f"/api/v1/advertiser/campaigns/{campaign.id}", headers=headers
+                ).status_code
+                == 404
+            )
 
 
 def test_demo_seed_is_idempotent_with_postgis(
@@ -1311,17 +1714,17 @@ def test_demo_seed_is_idempotent_with_postgis(
     assert second_counts == {
         "users": 4,
         "organizations": 1,
-        "memberships": 2,
-        "driver_profiles": 11,
+        "memberships": 12,
+        "driver_profiles": 19,
         "vehicles": 1,
         "campaigns": 1,
         "creatives": 1,
         "zones": 3,
-        "assignments": 1,
+        "assignments": 5,
         "legacy_driver_f7_assignments": 0,
         "trips": 4,
         "batches": 4,
-        "pings": 24,
+        "pings": 144,
         "analytics": 4,
         "estimates": 4,
         "payouts": 4,
@@ -1334,18 +1737,18 @@ def test_demo_seed_is_idempotent_with_postgis(
     assert second_palmpay_market["assignment_status"] == "completed"
     assert second_palmpay_market["creatives"] == 1
     assert second_palmpay_market["zones"] == 2
-    assert second_palmpay_market["trips"] == 3
+    assert second_palmpay_market["trips"] == 15
     assert len(second_palmpay_market["trip_keys"]) == len(set(second_palmpay_market["trip_keys"]))
-    assert second_palmpay_market["batches"] == 3
-    assert second_palmpay_market["pings"] == 18
-    assert second_palmpay_market["analytics"] == 3
+    assert second_palmpay_market["batches"] == 15
+    assert second_palmpay_market["pings"] == 540
+    assert second_palmpay_market["analytics"] == 15
     assert second_palmpay_market["distance_m"] > 0
     assert second_palmpay_market["target_zone_distance_m"] > 0
-    assert second_palmpay_market["estimates"] == 3
+    assert second_palmpay_market["estimates"] == 15
     assert second_palmpay_market["impressions"] > 0
-    assert second_palmpay_market["payouts"] == 3
+    assert second_palmpay_market["payouts"] == 15
     assert second_palmpay_market["spend"] > 0
-    assert second_palmpay_market["ledger"] == 3
+    assert second_palmpay_market["ledger"] == 15
     assert second_palmpay_market["inside_campaign_window"] is True
     assert all(key.startswith(f"{SEED_VERSION}:") for key in second_legacy["batch_keys"])
     assert second_rich["users"] == 9
@@ -1353,17 +1756,17 @@ def test_demo_seed_is_idempotent_with_postgis(
     assert second_rich["profiles"] == 9
     assert second_rich["vehicles"] == 9
     assert second_rich["campaigns"] == 4
-    assert second_rich["assignments"] == 11
+    assert second_rich["assignments"] == 19
     assert second_rich["campaign_statuses"] == {"active", "paused", "completed", "draft"}
     assert len(second_rich["trip_days"]) >= 25
-    assert second_rich["trips"] == 318
+    assert second_rich["trips"] == 379
     assert all(key.startswith(f"{F7_SEED_VERSION}:f7:") for key in second_rich["batch_keys"])
     assert second_rich["metadata_namespaced"] is True
     assert second_rich["analytics"] == second_rich["trips"]
     assert second_rich["estimates"] == second_rich["trips"]
     assert second_rich["payouts"] == second_rich["trips"]
-    assert second_rich["ledger"] == second_rich["trips"]
-    assert second_rich["audit_events"] == 30
+    assert 0 < second_rich["ledger"] <= second_rich["trips"]
+    assert second_rich["audit_events"] == 21
     assert len(second_rich["flag_types"]) >= 5
     assert second_rich["severities"] == {"low", "medium", "high"}
     assert 10 <= second_rich["fraud_flags"] <= 15
@@ -1385,10 +1788,15 @@ def test_demo_seed_preserves_existing_payout_metadata(
                     await session.scalars(
                         select(PayoutCalculation)
                         .join(TripSession, TripSession.id == PayoutCalculation.trip_session_id)
+                        .join(DriverProfile, DriverProfile.id == TripSession.driver_profile_id)
+                        .join(User, User.id == DriverProfile.user_id)
                         .where(
+                            User.email.in_(
+                                ["driver@demo.mobility.local", "driver.wuse@demo.mobility.local"]
+                            ),
                             TripSession.trip_metadata["seed_trip_key"]
                             .as_string()
-                            .in_(["demo-trip-1", "palmpay-wuse-trip-1"])
+                            .in_(["demo-trip-1", "palmpay-wuse-trip-1"]),
                         )
                     )
                 ).all()
@@ -1436,6 +1844,7 @@ def test_demo_seed_preserves_legacy_v1_evidence_and_money_fence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "0")
+    seed_demo_graph(postgis_db_sessionmaker, settings)
 
     async def exercise() -> None:
         async with postgis_db_sessionmaker() as session:
@@ -1542,7 +1951,7 @@ def test_rich_seed_later_rerun_only_appends_valid_rolling_trips(
     from app.seeds import rich
 
     monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
-    first_now = datetime(2026, 7, 12, 12, tzinfo=UTC)
+    first_now = datetime.now(UTC).replace(hour=12, minute=0, second=0, microsecond=0)
     monkeypatch.setattr(rich, "utc_now", lambda: first_now)
     seed_demo_graph(postgis_db_sessionmaker, settings)
     first = fetch_rich_snapshot(postgis_db_sessionmaker)
@@ -1553,13 +1962,13 @@ def test_rich_seed_later_rerun_only_appends_valid_rolling_trips(
                 await session.scalar(
                     select(func.count(TripSession.id))
                     .join(Campaign, Campaign.id == TripSession.campaign_id)
-                    .where(Campaign.name == "F7 Festive Island Wrap")
+                    .where(Campaign.name == "Oriole Books — Island Reading Week")
                 )
                 or 0
             )
 
     completed_before = asyncio.run(completed_trip_count())
-    monkeypatch.setattr(rich, "utc_now", lambda: first_now + timedelta(days=40))
+    monkeypatch.setattr(rich, "utc_now", lambda: first_now + timedelta(days=7))
     seed_demo_graph(postgis_db_sessionmaker, settings)
     second = fetch_rich_snapshot(postgis_db_sessionmaker)
 

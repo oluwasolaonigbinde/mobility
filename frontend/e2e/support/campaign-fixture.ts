@@ -35,7 +35,7 @@ SELECT
   description, 'active', start_at, end_at, budget_amount, daily_budget_amount,
   currency, jsonb_build_object('synthetic_e2e_fixture', true)
 FROM campaigns
-WHERE name = 'Demo Lagos Mobility Campaign';
+WHERE name = 'Marula Kitchens — Lagos Lunch Routes';
 
 SELECT 1 / CASE WHEN count(*) = 1 THEN 1 ELSE 0 END
 FROM campaigns WHERE id = :'campaign_id'::uuid;

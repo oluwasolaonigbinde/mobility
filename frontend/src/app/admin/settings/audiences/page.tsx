@@ -263,11 +263,6 @@ export default async function AdminPlanningSourcesPage() {
           </div>
         </section>
       ) : null}
-      <p className="micro text-faint mt-5">
-        These views use saved campaign results and recorded audience sources. Live use requires
-        privacy and reporting approval. Sending audiences to an advertising platform remains
-        unavailable until an approved platform is connected.
-      </p>
     </div>
   );
 }

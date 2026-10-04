@@ -12,30 +12,42 @@ async function loginAsAdvertiser(page: Page) {
 
 async function openSeededCampaign(page: Page) {
   await page.goto("/advertiser/campaigns");
-  await page.getByRole("link", { name: "Demo Lagos Mobility Campaign" }).click();
+  await page.getByRole("link", { name: "Marula Kitchens — Lagos Lunch Routes" }).click();
   await page.waitForURL(/\/advertiser\/campaigns\/[0-9a-f-]{36}$/);
 }
 
-test("report says no analysis exists yet when the seeded campaign has no frozen run", async ({
-  page,
-}) => {
+test("report shows issued daily figures for the golden campaign", async ({ page }) => {
   await loginAsAdvertiser(page);
   await openSeededCampaign(page);
   await page.getByRole("link", { name: /Campaign Performance Analysis/ }).click();
   await page.waitForURL(/\/report$/);
 
-  await expect(page.getByRole("heading", { name: "No report is available yet" })).toBeVisible();
+  await expect(page.getByText("Verified report", { exact: true })).toBeVisible();
   await expect(page.getByText(/integrity check/i)).not.toBeVisible();
-  await expect(page.getByText("Daily breakdown")).not.toBeVisible();
+  await expect(page.getByText("Daily breakdown")).toBeVisible();
+  await expect(page.getByRole("row")).toHaveCount(5);
 });
 
-test("coverage map says no analysis exists yet without a frozen run", async ({ page }) => {
+test("coverage map ranks the golden campaign's populated target zone", async ({ page }) => {
   await loginAsAdvertiser(page);
   await openSeededCampaign(page);
   await page.getByRole("link", { name: /Coverage map/ }).click();
   await page.waitForURL(/\/map$/);
 
-  await expect(page.getByRole("heading", { name: "No report is available yet" })).toBeVisible();
+  await expect(page.getByText("#1 Lagos Mainland", { exact: true })).toBeVisible();
   await expect(page.getByText(/integrity check/i)).not.toBeVisible();
-  await expect(page.getByTestId("heatmap-map")).not.toBeVisible();
+  await expect(
+    page.getByText("No zone ranking is available for this report yet."),
+  ).not.toBeVisible();
+});
+
+test("another campaign shows its report being prepared", async ({ page }) => {
+  await loginAsAdvertiser(page);
+  await page.goto("/advertiser/campaigns");
+  await page.getByRole("link", { name: "Marula Kitchens — Wuse Lunch Rush" }).click();
+  await page.waitForURL(/\/advertiser\/campaigns\/[0-9a-f-]{36}$/);
+  await page.goto(`${page.url()}/report`);
+  await expect(
+    page.getByRole("heading", { name: "Your campaign report is being prepared" }),
+  ).toBeVisible();
 });

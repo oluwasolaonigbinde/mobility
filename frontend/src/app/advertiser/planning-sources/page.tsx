@@ -46,8 +46,7 @@ export default async function PlanningSourcesPage() {
         <ol className="text-muted grid gap-3 text-sm sm:grid-cols-3">
           <li>
             <span className="text-ink font-medium">1. Describe an audience you already have.</span>{" "}
-            For example, your website visitors. You pick categories only — nothing is uploaded, and
-            Cardvert does not connect to your website, ad accounts or customer lists.
+            Choose what they have in common, such as visiting your website.
           </li>
           <li>
             <span className="text-ink font-medium">2. Connect it to a campaign area.</span> Choose
@@ -55,8 +54,7 @@ export default async function PlanningSourcesPage() {
           </li>
           <li>
             <span className="text-ink font-medium">3. Get area-and-time suggestions.</span> Once the
-            campaign has run there, Cardvert suggests where and when to run your online follow-up
-            ads. Suggestions never identify individual people.
+            campaign has run there, explore places and times for your online follow-up ads.
           </li>
         </ol>
       </Panel>
@@ -71,7 +69,7 @@ export default async function PlanningSourcesPage() {
       <div className="animate-rise mx-auto max-w-6xl min-w-0">
         {header}
         <DataUnavailable
-          title="Retargeting isn't available yet"
+          title="Couldn't load your audiences — try again"
           reason={unavailable.reason}
           retryHref={RETRY_HREF}
         />
@@ -255,11 +253,11 @@ export default async function PlanningSourcesPage() {
                               </p>
                             ))
                           : null}
-                        {ready && recommendation.uncertainty ? (
-                          <p className="micro text-faint mt-3">{recommendation.uncertainty}</p>
-                        ) : null}
-                        {recommendation?.disclaimer ? (
-                          <p className="micro text-faint mt-1">{recommendation.disclaimer}</p>
+                        {ready ? (
+                          <p className="micro text-faint mt-3">
+                            Estimates help compare areas. They aren&apos;t counts of people who saw
+                            your advert.
+                          </p>
                         ) : null}
                       </div>
                     </article>

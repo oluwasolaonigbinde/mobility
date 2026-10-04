@@ -88,7 +88,7 @@ describe("PlanningSourcesPage", () => {
     render(await PlanningSourcesPage());
 
     expect(
-      screen.getByRole("heading", { name: "Retargeting isn't available yet" }),
+      screen.getByRole("heading", { name: "Couldn't load your audiences — try again" }),
     ).toBeInTheDocument();
     expect(screen.getByText(/This couldn't be loaded right now./)).toBeInTheDocument();
     expect(screen.queryByTestId("planning-source-form")).not.toBeInTheDocument();

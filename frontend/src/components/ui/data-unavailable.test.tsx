@@ -22,6 +22,19 @@ describe("section unavailable presentation", () => {
       expect(retry).not.toHaveAttribute("data-nextjs-router");
     },
   );
+  it("presents sparse results as a normal waiting state without hiding other sections", () => {
+    render(
+      <DataUnavailable
+        title="Campaign results unavailable"
+        reason="insufficient"
+        retryHref="/advertiser/campaigns/one"
+      />,
+    );
+    expect(screen.getByRole("heading", { name: "Results" })).toBeInTheDocument();
+    expect(screen.getByText("Results appear after more trips are recorded.")).toBeInTheDocument();
+    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/privacy|floor|unavailable/i);
+  });
   it.each([
     ["forbidden", "Your account doesn't have access to this."],
     ["missing", "This information couldn't be found."],

@@ -253,6 +253,7 @@ checks on top (client answers item 4). Set in configuration
 **Still open:** [REQ-039](requests.md) — spot-check and display-proof values.
 
 **History:**
+- **2026-10-02** — Owner authorized temporary installation/proof values in development and preview configuration only (REQ-094); unanswered client values remain REQ-039, with the inventory in `demo-data.md`.
 - **2026-08-14** — Client confirmed approved installation evidence (Q17, D18).
 - **2026-09-24** — Client named the views, uploaders and weekly or twice-weekly renewal. The owner chose weekly and told the client it can change (2026-09-25). Built in `7a9ceb0` (REQ-001).
 

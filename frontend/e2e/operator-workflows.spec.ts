@@ -25,7 +25,10 @@ async function expectNoHorizontalOverflow(page: Page) {
 }
 
 async function search(page: Page, value: string) {
-  await page.getByLabel("Search this work list").fill(value);
+  await page
+    .locator("main")
+    .getByRole("textbox", { name: /Search/ })
+    .fill(value);
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await page.waitForURL(`**q=${encodeURIComponent(value)}*`);
 }
@@ -59,60 +62,62 @@ test("named search narrows driver, vehicle and assignment work lists", async ({ 
   await loginAsAdmin(page);
   const main = page.locator("#main");
 
-  await page.goto("/admin/drivers");
+  await page.goto("/admin/drivers?tab=active");
   await search(page, "Okafor");
   await expect(main.getByText("Chinedu Okafor")).toBeVisible();
   await expect(main.getByText("Ngozi Eze")).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
 
-  await page.goto("/admin/vehicles");
-  await search(page, "DEMO-001");
-  await expect(main.getByText("DEMO-001")).toBeVisible();
-  await expect(main.getByText("DEMO-108")).toHaveCount(0);
+  await page.goto("/admin/drivers?source=cars");
+  await search(page, "ABJ-482-KD");
+  await expect(main.getByText("ABJ-482-KD")).toBeVisible();
+  await expect(main.getByText("MUS-763-RS")).toHaveCount(0);
 
-  await page.goto("/admin/assignments");
+  await page.goto("/admin/drivers?tab=active");
   await search(page, "Tunde");
   await expect(main.getByText("Tunde Adebayo").first()).toBeVisible();
   await expect(main.getByText("Chinedu Okafor")).toHaveCount(0);
+  await main.getByRole("link", { name: /Tunde Adebayo/ }).click();
+  await expect(
+    main.locator("#jobs").getByRole("link", { name: "Aster Vale Foods — Mainland Deliveries" }),
+  ).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
 
 test("activation readiness never invites a second activation of active work", async ({ page }) => {
   await loginAsAdmin(page);
-  await page.goto("/admin/assignments?q=Tunde");
-  await page.getByRole("link", { name: "Readiness and details" }).first().click();
-  await expect(page.getByRole("heading", { name: "Activation readiness" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Already active" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /activate/i })).toHaveCount(0);
-  await expect(
-    page.getByText("This check does not confirm campaign closeout or cash settlement."),
-  ).toBeVisible();
+  await page.goto("/admin/drivers?tab=active&q=Tunde");
+  await page.getByRole("link", { name: /Tunde Adebayo/ }).click();
+  await page
+    .locator("#jobs")
+    .getByRole("link", { name: "Aster Vale Foods — Mainland Deliveries" })
+    .click();
+  const drawer = page.getByRole("dialog");
+  await expect(drawer.getByText(/already active/i)).toBeVisible();
+  await expect(drawer.getByRole("button", { name: /activate/i })).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
-
-  await page.goto("/admin/assignments?q=Airport");
-  await page.getByRole("link", { name: "Readiness and details" }).first().click();
-  await expect(page.getByRole("heading", { name: "Preparation required" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /activate/i })).toHaveCount(0);
+  await page.goto("/admin/campaigns?tab=getting-ready&q=Airport");
+  await page.getByRole("link", { name: "Sable Ridge Travel — Airport Arrivals" }).click();
+  await page
+    .locator("#drivers")
+    .getByRole("link", { name: "Installation photos and job details" })
+    .first()
+    .click();
+  await expect(page.getByRole("dialog").getByRole("button", { name: /activate/i })).toHaveCount(0);
 });
 
-test("evidence queues state empty results without implying completion", async ({ page }) => {
+test("evidence and contact queues show recorded work and useful empty searches", async ({
+  page,
+}) => {
   await loginAsAdmin(page);
-
-  await page.goto("/admin/driver-applications");
-  await expect(page.getByText(/pending applications/i)).toBeVisible();
-  await page.getByLabel("Include history").check();
-  await page.getByRole("button", { name: "Search", exact: true }).click();
-  await page.waitForURL("**history=true*");
-  await expect(page.getByText(/recorded applications/i)).toBeVisible();
-
-  await page.goto("/admin/late-data");
-  await expect(page.getByText(/never reprices earnings or edits an issued report/)).toBeVisible();
-
-  await page.goto("/admin/measurement");
-  await expect(page.getByText("Missing or gated data is not a zero result.")).toBeVisible();
-
-  await page.goto("/admin/contact");
-  await expect(page.getByText(/No automated message is sent here/)).toBeVisible();
+  await page.goto("/admin/drivers");
+  await expect(page.getByText("Nneka Umeh")).toBeVisible();
+  await page.goto("/admin/trip-checks?tab=late");
+  await expect(page.locator('main a[href*="late="]').first()).toBeVisible();
+  await page.goto("/admin/support?tab=contact");
+  await expect(page.locator('main a[href*="task="]').first()).toBeVisible();
+  await page.goto("/admin/drivers?tab=active&q=NoSuchPerson");
+  await expect(page.getByText("No matching drivers.")).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
 
@@ -122,7 +127,7 @@ test("approved driver account setup stays provider-neutral through its visible t
   const applicant = prepareApprovedApplicant();
   await loginAsAdmin(page);
 
-  await page.goto(`/admin/driver-applications/${applicant.applicationId}`);
+  await page.goto(`/admin/drivers/applicant/${applicant.applicationId}`);
   await expect(page.getByRole("heading", { name: applicant.applicantName })).toBeVisible();
   await page.getByRole("button", { name: "Start account setup" }).click();
 
@@ -139,9 +144,7 @@ test("approved driver account setup stays provider-neutral through its visible t
     }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Start account setup" })).toHaveCount(0);
-  await expect(page).toHaveURL(
-    new RegExp(`/admin/driver-applications/${applicant.applicationId}$`),
-  );
+  await expect(page).toHaveURL(new RegExp(`/admin/drivers/applicant/${applicant.applicationId}$`));
 });
 
 test("payout selection explains ineligible credits and closeout keeps paid facts separate", async ({
@@ -149,22 +152,20 @@ test("payout selection explains ineligible credits and closeout keeps paid facts
 }) => {
   await loginAsAdmin(page);
 
-  await page.goto("/admin/payouts/batches");
-  await expect(page.getByRole("heading", { name: "Payout batches" })).toBeVisible();
+  await page.goto("/admin/money");
+  await expect(page.getByRole("heading", { name: "Available earnings" })).toBeVisible();
   await expect(page.getByText("Current successful assessment required").first()).toBeVisible();
-  await expect(page.getByRole("checkbox", { name: /Select Demo Driver/ }).first()).toBeDisabled();
+  await expect(page.getByRole("checkbox", { name: /Select Emeka Nwankwo/ }).first()).toBeDisabled();
   await expectNoHorizontalOverflow(page);
-
-  await page.goto("/admin/billing");
-  await page.getByRole("link", { name: "Open billing" }).first().click();
+  await page.goto("/admin/campaigns?tab=live&q=Lunch");
+  await page.getByRole("link", { name: "Marula Kitchens — Lagos Lunch Routes" }).click();
   await page.getByRole("link", { name: "Review settlement and payout position" }).click();
-  await expect(page.getByRole("heading", { name: "Settlement and payout position" })).toBeVisible();
-  await expect(page.getByText(/Economic ledger totals count each credit once/)).toBeVisible();
-  await expect(page.getByText("No campaign earnings on this page.")).toBeVisible();
-  await expect(page.getByText("No settlement has been recorded on this page.")).toBeVisible();
+  const closeout = page.getByRole("dialog");
   await expect(
-    page.getByText("Live transfers require an approved disbursement provider"),
+    closeout.getByRole("heading", { name: "Settlement and payout position" }),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: /complete|close campaign/i })).toHaveCount(0);
+  await expect(closeout.getByText("Pay records marked paid: ₦761.53")).toBeVisible();
+  await expect(closeout.getByText("Confirmed provider transfers: ₦761.53")).toBeVisible();
+  await expect(closeout.getByRole("button", { name: /complete|close campaign/i })).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
 });
