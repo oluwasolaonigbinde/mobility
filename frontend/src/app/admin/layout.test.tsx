@@ -31,8 +31,17 @@ it("provides the eight approved menu items and only known waiting counts", async
     "Support",
     "Settings",
   ]);
-  expect(nav[1].count).toBe(0);
-  expect(nav[2].count).toBe(0);
+  // Waiting counts stream in as badges; only areas with work lists get one.
+  expect(nav.map((item: { badge?: unknown }) => item.badge !== undefined)).toEqual([
+    true,
+    true,
+    true,
+    false,
+    true,
+    true,
+    true,
+    false,
+  ]);
   expect(nav[7].href).toBe("/admin/settings/staff");
 });
 it("does not invent zero counts when the work lists are unavailable", async () => {

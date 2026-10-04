@@ -231,8 +231,8 @@ it("retains result reproducibility, replacement and report download state in the
     return original(path);
   });
   render(await page());
-  const result = screen.getByRole("link", { name: /Synthetic test/ });
-  expect(result).toHaveTextContent("Replaced results");
+  const result = screen.getByRole("link", { name: /Replaced results/ });
+  expect(result).not.toHaveTextContent("Synthetic test");
   expect(result).toHaveTextContent("cannot be reproduced — do not issue a report");
   expect(result).toHaveTextContent("Report: Published");
   expect(result).toHaveAttribute(

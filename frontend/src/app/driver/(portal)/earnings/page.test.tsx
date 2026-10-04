@@ -263,7 +263,7 @@ describe("DriverEarningsPage canonical settlement projection", () => {
     expect(screen.getByText("Under review").nextElementSibling).toHaveTextContent(
       "0 active trip holds",
     );
-    expect(screen.getByText(/Pending ledger total/)).toHaveTextContent("₦20.00");
+    expect(screen.getByText(/Pending earnings/)).toHaveTextContent("₦20.00");
     expect(screen.getByText("Paid", { exact: true }).nextElementSibling).toHaveTextContent(
       "₦40.00",
     );

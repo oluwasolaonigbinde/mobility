@@ -75,7 +75,7 @@ describe("measurement run detail", () => {
     expect(exposure).toHaveTextContent("8 of 8 trips covered");
 
     const hours = screen.getByRole("heading", { name: "Verified campaign hours" }).parentElement!;
-    expect(hours).toHaveTextContent("Recorded operational or financial facts");
+    expect(hours).toHaveTextContent("Recorded results");
     expect(hours).toHaveTextContent("this measure has no single total");
     expect(hours).toHaveTextContent("Records are incomplete");
     expect(hours).not.toHaveTextContent("Complete for this saved group");
@@ -99,7 +99,7 @@ describe("measurement run detail", () => {
     });
     render(await MeasurementDetail(props()));
     expect(screen.getByText(/The results could not be reproduced/)).toBeTruthy();
-    expect(screen.getByText(/Synthetic test evidence/)).toBeTruthy();
+    expect(screen.queryByText(/Synthetic test/)).toBeNull();
     expect(screen.queryByRole("heading", { level: 2 })).toBeNull();
     expect(mocks.reportForm).toHaveBeenCalledWith(expect.objectContaining({ canIssue: false }));
   });
