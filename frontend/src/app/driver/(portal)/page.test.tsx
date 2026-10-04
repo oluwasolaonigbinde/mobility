@@ -180,6 +180,9 @@ describe("DriverHomePage ledger statuses", () => {
     expect(screen.getByText("Trip in progress")).toBeInTheDocument();
     expect(screen.getAllByText(/₦90\.00/).length).toBeGreaterThan(0);
     expect(screen.getByText("Recent activity unavailable")).toBeInTheDocument();
+    expect(
+      screen.getByText("Your recent activity could not be loaded. Try again shortly."),
+    ).toBeInTheDocument();
     expect(screen.queryByText("private detail")).not.toBeInTheDocument();
   });
 

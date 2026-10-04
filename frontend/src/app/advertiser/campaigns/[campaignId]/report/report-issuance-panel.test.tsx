@@ -405,7 +405,7 @@ describe("ReportIssuancePanel", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/status code/i)).not.toBeInTheDocument();
-    expect(screen.getByText(/Get this report as a CSV spreadsheet and a PDF/)).toBeInTheDocument();
+    expect(screen.getByText(/Download a CSV spreadsheet or PDF/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create a new version" })).toBeInTheDocument();
   });
 });

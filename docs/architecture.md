@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.91 — 2026-09-14. Canonical source of truth: current state AND target state.**
+**Version 1.115 — 2026-10-04. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -2107,6 +2107,9 @@ are append-only. Deployment values for uploader roles, required views, evidence
 validity and challenge/proof validity remain empty under
 `EXT-EVIDENCE-POLICY`; local/synthetic tests inject explicit values.
 
+
+**[BUILT locally — D58 / REQ-105] Driver-application and vehicle staff review:** the person/bank and vehicle document rows use direct View submission as the acknowledgment. Every click uses the existing purpose-scoped, individually audited read: NIN/bank map to `person_payee_approval`; person files use `kyc_review` with `person_payee_approval:<submission_id>` reason; vehicle files use `kyc_review` with `vehicle_approval:<submission_id>` reason. The UI describes the respective purposes as Driver application review and Vehicle review. Keep Show NIN as its distinct reveal, at-most-60-second hiding, pagehide/hidden-visibility clearing and record-bound state resets. There is no separate need checkbox or purpose selection on these rows. Both consumers use the same direct-read lifecycle; the obsolete confirmation path is removed. Vehicle approval/expiry/rejection and eligibility rules are unchanged. No backend/API acknowledgment field or access rule is removed. Local focused verification is recorded in `issues/testing/client-polish-2026-10-04.md`; Person/bank and the owner-approved vehicle extension have passed focused verification, consolidated minimal-change review and the bounded implemented privacy/security review. Owner authorization covers the resulting local commit; it does not authorize merge or live use.
+
 ### 19.3 Consumers of the same pattern
 
 | File kind | Linked to | Reviewer |
@@ -3203,6 +3206,9 @@ ledger credits minus reversals, floored at zero; currencies cannot be combined.
 Multiple flags must not multiply one trip's held money. Review command DTOs and
 financial decision/release authority remain unchanged.
 
+
+**[BUILT locally — D58 / REQ-105] Driver-application and vehicle staff review:** the person/bank and vehicle document rows use direct View submission as the acknowledgment. Every click uses the existing purpose-scoped, individually audited read: NIN/bank map to `person_payee_approval`; person files use `kyc_review` with `person_payee_approval:<submission_id>` reason; vehicle files use `kyc_review` with `vehicle_approval:<submission_id>` reason. The UI describes the respective purposes as Driver application review and Vehicle review. Keep Show NIN as its distinct reveal, at-most-60-second hiding, pagehide/hidden-visibility clearing and record-bound state resets. There is no separate need checkbox or purpose selection on these rows. Both consumers use the same direct-read lifecycle; the obsolete confirmation path is removed. Vehicle approval/expiry/rejection and eligibility rules are unchanged. No backend/API acknowledgment field or access rule is removed. Local focused verification is recorded in `issues/testing/client-polish-2026-10-04.md`; Person/bank and the owner-approved vehicle extension have passed focused verification, consolidated minimal-change review and the bounded implemented privacy/security review. Owner authorization covers the resulting local commit; it does not authorize merge or live use.
+
 ## 28. Testing strategy — target
 
 Current gates (§11) stay. Additions, each landing **with** the feature that
@@ -3514,6 +3520,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.115 | 2026-10-04 | **Owner-approved direct document review (D58, REQ-105; renumbered at merge from v1.114/D57/REQ-091 in `6eb5ab9`).** §19 and §27.5 replace person/bank and vehicle need checkboxes with direct audited View; separate NIN, fixed application/vehicle purpose/reason mappings, timed/leave-page hiding and record isolation remain. Frontend-only local implementation verified by focused tests and browser evidence in `issues/testing/client-polish-2026-10-04.md`; Person/bank and vehicle extension consolidated minimal-change and implemented privacy/security reviews PASS. Owner approved the verified local commit; no API, backend, launch-gate or merge claim. |
 | v1.114 | 2026-10-02 | **Development installation configuration (D57, REQ-094).** Configure temporary preview trip limits, retaining unset code defaults and production/staging numeric templates and the unanswered REQ-039 client input. |
 | v1.113 | 2026-10-02 | **Development access (D56, REQ-072/089).** Remove legal display/collection/issuance switches and dynamic advertiser reports; retain immutable results, tenant/aggregation/export boundaries and query recording, and register real-user legal/privacy plus differencing restoration as an unresolved launch obligation. |
 | v1.112 | 2026-10-02 | **Admin follow-up locally verified (D55, REQ-077–086).** Bounded staff list options, streamed request-local badges, drawer-only trip context, truthful driver/pay status and guarded recorded operational-pause Resume. §27.5 records pause provenance and access boundaries; API baselines and denial coverage move together. Local evidence: issues/testing/l2-1-followup-2026-10-02.md; no launch or CI/D33 claim. |

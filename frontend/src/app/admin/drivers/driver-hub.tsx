@@ -226,19 +226,21 @@ export default async function DriverHub({
       {applicationAvailable && !application ? (
         <p className="text-muted mt-3 text-sm">Added by staff</p>
       ) : null}
-      {applicationAvailable && accounts.data ? (
+      {applicationAvailable ? (
         <p className="text-muted my-4 text-sm">
           {status === "suspended"
             ? "Next: review why this driver is suspended."
-            : account?.status === "invited"
-              ? "Next: complete sign-in setup."
-              : application && p?.status !== "approved"
-                ? "Next: review identity documents and bank details."
+            : application && p?.status !== "approved"
+              ? "Next: review identity documents."
+              : application && !p?.bank_account_verified
+                ? "Next: check bank details."
                 : application && v?.status !== "approved"
                   ? "Next: check the car and its documents."
-                  : status === "pending"
-                    ? "Next: review this driver's status."
-                    : null}
+                  : account?.status === "invited"
+                    ? "Next: complete sign-in setup."
+                    : status === "pending"
+                      ? "Next: review this driver's status."
+                      : null}
         </p>
       ) : null}
       {applicationAvailable ? (
@@ -333,10 +335,7 @@ export default async function DriverHub({
           )}
         </HubSection>
         <HubSection id="documents" title="Documents">
-          <p className="text-muted mb-4 text-sm">
-            Sensitive document access is logged and automatically hidden after one minute.
-          </p>
-          {p?.submission_id && p.bank_account_version_id ? (
+          {p ? (
             <PersonPayeeDecisionActions
               applicationId={application!.id}
               submissionId={p.submission_id}

@@ -98,16 +98,20 @@ export function VehicleDecisionActions({
   }
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <p className="micro text-muted">Review this car’s current documents (logged)</p>
+      <p className="text-muted mb-2 text-sm">
+        Each view is logged. Documents are hidden after one minute or when you leave this page.
+      </p>
       {Object.entries(documentFileIds).map(([name, fileId]) => (
-        <SensitiveReview key={fileId} purpose="Car approval">
-          <EvidenceRead
-            key={fileId}
-            fileId={fileId}
-            submissionId={submissionId}
-            label={`Review ${adminDocumentLabel(name)}`}
-          />
-        </SensitiveReview>
+        <section
+          key={`${name}:${vehicleId}:${submissionId}:${fileId}`}
+          aria-label={adminDocumentLabel(name)}
+          className="border-edge border-b py-3"
+        >
+          <h4 className="mb-2 font-medium">{adminDocumentLabel(name)}</h4>
+          <SensitiveReview purpose="Vehicle review">
+            <EvidenceRead fileId={fileId} submissionId={submissionId} label="View" />
+          </SensitiveReview>
+        </section>
       ))}
       <form action={action} className="flex flex-col gap-2">
         <input type="hidden" name="application_id" value={applicationId} />

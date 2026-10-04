@@ -22,7 +22,7 @@ test("report shows issued daily figures for the golden campaign", async ({ page 
   await page.getByRole("link", { name: /Campaign Performance Analysis/ }).click();
   await page.waitForURL(/\/report$/);
 
-  await expect(page.getByText("Verified report", { exact: true })).toBeVisible();
+  await expect(page.getByText(/^Based on all \d+ completed trips$/)).toBeVisible();
   await expect(page.getByText(/integrity check/i)).not.toBeVisible();
   await expect(page.getByText("Daily breakdown")).toBeVisible();
   await expect(page.getByRole("row")).toHaveCount(5);

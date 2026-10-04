@@ -28,7 +28,7 @@ const REJECTION_LABELS: Record<string, string> = {
   INVALID_SPEED: "GPS speed exceeded the limit",
   INVALID_ACCURACY: "GPS accuracy exceeded the limit",
   INVALID_RECORDED_AT: "GPS time was outside the permitted trip window",
-  INVALID_ASSIGNMENT_AUTHORITY: "Capture lacked active assignment authority",
+  INVALID_ASSIGNMENT_AUTHORITY: "The job was no longer active",
 };
 
 type GpsState = "idle" | "granted" | "denied" | "unavailable";
@@ -1096,7 +1096,7 @@ export function TripTracker({
       pendingEndCompleteRef.current = complete;
       setAuthorityUncertain(true);
       setServerTripVerified(false);
-      setError("Cardvert could not reconcile trip authority; the writer remains reserved.");
+      setError("Cardvert could not confirm your trip status. Keep this page open and try again.");
     },
     [beginWatch, finishEndedTrip, flush, patchRuntime, prepareCapture, releaseWake, stopWatch],
   );
@@ -1321,7 +1321,7 @@ export function TripTracker({
             <p className="micro text-muted">Ready to drive</p>
             <p className="mt-2 text-base font-medium">{assignment?.campaignName}</p>
             <p className="micro text-faint mt-1">
-              {assignment?.plateNumber} · earnings accrue from verified driving time
+              {assignment?.plateNumber} · You earn for verified campaign driving
             </p>
           </Panel>
           <Button
@@ -1341,8 +1341,7 @@ export function TripTracker({
                   : "▶ Start trip"}
           </Button>
           <p className="text-faint text-center text-xs">
-            Cardvert captures only while the installed app is visible and every live safety check
-            remains held.
+            Keep Cardvert open on your screen while tracking a trip.
           </p>
         </>
       )}

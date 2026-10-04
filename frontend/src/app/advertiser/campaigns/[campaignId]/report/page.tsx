@@ -5,17 +5,14 @@ import { notFound } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
-import { formatCount, formatDate, formatKm, formatMoney, formatScore } from "@/lib/format";
+import { formatCount, formatDate, formatKm, formatMoneyExact, formatScore } from "@/lib/format";
 import { statusLabel, statusTone } from "@/lib/campaigns/status";
 import { Panel } from "@/components/ui/panel";
-import { Stat } from "@/components/ui/stat";
 import { StatusChip } from "@/components/ui/status-chip";
 import { AreaTimeseries, BarTimeseries, type SeriesPoint } from "@/components/charts/timeseries";
-import { MeasurementHeadlineStats } from "./measurement-headline-stats";
 import { HighExposureZoneInsights } from "@/components/analytics/high-exposure-zone-insights";
 import {
   costMetric,
-  costMetricDisplay,
   GovernedAnalysisState,
   isUnissued,
   MeasurementAuthorityPanel,
@@ -118,59 +115,12 @@ export default async function CampaignReportPage({
         </span>
       </div>
 
-      <MeasurementAuthorityPanel authority={authority} />
+      <MeasurementAuthorityPanel
+        authority={authority}
+        activityScore={report.exposure_score?.result.score ?? null}
+      />
 
       <ReportIssuancePanel measurementRunId={authority.run.id} />
-
-      {/* Headline numbers */}
-      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-5">
-        <MeasurementHeadlineStats
-          exposureScore={
-            report.exposure_score
-              ? {
-                  formulaVersion: report.exposure_score.formula_version,
-                  formulaFingerprint: report.exposure_score.formula_fingerprint,
-                  inputFingerprint: report.exposure_score.input_fingerprint,
-                  status: report.exposure_score.result.status,
-                  score: report.exposure_score.result.score,
-                  routeCount: report.exposure_score.result.route_count,
-                  missingRouteCount: report.exposure_score.result.missing_route_count,
-                  uncertainty: report.exposure_score.result.uncertainty.statement,
-                }
-              : null
-          }
-          modelledPotentialContacts={contacts.value}
-          modelDiagnostic={report.impression_summary.average_confidence_score}
-          completeness={{
-            coveredTripCount: contacts.completeness.covered_trip_count,
-            denominatorTripCount: contacts.completeness.denominator_trip_count,
-            insufficientDataTripCount: contacts.completeness.insufficient_data_trip_count,
-            excludedTripCount: contacts.completeness.excluded_trip_count,
-            complete: contacts.completeness.complete,
-            suppressed: contacts.completeness.suppressed,
-          }}
-        />
-        <Stat
-          label="Trips analyzed"
-          value={formatCount(report.trip_summary.ended)}
-          tone="cyan"
-          hint={`${formatCount(report.trip_summary.total)} trips recorded · ${formatCount(report.assignment_summary.active)} vehicles active`}
-        />
-        <Stat
-          label="Driver campaign cost"
-          value={costMetricDisplay(frozenCost)}
-          tone="green"
-          hint={`${formatCount(frozenCost.completeness.covered_trip_count)} of ${formatCount(frozenCost.completeness.denominator_trip_count)} completed trips priced · driver pay, not your advertising spend${
-            frozenCost.completeness.complete ? "" : " · period incomplete"
-          }`}
-        />
-        <Stat
-          label="Open fraud flags"
-          value={formatCount(report.fraud_summary.open)}
-          tone={report.fraud_summary.open > 0 ? "coral" : "green"}
-          hint="Flagged delivery quality — billing is tracked separately"
-        />
-      </div>
 
       {report.high_exposure_zone_insights ? (
         <div className="mt-6">
@@ -182,7 +132,7 @@ export default async function CampaignReportPage({
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <FrozenDailyMetricChart
           title="Estimated ad exposure · daily"
-          description="Model estimate from verified vehicle movement · formula impressions_v1"
+          description="Estimated from campaign routes and traffic"
           suppressed={!contactsDailyPublishable}
         >
           <AreaTimeseries
@@ -193,7 +143,7 @@ export default async function CampaignReportPage({
         </FrozenDailyMetricChart>
         <FrozenDailyMetricChart
           title="Driver campaign cost · daily"
-          description="Driver pay for this campaign — not your advertising spend"
+          description="Driver pay for this campaign"
           suppressed={!costDailyPublishable}
         >
           <BarTimeseries
@@ -222,13 +172,12 @@ export default async function CampaignReportPage({
                   <th className="px-4 py-3 text-right font-normal">Estimate quality factor</th>
                   <th className="px-4 py-3 text-right font-normal">GPS evidence quality</th>
                   <th className="px-4 py-3 text-right font-normal">Driver cost</th>
-                  <th className="px-6 py-3 text-right font-normal">Flags</th>
                 </tr>
               </thead>
               <tbody>
                 {report.daily_metrics.length === 0 ? (
                   <tr>
-                    <td colSpan={8} className="text-muted px-6 py-10 text-center">
+                    <td colSpan={7} className="text-muted px-6 py-10 text-center">
                       No daily metrics yet — data appears once trips are analyzed.
                     </td>
                   </tr>
@@ -255,14 +204,7 @@ export default async function CampaignReportPage({
                       <td className="px-4 py-3 text-right">
                         {!costDailyPublishable || d.final_payout_total === null
                           ? OMITTED_TOTAL_LABEL
-                          : formatMoney(d.final_payout_total, costCurrency)}
-                      </td>
-                      <td className="px-6 py-3 text-right">
-                        {d.open_fraud_flag_count > 0 ? (
-                          <span className="text-coral">{d.open_fraud_flag_count}</span>
-                        ) : (
-                          "0"
-                        )}
+                          : formatMoneyExact(d.final_payout_total, costCurrency)}
                       </td>
                     </tr>
                   ))

@@ -125,7 +125,10 @@ export function SourceForm() {
         <span className="text-muted">Stop using this description on</span>
         <input name="expires_at" type="datetime-local" required className={selectClass} />
       </label>
-      <p className="micro text-faint">Choose the categories that describe your audience.</p>
+      <p className="micro text-faint">
+        Choose categories only. Names, emails, phone numbers, links, notes and files are not
+        accepted.
+      </p>
       {state.error ? (
         <p className="text-coral text-sm" role="alert">
           {state.error}

@@ -423,11 +423,13 @@ key-management service (D44).
 
 ### Legal, privacy and retention
 
-**Current rule:** Built GPS, ID collection, results and reports are accessible during development without legal approval switches; tenant isolation, aggregation limits and query recording remain, and legal/privacy plus overlap/differencing protections must be restored before real users (D56, REQ-072/089).
+**Current rule:** Built GPS, ID collection, results and reports are accessible during development without legal approval switches; tenant isolation, aggregation limits and query recording remain, and legal/privacy plus overlap/differencing protections must be restored before real users (D56, REQ-072/089). For driver-application and vehicle-document review, the View click is the staff acknowledgment; each read keeps its application or vehicle purpose-scoped audit and one-minute/leave-page hiding, and NIN has its separate reveal (D58, REQ-105).
 
 **Still open:** [REQ-031](requests.md) lawyer's name, [REQ-032](requests.md) legal pack.
 
 **History:**
+- **2026-10-04 (vehicle extension)** — Owner extended D58/REQ-105 to driver-page vehicle documents. The earlier separate vehicle purpose/need confirmation ended; each View keeps the existing vehicle-review purpose/reason and individual audit, minute/leave hiding and record isolation. Commit is approved after verification and review.
+- **2026-10-04** — Owner made each driver-application View click the review acknowledgment instead of a separate need checkbox (D58, REQ-105), preserving individual audit and hiding. The prior checkbox control ended for this staff surface; other privacy and launch controls remain.
 - **2026-10-02** — Owner replaced the prior rule gating GPS, documents, reports and retargeting until legal approval with D56 development access and seed-only client-input substitutes; actual legal/retention answers remain open.
 - **2026-08-14** — Client confirmed the approval owner (Q31, D18).
 - **2026-09-24** — Legal pack in progress; 6-month file retention requested (client answers items 11, 17).
@@ -483,9 +485,7 @@ remove obsolete admin routes and redirects, and update current callers to the
 canonical hubs/work lists (D51, REQ-067). Settings staff logins list Terrax
 staff only and hide the automatic-payout account. Driver and advertiser logins
 live with their own records; campaign Pay terms belong on the campaign hub.
-One advertiser login per company remains the current scope (D47). Review
-documents through the existing audited access controls, and use existing
-server decisions for activation, funding, pay and report issuance.
+One advertiser login per company remains the current scope (D47). Review driver-application and vehicle documents directly with View: the click acknowledges each individually logged application or vehicle review read, without a separate need checkbox (D58, REQ-105). Keep the one-minute/leave-page hiding, current-record resets and separate Show NIN reveal. Existing server decisions still govern activation, funding, pay and report issuance.
 
 Staff Resume is permitted only for a recorded operational pause, classified on the server. Budget-related and unknown pauses are refused with a plain explanation; current start requirements are rechecked and the actor, reason and pause identity are logged (D55, REQ-081). Staff list totals, oldest-first paging and row names are approved to bound badges, work lists and Trip checks (D55, REQ-077/078/083/085).
 
@@ -503,6 +503,9 @@ campaign-area gap. A data-read failure must never appear as a confirmed empty
 list, completed check or zero balance.
 
 **History:**
+
+- **2026-10-04 (vehicle extension)** — Owner extended D58/REQ-105 to car documents on the driver page and authorized the verified integrated commit. Vehicle View replaces its separate purpose/need confirmation, with existing `kyc_review` + `vehicle_approval:<submission_id>` read auditing and minute/leave hiding. Vehicle approval decisions remain unchanged.
+- **2026-10-04** — Owner replaced the separately confirmed document need checkbox with direct audited View for driver-application review (D58, REQ-105). The earlier 3 October polish retained that checkbox under the existing audited-control rule. Timed hiding, record isolation, purpose and the separate NIN action remain. Local implementation verified by `issues/testing/client-polish-2026-10-04.md`; the original person/bank review passed independent reviews. The owner then extended direct View to vehicle documents and approved the integrated commit, Extension verification, consolidated minimal-change review and implemented privacy/security review PASS.
 
 - **2026-10-02** — Owner confirmed guarded staff Resume and bounded read options (D55); local implementation and verification in progress.
 - **2026-10-02** — Owner approved the two staff reads for suspicious-trip

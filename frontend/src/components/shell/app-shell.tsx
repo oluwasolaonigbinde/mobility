@@ -98,8 +98,8 @@ export function AppShell({
               canManageAdvertiserPreferences={canManageAdvertiserPreferences}
               sessionScope={me.user.id}
             />
-            <span aria-label="Workspace context" className="hidden md:inline">
-              {me.user.role === "admin" ? me.user.full_name : "Workspace"}
+            <span aria-label="Account context" className="hidden md:inline">
+              {me.advertiser_organization?.name ?? me.user.full_name}
             </span>
             <details className="relative md:hidden">
               <summary className="hover:text-ink cursor-pointer list-none transition-colors">

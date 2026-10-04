@@ -71,3 +71,13 @@ describe("AppShell account controls", () => {
     expect(mobileNav).not.toHaveTextContent("People & cars");
   });
 });
+
+it("names the signed-in company instead of a workspace", () => {
+  render(
+    <AppShell me={me} nav={[]}>
+      Content
+    </AppShell>,
+  );
+  expect(screen.getByLabelText("Account context")).toHaveTextContent("Acme");
+  expect(screen.queryByText("Workspace")).toBeNull();
+});

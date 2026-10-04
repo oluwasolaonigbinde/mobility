@@ -188,9 +188,7 @@ describe("CampaignMapPage", () => {
     expect(governedMap.mock.calls[0]?.[0].zones.map((zone) => zone.rank)).toEqual([1, 2]);
     expect(screen.queryByText("Hidden exclusion")).not.toBeInTheDocument();
     // The page shows ranked target zones, not vehicle movement.
-    expect(
-      screen.getByRole("heading", { level: 1, name: "Target zones by estimated exposure" }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "Campaign areas" })).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(/vehicles moved/i);
   });
 

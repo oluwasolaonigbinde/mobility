@@ -520,3 +520,83 @@ it("uses actual active staff-added driver and car states without inventing docum
   expect(screen.queryByText("Identity documents")).toBeNull();
   expect(screen.getByText("Active car recorded")).toBeVisible();
 });
+
+it.each([
+  ["pending_review", true, "pending_review", "Next: review identity documents."],
+  ["approved", false, "pending_review", "Next: check bank details."],
+  ["approved", true, "pending_review", "Next: check the car and its documents."],
+  ["approved", true, "approved", "Next: complete sign-in setup."],
+])(
+  "prioritizes %s documents, bank %s, car %s before invited sign-in",
+  async (personStatus, bankVerified, carStatus, next) => {
+    reads({
+      app: {
+        ...application,
+        person_payee: {
+          ...application.person_payee,
+          status: personStatus,
+          bank_account_verified: bankVerified,
+        },
+        vehicle: { ...application.vehicle, status: carStatus },
+      },
+    });
+    render(await DriverHub({ driverId }));
+    expect(screen.getByText(next)).toBeInTheDocument();
+  },
+);
+it("keeps a known document blocker when the account read fails", async () => {
+  reads();
+  const normal = mocks.get.getMockImplementation()!;
+  mocks.get.mockImplementation(async (path, opts) => {
+    if (path.endsWith("/users")) throw Error("offline");
+    return normal(path, opts);
+  });
+  render(await DriverHub({ driverId }));
+  expect(screen.getByText("Next: review identity documents.")).toBeInTheDocument();
+});
+it("passes the known not-submitted state to the five-row document review", async () => {
+  reads();
+  const normal = mocks.get.getMockImplementation()!;
+  mocks.get.mockImplementation(async (path, opts) => {
+    if (path.endsWith("/driver-applications"))
+      return {
+        data: {
+          items: [
+            {
+              ...application,
+              person_payee: {
+                status: "not_submitted",
+                submission_id: null,
+                bank_account_version_id: null,
+                bank_account_verified: false,
+                document_file_ids: {},
+              },
+            },
+          ],
+          total: 1,
+        },
+      };
+    return normal(path, opts);
+  });
+  render(await DriverHub({ driverId }));
+  expect(mocks.person).toHaveBeenCalledWith(
+    expect.objectContaining({
+      submissionId: null,
+      bankAccountVersionId: null,
+      status: "not_submitted",
+    }),
+  );
+  expect(screen.getByText("Next: review identity documents.")).toBeInTheDocument();
+});
+it("keeps suspension ahead of document review and sign-in", async () => {
+  reads();
+  const normal = mocks.get.getMockImplementation()!;
+  mocks.get.mockImplementation(async (path, opts) => {
+    const result = await normal(path, opts);
+    if (path.endsWith("/drivers/{driver_profile_id}"))
+      result.data = { ...driver, onboarding_status: "suspended" };
+    return result;
+  });
+  render(await DriverHub({ driverId }));
+  expect(screen.getByText("Next: review why this driver is suspended.")).toBeInTheDocument();
+});

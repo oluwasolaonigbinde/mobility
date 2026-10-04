@@ -102,7 +102,7 @@ describe("CampaignReportPage frozen daily metrics", () => {
       </FrozenDailyMetricChart>,
     );
 
-    expect(screen.getByText("Omitted - insufficient frozen evidence")).toBeInTheDocument();
+    expect(screen.getByText("Not enough data")).toBeInTheDocument();
     expect(screen.queryByTestId("daily-chart")).not.toBeInTheDocument();
   });
 
