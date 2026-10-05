@@ -171,17 +171,16 @@ member of the advertiser company and to Terrax admins. Only a Terrax admin
 raises a budget or restarts a paused campaign, after the increase or payment is
 confirmed (client answers item 3). The ratios are set per deployment in
 configuration (`BUDGET_*_RATIO`) and are blank in the templates. The client
-also wants fixed costs to count towards the budget: printing, installation,
-permits, design and every other accepted fixed line are included once in the
-same billing authority as media (REQ-037). Before production this is confirmed
-unreversed funding; after production it is the effective full accepted invoice
-obligation. W1B regression proof verifies the existing computation; accepted prices stay frozen.
+also wants fixed costs (printing, installation, permits, design and any other
+quoted fixed line) to count towards the budget together with media, for the
+80 %, 95 % and 100 % levels (REQ-037). This already worked; W1-B added tests
+that prove it. Accepted prices never change.
 
-**Still open:** [REQ-037](requests.md) — local fixed-cost proof awaits integration and full branch CI.
+**Still open:** [REQ-037](requests.md) — the fixed-cost tests await integration and full branch CI.
 
 **History:**
 - **Before 2026-09-24** — One alert level (`budget_alert_ratio`) before the pause.
-- **2026-10-05** — W1B verifies fixed quoted lines in the existing full billing basis; no additive fixed-cost charge, accepted-work repricing or evaluation-key replacement is authorized (REQ-037).
+- **2026-10-05** — W1-B added tests proving that printing, installation, permits, design and any other quoted fixed line already count towards the budget together with media, for the 80 %, 95 % and 100 % levels. Accepted prices never change (REQ-037). Owner review requested this plain wording (provisional REQ-112).
 - **2026-09-24** — Client asked for 80 % and 95 % warnings and a pause at 100 %; recipients "everybody" (read as all company members plus Terrax admins); fixed costs to count. The three levels and admin recipients were built in `7a9ceb0` (REQ-001); fixed costs were deferred to a money batch.
 
 ### Campaign lifecycle and changes

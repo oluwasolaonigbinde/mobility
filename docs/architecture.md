@@ -2884,7 +2884,12 @@ Application bank/NIN key custody remains in the key ring; no KMS is claimed.
 MapTiler uses the build-time MapLibre HTTPS style and narrow API CSP origins.
 Compose gains private ClamAV with persistent signatures, outbound update
 access and health dependencies, and explicit configurable WEB_CONCURRENCY
-(default two). The 13 historical Batch F gaps are individually dispositioned
+(default two). Release and recovery allow 900 seconds for scanner/application
+health before readiness and public edge startup; an unhealthy scanner still
+fails the operation. The host needs at least 8 GB RAM, with ClamAV capped at
+4 GB. These owner review corrections are tracked in provisional REQ-111/114;
+W1B request/decision/version identifiers will be renumbered at merge against
+CI-green master. The 13 historical Batch F gaps are individually dispositioned
 in deployment-templates; provider compatibility, operational evidence, legal
 retention and residency remain open. No deployment or external gate is closed.
 

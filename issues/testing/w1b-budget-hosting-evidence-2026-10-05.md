@@ -56,6 +56,50 @@ approved non-squash master integration. No readiness or launch claim.
 Hetzner account/private bucket/S3 checksum/versioned behavior/restore, MapTiler
 licence/key/actual rendering, public edge/webhooks, ClamAV image/host sizing,
 cold initialization/reload/update availability/outage/EICAR, off-host backups,
-key custodian and legal residency/retention remain unexercised. The scanner's
-cold start can exceed release's120s wait; confirm it healthy before release.
+key custodian and legal residency/retention remain unexercised. Release and
+recovery now allow 900 seconds for scanner/application health; an unhealthy
+scanner still prevents readiness and public-edge startup.
 All external payment/device/pilot gates remain unchanged.
+
+## Claude correction evidence — 5 October 2026
+
+Owner review of `308f04a` identified the 120-second release wait as insufficient
+for ClamAV's 360-second start period. A Linux regression reproduced that failure
+with a simulated healthy scanner needing 420 seconds (healthy case failed,
+unhealthy case stopped as expected). The host Windows attempt could not run
+Bash; only the Linux result establishes the reproduction.
+
+Release and recovery now explicitly include ClamAV in a 900-second health wait.
+The deployment reviewer identified recovery's matching 120-second defect; its
+correction was accepted and the same reviewer reassessed deployment and security
+to PASS. The final four-case simulation executes both source startup commands
+with healthy cold initialization and persistent unhealthy outcomes; shell syntax
+is checked too: **5 passed**, 457 deselected. Readiness is reached only on success.
+This is a deterministic command simulation, not a real scanner/provider startup.
+
+The touched release/template files passed **484 tests** before the recovery
+parameterization (482 existing cases plus two release simulations). The focused
+five-case run then verified the final recovery command and test parameterization.
+Frontend map rerun: **2 passed**. Ruff check/format and diff whitespace checks
+passed. Regenerated Python coverage against `750edbb` remains **9/9 executable
+lines and 8/8 branch arcs**, with no missing changed lines/arcs. Both changed shell
+startup commands execute in the healthy and unhealthy simulations; this shell
+execution evidence is separate from the Python coverage report.
+
+Budget current rule/history now use plain words and state that fixed costs count
+with media at all three levels, this already worked, and accepted prices never
+change. Deployment docs and architecture require **at least 8 GB host RAM**
+because ClamAV alone is capped at 4 GB. No capacity/provisioning claim is made.
+
+Integration is **NOT COMPLETE**: latest local/remote master `f943daf` has failed
+[CI run 37287602662](https://github.com/oluwasolaonigbinde/mobility/actions/runs/37287602662).
+No master merge occurred. REQ-108/D62/v1.117 and correction REQ-111–114 remain
+provisional: take next-free identifiers and add "renumbered at merge" when
+CI-green master can be merged, after W1-P if it lands first. Resolve the shared
+release-test conflict and rerun touched tests then. No push or deployment.
+Budget rerun with the same synthetic SQLite/PostgreSQL setup: **13 passed**,
+no skips, 227.03 seconds. The correction consolidated reviewer returned
+**source-review PASS**, with no actionable findings, explicitly retaining the
+incomplete integration gate. Configured gpt-6.1-sol, medium reasoning; reported
+GPT-6-based Codex, exact runtime model ID not exposed. Deployment and security
+correction reviews also PASS and report GPT-6-based Codex, exact ID not exposed.

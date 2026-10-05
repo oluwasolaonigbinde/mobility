@@ -366,7 +366,8 @@ else
     || { echo "ERROR: retry compatibility receipt conflicts with release state" >&2; exit 1; }
 fi
 
-"${compose[@]}" up -d --no-build --wait --wait-timeout 120 db redis api worker frontend >/dev/null
+# Allow cold ClamAV signature initialization and health retries before readiness.
+"${compose[@]}" up -d --no-build --wait --wait-timeout 900 db redis clamav api worker frontend >/dev/null
 "${compose[@]}" exec -T api python -m app.operations.readiness --write-canary
 "${compose[@]}" exec -T api python -c \
   'from app.models.report_issuance import ReportIssuance; print("{\"event\":\"report_schema_canary\",\"status\":\"ok\"}")' \

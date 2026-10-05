@@ -1612,6 +1612,48 @@ def test_operational_entry_points_are_shell_valid() -> None:
     assert result.returncode == 0, result.stderr
 
 
+@pytest.mark.parametrize("scanner_healthy", [True, False])
+@pytest.mark.parametrize("script_name", ["release.sh", "recover_release.sh"])
+def test_release_waits_for_cold_scanner_before_readiness(
+    tmp_path: Path, scanner_healthy: bool, script_name: str
+) -> None:
+    release = (ROOT / "scripts" / script_name).read_text()
+    startup = next(
+        line
+        for line in release.splitlines()
+        if '"${compose[@]}" up ' in line and "api worker frontend" in line
+    )
+    assert release.index(startup) < release.index(
+        '"${compose[@]}" exec -T api python -m app.operations.readiness'
+    )
+    fake_compose = tmp_path / "compose"
+    fake_compose.write_text(
+        "#!/usr/bin/env python3\n"
+        "import os, sys\n"
+        "args = sys.argv[1:]\n"
+        "assert '--wait' in args\n"
+        "timeout = int(args[args.index('--wait-timeout') + 1])\n"
+        "# Simulate signature initialization beyond the old 120-second wait.\n"
+        "healthy = os.environ['SCANNER_HEALTHY'] == 'true'\n"
+        "sys.exit(0 if timeout >= 420 and healthy else 1)\n"
+    )
+    fake_compose.chmod(0o755)
+    result = subprocess.run(
+        [
+            "bash",
+            "-c",
+            'set -euo pipefail; compose=("$1");\n' + startup + "\necho readiness-reached\n",
+            "release-startup-test",
+            str(fake_compose),
+        ],
+        env={**os.environ, "SCANNER_HEALTHY": str(scanner_healthy).lower()},
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == (0 if scanner_healthy else 1), result.stderr
+    assert ("readiness-reached" in result.stdout) is scanner_healthy
+
+
 def test_release_scripts_never_run_alembic_downgrade() -> None:
     release = (ROOT / "scripts/release.sh").read_text()
     scripts = "\n".join(

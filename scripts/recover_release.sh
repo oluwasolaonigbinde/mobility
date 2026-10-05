@@ -133,7 +133,8 @@ python3 scripts/recovery_authority.py --scope recovery \
   --evidence "${COMPATIBILITY_EVIDENCE}" --state "${CURRENT_STATE}" --output "${authority_overlay}"
 compose+=(-f "${authority_overlay}")
 "${compose[@]}" stop edge api worker frontend >/dev/null 2>&1 || true
-"${compose[@]}" up -d --no-build --wait --wait-timeout 120 db redis api worker frontend >/dev/null
+# Recovery must also allow a cold scanner before its accepted readiness probe.
+"${compose[@]}" up -d --no-build --wait --wait-timeout 900 db redis clamav api worker frontend >/dev/null
 # The signed operator health check is confined to this accepted recovery overlay.
 # Public readiness remains exact-schema and the worker must be live.
 "${compose[@]}" exec -T api python -m app.operations.readiness \

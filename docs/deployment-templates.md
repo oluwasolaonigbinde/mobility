@@ -57,11 +57,15 @@ supporting `clamdcheck.sh`. The locally inspected 1.4 image metadata confirms
 that command and 360-second start period; no registry call/pull was made.
 ClamAV has private data-network access, update egress, no host port,
 `clamav_signatures` persistence, 4 GiB limit and restart policy. API and worker
-await health; upload/readiness scanning remains fail closed. The
+await health; upload/readiness scanning remains fail closed. The host needs
+**at least 8 GB RAM** because ClamAV alone is capped at 4 GB, with the remaining
+memory needed by the database, API, worker, frontend and host. The
 [ClamAV Docker guide](https://docs.clamav.net/manual/Installing/Docker.html)
-explains memory and signature persistence. Cold initialization can exceed the
-release script's 120-second wait: initialize and confirm scanner health before
-release. Never relax readiness to bypass an unhealthy scanner.
+explains memory and signature persistence. Release and recovery scripts wait up to
+900 seconds for the scanner and application services to become healthy,
+covering the scanner's 360-second start period and health retries. A scanner
+that remains unhealthy fails the release before readiness and public edge
+startup. Never relax readiness to bypass an unhealthy scanner.
 
 `WEB_CONCURRENCY=2` matches the image default and is passed explicitly to
 Uvicorn; operators can configure it. Worker job concurrency is separate.
