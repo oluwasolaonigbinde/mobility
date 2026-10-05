@@ -324,6 +324,8 @@ def request_payload(route: GovernedRoute) -> Any:
         payload["purpose"] = "installation_evidence"
     if route.path.endswith("/exposure-segments/{segment_id}/delivery-approvals"):
         payload["provider"] = "controlled-csv-v1"
+        payload["provider_account_reference"] = "synthetic-matrix-account"
+        payload["budget_ceiling"] = "1.00"
     if route.path.endswith("/files/{file_id}/download") and route.principal is Principal.ADMIN:
         payload["purpose"] = "creative_review"
     if route.path.endswith("/quotations/{revision_id}/accept-external"):

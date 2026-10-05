@@ -5,7 +5,7 @@ from uuid import uuid4
 from conftest import auth_headers, create_test_trip_analytics
 from sqlalchemy import select
 from starlette import status as http_status
-from test_trip_analytics import PASSWORD, create_analytics_graph
+from test_trip_analytics import BASE_TIME, PASSWORD, create_analytics_graph
 
 from app.models.audit import AuditEvent
 from app.models.trip_analytics import FraudFlag
@@ -110,7 +110,21 @@ def test_admin_can_acknowledge_then_confirm_and_list_enriched_flag(
     )
     assert listed.status_code == http_status.HTTP_200_OK
     assert listed.json()["total"] == 1
-    assert listed.json()["items"] == [confirmed_body]
+    assert listed.json()["items"] == [
+        {
+            **confirmed_body,
+            "driver_name": "Test User",
+            "campaign_name": "Launch Campaign",
+            "vehicle_plate": "ANA-123",
+            "trip_started_at": BASE_TIME.replace(tzinfo=None).isoformat(),
+            "problem_count": 0,
+            "money_effect": {
+                **confirmed_body["money_effect"],
+                "held_pending_net": "0",
+                "held_currency": None,
+            },
+        }
+    ]
 
     audits = review_audits(db_sessionmaker, flag.id)
     assert {row.action for row in audits} == {

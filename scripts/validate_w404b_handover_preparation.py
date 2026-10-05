@@ -301,9 +301,9 @@ def _validate_external_and_deferred(repo_root: Path, risk_text: str) -> list[str
         errors.append(
             f"external gate parity mismatch (missing={missing}, extra={extra}, changed={changed})"
         )
-    if len(expected) != 29 or sum(state == "PRESENT" for state in expected.values()) != 2:
+    if len(expected) != 30 or sum(state == "PRESENT" for state in expected.values()) != 2:
         errors.append(
-            "authoritative relevant external set is not 29 rows with exactly two PRESENT states"
+            "authoritative relevant external set is not 30 rows with exactly two PRESENT states"
         )
     if "deliberately excluded" not in risk_text or EXCLUDED_EXTERNAL_GATE not in risk_text:
         errors.append(f"historical exclusion reason is missing for {EXCLUDED_EXTERNAL_GATE}")
@@ -635,7 +635,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print(
         "W4-04B handover preparation audit: PASS "
-        "(7 files, 29 external gates, 3 deferred validations)"
+        "(7 files, 30 external gates, 3 deferred validations)"
     )
     return 0
 

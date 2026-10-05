@@ -53,7 +53,7 @@ export default async function AdvertiserOverviewPage() {
             label="Estimated ad exposure"
             value={formatCount(summary?.impressions.estimated_impressions)}
             tone="cyan"
-            hint="Estimated opportunities to see the ad"
+            hint="Estimated opportunities to see the ad, based on routes and traffic. This is not a count of people or measured views."
           />
           <Stat
             label="Driver pay to date"

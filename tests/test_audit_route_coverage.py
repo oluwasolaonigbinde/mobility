@@ -32,6 +32,7 @@ from app.services.audit import create_audit_event
 from app.services.trip_evidence import manifest_root
 
 AUDITED = {
+    ("POST", "/api/v1/admin/campaigns/{campaign_id}/resume"): "admin.campaign.resumed",
     ("POST", "/api/v1/auth/login"): "auth.login.*",
     ("POST", "/api/v1/auth/change-password"): "auth.password.*",
     ("POST", "/api/v1/auth/password-reset/request"): "auth.password_reset.requested",
@@ -434,6 +435,12 @@ AUDITED = {
 }
 
 EXEMPT = {
+    ("POST", "/api/v1/campaign-enquiries"): (
+        "D52/REQ-070, architecture §27.3: bounded public campaign enquiries send only to the "
+        "official inbox, with expiring Redis rate-limit counters and an SMTP side effect. "
+        "This path creates no database authority records and does not log form content; "
+        "contact details are used only to answer the enquiry."
+    ),
     ("POST", "/api/v1/admin/payout-batches/selection-preview"): (
         "Read-only exact selection preview: immutable credit IDs remain in the request body; "
         "only SELECTs check existing payment eligibility and return a Decimal/currency total. "

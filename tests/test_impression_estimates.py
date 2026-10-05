@@ -584,9 +584,9 @@ def test_advertiser_summary_is_scoped_and_aggregates_stored_estimates(
     assert own.json()["estimated_trip_count"] == 1
     assert own.json()["average_confidence_score"] == "0.5000"
     assert other.status_code == http_status.HTTP_404_NOT_FOUND
-    assert empty.status_code == http_status.HTTP_200_OK
-    assert empty.json()["estimated_impressions"] == "0.00"
-    assert empty.json()["trip_count"] == 0
+    assert empty.status_code == http_status.HTTP_409_CONFLICT
+    assert empty.json()["error"]["code"] == "DISCLOSURE_SUPPRESSED"
+    assert empty.json()["error"]["details"] == {"reason": "minimum_counts_or_contributor_cap"}
 
 
 def test_authoritative_estimate_is_one_deterministic_profile_scenario(

@@ -41,7 +41,9 @@ class ValidateW404ATrainingTests(unittest.TestCase):
         )
 
     def test_audit_rejects_fictitious_and_cross_role_ui_routes(self) -> None:
-        fictitious = _replace_once(ROLE_INVENTORY, "/admin/audit", "/admin/not-a-real-page")
+        fictitious = _replace_once(
+            ROLE_INVENTORY, "/admin/settings/activity", "/admin/not-a-real-page"
+        )
         self.assertTrue(
             any(
                 "UI route does not resolve" in error
@@ -51,7 +53,7 @@ class ValidateW404ATrainingTests(unittest.TestCase):
 
         cross_role = _replace_once(
             ROLE_INVENTORY,
-            "| admin | /admin/audit",
+            "| admin | /admin/settings/activity",
             "| admin | /advertiser/billing",
         )
         self.assertTrue(

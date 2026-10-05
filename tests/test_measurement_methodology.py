@@ -123,13 +123,13 @@ def test_frozen_disclosure_wording_is_taken_from_the_contract() -> None:
         "consistency",
     }
     assert all(value.strip() for value in rule.values())
-    # One published omission wording for screen, CSV and PDF.
+    # The owner approved plain screen wording; frozen CSV/PDF wording remains exact.
     assert SUPPRESSED_TOTAL_LABEL == rule["omitted_label"]
     assert SUPPRESSED_TOTAL_LABEL.isascii(), "the bounded PDF renderer is ASCII-only"
     frontend_label = (
         ADVERTISER_DIR / "campaigns" / "[campaignId]" / "report" / "measurement-authority.tsx"
     ).read_text()
-    assert f'"{SUPPRESSED_TOTAL_LABEL}"' in frontend_label
+    assert 'export const OMITTED_TOTAL_LABEL = "Not enough data";' in frontend_label
 
     # Every ROI fact the contract demands is a field the read contract actually exposes.
     exposed = (
@@ -190,7 +190,11 @@ def test_advertiser_copy_uses_safe_measurement_terms() -> None:
         assert HEADLINE_DISCLAIMER in text, path
     for path, text in copy_files.items():
         if DIAGNOSTIC_PATTERN.search(text):
-            assert "not a statistical confidence interval" in text, path
+            assert (
+                "not a statistical confidence interval" in text
+                or "Model confidence describes the estimate; it is not a statistical interval."
+                in text
+            ), path
     prohibited_claims = contract["prohibited_claims"]
     assert prohibited_claims
     for prohibited in prohibited_claims:
