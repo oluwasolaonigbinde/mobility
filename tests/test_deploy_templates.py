@@ -1,18 +1,19 @@
-"""The Render and AWS templates (REQ-010) stay valid, secret-free and switched off."""
+"""W1B replacement templates are private, secret-free and inert (REQ-049/108)."""
 
 import json
 from pathlib import Path
 
-import yaml
+import pytest
+from test_w403a_release_preparation import production_model
 
-from app.core.config import Settings
+from scripts.release_contract import ContractError, read_env_file, validate_compose_model
 
 ROOT = Path(__file__).resolve().parents[1]
-BLUEPRINT = yaml.safe_load((ROOT / "deploy/render/render.yaml").read_text(encoding="utf-8"))
-
-SECRETS = {
+SECRET_NAMES = {
     "DATABASE_URL",
     "REDIS_URL",
+    "POSTGRES_PASSWORD",
+    "REDIS_PASSWORD",
     "JWT_SECRET_KEY",
     "PAYOUT_CRYPTO_KEYRING_B64",
     "TRIP_EVIDENCE_SIGNING_KEYRING_B64",
@@ -24,122 +25,134 @@ SECRETS = {
     "PAYSTACK_SECRET_KEY",
     "SENTRY_DSN",
     "NEXT_PUBLIC_SENTRY_DSN",
+    "RELEASE_EVIDENCE_SIGNING_SECRET",
     "NEXT_PUBLIC_MAP_STYLE_URL",
 }
-# Words that mark a value which must never be committed, whatever the key is called.
-SECRET_WORDS = ("SECRET", "PASSWORD", "KEYRING", "TOKEN", "DSN", "ACCESS_KEY", "_URL")
-SWITCHED_OFF = {
-    "PAYOUT_V4_PUBLISHING_ENABLED": "false",
-    "PAYOUT_AUTOMATIC_APPROVAL_ENABLED": "false",
-    "PAYOUT_AUTOMATIC_FREQUENCY": "",
-    "PAYOUT_AUTOMATIC_BATCH_LIMIT_NGN": "",
-    "INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE": "",
-    "BUDGET_POLICY_EXTERNAL_APPROVED": "false",
-    "PHONE_OPERATOR_EXTERNAL_APPROVED": "false",
-    "DRIVER_REGISTRATION_ENABLED": "false",
-    "ALLOW_DEMO_SEED": "false",
-    "DEMO_LOGIN_ENABLED": "false",
-    "LOGIN_RATE_LIMIT_TRUST_CLIENT_IP_HEADER": "false",
-    "LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER": "false",
-    "DRIVER_REGISTRATION_RATE_LIMIT_TRUST_CLIENT_IP_HEADER": "false",
-}
-NOT_SECRET = {"PASSWORD_MIN_LENGTH", *SWITCHED_OFF}
-FRONTEND_KEYS = {
-    "NODE_ENV",
-    "API_BASE_URL",
-    "PUBLIC_ORIGIN",
-    "SESSION_COOKIE_NAME",
-    "LOGIN_RATE_LIMIT_RELAY_CLIENT_IP_HEADER",
-    "DEMO_LOGIN_ENABLED",
-    "NEXT_PUBLIC_MAP_STYLE_URL",
-    "NEXT_PUBLIC_SENTRY_DSN",
-}
-# What app/adapters/storage/s3.py calls: get/put/copy/delete objects and versions,
-# list versions, and presigned POST/GET under SSE-KMS default encryption.
-S3_ACTIONS = {
-    "s3:ListBucket",
-    "s3:ListBucketVersions",
-    "s3:GetObject",
-    "s3:PutObject",
-    "s3:DeleteObject",
-    "s3:DeleteObjectVersion",
-}
-KMS_ACTIONS = {"kms:Decrypt", "kms:GenerateDataKey"}
 
 
-def _group_vars() -> list[dict]:
-    (group,) = BLUEPRINT["envVarGroups"]
-    return group["envVars"]
+@pytest.mark.parametrize("name", ["production.env.example", "staging.env.example"])
+def test_secrets_are_blank_and_unapproved_policies_stay_unset(name: str) -> None:
+    environment = read_env_file(ROOT / name)
+    assert {key: environment[key] for key in SECRET_NAMES} == dict.fromkeys(SECRET_NAMES, "")
+    for key in (
+        "BUDGET_ALERT_RATIO",
+        "BUDGET_URGENT_RATIO",
+        "BUDGET_PAUSE_RATIO",
+        "BUDGET_RESUME_RATIO",
+        "FILE_KYC_RETENTION_DAYS",
+        "INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE",
+    ):
+        assert environment[key] == ""
+    for key in (
+        "ALLOW_DEMO_SEED",
+        "DEMO_LOGIN_ENABLED",
+        "BUDGET_POLICY_EXTERNAL_APPROVED",
+        "PAYOUT_V4_PUBLISHING_ENABLED",
+        "PAYOUT_AUTOMATIC_APPROVAL_ENABLED",
+    ):
+        assert environment[key] == "false"
+    assert environment["MALWARE_SCANNER_HOST"] == "clamav"
+    assert environment["WEB_CONCURRENCY"] == "2"
+    model = production_model(env_file=ROOT / name, profiles=("release",))
+    validate_compose_model(model)
 
 
-def _service(name: str) -> dict:
-    (service,) = [s for s in BLUEPRINT["services"] if s["name"] == name]
-    return service
-
-
-def _service_vars(name: str) -> list[dict]:
-    return [item for item in _service(name).get("envVars", []) if "key" in item]
-
-
-def _all_vars() -> list[dict]:
-    variables = list(_group_vars())
-    for service in BLUEPRINT["services"]:
-        variables += [item for item in service.get("envVars", []) if "key" in item]
-    return variables
-
-
-def test_backend_keys_are_settings_fields_and_frontend_keys_are_known() -> None:
-    fields = {name.upper() for name in Settings.model_fields}
-    backend = _group_vars() + _service_vars("cardvert-api") + _service_vars("cardvert-worker")
-    assert [item["key"] for item in backend if item["key"] not in fields] == []
-    assert {item["key"] for item in _service_vars("cardvert-frontend")} <= FRONTEND_KEYS
-    # Environment groups take plain values or sync: false only.
-    assert all(set(item) <= {"key", "value", "sync"} for item in _group_vars())
-
-
-def test_committed_backend_values_pass_settings_validation(monkeypatch) -> None:
-    # Render passes the values as environment variables, so validate them the same way.
-    for item in _group_vars():
-        if "value" in item:
-            monkeypatch.setenv(item["key"], item["value"])
-    # Stand-ins only for what the template leaves to be entered by hand.
-    monkeypatch.setenv("ENVIRONMENT", "test")
-    monkeypatch.setenv(
-        "PAYOUT_CRYPTO_KEYRING_B64", '{"1":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}'
-    )
-    settings = Settings(_env_file=None)
-    assert settings.payout_automatic_approval_enabled is False
-    assert not settings.invoice_issuer_external_input_reference
-    assert settings.installation_evidence_validity_hours == 168
-
-
-def test_no_secret_is_committed_and_client_switches_stay_off() -> None:
-    variables = {item["key"]: item for item in _all_vars()}
-    for key in SECRETS:
-        assert variables[key].get("sync") is False, key
-        assert "value" not in variables[key], key
-    for key, item in variables.items():
-        if any(word in key for word in SECRET_WORDS) and key not in NOT_SECRET:
-            assert "value" not in item, f"{key} looks secret-shaped and carries a value"
-    # Render's generated URLs fail the asyncpg+TLS and rediss checks, so both are hand-entered.
-    for key in ("DATABASE_URL", "REDIS_URL"):
-        assert set(variables[key]) == {"key", "sync"}
-    for key, expected in SWITCHED_OFF.items():
-        assert variables[key].get("value") == expected, key
-    assert variables["ENVIRONMENT"]["value"] == "staging"
-
-
-def test_aws_templates_parse_and_grant_only_what_the_storage_adapter_uses() -> None:
-    policy = json.loads((ROOT / "deploy/aws/s3-kms-iam-policy.json").read_text(encoding="utf-8"))
-    actions = [action for statement in policy["Statement"] for action in statement["Action"]]
-    assert sorted(actions) == sorted(S3_ACTIONS | KMS_ACTIONS)
-    assert all(statement["Effect"] == "Allow" for statement in policy["Statement"])
-    # Scoped to one bucket and one key, never every resource.
-    assert all(statement["Resource"] != "*" for statement in policy["Statement"])
-    (kms,) = [s for s in policy["Statement"] if s["Action"][0].startswith("kms:")]
-    # The key is usable only through S3, not directly with the access key.
-    assert set(kms["Condition"]["StringEquals"]) == {"kms:ViaService"}
-    cors = json.loads((ROOT / "deploy/aws/s3-cors.json").read_text(encoding="utf-8"))
+def test_hetzner_cors_replaces_obsolete_provider_artifacts() -> None:
+    assert not list((ROOT / "deploy/render").glob("*"))
+    assert not list((ROOT / "deploy/aws").glob("*"))
+    cors = json.loads((ROOT / "deploy/hetzner/s3-cors.json").read_text())
     (rule,) = cors["CORSRules"]
-    assert set(rule["AllowedMethods"]) == {"GET", "POST"}
+    assert rule["AllowedMethods"] == ["GET", "POST"]
+    assert rule["AllowedOrigins"] == ["https://REPLACE-WITH-APPROVED-APP-ORIGIN.invalid"]
+    assert rule["ExposeHeaders"] == ["ETag"]
     assert "*" not in rule["AllowedOrigins"]
+
+
+def test_maptiler_csp_is_limited_to_api_fetches_and_images() -> None:
+    policy = (ROOT / "Caddyfile").read_text().split('Content-Security-Policy "')[1].split('"')[0]
+    directives = dict(
+        item.strip().split(" ", 1) for item in policy.split(";") if " " in item.strip()
+    )
+    assert "https://api.maptiler.com" in directives["connect-src"].split()
+    assert "https://api.maptiler.com" in directives["img-src"].split()
+    for key in ("script-src", "style-src", "font-src", "frame-src"):
+        assert "maptiler" not in directives[key]
+    assert "https:" not in directives["connect-src"].split()
+    assert "*" not in policy
+
+
+def test_scanner_topology_and_configurable_workers() -> None:
+    model = production_model(profiles=("release",))
+    validate_compose_model(model)
+    scanner = model["services"]["clamav"]
+    assert set(scanner["networks"]) == {"data", "egress"}
+    assert not scanner.get("ports")
+    assert scanner["healthcheck"]["start_period"] == "6m0s"
+    assert scanner["restart"] == "unless-stopped"
+    assert int(scanner["mem_limit"]) == 4 * 1024**3
+    assert model["services"]["api"]["environment"]["WEB_CONCURRENCY"] == "2"
+    assert "--workers" not in model["services"]["api"]["command"]
+    assert "ENV WEB_CONCURRENCY=2" in (ROOT / "Dockerfile").read_text()
+    changed = production_model(overrides={"WEB_CONCURRENCY": "3"})
+    assert changed["services"]["api"]["environment"]["WEB_CONCURRENCY"] == "3"
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "missing",
+        "public",
+        "network",
+        "image",
+        "health",
+        "disabled",
+        "memory",
+        "confinement",
+        "volume_missing",
+        "volume_type",
+        "volume_source",
+        "volume_target",
+        "volume_readonly",
+        "api_host",
+        "worker_host",
+        "api_port",
+        "worker_port",
+        "api_dependency",
+        "worker_dependency",
+    ],
+)
+def test_release_rejects_unsafe_scanner(fault: str) -> None:
+    model = production_model(profiles=("release",))
+    scanner = model["services"]["clamav"]
+    if fault == "missing":
+        del model["services"]["clamav"]
+    elif fault == "public":
+        scanner["ports"] = [{"published": "3310", "target": 3310}]
+    elif fault == "network":
+        scanner["networks"] = {"edge": {}}
+    elif fault == "image":
+        scanner["image"] = "clamav/clamav:latest"
+    elif fault == "health":
+        scanner["healthcheck"]["test"] = ["CMD", "true"]
+    elif fault == "disabled":
+        scanner["healthcheck"]["disable"] = True
+    elif fault == "memory":
+        scanner["mem_limit"] = 1024**3
+    elif fault == "confinement":
+        scanner["security_opt"] = []
+    elif fault == "volume_missing":
+        scanner["volumes"] = []
+    elif fault.startswith("volume_"):
+        key = fault.removeprefix("volume_").replace("readonly", "read_only")
+        scanner["volumes"][0][key] = True if key == "read_only" else "incorrect"
+    else:
+        name, field = fault.split("_")
+        service = model["services"][name]
+        if field == "host":
+            service["environment"]["MALWARE_SCANNER_HOST"] = "external.invalid"
+        elif field == "port":
+            service["environment"]["MALWARE_SCANNER_PORT"] = "9999"
+        else:
+            service["depends_on"]["clamav"]["condition"] = "service_started"
+    with pytest.raises(ContractError):
+        validate_compose_model(model)

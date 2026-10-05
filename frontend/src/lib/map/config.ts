@@ -5,7 +5,9 @@
  * code change. The default is a local, provider-neutral schematic background
  * with no network source.
  *
- * ⚠ Go-live: confirm basemap licensing (see docs/archive/fablev1-work.md).
+ * D44 selects MapTiler: NEXT_PUBLIC_MAP_STYLE_URL is its complete HTTPS style
+ * URL with a domain-restricted public key, frozen into the frontend build.
+ * Go-live provider/account/licence gates remain in docs/deployment-templates.md.
  */
 import type { StyleSpecification } from "maplibre-gl";
 

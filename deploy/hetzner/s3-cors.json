@@ -1,7 +1,7 @@
 {
   "CORSRules": [
     {
-      "AllowedOrigins": ["https://REPLACE-WITH-APP-HOST.terraxmedia.com"],
+      "AllowedOrigins": ["https://REPLACE-WITH-APPROVED-APP-ORIGIN.invalid"],
       "AllowedMethods": ["GET", "POST"],
       "AllowedHeaders": ["*"],
       "ExposeHeaders": ["ETag"],

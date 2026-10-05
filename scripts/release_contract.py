@@ -73,6 +73,7 @@ REQUIRED_NAMES = (
     "BACKEND_IMAGE",
     "FRONTEND_IMAGE",
     "CADDY_IMAGE",
+    "CLAMAV_IMAGE",
     "EDGE_HOSTNAME",
     "PUBLIC_ORIGIN",
     "BACKEND_CORS_ORIGINS",
@@ -104,6 +105,8 @@ RELEASE_ONLY_NAMES = (
     "POSTGIS_IMAGE",
     "REDIS_IMAGE",
     "CADDY_IMAGE",
+    "CLAMAV_IMAGE",
+    "WEB_CONCURRENCY",
     "EDGE_HOSTNAME",
     "PUBLIC_ORIGIN",
     "SESSION_COOKIE_NAME",
@@ -610,7 +613,14 @@ def validate_release_environment(
     if not REVISION_RE.fullmatch(revision):
         raise ContractError("RELEASE_REVISION must be a full lowercase Git revision")
 
-    for name in ("BACKEND_IMAGE", "FRONTEND_IMAGE", "POSTGIS_IMAGE", "REDIS_IMAGE", "CADDY_IMAGE"):
+    for name in (
+        "BACKEND_IMAGE",
+        "FRONTEND_IMAGE",
+        "POSTGIS_IMAGE",
+        "REDIS_IMAGE",
+        "CADDY_IMAGE",
+        "CLAMAV_IMAGE",
+    ):
         _validate_image(
             name,
             _require(environment, name),
@@ -1293,8 +1303,8 @@ def validate_compose_model(model: Mapping[str, Any]) -> None:
     services = model.get("services")
     if not isinstance(services, dict):
         raise ContractError("Compose model has no services")
-    allowed = {"api", "db", "edge", "frontend", "migrate", "redis", "worker"}
-    required = {"api", "db", "edge", "frontend", "redis", "worker"}
+    allowed = {"api", "clamav", "db", "edge", "frontend", "migrate", "redis", "worker"}
+    required = {"api", "clamav", "db", "edge", "frontend", "redis", "worker"}
     if not set(services) <= allowed or not required <= set(services):
         raise ContractError("Compose model contains missing or unapproved services")
     for name, service in services.items():
@@ -1323,6 +1333,7 @@ def validate_compose_model(model: Mapping[str, Any]) -> None:
         raise ContractError("Only edge ports 80/443 TCP and 443 UDP may be public")
     expected_networks = {
         "api": {"app", "data", "egress"},
+        "clamav": {"data", "egress"},
         "db": {"data"},
         "edge": {"app", "edge"},
         "frontend": {"app", "edge", "egress"},
@@ -1342,6 +1353,29 @@ def validate_compose_model(model: Mapping[str, Any]) -> None:
         raise ContractError("Edge and egress networks have an invalid direction")
     frontend_environment = services["frontend"].get("environment", {})
     api_environment = services["api"].get("environment", {})
+    scanner = services["clamav"]
+    if (
+        scanner.get("healthcheck", {}).get("test") != ["CMD-SHELL", "clamdcheck.sh"]
+        or scanner.get("healthcheck", {}).get("disable")
+        or str(scanner.get("mem_limit")) != str(4 * 1024**3)
+        or scanner.get("security_opt") != ["no-new-privileges:true"]
+        or not any(
+            volume.get("type") == "volume"
+            and volume.get("source") == "clamav_signatures"
+            and volume.get("target") == "/var/lib/clamav"
+            and not volume.get("read_only")
+            for volume in scanner.get("volumes", [])
+        )
+    ):
+        raise ContractError("ClamAV requires health, memory, confinement and persistent signatures")
+    for name in ("api", "worker"):
+        if (
+            services[name].get("environment", {}).get("MALWARE_SCANNER_HOST") != "clamav"
+            or str(services[name].get("environment", {}).get("MALWARE_SCANNER_PORT")) != "3310"
+            or services[name].get("depends_on", {}).get("clamav", {}).get("condition")
+            != "service_healthy"
+        ):
+            raise ContractError(f"{name} must await and use private ClamAV")
     missing_settings = sorted(settings_environment_names() - api_environment.keys())
     if missing_settings:
         raise ContractError(

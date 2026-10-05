@@ -171,12 +171,17 @@ member of the advertiser company and to Terrax admins. Only a Terrax admin
 raises a budget or restarts a paused campaign, after the increase or payment is
 confirmed (client answers item 3). The ratios are set per deployment in
 configuration (`BUDGET_*_RATIO`) and are blank in the templates. The client
-also wants fixed costs to count towards the budget: **agreed, not yet built**.
+also wants fixed costs to count towards the budget: printing, installation,
+permits, design and every other accepted fixed line are included once in the
+same billing authority as media (REQ-037). Before production this is confirmed
+unreversed funding; after production it is the effective full accepted invoice
+obligation. W1B regression proof verifies the existing computation; accepted prices stay frozen.
 
-**Still open:** [REQ-037](requests.md) — fixed costs in the budget.
+**Still open:** [REQ-037](requests.md) — local fixed-cost proof awaits integration and full branch CI.
 
 **History:**
 - **Before 2026-09-24** — One alert level (`budget_alert_ratio`) before the pause.
+- **2026-10-05** — W1B verifies fixed quoted lines in the existing full billing basis; no additive fixed-cost charge, accepted-work repricing or evaluation-key replacement is authorized (REQ-037).
 - **2026-09-24** — Client asked for 80 % and 95 % warnings and a pause at 100 %; recipients "everybody" (read as all company members plus Terrax admins); fixed costs to count. The three levels and admin recipients were built in `7a9ceb0` (REQ-001); fixed costs were deferred to a money batch.
 
 ### Campaign lifecycle and changes
@@ -420,6 +425,7 @@ key-management service (D44).
 - **2026-09-24** — Client approved ClamAV, Postmark, Mapbox ("short run", Google Maps later) and terraxmedia.com, and left hosting, storage and region to the developer's recommendation (client answers items 9–16). The recommendation was Render with AWS storage and encryption.
 - **2026-09-29** — Deployment templates for Render, AWS and Mapbox written, with every secret blank and nothing applied (REQ-010). Built in `0b53eab`.
 - **2026-09-30** — Owner chose Hetzner instead of Render and AWS, and MapTiler instead of Mapbox (D44). The Render, AWS and Mapbox templates are superseded (REQ-049).
+- **2026-10-05** — Owner authorized W1B replacement templates using the existing Compose/Caddy release, Hetzner Object Storage and MapTiler, plus private ClamAV and configurable API workers (REQ-049/108). Templates only; secrets and regions remain unset, with residency under REQ-032. Local verification and specialist reviews passed; consolidated review/integration tracked in the W1B receipt.
 
 ### Legal, privacy and retention
 

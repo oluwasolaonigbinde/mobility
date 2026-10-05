@@ -132,7 +132,7 @@ x-backend-environment: &backend-environment
   OBJECT_STORAGE_PRESIGN_TTL_SECONDS: ${OBJECT_STORAGE_PRESIGN_TTL_SECONDS:-300}
   OBJECT_STORAGE_ORPHAN_TTL_HOURS: ${OBJECT_STORAGE_ORPHAN_TTL_HOURS:-24}
   OBJECT_STORAGE_DOWNLOAD_TTL_SECONDS: ${OBJECT_STORAGE_DOWNLOAD_TTL_SECONDS:-60}
-  MALWARE_SCANNER_HOST: ${MALWARE_SCANNER_HOST:-}
+  MALWARE_SCANNER_HOST: ${MALWARE_SCANNER_HOST:-clamav}
   MALWARE_SCANNER_PORT: ${MALWARE_SCANNER_PORT:-3310}
   MALWARE_SCANNER_TIMEOUT_SECONDS: ${MALWARE_SCANNER_TIMEOUT_SECONDS:-30}
   FILE_KYC_RETENTION_DAYS: ${FILE_KYC_RETENTION_DAYS:-}
@@ -317,8 +317,30 @@ services:
       db:
         condition: service_healthy
 
+  clamav:
+    image: ${CLAMAV_IMAGE:?CLAMAV_IMAGE is required}
+    volumes:
+      - clamav_signatures:/var/lib/clamav
+    mem_limit: 4g
+    healthcheck:
+      test: ["CMD-SHELL", "clamdcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      start_period: 360s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    networks:
+      data: {}
+      egress:
+        gw_priority: 1
+
   api:
     <<: *backend-service
+    environment:
+      <<: *backend-environment
+      WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]
     healthcheck:
       test:
@@ -337,6 +359,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      clamav:
+        condition: service_healthy
 
   worker:
     <<: *backend-service
@@ -350,6 +374,8 @@ services:
       db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      clamav:
         condition: service_healthy
 
   frontend:
@@ -423,6 +449,7 @@ services:
       app: {}
 
 volumes:
+  clamav_signatures:
   postgres_data:
   redis_data:
   caddy_data:

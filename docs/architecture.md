@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.115 — 2026-10-04. Canonical source of truth: current state AND target state.**
+**Version 1.117 — 2026-10-05. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -1354,6 +1354,14 @@ advertiser's price — under D2 + Q1 they diverge). Before production starts,
 spend is the sum of confirmed, unreversed receipt allocations for accepted
 campaign terms. After actual production start it is the effective advertiser
 obligation. Payout and earnings rows never enter this computation.
+
+**[VERIFIED EXISTING BILLING — W1B, REQ-037]** All accepted quote lines, including
+printing, installation, permits, design and other fixed costs, count once in
+this existing billing basis; VAT and quantities are already included in the
+accepted gross obligation. Never add those fixed amounts again or reprice an
+acceptance. Before production confirmed allocations retain their Lagos-day
+attribution; the full production obligation belongs to the production-start
+Lagos day for daily budgets. Existing evaluation rows and key formats remain valid.
 
 Every configured decision persists policy ID, revision, approved-versus-test
 source, total/daily basis, billing-fact source, spend, thresholds and alert,
@@ -2868,15 +2876,17 @@ client-owned cloud/domain. The actual account/domain/provider/budget/access
 remain `EXT-RELEASE-ENV`. Posture: containerised and cloud-portable — nothing
 below assumes a specific vendor.
 
-**[TEMPLATE — Batch F, not applied]** The client chose Render hosting, AWS S3
-storage with KMS bucket encryption, ClamAV, Postmark and Mapbox (client answers
-items 9–16). `deploy/render/render.yaml`, `deploy/aws/` and
-`docs/deployment-templates.md` translate that choice into templates with every
-secret blank and every unanswered switch off. They are not a deployable
-topology: the document lists the gaps this section's edge design still
-requires on Render (security headers, webhook and health routing, Redis TLS,
-Mapbox with MapLibre, KMS key custody, release procedures, retention, shared
-login limits without a trusted edge, and where personal data is stored).
+**[TEMPLATE — W1B locally verified, D44/D62/REQ-049/108, not applied]** Hetzner replaces
+Render/AWS and MapTiler replaces Mapbox. `deploy/hetzner/` and
+`docs/deployment-templates.md` reuse the standalone Compose/Caddy release
+topology and existing S3 adapter, with blank secrets and no chosen region.
+Application bank/NIN key custody remains in the key ring; no KMS is claimed.
+MapTiler uses the build-time MapLibre HTTPS style and narrow API CSP origins.
+Compose gains private ClamAV with persistent signatures, outbound update
+access and health dependencies, and explicit configurable WEB_CONCURRENCY
+(default two). The 13 historical Batch F gaps are individually dispositioned
+in deployment-templates; provider compatibility, operational evidence, legal
+retention and residency remain open. No deployment or external gate is closed.
 
 ### 25.1 Environments
 
@@ -3326,6 +3336,7 @@ The pre-flight table for any new work. **If your feature isn't here, add it
 | Ping partitioning | §24.2 | migration `0014` + premake/coverage jobs + `/health/partitions` | location_pings | frozen migrations, default partitions | [BUILT] S4 |
 | Purge evidence (data_purge_audit) | §24.2.4 | `models/data_purge.py` + `services/data_lifecycle.py` | data_purge_audit (append-only) | updates to existing rows | [BUILT] S4 |
 | Data-subject requests (NDPR) | §24.2.6 | `services/data_subject_requests.py`, `services/data_subject_inventory.py`, `api/v1/privacy_dsr.py`, `jobs/data_lifecycle.py` + ops runbook | data_subject_requests, per-location assessments, governed object deletion work | money/audit deletion; unverified completion or external-erasure claims | [BUILT] provider-neutral DSR inventory/completion authority; legal retention and external-processor facts remain gated |
+| Campaign fixed-cost budget and hosting templates | §15.5/§25 | `services/billing.py`, `adapters/budget/`, Compose/Caddy, `deploy/hetzner/`, frontend map config | focused budget regression proof, release topology validator and provider templates | accepted price/evaluation rewrites, payout domain, external accounts or residency selection | [LOCALLY VERIFIED W1B] REQ-037/049/108; live provider and legal gates remain |
 | Per-campaign custom quotation / accepted external deal record | §15 | `services/billing.py` | commercial_terms, invoices | launch package catalogue; report logic | Q1/Q14 confirmed |
 | Advertiser company profile | §6/§15/§27 | advertiser organization service + advertiser/admin pages | advertiser_organizations | invoice-company identity, tenant ownership | D11 proposal Module B |
 | Campaign cancellation / refunds and production authority | §15 | `services/billing.py` + campaign status | commercial terms, production-authority events, invoices, payments | mutable waivers; production before authority; ledger edits | Q24/D20 |
@@ -3518,8 +3529,13 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 ## 34. Doc changelog
 
+W1B local verification is recorded in
+[the delivery receipt](../issues/testing/w1b-budget-hosting-evidence-2026-10-05.md).
+It does not authorize deployment or close external launch gates.
+
 | Version | Date | Change |
 |---------|------|--------|
+| v1.117 | 2026-10-05 | **W1B locally verified templates and budget proof (REQ-037/049/108, D44/D62).** Verify all accepted fixed quote lines count once through the existing billing authority and retain evaluation keys. Replace Render/AWS/Mapbox templates with Hetzner S3 and MapTiler; add internal ClamAV, signature persistence/egress and health dependencies; align configurable API workers. Focused delivery evidence in `issues/testing/w1b-budget-hosting-evidence-2026-10-05.md`; templates only, no external gate changes. |
 | v1.115 | 2026-10-04 | **Owner-approved direct document review (D58, REQ-105; renumbered at merge from v1.114/D57/REQ-091 in `6eb5ab9`).** §19 and §27.5 replace person/bank and vehicle need checkboxes with direct audited View; separate NIN, fixed application/vehicle purpose/reason mappings, timed/leave-page hiding and record isolation remain. Frontend-only local implementation verified by focused tests and browser evidence in `issues/testing/client-polish-2026-10-04.md`; Person/bank and vehicle extension consolidated minimal-change and implemented privacy/security reviews PASS. Owner approved the verified local commit; no API, backend, launch-gate or merge claim. |
 | v1.114 | 2026-10-02 | **Development installation configuration (D57, REQ-094).** Configure temporary preview trip limits, retaining unset code defaults and production/staging numeric templates and the unanswered REQ-039 client input. |
 | v1.113 | 2026-10-02 | **Development access (D56, REQ-072/089).** Remove legal display/collection/issuance switches and dynamic advertiser reports; retain immutable results, tenant/aggregation/export boundaries and query recording, and register real-user legal/privacy plus differencing restoration as an unresolved launch obligation. |

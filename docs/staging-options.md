@@ -1,4 +1,7 @@
-# Staging hosting options — research only
+# Staging hosting options — historical research; D44 selects Hetzner
+
+Current templates and gates: [deployment-templates.md](deployment-templates.md).
+Old provider comparisons below are historical research, not setup authority.
 
 Pricing checked **12 July 2026** against the linked provider pages. Estimates exclude VAT, domain registration, excess bandwidth, support plans, and exchange-rate movement. They are sizing sketches, not quotes.
 
@@ -17,7 +20,7 @@ Pricing checked **12 July 2026** against the linked provider pages. Estimates ex
 
 ### Topology and estimated monthly cost
 
-One Europe-region `CX33` VM runs Caddy, frontend, API, PostGIS, and Redis on a private Compose network. Only Caddy publishes 80/443. A small external object-storage target or separately mounted backup destination holds encrypted dumps.
+A region requiring REQ-032 approval hosts Caddy, frontend, API, worker, ClamAV, PostGIS, and Redis on a private Compose network. Only Caddy publishes 80/443. A small external object-storage target or separately mounted backup destination holds encrypted dumps.
 
 | Component | Estimate |
 |---|---:|
@@ -29,12 +32,12 @@ Source: Hetzner's [15 June 2026 cloud price adjustment](https://docs.hetzner.com
 
 ### Setup steps
 
-1. Provision a CX33 in the closest acceptable European region; enable provider firewall rules for SSH from operator IPs and public 80/443 only.
+1. After account/spend/residency approval, provision a capacity-reviewed VM in the approved region; enable provider firewall rules for SSH from operator IPs and public 80/443 only.
 2. Install Docker Engine and the Compose plugin; create a non-root deploy user and disable password SSH.
 3. Point an `A`/`AAAA` record such as `staging.example.com` at the VM. Configure Caddy to obtain/renew Let's Encrypt TLS and proxy only to `frontend:3000`.
-4. Use the committed `docker-compose.production.yml` as an overlay after
-   `docker-compose.yml`; do not run either file alone. Verify the merged model
-   publishes only Caddy 80/443, as described in the runbook.
+4. Use `docker-compose.production.yml` standalone with a protected external
+   environment file; never merge local Compose into the release topology.
+   Verify only Caddy publishes 80/443 and ClamAV remains private.
 5. Store runtime secrets in a root-readable environment file outside Git. Pass `NEXT_PUBLIC_SENTRY_DSN` only during `docker compose build frontend`.
 6. Follow the runbook release sequence: start PostGIS/Redis privately, invoke
    the explicit `release` profile's one-shot `migrate` service, then start
@@ -144,10 +147,10 @@ Use only that provider's documented trusted-proxy mechanism and test it;
 otherwise leave client-header trust disabled and accept the shared-BFF IP
 bucket documented in the runbook.
 
-## Recommendation for client review
+## Historical recommendation (superseded by D44)
 
 - Choose **Hetzner Compose** for the lowest cost and fastest parity with local operation, provided one named operator owns patching and off-host backups.
 - Choose **Render** when reduced operations work is worth roughly $43+/month and PostGIS is confirmed.
 - Choose **Fly Machines** only with explicit acceptance of unsupported self-managed Postgres, or revise the budget upward for Fly Managed Postgres.
 
-No option should proceed past research until OJ's written approval records the selected provider, region/data residency, budget ceiling, operator, backup destination, and trusted-edge design.
+D44 selects Hetzner; see the current deployment templates. Provisioning still needs OJ's written approval of account actions, region/data residency, budget, operator, backup destination and trusted-edge evidence.

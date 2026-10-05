@@ -7,7 +7,7 @@ describe("provider-neutral map configuration", () => {
   });
 
   it("uses the configured provider style when supplied at build time", () => {
-    const configuredStyle = "https://maps.example.test/styles/release.json";
+    const configuredStyle = "https://api.maptiler.com/maps/streets-v4/style.json?key=synthetic";
     vi.stubEnv("NEXT_PUBLIC_MAP_STYLE_URL", configuredStyle);
 
     expect(activeMapStyle()).toBe(configuredStyle);

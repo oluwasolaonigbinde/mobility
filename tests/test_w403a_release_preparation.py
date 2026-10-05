@@ -124,6 +124,22 @@ def production_model(
         command.extend(("--profile", profile))
     command.extend(("--env-file", str(env_file), "config", "--format", "json"))
     environment = os.environ.copy()
+    # Templates contain no secrets. Rendering gets synthetic stand-ins here only.
+    environment.update(
+        {
+            "POSTGRES_PASSWORD": "synthetic-render-password",
+            "REDIS_PASSWORD": "synthetic-render-password",
+            "DATABASE_URL": "postgresql+asyncpg://mobility:synthetic@db/mobility?ssl=verify-full",
+            "REDIS_URL": "rediss://:synthetic@redis:6379/0?ssl_cert_reqs=required",
+            "JWT_SECRET_KEY": "synthetic-render-secret-at-least-32-characters",
+            "PAYOUT_CRYPTO_KEYRING_B64": '{"1":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}',
+            "TRIP_EVIDENCE_SIGNING_KEYRING_B64": (
+                '{"1":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}'
+            ),
+            "OBJECT_STORAGE_ACCESS_KEY_ID": "synthetic-render-key",
+            "OBJECT_STORAGE_SECRET_ACCESS_KEY": "synthetic-render-secret",
+        }
+    )
     environment.update(overrides or {})
     result = subprocess.run(
         command, cwd=ROOT, check=True, capture_output=True, text=True, env=environment
@@ -225,6 +241,7 @@ def valid_release_environment(tmp_path: Path) -> dict[str, str]:
             "POSTGIS_IMAGE": "postgis/postgis@sha256:" + "3" * 64,
             "REDIS_IMAGE": "redis@sha256:" + "4" * 64,
             "CADDY_IMAGE": "caddy@sha256:" + "5" * 64,
+            "CLAMAV_IMAGE": "clamav/clamav@sha256:" + "6" * 64,
             "EDGE_HOSTNAME": "cardvert.client-owned-domain.com",
             "PUBLIC_ORIGIN": "https://cardvert.client-owned-domain.com",
             "PAYSTACK_CHECKOUT_RETURN_URL": (
@@ -262,7 +279,7 @@ def valid_release_environment(tmp_path: Path) -> dict[str, str]:
             "OBJECT_STORAGE_SECRET_ACCESS_KEY": (
                 "Client-storage-secret-with-more-than-thirty-two-characters-2026"
             ),
-            "MALWARE_SCANNER_HOST": "scanner.internal.client-owned-domain.com",
+            "MALWARE_SCANNER_HOST": "clamav",
             "MALWARE_SCANNER_PORT": "3310",
             "MALWARE_SCANNER_TIMEOUT_SECONDS": "30",
             "FILE_KYC_RETENTION_DAYS": "365",
@@ -310,7 +327,16 @@ def test_production_model_has_only_tls_edge_public_and_no_builds() -> None:
     model = production_model(profiles=("release",))
     services = model["services"]
 
-    assert set(services) == {"api", "db", "edge", "frontend", "migrate", "redis", "worker"}
+    assert set(services) == {
+        "api",
+        "clamav",
+        "db",
+        "edge",
+        "frontend",
+        "migrate",
+        "redis",
+        "worker",
+    }
     assert [port["published"] for port in services["edge"]["ports"]] == ["80", "443", "443"]
     assert all(not service.get("ports") for name, service in services.items() if name != "edge")
     assert all("build" not in service for service in services.values())

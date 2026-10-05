@@ -48,7 +48,7 @@ def policy() -> FixedBudgetPolicyAdapter:
     )
 
 
-async def accepted_terms(session, *, campaign, admin, owner):
+async def accepted_terms(session, *, campaign, admin, owner, line_items=None, tax_rate="0"):
     request = await request_custom_quote(
         session,
         campaign_id=campaign.id,
@@ -62,7 +62,8 @@ async def accepted_terms(session, *, campaign, admin, owner):
         actor_user_id=admin.id,
         quote_reference="BUDGET-Q1",
         currency="NGN",
-        line_items=[
+        line_items=line_items
+        or [
             {
                 "code": "MEDIA",
                 "description": "Synthetic media funding",
@@ -73,7 +74,7 @@ async def accepted_terms(session, *, campaign, admin, owner):
         production_scope={"synthetic_test": True},
         payment_class=PaymentClass.STANDARD_PREPAID,
         payment_terms={"synthetic_test": True},
-        tax_rate="0",
+        tax_rate=tax_rate,
     )
     return await accept_quotation_revision(
         session,
@@ -958,6 +959,7 @@ def test_three_level_thresholds_are_ordered_and_tiny_budgets_fail_closed() -> No
         billing_service._validate_budget_decision(decision, synthetic_test_authority=True)
     assert invalid.value.code == "INVALID_BUDGET_POLICY_DECISION"
 
+
 def test_approved_settings_wire_all_three_levels_into_the_live_adapter(monkeypatch) -> None:
     from app.adapters.budget import build_budget_policy_adapter
     from app.core.config import Settings
@@ -997,3 +999,288 @@ def test_approved_settings_wire_all_three_levels_into_the_live_adapter(monkeypat
         monkeypatch.setenv(name, value)
         with pytest.raises(ValueError):
             Settings(_env_file=None)
+
+
+def fixed_quote_lines():
+    # Net 1000: media 400, printing 2x100, four fixed lines 100 each; VAT 75.
+    return [
+        {"code": "MEDIA", "description": "Media", "kind": "media", "amount": "400.00"},
+        {
+            "code": "PRINT",
+            "description": "Printing",
+            "kind": "production",
+            "quantity": 2,
+            "unit_amount": "100.00",
+        },
+        *[
+            {"code": code, "description": code, "kind": kind, "amount": "100.00"}
+            for code, kind in (
+                ("INSTALL", "production"),
+                ("PERMIT", "other"),
+                ("DESIGN", "other"),
+                ("FIXED_MISC", "other"),
+            )
+        ],
+    ]
+
+
+def fixed_lines_policy():
+    return FixedBudgetPolicyAdapter(
+        policy_id="synthetic-fixed-lines",
+        policy_revision="r1",
+        policy_source="synthetic_test",
+        alert_ratio=Decimal("0.80"),
+        urgent_ratio=Decimal("0.95"),
+        pause_ratio=Decimal("1.00"),
+        resume_ratio=Decimal("0.70"),
+    )
+
+
+def test_all_fixed_lines_count_once_in_funding_alerts_reversal_and_retry(db_sessionmaker):
+    admin = create_test_user(db_sessionmaker, email="fixed-funding-admin@example.com")
+    owner = create_test_user(
+        db_sessionmaker, email="fixed-funding-owner@example.com", role=UserRole.ADVERTISER
+    )
+    organization, _ = create_test_organization(db_sessionmaker, owner_user_id=owner.id)
+    campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=admin.id,
+        campaign_status=CampaignStatus.ACTIVE,
+        budget_amount="1075.00",
+        daily_budget_amount=None,
+    )
+
+    async def scenario():
+        async with db_sessionmaker() as session:
+            terms = await accepted_terms(
+                session,
+                campaign=campaign,
+                admin=admin,
+                owner=owner,
+                line_items=fixed_quote_lines(),
+                tax_rate="0.075",
+            )
+            frozen = list(terms.line_items)
+            assert terms.net_amount == Decimal("1000.00")
+            assert terms.tax_amount == Decimal("75.00")
+            assert terms.gross_amount == Decimal("1075.00")
+            receipts = []
+            for index, (increment, spend, state) in enumerate(
+                [
+                    ("860.00", "860.00", "alert_threshold"),
+                    ("161.25", "1021.25", "urgent_threshold"),
+                    ("53.75", "1075.00", "pause_threshold"),
+                ]
+            ):
+                receipts.append(
+                    await fund(
+                        session,
+                        terms=terms,
+                        organization=organization,
+                        admin=admin,
+                        reference=f"FIXED-FUND-{index}",
+                        amount=increment,
+                    )
+                )
+                result = await evaluate_campaign_budget_policy(
+                    session,
+                    campaign_id=campaign.id,
+                    adapter=fixed_lines_policy(),
+                    synthetic_test_authority=True,
+                )
+                retry = await evaluate_campaign_budget_policy(
+                    session,
+                    campaign_id=campaign.id,
+                    adapter=fixed_lines_policy(),
+                    synthetic_test_authority=True,
+                )
+                assert result.id == retry.id
+                assert result.state == state
+                assert result.billing_spend_amount == Decimal(spend)
+                assert result.billing_fact_source == "confirmed_funding"
+            assert result.pause_applied
+            for receipt in receipts:
+                await reverse_payment_receipt(
+                    session,
+                    receipt_id=receipt.id,
+                    actor_user_id=admin.id,
+                    reason="synthetic reversal",
+                )
+            below = await evaluate_campaign_budget_policy(
+                session,
+                campaign_id=campaign.id,
+                adapter=fixed_lines_policy(),
+                synthetic_test_authority=True,
+            )
+            assert below.billing_spend_amount == Decimal("0.00")
+            assert below.resume_allowed
+            assert terms.line_items == frozen
+            assert terms.gross_amount == Decimal("1075.00")
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    ("budget", "state"),
+    [
+        ("1343.75", "alert_threshold"),
+        ("1131.58", "urgent_threshold"),
+        ("1075.00", "pause_threshold"),
+    ],
+)
+def test_full_fixed_quote_production_obligation_and_lagos_day(
+    db_sessionmaker, settings, budget, state
+):
+    from datetime import timedelta
+
+    from app.services.billing import (
+        EXPEDITED_WAIVER_WORDING,
+        EXPEDITED_WAIVER_WORDING_HASH,
+        EXPEDITED_WAIVER_WORDING_VERSION,
+        record_expedited_production_waiver,
+        record_prepaid_cash_authorization,
+        record_production_start,
+    )
+
+    admin = create_test_user(db_sessionmaker, email=f"fixed-prod-admin-{state}@example.com")
+    owner = create_test_user(
+        db_sessionmaker, email=f"fixed-prod-owner-{state}@example.com", role=UserRole.ADVERTISER
+    )
+    organization, _ = create_test_organization(db_sessionmaker, owner_user_id=owner.id)
+    campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=admin.id,
+        campaign_status=CampaignStatus.ACTIVE,
+        budget_amount=budget,
+        daily_budget_amount=budget,
+    )
+
+    async def scenario():
+        async with db_sessionmaker() as session:
+            terms = await accepted_terms(
+                session,
+                campaign=campaign,
+                admin=admin,
+                owner=owner,
+                line_items=fixed_quote_lines(),
+                tax_rate="0.075",
+            )
+            frozen = list(terms.line_items)
+            await fund(
+                session,
+                terms=terms,
+                organization=organization,
+                admin=admin,
+                reference=f"FIXED-PROD-{state}",
+                amount="1075.00",
+            )
+            await record_prepaid_cash_authorization(
+                session,
+                campaign_id=campaign.id,
+                actor_user_id=admin.id,
+                max_driver_liability="100.00",
+                reason="synthetic authority",
+            )
+            waiver = await record_expedited_production_waiver(
+                session,
+                campaign_id=campaign.id,
+                actor_user_id=owner.id,
+                wording_version=EXPEDITED_WAIVER_WORDING_VERSION,
+                accepted_wording=EXPEDITED_WAIVER_WORDING,
+                accepted_wording_hash=EXPEDITED_WAIVER_WORDING_HASH,
+            )
+            production = await record_production_start(
+                session, campaign_id=campaign.id, actor_user_id=admin.id, waiver_id=waiver.id
+            )
+            start = billing_service._stored_aware_utc(production.started_at)
+            # The full accepted obligation already includes fixed charges and VAT.
+            total, daily, source = await billing_service._campaign_billing_spend(
+                session, campaign_id=campaign.id, now=start
+            )
+            assert (total, daily, source) == (
+                Decimal("1075.00"),
+                Decimal("1075.00"),
+                "production_obligation",
+            )
+            result = await evaluate_campaign_budget_policy(
+                session,
+                campaign_id=campaign.id,
+                adapter=fixed_lines_policy(),
+                synthetic_test_authority=True,
+            )
+            assert result.state == state
+            assert result.billing_spend_amount == Decimal("1075.00")
+            # Midnight in Lagos is 23:00 UTC: attribution ends exactly there.
+            midnight = (start + timedelta(days=1)).replace(
+                hour=23, minute=0, second=0, microsecond=0
+            )
+            midnight = (
+                start.replace(hour=23, minute=0, second=0, microsecond=0)
+                if start.hour < 23
+                else midnight
+            )
+            _, just_before, _ = await billing_service._campaign_billing_spend(
+                session, campaign_id=campaign.id, now=midnight - timedelta(microseconds=1)
+            )
+            _, at_midnight, _ = await billing_service._campaign_billing_spend(
+                session, campaign_id=campaign.id, now=midnight
+            )
+            assert just_before == Decimal("1075.00")
+            assert at_midnight == Decimal("0.00")
+            from test_invoices import _issuer
+
+            from app.models.billing import InvoiceCorrectionType, IssuerVerificationStatus
+
+            draft = await billing_service.create_invoice_draft(
+                session, commercial_terms_id=terms.id, actor_user_id=admin.id
+            )
+            issuer = await _issuer(
+                session, admin, IssuerVerificationStatus.SYNTHETIC, "FIXED-TEST", settings
+            )
+            await billing_service.issue_invoice(
+                session,
+                invoice_id=draft.id,
+                issuer_profile_id=issuer.id,
+                actor_user_id=admin.id,
+                settings=settings,
+            )
+            await billing_service.record_invoice_correction(
+                session,
+                invoice_id=draft.id,
+                actor_user_id=admin.id,
+                correction_reference="FIXED-CREDIT",
+                correction_type=InvoiceCorrectionType.CREDIT_NOTE,
+                net_amount="100.00",
+                tax_amount="7.50",
+                reason="synthetic accepted correction",
+            )
+            # 1075 - (100 + 7.50), without mutating the accepted quote.
+            total, daily, _ = await billing_service._campaign_billing_spend(
+                session, campaign_id=campaign.id, now=start
+            )
+            assert (total, daily) == (Decimal("967.50"), Decimal("967.50"))
+            _, later_daily, _ = await billing_service._campaign_billing_spend(
+                session, campaign_id=campaign.id, now=midnight
+            )
+            assert later_daily == Decimal("0.00")
+            corrected = await evaluate_campaign_budget_policy(
+                session,
+                campaign_id=campaign.id,
+                adapter=fixed_lines_policy(),
+                synthetic_test_authority=True,
+            )
+            retry = await evaluate_campaign_budget_policy(
+                session,
+                campaign_id=campaign.id,
+                adapter=fixed_lines_policy(),
+                synthetic_test_authority=True,
+            )
+            assert corrected.billing_spend_amount == Decimal("967.50")
+            assert corrected.evaluation_key != result.evaluation_key
+            assert retry.id == corrected.id
+            assert terms.line_items == frozen
+            assert terms.gross_amount == Decimal("1075.00")
+
+    asyncio.run(scenario())
