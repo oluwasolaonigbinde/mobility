@@ -103,7 +103,10 @@ def test_r59_compose_is_local_isolated_and_uses_production_commands() -> None:
     assert "arq app.jobs.worker_entry.WorkerSettings" in compose
     assert "ENVIRONMENT: test" in compose
     assert 'ALLOW_DEMO_SEED: "true"' in compose
-    assert 'F7_SEED_MAX_TRIPS_PER_DAY: "1"' in compose
+    assert "F7_SEED_MAX_TRIPS_PER_DAY" not in compose
+    assert "F7_SEED_MAX_TRIPS_PER_DAY: ${F7_SEED_MAX_TRIPS_PER_DAY:-2}" in _read(
+        "docker-compose.yml"
+    )
     assert 'BUDGET_POLICY_EXTERNAL_APPROVED: "false"' in compose
     assert 'PHONE_OPERATOR_EXTERNAL_APPROVED: "false"' in compose
 
