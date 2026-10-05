@@ -12,7 +12,7 @@ import random
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 from uuid import NAMESPACE_URL, uuid5
 
 from sqlalchemy import func, select
@@ -33,7 +33,11 @@ from app.models.campaign import (
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
 from app.models.campaign_zone import CampaignZone, CampaignZoneType
 from app.models.driver import DriverOnboardingStatus, DriverProfile
-from app.models.impression import TrafficDensityProfile
+from app.models.impression import (
+    TrafficDensityProfile,
+    TrafficDensityProfileStatus,
+    TrafficDensityProfileType,
+)
 from app.models.organization import AdvertiserOrganization
 from app.models.payout import CampaignPayoutRule, CampaignPayoutRuleStatus
 from app.models.trip import (
@@ -813,9 +817,11 @@ async def _ensure_audit_backlog(
 async def _ensure_assignment_authority(
     session, *, campaign, assignment, asset, admin, advertiser, settings, kind
 ):
-    from types import SimpleNamespace
-
-    from app.seeds.demo_authority import ensure_daily_terms, ensure_demo_start_authority
+    from app.seeds.demo_authority import (
+        SeedStartAuthorityGraph,
+        ensure_daily_terms,
+        ensure_demo_start_authority,
+    )
 
     if kind == "draft":
         await ensure_daily_terms(
@@ -830,7 +836,7 @@ async def _ensure_assignment_authority(
     else:
         await ensure_demo_start_authority(
             session,
-            graph=SimpleNamespace(
+            graph=SeedStartAuthorityGraph(
                 driver=asset.user,
                 admin=admin,
                 advertiser=advertiser,
@@ -891,7 +897,11 @@ async def build_rich_seed(
     for campaign_index, driver_indexes, assignment_status in assignment_specs:
         campaign = campaigns[campaign_index]
         kind = CAMPAIGN_SPECS[campaign_index][2]
-        advertiser = await session.get(User, campaign.created_by_user_id)
+        from app.seeds.demo_authority import require_seed_value
+
+        advertiser = require_seed_value(
+            await session.get(User, campaign.created_by_user_id), "campaign advertiser"
+        )
         for driver_index in driver_indexes:
             asset = drivers[driver_index]
             assignment = await _ensure_assignment(
@@ -1338,8 +1348,8 @@ async def _ensure_reach_profiles(session):
             TrafficDensityProfileCreate(
                 name=name,
                 description=description,
-                profile_type="urban",
-                status=state,
+                profile_type=TrafficDensityProfileType.URBAN,
+                status=TrafficDensityProfileStatus(state),
                 traffic_density_per_km=Decimal(density),
                 dwell_impressions_per_minute=Decimal("4"),
                 road_category_weight=Decimal("1"),
@@ -2141,11 +2151,18 @@ async def ensure_portal_audiences(session, *, graph, settings):
                 CampaignZone.campaign_id == campaign.id, CampaignZone.zone_type == "target"
             )
         )
-        for category, confidence in (
+        insights: tuple[
+            tuple[
+                Literal["area-demand", "time-pattern", "contextual-affinity"],
+                Literal["low", "medium", "high"],
+            ],
+            ...,
+        ] = (
             ("area-demand", "high"),
             ("time-pattern", "medium"),
             ("contextual-affinity", "low"),
-        ):
+        )
+        for category, confidence in insights:
             source = await create_retargeting_source(
                 session,
                 settings=settings,
@@ -2272,6 +2289,8 @@ async def _review_seed_fraud_flags(session, *, campaign_id, actor_user_id):
                 continue
             await acknowledge_fraud_flag(session, flag_id=flag.id, actor_user_id=actor_user_id)
             if outcome != "acknowledged":
+                if note is None:
+                    raise ValueError("Expected demo fraud resolution note is missing")
                 await resolve_fraud_flag(
                     session,
                     flag_id=flag.id,
@@ -2348,7 +2367,7 @@ async def ensure_trip_review_work(session, *, graph, staff, settings):
                     recorded_at=trip.started_at + timedelta(minutes=1),
                     lat=6.5100,
                     lon=3.3890,
-                    accuracy_m=Decimal("10"),
+                    accuracy_m=10.0,
                     sequence_number=0,
                 )
             ],
@@ -2365,6 +2384,8 @@ async def ensure_trip_review_work(session, *, graph, staff, settings):
             hash_version=2 if trip.evidence_protocol_version == 2 else 1,
         )
         late = result.quarantine
+        if late is None:
+            raise ValueError("Expected demo quarantined upload is missing")
         if late.status != "quarantined":
             continue
         if state == "applied":

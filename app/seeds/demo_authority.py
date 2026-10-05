@@ -9,9 +9,10 @@ import json
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import NamedTuple, Protocol
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
+from pydantic import SecretStr
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,11 +21,13 @@ from app.adapters.scanner import MalwareScanVerdict, build_malware_scanner
 from app.adapters.storage import build_storage_provider
 from app.core.config import Settings
 from app.models.billing import ProductionStart
-from app.models.campaign import CampaignCreative
+from app.models.campaign import Campaign, CampaignCreative
 from app.models.campaign_assignment import (
     CampaignActivationEvent,
     CampaignActivationEventType,
+    CampaignAssignment,
 )
+from app.models.driver import DriverProfile
 from app.models.installation_evidence import (
     DisplayProof,
     DisplayProofChallenge,
@@ -32,7 +35,13 @@ from app.models.installation_evidence import (
     InstallationEvidenceStatus,
     InstallationEvidenceSubmission,
 )
-from app.models.kyc import DriverKycSubmission, VehicleEvidenceSubmission
+from app.models.kyc import (
+    DriverKycSubmission,
+    KycReviewReason,
+    KycSubmissionStatus,
+    VehicleEvidenceSubmission,
+    VehicleReviewReason,
+)
 from app.models.payee import Payee, PayeeBankAccount, PayeeBankAccountVersion, PayeeVersion
 from app.models.payout import AssignmentRuleBinding, CampaignPayoutRule, CampaignPayoutRuleRevision
 from app.models.stored_file import (
@@ -40,6 +49,8 @@ from app.models.stored_file import (
     FileUploadIntent,
     StoredFile,
 )
+from app.models.user import User
+from app.models.vehicle import Vehicle, VehicleType
 from app.services.billing import (
     reserve_assignment_liability,
 )
@@ -486,8 +497,43 @@ async def seed_campaign_financials(
     await session.flush()
 
 
-if TYPE_CHECKING:
-    from app.seeds.demo import DemoGraph
+class StartAuthorityGraph(Protocol):
+    @property
+    def driver(self) -> User: ...
+
+    @property
+    def admin(self) -> User: ...
+
+    @property
+    def advertiser(self) -> User: ...
+
+    @property
+    def driver_profile(self) -> DriverProfile: ...
+
+    @property
+    def assignment(self) -> CampaignAssignment: ...
+
+    @property
+    def campaign(self) -> Campaign: ...
+
+    @property
+    def vehicle(self) -> Vehicle: ...
+
+
+class SeedStartAuthorityGraph(NamedTuple):
+    driver: User
+    admin: User
+    advertiser: User
+    driver_profile: DriverProfile
+    assignment: CampaignAssignment
+    campaign: Campaign
+    vehicle: Vehicle
+
+
+def require_seed_value[T](value: T | None, label: str) -> T:
+    if value is None:
+        raise ValueError(f"Expected demo {label} is missing")
+    return value
 
 
 async def ensure_applicant_review(session, *, application, person, stage, staff, settings):
@@ -535,6 +581,8 @@ async def _ensure_applicant_review(session, *, application, person, stage, staff
     access = await issue_driver_application_access(
         session, application=application, settings=settings
     )
+    if access is None:
+        raise ValueError("Expected demo applicant access token is missing")
     token = _access_token_value(access, settings)
     crypto = EnvelopeCryptoProvider(
         keys=settings.payout_crypto_keys, active_key_version=settings.payout_crypto_key_version
@@ -558,17 +606,19 @@ async def _ensure_applicant_review(session, *, application, person, stage, staff
         settings=settings,
         crypto=crypto,
         payload=PersonPayeeSubmissionCreate(
-            application_access_token=token,
+            application_access_token=SecretStr(token),
             client_request_id=uuid5(application.id, "person-payee"),
-            nin="00000000000",
-            account_name=person.full_name,
-            account_number="0000000000",
-            bank_code="999",
+            nin=SecretStr("00000000000"),
+            account_name=SecretStr(person.full_name),
+            account_number=SecretStr("0000000000"),
+            bank_code=SecretStr("999"),
             driver_license_file_id=files["driver_license"],
             driver_photo_file_id=files["driver_photo"],
             signed_agreement_file_id=files["signed_agreement"],
         ),
     )
+    if view.submission is None:
+        raise ValueError("Expected demo person/payee submission is missing")
     if stage == "pending_review":
         return
     clock[0] += timedelta(hours=1)
@@ -609,10 +659,10 @@ async def _ensure_applicant_review(session, *, application, person, stage, staff
         actor_user_id=staff[2].id,
         payload=PersonPayeeReviewDecisionCreate(
             client_request_id=uuid5(application.id, "person-review"),
-            decision=stage,
-            reason_code="complete_current_evidence"
+            decision=KycSubmissionStatus(stage),
+            reason_code=KycReviewReason.COMPLETE_CURRENT_EVIDENCE
             if stage == "approved"
-            else "unreadable_evidence",
+            else KycReviewReason.UNREADABLE_EVIDENCE,
             identity_match_confirmed=stage == "approved",
             bank_account_match_confirmed=stage == "approved",
             documents_readable_confirmed=stage == "approved",
@@ -673,11 +723,11 @@ async def _ensure_applicant_vehicle(session, *, application, person, token, staf
         session,
         settings=settings,
         payload=ApplicantVehicleSubmissionCreate(
-            application_access_token=token,
+            application_access_token=SecretStr(token),
             client_request_id=uuid5(application.id, "vehicle"),
             plate_number="ABJ-603-MR",
             plate_country_code="NG",
-            vehicle_type="car",
+            vehicle_type=VehicleType.CAR,
             make="Toyota",
             model="Corolla",
             year=2020,
@@ -687,6 +737,8 @@ async def _ensure_applicant_vehicle(session, *, application, person, token, staf
             vehicle_photo_file_id=files["vehicle_photo"],
         ),
     )
+    if view.submission is None:
+        raise ValueError("Expected demo vehicle submission is missing")
     clock[0] += timedelta(hours=1)
     for file_id in files.values():
         await issue_admin_file_download(
@@ -706,8 +758,8 @@ async def _ensure_applicant_vehicle(session, *, application, person, token, staf
         actor_user_id=staff[3].id,
         payload=VehicleReviewDecisionCreate(
             client_request_id=uuid5(application.id, "vehicle-review"),
-            decision="approved",
-            reason_code="complete_current_evidence",
+            decision=KycSubmissionStatus.APPROVED,
+            reason_code=VehicleReviewReason.COMPLETE_CURRENT_EVIDENCE,
             owner_match_confirmed=True,
             vehicle_identity_confirmed=True,
             roadworthy_confirmed=True,
@@ -726,7 +778,7 @@ async def _ensure_applicant_vehicle(session, *, application, person, token, staf
 
 
 async def ensure_demo_start_authority(
-    session: AsyncSession, *, graph: "DemoGraph", settings: Settings
+    session: AsyncSession, *, graph: StartAuthorityGraph, settings: Settings
 ) -> None:
     from app.seeds.demo import ensure_seed_allowed
 
@@ -735,6 +787,8 @@ async def ensure_demo_start_authority(
             update={"database_url": settings.database_url or str(session.get_bind().url)}
         )
     )
+    accepted_at = require_seed_value(graph.assignment.accepted_at, "assignment acceptance date")
+    activated_at = require_seed_value(graph.assignment.activated_at, "assignment activation date")
     driver, admin, advertiser = graph.driver, graph.admin, graph.advertiser
     from app.models.user import User
 
@@ -880,8 +934,8 @@ async def ensure_demo_start_authority(
         or 0
     ) + 1
 
-    evidence_step = (assignment.activated_at - assignment.accepted_at) / 4
-    captured_at = assignment.accepted_at + evidence_step
+    evidence_step = (activated_at - accepted_at) / 4
+    captured_at = accepted_at + evidence_step
     submitted_at = captured_at + evidence_step
     reviewed_at = submitted_at + evidence_step
 
@@ -1000,6 +1054,21 @@ async def ensure_demo_start_authority(
         .limit(1)
     )
     if activation is None or "activation_snapshot" not in activation.event_metadata:
+        offer_terms = require_seed_value(assignment.offer_terms, "frozen offer terms")
+        binding = require_seed_value(
+            await session.scalar(
+                select(AssignmentRuleBinding).where(
+                    AssignmentRuleBinding.assignment_id == assignment.id
+                )
+            ),
+            "assignment rule binding",
+        )
+        production = require_seed_value(
+            await session.scalar(
+                select(ProductionStart).where(ProductionStart.campaign_id == campaign.id)
+            ),
+            "production start",
+        )
         activated_at = assignment.activated_at
         assert activated_at
         if activated_at.tzinfo is None:
@@ -1014,27 +1083,13 @@ async def ensure_demo_start_authority(
             "vehicle_id": str(vehicle.id),
             "offer_terms_sha256": assignment.offer_terms_sha256,
             "activated_at": activated_at.isoformat(),
-            "creative_id": assignment.offer_terms["creative"]["id"],
+            "creative_id": offer_terms["creative"]["id"],
             "installation_evidence_submission_id": str(proof.evidence_submission_id),
             "installation_evidence_revision": image_revision,
-            "assignment_rule_binding_id": str(
-                (
-                    await session.scalar(
-                        select(AssignmentRuleBinding).where(
-                            AssignmentRuleBinding.assignment_id == assignment.id
-                        )
-                    )
-                ).id
-            ),
+            "assignment_rule_binding_id": str(binding.id),
             "liability_reservation_id": str(reservation.id),
             "financial_authorization_id": str(reservation.authorization_id),
-            "production_start_id": str(
-                (
-                    await session.scalar(
-                        select(ProductionStart).where(ProductionStart.campaign_id == campaign.id)
-                    )
-                ).id
-            ),
+            "production_start_id": str(production.id),
             "demo_synthetic": True,
         }
         canonical = json.dumps(snapshot, sort_keys=True, separators=(",", ":"), ensure_ascii=True)

@@ -538,6 +538,8 @@ async def upsert_assignment(
     driver: User,
     settings: Settings,
 ) -> CampaignAssignment:
+    if campaign.start_at is None:
+        raise ValueError("Expected demo campaign start date is missing")
     assignment = await session.scalar(
         select(CampaignAssignment).where(
             CampaignAssignment.campaign_id == campaign.id,
@@ -830,16 +832,14 @@ async def upsert_trips_and_pings(
     settings: Settings,
     specs: list[tuple[str, datetime, list[tuple[float, float]]]] | None = None,
 ) -> list[TripSession]:
-    from types import SimpleNamespace
-
-    from app.seeds.demo_authority import ensure_demo_start_authority
+    from app.seeds.demo_authority import SeedStartAuthorityGraph, ensure_demo_start_authority
 
     admin = await session.get(User, assignment.assigned_by_user_id)
     advertiser = await session.get(User, campaign.created_by_user_id)
     assert admin and advertiser
     await ensure_demo_start_authority(
         session,
-        graph=SimpleNamespace(
+        graph=SeedStartAuthorityGraph(
             driver=driver,
             admin=admin,
             advertiser=advertiser,
@@ -991,6 +991,8 @@ async def upsert_driver_story_campaigns(
         assignment_status = spec["assignment_status"]
         from app.seeds.demo_authority import prepare_daily_offer
 
+        if campaign.start_at is None:
+            raise ValueError("Expected demo campaign start date is missing")
         terms, digest = await prepare_daily_offer(
             session,
             campaign=campaign,

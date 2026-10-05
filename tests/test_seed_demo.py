@@ -161,6 +161,83 @@ def test_demo_seed_requires_postgres() -> None:
     assert exc.value.code == "POSTGIS_REQUIRED"
 
 
+@pytest.mark.parametrize("missing", ["accepted_at", "activated_at"])
+def test_seed_missing_assignment_dates_stop_before_authority_writes(settings, monkeypatch, missing):
+    from app.seeds import demo_authority
+
+    assignment = SimpleNamespace(accepted_at=datetime.now(UTC), activated_at=datetime.now(UTC))
+    setattr(assignment, missing, None)
+    session = Mock(get_bind=lambda: SimpleNamespace(url="postgresql+asyncpg://seed/test"))
+    session.scalar = AsyncMock()
+    terms = AsyncMock()
+    financials = AsyncMock()
+    monkeypatch.setattr(demo_authority, "ensure_daily_terms", terms)
+    monkeypatch.setattr(demo_authority, "seed_campaign_financials", financials)
+    with pytest.raises(ValueError, match="assignment .* date is missing"):
+        asyncio.run(demo_authority.ensure_demo_start_authority(
+            session, graph=SimpleNamespace(assignment=assignment), settings=settings,
+        ))
+    session.scalar.assert_not_awaited()
+    terms.assert_not_awaited()
+    financials.assert_not_awaited()
+
+
+@pytest.mark.parametrize("missing", ["access", "submission"])
+def test_seed_missing_applicant_authority_stops_dependent_calls(settings, monkeypatch, missing):
+    from app.seeds import demo_authority
+
+    session = SimpleNamespace(scalar=AsyncMock(return_value=None))
+    application = SimpleNamespace(id=UUID(int=1), driver_profile_id=UUID(int=2))
+    person = SimpleNamespace(full_name="Seed applicant")
+    access = AsyncMock(return_value=None if missing == "access" else object())
+    submit = AsyncMock(return_value=SimpleNamespace(submission=None))
+    managed = AsyncMock(return_value=SimpleNamespace(id=UUID(int=3)))
+    review = AsyncMock()
+    verify = AsyncMock()
+    monkeypatch.setattr("app.services.driver_applications.issue_driver_application_access", access)
+    monkeypatch.setattr(
+        "app.services.driver_applications._access_token_value", lambda *_: "seed-token"
+    )
+    monkeypatch.setattr("app.services.driver_onboarding.submit_application_person_payee", submit)
+    monkeypatch.setattr("app.services.driver_onboarding.review_application_person_payee", review)
+    monkeypatch.setattr("app.services.payees.verify_bank_account_version_for_payout", verify)
+    monkeypatch.setattr(demo_authority, "managed_seed_image", managed)
+    with pytest.raises(ValueError, match="Expected demo .* is missing"):
+        asyncio.run(demo_authority._ensure_applicant_review(
+            session, application=application, person=person, stage="approved",
+            staff=[], settings=settings, clock=[datetime.now(UTC)],
+        ))
+    review.assert_not_awaited()
+    verify.assert_not_awaited()
+    if missing == "access":
+        managed.assert_not_awaited()
+        submit.assert_not_awaited()
+    else:
+        submit.assert_awaited_once()
+
+
+def test_seed_missing_vehicle_submission_stops_document_reads_and_review(settings, monkeypatch):
+    from app.seeds import demo_authority
+
+    managed = AsyncMock(return_value=SimpleNamespace(id=UUID(int=3)))
+    submit = AsyncMock(return_value=SimpleNamespace(submission=None))
+    read = AsyncMock()
+    review = AsyncMock()
+    setup = AsyncMock()
+    monkeypatch.setattr(demo_authority, "managed_seed_image", managed)
+    monkeypatch.setattr("app.services.vehicle_onboarding.submit_application_vehicle", submit)
+    monkeypatch.setattr("app.services.vehicle_onboarding.review_application_vehicle", review)
+    monkeypatch.setattr("app.services.stored_files.issue_admin_file_download", read)
+    monkeypatch.setattr("app.services.driver_account_setup.initiate_driver_account_setup", setup)
+    with pytest.raises(ValueError, match="vehicle submission is missing"):
+        asyncio.run(demo_authority._ensure_applicant_vehicle(
+            object(), application=SimpleNamespace(id=UUID(int=1)), person=object(),
+            token="seed-token", staff=[], settings=settings, clock=[datetime.now(UTC)],
+        ))
+    read.assert_not_awaited()
+    review.assert_not_awaited()
+    setup.assert_not_awaited()
+
 def test_demo_seed_requires_the_current_migration_head(monkeypatch: pytest.MonkeyPatch) -> None:
     session = SimpleNamespace(
         get_bind=lambda: SimpleNamespace(dialect=SimpleNamespace(name="postgresql")),
@@ -1951,7 +2028,10 @@ def test_rich_seed_later_rerun_only_appends_valid_rolling_trips(
     from app.seeds import rich
 
     monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
-    first_now = datetime.now(UTC).replace(hour=12, minute=0, second=0, microsecond=0)
+    # Keep the first seed's payout revision effective even when this runs before noon.
+    first_now = (datetime.now(UTC) - timedelta(days=1)).replace(
+        hour=12, minute=0, second=0, microsecond=0
+    )
     monkeypatch.setattr(rich, "utc_now", lambda: first_now)
     seed_demo_graph(postgis_db_sessionmaker, settings)
     first = fetch_rich_snapshot(postgis_db_sessionmaker)
