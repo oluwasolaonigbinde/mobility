@@ -105,7 +105,15 @@ def test_0093_seeds_a_disabled_actor_enforces_modes_and_blocks_lossy_downgrade(
             await engine.dispose()
 
     changes = asyncio.run(model_drift())
-    assert [change for change in changes if any(t in repr(change) for t in TABLES)] == []
+    # 0099 adds disposable cursor columns; current-head drift is checked in
+    # test_migration_0099_automatic_payout_scan_cursor, not against the 0093 stage.
+    cursor_columns = ("candidate_cursor_at", "candidate_cursor_id")
+    assert [
+        change
+        for change in changes
+        if any(t in repr(change) for t in TABLES)
+        and not (change[0] == "add_column" and change[3].name in cursor_columns)
+    ] == []
     # Existing batches become maker-checker; nothing is automatic by default.
     assert asyncio.run(
         fetch_all(migration_url, "SELECT approval_mode, automatic_run_id FROM payout_batches")

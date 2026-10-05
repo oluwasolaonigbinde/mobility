@@ -1005,6 +1005,10 @@ class PayoutAutomaticControl(Base):
     __table_args__ = (
         CheckConstraint("id = 1", name="ck_payout_automatic_controls_singleton"),
         CheckConstraint(
+            "(candidate_cursor_at IS NULL) = (candidate_cursor_id IS NULL)",
+            name="ck_payout_automatic_controls_cursor_pair",
+        ),
+        CheckConstraint(
             "(changed_by_user_id IS NULL AND changed_at IS NULL AND reason IS NULL "
             "AND paused = false) OR (changed_by_user_id IS NOT NULL AND changed_at IS NOT NULL "
             "AND reason IS NOT NULL AND length(trim(reason)) BETWEEN 3 AND 500)",
@@ -1017,6 +1021,8 @@ class PayoutAutomaticControl(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    candidate_cursor_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    candidate_cursor_id: Mapped[UUID | None] = mapped_column()
     paused: Mapped[bool] = mapped_column(Boolean, nullable=False)
     reason: Mapped[str | None] = mapped_column(Text)
     changed_by_user_id: Mapped[UUID | None] = mapped_column(

@@ -23,6 +23,7 @@ EXPECTED_UNIQUE_CONSTRAINTS = frozenset(
         "uq_installation_evidence_photo_file",
         "uq_payout_batch_lines_active_ledger_entry",
         "uq_payout_batch_lines_provider_transfer_reference",
+        "uq_payout_automatic_alerts_dedupe_key",
         "uq_vehicles_plate_country_normalized",
         "uq_organization_memberships_user_active",
     }
@@ -83,6 +84,7 @@ _SQLITE_UNIQUE_COLUMNS = {
     (
         "payout_batch_lines.provider_transfer_reference",
     ): "uq_payout_batch_lines_provider_transfer_reference",
+    ("payout_automatic_alerts.dedupe_key",): "uq_payout_automatic_alerts_dedupe_key",
     (
         "vehicles.plate_country_code",
         "vehicles.plate_number_normalized",

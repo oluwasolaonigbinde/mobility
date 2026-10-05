@@ -31,6 +31,7 @@ ACTOR_ONLY_TYPES = frozenset(
         "invoice_correction",
         "invoice_issuer_profile",
         "payout_automatic_control",
+        "payout_automatic_run",
         "payment_receipt",
         "production_start",
         "receipt_allocation",
@@ -161,12 +162,6 @@ SUBJECT_QUERIES.update(
             "payout_batches",
             "SELECT e.driver_user_id FROM payout_batch_lines s JOIN earnings_ledger_entries e "
             "ON e.id=s.ledger_entry_id WHERE s.batch_id=:entity_id",
-        ),
-        "payout_automatic_run": (
-            "payout_automatic_runs",
-            "SELECT e.driver_user_id FROM payout_batches b JOIN payout_batch_lines s "
-            "ON s.batch_id=b.id JOIN earnings_ledger_entries e ON e.id=s.ledger_entry_id "
-            "WHERE b.automatic_run_id=:entity_id",
         ),
         "payout_automatic_alert": (
             "payout_automatic_alerts",

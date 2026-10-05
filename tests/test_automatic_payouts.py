@@ -364,6 +364,7 @@ def test_clean_v4_earning_is_approved_by_cardvert_and_submitted(
     )
     assert outcome == "resolved"
     assert len(fake.calls) == 1
+    assert Decimal(fake.calls[0][1][0].instruction["amount"]) == entry.amount
     (line,) = fetch(db, PayoutBatchLine)
     assert line.status == "submitted"
 
@@ -386,6 +387,7 @@ def test_clean_v4_earning_is_approved_by_cardvert_and_submitted(
 
     asyncio.run(webhook())
     assert entry_for(db, graph.trip.id).status == "paid"
+    assert entry_for(db, graph.trip.id).amount == entry.amount
     audits = fetch(
         db,
         AuditEvent,
@@ -641,11 +643,12 @@ def test_open_dispute_alone_keeps_the_driver_manual(postgis_db_sessionmaker, set
             await session.commit()
 
     asyncio.run(dispute())
-    entry = entry_for(db, graph.trip.id)
     result = run(db, auto(settings))
     assert result["line_count"] == 0
     (run_row,) = fetch(db, PayoutAutomaticRun)
-    assert run_row.exclusions["open_dispute"] == {"count": 1, "amount": f"{entry.amount:.2f}"}
+    # The open-driver dispute is filtered before the bounded candidate window.
+    assert run_row.exclusions == {}
+    assert entry_for(db, graph.trip.id).status == "available"
 
 
 def test_first_payment_to_an_account_needs_a_person_then_later_ones_are_automatic(
@@ -1399,8 +1402,51 @@ def test_blocked_submission_raises_one_alert(postgis_db_sessionmaker, settings) 
     run(db, auto(settings))
     (intent,) = fetch(db, PayoutSubmissionIntent)
 
+    other = build_manual_graph(db, "auto-manual-failure")
+
     async def audit_and_scan():
         async with db() as session:
+            other_entry = await _seed_authority(session, other)
+            checker = User(
+                email=f"manual-failure-{uuid4().hex}@example.com",
+                password_hash=other.admin.password_hash,
+                full_name="Checker",
+                role="admin",
+                status="active",
+            )
+            session.add(checker)
+            await session.flush()
+            draft = await create_payout_batch_draft(
+                session, currency="NGN", actor_user_id=other.admin.id
+            )
+            await reserve_payout_batch(
+                session,
+                batch_id=draft.id,
+                ledger_entry_ids=(other_entry.id,),
+                actor_user_id=other.admin.id,
+            )
+            await approve_payout_batch(session, batch_id=draft.id, actor_user_id=checker.id)
+            await submit_payout_batch(
+                session,
+                batch_id=draft.id,
+                actor_user_id=other.admin.id,
+                adapter=FakeDisbursementAdapter(),
+            )
+            manual_intent = await session.scalar(
+                select(PayoutSubmissionIntent).where(
+                    PayoutSubmissionIntent.requested_by_user_id == other.admin.id
+                )
+            )
+            for _ in range(7):
+                session.add(
+                    AuditEvent(
+                        actor_user_id=None,
+                        action="worker.payout_submission.failed",
+                        entity_type="payout_submission_intent",
+                        entity_id=str(manual_intent.id),
+                        event_metadata={"error_code": "MANUAL_FAILURE"},
+                    )
+                )
             for _ in range(2):
                 session.add(
                     AuditEvent(
@@ -1409,6 +1455,7 @@ def test_blocked_submission_raises_one_alert(postgis_db_sessionmaker, settings) 
                         entity_type="payout_submission_intent",
                         entity_id=str(intent.id),
                         event_metadata={"error_code": "PAYOUT_AUTOMATIC_NOT_CLEAN"},
+                        created_at=RUN_AT,
                     )
                 )
             session.add(
@@ -1422,7 +1469,7 @@ def test_blocked_submission_raises_one_alert(postgis_db_sessionmaker, settings) 
             )
             await session.commit()
         async with db() as session:
-            await automatic.scan_automatic_payout_alerts(session)
+            await automatic.scan_automatic_payout_alerts(session, limit=1)
             await session.commit()
 
     asyncio.run(audit_and_scan())
@@ -1579,7 +1626,7 @@ def test_automatic_audit_targets_resolve_to_the_driver(postgis_db_sessionmaker, 
 
     results = asyncio.run(go())
     driver_target = [("actor", graph.admin.id, "resolved"), ("target", graph.driver.id, "resolved")]
-    assert results["run"] == driver_target
+    assert results["run"] == [("actor", graph.admin.id, "resolved")]
     assert results["alert_profile"] == driver_target
     assert results["alert_line"] == driver_target
     # The pause switch holds no personal data: only the actor is recorded.
@@ -1782,3 +1829,718 @@ def test_every_template_and_compose_file_leaves_automatic_payouts_off() -> None:
         text = (root / name).read_text()
         for key, value in expected.items():
             assert f"  {key}: ${{{key}:-{value}}}\n" in text, (name, key)
+
+
+# --- W1-P: full earnings, day attribution, audit and fairness ------------------
+
+
+def test_w1p_cross_midnight_cash_is_attributed_by_saved_day(postgis_db_sessionmaker, settings):
+    db = postgis_db_sessionmaker
+    start = datetime(2026, 7, 20, 22, 45, tzinfo=UTC)
+    graph = clean_graph(
+        db, settings, "w1p-midnight", started_at=start, ended_at=start + timedelta(minutes=30)
+    )
+    install_automatic(db)
+    result = run(db, auto(settings))
+    assert result["line_count"] == 1
+    entry = entry_for(db, graph.trip.id)
+    calc = fetch(db, PayoutCalculation, PayoutCalculation.id == entry.payout_calculation_id)[0]
+    expected = {
+        date.fromisoformat(day): Decimal(amount)
+        for day, amount in calc.amount_by_day.items()
+        if Decimal(amount) > 0
+    }
+    assert len(expected) == 2
+    assert sum(expected.values()) == entry.amount
+
+    async def cash():
+        async with db() as session:
+            return await automatic._cash_by_day(session, driver_profile_id=graph.profile.id)
+
+    assert asyncio.run(cash()) == expected
+
+
+def test_w1p_alert_creation_audited_once_with_direct_subject(postgis_db_sessionmaker, settings):
+    from app.models.audit import AuditEventSubjectResolution
+
+    db = postgis_db_sessionmaker
+    graph = clean_graph(db, settings, "w1p-audit")
+    install_automatic(db)
+
+    async def create():
+        async with db() as session:
+            for _ in range(2):
+                await automatic.raise_alert(
+                    session,
+                    kind=automatic.PayoutAutomaticAlertKind.DAILY_LIMIT,
+                    dedupe=("w1p-audit",),
+                    detail={"secret": "untrusted text"},
+                    driver_profile_id=graph.profile.id,
+                    amount=Decimal("8000.00"),
+                )
+            await session.commit()
+
+    asyncio.run(create())
+    (audit,) = fetch(db, AuditEvent, AuditEvent.action == "system.payout_automatic_alert.created")
+    assert audit.event_metadata == {"kind": "daily_limit"}
+    subjects = fetch(
+        db, AuditEventSubjectResolution, AuditEventSubjectResolution.audit_event_id == audit.id
+    )
+    assert {(row.role, row.subject_user_id) for row in subjects} == {
+        ("actor", CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID),
+        ("target", graph.driver.id),
+    }
+
+
+def test_w1p_excluded_prefix_does_not_starve_later_candidate(
+    postgis_db_sessionmaker, settings, monkeypatch
+):
+    db = postgis_db_sessionmaker
+    old = clean_graph(db, settings, "w1p-excluded", payee=False)
+    new = clean_graph(db, settings, "w1p-later")
+    execute(
+        db,
+        update(EarningsLedgerEntry)
+        .where(EarningsLedgerEntry.id == entry_for(db, old.trip.id).id)
+        .values(occurred_at=TRIP_START - timedelta(days=1)),
+    )
+    install_automatic(db)
+    monkeypatch.setattr(automatic, "MAX_CANDIDATES_PER_RUN", 1)
+    # One admitted candidate place is independent of the scan-work bound.
+    result = run(db, auto(settings))
+    assert result["line_count"] == 1
+    (line,) = fetch(db, PayoutBatchLine)
+    assert line.ledger_entry_id == entry_for(db, new.trip.id).id
+    assert entry_for(db, old.trip.id).status == "available"
+
+
+def test_w1p_cursor_progress_wrap_ties_and_rollback(postgis_db_sessionmaker, settings, monkeypatch):
+    db = postgis_db_sessionmaker
+    graph = clean_graph(db, settings, "w1p-cursor", payee=False)
+    later = add_trip(db, settings, graph, started_at=TRIP_START + timedelta(days=1))
+    drive(db, settings, later, key="w1p-cursor-later")
+    release_all(db)
+    install_automatic(db)
+    monkeypatch.setattr(automatic, "MAX_ENTRIES_SCANNED_PER_RUN", 1)
+    entries = [entry_for(db, trip.id) for trip in (graph.trip, later)]
+    # Equal timestamps force the id tie-break; an all-excluded run still moves.
+    execute(db, update(EarningsLedgerEntry).values(occurred_at=TRIP_START))
+    ordered = sorted(entries, key=lambda row: row.id)
+    assert run(db, auto(settings))["line_count"] == 0
+    assert fetch(db, PayoutAutomaticControl)[0].candidate_cursor_id == ordered[0].id
+    assert run(db, auto(settings), now=RUN_AT + timedelta(days=1))["line_count"] == 0
+    assert fetch(db, PayoutAutomaticControl)[0].candidate_cursor_id == ordered[1].id
+    add_payee(db, graph)
+
+    async def rollback():
+        async with db() as session:
+            result = await automatic.run_automatic_payouts(
+                session,
+                settings=auto(settings),
+                adapter=FakeDisbursementAdapter(),
+                now=RUN_AT + timedelta(days=2),
+            )
+            assert result["line_count"] == 1
+            await session.rollback()
+
+    asyncio.run(rollback())
+    assert fetch(db, PayoutAutomaticControl)[0].candidate_cursor_id == ordered[1].id
+    assert fetch(db, PayoutBatchLine) == []
+    assert run(db, auto(settings), now=RUN_AT + timedelta(days=2))["line_count"] == 1
+    assert fetch(db, PayoutBatchLine)[0].ledger_entry_id == ordered[0].id
+    assert run(db, auto(settings), now=RUN_AT + timedelta(days=3))["line_count"] == 1
+    assert {line.ledger_entry_id for line in fetch(db, PayoutBatchLine)} == {
+        row.id for row in entries
+    }
+
+
+@pytest.mark.parametrize("target,expected", [("1.000", "10000.00"), ("8.000", None)])
+def test_w1p_full_and_short_day_send_exact_earnings_without_fee_setup(
+    postgis_db_sessionmaker, settings, target, expected
+):
+    db = postgis_db_sessionmaker
+    graph = clean_graph(
+        db, settings, "w1p-full", daily_rate_naira="10000.00", daily_target_miles=target
+    )
+    install_automatic(db)
+    entry = entry_for(db, graph.trip.id)
+    calc = fetch(db, PayoutCalculation)[0]
+    binding = fetch(db, automatic.AssignmentRuleBinding)[0]
+    frozen = (
+        calc.final_payout,
+        calc.inputs_fingerprint,
+        calc.amount_by_day,
+        binding.daily_rate_naira,
+        binding.daily_target_miles,
+    )
+    if expected:
+        assert entry.amount == Decimal(expected)
+    else:
+        assert 0 < entry.amount < Decimal("10000.00")
+    fake = FakeDisbursementAdapter()
+    run(db, auto(settings), adapter=fake)
+    intent = fetch(db, PayoutSubmissionIntent)[0]
+    asyncio.run(
+        process_payout_submission_intent(
+            db, intent_id=intent.id, adapter=fake, settings=auto(settings)
+        )
+    )
+    assert Decimal(fake.calls[0][1][0].instruction["amount"]) == entry.amount
+    assert (
+        asyncio.run(
+            process_payout_submission_intent(
+                db, intent_id=intent.id, adapter=fake, settings=auto(settings)
+            )
+        )
+        == "skipped"
+    )
+    line = fetch(db, PayoutBatchLine)[0]
+    payload = json.dumps(
+        {
+            "provider_transfer_reference": line.provider_transfer_reference,
+            "provider_event_id": "w1p-full-paid",
+            "outcome": "succeeded",
+            "occurred_at": "2026-07-21T02:00:00Z",
+        }
+    ).encode()
+
+    async def reconcile():
+        async with db() as session:
+            for _ in range(2):
+                await reconcile_payout_webhook(
+                    session, payload=payload, signature=fake.sign_webhook(payload), adapter=fake
+                )
+            await session.commit()
+
+    asyncio.run(reconcile())
+    paid = entry_for(db, graph.trip.id)
+    assert (paid.status, paid.amount) == ("paid", entry.amount)
+    assert fetch(db, PayoutBatchLine)[0].amount == entry.amount
+    calc_after = fetch(db, PayoutCalculation)[0]
+    binding_after = fetch(db, automatic.AssignmentRuleBinding)[0]
+    assert (
+        calc_after.final_payout,
+        calc_after.inputs_fingerprint,
+        calc_after.amount_by_day,
+        binding_after.daily_rate_naira,
+        binding_after.daily_target_miles,
+    ) == frozen
+
+
+def test_w1p_multiple_cross_midnight_entries_use_daily_shares(postgis_db_sessionmaker, settings):
+    db = postgis_db_sessionmaker
+    start = datetime(2026, 7, 20, 22, 40, tzinfo=UTC)
+    graph = clean_graph(
+        db,
+        settings,
+        "w1p-two-days",
+        started_at=start,
+        ended_at=start + timedelta(minutes=30),
+        daily_target_miles="5.000",
+    )
+    later = add_trip(db, settings, graph, started_at=start + timedelta(days=1), minutes=30)
+    drive(db, settings, later, key="w1p-two-days-later")
+    release_all(db)
+    install_automatic(db)
+    result = run(db, auto(settings))
+    assert result["line_count"] == 2
+    assert sum(row.amount for row in fetch(db, PayoutBatchLine)) > Decimal("8000.00")
+    # Both trips touch 21 July but each allocates only its actual share to it.
+    expected = {}
+    for calc in fetch(db, PayoutCalculation):
+        for day, amount in calc.amount_by_day.items():
+            if Decimal(amount) > 0:
+                expected[date.fromisoformat(day)] = expected.get(
+                    date.fromisoformat(day), 0
+                ) + Decimal(amount)
+
+    async def cash():
+        async with db() as session:
+            return await automatic._cash_by_day(session, driver_profile_id=graph.profile.id)
+
+    assert asyncio.run(cash()) == expected
+
+
+@pytest.mark.parametrize("bad_map", [{}, {"invalid-day": "1.00"}, {"2026-07-20": "not-money"}])
+def test_w1p_unknown_cash_allocation_keeps_later_earning_manual(
+    postgis_db_sessionmaker, settings, bad_map
+):
+    db = postgis_db_sessionmaker
+    graph = clean_graph(db, settings, "w1p-bad-cash")
+    install_automatic(db)
+    run(db, auto(settings))
+    first = entry_for(db, graph.trip.id)
+    execute(
+        db,
+        update(PayoutCalculation)
+        .where(PayoutCalculation.id == first.payout_calculation_id)
+        .values(amount_by_day=bad_map),
+    )
+    later = add_trip(db, settings, graph, started_at=TRIP_START + timedelta(days=1))
+    drive(db, settings, later, key="w1p-bad-cash-later")
+    release_all(db)
+    result = run(db, auto(settings), now=RUN_AT + timedelta(days=1))
+    assert result["line_count"] == 0
+    (run_row,) = fetch(db, PayoutAutomaticRun, PayoutAutomaticRun.period_key == "2026-07-22")
+    assert run_row.exclusions["cash_position_unavailable"]["count"] == 1
+    assert entry_for(db, later.id).status == "available"
+
+
+def test_w1p_reconciliation_excludes_another_days_submitted_line(postgis_db_sessionmaker, settings):
+    db = postgis_db_sessionmaker
+    clean_graph(db, settings, "w1p-reconcile")
+    install_automatic(db)
+    fake = FakeDisbursementAdapter()
+    run(db, auto(settings), adapter=fake)
+    intent = fetch(db, PayoutSubmissionIntent)[0]
+    asyncio.run(
+        process_payout_submission_intent(
+            db, intent_id=intent.id, adapter=fake, settings=auto(settings)
+        )
+    )
+    batch = fetch(db, PayoutBatch)[0]
+    execute(
+        db,
+        update(PayoutBatch)
+        .where(PayoutBatch.id == batch.id)
+        .values(created_at=RUN_AT - timedelta(days=1)),
+    )
+
+    async def reconciliation(day):
+        async with db() as session:
+            return await automatic.automatic_reconciliation_day(session, day=day)
+
+    assert asyncio.run(reconciliation(DAY))["awaiting_provider_count"] == 1
+    assert asyncio.run(reconciliation(DAY + timedelta(days=1)))["awaiting_provider_count"] == 0
+
+
+def test_w1p_invalid_identity_alerts_progress_past_already_alerted_intents(
+    postgis_db_sessionmaker, settings
+):
+    db = postgis_db_sessionmaker
+    graph = clean_graph(db, settings, "w1p-invalid")
+    later = add_trip(db, settings, graph, started_at=TRIP_START + timedelta(days=1))
+    drive(db, settings, later, key="w1p-invalid-later")
+    release_all(db)
+    install_automatic(db)
+    run(db, auto(settings))
+    execute(
+        db,
+        update(User)
+        .where(User.id == CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID)
+        .values(full_name="Changed identity"),
+    )
+
+    async def scan():
+        async with db() as session:
+            assert (
+                await find_due_payout_submission_intent_ids(session, settings=auto(settings)) == ()
+            )
+            created = await automatic.scan_automatic_payout_alerts(session, limit=1)
+            await session.commit()
+            return created
+
+    assert [asyncio.run(scan()) for _ in range(3)] == [1, 1, 0]
+    assert (
+        len(fetch(db, PayoutAutomaticAlert, PayoutAutomaticAlert.kind == "submission_blocked")) == 2
+    )
+    assert fetch(db, PayoutSubmissionAttempt) == []
+    execute(db, update(PayoutSubmissionIntent).values(state="query_only"))
+
+    async def due():
+        async with db() as session:
+            return await find_due_payout_submission_intent_ids(session, settings=auto(settings))
+
+    assert len(asyncio.run(due())) == 2
+
+
+def test_w1p_alert_transaction_rollback_and_missing_actor(postgis_db_sessionmaker, monkeypatch):
+    db = postgis_db_sessionmaker
+
+    async def failing_notice(*args, **kwargs):
+        raise RuntimeError("synthetic notice failure")
+
+    async def attempt(fail):
+        async with db() as session:
+            try:
+                await automatic.raise_alert(
+                    session,
+                    kind=automatic.PayoutAutomaticAlertKind.RUN_FAILED,
+                    dedupe=("w1p-rollback",),
+                    detail={"reason": "control_missing"},
+                )
+                if fail:
+                    raise AssertionError("notice should fail")
+                await session.commit()
+            except RuntimeError:
+                await session.rollback()
+                if not fail:
+                    raise
+
+    with monkeypatch.context() as patch:
+        patch.setattr(automatic, "create_active_admin_notices", failing_notice)
+        asyncio.run(attempt(True))
+    assert fetch(db, PayoutAutomaticAlert) == []
+    assert fetch(db, AuditEvent) == []
+    asyncio.run(attempt(False))
+    audit = fetch(db, AuditEvent)[0]
+    assert audit.actor_user_id is None
+    assert audit.event_metadata == {"kind": "run_failed"}
+
+
+def test_w1p_run_audit_stored_subject_is_actor_only(postgis_db_sessionmaker, settings):
+    from app.models.audit import AuditEventSubjectResolution
+
+    db = postgis_db_sessionmaker
+    graph = clean_graph(db, settings, "w1p-run-subject")
+    install_automatic(db)
+    run(db, auto(settings))
+    (audit,) = fetch(db, AuditEvent, AuditEvent.action == "system.payout_automatic_run.completed")
+    (subject,) = fetch(
+        db, AuditEventSubjectResolution, AuditEventSubjectResolution.audit_event_id == audit.id
+    )
+    assert (subject.role, subject.subject_user_id, subject.outcome) == (
+        "actor",
+        CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID,
+        "resolved",
+    )
+    assert subject.subject_user_id != graph.driver.id
+
+
+def test_w1p_concurrent_alert_attempts_create_one_audit(postgis_db_sessionmaker, settings):
+    db = postgis_db_sessionmaker
+    graph = clean_graph(db, settings, "w1p-alert-race")
+    install_automatic(db)
+
+    async def create():
+        async with db() as session:
+            result = await automatic.raise_alert(
+                session,
+                kind=automatic.PayoutAutomaticAlertKind.DAILY_LIMIT,
+                dedupe=("w1p-concurrent",),
+                detail={},
+                driver_profile_id=graph.profile.id,
+            )
+            await session.commit()
+            return result is not None
+
+    async def race():
+        return await asyncio.wait_for(asyncio.gather(create(), create()), timeout=20)
+
+    assert sorted(asyncio.run(race())) == [False, True]
+    assert len(fetch(db, PayoutAutomaticAlert)) == 1
+    assert (
+        len(fetch(db, AuditEvent, AuditEvent.action == "system.payout_automatic_alert.created"))
+        == 1
+    )
+
+
+@pytest.mark.parametrize("phase", ["run", "claim"])
+@pytest.mark.parametrize("winner", ["dispute", "payout"])
+def test_w1p_dispute_and_automatic_authorization_serialize_on_postgres(
+    postgis_db_sessionmaker, settings, monkeypatch, phase, winner
+):
+    from sqlalchemy import text
+
+    from app.services import disbursements, fraud_disputes
+    from app.services.fraud_holds import lock_fraud_reconciliation_gate
+
+    db = postgis_db_sessionmaker
+    graph = clean_graph(db, settings, "w1p-dispute-race")
+    other = add_trip(db, settings, graph, started_at=TRIP_START + timedelta(days=1))
+    drive(db, settings, other, key="w1p-dispute-other")
+    original_trip = graph.trip
+    graph.trip = other
+    flag = add_flag(db, graph, flag_status="open")
+    graph.trip = original_trip
+    install_automatic(db)
+    fake = FakeDisbursementAdapter()
+    if phase == "claim":
+        assert run(db, auto(settings), adapter=fake)["line_count"] == 1
+        intent_id = fetch(db, PayoutSubmissionIntent)[0].id
+
+    async def scenario():
+        waiting = asyncio.Event()
+        ready = asyncio.Event()
+        release = asyncio.Event()
+        wait_pid = None
+
+        async def observed_gate(session, *, exclusive):
+            nonlocal wait_pid
+            if exclusive == (winner == "dispute"):
+                wait_pid = await session.scalar(text("SELECT pg_backend_pid()"))
+                waiting.set()
+            await lock_fraud_reconciliation_gate(session, exclusive=exclusive)
+
+        # The real advisory locks remain; hooks only expose the barrier and pid.
+        monkeypatch.setattr(automatic, "lock_fraud_reconciliation_gate", observed_gate)
+        monkeypatch.setattr(disbursements, "lock_fraud_reconciliation_gate", observed_gate)
+        monkeypatch.setattr(fraud_disputes, "lock_fraud_reconciliation_gate", observed_gate)
+
+        async def assert_blocked(holder_pid, task):
+            await asyncio.wait_for(waiting.wait(), timeout=10)
+            async with db() as monitor:
+                for _ in range(100):
+                    blockers = await monitor.scalar(
+                        text("SELECT pg_blocking_pids(:pid)"), {"pid": wait_pid}
+                    )
+                    if holder_pid in blockers:
+                        assert not task.done()
+                        return
+                    await asyncio.sleep(0.01)
+            raise AssertionError("Expected a real PostgreSQL advisory-lock wait")
+
+        async def create_dispute():
+            async with db() as session:
+                result = await fraud_disputes.create_driver_dispute(
+                    session,
+                    flag_id=flag.id,
+                    user_id=graph.driver.id,
+                    message="Please review the other trip",
+                )
+                await session.commit()
+                return result.dispute.id
+
+        async def payout():
+            if phase == "claim":
+                try:
+                    return await claim_payout_submission_intent(
+                        db, intent_id=intent_id, adapter=fake, settings=auto(settings)
+                    )
+                except AppError as exc:
+                    return exc.code
+            async with db() as session:
+                result = await automatic.run_automatic_payouts(
+                    session, settings=auto(settings), adapter=fake, now=RUN_AT
+                )
+                await session.commit()
+                return result
+
+        if winner == "dispute":
+            async with db() as holder:
+                await fraud_disputes.create_driver_dispute(
+                    holder,
+                    flag_id=flag.id,
+                    user_id=graph.driver.id,
+                    message="Please review the other trip",
+                )
+                holder_pid = await holder.scalar(text("SELECT pg_backend_pid()"))
+                task = asyncio.create_task(payout())
+                await assert_blocked(holder_pid, task)
+                await holder.commit()
+            result = await asyncio.wait_for(task, timeout=20)
+            if phase == "run":
+                assert result["line_count"] == 0
+            else:
+                assert result == "PAYOUT_AUTOMATIC_NOT_CLEAN"
+            assert fake.calls == []
+        elif phase == "run":
+            async with db() as holder:
+                result = await automatic.run_automatic_payouts(
+                    holder, settings=auto(settings), adapter=fake, now=RUN_AT
+                )
+                holder_pid = await holder.scalar(text("SELECT pg_backend_pid()"))
+                task = asyncio.create_task(create_dispute())
+                await assert_blocked(holder_pid, task)
+                await holder.commit()
+            assert result["line_count"] == 1
+            await asyncio.wait_for(task, timeout=20)
+            intent = await _w1p_intent_in_loop(db)
+            assert intent is not None and intent.state == "pending"
+            assert (
+                await payout_claim_code(db, intent.id, fake, auto(settings))
+                == "PAYOUT_AUTOMATIC_NOT_CLEAN"
+            )
+        else:
+            authority = automatic.automatic_final_clean_authority
+            holder_pid = None
+
+            async def authorization_barrier(session, **kwargs):
+                nonlocal holder_pid
+                result = await authority(session, **kwargs)
+                holder_pid = await session.scalar(text("SELECT pg_backend_pid()"))
+                ready.set()
+                await asyncio.wait_for(release.wait(), timeout=20)
+                return result
+
+            monkeypatch.setattr(automatic, "automatic_final_clean_authority", authorization_barrier)
+            payout_task = asyncio.create_task(payout())
+            await asyncio.wait_for(ready.wait(), timeout=10)
+            dispute_task = asyncio.create_task(create_dispute())
+            await assert_blocked(holder_pid, dispute_task)
+            release.set()
+            claim = await asyncio.wait_for(payout_task, timeout=20)
+            assert claim.action.value == "submit"
+            await asyncio.wait_for(dispute_task, timeout=20)
+            # A dispute after committed claim is outside this authorization boundary.
+            assert fake.calls == []
+
+    asyncio.run(scenario())
+
+
+async def _w1p_intent_in_loop(db):
+    async with db() as session:
+        return await session.scalar(select(PayoutSubmissionIntent))
+
+
+async def payout_claim_code(db, intent_id, fake, settings):
+    try:
+        await claim_payout_submission_intent(
+            db, intent_id=intent_id, adapter=fake, settings=settings
+        )
+    except AppError as exc:
+        return exc.code
+    raise AssertionError("Submission should be refused")
+
+
+def test_w1p_manual_correction_cash_without_split_keeps_automatic_candidate_manual(
+    postgis_db_sessionmaker, settings
+):
+    db = postgis_db_sessionmaker
+    graph = clean_graph(db, settings, "w1p-manual-correction")
+    install_automatic(db)
+
+    async def reserve_correction():
+        async with db() as session:
+            correction = await _seed_authority(session, graph, amount="5000.00")
+            assert correction.payout_calculation_id is None
+            draft = await create_payout_batch_draft(
+                session, currency="NGN", actor_user_id=graph.admin.id
+            )
+            _, lines = await reserve_payout_batch(
+                session,
+                batch_id=draft.id,
+                ledger_entry_ids=(correction.id,),
+                actor_user_id=graph.admin.id,
+            )
+            await session.commit()
+            return lines[0].id
+
+    line_id = asyncio.run(reserve_correction())
+    later = add_trip(db, settings, graph, started_at=TRIP_START + timedelta(days=1))
+    drive(db, settings, later, key="w1p-manual-correction-later")
+    release_all(db)
+    result = run(db, auto(settings))
+    assert result["line_count"] == 0
+    (run_row,) = fetch(db, PayoutAutomaticRun)
+    assert run_row.exclusions["cash_position_unavailable"]["count"] == 1
+    assert entry_for(db, later.id).status == "available"
+    assert fetch(db, PayoutBatchLine, PayoutBatchLine.id == line_id)[0].amount == Decimal("5000.00")
+
+
+def test_w1p_run_limit_defers_next_entry_at_same_limit_after_wrap(
+    postgis_db_sessionmaker, settings
+):
+    db = postgis_db_sessionmaker
+    graph = clean_graph(db, settings, "w1p-limit-wrap")
+    later = add_trip(db, settings, graph, started_at=TRIP_START + timedelta(days=1))
+    drive(db, settings, later, key="w1p-limit-wrap-later")
+    release_all(db)
+    install_automatic(db)
+    entries = [entry_for(db, trip.id) for trip in (graph.trip, later)]
+    limit = max(entry.amount for entry in entries)
+    assert sum(entry.amount for entry in entries) > limit
+    # Start after both entries, so the first pass must wrap into the prefix.
+    execute(
+        db,
+        update(PayoutAutomaticControl).values(
+            candidate_cursor_at=RUN_AT + timedelta(days=10), candidate_cursor_id=uuid4()
+        ),
+    )
+    configured = auto(settings, payout_automatic_batch_limit_ngn=limit)
+    assert run(db, configured)["line_count"] == 1
+    (line,) = fetch(db, PayoutBatchLine)
+    deferred = next(entry for entry in entries if entry.id != line.ledger_entry_id)
+    assert fetch(db, PayoutAutomaticControl)[0].candidate_cursor_id == line.ledger_entry_id
+    assert run(db, configured, now=RUN_AT + timedelta(days=1))["line_count"] == 1
+    assert {line.ledger_entry_id for line in fetch(db, PayoutBatchLine)} == {
+        line.ledger_entry_id,
+        deferred.id,
+    }
+
+
+@pytest.mark.parametrize("phase", ["run", "claim"])
+def test_w1p_dispute_reply_serializes_before_payout_check(
+    postgis_db_sessionmaker, settings, monkeypatch, phase
+):
+    from sqlalchemy import text
+
+    from app.services import disbursements, fraud_disputes
+    from app.services.fraud_holds import lock_fraud_reconciliation_gate
+
+    db = postgis_db_sessionmaker
+    graph = clean_graph(db, settings, "w1p-reply")
+    other = add_trip(db, settings, graph, started_at=TRIP_START + timedelta(days=1))
+    drive(db, settings, other, key="w1p-reply-other")
+    original_trip = graph.trip
+    graph.trip = other
+    flag = add_flag(db, graph, flag_status="open")
+    graph.trip = original_trip
+    install_automatic(db)
+    fake = FakeDisbursementAdapter()
+    if phase == "claim":
+        run(db, auto(settings))
+        intent = fetch(db, PayoutSubmissionIntent)[0]
+
+    async def scenario():
+        async with db() as session:
+            created = await fraud_disputes.create_driver_dispute(
+                session, flag_id=flag.id, user_id=graph.driver.id, message="Please check"
+            )
+            dispute_id = created.dispute.id
+            await session.commit()
+        entered = asyncio.Event()
+        payout_pid = None
+
+        async def observed(session, *, exclusive):
+            nonlocal payout_pid
+            if exclusive:
+                payout_pid = await session.scalar(text("SELECT pg_backend_pid()"))
+                entered.set()
+            await lock_fraud_reconciliation_gate(session, exclusive=exclusive)
+
+        monkeypatch.setattr(automatic, "lock_fraud_reconciliation_gate", observed)
+        monkeypatch.setattr(disbursements, "lock_fraud_reconciliation_gate", observed)
+
+        async def payout():
+            if phase == "claim":
+                return await claim_payout_submission_intent(
+                    db, intent_id=intent.id, adapter=fake, settings=auto(settings)
+                )
+            async with db() as session:
+                result = await automatic.run_automatic_payouts(
+                    session, settings=auto(settings), adapter=fake, now=RUN_AT
+                )
+                await session.commit()
+                return result
+
+        async with db() as holder:
+            await fraud_disputes.reply_to_dispute(
+                holder,
+                dispute_id=dispute_id,
+                actor_user_id=graph.admin.id,
+                reply="Reviewed the other trip",
+            )
+            holder_pid = await holder.scalar(text("SELECT pg_backend_pid()"))
+            task = asyncio.create_task(payout())
+            await asyncio.wait_for(entered.wait(), timeout=10)
+            async with db() as monitor:
+                for _ in range(100):
+                    blockers = await monitor.scalar(
+                        text("SELECT pg_blocking_pids(:pid)"), {"pid": payout_pid}
+                    )
+                    if holder_pid in blockers:
+                        assert not task.done()
+                        break
+                    await asyncio.sleep(0.01)
+                else:
+                    raise AssertionError("Payout did not wait for the real reply lock")
+            await holder.commit()
+        result = await asyncio.wait_for(task, timeout=20)
+        if phase == "run":
+            assert result["line_count"] == 1
+        else:
+            assert result.action.value == "submit"
+        assert fake.calls == []
+
+    asyncio.run(scenario())

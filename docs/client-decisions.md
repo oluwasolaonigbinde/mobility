@@ -306,10 +306,14 @@ Admins can pause automatic payouts, get the alerts in the Finance section of
 person doing this the Finance Officer; in Cardvert it is any admin. Switching
 automatic payouts on: [REQ-048](requests.md).
 
-**Paystack's transfer fee is paid by the driver** (deducted from the payout; [REQ-053](requests.md) builds it). Optional hardening:
-[REQ-036](requests.md), [REQ-040](requests.md).
+**Terrax pays Paystack's transfer fee** (D59, [REQ-053](requests.md)). Drivers
+receive their full earnings. Cardvert neither computes nor stores nor displays
+fees, and has no fee setting or fee-setup submission gate. Paystack's own
+dashboard and statements show fees. Accepted work and the short-day calculation
+remain unchanged. Requested hardening: [REQ-036](requests.md), [REQ-040](requests.md).
 
 **History:**
+- **2026-10-05** — Client reversed the 1 Oct driver-deduction rule: Terrax bears the transfer fee and the driver receives full earnings, with no fee calculation, storage, display or setting in Cardvert (D59; REQ-053; owner W1-P brief). Locally verified on `w1/payouts`; evidence: `issues/testing/w1p-payouts-2026-10-05.md`. CI and approved merge pending.
 - **2026-08-14** — Automated bank transfers confirmed (Q27, D18). Every batch was prepared by one person and approved by a different person (maker-checker, architecture §16.3 / RM10).
 - **2026-09-25** — Client chose automatic approval with no person approving each batch; Finance monitors and follows up (D39c). Built in `3b6b396` (REQ-003).
 - **2026-09-28** — Owner added: the first payment to any new bank account goes to a person (D40b, security review). Built in `3b6b396`.
