@@ -526,9 +526,9 @@ async def _day_position(
 async def _cash_by_day(
     session: AsyncSession, *, driver_profile_id: UUID
 ) -> dict[date, Decimal] | None:
-    """Frozen cash uses original day allocations, never a later correction.
+    """Frozen cash uses original day allocations, never repriced amounts.
 
-    Inconsistent totals conservatively charge the whole line on each known day.
+    Corrections/inconsistent totals charge the whole line on each known day.
     Missing/malformed allocations cannot authorize another automatic payment.
     """
     trip_calculation = aliased(PayoutCalculation)
@@ -545,6 +545,7 @@ async def _cash_by_day(
                 EarningsLedgerEntry.trip_session_id,
                 PayoutCalculation.driver_profile_id,
                 EarningsLedgerEntry.driver_profile_id,
+                EarningsLedgerEntry.payout_calculation_id,
             )
             .join(EarningsLedgerEntry, EarningsLedgerEntry.id == PayoutBatchLine.ledger_entry_id)
             .outerjoin(
@@ -569,18 +570,43 @@ async def _cash_by_day(
         ledger_trip,
         calculated_driver,
         ledger_driver,
+        calculation_id,
     ) in rows:
-        # Manual correction credits have no calculation FK. They are real cash,
-        # but lack a frozen original day split; never silently omit that exposure.
-        if calculated_trip != ledger_trip or calculated_driver != ledger_driver:
-            return None
+        conservative = calculation_id is None
+        if conservative:
+            # A correction has no individual split: charge its full frozen
+            # amount to every saved day of its driver's original v4 trip.
+            allocations = (
+                await session.scalars(
+                    select(PayoutCalculation.amount_by_day).where(
+                        PayoutCalculation.trip_session_id == ledger_trip,
+                        PayoutCalculation.driver_profile_id == ledger_driver,
+                        PayoutCalculation.formula_version == PAYOUT_V4,
+                    )
+                )
+            ).all()
+        else:
+            if calculated_trip != ledger_trip or calculated_driver != ledger_driver:
+                return None
+            allocations = [amount_by_day]
         try:
-            days = _positive_days(amount_by_day or {})
+            if not allocations:
+                return None
+            days = {}
+            for allocation in allocations:
+                if not allocation:
+                    return None
+                parsed = {
+                    date.fromisoformat(day): _money(value) for day, value in allocation.items()
+                }
+                if any(value < 0 for value in parsed.values()):
+                    return None
+                days.update(parsed)
         except (ValueError, TypeError, InvalidOperation, AttributeError):
             return None
         if not days:
             return None
-        consistent = sum(days.values(), Decimal("0.00")) == _money(amount)
+        consistent = not conservative and sum(days.values(), Decimal("0.00")) == _money(amount)
         for day, day_amount in days.items():
             credited = day_amount if consistent else _money(amount)
             totals[day] = totals.get(day, Decimal("0.00")) + credited
@@ -871,6 +897,15 @@ async def run_automatic_payouts(
                         cash[entry.driver_profile_id] = driver_cash
                 if driver_cash is None:
                     exclusions.add("cash_position_unavailable", entry.amount)
+                    await raise_alert(
+                        session,
+                        kind=PayoutAutomaticAlertKind.DAILY_LIMIT,
+                        dedupe=("cash_position_unavailable", entry.driver_profile_id, period),
+                        detail={"reason": "cash_position_unavailable", "period": period},
+                        ledger_entry_id=entry.id,
+                        driver_profile_id=entry.driver_profile_id,
+                        amount=entry.amount,
+                    )
                     continue
                 for day in sorted(days):
                     scope = (entry.driver_profile_id, day)

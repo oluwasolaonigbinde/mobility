@@ -2061,7 +2061,10 @@ def test_w1p_multiple_cross_midnight_entries_use_daily_shares(postgis_db_session
     assert asyncio.run(cash()) == expected
 
 
-@pytest.mark.parametrize("bad_map", [{}, {"invalid-day": "1.00"}, {"2026-07-20": "not-money"}])
+@pytest.mark.parametrize(
+    "bad_map",
+    [{}, {"invalid-day": "1.00"}, {"2026-07-20": "not-money"}, {"2026-07-20": "-1.00"}],
+)
 def test_w1p_unknown_cash_allocation_keeps_later_earning_manual(
     postgis_db_sessionmaker, settings, bad_map
 ):
@@ -2084,6 +2087,10 @@ def test_w1p_unknown_cash_allocation_keeps_later_earning_manual(
     (run_row,) = fetch(db, PayoutAutomaticRun, PayoutAutomaticRun.period_key == "2026-07-22")
     assert run_row.exclusions["cash_position_unavailable"]["count"] == 1
     assert entry_for(db, later.id).status == "available"
+    (alert,) = fetch(db, PayoutAutomaticAlert, PayoutAutomaticAlert.kind == "daily_limit")
+    assert alert.driver_profile_id == graph.profile.id
+    assert alert.detail["reason"] == "cash_position_unavailable"
+    assert any(row.payload.get("alert_id") == str(alert.id) for row in fetch(db, Notification))
 
 
 def test_w1p_reconciliation_excludes_another_days_submitted_line(postgis_db_sessionmaker, settings):
@@ -2393,17 +2400,50 @@ async def payout_claim_code(db, intent_id, fake, settings):
     raise AssertionError("Submission should be refused")
 
 
-def test_w1p_manual_correction_cash_without_split_keeps_automatic_candidate_manual(
-    postgis_db_sessionmaker, settings
+@pytest.mark.parametrize(
+    "over_ceiling,zero_pay_day", [(False, False), (True, False), (False, True)]
+)
+def test_w1p_paid_manual_correction_uses_trip_days_and_respects_ceiling(
+    postgis_db_sessionmaker, settings, monkeypatch, over_ceiling, zero_pay_day
 ):
     db = postgis_db_sessionmaker
-    graph = clean_graph(db, settings, "w1p-manual-correction")
+    monkeypatch.setattr(automatic, "bank_account_paid_before", REAL_BANK_ACCOUNT_PAID_BEFORE)
+    start = datetime(2026, 7, 20, 22, 45, tzinfo=UTC)
+    graph = clean_graph(
+        db,
+        settings,
+        "w1p-manual-correction",
+        started_at=start,
+        ended_at=start + timedelta(minutes=30),
+        daily_target_miles="70.000",
+    )
     install_automatic(db)
+    later = add_trip(db, settings, graph, started_at=start + timedelta(hours=3))
+    drive(db, settings, later, key="w1p-manual-correction-later")
+    release_all(db)
+    later_entry = entry_for(db, later.id)
+    correction_amount = Decimal("8000.00") - later_entry.amount
+    correction_amount += Decimal("0.01") if over_ceiling else Decimal("-0.01")
+    assert correction_amount > 0
+    calculation = fetch(
+        db, PayoutCalculation, PayoutCalculation.trip_session_id == graph.trip.id
+    )[0]
+    assert len(calculation.amount_by_day) == 2
+    fake = FakeDisbursementAdapter()
 
-    async def reserve_correction():
+    async def submit_correction():
         async with db() as session:
-            correction = await _seed_authority(session, graph, amount="5000.00")
+            correction = await _seed_authority(session, graph, amount=str(correction_amount))
             assert correction.payout_calculation_id is None
+            checker = User(
+                email=f"correction-checker-{uuid4().hex}@example.com",
+                password_hash=graph.admin.password_hash,
+                full_name="Correction Checker",
+                role="admin",
+                status="active",
+            )
+            session.add(checker)
+            await session.flush()
             draft = await create_payout_batch_draft(
                 session, currency="NGN", actor_user_id=graph.admin.id
             )
@@ -2413,19 +2453,83 @@ def test_w1p_manual_correction_cash_without_split_keeps_automatic_candidate_manu
                 ledger_entry_ids=(correction.id,),
                 actor_user_id=graph.admin.id,
             )
+            await approve_payout_batch(session, batch_id=draft.id, actor_user_id=checker.id)
+            await submit_payout_batch(
+                session, batch_id=draft.id, actor_user_id=graph.admin.id, adapter=fake
+            )
+            intent_id = await session.scalar(
+                select(PayoutSubmissionIntent.id).where(
+                    PayoutSubmissionIntent.payout_batch_line_id == lines[0].id
+                )
+            )
             await session.commit()
-            return lines[0].id
+            return correction.id, intent_id
 
-    line_id = asyncio.run(reserve_correction())
-    later = add_trip(db, settings, graph, started_at=TRIP_START + timedelta(days=1))
-    drive(db, settings, later, key="w1p-manual-correction-later")
-    release_all(db)
-    result = run(db, auto(settings))
-    assert result["line_count"] == 0
-    (run_row,) = fetch(db, PayoutAutomaticRun)
-    assert run_row.exclusions["cash_position_unavailable"]["count"] == 1
-    assert entry_for(db, later.id).status == "available"
-    assert fetch(db, PayoutBatchLine, PayoutBatchLine.id == line_id)[0].amount == Decimal("5000.00")
+    correction_id, manual_intent_id = asyncio.run(submit_correction())
+    _w1p_pay_intent(db, manual_intent_id, fake, auto(settings), "manual-correction")
+    correction = fetch(db, EarningsLedgerEntry, EarningsLedgerEntry.id == correction_id)[0]
+    assert correction.status == "paid"
+    if zero_pay_day:
+        # A saved zero-pay day is still a known correction exposure day.
+        allocation = dict(calculation.amount_by_day)
+        allocation[min(allocation)] = "0.00"
+        execute(
+            db,
+            update(PayoutCalculation)
+            .where(PayoutCalculation.id == calculation.id)
+            .values(amount_by_day=allocation),
+        )
+
+    async def cash():
+        async with db() as session:
+            return await automatic._cash_by_day(session, driver_profile_id=graph.profile.id)
+
+    # Full correction on both original trip days, even though trip B uses one.
+    assert asyncio.run(cash()) == {
+        date.fromisoformat(day): correction_amount for day in calculation.amount_by_day
+    }
+    result = run(db, auto(settings), adapter=fake)
+    if over_ceiling:
+        assert result["line_count"] == 0
+        assert entry_for(db, later.id).status == "available"
+        (run_row,) = fetch(db, PayoutAutomaticRun)
+        assert run_row.exclusions["daily_limit"]["count"] == 1
+        (alert,) = fetch(db, PayoutAutomaticAlert, PayoutAutomaticAlert.kind == "daily_limit")
+        assert alert.detail["already_paid_or_sending"] == str(correction_amount)
+        assert len(fake.calls) == 1
+    else:
+        assert result["line_count"] == 1
+        automatic_intent = fetch(
+            db, PayoutSubmissionIntent, PayoutSubmissionIntent.id != manual_intent_id
+        )[0]
+        _w1p_pay_intent(db, automatic_intent.id, fake, auto(settings), "later-automatic")
+        assert entry_for(db, later.id).status == "paid"
+        assert Decimal(fake.calls[-1][1][0].instruction["amount"]) == later_entry.amount
+        assert fetch(db, PayoutAutomaticAlert) == []
+
+
+def _w1p_pay_intent(db, intent_id, fake, settings, event_id):
+    async def pay():
+        await process_payout_submission_intent(
+            db, intent_id=intent_id, adapter=fake, settings=settings
+        )
+        async with db() as session:
+            intent = await session.get(PayoutSubmissionIntent, intent_id)
+            line = await session.get(PayoutBatchLine, intent.payout_batch_line_id)
+            payload = json.dumps(
+                {
+                    "provider_transfer_reference": line.provider_transfer_reference,
+                    "provider_event_id": event_id,
+                    "outcome": "succeeded",
+                    "occurred_at": "2026-07-21T06:00:00Z",
+                }
+            ).encode()
+            await reconcile_payout_webhook(
+                session, payload=payload, signature=fake.sign_webhook(payload), adapter=fake
+            )
+            await session.commit()
+
+    asyncio.run(pay())
 
 
 def test_w1p_run_limit_defers_next_entry_at_same_limit_after_wrap(

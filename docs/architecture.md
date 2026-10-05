@@ -1782,8 +1782,12 @@ terms, pay calculation or D43's proportional short-day rule. W1-P hardening
   through a finite backlog, without a bounded-wrap promise for an unlimited tail.
   Cash ceilings use the saved original per-day allocation when it matches the
   frozen line amount, including cross-midnight earnings. Inconsistent totals
-  count the full line on each known day; missing, malformed or corrected
-  provenance (including manual correction cash) leaves the candidate for a person.
+  count the full line on each known day. Manual correction cash without its own
+  allocation counts its full frozen amount on every saved day of its same-driver
+  v4 trip, including zero-pay days; it does not permanently exclude that driver.
+  Genuinely missing/malformed allocations leave the candidate for a person and
+  raise an audited/notified Finance daily-limit alert with reason
+  `cash_position_unavailable`, deduplicated per driver and payout period.
   Pay calculation and frozen line amounts are never changed. The cron runs every sweep
   interval; the unique period key allows one run per period. Each run
   writes one reserved automatic batch per driver, frozen with the same line
@@ -3547,7 +3551,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
-| v1.116 | 2026-10-05 | **W1-P payouts (D59, REQ-036/040/053).** Terrax bears fees outside Cardvert; full frozen earnings and D43 remain unchanged. §16.3 records dispute serialization, atomic sanitized alert audits, actor-only run subjects, bounded rotating candidate scans (`0099`) and original per-day cash attribution, with unknown correction allocations held for manual review. Local evidence is in `issues/testing/w1p-payouts-2026-10-05.md`; CI and approved merge remain pending. |
+| v1.116 | 2026-10-05 | **W1-P payouts (D59, REQ-036/040/053).** Terrax bears fees outside Cardvert; full frozen earnings and D43 remain unchanged. §16.3 records dispute serialization, atomic sanitized alert audits, actor-only run subjects, bounded rotating candidate scans (`0099`) and original per-day cash attribution. Correction cash counts in full on every saved v4 trip day; missing/malformed allocations are held with an audited/notified Finance alert. Local evidence is in `issues/testing/w1p-payouts-2026-10-05.md`; CI and approved merge remain pending. |
 | v1.115 | 2026-10-04 | **Owner-approved direct document review (D58, REQ-105; renumbered at merge from v1.114/D57/REQ-091 in `6eb5ab9`).** §19 and §27.5 replace person/bank and vehicle need checkboxes with direct audited View; separate NIN, fixed application/vehicle purpose/reason mappings, timed/leave-page hiding and record isolation remain. Frontend-only local implementation verified by focused tests and browser evidence in `issues/testing/client-polish-2026-10-04.md`; Person/bank and vehicle extension consolidated minimal-change and implemented privacy/security reviews PASS. Owner approved the verified local commit; no API, backend, launch-gate or merge claim. |
 | v1.114 | 2026-10-02 | **Development installation configuration (D57, REQ-094).** Configure temporary preview trip limits, retaining unset code defaults and production/staging numeric templates and the unanswered REQ-039 client input. |
 | v1.113 | 2026-10-02 | **Development access (D56, REQ-072/089).** Remove legal display/collection/issuance switches and dynamic advertiser reports; retain immutable results, tenant/aggregation/export boundaries and query recording, and register real-user legal/privacy plus differencing restoration as an unresolved launch obligation. |
