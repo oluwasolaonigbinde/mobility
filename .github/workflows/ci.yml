@@ -414,7 +414,7 @@ jobs:
 
       - run: npm run build
       - name: Frontend dependency vulnerability audit
-        run: npm audit --audit-level=high
+        run: node ../scripts/check_frontend_audit.mjs
 
   coverage:
     name: changed-code coverage policy

@@ -146,6 +146,55 @@ def test_error_tracking_uses_privacy_safe_defaults(monkeypatch) -> None:
     )
 
 
+def test_stored_file_review_reference_preserves_only_complete_scoped_uuids() -> None:
+    uuid = "01130285-8830-4c98-b916-7b4de2a4aa62"
+    phone = "+234 803 123 4567"
+    for purpose in ("person_payee_approval", "vehicle_approval"):
+        reference = f"{purpose}:{uuid}"
+        record = {"reason": reference, "phone": phone, "notes": phone}
+        scrubbed = scrub_observability_value(record, semantic_context="stored_file")
+        assert scrubbed == {
+            "reason": reference,
+            "phone": "[REDACTED]",
+            "notes": "[REDACTED]",
+        }
+        assert scrub_observability_value(scrubbed, semantic_context="stored_file") == scrubbed
+        for adjacent_phone in (phone, "0803 123 4567", "(234) 803 1234567"):
+            for mixed in (
+                reference + " " + adjacent_phone,
+                reference + adjacent_phone,
+                adjacent_phone + reference,
+            ):
+                result = scrub_observability_value(
+                    {"reason": mixed}, semantic_context="stored_file"
+                )["reason"]
+                assert adjacent_phone not in result
+                assert "[REDACTED]" in result
+        for broken in (
+            reference[:-1],
+            reference.replace("4c98", "4z98"),
+            f"{purpose}:01130285-8830",
+        ):
+            result = scrub_observability_value({"reason": broken}, semantic_context="stored_file")[
+                "reason"
+            ]
+            assert "01130285-8830" not in result
+            assert "[REDACTED]" in result
+        for record, context in (
+            ({"notes": reference}, "stored_file"),
+            ({"Reason": reference}, "stored_file"),
+            ({"reason": reference}, "driver_application"),
+            ({"extra": {"reason": reference}}, "stored_file"),
+            ({"reason": [reference]}, "stored_file"),
+            ({"stored_file": {"reason": reference}}, None),
+            ({"reason": reference}, None),
+        ):
+            assert uuid not in json.dumps(
+                scrub_observability_value(record, semantic_context=context)
+            )
+        assert uuid not in redact_log_message(reference)
+
+
 def test_observability_scrubs_nested_and_free_form_person_contact_pii() -> None:
     payload = {
         "contact": {

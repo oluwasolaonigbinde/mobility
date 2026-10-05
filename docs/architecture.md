@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.115 — 2026-10-04. Canonical source of truth: current state AND target state.**
+**Version 1.117 — 2026-10-05. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -886,6 +886,7 @@ delivery-control files; matching pull requests use the same path filters).
   Python and frontend dependency audits
   and weekly Dependabot updates supplement those checks; they do not replace
   test, coverage or provider gates.
+- D59/REQ-107 permits exactly GHSA-vfj7-8cjw-p6xm through 2026-11-04 UTC only in the exclusively dev-only eslint-config-next lint chain. Reason: no patched braces release is available and exposure is confined to the development lint chain. `scripts/check_frontend_audit.mjs` reads npm's JSON report, resolves installed lockfile dependency paths, and rejects other high/critical advisories, production/other-root exposure and malformed reports or audit errors. From 2026-11-05 UTC the exception no longer waives an affected high/critical finding. Clean and lower-severity-only reports retain their previous behavior. Only the frontend vulnerability-audit workflow step changes; dependency versions, lint rules and other CI gates remain.
 - D49 records a one-off owner-directed local L2-1a target of at least 70% changed lines and branches. Remaining criteria are reported explicitly. This does not change the CI checker, trusted baselines, D33 refresh prerequisites or ordinary D32 thresholds.
 - Job `coverage` (R17/TST-007): consumes both LCOV artifacts, resolves an
   explicit ancestor base, rejects global or named-critical baseline regression,
@@ -1024,6 +1025,7 @@ delivery-control files; matching pull requests use the same path filters).
 - Startup guards: non-local envs must override the default JWT secret; wildcard
   CORS refused outside local/test.
 - Audit trail on mutating flows + auth events + admin audit API/UI (§6.4.9).
+- **Stored-file review reference redaction (D60, REQ-109):** `app/core/observability.py` preserves only an entire `person_payee_approval:<UUID>` or `vehicle_approval:<UUID>` string at the exact structured `stored_file.reason` context, with a canonical 8-4-4-4-12 hexadecimal UUID. Every other context, field, mixed/free-text value and broken/partial reference uses the existing redaction path; phones alongside a valid reference remain scrubbed. ORM audit writes and audit reads share this boundary. Approval continues to require exact current submission evidence; invalid, unread and wrong-entity evidence still fails closed.
 - **Error tracking:** Sentry hooks on FastAPI (`app/core/observability.py`) and
   Next.js (server `instrumentation.ts`, browser `instrumentation-client.ts`) —
   inert without a DSN, `send_default_pii=False`/`sendDefaultPii:false`, tracing
@@ -3291,6 +3293,8 @@ The pre-flight table for any new work. **If your feature isn't here, add it
 
 | Feature | Section | Code home | May touch | Must not touch | Blocked by |
 |---------|---------|-----------|-----------|----------------|------------|
+| Stored-file review reference redaction | §12 | `app/core/observability.py`, `app/models/audit.py`, existing review evidence checks | Exact complete canonical review UUID at stored_file.reason (D60) | phone/free-text redaction, authorization, current-record and denial rules | [BUILT] owner-approved REQ-109; privacy review and full CI evidence required |
+| Expiring frontend dependency audit exception | §10.3 | `scripts/check_frontend_audit.mjs`, frontend audit step in `.github/workflows/ci.yml` | D59's exact dev-only advisory exception through 2026-11-04 UTC | other high/critical findings, production/other-root exposure, lint rules, coverage and provider gates | [BUILT] owner-approved REQ-107; automatic expiry, independent security review and full CI evidence |
 | Task-based admin search and entity hubs | §27.5 | frontend/src/app/admin/{drivers,campaigns,advertisers}/, hub drawers and src/lib/status/; existing server actions; admin organization directory | approved read projections, frontend navigation and wording | payment/activation authority, audited access, memberships, system actor, live-use gates | [TARGET] L2-1a/b; REQ-062 for additional pay-summary/area reads |
 | Public Terrax/Cardvert front door | §27 | `frontend/src/app/page.tsx`, `frontend/src/components/marketing/`, namespaced landing styles/assets; `api/v1/campaign_enquiries.py`, `services/campaign_enquiries.py`, `core/campaign_enquiry_rate_limit.py` | marketing copy, `/apply`, `/login`, bounded enquiry to fixed official inbox via email adapter | auth/role authority; public advertiser signup; product-theme tokens; live-provider claims | [BUILT] provider-neutral D52; enquiry defaults off and needs approved email setup; driver applications retain runtime/live-use gates |
 | Any auth change | §6.3/§12/§23 | `core/security.py`, `services/auth.py` | users | — | — (F7 landed; extend, don't fork) |
@@ -3520,6 +3524,8 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.117 | 2026-10-05 | **Exact stored-file review UUID preservation (D60, REQ-109).** §12/§30 record the narrow structured-field boundary that prevents phone-shaped UUIDs from corrupting valid approval evidence while retaining all phone/free-text and malformed-reference redaction. Rolling seed regression uses one controlled initial financial clock, then restores the production database clock and verifies existing cancellation evidence is immutable. No seed values, refund policy, product copy or access rules change. Privacy review and full CI remain required. |
+| v1.116 | 2026-10-05 | **Expiring lint dependency audit exception (D59, REQ-107).** §10.3/§30 record the exact GHSA-vfj7-8cjw-p6xm waiver, exclusively dev-only eslint-config-next path validation, 2026-11-04 UTC expiry, fail-closed report handling and unchanged checks for every other high/critical advisory. Dependency versions, lint rules, coverage floors and live-use gates are unchanged. Full CI and request closure remain pending. |
 | v1.115 | 2026-10-04 | **Owner-approved direct document review (D58, REQ-105; renumbered at merge from v1.114/D57/REQ-091 in `6eb5ab9`).** §19 and §27.5 replace person/bank and vehicle need checkboxes with direct audited View; separate NIN, fixed application/vehicle purpose/reason mappings, timed/leave-page hiding and record isolation remain. Frontend-only local implementation verified by focused tests and browser evidence in `issues/testing/client-polish-2026-10-04.md`; Person/bank and vehicle extension consolidated minimal-change and implemented privacy/security reviews PASS. Owner approved the verified local commit; no API, backend, launch-gate or merge claim. |
 | v1.114 | 2026-10-02 | **Development installation configuration (D57, REQ-094).** Configure temporary preview trip limits, retaining unset code defaults and production/staging numeric templates and the unanswered REQ-039 client input. |
 | v1.113 | 2026-10-02 | **Development access (D56, REQ-072/089).** Remove legal display/collection/issuance switches and dynamic advertiser reports; retain immutable results, tenant/aggregation/export boundaries and query recording, and register real-user legal/privacy plus differencing restoration as an unresolved launch obligation. |

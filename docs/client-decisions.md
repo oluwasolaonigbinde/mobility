@@ -62,6 +62,7 @@ acceptances unless a D-row says otherwise (D14, D21).
 - [Legal, privacy and retention](#legal-privacy-and-retention)
 - [File uploads](#file-uploads)
 - [Sign-in security and availability](#sign-in-security-and-availability)
+- [CI dependency security](#ci-dependency-security)
 - [Demo and staging external-input placeholders](#demo-and-staging-external-input-placeholders)
 - [Admin portal](#admin-portal)
 
@@ -423,11 +424,12 @@ key-management service (D44).
 
 ### Legal, privacy and retention
 
-**Current rule:** Built GPS, ID collection, results and reports are accessible during development without legal approval switches; tenant isolation, aggregation limits and query recording remain, and legal/privacy plus overlap/differencing protections must be restored before real users (D56, REQ-072/089). For driver-application and vehicle-document review, the View click is the staff acknowledgment; each read keeps its application or vehicle purpose-scoped audit and one-minute/leave-page hiding, and NIN has its separate reveal (D58, REQ-105).
+**Current rule:** Built GPS, ID collection, results and reports are accessible during development without legal approval switches; tenant isolation, aggregation limits and query recording remain, and legal/privacy plus overlap/differencing protections must be restored before real users (D56, REQ-072/089). For driver-application and vehicle-document review, the View click is the staff acknowledgment; each read keeps its application or vehicle purpose-scoped audit and one-minute/leave-page hiding, and NIN has its separate reveal (D58, REQ-105). Preserve complete canonical application/vehicle submission UUIDs only in the exact stored-file audit review reason; phones, mixed text, partial UUIDs and every other field retain redaction (D60, REQ-109).
 
 **Still open:** [REQ-031](requests.md) lawyer's name, [REQ-032](requests.md) legal pack.
 
 **History:**
+- **2026-10-05** — Owner approved exact whole-field stored-file review UUID preservation after phone redaction was shown to corrupt valid review evidence. No broader UUID exemption or phone disclosure is permitted (D60, REQ-109).
 - **2026-10-04 (vehicle extension)** — Owner extended D58/REQ-105 to driver-page vehicle documents. The earlier separate vehicle purpose/need confirmation ended; each View keeps the existing vehicle-review purpose/reason and individual audit, minute/leave hiding and record isolation. Commit is approved after verification and review.
 - **2026-10-04** — Owner made each driver-application View click the review acknowledgment instead of a separate need checkbox (D58, REQ-105), preserving individual audit and hiding. The prior checkbox control ended for this staff surface; other privacy and launch controls remain.
 - **2026-10-02** — Owner replaced the prior rule gating GPS, documents, reports and retargeting until legal approval with D56 development access and seed-only client-input substitutes; actual legal/retention answers remain open.
@@ -458,6 +460,14 @@ The API image defaults to two configurable workers (D45).
 **History:**
 - **Before Lane 1 integration** — The global login-failure bucket could block all sign-ins, and password work ran on the request event loop.
 - **2026-10-01** — Owner requested integration of Lane 1's availability and password-work controls, preserving automatic-payout account protection (D45, REQ-054).
+
+### CI dependency security
+
+**Current rule:** CI fails on every high or critical dependency advisory except exactly GHSA-vfj7-8cjw-p6xm in the exclusively dev-only eslint-config-next lint chain, through 2026-11-04 UTC (D59, REQ-107). Reason: no patched braces release is available and exposure is confined to the development lint chain. The exception stops applying on 2026-11-05 UTC; malformed reports, audit errors and broader exposure fail closed. It does not change application behavior or authorize deployment.
+
+**History:**
+- **Before 2026-10-05** — The frontend audit rejected every high or critical advisory without exceptions.
+- **2026-10-05** — Owner approved this one expiring advisory exception while finishing REQ-106, preserving all other high/critical checks and prohibiting npm's forced lint-package downgrade (D59, REQ-107).
 
 ### Demo and staging external-input placeholders
 
@@ -504,6 +514,7 @@ list, completed check or zero balance.
 
 **History:**
 
+- **2026-10-05** — Owner approved exact whole-field stored-file review UUID preservation after phone redaction was shown to corrupt valid review evidence. No broader UUID exemption or phone disclosure is permitted (D60, REQ-109).
 - **2026-10-04 (vehicle extension)** — Owner extended D58/REQ-105 to car documents on the driver page and authorized the verified integrated commit. Vehicle View replaces its separate purpose/need confirmation, with existing `kyc_review` + `vehicle_approval:<submission_id>` read auditing and minute/leave hiding. Vehicle approval decisions remain unchanged.
 - **2026-10-04** — Owner replaced the separately confirmed document need checkbox with direct audited View for driver-application review (D58, REQ-105). The earlier 3 October polish retained that checkbox under the existing audited-control rule. Timed hiding, record isolation, purpose and the separate NIN action remain. Local implementation verified by `issues/testing/client-polish-2026-10-04.md`; the original person/bank review passed independent reviews. The owner then extended direct View to vehicle documents and approved the integrated commit, Extension verification, consolidated minimal-change review and implemented privacy/security review PASS.
 
