@@ -1898,14 +1898,6 @@
                     "endColumn": 49,
                     "lineCount": 1
                 }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 12,
-                    "endColumn": 25,
-                    "lineCount": 1
-                }
             }
         ],
         "./app/services/driver_account_setup.py": [
