@@ -6,13 +6,16 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import platform
 import re
 import subprocess
 import sys
+import tempfile
 import xml.etree.ElementTree as ET
 from collections import Counter
 from pathlib import Path
+from statistics import median
 
 import coverage
 
@@ -67,18 +70,53 @@ def collect_nodeids(repo_root: Path) -> list[str]:
     return parse_collected_nodeids(result.stdout)
 
 
-def assign_files(nodeids: list[str], shard_count: int) -> list[list[str]]:
+def load_timings(path: Path) -> dict[str, dict[str, float | int]]:
+    try:
+        value = json.loads(path.read_text())
+        if value["version"] != 1 or not isinstance(value["files"], dict):
+            raise ValueError("unsupported timings")
+        for name, timing in value["files"].items():
+            seconds, count = timing["seconds"], timing["test_count"]
+            if (
+                not name.startswith("tests/")
+                or not name.endswith(".py")
+                or type(seconds) not in (float, int)
+                or not math.isfinite(seconds)
+                or seconds < 0
+                or type(count) is not int
+                or count <= 0
+            ):
+                raise ValueError("invalid file timing")
+        return value["files"]
+    except (OSError, ValueError, KeyError, TypeError) as error:
+        raise ShardError("timing snapshot is missing or invalid") from error
+
+
+def assign_files(
+    nodeids: list[str],
+    shard_count: int,
+    timings: dict[str, dict[str, float | int]] | None = None,
+) -> list[list[str]]:
     if shard_count <= 0:
         raise ShardError("shard count must be positive")
     counts = Counter(nodeid.split("::", 1)[0] for nodeid in nodeids)
     if shard_count > len(counts):
         raise ShardError("shard count exceeds collected test-file count")
     assignments: list[list[str]] = [[] for _ in range(shard_count)]
-    weights = [0] * shard_count
-    for test_file, count in sorted(counts.items(), key=lambda item: (-item[1], item[0])):
-        shard_index = min(range(shard_count), key=lambda index: (weights[index], index))
+    timings = timings or {}
+    per_test = median(t["seconds"] / t["test_count"] for t in timings.values()) if timings else 1
+    costs = {
+        name: timings[name]["seconds"] if name in timings else count * per_test
+        for name, count in counts.items()
+    }
+    weights = [0.0] * shard_count
+    for test_file in sorted(counts, key=lambda name: (-costs[name], name)):
+        shard_index = min(
+            range(shard_count),
+            key=lambda index: (weights[index], len(assignments[index]), index),
+        )
         assignments[shard_index].append(test_file)
-        weights[shard_index] += count
+        weights[shard_index] += costs[test_file]
     return [sorted(files) for files in assignments]
 
 
@@ -103,7 +141,9 @@ def plan(args: argparse.Namespace) -> None:
         raise ShardError("shard index must be within the configured shard count")
     repo_root = Path(args.repo_root).resolve()
     nodeids = collect_nodeids(repo_root)
-    assignments = assign_files(nodeids, args.shard_count)
+    timing_path = getattr(args, "timings", None)
+    timings = load_timings(Path(timing_path)) if timing_path else None
+    assignments = assign_files(nodeids, args.shard_count, timings)
     assigned_files = assignments[args.shard_index]
     if not assigned_files:
         raise ShardError(f"shard {args.shard_index} has no assigned test files")
@@ -330,6 +370,49 @@ def verify(args: argparse.Namespace) -> None:
     receipt_output.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n")
 
 
+def import_timings(args: argparse.Namespace) -> None:
+    # Historical artifacts never authorize this candidate. Validate their own
+    # complete execution/coverage provenance before using times as planning hints.
+    with tempfile.TemporaryDirectory() as temporary:
+        verify(
+            argparse.Namespace(
+                candidate_sha=args.candidate_sha,
+                shard_count=args.shard_count,
+                artifacts_dir=args.artifacts_dir,
+                receipt_output=str(Path(temporary) / "receipt.json"),
+            )
+        )
+    files: dict[str, dict[str, float | int]] = {}
+    reports: dict[str, str] = {}
+    for directory in sorted(Path(args.artifacts_dir).glob("r17-backend-shard-*")):
+        manifest = _load_manifest(directory / "manifest.json")
+        identities = {
+            _execution_identity(nodeid): nodeid.split("::", 1)[0]
+            for nodeid in _string_list(manifest["assigned_nodeids"], "assigned_nodeids")
+        }
+        report = directory / "execution.xml"
+        reports[directory.name] = hashlib.sha256(report.read_bytes()).hexdigest()
+        for case in ET.parse(report).getroot().findall("testsuite/testcase"):
+            try:
+                seconds = float(case.attrib["time"])
+                if not math.isfinite(seconds) or seconds < 0:
+                    raise ValueError("invalid time")
+            except (ValueError, KeyError) as error:
+                raise ShardError("execution report has invalid testcase duration") from error
+            name = identities[(case.attrib["classname"], case.attrib["name"])]
+            timing = files.setdefault(name, {"seconds": 0.0, "test_count": 0})
+            timing["seconds"] += seconds
+            timing["test_count"] += 1
+    snapshot = {
+        "version": 1,
+        "source_run": args.source_run,
+        "source_sha": args.candidate_sha,
+        "execution_sha256": reports,
+        "files": files,
+    }
+    Path(args.output).write_text(json.dumps(snapshot, indent=2, sort_keys=True) + "\n")
+
+
 def parser() -> argparse.ArgumentParser:
     result = argparse.ArgumentParser()
     subparsers = result.add_subparsers(dest="command", required=True)
@@ -341,6 +424,9 @@ def parser() -> argparse.ArgumentParser:
     plan_parser.add_argument("--shard-count", type=int, required=True)
     plan_parser.add_argument("--files-output", required=True)
     plan_parser.add_argument("--manifest-output", required=True)
+    plan_parser.add_argument(
+        "--timings", help="Recorded JUnit file durations; otherwise use counts"
+    )
     plan_parser.set_defaults(handler=plan)
 
     finalize_parser = subparsers.add_parser("finalize")
@@ -356,6 +442,13 @@ def parser() -> argparse.ArgumentParser:
     verify_parser.add_argument("--artifacts-dir", required=True)
     verify_parser.add_argument("--receipt-output", required=True)
     verify_parser.set_defaults(handler=verify)
+    timings_parser = subparsers.add_parser("import-timings")
+    timings_parser.add_argument("--candidate-sha", required=True)
+    timings_parser.add_argument("--shard-count", type=int, required=True)
+    timings_parser.add_argument("--artifacts-dir", required=True)
+    timings_parser.add_argument("--source-run", required=True)
+    timings_parser.add_argument("--output", required=True)
+    timings_parser.set_defaults(handler=import_timings)
     return result
 
 

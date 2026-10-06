@@ -866,14 +866,22 @@ mapping 3100).
 
 ### 10.3 CI **[BUILT]**
 
-One workflow: `.github/workflows/ci.yml` (push triggers on every branch subject
-to path filters; paths include product code, tests, contracts, deployment and
-delivery-control files; matching pull requests use the same path filters).
+One workflow: `.github/workflows/ci.yml`. REQ-108 selects all changes on push
+except `dependabot/**`, whose pull requests provide CI; all other branch pushes
+retain D41 evidence. Pull requests have no path filters. Master runs never cancel
+one another; other refs retain cancellation. Every job has an explicit timeout
+and uses the workspace-root local composite action to verify the candidate SHA.
 
-- Job `backend`: **postgis/postgis:16-3.4 + redis:7-alpine services** plus real
-  MinIO and ClamAV, exact candidate-SHA verification, delivery/OpenAPI drift
-  checks, Ruff, the full no-skip integration-authority suite, backend LCOV and
-  pre-production static verification. The LCOV artifact includes a hash-bound
+- Job `backend_static` owns delivery/OpenAPI drift, Ruff, type and
+  pre-production static verification. Six `backend_tests` shards use
+  **postgis/postgis:16-3.4 + redis:7-alpine services** plus real MinIO; planned
+  scanner consumers also start ClamAV. Browser/Caddy provisioning remains
+  file-selected. Whole files are balanced by the committed JUnit-duration
+  snapshot, with collected test count × median per-test time for unseen files.
+  Historical timings only guide scheduling: exact complete/disjoint inventory,
+  zero-skip execution and artifact/hash verification remain mandatory. Job
+  `backend` fails closed on either prerequisite and verifies all six artifacts
+  before combining LCOV. The LCOV artifact includes a hash-bound
   producer sidecar recording the exact SHA, Python implementation/major-minor
   and coverage.py version.
 - Job `quality`: exact candidate-SHA verification, `npm ci`, lint, typecheck,
@@ -887,6 +895,10 @@ delivery-control files; matching pull requests use the same path filters).
   and weekly Dependabot updates supplement those checks; they do not replace
   test, coverage or provider gates.
 - D59/REQ-107 permits exactly GHSA-vfj7-8cjw-p6xm through 2026-11-04 UTC only in the exclusively dev-only eslint-config-next lint chain. Reason: no patched braces release is available and exposure is confined to the development lint chain. `scripts/check_frontend_audit.mjs` reads npm's JSON report, resolves installed lockfile dependency paths, and rejects other high/critical advisories, production/other-root exposure and malformed reports or audit errors. From 2026-11-05 UTC the exception no longer waives an affected high/critical finding. Clean and lower-severity-only reports retain their previous behavior. Only the frontend vulnerability-audit workflow step changes; dependency versions, lint rules and other CI gates remain.
+- Pip/npm group minor/patch version updates and leave major upgrades to manual
+  work; Docker base pins include original tags alongside unchanged digests.
+  Ordinary `e2e` and `r59_real_stack` start independently of `quality`, accepting
+  wasted runs on lint failure. Full branch CI still must pass before merge.
 - D49 records a one-off owner-directed local L2-1a target of at least 70% changed lines and branches. Remaining criteria are reported explicitly. This does not change the CI checker, trusted baselines, D33 refresh prerequisites or ordinary D32 thresholds.
 - Job `coverage` (R17/TST-007): consumes both LCOV artifacts, resolves an
   explicit ancestor base, rejects global or named-critical baseline regression,
@@ -3534,6 +3546,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.121 | 2026-10-05 | **REQ-108 CI efficiency, local implementation.** §10.3 records trigger, concurrency, shared candidate guard, duration planning, selective scanner, timeout and independent E2E scheduling changes. Timing snapshot imported from six verified green-run artifacts; real after timing and D41 remain pending owner-authorized branch CI after REQ-106 green master/rebase. No image digest, product contract, coverage policy or launch-gate change. |
 | v1.120 | 2026-10-06 | **Shared campaign-change waiting labels (D63, REQ-113).** §18 records reuse of the existing staff vocabulary for advertiser pending review/funding, preserving funding and decision authority. Scoped unit and real browser checks must verify the exact request and independent reasoned approval before full CI. |
 | v1.119 | 2026-10-05 | **Canonical staff driver-login entry point (D62, REQ-112).** §27.5 records the restored existing fixed-role form beside existing-profile attachment on /admin/drivers/new, preserving self-registration, mandatory password replacement, document approval and activation boundaries. D51's removed shared account route stays deleted. Security review, focused browser verification and full CI remain required. |
 | v1.118 | 2026-10-05 | **Canonical UUID phone classification (D61, REQ-111).** §12/§30 replace D60's field-specific exception with one whole-token rule, retaining sensitive-field redaction and phone checks around valid tokens and within broken references. Deterministic payout actor UUIDs reproduce the corrupt audit trail; complete payout and vehicle approval assertions remain unchanged. Privacy/security and money reviews plus full CI remain required; no money commands, seed values or access rules change. |

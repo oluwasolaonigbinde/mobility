@@ -27,7 +27,8 @@ def test_ci_has_separate_exact_candidate_r59_authority() -> None:
     assert "e2e against the real stack" in ordinary_e2e
     assert "run_r59_real_stack.sh" not in ordinary_e2e
     assert "R59 real-stack release journey" in r59
-    assert "needs: quality" in r59
+    assert "needs:" not in r59
+    assert "./.github/actions/verify-candidate-sha" in r59
     assert "actions/checkout@v4" in r59
     assert "github.event.pull_request.head.sha || github.sha" in r59
     assert "./scripts/run_r59_real_stack.sh" in r59
