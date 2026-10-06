@@ -14,6 +14,7 @@ elapsed runner minutes, not rounded billing minutes. Matrix jobs count separatel
 | Run | Outcome | Wall minutes | Runner minutes | Backend job range |
 | --- | --- | ---: | ---: | --- |
 | [37433319087](https://github.com/oluwasolaonigbinde/mobility/actions/runs/37433319087), `b77945d7` | Green; comparable pre-change baseline and refreshed timing source | 23.98 | 124.33 | 4.45–23.32 min |
+| [37438300046](https://github.com/oluwasolaonigbinde/mobility/actions/runs/37438300046), `b3eb2f63` | All runtime/static/quality gates green; coverage requires policy metadata receipt | 20.70 | 115.95 | 12.23–19.90 min |
 | [36516619520](https://github.com/oluwasolaonigbinde/mobility/actions/runs/36516619520), `83444dc` | Green; original timing source | 20.98 | 100.15 | 5.02–20.23 min |
 | [37240242051](https://github.com/oluwasolaonigbinde/mobility/actions/runs/37240242051), `7bee4ae` | Failed; owner's 9–29 min example | 30.37 | 108.03 | 9.12–29.12 min |
 | [37271345370](https://github.com/oluwasolaonigbinde/mobility/actions/runs/37271345370), `750edbb` | Failed; only four shard artifacts | 21.92 | 98.62 | 6.43–21.27 min |
@@ -23,24 +24,24 @@ compared as full successful-suite costs. The original green source has 3,154 tes
 
 | Gate/job | Green master 37433319087 elapsed minutes | REQ-108 real after |
 | --- | ---: | --- |
-| backend static | 1.03 | Pending |
-| backend shard 0 | 4.45 | Pending |
-| backend shard 1 | 18.32 | Pending |
-| backend shard 2 | 17.33 | Pending |
-| backend shard 3 | 22.48 | Pending |
-| backend shard 4 | 19.37 | Pending |
-| backend shard 5 | 23.32 | Pending |
-| backend aggregate | 0.25 | Pending |
-| quality: lint/types/unit/contract/build/audit | 3.05 | Pending |
-| changed-code coverage/D33 | 0.18 | Pending |
-| ordinary E2E | 9.58 | Pending |
-| R59 journey | 4.97 | Pending |
+| backend static | 1.03 | 0.88 (PASS) |
+| backend shard 0 | 4.45 | 12.23 (PASS) |
+| backend shard 1 | 18.32 | 19.9 (PASS) |
+| backend shard 2 | 17.33 | 18.97 (PASS) |
+| backend shard 3 | 22.48 | 13.35 (PASS) |
+| backend shard 4 | 19.37 | 15.8 (PASS) |
+| backend shard 5 | 23.32 | 17.25 (PASS) |
+| backend aggregate | 0.25 | 0.37 (PASS) |
+| quality: lint/types/unit/contract/build/audit | 3.05 | 3.63 (PASS) |
+| changed-code coverage/D33 | 0.18 | 0.18 (receipt rejected) |
+| ordinary E2E | 9.58 | 9.53 (PASS) |
+| R59 journey | 4.97 | 3.85 (PASS) |
 
 **Prediction only:** refreshed green master's measured JUnit testcase sums by
 old shard are 3.04, 16.74, 15.60, 19.79, 17.79, 21.55 minutes. Replanning those same recorded
 files yields 15.75 minutes per shard (rounded). This excludes service setup,
 collection and browser provisioning and is not an executed after result.
-No after wall time, runner total or D41 acceptance is claimed yet.
+The executed after measurements are now above; D41 acceptance still awaits the receipt child's full green run. Scheduling prediction is not used as the measured result.
 
 ## Criterion evidence
 
@@ -74,8 +75,7 @@ No after wall time, runner total or D41 acceptance is claimed yet.
    with branch base: no image change. Original pre-pin Dockerfile history uses
    `python:3.12-slim` and `node:22-alpine`; those tags are restored alongside the
    unchanged digests. Protected frontend audit step compares equal to branch base.
-7. **OPEN:** before measurements above are real; after measurements require the
-   authorized feature-branch push and completed CI. Predictions are separate.
+7. **PASS:** actual before/after measurements above: wall time fell 3.28 minutes (13.7%), runner time fell 8.38 minutes (6.7%), backend range width fell from 18.87 to 7.67 minutes. First after run executed 3,291 tests, zero skipped/failed/error testcases, and all runtime gates; coverage failure is explicitly retained. Predictions are separate.
 8. **OPEN:** plan review completed; valid zero-duration/incomplete-source FIX
    findings corrected. Final consolidated review and focused check results are
    recorded below once stable. Green-master rebase and owner feature-push
@@ -108,7 +108,7 @@ Import rejects incomplete, mixed-SHA, overlapping or tampered sources.
   all historical timing totals and all 272 refreshed manifest-mapped snapshot entries.
   Rebased source review has no actionable findings. Full minimal-change PASS
   is withheld pending own green CI and the real after report. No gate is waived.
-- No product/API/schema/coverage-baseline or launch-programme change, no specialist
+- No product/API/schema/coverage-floor or launch-programme change, no specialist
   product-domain review or deployment introduced by this CI scheduling change.
 
 ## Rebase checkpoint — 6 October 2026
@@ -118,3 +118,7 @@ Rebased onto green `b77945d7be368fbce4d575bcd16bb308b91e1746`. Resolved two docu
 ## Rebased focused checks
 
 The six touched files yielded 605 passes and one optional PostgreSQL probe skip; 16 failures were confined to the temporary Compose runtime lacking the installed coverage package (the repository coverage directory became a namespace import). Reran both affected coverage/sharding files in the existing Python 3.12 runtime with coverage 7.16.0: all 73 passed in 81.17s. Combined distinct rebased result: 621 passed, one optional local probe skip. No source correction was required. Full Linux CLI planning collected 3,291 tests in 272 files, all assigned exactly once. Ruff and whitespace checks pass.
+
+## D33 metadata receipt correction
+
+Run 37438300046 failed only changed-code coverage: authorized ci.yml edits changed a policy hash. Independent plan and final reviewers confirmed the existing D33 metadata-only path is the required correction. Generated from its exact backend LCOV/hash-bound b3 producer and frontend LCOV in a clean Linux clone at b3, with base b3, then normal provenance verification passed. Global and critical objects, eligible inventory/content hashes, runtime and groups remain exactly identical to the adopted master receipt. Only policy hash, source-parent SHA and refresh provenance/reason change. All six uploaded shard reports contain 3,291 successful cases with no skips/failures/errors. Child receipt is bound to b3, the required next push before SHA. Child full CI and final review remain pending; no merge authorization. Newer master docs d499 CI37437833975 separately failed ordinary E2E, outside REQ-108 ownership.

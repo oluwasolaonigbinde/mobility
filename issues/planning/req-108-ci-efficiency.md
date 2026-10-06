@@ -9,7 +9,8 @@ authority, exact-source evidence, inventory, coverage and integration gates.
 Scope: `.github/workflows/ci.yml`, `.github/dependabot.yml`, one local composite
 SHA action, `scripts/pytest_shard.py` and a committed timing snapshot, both
 Dockerfiles, affected CI/sharding contract tests, architecture §10.3, requests
-and final evidence.
+and final evidence, plus the necessary metadata-only D33 derivative in
+`coverage/baseline.json`.
 Do not change the Frontend dependency vulnerability audit step owned by REQ-106,
 product code, dependencies, image digests, coverage policy or launch programme.
 
@@ -73,3 +74,5 @@ upload them. Neither historical run is D41 acceptance.
 
 Independent plan review returned FIX for zero-duration empty shards and the
 incomplete snapshot source assumption. Both findings are accepted above.
+
+6 October reviewed amendment: ci.yml is policy-hashed, so the unchanged receipt cannot validate the authorized scheduling edits. Independently approved metadata-only D33 refresh from exact b3 CI producers, generated and locally verified at clean b3 with explicit base b3. Eligible source/inventory/runtime/group membership and adopted global/critical objects must remain identical. Receipt-only child push must have event.before=b3 and its own full green CI. No checker, instrumentation, eligibility, threshold or floor change is authorized. The first CI result is reported as coverage-failed; no D41 completion claimed from it. Merge/PR bases require their own compatible provenance; push-base success is not evidence for another ancestor.
