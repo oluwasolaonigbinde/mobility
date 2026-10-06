@@ -74,6 +74,7 @@ test("advertiser preview and reasoned admin decision complete a mid-flight chang
     );
     expect(matchingRequests).toHaveLength(1);
     const request = matchingRequests[0];
+    if (!request) throw new Error("The confirmed campaign change request is missing.");
     expect(request.campaign_id).toBe(campaignId);
     expect(request.status).toBe("pending_admin");
     expect(request.id).toMatch(/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i);
@@ -107,14 +108,16 @@ test("advertiser preview and reasoned admin decision complete a mid-flight chang
     await expect(decidedRequest.getByText("Applied", { exact: true })).toBeVisible();
     const persistedRequests = (await readRequests()).filter((item) => item.id === request.id);
     expect(persistedRequests).toHaveLength(1);
-    expect(persistedRequests[0]).toMatchObject({
+    const persistedRequest = persistedRequests[0];
+    if (!persistedRequest) throw new Error("The reviewed campaign change request is missing.");
+    expect(persistedRequest).toMatchObject({
       campaign_id: campaignId,
       client_request_id: clientRequestId,
       status: "applied",
       review_reason: decisionReason,
     });
-    expect(persistedRequests[0].reviewed_by_user_id).toBeTruthy();
-    expect(persistedRequests[0].reviewed_by_user_id).not.toBe(request.requested_by_user_id);
+    expect(persistedRequest.reviewed_by_user_id).toBeTruthy();
+    expect(persistedRequest.reviewed_by_user_id).not.toBe(request.requested_by_user_id);
   } finally {
     cleanupIsolatedCampaign(campaignId);
   }
