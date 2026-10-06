@@ -1,11 +1,11 @@
 """R02 / GOV-003, TST-001, DB-005 — CI selection and real-integration authority.
 
 These are static assertions over `.github/workflows/ci.yml`. They exist because the
-defect class is *silence*: a dropped path filter or a removed service disarms every
+defect class is *silence*: a restrictive trigger or a removed service disarms every
 downstream gate without any check turning red. The workflow cannot police itself, so
 the repository suite polices the workflow.
 
-Every-branch push and pull-request selection is pinned by
+Push selection (all branches except Dependabot) and pull-request selection are pinned by
 `tests/test_validate_progress.py::test_ci_runs_for_every_direct_branch_push_and_pull_request`.
 """
 
@@ -27,34 +27,6 @@ E2E_COMPOSE_OVERRIDE_PATH = REPO_ROOT / "frontend/e2e/support/docker-compose.e2e
 # MinIO's pinned images are no longer publicly pullable; CI loads checksummed
 # exports of the same images from the repository's release.
 MINIO_LOADER = "./scripts/ci_load_minio_images.sh"
-
-# Release-critical paths a change to which must select CI. The root entries are the
-# ones codex-production-readiness-audit P1 found omitted; `.codex/**` closes the
-# controller-state gap in chatgpt-architecture-implementation-audit §3.
-REQUIRED_SELECTED_PATHS = (
-    "app/**",
-    "alembic/**",
-    "tests/**",
-    "frontend/**",
-    "scripts/**",
-    "docs/**",
-    ".codex/**",
-    ".github/workflows/**",
-    "openapi.json",
-    "pyproject.toml",
-    "alembic.ini",
-    "Dockerfile",
-    ".env.example",
-    "production.env.example",
-    "requirements-production.in",
-    "requirements-production.txt",
-    "docker-compose.yml",
-    "docker-compose.production.yml",
-    "Caddyfile",
-    "staging.env.example",
-    "AGENTS.md",
-    ".pre-commit-config.yaml",
-)
 
 # Authority the backend job must hand pytest so no real integration can opt itself out.
 REQUIRED_BACKEND_ENV = {
@@ -111,19 +83,9 @@ def triggers(workflow: dict) -> dict:
     return workflow[True] if True in workflow else workflow["on"]
 
 
-@pytest.mark.parametrize("required_path", REQUIRED_SELECTED_PATHS)
-@pytest.mark.parametrize("event", ("push", "pull_request"))
-def test_release_critical_paths_select_ci(triggers: dict, event: str, required_path: str) -> None:
-    selected = triggers[event]["paths"]
-
-    assert required_path in selected, (
-        f"{event} path filter omits {required_path!r}; a change confined to it would "
-        f"merge with no backend, frontend, contract, build or e2e evidence."
-    )
-
-
-def test_push_and_pull_request_select_identically(triggers: dict) -> None:
-    assert triggers["push"]["paths"] == triggers["pull_request"]["paths"]
+def test_all_changes_select_ci_without_path_filters(triggers: dict) -> None:
+    assert triggers["push"] == {"branches-ignore": ["dependabot/**"]}
+    assert triggers["pull_request"] is None
 
 
 @pytest.mark.skipif(
@@ -287,7 +249,8 @@ def test_backend_job_limits_browser_dependencies_to_the_owning_shard(workflow: d
 
 
 @pytest.mark.parametrize(
-    "job_name", ("backend_static", "backend_tests", "backend", "quality", "e2e")
+    "job_name",
+    ("backend_static", "backend_tests", "backend", "quality", "coverage", "e2e", "r59_real_stack"),
 )
 def test_every_job_binds_evidence_to_the_candidate_sha(workflow: dict, job_name: str) -> None:
     """Evidence from a synthetic merge commit is evidence for a SHA nobody can re-check."""
@@ -302,9 +265,12 @@ def test_every_job_binds_evidence_to_the_candidate_sha(workflow: dict, job_name:
             f"commit, so the run is not exact-SHA evidence for the candidate."
         )
 
-    assert any("Verify exact candidate SHA" == step.get("name") for step in steps), (
-        f"{job_name} does not assert that the checked-out tree is the candidate SHA"
-    )
+    guards = [
+        step for step in steps if step.get("uses") == "./.github/actions/verify-candidate-sha"
+    ]
+    assert len(guards) == 1
+    assert guards[0]["with"] == {"candidate-sha": CANDIDATE_SHA_EXPRESSION}
+    assert steps.index(checkouts[0]) < steps.index(guards[0])
 
 
 def test_backend_matrix_is_six_disjoint_fail_complete_shards(workflow: dict) -> None:
@@ -378,7 +344,7 @@ def test_preprod_tests_execute_only_inside_authoritative_matrix(workflow: dict) 
 @pytest.mark.parametrize(
     "job,step_name,startup",
     [
-        ("backend_tests", "Start real MinIO and ClamAV", "docker run"),
+        ("backend_tests", "Start real MinIO", "docker run"),
         (
             "r59_real_stack",
             "Run the isolated real-stack release journey",
@@ -427,8 +393,9 @@ def test_backend_provisions_caddy_before_authoritative_tests(workflow):
     assert caddy["if"] == "steps.shard_plan.outputs.caddy == 'true'"
 
 
-def test_e2e_runs_independently_of_coverage_after_quality(workflow):
-    assert workflow["jobs"]["e2e"]["needs"] == "quality"
+def test_e2e_and_r59_start_independently(workflow):
+    assert "needs" not in workflow["jobs"]["e2e"]
+    assert "needs" not in workflow["jobs"]["r59_real_stack"]
     assert set(workflow["jobs"]["coverage"]["needs"]) == {"backend", "quality"}
 
 
@@ -436,3 +403,72 @@ def test_ordinary_e2e_provisions_its_implicit_minio_dependency(workflow):
     steps = workflow["jobs"]["e2e"]["steps"]
     run = next(step["run"] for step in steps if step.get("name", "").startswith("Boot backend"))
     assert run.index(MINIO_LOADER) < run.index("docker compose up")
+
+
+def test_job_timeouts_and_master_concurrency(workflow):
+    assert workflow["concurrency"]["cancel-in-progress"] == (
+        "${{ github.ref != 'refs/heads/master' }}"
+    )
+    assert {name: job["timeout-minutes"] for name, job in workflow["jobs"].items()} == {
+        "backend_static": 15,
+        "backend_tests": 45,
+        "backend": 10,
+        "quality": 20,
+        "coverage": 10,
+        "e2e": 30,
+        "r59_real_stack": 30,
+    }
+
+
+def test_clamav_start_and_readiness_are_selected_by_actual_scanner_consumers(workflow):
+    steps = workflow["jobs"]["backend_tests"]["steps"]
+    plan = next(step for step in steps if step.get("id") == "shard_plan")
+    scanner_env_read = 'os.environ[' + '"LOCAL_CLAMAV_HOST"]'
+    consumers = {
+        path.as_posix().removeprefix(REPO_ROOT.as_posix() + "/")
+        for path in (REPO_ROOT / "tests").glob("test_*.py")
+        if scanner_env_read in path.read_text(encoding="utf-8")
+    }
+    assert consumers == {
+        "tests/test_kyc_local_integration.py",
+        "tests/test_campaign_managed_creatives_local_integration.py",
+    }
+    for name in consumers:
+        assert f'"{name}"' in plan["run"]
+    assert 'echo "clamav=true" >> "$GITHUB_OUTPUT"' in plan["run"]
+    for step in steps:
+        if "--name clamav" in step.get("run", "") or "clamdcheck.sh" in step.get("run", ""):
+            assert step["if"] == "steps.shard_plan.outputs.clamav == 'true'"
+            assert steps.index(plan) < steps.index(step)
+    assert "--timings scripts/pytest_shard_durations.json" in plan["run"]
+
+
+def test_shared_candidate_action_checks_workspace_and_rejects_invalid_sha():
+    action = yaml.safe_load(
+        (REPO_ROOT / ".github/actions/verify-candidate-sha/action.yml").read_text()
+    )
+    step = action["runs"]["steps"][0]
+    assert action["runs"]["using"] == "composite"
+    assert step["shell"] == "bash"
+    assert step["working-directory"] == "${{ github.workspace }}"
+    assert step["env"] == {"EXPECTED_SHA": "${{ inputs.candidate-sha }}"}
+    assert '"$EXPECTED_SHA" != "$actual"' in step["run"]
+    assert "exit 1" in step["run"]
+
+
+def test_dependabot_groups_minor_patch_and_excludes_major():
+    config = yaml.safe_load((REPO_ROOT / ".github/dependabot.yml").read_text())
+    for ecosystem in ("pip", "npm"):
+        update = next(u for u in config["updates"] if u["package-ecosystem"] == ecosystem)
+        assert update["ignore"] == [
+            {
+                "dependency-name": "*",
+                "update-types": ["version-update:semver-major"],
+            }
+        ]
+        assert update["groups"] == {
+            "minor-and-patch": {
+                "patterns": ["*"],
+                "update-types": ["minor", "patch"],
+            }
+        }

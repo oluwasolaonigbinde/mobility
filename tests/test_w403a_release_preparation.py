@@ -391,7 +391,7 @@ def test_production_builds_pin_base_images_and_dependency_graphs() -> None:
     frontend = (ROOT / "frontend/Dockerfile").read_text()
     python_lock = (ROOT / "requirements-production.txt").read_text()
 
-    assert backend.startswith("FROM python@sha256:")
+    assert backend.startswith("FROM python:3.12-slim@sha256:")
     assert "--require-hashes -r requirements-production.txt" in backend
     assert "--timeout 600 --retries 10" in backend
     assert backend.index("RUN pip install") < backend.index("COPY app ./app")
@@ -399,7 +399,7 @@ def test_production_builds_pin_base_images_and_dependency_graphs() -> None:
     assert '".[dev]"' not in backend
     assert all("==" in line for line in python_lock.splitlines() if line and line[0].isalnum())
     assert "--hash=sha256:" in python_lock
-    assert frontend.count("FROM node@sha256:") == 3
+    assert frontend.count("FROM node:22-alpine@sha256:") == 3
     assert "npm ci --ignore-scripts" in frontend
 
 

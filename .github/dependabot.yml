@@ -5,11 +5,25 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
   - package-ecosystem: npm
     directory: /frontend
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+    groups:
+      minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
   # tests/test_ci_integration_authority_r02.py pins the artifact actions' major
   # versions; a major bump must update that contract test in the same PR.
   - package-ecosystem: github-actions
@@ -19,8 +33,7 @@ updates:
     groups:
       github-actions:
         patterns: ["*"]
-  # Both Dockerfiles pin bare digests; Dependabot can only update them once the
-  # pins take the name:tag@sha256 form.
+  # Tagged digests keep the exact image while permitting Dependabot updates.
   - package-ecosystem: docker
     directory: /
     schedule:

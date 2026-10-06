@@ -15,6 +15,126 @@ from scripts import pytest_shard
 SHA = "a" * 40
 
 
+def test_recorded_durations_balance_expensive_files_and_unknown_fallback():
+    nodeids = [f"tests/test_{name}.py::test_{i}" for name in "abcd" for i in range(2)]
+    timings = {
+        f"tests/test_{name}.py": {"seconds": seconds, "test_count": 2}
+        for name, seconds in zip("abc", (100, 90, 10), strict=True)
+    }
+    expected = [["tests/test_a.py", "tests/test_c.py"], ["tests/test_b.py", "tests/test_d.py"]]
+    assert pytest_shard.assign_files(nodeids, 2, timings) == expected
+    assert pytest_shard.assign_files(nodeids[::-1], 2, timings) == expected
+
+
+def test_zero_duration_history_and_median_never_leave_empty_shards():
+    nodeids = [f"tests/test_{name}.py::test_one" for name in "abcd"]
+    timings = {f"tests/test_{name}.py": {"seconds": 0, "test_count": 1} for name in "abc"}
+    assert pytest_shard.assign_files(nodeids, 3, timings) == [
+        ["tests/test_a.py", "tests/test_d.py"],
+        ["tests/test_b.py"],
+        ["tests/test_c.py"],
+    ]
+
+
+@pytest.mark.parametrize("seconds", [-1, float("inf"), float("nan"), "1", True])
+def test_load_timings_rejects_invalid_seconds(tmp_path, seconds):
+    path = tmp_path / "times.json"
+    path.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "files": {
+                    "tests/test_a.py": {"seconds": seconds, "test_count": 1},
+                },
+            }
+        )
+    )
+    with pytest.raises(pytest_shard.ShardError, match="timing snapshot"):
+        pytest_shard.load_timings(path)
+
+
+@pytest.mark.parametrize(
+    "files",
+    [
+        [],
+        {"wrong.py": {"seconds": 1, "test_count": 1}},
+        {"tests/test_a.py": {"seconds": 1, "test_count": 0}},
+        {"tests/test_a.py": {"seconds": 1, "test_count": True}},
+    ],
+)
+def test_load_timings_rejects_invalid_file_inventory(tmp_path, files):
+    path = tmp_path / "times.json"
+    path.write_text(json.dumps({"version": 1, "files": files}))
+    with pytest.raises(pytest_shard.ShardError, match="timing snapshot"):
+        pytest_shard.load_timings(path)
+
+
+def test_plan_uses_timing_snapshot_without_changing_inventory_authority(tmp_path, monkeypatch):
+    inventory = [f"tests/test_{name}.py::test_one" for name in "abc"]
+    monkeypatch.setattr(pytest_shard, "collect_nodeids", lambda root: inventory)
+    timings = tmp_path / "timings.json"
+    timings.write_text(
+        json.dumps(
+            {
+                "version": 1,
+                "files": {
+                    "tests/test_c.py": {"seconds": 100, "test_count": 1},
+                },
+            }
+        )
+    )
+    args = argparse.Namespace(
+        candidate_sha=SHA,
+        shard_count=2,
+        shard_index=0,
+        repo_root=str(tmp_path),
+        timings=str(timings),
+        files_output=str(tmp_path / "files.txt"),
+        manifest_output=str(tmp_path / "manifest.json"),
+    )
+    pytest_shard.plan(args)
+    manifest = json.loads(Path(args.manifest_output).read_text())
+    assert manifest["assigned_files"] == ["tests/test_a.py", "tests/test_c.py"]
+    assert manifest["assigned_nodeids"] == [inventory[0], inventory[2]]
+    assert manifest["inventory_nodeids"] == inventory
+    assert manifest["inventory_sha256"] == pytest_shard._digest_lines(inventory)
+    assert manifest["candidate_sha"] == SHA
+
+
+def test_import_timings_uses_verified_manifest_identities_and_hashes(tmp_path):
+    inventory = ["tests/test_a.py::TestGroup::test_one[x.y]", "tests/test_b.py::test_two"]
+    for index in range(2):
+        manifest_path = _write_shard(
+            tmp_path,
+            index=index,
+            inventory=inventory,
+            assigned=inventory[index : index + 1],
+        )
+        report = manifest_path.parent / "execution.xml"
+        tree = ET.parse(report)
+        tree.getroot().find("testsuite/testcase").set("time", str(10 + index))
+        tree.write(report)
+        manifest = json.loads(manifest_path.read_text())
+        manifest["execution_sha256"] = hashlib.sha256(report.read_bytes()).hexdigest()
+        manifest_path.write_text(json.dumps(manifest))
+    args = argparse.Namespace(
+        candidate_sha=SHA,
+        shard_count=2,
+        artifacts_dir=str(tmp_path),
+        source_run="https://github.com/example/repo/actions/runs/1",
+        output=str(tmp_path / "times.json"),
+    )
+    pytest_shard.import_timings(args)
+    assert pytest_shard.load_timings(Path(args.output)) == {
+        "tests/test_a.py": {"seconds": 10.0, "test_count": 1},
+        "tests/test_b.py": {"seconds": 11.0, "test_count": 1},
+    }
+    # A report mutation cannot become a new scheduling hint without provenance.
+    report.write_text(report.read_text().replace('time="11"', 'time="12"'))
+    with pytest.raises(pytest_shard.ShardError, match="execution report hash"):
+        pytest_shard.import_timings(args)
+
+
 def test_parse_collected_nodeids_ignores_summary_and_warning_output() -> None:
     output = """
 tests/test_beta.py::test_two
@@ -214,10 +334,14 @@ def test_verify_rejects_correctly_hashed_malformed_coverage(tmp_path: Path) -> N
     second.write_text(json.dumps(manifest))
 
     with pytest.raises(pytest_shard.ShardError, match="unreadable coverage"):
-        pytest_shard.verify(argparse.Namespace(
-            candidate_sha=SHA, shard_count=2, artifacts_dir=str(tmp_path),
-            receipt_output=str(tmp_path / "receipt.json"),
-        ))
+        pytest_shard.verify(
+            argparse.Namespace(
+                candidate_sha=SHA,
+                shard_count=2,
+                artifacts_dir=str(tmp_path),
+                receipt_output=str(tmp_path / "receipt.json"),
+            )
+        )
 
 
 @pytest.mark.parametrize(
