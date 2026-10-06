@@ -68,6 +68,10 @@ def test_expected_postgres_constraint_names_are_classified(constraint_name: str)
             "uq_payout_batch_lines_provider_transfer_reference",
         ),
         (
+            "UNIQUE constraint failed: payout_automatic_alerts.dedupe_key",
+            "uq_payout_automatic_alerts_dedupe_key",
+        ),
+        (
             "UNIQUE constraint failed: vehicles.plate_country_code, "
             "vehicles.plate_number_normalized",
             "uq_vehicles_plate_country_normalized",

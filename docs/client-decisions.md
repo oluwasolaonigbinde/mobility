@@ -320,10 +320,14 @@ Admins can pause automatic payouts, get the alerts in the Finance section of
 person doing this the Finance Officer; in Cardvert it is any admin. Switching
 automatic payouts on: [REQ-048](requests.md).
 
-**Paystack's transfer fee is paid by the driver** (deducted from the payout; [REQ-053](requests.md) builds it). Optional hardening:
-[REQ-036](requests.md), [REQ-040](requests.md).
+**Terrax pays Paystack's transfer fee** (D64, [REQ-053](requests.md)). Drivers
+receive their full earnings. Cardvert neither computes nor stores nor displays
+fees, and has no fee setting or fee-setup submission gate. Paystack's own
+dashboard and statements show fees. Accepted work and the short-day calculation
+remain unchanged. Requested hardening: [REQ-036](requests.md), [REQ-040](requests.md).
 
 **History:**
+- **2026-10-05** — Client reversed the 1 Oct driver-deduction rule: Terrax bears the transfer fee and the driver receives full earnings, with no fee calculation, storage, display or setting in Cardvert (D64; REQ-053; owner W1-P brief; renumbered at merge from D59 on 6 Oct 2026). Locally verified on `w1/payouts`; evidence: `issues/testing/w1p-payouts-2026-10-05.md`. Combined Wave 1 CI and approved merge into master pending under the owner's one-time D41 exception recorded in REQ-053.
 - **2026-08-14** — Automated bank transfers confirmed (Q27, D18). Every batch was prepared by one person and approved by a different person (maker-checker, architecture §16.3 / RM10).
 - **2026-09-25** — Client chose automatic approval with no person approving each batch; Finance monitors and follows up (D39c). Built in `3b6b396` (REQ-003).
 - **2026-09-28** — Owner added: the first payment to any new bank account goes to a person (D40b, security review). Built in `3b6b396`.
@@ -561,3 +565,5 @@ list, completed check or zero balance.
 - **2026-10-02** — Core admin source Built in `39eb49c` (L2-1a expedited checkpoint); A-only build, 283 tests and source review passed. Full design acceptance and CI/D33 remain open; B source is delivered separately.
 
 W1B identifiers renumbered at merge on 2026-10-06: Compose REQ-108 → REQ-117, wording REQ-112 → REQ-116, D62 → D65, architecture v1.117 → v1.122. Master identifiers retain their meanings.
+
+Combined Wave 1 merge: payout architecture entry renumbered at merge from lane v1.122 to v1.123 because W1-B retains v1.122. Both original lane approvals remain historical; D64/D65 and request identifiers are unchanged.

@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.122 — 2026-10-06 (renumbered at merge from W1B v1.117). Canonical source of truth: current state AND target state.**
+**Version 1.123 — 2026-10-06. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -1683,6 +1683,14 @@ clawback; once cash has been paid, RM11's carry-forward debt contract applies.
 
 ### 16.3 Disbursement (Q27)
 
+**D64 / REQ-053 (5 Oct 2026; renumbered at merge from D59 on 6 Oct 2026):** Terrax bears Paystack's transfer fee; the
+driver receives the exact full earnings amount frozen on the payout line.
+Cardvert has no fee calculation, storage, display (including Finance), setting
+or fee-setup submission gate. Provider statements/dashboard hold the fee
+record. This reverses the 1 Oct deduction direction without changing accepted
+terms, pay calculation or D43's proportional short-day rule. W1-P hardening
+(REQ-036/040) below is implemented locally; combined Wave 1 CI and approved merge into master remain pending under the one-time D41 exception in REQ-053.
+
 - **[BUILT — MNY-10A/W2-02D] Sensitive payee/KYC data (D17):** one
   `app/adapters/crypto/` provider boundary (`encrypt`, `decrypt`, `rotate`) for
   verified bank-account values and later KYC/national identifiers. The pilot
@@ -1787,9 +1795,22 @@ clawback; once cash has been paid, RM11's carry-forward debt contract applies.
   campaign — the driver's earnings, and the cash paid or being sent on manual or
   automatic lines, for each Nigeria day at or below that day's single bound day
   rate (different rates or same-day hourly pay go to a person). Flagged trips
-  and trips with another non-voided entry are left out in the candidate query.
-  Candidates are taken oldest first (at most 200 per run) and included until
-  the run limit would be exceeded; the rest wait. The cron runs every sweep
+  and trips with another non-voided entry or an open driver dispute are left out
+  in the candidate query. Migration `0099` adds a transactional paired
+  `(occurred_at,id)` scan cursor to the control row. Each run locks/scans at most
+  200 entries in key order from that cursor, wrapping once; residual exclusions
+  advance it without using an admission place. At most 200 entries are included.
+  The first run-limit miss leaves the deferred entry next. This provides progress
+  through a finite backlog, without a bounded-wrap promise for an unlimited tail.
+  Cash ceilings use the saved original per-day allocation when it matches the
+  frozen line amount, including cross-midnight earnings. Inconsistent totals
+  count the full line on each known day. Manual correction cash without its own
+  allocation counts its full frozen amount on every saved day of its same-driver
+  v4 trip, including zero-pay days; it does not permanently exclude that driver.
+  Genuinely missing/malformed allocations leave the candidate for a person and
+  raise an audited/notified Finance daily-limit alert with reason
+  `cash_position_unavailable`, deduplicated per driver and payout period.
+  Pay calculation and frozen line amounts are never changed. The cron runs every sweep
   interval; the unique period key allows one run per period. Each run
   writes one reserved automatic batch per driver, frozen with the same line
   builder as manual reservation, approved by the actor, and its pending
@@ -1798,9 +1819,19 @@ clawback; once cash has been paid, RM11's carry-forward debt contract applies.
   and recovery then apply. Human
   approve/submit on an automatic batch is refused (`PAYOUT_BATCH_AUTOMATIC`);
   failed lines use the normal maker-checker replacement. Lock order: control
-  row → fraud-hold scopes → batches/lines/intents → driver debt scopes → ledger
-  rows → payees; the claim takes the control row `FOR SHARE` before its
-  fraud-hold scopes; pause/resume lock the acting admin, then the control row.
+  row → exclusive fraud reconciliation gate → sorted fraud-hold scopes →
+  batches/lines/intents → driver debt scopes → ledger rows → payees. Automatic
+  claims take the control row `FOR SHARE` and the exclusive gate before trip
+  scopes. Dispute creation/reply use that gate shared, serializing cross-trip
+  and absent-dispute reads; existing open rows are also locked. A committed
+  submission claim is the authorization boundary. Pause/resume lock the acting
+  admin, then the control row. Each newly inserted alert atomically writes one
+  sanitized `system.payout_automatic_alert.created` audit with only its kind;
+  retries do not repeat creation audits. Aggregate run audits have only the actor
+  as subject; line/batch/alert subjects retain affected drivers. Invalid system
+  identity also directly alerts pending automatic intents omitted by the due
+  query, filtering previously alerted lines before the bounded scan. Manual
+  failure audits remain excluded before the automatic alert scan limit.
   Finance endpoints under `/api/v1/admin/payouts/automatic` (`status`, `pause`,
   `resume`, `release-unsent`, `alerts`, `alerts/{alert_id}/resolve`,
   `reconciliation`) back the admin **Automatic payouts** page; open alerts
@@ -3566,6 +3597,7 @@ It does not authorize deployment or close external launch gates.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.123 | 2026-10-06 | **W1-P payouts (D64, REQ-036/040/053; renumbered at merge from v1.116/D59 on 6 Oct 2026).** Terrax bears fees outside Cardvert; full frozen earnings and D43 remain unchanged. §16.3 records dispute serialization, atomic sanitized alert audits, actor-only run subjects, bounded rotating candidate scans (`0099`) and original per-day cash attribution. Correction cash counts in full on every saved v4 trip day; missing/malformed allocations are held with an audited/notified Finance alert. Local evidence is in `issues/testing/w1p-payouts-2026-10-05.md`; combined Wave 1 CI and approved merge into master remain pending (REQ-053 one-time D41 exception). |
 | v1.122 | 2026-10-05 | **W1B locally verified templates and budget proof (REQ-037/049/117, D44/D65).** Verify all accepted fixed quote lines count once through the existing billing authority and retain evaluation keys. Replace Render/AWS/Mapbox templates with Hetzner S3 and MapTiler; add internal ClamAV, signature persistence/egress and health dependencies; align configurable API workers. Focused delivery evidence in `issues/testing/w1b-budget-hosting-evidence-2026-10-05.md`; templates only, no external gate changes. |
 | v1.121 | 2026-10-05 | **REQ-108 CI efficiency, local implementation.** §10.3 records trigger, concurrency, shared candidate guard, duration planning, selective scanner, timeout and independent E2E scheduling changes. Timing snapshot imported from six verified green-run artifacts; real after timing and D41 remain pending owner-authorized branch CI after REQ-106 green master/rebase. No image digest, product contract, coverage policy or launch-gate change. |
 | v1.120 | 2026-10-06 | **Shared campaign-change waiting labels (D63, REQ-113).** §18 records reuse of the existing staff vocabulary for advertiser pending review/funding, preserving funding and decision authority. Scoped unit and real browser checks must verify the exact request and independent reasoned approval before full CI. |
@@ -3692,3 +3724,5 @@ It does not authorize deployment or close external launch gates.
 | v1.7 | 2026-07-27 | **D8 — questionnaire resolved by adopted defaults.** Client unresponsive; best-practice defaults adopted for Q1–Q34 where a defensible standard exists (source of truth: new `docs/adopted-decisions.md`; client-facing `docs/Mobility_Working_Decisions_and_Open_Items.docx` supersedes the questionnaire). [OPEN] tag definition and §33 preamble now defer per-question status to that file, including this doc's "Blocked-by: Q…" headers and "until answers land" prose (§15's block amended directly); the §33 table is retained as the Q→section routing map. Q23 (owner-drivers) is CONFIRM-PENDING — §16.3 payee abstraction stays mandatory. Q11/Q34/Q13 adopted directions match the doc's existing proposed defaults (anonymised segments with export gated on Q31; in-app + advertiser email + ops WhatsApp; driver self-registration narrowing D1 to advertisers/orgs — §3 D1 row annotated). No tag promotions in the body: adopted ≠ built; [TARGET] sections build in their planned phases. Pre-existing "OJ approval" SOP references corrected to the actual flow (plan → adversarial review → reconcile — no human gate; §13 intro, §10.4, §31). |
 
 W1B identifiers renumbered at merge on 2026-10-06: Compose REQ-108 → REQ-117, wording REQ-112 → REQ-116, D62 → D65, architecture v1.117 → v1.122. Master identifiers retain their meanings.
+
+Combined Wave 1 merge: payout architecture entry renumbered at merge from lane v1.122 to v1.123 because W1-B retains v1.122. Both original lane approvals remain historical; D64/D65 and request identifiers are unchanged.

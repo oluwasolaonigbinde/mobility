@@ -64,6 +64,7 @@ from app.services.fraud_holds import (
     fraud_hold_active_clause,
     lock_fraud_hold_scope,
     lock_fraud_hold_scopes,
+    lock_fraud_reconciliation_gate,
 )
 from app.services.payees import read_verified_bank_account
 from app.services.payout_debt import (
@@ -1061,6 +1062,11 @@ async def claim_payout_submission_intent(
                 .distinct()
             )
         )
+        if automatic:
+            # Same control -> exclusive reconciliation gate -> trip order as
+            # the run; a dispute on any driver trip must precede or follow
+            # this committed submission authorization.
+            await lock_fraud_reconciliation_gate(session, exclusive=True)
         await lock_fraud_hold_scopes(session, trip_ids)
         batch, lines = await _locked_batch_with_lines(session, stub.batch_id)
         if (

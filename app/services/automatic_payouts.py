@@ -7,7 +7,8 @@ stays on the maker-checker path. Nothing runs until the client's settings are
 supplied (payout frequency and run limit) and the switch is on; Finance can
 pause it at any time.
 
-Lock order (plan review R2): control row -> fraud-hold scopes -> batches/lines/
+Lock order: control row -> exclusive fraud reconciliation gate -> sorted
+fraud-hold scopes -> batches/lines/
 intents -> driver debt scopes -> ledger rows -> payees. The system actor is read
 without a lock; pause/resume lock the acting admin before the control row.
 """
@@ -16,10 +17,10 @@ import hashlib
 import json
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from uuid import UUID, uuid4
 
-from sqlalchemy import exists, func, select
+from sqlalchemy import exists, func, select, tuple_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -77,7 +78,11 @@ from app.services.disbursements import (
     freeze_batch_instruction_set,
 )
 from app.services.fraud_assessments import load_current_successful_assessment
-from app.services.fraud_holds import fraud_hold_active_clause, lock_fraud_hold_scopes
+from app.services.fraud_holds import (
+    fraud_hold_active_clause,
+    lock_fraud_hold_scopes,
+    lock_fraud_reconciliation_gate,
+)
 from app.services.notifications import create_active_admin_notices
 from app.services.payout_debt import lock_driver_currency_debt_scope
 from app.services.payout_operations import _outcome
@@ -90,9 +95,10 @@ from app.services.payouts import (
 )
 
 AUTOMATIC_CURRENCY = "NGN"
-# Engineering bound on one run's candidate scan (keeps fraud-hold scopes short);
-# not a client value. Entries past it wait for the next period.
+# Separate admission and scan-work bounds: excluded rows do not use admission
+# places; the durable cursor moves past residual exclusions on later periods.
 MAX_CANDIDATES_PER_RUN = 200
+MAX_ENTRIES_SCANNED_PER_RUN = 200
 CONTROL_ID = 1
 REASON_MIN, REASON_MAX = 3, 500
 # Ledger rows that count toward a v4 trip's day position (plan review R5).
@@ -254,6 +260,17 @@ async def raise_alert(
         event_key=f"payout-automatic-alert:v1:{alert.id}",
         payload={"alert_id": str(alert.id), "kind": alert.kind},
     )
+    actor_id = await session.scalar(
+        select(User.id).where(User.id == CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID)
+    )
+    await create_audit_event(
+        session,
+        actor_user_id=actor_id,
+        action="system.payout_automatic_alert.created",
+        entity_type="payout_automatic_alert",
+        entity_id=str(alert.id),
+        metadata={"kind": alert.kind},
+    )
     return alert
 
 
@@ -353,6 +370,41 @@ async def scan_automatic_payout_alerts(session: AsyncSession, *, limit: int = 20
                 line_id=line_id,
             )
         )
+    # An invalid identity excludes pending automatic intents from the due
+    # queue, so no worker failure audit is produced. Detect those directly,
+    # excluding already alerted lines before applying the work bound.
+    if await actor_integrity_problem(session, await load_control(session)) is not None:
+        blocked = (
+            await session.execute(
+                select(PayoutSubmissionIntent.id, PayoutSubmissionIntent.payout_batch_line_id)
+                .where(
+                    PayoutSubmissionIntent.state == PayoutSubmissionIntentState.PENDING.value,
+                    PayoutSubmissionIntent.payout_batch_line_id.in_(automatic_line_ids),
+                    ~exists().where(
+                        PayoutAutomaticAlert.line_id == PayoutSubmissionIntent.payout_batch_line_id,
+                        PayoutAutomaticAlert.kind
+                        == PayoutAutomaticAlertKind.SUBMISSION_BLOCKED.value,
+                        PayoutAutomaticAlert.detail["error_code"].as_string()
+                        == "PAYOUT_AUTOMATIC_ACTOR_INVALID",
+                    ),
+                )
+                .order_by(PayoutSubmissionIntent.id)
+                .limit(limit)
+            )
+        ).all()
+        for intent_id, line_id in blocked:
+            created += bool(
+                await raise_alert(
+                    session,
+                    kind=PayoutAutomaticAlertKind.SUBMISSION_BLOCKED,
+                    dedupe=(intent_id, "PAYOUT_AUTOMATIC_ACTOR_INVALID"),
+                    detail={
+                        "intent_id": str(intent_id),
+                        "error_code": "PAYOUT_AUTOMATIC_ACTOR_INVALID",
+                    },
+                    line_id=line_id,
+                )
+            )
     # Refused automatic submissions: the sweep records a durable failure audit
     # per intent; one alert per intent and error code (plan review R4).
     automatic_intents = {
@@ -471,19 +523,38 @@ async def _day_position(
     return position
 
 
-async def _cash_by_day(session: AsyncSession, *, driver_profile_id: UUID) -> dict[date, Decimal]:
-    """Payout line amounts (manual or automatic) not void or failed for the driver's
-    v4 trips, the full amount on every day the trip touched (money review #3)."""
+async def _cash_by_day(
+    session: AsyncSession, *, driver_profile_id: UUID
+) -> dict[date, Decimal] | None:
+    """Frozen cash uses original day allocations, never repriced amounts.
+
+    Corrections/inconsistent totals charge the whole line on each known day.
+    Missing/malformed allocations cannot authorize another automatic payment.
+    """
+    trip_calculation = aliased(PayoutCalculation)
+    daily_rate_trip = exists().where(
+        trip_calculation.trip_session_id == EarningsLedgerEntry.trip_session_id,
+        trip_calculation.formula_version == PAYOUT_V4,
+    )
     rows = (
         await session.execute(
-            select(PayoutBatchLine.amount, PayoutCalculation.amount_by_day)
+            select(
+                PayoutBatchLine.amount,
+                PayoutCalculation.amount_by_day,
+                PayoutCalculation.trip_session_id,
+                EarningsLedgerEntry.trip_session_id,
+                PayoutCalculation.driver_profile_id,
+                EarningsLedgerEntry.driver_profile_id,
+                EarningsLedgerEntry.payout_calculation_id,
+            )
             .join(EarningsLedgerEntry, EarningsLedgerEntry.id == PayoutBatchLine.ledger_entry_id)
-            .join(
+            .outerjoin(
                 PayoutCalculation,
                 PayoutCalculation.id == EarningsLedgerEntry.payout_calculation_id,
             )
             .where(
-                PayoutCalculation.formula_version == PAYOUT_V4,
+                daily_rate_trip,
+                EarningsLedgerEntry.currency == AUTOMATIC_CURRENCY,
                 EarningsLedgerEntry.driver_profile_id == driver_profile_id,
                 PayoutBatchLine.status.not_in(
                     (PayoutBatchLineStatus.VOID.value, PayoutBatchLineStatus.FAILED.value)
@@ -492,9 +563,53 @@ async def _cash_by_day(session: AsyncSession, *, driver_profile_id: UUID) -> dic
         )
     ).all()
     totals: dict[date, Decimal] = {}
-    for amount, amount_by_day in rows:
-        for day in _positive_days(amount_by_day or {}):
-            totals[day] = totals.get(day, Decimal("0.00")) + _money(amount)
+    for (
+        amount,
+        amount_by_day,
+        calculated_trip,
+        ledger_trip,
+        calculated_driver,
+        ledger_driver,
+        calculation_id,
+    ) in rows:
+        conservative = calculation_id is None
+        if conservative:
+            # A correction has no individual split: charge its full frozen
+            # amount to every saved day of its driver's original v4 trip.
+            allocations = (
+                await session.scalars(
+                    select(PayoutCalculation.amount_by_day).where(
+                        PayoutCalculation.trip_session_id == ledger_trip,
+                        PayoutCalculation.driver_profile_id == ledger_driver,
+                        PayoutCalculation.formula_version == PAYOUT_V4,
+                    )
+                )
+            ).all()
+        else:
+            if calculated_trip != ledger_trip or calculated_driver != ledger_driver:
+                return None
+            allocations = [amount_by_day]
+        try:
+            if not allocations:
+                return None
+            days = {}
+            for allocation in allocations:
+                if not allocation:
+                    return None
+                parsed = {
+                    date.fromisoformat(day): _money(value) for day, value in allocation.items()
+                }
+                if any(value < 0 for value in parsed.values()):
+                    return None
+                days.update(parsed)
+        except (ValueError, TypeError, InvalidOperation, AttributeError):
+            return None
+        if not days:
+            return None
+        consistent = not conservative and sum(days.values(), Decimal("0.00")) == _money(amount)
+        for day, day_amount in days.items():
+            credited = day_amount if consistent else _money(amount)
+            totals[day] = totals.get(day, Decimal("0.00")) + credited
     return totals
 
 
@@ -565,6 +680,7 @@ async def _clean_reason(
             FraudDispute.status == FraudDisputeStatus.OPEN.value,
         )
         .limit(1)
+        .with_for_update()
     ):
         return "open_dispute", days, None
     assessment = await load_current_successful_assessment(
@@ -654,42 +770,65 @@ async def run_automatic_payouts(
         .correlate(EarningsLedgerEntry)
         .exists()
     )
+    # Disputes may concern another trip: the exclusive global gate prevents
+    # an absent-row phantom until this run's reservation commits. The claim
+    # repeats this ordering at its own authorization boundary.
+    await lock_fraud_reconciliation_gate(session, exclusive=True)
     other_entry = aliased(EarningsLedgerEntry)
-    stubs = (
-        await session.execute(
-            select(
-                EarningsLedgerEntry.id,
-                EarningsLedgerEntry.trip_session_id,
-                EarningsLedgerEntry.driver_profile_id,
-            )
-            .join(
-                PayoutCalculation,
-                PayoutCalculation.id == EarningsLedgerEntry.payout_calculation_id,
-            )
-            .where(
-                EarningsLedgerEntry.entry_type == EarningsLedgerEntryType.TRIP_PAYOUT.value,
-                EarningsLedgerEntry.status == EarningsLedgerEntryStatus.AVAILABLE.value,
-                EarningsLedgerEntry.amount > 0,
-                EarningsLedgerEntry.currency == AUTOMATIC_CURRENCY,
-                EarningsLedgerEntry.trip_session_id.is_not(None),
-                PayoutCalculation.formula_version == PAYOUT_V4,
-                ~earlier_automatic_line,
-                # Permanently unclean trips never take a scan place (money review
-                # #2): any review flag, or any other non-voided entry on the trip.
-                ~exists().where(FraudFlag.trip_session_id == EarningsLedgerEntry.trip_session_id),
-                ~exists().where(
-                    other_entry.trip_session_id == EarningsLedgerEntry.trip_session_id,
-                    other_entry.id != EarningsLedgerEntry.id,
-                    other_entry.status != EarningsLedgerEntryStatus.VOIDED.value,
-                ),
-            )
-            .order_by(EarningsLedgerEntry.occurred_at, EarningsLedgerEntry.id)
-            .limit(MAX_CANDIDATES_PER_RUN)
+    candidate_query = (
+        select(
+            EarningsLedgerEntry.id,
+            EarningsLedgerEntry.trip_session_id,
+            EarningsLedgerEntry.driver_profile_id,
+            EarningsLedgerEntry.occurred_at,
         )
-    ).all()
+        .join(
+            PayoutCalculation,
+            PayoutCalculation.id == EarningsLedgerEntry.payout_calculation_id,
+        )
+        .where(
+            EarningsLedgerEntry.entry_type == EarningsLedgerEntryType.TRIP_PAYOUT.value,
+            EarningsLedgerEntry.status == EarningsLedgerEntryStatus.AVAILABLE.value,
+            EarningsLedgerEntry.amount > 0,
+            EarningsLedgerEntry.currency == AUTOMATIC_CURRENCY,
+            EarningsLedgerEntry.trip_session_id.is_not(None),
+            PayoutCalculation.formula_version == PAYOUT_V4,
+            ~earlier_automatic_line,
+            ~exists().where(
+                FraudDispute.driver_profile_id == EarningsLedgerEntry.driver_profile_id,
+                FraudDispute.status == FraudDisputeStatus.OPEN.value,
+            ),
+            # Permanently unclean trips never take a scan place (money review
+            # #2): any review flag, or any other non-voided entry on the trip.
+            ~exists().where(FraudFlag.trip_session_id == EarningsLedgerEntry.trip_session_id),
+            ~exists().where(
+                other_entry.trip_session_id == EarningsLedgerEntry.trip_session_id,
+                other_entry.id != EarningsLedgerEntry.id,
+                other_entry.status != EarningsLedgerEntryStatus.VOIDED.value,
+            ),
+        )
+        .order_by(EarningsLedgerEntry.occurred_at, EarningsLedgerEntry.id)
+    )
+    cursor = None
+    if control.candidate_cursor_at is not None and control.candidate_cursor_id is not None:
+        cursor = tuple_(EarningsLedgerEntry.occurred_at, EarningsLedgerEntry.id)
+        after = candidate_query.where(
+            cursor > (control.candidate_cursor_at, control.candidate_cursor_id)
+        )
+    else:
+        after = candidate_query
+    stubs = list((await session.execute(after.limit(MAX_ENTRIES_SCANNED_PER_RUN))).all())
+    if cursor is not None and len(stubs) < MAX_ENTRIES_SCANNED_PER_RUN:
+        before = candidate_query.where(
+            cursor <= (control.candidate_cursor_at, control.candidate_cursor_id)
+        )
+        stubs.extend(
+            (await session.execute(before.limit(MAX_ENTRIES_SCANNED_PER_RUN - len(stubs)))).all()
+        )
     exclusions = _Exclusions()
     included: list[tuple[EarningsLedgerEntry, tuple]] = []
     running = Decimal("0.00")
+    next_cursor = (control.candidate_cursor_at, control.candidate_cursor_id)
     if stubs:
         await lock_fraud_hold_scopes(session, (stub.trip_session_id for stub in stubs))
         indebted: set[UUID] = set()
@@ -728,6 +867,10 @@ async def run_automatic_payouts(
         positions: dict[tuple[UUID, date], _DayPosition] = {}
         cash: dict[UUID, dict[date, Decimal]] = {}
         for stub in stubs:
+            if len(included) >= MAX_CANDIDATES_PER_RUN:
+                break
+            previous_cursor = next_cursor
+            next_cursor = (stub.occurred_at, stub.id)
             entry = entries[stub.id]
             if (
                 entry.status != EarningsLedgerEntryStatus.AVAILABLE.value
@@ -750,7 +893,20 @@ async def run_automatic_payouts(
                     driver_cash = await _cash_by_day(
                         session, driver_profile_id=entry.driver_profile_id
                     )
-                    cash[entry.driver_profile_id] = driver_cash
+                    if driver_cash is not None:
+                        cash[entry.driver_profile_id] = driver_cash
+                if driver_cash is None:
+                    exclusions.add("cash_position_unavailable", entry.amount)
+                    await raise_alert(
+                        session,
+                        kind=PayoutAutomaticAlertKind.DAILY_LIMIT,
+                        dedupe=("cash_position_unavailable", entry.driver_profile_id, period),
+                        detail={"reason": "cash_position_unavailable", "period": period},
+                        ledger_entry_id=entry.id,
+                        driver_profile_id=entry.driver_profile_id,
+                        amount=entry.amount,
+                    )
+                    continue
                 for day in sorted(days):
                     scope = (entry.driver_profile_id, day)
                     if scope not in positions:
@@ -761,7 +917,7 @@ async def run_automatic_payouts(
                     ceiling = position.ceiling
                     over_cash = (
                         ceiling is not None
-                        and driver_cash.get(day, Decimal("0.00")) + entry.amount > ceiling
+                        and driver_cash.get(day, Decimal("0.00")) + days[day] > ceiling
                     )
                     if ceiling is None or position.earned > ceiling or over_cash:
                         reason = "daily_limit"
@@ -803,7 +959,8 @@ async def run_automatic_payouts(
                 )
                 continue
             if running + entry.amount > limit:
-                # Stop at the first miss (R10): later entries wait for the next run.
+                # Leave the first deferred entry next in the rotated window.
+                next_cursor = previous_cursor
                 waiting = [stub.id for stub in stubs[stubs.index(stub) :]]
                 await raise_alert(
                     session,
@@ -821,7 +978,7 @@ async def run_automatic_payouts(
             running += entry.amount
             for day in days:
                 cash[entry.driver_profile_id][day] = (
-                    cash[entry.driver_profile_id].get(day, Decimal("0.00")) + entry.amount
+                    cash[entry.driver_profile_id].get(day, Decimal("0.00")) + days[day]
                 )
             included.append((entry, authority))
 
@@ -891,6 +1048,7 @@ async def run_automatic_payouts(
         }:
             raise
         return {"outcome": "conflict", "period": period}
+    control.candidate_cursor_at, control.candidate_cursor_id = next_cursor
     for batch, lines in batches:
         await create_audit_event(
             session,
@@ -954,6 +1112,7 @@ async def automatic_final_clean_authority(
             FraudDispute.status == FraudDisputeStatus.OPEN.value,
         )
         .limit(1)
+        .with_for_update()
     ):
         raise _error(
             "PAYOUT_AUTOMATIC_NOT_CLEAN",
