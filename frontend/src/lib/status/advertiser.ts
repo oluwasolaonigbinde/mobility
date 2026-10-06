@@ -1,4 +1,5 @@
 import type { components } from "@/lib/api/schema";
+import { adminStatus } from "./admin";
 
 export type CampaignStatus = components["schemas"]["CampaignStatus"];
 
@@ -44,6 +45,9 @@ export function isCampaignStatus(value: string): value is CampaignStatus {
 }
 
 export function advertiserStatus(value: string): string {
+  if (value === "pending_admin" || value === "pending_funding") {
+    return adminStatus(value);
+  }
   return (
     statusLabel[value as CampaignStatus] ??
     (

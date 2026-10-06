@@ -1,5 +1,7 @@
 # W1B delivery contract — 5 October 2026
 
+**Historical 5 October contract; the 6 October direction below supersedes its inbound-merge/per-lane CI gate.**
+
 Authority: owner execution of `Cardvert_W1B_Budget_Hosting_Brief_2026-10-05.md`, REQ-037, REQ-049/D44 and REQ-108. Work only in `mobility-w1b`, branch `w1/budget-hosting`, from master `750edbb`. This is review-required money/deployment/security work. No external actions, provider calls, secret access, push, master merge or deployment; local commit is authorized by the brief. Requests remain IN PROGRESS until merged. Do not read account-access or tmp. No queue/status changes to progress.
 
 ## Outcome and scope
@@ -27,3 +29,9 @@ Main risks: double counting fixed lines; silently changing the preproduction spe
 ## Claude corrections — 5 October 2026
 
 Owner review of `308f04a` requires the release path itself to allow cold scanner startup, with a regression test; plain budget current/history wording; at least 8 GB host RAM; and CI-green master integration with shared-test conflict resolution and next-free request/decision/architecture numbering (marked "renumbered at merge", after W1-P if it lands first). A4 now requires a 900-second application/scanner health wait, covering the 360-second scanner start period plus health retries, with unhealthy startup still failing before readiness/edge. A5 includes plain wording and the host minimum. Reverify touched files and return to the same post-build reviewer. No push authorization; integration remains blocked while master CI fails. Existing identifiers and correction request numbers are provisional until that merge.
+
+W1B identifiers renumbered at merge on 2026-10-06: Compose REQ-108 → REQ-117 (REQ-115 is master preview rehosting), wording REQ-112 → REQ-116, D62 → D65, architecture v1.117 → v1.122. Master identifiers retain their meanings.
+
+## Owner integration direction — 6 October 2026
+
+Merge current local master (4cf1df66) with a real merge, preserve both lanes and master records, renumber W1B identifiers as above, rerun touched tests before the merge commit. Owner one-time D41 exception: no per-lane push/CI; one combined CI run later. Then wait for the payouts session to report its master merge; merge w1/payouts, resolve records conflicts, rerun touched checks and commit the combined Wave 1 branch. No push or merge into master. This supersedes the earlier CI-green/per-lane push gate for Wave 1 only.

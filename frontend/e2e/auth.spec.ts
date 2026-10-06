@@ -13,16 +13,20 @@ async function login(page: Page, email: string, password: string) {
 async function createUser(page: Page, role: "advertiser" | "driver", email: string) {
   await login(page, "admin@demo.mobility.local", "DemoAdmin12345!");
   await page.waitForURL("**/admin");
-  await page.goto("/admin/users/new");
-  await page.getByText(role === "driver" ? "Driver" : "Advertiser", { exact: true }).click();
+  await page.goto(role === "driver" ? "/admin/drivers/new" : "/admin/advertisers/new");
+  if (role === "driver") {
+    await expect(page.getByRole("region", { name: "Create driver login" })).toBeVisible();
+    await expect(page.getByRole("region", { name: "Add profile for an existing login" })).toBeVisible();
+    await expect(page.getByLabel("Driver user")).toBeVisible();
+  }
   await page.getByLabel("Full name").fill(`F7 ${role}`);
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Temporary password").fill(TEMPORARY_PASSWORD);
   if (role === "advertiser") {
-    await page.getByLabel("Organization name").fill(`F7 Org ${Date.now()}`);
+    await page.getByLabel("Company name").fill(`F7 Org ${Date.now()}`);
   }
   await page.getByRole("button", { name: "Create account" }).click();
-  await page.waitForURL("**/admin/users");
+  await page.waitForURL(role === "driver" ? "**/admin/drivers" : "**/admin/advertisers/*");
   await page.context().clearCookies();
   await page.goto("/login");
 }

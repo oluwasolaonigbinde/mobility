@@ -45,7 +45,7 @@ httpx deprecation; dependency work is outside this lane.
 - Security: **PASS**, same bounded specialist reviewer and reported model; separate scoped verdict.
 - Consolidated minimal-change review: **PASS**, configured gpt-6.1-sol with medium reasoning and clean context; reviewer reports GPT-6-based Codex (exact runtime ID not exposed). Every criterion A1–A6 passed with no actionable findings.
 
-## Remaining integration and operational gates
+## Historical 5 October integration and operational gates (superseded by 6 October direction)
 
 Local commit authorized by the executed brief; Claude owner review remains
 before merging. Main CI-fix checkout is untouched. Before any request to push,
@@ -61,7 +61,7 @@ recovery now allow 900 seconds for scanner/application health; an unhealthy
 scanner still prevents readiness and public-edge startup.
 All external payment/device/pilot gates remain unchanged.
 
-## Claude correction evidence — 5 October 2026
+## Historical Claude correction evidence — 5 October 2026
 
 Owner review of `308f04a` identified the 120-second release wait as insufficient
 for ClamAV's 360-second start period. A Linux regression reproduced that failure
@@ -103,3 +103,13 @@ no skips, 227.03 seconds. The correction consolidated reviewer returned
 incomplete integration gate. Configured gpt-6.1-sol, medium reasoning; reported
 GPT-6-based Codex, exact runtime model ID not exposed. Deployment and security
 correction reviews also PASS and report GPT-6-based Codex, exact ID not exposed.
+
+## Master integration — 6 October 2026
+
+Owner chose current local master `4cf1df66`, superseding the earlier `d499c55` target after REQ-115 became preview rehosting. Owner one-time D41 exception: no per-lane push/CI; one combined Wave 1 CI run later. No push, deployment or merge into master authorized.
+
+This receipt accompanies the resolved real merge of `4cf1df66`; its containing merge SHA is intentionally not embedded. Conflicts were in requests, decisions and architecture only. Master request/decision/version rows were preserved, W1B rows renumbered, and former provisional W1B REQ-111/114 corrections folded into REQ-117; W1B provisional REQ-113 integration is tracked by REQ-049. Shared release tests auto-merged master Docker base-image assertions alongside W1B tests. All conflict markers are cleared.
+
+W1B identifiers renumbered at merge on 2026-10-06: Compose REQ-108 → REQ-117 (REQ-115 is master preview rehosting), wording REQ-112 → REQ-116, D62 → D65, architecture v1.117 → v1.122. Master identifiers retain their meanings.
+
+Integrated verification: release/template **486 passed**, no skips, 72.44 seconds; frontend map **2 passed**, 4.14 seconds; Ruff check/format four touched Python files PASS. Budget rerun **13 passed**, no skips, 117.03 seconds, same synthetic SQLite/local PostgreSQL setup. Reviewer requested historical/current authority clarification; corrected and reassessed with no further source/record findings; final consolidated integration review **PASS**, no actionable findings. Reviewer configured gpt-6.1-sol, medium; reports GPT-6-based Codex, exact runtime model ID not exposed. After this merge commit, wait for payouts session to report its master merge before combining w1/payouts; its readiness is not inferred from a branch existing.

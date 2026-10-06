@@ -1,6 +1,6 @@
 # Deployment templates — Hetzner, MapTiler, ClamAV and Postmark
 
-**Templates only (D44/D62, REQ-049/108). Not deployed or provider-verified.**
+**Templates only (D44/D65, REQ-049/117). Not deployed or provider-verified.**
 No accounts, servers, buckets, keys or DNS records were created. Every secret
 is blank. Applying anything needs separate owner approval in Terrax-owned
 accounts (REQ-050); app address remains REQ-033/043 and legal residency REQ-032.
@@ -128,3 +128,5 @@ substitute template values for client/legal answers. D43 supplied TIN
 2521515778093 and RC 8688553; real issuance still needs OPay bank details and
 accountant confirmation (D42, REQ-041/042). External payment, deployment,
 legal, device and pilot gates remain unchanged.
+
+W1B identifiers renumbered at merge on 2026-10-06: Compose REQ-108 → REQ-117, wording REQ-112 → REQ-116, D62 → D65, architecture v1.117 → v1.122. Master identifiers retain their meanings.

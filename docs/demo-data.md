@@ -9,7 +9,7 @@ Removed controls: legal display/collection authorization and synthetic switches,
 
 Retained controls: organization membership and roles; aggregation vehicle/trip/day floors, contributor caps and resolution limits; disclosure query recording; report reproducibility, file integrity and conditional ROI inputs/method authority; person-level export rejection; storage/scanning/encryption; payment, payout and email provider controls; blocked live Meta/Google activation. `PRIVACY_LEGAL_APPROVAL_REFERENCE` remains only for actual ad-platform approval and DSR retention exceptions. `MEASUREMENT_ROI_METHOD_REFERENCE` remains for financial ROI, and the calculation method revision stays recorded on each run. Synthetic lineage fields remain where they describe source provenance and protect provider activation, without legal display authority switches.
 
-Owner Batch 2 seed review corrections (REQ-097–REQ-103) are implemented and verified below. Batch 2 remains uncommitted for the owner’s Claude review.
+Owner Batch 2 seed review corrections (REQ-097–REQ-103) were committed in `6879c95` after review and integrated into master. [Full CI](https://github.com/oluwasolaonigbinde/mobility/actions/runs/37433319087) on `b77945d` passed on 6 October 2026, including production build and the controlled coverage receipt. The earlier dated seed and preview receipts below remain historical evidence; this closure includes no application deployment.
 
 ## Client inputs to replace
 
@@ -53,7 +53,7 @@ Finance: Hauwa Sani; Customer Service: Chiamaka Obi; Compliance: Olumide Fashola
 
 ## Batch 2 verification — 2026-10-04
 
-The integrated branch follows batch 1 (`5fdf6ec`) on the owner-selected `c2ab2d9` base. Receipts live in the sibling `batch2-review` folder outside Git. No full CI, batch 2 commit, push, merge or application deployment is claimed. Requests remain IN PROGRESS until their formal commit/CI/closure steps.
+The integrated branch follows batch 1 (`5fdf6ec`) on the owner-selected `c2ab2d9` base. Receipts live in the sibling `batch2-review` folder outside Git. At this 4 October checkpoint, full CI, batch 2 commit, push and merge were not yet claimed. Batch 2 was subsequently committed as `6879c95`; the 6 October full-green integration and closure are recorded above and in requests.md. No new application deployment is claimed.
 
 | Criterion | Actual evidence |
 | --- | --- |

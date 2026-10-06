@@ -35,8 +35,8 @@ def test_ci_runs_when_the_coverage_receipt_changes() -> None:
         "\nconcurrency:", 1
     )[0]
 
-    assert '- "coverage/**"' in push_paths
-    assert '- "coverage/**"' in pull_request_paths
+    assert "paths:" not in push_paths + pull_request_paths
+    assert "paths-ignore:" not in push_paths + pull_request_paths
 
 
 def test_ratchet_tolerance_absorbs_noise_but_not_real_drops() -> None:

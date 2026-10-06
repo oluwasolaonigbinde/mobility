@@ -27,7 +27,8 @@ def test_ci_has_separate_exact_candidate_r59_authority() -> None:
     assert "e2e against the real stack" in ordinary_e2e
     assert "run_r59_real_stack.sh" not in ordinary_e2e
     assert "R59 real-stack release journey" in r59
-    assert "needs: quality" in r59
+    assert "needs:" not in r59
+    assert "./.github/actions/verify-candidate-sha" in r59
     assert "actions/checkout@v4" in r59
     assert "github.event.pull_request.head.sha || github.sha" in r59
     assert "./scripts/run_r59_real_stack.sh" in r59
@@ -103,7 +104,10 @@ def test_r59_compose_is_local_isolated_and_uses_production_commands() -> None:
     assert "arq app.jobs.worker_entry.WorkerSettings" in compose
     assert "ENVIRONMENT: test" in compose
     assert 'ALLOW_DEMO_SEED: "true"' in compose
-    assert 'F7_SEED_MAX_TRIPS_PER_DAY: "1"' in compose
+    assert "F7_SEED_MAX_TRIPS_PER_DAY" not in compose
+    assert "F7_SEED_MAX_TRIPS_PER_DAY: ${F7_SEED_MAX_TRIPS_PER_DAY:-2}" in _read(
+        "docker-compose.yml"
+    )
     assert 'BUDGET_POLICY_EXTERNAL_APPROVED: "false"' in compose
     assert 'PHONE_OPERATOR_EXTERNAL_APPROVED: "false"' in compose
 

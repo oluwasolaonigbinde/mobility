@@ -1,0 +1,21 @@
+name: Verify exact candidate SHA
+description: Fail unless the workspace is the exact candidate commit
+inputs:
+  candidate-sha:
+    description: Full candidate commit SHA
+    required: true
+runs:
+  using: composite
+  steps:
+    - shell: bash
+      working-directory: ${{ github.workspace }}
+      env:
+        EXPECTED_SHA: ${{ inputs.candidate-sha }}
+      run: |
+        set -euo pipefail
+        actual="$(git rev-parse HEAD)"
+        if [[ ! "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ || "$EXPECTED_SHA" != "$actual" ]]; then
+          echo "::error::evidence tree is $actual, not candidate $EXPECTED_SHA"
+          exit 1
+        fi
+        echo "exact candidate SHA: $actual"

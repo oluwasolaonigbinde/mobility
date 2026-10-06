@@ -146,6 +146,100 @@ def test_error_tracking_uses_privacy_safe_defaults(monkeypatch) -> None:
     )
 
 
+def test_phone_redaction_preserves_complete_uuid_tokens_in_every_context() -> None:
+    uuid = "01130285-8830-4c98-b916-7b4de2a4aa62"
+    phone = "+234 803 123 4567"
+    for purpose in ("person_payee_approval", "vehicle_approval"):
+        reference = f"{purpose}:{uuid}"
+        record = {"reason": reference, "phone": phone, "notes": phone}
+        scrubbed = scrub_observability_value(record, semantic_context="stored_file")
+        assert scrubbed == {
+            "reason": reference,
+            "phone": "[REDACTED]",
+            "notes": "[REDACTED]",
+        }
+        assert scrub_observability_value(scrubbed, semantic_context="stored_file") == scrubbed
+        for adjacent_phone in (phone, "0803 123 4567", "(234) 803 1234567"):
+            for mixed in (
+                reference + " " + adjacent_phone,
+                reference + adjacent_phone,
+                adjacent_phone + reference,
+            ):
+                result = scrub_observability_value(
+                    {"reason": mixed}, semantic_context="stored_file"
+                )["reason"]
+                assert adjacent_phone not in result
+                assert "[REDACTED]" in result
+        for broken in (
+            reference[:-1],
+            reference.replace("4c98", "4z98"),
+            f"{purpose}:01130285-8830",
+        ):
+            result = scrub_observability_value({"reason": broken}, semantic_context="stored_file")[
+                "reason"
+            ]
+            assert "01130285-8830" not in result
+            assert "[REDACTED]" in result
+        for record, context in (
+            ({"notes": reference}, "stored_file"),
+            ({"Reason": reference}, "stored_file"),
+            ({"reason": reference}, "driver_application"),
+            ({"extra": {"reason": reference}}, "stored_file"),
+            ({"reason": [reference]}, "stored_file"),
+            ({"stored_file": {"reason": reference}}, None),
+            ({"reason": reference}, None),
+        ):
+            assert uuid in json.dumps(scrub_observability_value(record, semantic_context=context))
+        assert redact_log_message(reference) == reference
+
+    for token in (uuid, uuid.upper(), "8c9b5b4b-0191-4769-8709-bdc39e7c0347"):
+        for surrounding in (
+            f"Review ({token}); contact {phone}.",
+            token + phone,
+            phone + ":" + token,
+            token + " " + "0803 123 4567",
+            "(234) 803 1234567 " + token,
+            f"{token} {phone} {uuid}",
+        ):
+            result = redact_log_message(surrounding)
+            assert token in result
+            for number in (phone, "0803 123 4567", "(234) 803 1234567"):
+                assert number not in result
+            assert "[REDACTED]" in result
+            assert redact_log_message(result) == result
+        assert scrub_observability_value(
+            {
+                "created_by_user_id": token,
+                "approved_by_user_id": token,
+                "executed_by_user_id": token,
+                "extra": [{"notes": token}],
+            },
+            semantic_context="payout_correction_order",
+        ) == {
+            "created_by_user_id": token,
+            "approved_by_user_id": token,
+            "executed_by_user_id": token,
+            "extra": [{"notes": token}],
+        }
+        assert scrub_observability_value(
+            {"phone": token, "password": token, "authorization": token}
+        ) == {"phone": "[REDACTED]", "password": "[REDACTED]", "authorization": "[REDACTED]"}
+        for field in ("phone", "password", "authorization"):
+            assert redact_log_message(f"{field}={token}") == f"{field}=[REDACTED]"
+    for broken in (
+        uuid[:-1],
+        uuid.replace("4c98", "4z98"),
+        uuid + "a",
+        uuid + "-1",
+        "01130285-8830",
+        "a" + uuid,
+    ):
+        result = redact_log_message("Reference " + broken + " " + phone)
+        assert "01130285-8830" not in result
+        assert phone not in result
+        assert "[REDACTED]" in result
+
+
 def test_observability_scrubs_nested_and_free_form_person_contact_pii() -> None:
     payload = {
         "contact": {
@@ -627,6 +721,18 @@ def _linear_scan_budget(build_reference, *, scale: int = 10, slack: float = 3.0)
     # that the calibrated term, not the floor, is what decides the assertion.
     return max(0.05, baseline * scale * slack)
 
+
+def test_phone_redaction_without_uuid_tokens_has_bounded_digit_scanning() -> None:
+    message = "0" * 16_000
+    budget = _linear_scan_budget(lambda: "0" * 1_600)
+    started = time.perf_counter()
+    assert redact_log_message(message) == message
+    elapsed = time.perf_counter() - started
+    assert elapsed < budget, (
+        f"phone digit scan took {elapsed:.3f}s against a calibrated budget of {budget:.3f}s"
+    )
+
+
 def test_r13_nested_assignment_scan_is_linear_at_the_candidate_budget() -> None:
     blob = "x" * 500_000
     nesting = "".join(f'"layer_{index}":{{' for index in range(1022))
@@ -650,10 +756,9 @@ def test_r13_nested_assignment_scan_is_linear_at_the_candidate_budget() -> None:
     shallow = "".join(f'"layer_{index}":{{' for index in range(102))
     nested_budget = min(
         _linear_scan_budget(
-            lambda: "{"
-            + nesting
-            + f'"blob":"{"x" * 50_000}","full_name":"Ada Lovelace"'
-            + "}" * 1023
+            lambda: (
+                "{" + nesting + f'"blob":"{"x" * 50_000}","full_name":"Ada Lovelace"' + "}" * 1023
+            )
         ),
         _linear_scan_budget(
             lambda: "{" + shallow + f'"blob":"{blob}","full_name":"Ada Lovelace"' + "}" * 103
@@ -765,8 +870,7 @@ def test_r13_malformed_structure_has_bounded_work_and_memory_before_candidates()
         assert redacted == expected
         assert peak < 8_000_000, f"{case_name} scan peaked at {peak} bytes"
         assert elapsed < budget, (
-            f"{case_name} scan took {elapsed:.3f}s against a calibrated budget of "
-            f"{budget:.3f}s"
+            f"{case_name} scan took {elapsed:.3f}s against a calibrated budget of {budget:.3f}s"
         )
 
 
