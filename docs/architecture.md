@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.116 — 2026-10-05. Canonical source of truth: current state AND target state.**
+**Version 1.122 — 2026-10-06. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -866,14 +866,22 @@ mapping 3100).
 
 ### 10.3 CI **[BUILT]**
 
-One workflow: `.github/workflows/ci.yml` (push triggers on every branch subject
-to path filters; paths include product code, tests, contracts, deployment and
-delivery-control files; matching pull requests use the same path filters).
+One workflow: `.github/workflows/ci.yml`. REQ-108 selects all changes on push
+except `dependabot/**`, whose pull requests provide CI; all other branch pushes
+retain D41 evidence. Pull requests have no path filters. Master runs never cancel
+one another; other refs retain cancellation. Every job has an explicit timeout
+and uses the workspace-root local composite action to verify the candidate SHA.
 
-- Job `backend`: **postgis/postgis:16-3.4 + redis:7-alpine services** plus real
-  MinIO and ClamAV, exact candidate-SHA verification, delivery/OpenAPI drift
-  checks, Ruff, the full no-skip integration-authority suite, backend LCOV and
-  pre-production static verification. The LCOV artifact includes a hash-bound
+- Job `backend_static` owns delivery/OpenAPI drift, Ruff, type and
+  pre-production static verification. Six `backend_tests` shards use
+  **postgis/postgis:16-3.4 + redis:7-alpine services** plus real MinIO; planned
+  scanner consumers also start ClamAV. Browser/Caddy provisioning remains
+  file-selected. Whole files are balanced by the committed JUnit-duration
+  snapshot, with collected test count × median per-test time for unseen files.
+  Historical timings only guide scheduling: exact complete/disjoint inventory,
+  zero-skip execution and artifact/hash verification remain mandatory. Job
+  `backend` fails closed on either prerequisite and verifies all six artifacts
+  before combining LCOV. The LCOV artifact includes a hash-bound
   producer sidecar recording the exact SHA, Python implementation/major-minor
   and coverage.py version.
 - Job `quality`: exact candidate-SHA verification, `npm ci`, lint, typecheck,
@@ -886,6 +894,11 @@ delivery-control files; matching pull requests use the same path filters).
   Python and frontend dependency audits
   and weekly Dependabot updates supplement those checks; they do not replace
   test, coverage or provider gates.
+- D59/REQ-107 permits exactly GHSA-vfj7-8cjw-p6xm through 2026-11-04 UTC only in the exclusively dev-only eslint-config-next lint chain. Reason: no patched braces release is available and exposure is confined to the development lint chain. `scripts/check_frontend_audit.mjs` reads npm's JSON report, resolves installed lockfile dependency paths, and rejects other high/critical advisories, production/other-root exposure and malformed reports or audit errors. From 2026-11-05 UTC the exception no longer waives an affected high/critical finding. Clean and lower-severity-only reports retain their previous behavior. Only the frontend vulnerability-audit workflow step changes; dependency versions, lint rules and other CI gates remain.
+- Pip/npm group minor/patch version updates and leave major upgrades to manual
+  work; Docker base pins include original tags alongside unchanged digests.
+  Ordinary `e2e` and `r59_real_stack` start independently of `quality`, accepting
+  wasted runs on lint failure. Full branch CI still must pass before merge.
 - D49 records a one-off owner-directed local L2-1a target of at least 70% changed lines and branches. Remaining criteria are reported explicitly. This does not change the CI checker, trusted baselines, D33 refresh prerequisites or ordinary D32 thresholds.
 - Job `coverage` (R17/TST-007): consumes both LCOV artifacts, resolves an
   explicit ancestor base, rejects global or named-critical baseline regression,
@@ -1024,6 +1037,7 @@ delivery-control files; matching pull requests use the same path filters).
 - Startup guards: non-local envs must override the default JWT secret; wildcard
   CORS refused outside local/test.
 - Audit trail on mutating flows + auth events + admin audit API/UI (§6.4.9).
+- **Canonical UUID phone classification (D61, REQ-111; replaces D60):** `app/core/observability.py` protects complete canonical 8-4-4-4-12 hexadecimal UUID whole tokens from phone classification in the shared redactor. Phone matching runs on surrounding spans, so adjacent phones cannot consume a UUID or escape redaction. Word/hyphen extensions and broken/partial UUIDs receive no protection. Structured sensitive-key and serialized credential/phone-field redaction, email and IP redaction remain active; a UUID does not bypass those checks. ORM audit writes, audit reads and logging share this rule. Complete payout-correction actor identities and vehicle-review references retain their original assertions; approval still requires exact current evidence, and invalid, unread and wrong-entity evidence fails closed.
 - **Error tracking:** Sentry hooks on FastAPI (`app/core/observability.py`) and
   Next.js (server `instrumentation.ts`, browser `instrumentation-client.ts`) —
   inert without a DSN, `send_default_pii=False`/`sendDefaultPii:false`, tracing
@@ -1661,13 +1675,13 @@ clawback; once cash has been paid, RM11's carry-forward debt contract applies.
 
 ### 16.3 Disbursement (Q27)
 
-**D59 / REQ-053 (5 Oct 2026):** Terrax bears Paystack's transfer fee; the
+**D64 / REQ-053 (5 Oct 2026; renumbered at merge from D59 on 6 Oct 2026):** Terrax bears Paystack's transfer fee; the
 driver receives the exact full earnings amount frozen on the payout line.
 Cardvert has no fee calculation, storage, display (including Finance), setting
 or fee-setup submission gate. Provider statements/dashboard hold the fee
 record. This reverses the 1 Oct deduction direction without changing accepted
 terms, pay calculation or D43's proportional short-day rule. W1-P hardening
-(REQ-036/040) below is implemented locally; CI and approved merge are pending.
+(REQ-036/040) below is implemented locally; combined Wave 1 CI and approved merge into master remain pending under the one-time D41 exception in REQ-053.
 
 - **[BUILT — MNY-10A/W2-02D] Sensitive payee/KYC data (D17):** one
   `app/adapters/crypto/` provider boundary (`encrypt`, `decrypt`, `rotate`) for
@@ -2018,6 +2032,9 @@ evidence and atomic-activation contracts.
   decision. Retroactive dates, changed retries and stale snapshots fail closed;
   accepted bindings and event history are never rewritten. Advertiser and
   admin surfaces expose the same governed request and decision evidence.
+  D63/REQ-113 reuses the existing staff labels for advertiser `pending_admin`
+  and `pending_funding`, preserving other labels and the unknown-state fallback.
+  Staff decisions remain in the canonical campaign hub and retain their existing authority.
   Campaign-change requests acquire the campaign-terms advisory, organization
   FK `FOR KEY SHARE`, then campaign rows in that order. This matches issuance
   ordering and prevents a dashboard disclosure snapshot (organization before
@@ -3184,6 +3201,13 @@ verification.
 
 ### 27.5 Task-based admin portal (D48) **[TARGET]**
 
+Staff driver-login creation uses the existing fixed-role account form on
+`/admin/drivers/new`, beside the existing-profile form (D62, REQ-112).
+Temporary-password replacement and server account/profile/activation checks
+remain; creating a login does not approve documents or activate driving.
+Public self-registration stays `/apply`. D51 removed the shared
+`/admin/users/new` page; the driver-specific restoration adds no legacy alias.
+
 D55 / REQ-077–086 follow-up: staff queue reads filter before SQL count/order/page;
 navigation badges request one row with the full filtered total, while home previews
 request the oldest five per source. Request-local React cache shares source reads
@@ -3322,6 +3346,8 @@ The pre-flight table for any new work. **If your feature isn't here, add it
 
 | Feature | Section | Code home | May touch | Must not touch | Blocked by |
 |---------|---------|-----------|-----------|----------------|------------|
+| Canonical UUID phone classification | §12 | `app/core/observability.py`, existing audit and review evidence checks | Complete canonical UUID whole tokens in every context (D61, replaces D60) | sensitive-key and real-phone redaction, authorization, payout commands, current-record and denial rules | [BUILT] owner-approved REQ-111; privacy/security and money reviews, focused regressions and full CI required |
+| Expiring frontend dependency audit exception | §10.3 | `scripts/check_frontend_audit.mjs`, frontend audit step in `.github/workflows/ci.yml` | D59's exact dev-only advisory exception through 2026-11-04 UTC | other high/critical findings, production/other-root exposure, lint rules, coverage and provider gates | [BUILT] owner-approved REQ-107; automatic expiry, independent security review and full CI evidence |
 | Task-based admin search and entity hubs | §27.5 | frontend/src/app/admin/{drivers,campaigns,advertisers}/, hub drawers and src/lib/status/; existing server actions; admin organization directory | approved read projections, frontend navigation and wording | payment/activation authority, audited access, memberships, system actor, live-use gates | [TARGET] L2-1a/b; REQ-062 for additional pay-summary/area reads |
 | Public Terrax/Cardvert front door | §27 | `frontend/src/app/page.tsx`, `frontend/src/components/marketing/`, namespaced landing styles/assets; `api/v1/campaign_enquiries.py`, `services/campaign_enquiries.py`, `core/campaign_enquiry_rate_limit.py` | marketing copy, `/apply`, `/login`, bounded enquiry to fixed official inbox via email adapter | auth/role authority; public advertiser signup; product-theme tokens; live-provider claims | [BUILT] provider-neutral D52; enquiry defaults off and needs approved email setup; driver applications retain runtime/live-use gates |
 | Any auth change | §6.3/§12/§23 | `core/security.py`, `services/auth.py` | users | — | — (F7 landed; extend, don't fork) |
@@ -3551,7 +3577,13 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
-| v1.116 | 2026-10-05 | **W1-P payouts (D59, REQ-036/040/053).** Terrax bears fees outside Cardvert; full frozen earnings and D43 remain unchanged. §16.3 records dispute serialization, atomic sanitized alert audits, actor-only run subjects, bounded rotating candidate scans (`0099`) and original per-day cash attribution. Correction cash counts in full on every saved v4 trip day; missing/malformed allocations are held with an audited/notified Finance alert. Local evidence is in `issues/testing/w1p-payouts-2026-10-05.md`; CI and approved merge remain pending. |
+| v1.122 | 2026-10-06 | **W1-P payouts (D64, REQ-036/040/053; renumbered at merge from v1.116/D59 on 6 Oct 2026).** Terrax bears fees outside Cardvert; full frozen earnings and D43 remain unchanged. §16.3 records dispute serialization, atomic sanitized alert audits, actor-only run subjects, bounded rotating candidate scans (`0099`) and original per-day cash attribution. Correction cash counts in full on every saved v4 trip day; missing/malformed allocations are held with an audited/notified Finance alert. Local evidence is in `issues/testing/w1p-payouts-2026-10-05.md`; combined Wave 1 CI and approved merge into master remain pending (REQ-053 one-time D41 exception). |
+| v1.121 | 2026-10-05 | **REQ-108 CI efficiency, local implementation.** §10.3 records trigger, concurrency, shared candidate guard, duration planning, selective scanner, timeout and independent E2E scheduling changes. Timing snapshot imported from six verified green-run artifacts; real after timing and D41 remain pending owner-authorized branch CI after REQ-106 green master/rebase. No image digest, product contract, coverage policy or launch-gate change. |
+| v1.120 | 2026-10-06 | **Shared campaign-change waiting labels (D63, REQ-113).** §18 records reuse of the existing staff vocabulary for advertiser pending review/funding, preserving funding and decision authority. Scoped unit and real browser checks must verify the exact request and independent reasoned approval before full CI. |
+| v1.119 | 2026-10-05 | **Canonical staff driver-login entry point (D62, REQ-112).** §27.5 records the restored existing fixed-role form beside existing-profile attachment on /admin/drivers/new, preserving self-registration, mandatory password replacement, document approval and activation boundaries. D51's removed shared account route stays deleted. Security review, focused browser verification and full CI remain required. |
+| v1.118 | 2026-10-05 | **Canonical UUID phone classification (D61, REQ-111).** §12/§30 replace D60's field-specific exception with one whole-token rule, retaining sensitive-field redaction and phone checks around valid tokens and within broken references. Deterministic payout actor UUIDs reproduce the corrupt audit trail; complete payout and vehicle approval assertions remain unchanged. Privacy/security and money reviews plus full CI remain required; no money commands, seed values or access rules change. |
+| v1.117 | 2026-10-05 | **Exact stored-file review UUID preservation (D60, REQ-109).** §12/§30 record the narrow structured-field boundary that prevents phone-shaped UUIDs from corrupting valid approval evidence while retaining all phone/free-text and malformed-reference redaction. Rolling seed regression uses one controlled initial financial clock, then restores the production database clock and verifies existing cancellation evidence is immutable. No seed values, refund policy, product copy or access rules change. Privacy review and full CI remain required. |
+| v1.116 | 2026-10-05 | **Expiring lint dependency audit exception (D59, REQ-107).** §10.3/§30 record the exact GHSA-vfj7-8cjw-p6xm waiver, exclusively dev-only eslint-config-next path validation, 2026-11-04 UTC expiry, fail-closed report handling and unchanged checks for every other high/critical advisory. Dependency versions, lint rules, coverage floors and live-use gates are unchanged. Full CI and request closure remain pending. |
 | v1.115 | 2026-10-04 | **Owner-approved direct document review (D58, REQ-105; renumbered at merge from v1.114/D57/REQ-091 in `6eb5ab9`).** §19 and §27.5 replace person/bank and vehicle need checkboxes with direct audited View; separate NIN, fixed application/vehicle purpose/reason mappings, timed/leave-page hiding and record isolation remain. Frontend-only local implementation verified by focused tests and browser evidence in `issues/testing/client-polish-2026-10-04.md`; Person/bank and vehicle extension consolidated minimal-change and implemented privacy/security reviews PASS. Owner approved the verified local commit; no API, backend, launch-gate or merge claim. |
 | v1.114 | 2026-10-02 | **Development installation configuration (D57, REQ-094).** Configure temporary preview trip limits, retaining unset code defaults and production/staging numeric templates and the unanswered REQ-039 client input. |
 | v1.113 | 2026-10-02 | **Development access (D56, REQ-072/089).** Remove legal display/collection/issuance switches and dynamic advertiser reports; retain immutable results, tenant/aggregation/export boundaries and query recording, and register real-user legal/privacy plus differencing restoration as an unresolved launch obligation. |

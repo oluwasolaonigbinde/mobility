@@ -24,6 +24,7 @@ from app.main import create_app
 from app.models.audit import AuditEvent
 from app.models.campaign import Campaign, CampaignCreative
 from app.models.campaign_assignment import CampaignAssignment
+from app.models.campaign_cancellation import CampaignCancellation
 from app.models.campaign_zone import CampaignZone
 from app.models.driver import DriverProfile
 from app.models.impression import ImpressionEstimate
@@ -2026,6 +2027,7 @@ def test_rich_seed_later_rerun_only_appends_valid_rolling_trips(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from app.seeds import rich
+    from app.services import campaign_cancellations
 
     monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
     # Keep the first seed's payout revision effective even when this runs before noon.
@@ -2033,8 +2035,27 @@ def test_rich_seed_later_rerun_only_appends_valid_rolling_trips(
         hour=12, minute=0, second=0, microsecond=0
     )
     monkeypatch.setattr(rich, "utc_now", lambda: first_now)
+    production_clock = campaign_cancellations.database_clock
+
+    async def cancellation_clock(_session):
+        return rich.utc_now()
+
+    # Refund eligibility must use the same controlled instant as seeded payment evidence.
+    monkeypatch.setattr(campaign_cancellations, "database_clock", cancellation_clock)
     seed_demo_graph(postgis_db_sessionmaker, settings)
     first = fetch_rich_snapshot(postgis_db_sessionmaker)
+
+    async def cancellation_snapshot():
+        async with postgis_db_sessionmaker() as session:
+            return tuple(
+                (row.id, row.cutoff_at, row.disposition, row.refundable_amount)
+                for row in await session.scalars(
+                    select(CampaignCancellation).order_by(CampaignCancellation.id)
+                )
+            )
+
+    cancellations_before = asyncio.run(cancellation_snapshot())
+    assert cancellations_before
 
     async def completed_trip_count() -> int:
         async with postgis_db_sessionmaker() as session:
@@ -2049,12 +2070,21 @@ def test_rich_seed_later_rerun_only_appends_valid_rolling_trips(
 
     completed_before = asyncio.run(completed_trip_count())
     monkeypatch.setattr(rich, "utc_now", lambda: first_now + timedelta(days=7))
+    monkeypatch.setattr(campaign_cancellations, "database_clock", production_clock)
+
+    async def unexpected_cancellation(*_args, **_kwargs):
+        pytest.fail("A seed rerun must not cancel an existing campaign again")
+
+    monkeypatch.setattr(
+        campaign_cancellations, "request_campaign_cancellation", unexpected_cancellation
+    )
     seed_demo_graph(postgis_db_sessionmaker, settings)
     second = fetch_rich_snapshot(postgis_db_sessionmaker)
 
     assert first["trip_ids"] < second["trip_ids"]
     assert first["trip_keys"] < second["trip_keys"]
     assert asyncio.run(completed_trip_count()) == completed_before
+    assert asyncio.run(cancellation_snapshot()) == cancellations_before
     assert fetch_lifecycle_violation_count(postgis_db_sessionmaker) == 0
 
 

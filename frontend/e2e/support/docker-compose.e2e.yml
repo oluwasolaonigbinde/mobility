@@ -2,3 +2,9 @@ services:
   api:
     environment:
       ENVIRONMENT: test
+      F7_SEED_MAX_TRIPS_PER_DAY: "2"
+    depends_on:
+      clamav:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully

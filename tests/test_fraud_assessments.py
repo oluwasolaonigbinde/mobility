@@ -267,6 +267,7 @@ def test_assessment_failure_persists_error_and_never_counts_as_success(
     monkeypatch,
     caplog,
 ) -> None:
+    monkeypatch.setattr(fraud_assessments.logger, "disabled", False)
     graph = build_graph(db_sessionmaker, "error")
 
     def fail_fingerprint(**_kwargs):
@@ -301,6 +302,7 @@ def test_source_fingerprint_failure_persists_sanitized_error(
     monkeypatch,
     caplog,
 ) -> None:
+    monkeypatch.setattr(fraud_assessments.logger, "disabled", False)
     graph = build_graph(db_sessionmaker, "source-error")
 
     def fail_source(_analytics):
@@ -329,6 +331,7 @@ def test_unfingerprintable_analytics_is_never_current_and_is_logged(
     monkeypatch,
     caplog,
 ) -> None:
+    monkeypatch.setattr(fraud_assessments.logger, "disabled", False)
     graph = build_graph(db_sessionmaker, "current-source-error")
 
     async def seed_signature() -> None:

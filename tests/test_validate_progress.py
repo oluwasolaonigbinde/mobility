@@ -698,7 +698,9 @@ def test_ci_runs_for_every_direct_branch_push_and_pull_request() -> None:
     assert "branches:" not in push_block
     assert "branches:" not in pull_request_block
     assert "github.event.pull_request.number || github.ref" in workflow
-    assert "cancel-in-progress: true" in workflow
+    assert 'branches-ignore: ["dependabot/**"]' in push_block
+    assert "paths:" not in push_block + pull_request_block
+    assert "cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}" in workflow
 
 
 # --- Control-plane hardening regressions (task-master correction, 16 Aug 2026) ---

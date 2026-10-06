@@ -13,7 +13,7 @@ direct endpoint, and value-complete audit events.
 import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from conftest import (
@@ -24,7 +24,7 @@ from conftest import (
     fetch_audit_events,
     fetch_earnings_ledger_entries,
 )
-from sqlalchemy import select, text, update
+from sqlalchemy import event, select, text, update
 from sqlalchemy.exc import IntegrityError
 from starlette import status as http_status
 from test_payouts_v2 import (
@@ -52,7 +52,7 @@ from app.models.payout import (
     PayoutCorrectionOrder,
     PayoutCorrectionOrderStatus,
 )
-from app.models.user import UserRole, UserStatus
+from app.models.user import User, UserRole, UserStatus
 from app.services import payout_corrections
 from app.services.payout_corrections import (
     CampaignDayProjection,
@@ -540,13 +540,36 @@ def test_correction_endpoints_require_admin(
 # --- State machine (C1) ------------------------------------------------------
 
 
+@pytest.fixture(params=[False, True])
+def correction_actor_uuids(request):
+    actor_ids = {
+        "admin-co-life@example.com": UUID("01130285-8830-4c98-b916-7b4de2a4aa62"),
+        "approver-co-life@example.com": UUID("8c9b5b4b-0191-4769-8709-bdc39e7c0347"),
+    }
+
+    def set_actor_id(_mapper, _connection, user):
+        if user.email in actor_ids:
+            user.id = actor_ids[user.email]
+
+    if request.param:
+        event.listen(User, "before_insert", set_actor_id)
+    try:
+        yield actor_ids if request.param else None
+    finally:
+        if request.param:
+            event.remove(User, "before_insert", set_actor_id)
+
+
 def test_full_lifecycle_via_api_with_maker_checker_actors(
-    postgis_db_client, postgis_db_sessionmaker, settings
+    postgis_db_client, postgis_db_sessionmaker, settings, correction_actor_uuids
 ) -> None:
     graph = build_v2_graph(postgis_db_sessionmaker, "co-life")
     pipeline_to_v2(postgis_db_sessionmaker, settings, graph)
     raise_rule_rate(postgis_db_sessionmaker, graph.rule.id, "1500.00")
     approver = second_admin(postgis_db_sessionmaker, "co-life")
+    if correction_actor_uuids:
+        assert graph.admin.id == correction_actor_uuids[graph.admin.email]
+        assert approver.id == correction_actor_uuids[approver.email]
 
     creator_headers = auth_headers(postgis_db_client, graph.admin.email, PASSWORD)
     approver_headers = auth_headers(postgis_db_client, approver.email, PASSWORD)

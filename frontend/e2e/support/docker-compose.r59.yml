@@ -27,7 +27,6 @@ services:
     environment: &r59-backend-environment
       ENVIRONMENT: test
       ALLOW_DEMO_SEED: "true"
-      F7_SEED_MAX_TRIPS_PER_DAY: "1"
       INSTALLATION_EVIDENCE_UPLOADER_ROLES: driver,admin
       INSTALLATION_EVIDENCE_REQUIRED_VIEWS: front
       INSTALLATION_EVIDENCE_VALIDITY_HOURS: "24"

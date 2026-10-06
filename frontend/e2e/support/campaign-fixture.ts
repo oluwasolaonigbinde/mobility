@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 
 const COMPOSE_FILE = resolve(__dirname, "../../../docker-compose.yml");
 
-function psql(sql: string, variables: Record<string, string>) {
+export function psql(sql: string, variables: Record<string, string>) {
   const databaseContainer = process.env.E2E_DATABASE_CONTAINER;
   const databaseName = process.env.E2E_DATABASE_NAME ?? "mobility";
   const variableArgs = Object.entries(variables).flatMap(([name, value]) => [

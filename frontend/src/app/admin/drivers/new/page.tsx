@@ -5,6 +5,7 @@ import { getSessionToken } from "@/lib/auth/session";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { DriverProfileForm } from "./driver-profile-form";
+import { CreateUserForm } from "../../users/new/create-user-form";
 
 export const metadata: Metadata = { title: "Add driver profile" };
 
@@ -28,14 +29,27 @@ export default async function NewDriverProfilePage() {
         title="Add driver profile"
         eyebrow="Attach driving credentials to a driver-role user"
       />
-      <Panel className="p-6 md:p-8">
-        <DriverProfileForm
-          users={(data?.items ?? []).map((u) => ({
-            id: u.id,
-            label: `${u.full_name} — ${u.email}`,
-          }))}
-        />
-      </Panel>
+      <section aria-labelledby="create-driver-login" className="mb-6">
+        <h2 id="create-driver-login" className="mb-3 text-lg font-medium">
+          Create driver login
+        </h2>
+        <Panel className="p-6 md:p-8">
+          <CreateUserForm fixedRole="driver" />
+        </Panel>
+      </section>
+      <section aria-labelledby="existing-driver-profile">
+        <h2 id="existing-driver-profile" className="mb-3 text-lg font-medium">
+          Add profile for an existing login
+        </h2>
+        <Panel className="p-6 md:p-8">
+          <DriverProfileForm
+            users={(data?.items ?? []).map((u) => ({
+              id: u.id,
+              label: `${u.full_name} — ${u.email}`,
+            }))}
+          />
+        </Panel>
+      </section>
     </div>
   );
 }

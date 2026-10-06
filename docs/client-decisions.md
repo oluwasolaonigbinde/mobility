@@ -62,6 +62,7 @@ acceptances unless a D-row says otherwise (D14, D21).
 - [Legal, privacy and retention](#legal-privacy-and-retention)
 - [File uploads](#file-uploads)
 - [Sign-in security and availability](#sign-in-security-and-availability)
+- [CI dependency security](#ci-dependency-security)
 - [Demo and staging external-input placeholders](#demo-and-staging-external-input-placeholders)
 - [Admin portal](#admin-portal)
 
@@ -82,10 +83,11 @@ REQ-070). Advertiser account setup remains operator-led; the enquiry creates
 neither an account nor a campaign. `/` is the only public landing route.
 
 **History:**
+- **2026-10-06** — Reviewed client-facing report/map/copy polish is integrated (REQ-104). Built in `6eb5ab9`; full CI passed before closure.
 - **2026-08-14** — Client confirmed the names (Q29, D18).
 - **2026-09-24** — Client rejected seven of eleven visual directions (D37). Built in `d583829`.
 - **2026-09-24** — Owner set the naming, time-label and no-hashes rules (D38a, D38c). Built in `7a9ceb0` (REQ-001).
-- **2026-10-02** — Owner replaced varied campaign/driver CTA labels and “Open Cardvert” with explicit next steps, approved an on-site enquiry form and removed the obsolete `/landing` redirect (D52, REQ-070). Previously advertiser buttons opened a prepared email. Local implementation; merge and live email readiness remain pending.
+- **2026-10-02** — Owner replaced varied campaign/driver CTA labels and “Open Cardvert” with explicit next steps, approved an on-site enquiry form and removed the obsolete `/landing` redirect (D52, REQ-070). Previously advertiser buttons opened a prepared email. Built in `c2ab2d9`; full CI passed on 2026-10-06. Live email readiness remains a separate setup obligation.
 - **2026-10-02** — Owner: the four kept directions look too alike, and the menu text is too small. Added Direction 5 (Route, from the public site) and Direction 6 (Wrap, vehicle-wrap blocks) as candidates, and enlarged the menu text in every direction (REQ-071).
 
 ### Staff roles and departments
@@ -187,11 +189,14 @@ and at least one target area (D38d). Launch needs funding authority, approved
 artwork, assigned eligible vehicles and approved installation photos; an admin
 activates it (Q15). Changes that expand a campaign apply at once within funded
 headroom; reductions, removals and date changes need admin approval and a
-reason (Q9).
+reason (Q9). Campaign changes waiting for approval show "Needs staff review";
+changes waiting for funding show "Waiting for funding", reusing the existing
+staff status labels without changing their authority (D63, REQ-113).
 
 **History:**
 - **2026-08-14** — Client confirmed the lifecycle (Q6, Q9, Q15, D18).
 - **2026-09-24** — Owner added the submission requirements (D38d). Built in `7a9ceb0` (REQ-001).
+- **2026-10-06** — Owner approved the existing staff labels for advertiser campaign-change states that previously showed "Status unavailable". Reuse the shared labels; funding and reasoned independent staff approval remain unchanged (D63, REQ-113). Built in `1f91b8a`; browser typing alignment in `097382c`.
 
 ### Cancellation and refunds
 
@@ -226,7 +231,10 @@ flagged after seven inactive days (Q20).
 
 ### Drivers and vehicles
 
-**Current rule:** Drivers register themselves, upload documents and are
+**Current rule:** Drivers self-register through Apply (`/apply`), or staff create
+a driver login on `/admin/drivers/new` using the existing fixed-role form
+(D62, REQ-112). Staff-created logins must replace their temporary password;
+creating a login does not approve documents or activate driving. Drivers upload documents and are
 approved by an admin before working (Q13); approved accounts are activated by
 the driver after admin authorisation (D28). Required: licence, vehicle
 registration, insurance, NIN, vehicle photos, a verified bank account and a
@@ -237,9 +245,10 @@ approval ends on an admin-entered date (D31). Pilot vehicles: roadworthy cars
 
 **History:**
 - **2026-08-14** — Client confirmed self-registration, requirements, owner-drivers and cars (Q13, Q19, Q23, Q26, D18).
+- **2026-10-05** — Owner restored staff-created driver logins beside the existing-profile form on `/admin/drivers/new`; self-registration remains `/apply`, and password, document approval and activation rules remain unchanged (D62, REQ-112). D51 removed the obsolete shared `/admin/users/new` page; it is not restored. Built in `1f91b8a`.
 - **2026-09-02** — Owner decisions on activation and vehicle approval dates (D28, D31).
 - **2026-09-24** — Client's permit answer covers SUVs, sedans and motorcycles (client answers item 19). Recorded as motorcycles allowed on 2026-10-01 (D43h, REQ-034).
-- **2026-10-01** — Owner requested Lane 1's guided applicant flow and own-car chooser (D45, REQ-054). Approval, activation and live-use gates remain unchanged; active-driver renewals are later-stage work.
+- **2026-10-01** — Owner requested Lane 1's guided applicant flow and own-car chooser (D45, REQ-054). Approval, activation and live-use gates remain unchanged; active-driver renewals are later-stage work. Built in `bf2d92c`; CI repairs in `f172ab3` and `e498147`.
 
 ### Installation photos
 
@@ -253,6 +262,7 @@ checks on top (client answers item 4). Set in configuration
 **Still open:** [REQ-039](requests.md) — spot-check and display-proof values.
 
 **History:**
+- **2026-10-06** — The registered temporary development installation/proof values (REQ-094) are integrated. Built in `6879c95`; unanswered client replacement inputs remain REQ-039.
 - **2026-10-02** — Owner authorized temporary installation/proof values in development and preview configuration only (REQ-094); unanswered client values remain REQ-039, with the inventory in `demo-data.md`.
 - **2026-08-14** — Client confirmed approved installation evidence (Q17, D18).
 - **2026-09-24** — Client named the views, uploaders and weekly or twice-weekly renewal. The owner chose weekly and told the client it can change (2026-09-25). Built in `7a9ceb0` (REQ-001).
@@ -306,14 +316,14 @@ Admins can pause automatic payouts, get the alerts in the Finance section of
 person doing this the Finance Officer; in Cardvert it is any admin. Switching
 automatic payouts on: [REQ-048](requests.md).
 
-**Terrax pays Paystack's transfer fee** (D59, [REQ-053](requests.md)). Drivers
+**Terrax pays Paystack's transfer fee** (D64, [REQ-053](requests.md)). Drivers
 receive their full earnings. Cardvert neither computes nor stores nor displays
 fees, and has no fee setting or fee-setup submission gate. Paystack's own
 dashboard and statements show fees. Accepted work and the short-day calculation
 remain unchanged. Requested hardening: [REQ-036](requests.md), [REQ-040](requests.md).
 
 **History:**
-- **2026-10-05** — Client reversed the 1 Oct driver-deduction rule: Terrax bears the transfer fee and the driver receives full earnings, with no fee calculation, storage, display or setting in Cardvert (D59; REQ-053; owner W1-P brief). Locally verified on `w1/payouts`; evidence: `issues/testing/w1p-payouts-2026-10-05.md`. CI and approved merge pending.
+- **2026-10-05** — Client reversed the 1 Oct driver-deduction rule: Terrax bears the transfer fee and the driver receives full earnings, with no fee calculation, storage, display or setting in Cardvert (D64; REQ-053; owner W1-P brief; renumbered at merge from D59 on 6 Oct 2026). Locally verified on `w1/payouts`; evidence: `issues/testing/w1p-payouts-2026-10-05.md`. Combined Wave 1 CI and approved merge into master pending under the owner's one-time D41 exception recorded in REQ-053.
 - **2026-08-14** — Automated bank transfers confirmed (Q27, D18). Every batch was prepared by one person and approved by a different person (maker-checker, architecture §16.3 / RM10).
 - **2026-09-25** — Client chose automatic approval with no person approving each batch; Finance monitors and follows up (D39c). Built in `3b6b396` (REQ-003).
 - **2026-09-28** — Owner added: the first payment to any new bank account goes to a person (D40b, security review). Built in `3b6b396`.
@@ -362,9 +372,10 @@ Mark all read clears current unread items, including older pages. Read records
 remain stored; notifications arriving afterward appear normally (D54, REQ-075).
 
 **History:**
+- **2026-10-06** — The earlier Mark read investigation, accessible panel close/focus and simpler company-preference wording are integrated (REQ-073/074/076). Built in `c2ab2d9`; full CI, including the real preference-change browser case, passed. REQ-075 retains its separate unread-inbox walkthrough obligation.
 - **2026-08-14** — Client confirmed channels (Q34, D18); **2026-08-24** owner decision on email preferences (D24).
 - **2026-09-24** — Client supplied the support number (client answers items 14–15).
-- **2026-10-02** — Owner clarified that read notifications must disappear from the panel (D54, REQ-075), replacing its earlier history-list presentation. Local implementation pending commit and merge.
+- **2026-10-02** — Owner clarified that read notifications must disappear from the panel (D54, REQ-075), replacing its earlier history-list presentation. Built in `c2ab2d9`; the separate unread-inbox browser walkthrough remains open under REQ-075.
 
 ### Advertiser reporting and privacy
 
@@ -427,14 +438,16 @@ key-management service (D44).
 
 ### Legal, privacy and retention
 
-**Current rule:** Built GPS, ID collection, results and reports are accessible during development without legal approval switches; tenant isolation, aggregation limits and query recording remain, and legal/privacy plus overlap/differencing protections must be restored before real users (D56, REQ-072/089). For driver-application and vehicle-document review, the View click is the staff acknowledgment; each read keeps its application or vehicle purpose-scoped audit and one-minute/leave-page hiding, and NIN has its separate reveal (D58, REQ-105).
+**Current rule:** Built GPS, ID collection, results and reports are accessible during development without legal approval switches; tenant isolation, aggregation limits and query recording remain, and legal/privacy plus overlap/differencing protections must be restored before real users (D56, REQ-072/089). For driver-application and vehicle-document review, the View click is the staff acknowledgment; each read keeps its application or vehicle purpose-scoped audit and one-minute/leave-page hiding, and NIN has its separate reveal (D58, REQ-105). Complete canonical UUID whole tokens are never phone numbers in any audit field or free text; phones beside them, broken/partial UUIDs and sensitive fields retain redaction (D61, REQ-111, superseding D60).
 
 **Still open:** [REQ-031](requests.md) lawyer's name, [REQ-032](requests.md) legal pack.
 
 **History:**
-- **2026-10-04 (vehicle extension)** — Owner extended D58/REQ-105 to driver-page vehicle documents. The earlier separate vehicle purpose/need confirmation ended; each View keeps the existing vehicle-review purpose/reason and individual audit, minute/leave hiding and record isolation. Commit is approved after verification and review.
-- **2026-10-04** — Owner made each driver-application View click the review acknowledgment instead of a separate need checkbox (D58, REQ-105), preserving individual audit and hiding. The prior checkbox control ended for this staff surface; other privacy and launch controls remain.
-- **2026-10-02** — Owner replaced the prior rule gating GPS, documents, reports and retargeting until legal approval with D56 development access and seed-only client-input substitutes; actual legal/retention answers remain open.
+- **2026-10-05 (superseding decision)** — Owner replaced D60's field-specific exception with one whole-token UUID phone-classification rule after a payout audit approver ID was scrubbed. Real phones and sensitive fields remain redacted; privacy/security and money review are required (D61, REQ-111). Built in `1f91b8a`.
+- **2026-10-05** — Owner approved exact whole-field stored-file review UUID preservation after phone redaction was shown to corrupt valid review evidence. No broader UUID exemption or phone disclosure is permitted (D60, REQ-109). Built in `69655e2`; replaced by `1f91b8a` under D61.
+- **2026-10-04 (vehicle extension)** — Owner extended D58/REQ-105 to driver-page vehicle documents. The earlier separate vehicle purpose/need confirmation ended; each View keeps the existing vehicle-review purpose/reason and individual audit, minute/leave hiding and record isolation. Commit is approved after verification and review. Built in `6eb5ab9`.
+- **2026-10-04** — Owner made each driver-application View click the review acknowledgment instead of a separate need checkbox (D58, REQ-105), preserving individual audit and hiding. The prior checkbox control ended for this staff surface; other privacy and launch controls remain. Built in `6eb5ab9`.
+- **2026-10-02** — Owner replaced the prior rule gating GPS, documents, reports and retargeting until legal approval with D56 development access and seed-only client-input substitutes; actual legal/retention answers remain open. Built in `5fdf6ec`; complete preview seed states in `6879c95` (REQ-072/089).
 - **2026-08-14** — Client confirmed the approval owner (Q31, D18).
 - **2026-09-24** — Legal pack in progress; 6-month file retention requested (client answers items 11, 17).
 
@@ -461,7 +474,15 @@ The API image defaults to two configurable workers (D45).
 
 **History:**
 - **Before Lane 1 integration** — The global login-failure bucket could block all sign-ins, and password work ran on the request event loop.
-- **2026-10-01** — Owner requested integration of Lane 1's availability and password-work controls, preserving automatic-payout account protection (D45, REQ-054).
+- **2026-10-01** — Owner requested integration of Lane 1's availability and password-work controls, preserving automatic-payout account protection (D45, REQ-054). Built in `bf2d92c`; CI repairs in `f172ab3` and `e498147`.
+
+### CI dependency security
+
+**Current rule:** CI fails on every high or critical dependency advisory except exactly GHSA-vfj7-8cjw-p6xm in the exclusively dev-only eslint-config-next lint chain, through 2026-11-04 UTC (D59, REQ-107). Reason: no patched braces release is available and exposure is confined to the development lint chain. The exception stops applying on 2026-11-05 UTC; malformed reports, audit errors and broader exposure fail closed. It does not change application behavior or authorize deployment.
+
+**History:**
+- **Before 2026-10-05** — The frontend audit rejected every high or critical advisory without exceptions.
+- **2026-10-05** — Owner approved this one expiring advisory exception while finishing REQ-106, preserving all other high/critical checks and prohibiting npm's forced lint-package downgrade (D59, REQ-107). Built in `69655e2`.
 
 ### Demo and staging external-input placeholders
 
@@ -477,6 +498,7 @@ launch; replacement is a launch checklist task, with no additional runtime
 blocker authorized by that clarification.
 
 **History:**
+- **2026-10-06** — Reviewed complete preview seed states, fictional-company ownership, chronology, active-driver-only earnings, synthetic contacts, exports and report histories are integrated (REQ-072/090–103). Built in `6879c95`; preserved thresholds, immutable reruns and seed-only values are verified. Historical preview reseeding does not authorize or claim a new application deployment.
 - **2026-10-01** — The earlier L2-1 preview proposed labelled demo cards. The owner's authoritative design section 11 superseded it with realistic registered external-input placeholders (D46, REQ-059).
 - **2026-10-01** — Owner clarified that demo inputs will be replaced before launch and questioned a new code gate. Keep the replacement checklist and existing fail-closed checks; no new backend gate is approved.
 
@@ -493,6 +515,12 @@ One advertiser login per company remains the current scope (D47). Review driver-
 
 Staff Resume is permitted only for a recorded operational pause, classified on the server. Budget-related and unknown pauses are refused with a plain explanation; current start requirements are rechecked and the actor, reason and pause identity are logged (D55, REQ-081). Staff list totals, oldest-first paging and row names are approved to bound badges, work lists and Trip checks (D55, REQ-077/078/083/085).
 
+Staff driver-login creation belongs on `/admin/drivers/new`, alongside attaching
+a profile to an existing login; company logins use `/admin/advertisers/new` and
+staff logins use Settings. D51 removed the shared `/admin/users/new` page.
+D62 restores the driver-specific form without a legacy alias or a change to
+password, profile, document approval or activation authority (REQ-112).
+
 The task home/menu label is **Work queue** (D50, REQ-065). The owner explicitly
 authorized starting L2-1b on the incomplete expedited A checkpoint (REQ-064);
 A acceptance remains open; the owner authorized the two source commits while tracked acceptance gaps remain. The four specified read additions, the
@@ -507,13 +535,17 @@ campaign-area gap. A data-read failure must never appear as a confirmed empty
 list, completed check or zero balance.
 
 **History:**
+- **2026-10-06** — The development replacement rule (REQ-056) Built in `c2ab2d9`. Work queue naming Built in `39eb49c` and `009947c` (REQ-065); physical-check paging and suspicious-trip route/held-pay reads Built in `009947c` (REQ-066/069). The bounded-read, Trip checks, checklist, Pay terms, Resume, copy, grouped-pay, title and Applicants follow-up Built in `046e0dd` (REQ-077–085). Full CI and D33/D41 coverage verification passed; broader design gaps remain open.
 
-- **2026-10-04 (vehicle extension)** — Owner extended D58/REQ-105 to car documents on the driver page and authorized the verified integrated commit. Vehicle View replaces its separate purpose/need confirmation, with existing `kyc_review` + `vehicle_approval:<submission_id>` read auditing and minute/leave hiding. Vehicle approval decisions remain unchanged.
-- **2026-10-04** — Owner replaced the separately confirmed document need checkbox with direct audited View for driver-application review (D58, REQ-105). The earlier 3 October polish retained that checkbox under the existing audited-control rule. Timed hiding, record isolation, purpose and the separate NIN action remain. Local implementation verified by `issues/testing/client-polish-2026-10-04.md`; the original person/bank review passed independent reviews. The owner then extended direct View to vehicle documents and approved the integrated commit, Extension verification, consolidated minimal-change review and implemented privacy/security review PASS.
+- **2026-10-05 (superseding decision)** — Owner replaced D60's field-specific exception with one whole-token UUID phone-classification rule after a payout audit approver ID was scrubbed. Real phones and sensitive fields remain redacted; privacy/security and money review are required (D61, REQ-111). Built in `1f91b8a`.
+- **2026-10-05** — Owner approved exact whole-field stored-file review UUID preservation after phone redaction was shown to corrupt valid review evidence. No broader UUID exemption or phone disclosure is permitted (D60, REQ-109). Built in `69655e2`; replaced by `1f91b8a` under D61.
+- **2026-10-04 (vehicle extension)** — Owner extended D58/REQ-105 to car documents on the driver page and authorized the verified integrated commit. Vehicle View replaces its separate purpose/need confirmation, with existing `kyc_review` + `vehicle_approval:<submission_id>` read auditing and minute/leave hiding. Vehicle approval decisions remain unchanged. Built in `6eb5ab9`.
+- **2026-10-05** — Owner restored the existing fixed-role driver login form on `/admin/drivers/new` after D51's removal of `/admin/users/new` left no staff browser entry point. Company/staff provisioning stays in its own canonical area, and driver self-registration remains Apply (D62, REQ-112). Built in `1f91b8a`.
+- **2026-10-04** — Owner replaced the separately confirmed document need checkbox with direct audited View for driver-application review (D58, REQ-105). The earlier 3 October polish retained that checkbox under the existing audited-control rule. Timed hiding, record isolation, purpose and the separate NIN action remain. Local implementation verified by `issues/testing/client-polish-2026-10-04.md`; the original person/bank review passed independent reviews. The owner then extended direct View to vehicle documents and approved the integrated commit, Extension verification, consolidated minimal-change review and implemented privacy/security review PASS. Built in `6eb5ab9`.
 
-- **2026-10-02** — Owner confirmed guarded staff Resume and bounded read options (D55); local implementation and verification in progress.
+- **2026-10-02** — Owner confirmed guarded staff Resume and bounded read options (D55); local implementation and verification completed. Built in `046e0dd`; full CI and coverage verification passed on 2026-10-06.
 - **2026-10-02** — Owner approved the two staff reads for suspicious-trip
-  recorded routes and actual held pay (D53, REQ-069).
+  recorded routes and actual held pay (D53, REQ-069). Built in `009947c`.
 - **2026-10-02** — Earlier explicit old-URL preservation ended: the owner
   requires removal of obsolete route pages and redirects under the development
   policy, plus glossary/failure/performance fixes (D51, REQ-067). Read-only

@@ -11,7 +11,7 @@ from conftest import (
     create_test_organization,
     create_test_user,
 )
-from sqlalchemy import func, select
+from sqlalchemy import event, func, select
 from sqlalchemy.exc import DBAPIError
 from test_driver_person_payee_onboarding import (
     PASSWORD,
@@ -53,6 +53,23 @@ from app.services.vehicle_onboarding import (
 )
 
 
+@pytest.fixture(params=[None, UUID("01130285-8830-4c98-b916-7b4de2a4aa62")])
+def review_reference_uuid(request):
+    def set_submission_id(_mapper, _connection, submission):
+        submission.id = request.param
+
+    models = (DriverKycSubmission, VehicleEvidenceSubmission)
+    if request.param is not None:
+        for model in models:
+            event.listen(model, "before_insert", set_submission_id)
+    try:
+        yield
+    finally:
+        if request.param is not None:
+            for model in models:
+                event.remove(model, "before_insert", set_submission_id)
+
+
 def _approved_applicant(db_client, db_sessionmaker, settings, *, suffix: str):
     token, _ = _register(db_client, db_sessionmaker, settings, suffix=suffix)
     email = f"person-payee-{suffix}@example.com"
@@ -87,7 +104,7 @@ def _approved_applicant(db_client, db_sessionmaker, settings, *, suffix: str):
             "documents_readable_confirmed": True,
         },
     )
-    assert decision.status_code == 200
+    assert decision.status_code == 200, decision.text
     return token, application, admin
 
 
@@ -224,7 +241,7 @@ def _approve_vehicle(db_client, db_sessionmaker, *, application, admin, submitte
 
 
 def test_complete_approval_terminalizes_application_and_revokes_access(
-    db_client, db_sessionmaker, settings
+    db_client, db_sessionmaker, settings, review_reference_uuid
 ) -> None:
     token, application, admin = _approved_applicant(
         db_client, db_sessionmaker, settings, suffix="terminal-approval"
@@ -371,7 +388,7 @@ def test_vehicle_approval_denies_cross_owner_and_self_approval(
 
 
 def test_vehicle_approval_fails_closed_for_unsafe_and_unread_evidence(
-    db_client, db_sessionmaker, settings
+    db_client, db_sessionmaker, settings, review_reference_uuid
 ) -> None:
     token, application, admin = _approved_applicant(
         db_client, db_sessionmaker, settings, suffix="unsafe"
@@ -427,7 +444,7 @@ def test_vehicle_approval_fails_closed_for_unsafe_and_unread_evidence(
 
 
 def test_vehicle_approval_rejects_reads_with_wrong_entity_type(
-    db_client, db_sessionmaker, settings
+    db_client, db_sessionmaker, settings, review_reference_uuid
 ) -> None:
     token, application, admin = _approved_applicant(
         db_client, db_sessionmaker, settings, suffix="wrong-entity-type"

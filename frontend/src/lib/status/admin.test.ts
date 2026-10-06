@@ -1,5 +1,6 @@
 import { expect, it } from "vitest";
 import { adminStatus, adminTone } from "./admin";
+import { advertiserStatus } from "./advertiser";
 it("uses context-specific staff words without leaking internal keys", () => {
   expect(adminStatus("pending", "driver")).toBe("Applicant");
   expect(adminStatus("pending_review", "campaign")).toBe("For review");
@@ -32,4 +33,19 @@ it("preserves provider payment meanings and hides unrecognized wire outcomes", (
   expect(adminStatus("failed", "payment_outcome")).toBe("Failed");
   expect(adminStatus("void", "payment_outcome")).toBe("Voided");
   expect(adminStatus("private_internal_state", "payment_outcome")).toBe("Unknown status");
+});
+
+it.each([
+  ["pending_admin", "Needs staff review"],
+  ["pending_funding", "Waiting for funding"],
+])("shows the approved advertiser campaign-change label for %s", (state, label) => {
+  expect(advertiserStatus(state)).toBe(label);
+});
+
+it("retains advertiser labels and its fallback outside the two approved change states", () => {
+  expect(advertiserStatus("active")).toBe("Live");
+  expect(advertiserStatus("applied")).toBe("Applied");
+  expect(advertiserStatus("pending")).toBe("Waiting");
+  expect(advertiserStatus("held")).toBe("Status unavailable");
+  expect(advertiserStatus("new_internal_state")).toBe("Status unavailable");
 });

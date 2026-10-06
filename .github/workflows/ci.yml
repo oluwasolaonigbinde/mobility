@@ -2,61 +2,12 @@ name: ci
 
 on:
   push:
-    paths:
-      - "app/**"
-      - "alembic/**"
-      - "tests/**"
-      - "frontend/**"
-      - "coverage/**"
-      - "scripts/**"
-      - "docs/**"
-      - ".codex/**"
-      - ".basedpyright/**"
-      - ".github/workflows/**"
-      - "openapi.json"
-      - "pyproject.toml"
-      - "alembic.ini"
-      - "Dockerfile"
-      - ".env.example"
-      - "production.env.example"
-      - "requirements-production.in"
-      - "requirements-production.txt"
-      - "docker-compose.yml"
-      - "docker-compose.production.yml"
-      - "Caddyfile"
-      - "staging.env.example"
-      - "AGENTS.md"
-      - ".pre-commit-config.yaml"
+    branches-ignore: ["dependabot/**"]
   pull_request:
-    paths:
-      - "app/**"
-      - "alembic/**"
-      - "tests/**"
-      - "frontend/**"
-      - "coverage/**"
-      - "scripts/**"
-      - "docs/**"
-      - ".codex/**"
-      - ".basedpyright/**"
-      - ".github/workflows/**"
-      - "openapi.json"
-      - "pyproject.toml"
-      - "alembic.ini"
-      - "Dockerfile"
-      - ".env.example"
-      - "production.env.example"
-      - "requirements-production.in"
-      - "requirements-production.txt"
-      - "docker-compose.yml"
-      - "docker-compose.production.yml"
-      - "Caddyfile"
-      - "staging.env.example"
-      - "AGENTS.md"
-      - ".pre-commit-config.yaml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 defaults:
   run:
@@ -66,6 +17,7 @@ jobs:
   backend_static:
     name: backend static checks
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: .
@@ -75,14 +27,9 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - name: Verify exact candidate SHA
-        run: |
-          expected="${{ github.event.pull_request.head.sha || github.sha }}"
-          actual="$(git rev-parse HEAD)"
-          if [ "$expected" != "$actual" ]; then
-            echo "::error::evidence tree is $actual, not candidate $expected"
-            exit 1
-          fi
-          echo "exact candidate SHA: $actual"
+        uses: ./.github/actions/verify-candidate-sha
+        with:
+          candidate-sha: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -106,6 +53,7 @@ jobs:
   backend_tests:
     name: backend tests · shard ${{ matrix.shard }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     strategy:
       fail-fast: false
       matrix:
@@ -152,22 +100,16 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - name: Verify exact candidate SHA
-        run: |
-          expected="${{ github.event.pull_request.head.sha || github.sha }}"
-          actual="$(git rev-parse HEAD)"
-          if [ "$expected" != "$actual" ]; then
-            echo "::error::evidence tree is $actual, not candidate $expected"
-            exit 1
-          fi
-          echo "exact candidate SHA: $actual"
-      - name: Start real MinIO and ClamAV
+        uses: ./.github/actions/verify-candidate-sha
+        with:
+          candidate-sha: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Start real MinIO
         run: |
           ./scripts/ci_load_minio_images.sh
           docker run -d --name minio -p 9000:9000 \
             -e MINIO_ROOT_USER="$LOCAL_MINIO_ACCESS_KEY" \
             -e MINIO_ROOT_PASSWORD="$LOCAL_MINIO_SECRET_KEY" \
             minio/minio:RELEASE.2025-07-23T15-54-02Z server /data
-          docker run -d --name clamav -p 3310:3310 clamav/clamav:1.4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -186,6 +128,7 @@ jobs:
             --candidate-sha "${{ github.event.pull_request.head.sha || github.sha }}" \
             --shard-index "${{ matrix.shard }}" \
             --shard-count 6 \
+            --timings scripts/pytest_shard_durations.json \
             --files-output "$shard_dir/files.txt" \
             --manifest-output "$shard_dir/manifest.json"
           if grep -Fxq -e "tests/test_storage_csp_origin.py" \
@@ -200,6 +143,16 @@ jobs:
           else
             echo "caddy=false" >> "$GITHUB_OUTPUT"
           fi
+          if grep -Fxq -e "tests/test_kyc_local_integration.py" \
+            -e "tests/test_campaign_managed_creatives_local_integration.py" "$shard_dir/files.txt"; then
+            echo "clamav=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "clamav=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Start real ClamAV for scanner integration files
+        if: steps.shard_plan.outputs.clamav == 'true'
+        run: docker run -d --name clamav -p 3310:3310 clamav/clamav:1.4
 
       - uses: actions/setup-node@v4
         if: steps.shard_plan.outputs.browser_stack == 'true'
@@ -214,7 +167,7 @@ jobs:
         if: steps.shard_plan.outputs.browser_stack == 'true'
         working-directory: frontend
 
-      - name: Wait for MinIO and ClamAV
+      - name: Wait for MinIO
         run: |
           for i in $(seq 1 60); do
             curl -sf http://localhost:9000/minio/health/live && break
@@ -230,6 +183,9 @@ jobs:
               mc alias set local http://localhost:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD" &&
               mc mb --ignore-existing local/cardvert-private &&
               mc anonymous set none local/cardvert-private'
+      - name: Wait for ClamAV
+        if: steps.shard_plan.outputs.clamav == 'true'
+        run: |
           # clamd binds its socket only after the signature databases are loaded;
           # connecting earlier would fail the scanner tests for the wrong reason.
           for i in $(seq 1 90); do
@@ -277,6 +233,7 @@ jobs:
     if: ${{ always() }}
     needs: [backend_static, backend_tests]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: .
@@ -295,13 +252,9 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - name: Verify exact candidate SHA
-        run: |
-          expected="${{ github.event.pull_request.head.sha || github.sha }}"
-          actual="$(git rev-parse HEAD)"
-          if [ "$expected" != "$actual" ]; then
-            echo "::error::evidence tree is $actual, not candidate $expected"
-            exit 1
-          fi
+        uses: ./.github/actions/verify-candidate-sha
+        with:
+          candidate-sha: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -369,6 +322,7 @@ jobs:
   quality:
     name: lint · types · unit · contract · build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       # Check out the candidate commit itself. On pull_request the default ref is a
       # synthetic merge commit, so a green run would be evidence for a SHA that
@@ -377,14 +331,9 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Verify exact candidate SHA
-        run: |
-          expected="${{ github.event.pull_request.head.sha || github.sha }}"
-          actual="$(git rev-parse HEAD)"
-          if [ "$expected" != "$actual" ]; then
-            echo "::error::evidence tree is $actual, not candidate $expected"
-            exit 1
-          fi
-          echo "exact candidate SHA: $actual"
+        uses: ./.github/actions/verify-candidate-sha
+        with:
+          candidate-sha: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - uses: actions/setup-node@v4
         with:
@@ -414,11 +363,12 @@ jobs:
 
       - run: npm run build
       - name: Frontend dependency vulnerability audit
-        run: npm audit --audit-level=high
+        run: node ../scripts/check_frontend_audit.mjs
 
   coverage:
     name: changed-code coverage policy
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: [backend, quality]
     defaults:
       run:
@@ -428,6 +378,10 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+      - name: Verify exact candidate SHA
+        uses: ./.github/actions/verify-candidate-sha
+        with:
+          candidate-sha: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -456,7 +410,7 @@ jobs:
   e2e:
     name: e2e against the real stack
     runs-on: ubuntu-latest
-    needs: quality
+    timeout-minutes: 30
     steps:
       # Check out the candidate commit itself. On pull_request the default ref is a
       # synthetic merge commit, so a green run would be evidence for a SHA that
@@ -465,14 +419,9 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Verify exact candidate SHA
-        run: |
-          expected="${{ github.event.pull_request.head.sha || github.sha }}"
-          actual="$(git rev-parse HEAD)"
-          if [ "$expected" != "$actual" ]; then
-            echo "::error::evidence tree is $actual, not candidate $expected"
-            exit 1
-          fi
-          echo "exact candidate SHA: $actual"
+        uses: ./.github/actions/verify-candidate-sha
+        with:
+          candidate-sha: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Boot backend (api + PostGIS + Redis)
         working-directory: .
@@ -537,7 +486,7 @@ jobs:
   r59_real_stack:
     name: R59 real-stack release journey
     runs-on: ubuntu-latest
-    needs: quality
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: .
@@ -546,10 +495,9 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Verify exact candidate SHA
-        run: |
-          expected="${{ github.event.pull_request.head.sha || github.sha }}"
-          actual="$(git rev-parse HEAD)"
-          test "$expected" = "$actual"
+        uses: ./.github/actions/verify-candidate-sha
+        with:
+          candidate-sha: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version-file: frontend/.nvmrc
