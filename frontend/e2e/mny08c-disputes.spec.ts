@@ -1,4 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
+import { randomUUID } from "node:crypto";
+import { psql } from "./support/campaign-fixture";
 
 async function login(page: Page, email: string, password: string, destination: string) {
   await page.goto("/login");
@@ -37,34 +39,47 @@ test("driver dispute and staff reply persist across the isolated cross-role flow
   await login(page, driver.email, driver.password, "driver");
   const seedHold = await disputableSeedHold(page);
   const tripUrl = `/driver/earnings/trips/${seedHold.tripId}`;
-  await page.goto(tripUrl);
-  const hold = page.getByTestId(`driver-fraud-hold-${seedHold.id}`);
-  await expect(hold.getByRole("button", { name: "Submit dispute" })).toBeVisible();
+  const message = `Please review the MNY-08C ${testInfo.project.name} route fixture ${randomUUID()}.`;
+  try {
+    await page.goto(tripUrl);
+    const hold = page.getByTestId(`driver-fraud-hold-${seedHold.id}`);
+    await expect(hold.getByRole("button", { name: "Submit dispute" })).toBeVisible();
 
-  const message = `Please review the MNY-08C ${testInfo.project.name} route fixture.`;
-  await hold.getByLabel("Dispute message").fill(message);
-  await hold.getByRole("button", { name: "Submit dispute" }).click();
-  await expect(hold.getByText(message)).toBeVisible();
-  await expect(hold.getByText("Awaiting reply")).toBeVisible();
-  await expect(hold).not.toContainText(/Detection evidence|fingerprint|matched trip/i);
+    await hold.getByLabel("Dispute message").fill(message);
+    await hold.getByRole("button", { name: "Submit dispute" }).click();
+    await expect(hold.getByText(message)).toBeVisible();
+    await expect(hold.getByText("Awaiting reply")).toBeVisible();
+    await expect(hold).not.toContainText(/Detection evidence|fingerprint|matched trip/i);
 
-  await page.context().clearCookies();
-  await login(page, "admin@demo.mobility.local", "DemoAdmin12345!", "admin");
-  await page.goto("/admin/fraud");
-  const dispute = page
-    .getByTestId(`fraud-flag-${seedHold.id}`)
-    .getByRole("region", { name: "Driver dispute" });
-  await expect(dispute).toBeVisible();
-  const reply = "We reviewed your route details and recorded the outcome.";
-  await dispute.getByLabel("Reply to driver").fill(reply);
-  await dispute.getByRole("button", { name: "Send reply" }).click();
-  await expect(dispute.getByText(reply)).toBeVisible();
+    await page.context().clearCookies();
+    await login(page, "admin@demo.mobility.local", "DemoAdmin12345!", "admin");
+    await page.goto(`/admin/trip-checks?flag=${seedHold.id}`);
+    const dispute = page.getByRole("region", { name: "Driver dispute" });
+    await expect(dispute).toBeVisible();
+    const reply = "We reviewed your route details and recorded the outcome.";
+    await dispute.getByLabel("Reply to driver").fill(reply);
+    await dispute.getByRole("button", { name: "Send reply" }).click();
+    await expect(dispute.getByText(reply)).toBeVisible();
 
-  await page.context().clearCookies();
-  await login(page, driver.email, driver.password, "driver");
-  await page.goto(tripUrl);
-  const reloadedHold = page.getByTestId(`driver-fraud-hold-${seedHold.id}`);
-  await expect(reloadedHold.getByText(message)).toBeVisible();
-  await expect(reloadedHold.getByText(reply)).toBeVisible();
-  await expect(reloadedHold.getByText("Staff replied", { exact: true })).toBeVisible();
+    await page.context().clearCookies();
+    await login(page, driver.email, driver.password, "driver");
+    await page.goto(tripUrl);
+    const reloadedHold = page.getByTestId(`driver-fraud-hold-${seedHold.id}`);
+    await expect(reloadedHold.getByText(message)).toBeVisible();
+    await expect(reloadedHold.getByText(reply)).toBeVisible();
+    await expect(reloadedHold.getByText("Staff replied", { exact: true })).toBeVisible();
+    await expect(reloadedHold).not.toContainText(/Detection evidence|fingerprint|matched trip/i);
+  } finally {
+    // Release only this attempt's dispute; immutable notices and audit evidence remain.
+    psql(
+      `
+WITH fixture AS (
+  SELECT id FROM fraud_disputes
+  WHERE fraud_flag_id = :'flag_id'::uuid AND message = :'message'
+)
+DELETE FROM fraud_disputes WHERE id IN (SELECT id FROM fixture);
+`,
+      { flag_id: seedHold.id, message },
+    );
+  }
 });

@@ -188,11 +188,14 @@ and at least one target area (D38d). Launch needs funding authority, approved
 artwork, assigned eligible vehicles and approved installation photos; an admin
 activates it (Q15). Changes that expand a campaign apply at once within funded
 headroom; reductions, removals and date changes need admin approval and a
-reason (Q9).
+reason (Q9). Campaign changes waiting for approval show "Needs staff review";
+changes waiting for funding show "Waiting for funding", reusing the existing
+staff status labels without changing their authority (D63, REQ-113).
 
 **History:**
 - **2026-08-14** — Client confirmed the lifecycle (Q6, Q9, Q15, D18).
 - **2026-09-24** — Owner added the submission requirements (D38d). Built in `7a9ceb0` (REQ-001).
+- **2026-10-06** — Owner approved the existing staff labels for advertiser campaign-change states that previously showed "Status unavailable". Reuse the shared labels; funding and reasoned independent staff approval remain unchanged (D63, REQ-113).
 
 ### Cancellation and refunds
 
@@ -227,7 +230,10 @@ flagged after seven inactive days (Q20).
 
 ### Drivers and vehicles
 
-**Current rule:** Drivers register themselves, upload documents and are
+**Current rule:** Drivers self-register through Apply (`/apply`), or staff create
+a driver login on `/admin/drivers/new` using the existing fixed-role form
+(D62, REQ-112). Staff-created logins must replace their temporary password;
+creating a login does not approve documents or activate driving. Drivers upload documents and are
 approved by an admin before working (Q13); approved accounts are activated by
 the driver after admin authorisation (D28). Required: licence, vehicle
 registration, insurance, NIN, vehicle photos, a verified bank account and a
@@ -238,6 +244,7 @@ approval ends on an admin-entered date (D31). Pilot vehicles: roadworthy cars
 
 **History:**
 - **2026-08-14** — Client confirmed self-registration, requirements, owner-drivers and cars (Q13, Q19, Q23, Q26, D18).
+- **2026-10-05** — Owner restored staff-created driver logins beside the existing-profile form on `/admin/drivers/new`; self-registration remains `/apply`, and password, document approval and activation rules remain unchanged (D62, REQ-112). D51 removed the obsolete shared `/admin/users/new` page; it is not restored.
 - **2026-09-02** — Owner decisions on activation and vehicle approval dates (D28, D31).
 - **2026-09-24** — Client's permit answer covers SUVs, sedans and motorcycles (client answers item 19). Recorded as motorcycles allowed on 2026-10-01 (D43h, REQ-034).
 - **2026-10-01** — Owner requested Lane 1's guided applicant flow and own-car chooser (D45, REQ-054). Approval, activation and live-use gates remain unchanged; active-driver renewals are later-stage work.
@@ -424,11 +431,12 @@ key-management service (D44).
 
 ### Legal, privacy and retention
 
-**Current rule:** Built GPS, ID collection, results and reports are accessible during development without legal approval switches; tenant isolation, aggregation limits and query recording remain, and legal/privacy plus overlap/differencing protections must be restored before real users (D56, REQ-072/089). For driver-application and vehicle-document review, the View click is the staff acknowledgment; each read keeps its application or vehicle purpose-scoped audit and one-minute/leave-page hiding, and NIN has its separate reveal (D58, REQ-105). Preserve complete canonical application/vehicle submission UUIDs only in the exact stored-file audit review reason; phones, mixed text, partial UUIDs and every other field retain redaction (D60, REQ-109).
+**Current rule:** Built GPS, ID collection, results and reports are accessible during development without legal approval switches; tenant isolation, aggregation limits and query recording remain, and legal/privacy plus overlap/differencing protections must be restored before real users (D56, REQ-072/089). For driver-application and vehicle-document review, the View click is the staff acknowledgment; each read keeps its application or vehicle purpose-scoped audit and one-minute/leave-page hiding, and NIN has its separate reveal (D58, REQ-105). Complete canonical UUID whole tokens are never phone numbers in any audit field or free text; phones beside them, broken/partial UUIDs and sensitive fields retain redaction (D61, REQ-111, superseding D60).
 
 **Still open:** [REQ-031](requests.md) lawyer's name, [REQ-032](requests.md) legal pack.
 
 **History:**
+- **2026-10-05 (superseding decision)** — Owner replaced D60's field-specific exception with one whole-token UUID phone-classification rule after a payout audit approver ID was scrubbed. Real phones and sensitive fields remain redacted; privacy/security and money review are required (D61, REQ-111).
 - **2026-10-05** — Owner approved exact whole-field stored-file review UUID preservation after phone redaction was shown to corrupt valid review evidence. No broader UUID exemption or phone disclosure is permitted (D60, REQ-109).
 - **2026-10-04 (vehicle extension)** — Owner extended D58/REQ-105 to driver-page vehicle documents. The earlier separate vehicle purpose/need confirmation ended; each View keeps the existing vehicle-review purpose/reason and individual audit, minute/leave hiding and record isolation. Commit is approved after verification and review.
 - **2026-10-04** — Owner made each driver-application View click the review acknowledgment instead of a separate need checkbox (D58, REQ-105), preserving individual audit and hiding. The prior checkbox control ended for this staff surface; other privacy and launch controls remain.
@@ -499,6 +507,12 @@ One advertiser login per company remains the current scope (D47). Review driver-
 
 Staff Resume is permitted only for a recorded operational pause, classified on the server. Budget-related and unknown pauses are refused with a plain explanation; current start requirements are rechecked and the actor, reason and pause identity are logged (D55, REQ-081). Staff list totals, oldest-first paging and row names are approved to bound badges, work lists and Trip checks (D55, REQ-077/078/083/085).
 
+Staff driver-login creation belongs on `/admin/drivers/new`, alongside attaching
+a profile to an existing login; company logins use `/admin/advertisers/new` and
+staff logins use Settings. D51 removed the shared `/admin/users/new` page.
+D62 restores the driver-specific form without a legacy alias or a change to
+password, profile, document approval or activation authority (REQ-112).
+
 The task home/menu label is **Work queue** (D50, REQ-065). The owner explicitly
 authorized starting L2-1b on the incomplete expedited A checkpoint (REQ-064);
 A acceptance remains open; the owner authorized the two source commits while tracked acceptance gaps remain. The four specified read additions, the
@@ -514,8 +528,10 @@ list, completed check or zero balance.
 
 **History:**
 
+- **2026-10-05 (superseding decision)** — Owner replaced D60's field-specific exception with one whole-token UUID phone-classification rule after a payout audit approver ID was scrubbed. Real phones and sensitive fields remain redacted; privacy/security and money review are required (D61, REQ-111).
 - **2026-10-05** — Owner approved exact whole-field stored-file review UUID preservation after phone redaction was shown to corrupt valid review evidence. No broader UUID exemption or phone disclosure is permitted (D60, REQ-109).
 - **2026-10-04 (vehicle extension)** — Owner extended D58/REQ-105 to car documents on the driver page and authorized the verified integrated commit. Vehicle View replaces its separate purpose/need confirmation, with existing `kyc_review` + `vehicle_approval:<submission_id>` read auditing and minute/leave hiding. Vehicle approval decisions remain unchanged.
+- **2026-10-05** — Owner restored the existing fixed-role driver login form on `/admin/drivers/new` after D51's removal of `/admin/users/new` left no staff browser entry point. Company/staff provisioning stays in its own canonical area, and driver self-registration remains Apply (D62, REQ-112).
 - **2026-10-04** — Owner replaced the separately confirmed document need checkbox with direct audited View for driver-application review (D58, REQ-105). The earlier 3 October polish retained that checkbox under the existing audited-control rule. Timed hiding, record isolation, purpose and the separate NIN action remain. Local implementation verified by `issues/testing/client-polish-2026-10-04.md`; the original person/bank review passed independent reviews. The owner then extended direct View to vehicle documents and approved the integrated commit, Extension verification, consolidated minimal-change review and implemented privacy/security review PASS.
 
 - **2026-10-02** — Owner confirmed guarded staff Resume and bounded read options (D55); local implementation and verification in progress.

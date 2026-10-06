@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.117 — 2026-10-05. Canonical source of truth: current state AND target state.**
+**Version 1.120 — 2026-10-06. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -1025,7 +1025,7 @@ delivery-control files; matching pull requests use the same path filters).
 - Startup guards: non-local envs must override the default JWT secret; wildcard
   CORS refused outside local/test.
 - Audit trail on mutating flows + auth events + admin audit API/UI (§6.4.9).
-- **Stored-file review reference redaction (D60, REQ-109):** `app/core/observability.py` preserves only an entire `person_payee_approval:<UUID>` or `vehicle_approval:<UUID>` string at the exact structured `stored_file.reason` context, with a canonical 8-4-4-4-12 hexadecimal UUID. Every other context, field, mixed/free-text value and broken/partial reference uses the existing redaction path; phones alongside a valid reference remain scrubbed. ORM audit writes and audit reads share this boundary. Approval continues to require exact current submission evidence; invalid, unread and wrong-entity evidence still fails closed.
+- **Canonical UUID phone classification (D61, REQ-111; replaces D60):** `app/core/observability.py` protects complete canonical 8-4-4-4-12 hexadecimal UUID whole tokens from phone classification in the shared redactor. Phone matching runs on surrounding spans, so adjacent phones cannot consume a UUID or escape redaction. Word/hyphen extensions and broken/partial UUIDs receive no protection. Structured sensitive-key and serialized credential/phone-field redaction, email and IP redaction remain active; a UUID does not bypass those checks. ORM audit writes, audit reads and logging share this rule. Complete payout-correction actor identities and vehicle-review references retain their original assertions; approval still requires exact current evidence, and invalid, unread and wrong-entity evidence fails closed.
 - **Error tracking:** Sentry hooks on FastAPI (`app/core/observability.py`) and
   Next.js (server `instrumentation.ts`, browser `instrumentation-client.ts`) —
   inert without a DSN, `send_default_pii=False`/`sendDefaultPii:false`, tracing
@@ -1989,6 +1989,9 @@ evidence and atomic-activation contracts.
   decision. Retroactive dates, changed retries and stale snapshots fail closed;
   accepted bindings and event history are never rewritten. Advertiser and
   admin surfaces expose the same governed request and decision evidence.
+  D63/REQ-113 reuses the existing staff labels for advertiser `pending_admin`
+  and `pending_funding`, preserving other labels and the unknown-state fallback.
+  Staff decisions remain in the canonical campaign hub and retain their existing authority.
   Campaign-change requests acquire the campaign-terms advisory, organization
   FK `FOR KEY SHARE`, then campaign rows in that order. This matches issuance
   ordering and prevents a dashboard disclosure snapshot (organization before
@@ -3155,6 +3158,13 @@ verification.
 
 ### 27.5 Task-based admin portal (D48) **[TARGET]**
 
+Staff driver-login creation uses the existing fixed-role account form on
+`/admin/drivers/new`, beside the existing-profile form (D62, REQ-112).
+Temporary-password replacement and server account/profile/activation checks
+remain; creating a login does not approve documents or activate driving.
+Public self-registration stays `/apply`. D51 removed the shared
+`/admin/users/new` page; the driver-specific restoration adds no legacy alias.
+
 D55 / REQ-077–086 follow-up: staff queue reads filter before SQL count/order/page;
 navigation badges request one row with the full filtered total, while home previews
 request the oldest five per source. Request-local React cache shares source reads
@@ -3293,7 +3303,7 @@ The pre-flight table for any new work. **If your feature isn't here, add it
 
 | Feature | Section | Code home | May touch | Must not touch | Blocked by |
 |---------|---------|-----------|-----------|----------------|------------|
-| Stored-file review reference redaction | §12 | `app/core/observability.py`, `app/models/audit.py`, existing review evidence checks | Exact complete canonical review UUID at stored_file.reason (D60) | phone/free-text redaction, authorization, current-record and denial rules | [BUILT] owner-approved REQ-109; privacy review and full CI evidence required |
+| Canonical UUID phone classification | §12 | `app/core/observability.py`, existing audit and review evidence checks | Complete canonical UUID whole tokens in every context (D61, replaces D60) | sensitive-key and real-phone redaction, authorization, payout commands, current-record and denial rules | [BUILT] owner-approved REQ-111; privacy/security and money reviews, focused regressions and full CI required |
 | Expiring frontend dependency audit exception | §10.3 | `scripts/check_frontend_audit.mjs`, frontend audit step in `.github/workflows/ci.yml` | D59's exact dev-only advisory exception through 2026-11-04 UTC | other high/critical findings, production/other-root exposure, lint rules, coverage and provider gates | [BUILT] owner-approved REQ-107; automatic expiry, independent security review and full CI evidence |
 | Task-based admin search and entity hubs | §27.5 | frontend/src/app/admin/{drivers,campaigns,advertisers}/, hub drawers and src/lib/status/; existing server actions; admin organization directory | approved read projections, frontend navigation and wording | payment/activation authority, audited access, memberships, system actor, live-use gates | [TARGET] L2-1a/b; REQ-062 for additional pay-summary/area reads |
 | Public Terrax/Cardvert front door | §27 | `frontend/src/app/page.tsx`, `frontend/src/components/marketing/`, namespaced landing styles/assets; `api/v1/campaign_enquiries.py`, `services/campaign_enquiries.py`, `core/campaign_enquiry_rate_limit.py` | marketing copy, `/apply`, `/login`, bounded enquiry to fixed official inbox via email adapter | auth/role authority; public advertiser signup; product-theme tokens; live-provider claims | [BUILT] provider-neutral D52; enquiry defaults off and needs approved email setup; driver applications retain runtime/live-use gates |
@@ -3524,6 +3534,9 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.120 | 2026-10-06 | **Shared campaign-change waiting labels (D63, REQ-113).** §18 records reuse of the existing staff vocabulary for advertiser pending review/funding, preserving funding and decision authority. Scoped unit and real browser checks must verify the exact request and independent reasoned approval before full CI. |
+| v1.119 | 2026-10-05 | **Canonical staff driver-login entry point (D62, REQ-112).** §27.5 records the restored existing fixed-role form beside existing-profile attachment on /admin/drivers/new, preserving self-registration, mandatory password replacement, document approval and activation boundaries. D51's removed shared account route stays deleted. Security review, focused browser verification and full CI remain required. |
+| v1.118 | 2026-10-05 | **Canonical UUID phone classification (D61, REQ-111).** §12/§30 replace D60's field-specific exception with one whole-token rule, retaining sensitive-field redaction and phone checks around valid tokens and within broken references. Deterministic payout actor UUIDs reproduce the corrupt audit trail; complete payout and vehicle approval assertions remain unchanged. Privacy/security and money reviews plus full CI remain required; no money commands, seed values or access rules change. |
 | v1.117 | 2026-10-05 | **Exact stored-file review UUID preservation (D60, REQ-109).** §12/§30 record the narrow structured-field boundary that prevents phone-shaped UUIDs from corrupting valid approval evidence while retaining all phone/free-text and malformed-reference redaction. Rolling seed regression uses one controlled initial financial clock, then restores the production database clock and verifies existing cancellation evidence is immutable. No seed values, refund policy, product copy or access rules change. Privacy review and full CI remain required. |
 | v1.116 | 2026-10-05 | **Expiring lint dependency audit exception (D59, REQ-107).** §10.3/§30 record the exact GHSA-vfj7-8cjw-p6xm waiver, exclusively dev-only eslint-config-next path validation, 2026-11-04 UTC expiry, fail-closed report handling and unchanged checks for every other high/critical advisory. Dependency versions, lint rules, coverage floors and live-use gates are unchanged. Full CI and request closure remain pending. |
 | v1.115 | 2026-10-04 | **Owner-approved direct document review (D58, REQ-105; renumbered at merge from v1.114/D57/REQ-091 in `6eb5ab9`).** §19 and §27.5 replace person/bank and vehicle need checkboxes with direct audited View; separate NIN, fixed application/vehicle purpose/reason mappings, timed/leave-page hiding and record isolation remain. Frontend-only local implementation verified by focused tests and browser evidence in `issues/testing/client-polish-2026-10-04.md`; Person/bank and vehicle extension consolidated minimal-change and implemented privacy/security reviews PASS. Owner approved the verified local commit; no API, backend, launch-gate or merge claim. |

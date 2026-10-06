@@ -24,6 +24,26 @@ it("keeps a company login fixed to advertiser without asking for staff grant pro
   expect(screen.getByLabelText("Company name")).toBeRequired();
 });
 
+it("submits a fixed driver login without changing its role or creating a company", async () => {
+  const user = userEvent.setup();
+  render(<CreateUserForm fixedRole="driver" />);
+  expect(screen.queryByRole("radio")).toBeNull();
+  expect(screen.queryByLabelText("Company name")).toBeNull();
+  expect(screen.queryByLabelText(/Your current password/)).toBeNull();
+  await user.type(screen.getByLabelText("Full name"), "New driver");
+  await user.type(screen.getByLabelText("Email"), "new-driver@example.com");
+  await user.type(screen.getByLabelText("Temporary password"), "TemporaryDriver123!");
+  await user.click(screen.getByRole("button", { name: "Create account" }));
+  await screen.findByRole("alert");
+  expect(create).toHaveBeenCalledOnce();
+  const submitted = create.mock.calls[0]![1] as FormData;
+  expect(submitted.get("role")).toBe("driver");
+  expect(submitted.get("full_name")).toBe("New driver");
+  expect(submitted.get("email")).toBe("new-driver@example.com");
+  expect(submitted.get("password")).toBe("TemporaryDriver123!");
+  expect(submitted.get("org_name")).toBeNull();
+});
+
 it("locks the created login and retries company creation without another password", async () => {
   const user = userEvent.setup();
   const partial = {

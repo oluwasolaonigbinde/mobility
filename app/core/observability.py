@@ -10,9 +10,9 @@ from app.core.config import Settings
 from app.core.middleware import get_request_id
 
 _REDACTED = "[REDACTED]"
-_STORED_FILE_REVIEW_REFERENCE = re.compile(
-    r"(?:person_payee_approval|vehicle_approval):"
-    r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+_CANONICAL_UUID_TOKEN = re.compile(
+    r"(?<![\w-])[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}(?![\w-])"
 )
 _CAMEL_CASE_BOUNDARY = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
 _ALWAYS_SENSITIVE_KEY = re.compile(
@@ -52,11 +52,10 @@ _EMAIL_VALUE = re.compile(
 )
 _PHONE_NUMBER_PATTERN = (
     r"(?:\+\d(?:[\s().-]*\d){7,14}|"
-    r"0(?=\d*[\s().-]+\d)\d(?:[\s().-]*\d){8,13}|"
+    r"0(?=\d{0,13}[\s().-]+\d)\d(?:[\s().-]*\d){8,13}|"
     r"\(\d{2,4}\)(?:[\s.-]*\d){6,12})"
 )
-_PHONE_VALUE = re.compile(r"(?<![\w])" + _PHONE_NUMBER_PATTERN + r"(?![\w])")
-_REVIEW_REASON_PHONE_VALUE = re.compile(_PHONE_NUMBER_PATTERN)
+_PHONE_VALUE = re.compile(_PHONE_NUMBER_PATTERN)
 _IPV4_VALUE = re.compile(r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?![\w.])")
 _IPV6_VALUE = re.compile(r"(?i)(?<![0-9a-f:])(?:[0-9a-f]{0,4}:){2,7}[0-9a-f]{0,4}(?![0-9a-f:])")
 _PERSON_CONTEXT_PARTS = frozenset(
@@ -564,9 +563,22 @@ def _redact_ip_value(match: re.Match[str]) -> str:
     return _REDACTED
 
 
+def _redact_phone_values(message: str) -> str:
+    # UUID digit runs are identifiers; scan the surrounding spans separately
+    # so an adjacent phone cannot consume a UUID or escape redaction.
+    parts: list[str] = []
+    copied_until = 0
+    for token in _CANONICAL_UUID_TOKEN.finditer(message):
+        parts.append(_PHONE_VALUE.sub(_REDACTED, message[copied_until : token.start()]))
+        parts.append(token.group(0))
+        copied_until = token.end()
+    parts.append(_PHONE_VALUE.sub(_REDACTED, message[copied_until:]))
+    return "".join(parts)
+
+
 def redact_log_message(message: str) -> str:
     redacted = _EMAIL_VALUE.sub(_REDACTED, message)
-    redacted = _PHONE_VALUE.sub(_REDACTED, redacted)
+    redacted = _redact_phone_values(redacted)
     redacted = _IPV4_VALUE.sub(_redact_ip_value, redacted)
     redacted = _IPV6_VALUE.sub(_redact_ip_value, redacted)
     return _redact_serialized_assignments(redacted)
@@ -643,16 +655,6 @@ def scrub_observability_value(
 
         _kind, source, contexts, depth, parent, slot = task
         if isinstance(source, str):
-            if (
-                semantic_context == "stored_file"
-                and depth == 1
-                and slot == "reason"
-                and contexts == ("stored_file", "reason")
-            ):
-                if _STORED_FILE_REVIEW_REFERENCE.fullmatch(source):
-                    parent[slot] = source
-                    continue
-                source = _REVIEW_REASON_PHONE_VALUE.sub(_REDACTED, source)
             parent[slot] = redact_log_message(source)
             continue
         if not isinstance(source, (dict, list, tuple)):

@@ -235,7 +235,7 @@ def test_e2e_stack_uses_only_explicit_synthetic_disclosure_authority(workflow: d
 
     override = yaml.safe_load(E2E_COMPOSE_OVERRIDE_PATH.read_text(encoding="utf-8"))
     environment = override["services"]["api"]["environment"]
-    assert environment == {"ENVIRONMENT": "test"}
+    assert environment == {"ENVIRONMENT": "test", "F7_SEED_MAX_TRIPS_PER_DAY": "2"}
     default_compose = yaml.safe_load((REPO_ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
     default_environment = default_compose["services"]["api"]["environment"]
     assert default_environment["ENVIRONMENT"] == "local"
