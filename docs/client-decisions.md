@@ -235,6 +235,10 @@ flagged after seven inactive days (Q20).
 
 ### Drivers and vehicles
 
+**7 Oct owner correction (D69, REQ-127):** Renewals show each document’s own result and ask only for replacements; retained NIN/bank details and accepted documents are reused. Bank choice uses names, uploads match the app, and copy describes the actual new-trip pause while existing trips may finish.
+
+
+
 **Current rule:** Drivers self-register through Apply (`/apply`), or staff create
 a driver login on `/admin/drivers/new` using the existing fixed-role form
 (D62, REQ-112). Staff-created logins must replace their temporary password;
@@ -372,6 +376,10 @@ company-wide visibility, [REQ-024](requests.md) erasure.
 
 ### Notifications and contact
 
+**7 Oct demo correction (D70, REQ-128):** Nigerian-format synthetic driver phones; the owner’s +2347068369842 is the temporary local/preview Terrax destination. The PM’s real preview WhatsApp number is [REQ-126](requests.md). Live operator/wording gates remain.
+
+
+
 **Current rule:** In-app notifications always; advertiser transactional email
 on by default, which an advertiser company can switch off (D24); drivers are
 contacted on WhatsApp by operations staff; automated SMS/WhatsApp after the
@@ -422,6 +430,10 @@ item 18).
 - **2026-09-24** — Client: off for the pilot (client answers item 18).
 
 ### Pilot shape, permits and launch
+
+**7 Oct demo correction (D70, REQ-125):** Seeded campaigns, routes, zones and GPS use real Abuja areas and consistent geometry.
+
+
 
 **Current rule:** Abuja; 10 vehicles; 5 paying advertisers; 3 months (Q30).
 Terrax Media owns permit confirmation, and no pilot campaign launches until
@@ -581,3 +593,7 @@ list, completed check or zero balance.
 W1B identifiers renumbered at merge on 2026-10-06: Compose REQ-108 → REQ-117, wording REQ-112 → REQ-116, D62 → D65, architecture v1.117 → v1.122. Master identifiers retain their meanings.
 
 Combined Wave 1 merge: payout architecture entry renumbered at merge from lane v1.122 to v1.123 because W1-B retains v1.122. Both original lane approvals remain historical; D64/D65 and request identifiers are unchanged.
+
+### 7 October renewal correction history
+
+Before D69, renewal required the complete identity/bank or vehicle capture and displayed filenames (D66). The owner replaced that presentation and complete-input requirement with partial renewal in REQ-127. D70 replaces UK demonstration phone fixtures and Lagos seed geography with Nigerian-format fixtures and Abuja geography. Built locally on `w2/renewals-phone`; [correction verification](../issues/testing/w2c-claude-renewals-correction-2026-10-07.md); merge/CI closure remains pending.

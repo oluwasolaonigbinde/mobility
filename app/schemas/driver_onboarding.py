@@ -1,5 +1,6 @@
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
@@ -66,11 +67,37 @@ class PersonPayeeSubmissionCreate(PersonPayeeCaptureCreate):
     application_access_token: SecretStr = Field(repr=False)
 
 
-class PersonPayeeRenewalCreate(PersonPayeeCaptureCreate):
+class PersonPayeeRenewalCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    client_request_id: UUID
     expected_submission_id: UUID
+    nin: SecretStr | None = Field(default=None, repr=False)
+    account_name: SecretStr | None = Field(default=None, repr=False)
+    account_number: SecretStr | None = Field(default=None, repr=False)
+    bank_code: SecretStr | None = Field(default=None, repr=False)
+    driver_license_file_id: UUID | None = None
+    driver_photo_file_id: UUID | None = None
+    signed_agreement_file_id: UUID | None = None
+
+    @field_validator("nin")
+    @classmethod
+    def validate_nin(cls, value: SecretStr | None) -> SecretStr | None:
+        return PersonPayeeCaptureCreate.validate_nin(value) if value is not None else None
+
+
+class DocumentReviewRead(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["accepted", "on_file", "rejected", "expired"]
+    reason_code: KycReviewReason | VehicleReviewReason | None = None
+    expires_on: date | None = None
 
 
 class PersonPayeeStageRead(BaseModel):
+    documents: dict[str, DocumentReviewRead] = Field(default_factory=dict)
+    replace_nin: bool = False
+    replace_bank: bool = False
     status: PersonPayeeStageStatus
     submission_id: UUID | None = None
     version: int | None = None
@@ -83,6 +110,7 @@ class PersonPayeeStageRead(BaseModel):
 
 
 class PersonPayeeReviewDecisionCreate(BaseModel):
+    document_reviews: dict[str, DocumentReviewRead] = Field(default_factory=dict)
     model_config = ConfigDict(extra="forbid")
 
     client_request_id: UUID
@@ -128,6 +156,7 @@ class ApplicantVehicleSubmissionCreate(BaseModel):
 
 
 class VehicleStageRead(BaseModel):
+    documents: dict[str, DocumentReviewRead] = Field(default_factory=dict)
     purged_at: datetime | None = None
     status: str = "not_submitted"
     vehicle_id: UUID | None = None
@@ -165,9 +194,7 @@ class AdminVehicleStageRead(VehicleStageRead):
 
 class DriverDocumentsRead(BaseModel):
     person_payee: PersonPayeeStageRead
-    person_document_names: dict[str, str] = Field(default_factory=dict)
     vehicles: list[VehicleStageRead] = Field(default_factory=list)
-    vehicle_document_names: dict[str, dict[str, str]] = Field(default_factory=dict)
 
 
 class AdminDriverDocumentsRead(BaseModel):
@@ -176,6 +203,7 @@ class AdminDriverDocumentsRead(BaseModel):
 
 
 class VehicleReviewDecisionCreate(BaseModel):
+    document_reviews: dict[str, DocumentReviewRead] = Field(default_factory=dict)
     model_config = ConfigDict(extra="forbid")
 
     client_request_id: UUID

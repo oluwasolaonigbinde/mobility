@@ -42,7 +42,11 @@ def compare_server_default(
     if isinstance(inspected_type, postgresql.JSON) and not isinstance(
         inspected_type, postgresql.JSONB
     ):
-        return inspected_default != rendered_metadata_default
+        # PostgreSQL reflects a JSON literal with an explicit cast; SQLite-compatible
+        # model defaults omit it. Compare the literal without changing JSON semantics.
+        return (inspected_default.removesuffix("::json") if inspected_default else None) != (
+            rendered_metadata_default.removesuffix("::json") if rendered_metadata_default else None
+        )
     return None
 
 

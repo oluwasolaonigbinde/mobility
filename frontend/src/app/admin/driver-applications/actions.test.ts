@@ -159,6 +159,12 @@ describe("reviewPersonPayeeAction", () => {
           client_request_id: "00000000-0000-4000-8000-0000000000aa",
           decision: "approved",
           reason_code: "complete_current_evidence",
+          document_reviews: Object.fromEntries(
+            ["driver_license", "driver_photo", "signed_agreement"].map((kind) => [
+              kind,
+              { status: "accepted", reason_code: null, expires_on: null },
+            ]),
+          ),
           identity_match_confirmed: true,
           bank_account_match_confirmed: true,
           documents_readable_confirmed: true,
@@ -259,6 +265,12 @@ describe("reviewPersonPayeeAction", () => {
         body: expect.objectContaining({
           decision: "approved",
           reason_code: "complete_current_evidence",
+          document_reviews: Object.fromEntries(
+            ["registration", "insurance", "vehicle_photo"].map((kind) => [
+              kind,
+              { status: "accepted", reason_code: null, expires_on: null },
+            ]),
+          ),
           owner_match_confirmed: true,
           documents_readable_confirmed: true,
         }),

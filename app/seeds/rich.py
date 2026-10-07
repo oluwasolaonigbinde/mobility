@@ -56,6 +56,7 @@ from app.schemas.trips import (
     LocationPingCreate,
     TripEvidenceManifestEntryCreate,
 )
+from app.seeds.abuja import district_polygon
 from app.services.campaign_zones import geometry_expression, validate_geometry_with_postgis
 from app.services.impressions import estimate_trip_impressions
 from app.services.payouts import calculate_trip_payout
@@ -88,15 +89,15 @@ DRIVER_NAMES = (
     "Zainab Musa",
 )
 DRIVER_AREAS = (
-    "Ikeja",
-    "Yaba",
-    "Surulere",
-    "Lekki",
-    "Victoria Island",
-    "Maryland",
-    "Ajah",
-    "Ogba",
-    "Lagos Island",
+    "Wuse",
+    "Wuse II",
+    "Garki",
+    "Jabi",
+    "Asokoro",
+    "Utako",
+    "Gwarinpa",
+    "Kubwa",
+    "Maitama",
 )
 VEHICLE_DETAILS = (
     ("Toyota", "Corolla", "White", VehicleType.CAR),
@@ -111,20 +112,20 @@ VEHICLE_DETAILS = (
 )
 
 CAMPAIGN_SPECS = (
-    ("Aster Vale Foods — Mainland Deliveries", CampaignStatus.ACTIVE, "rolling"),
-    ("Cedar Bay Furnishings — Ikeja Showroom", CampaignStatus.PAUSED, "paused"),
-    ("Oriole Books — Island Reading Week", CampaignStatus.COMPLETED, "completed"),
-    ("Sable Ridge Travel — Airport Arrivals", CampaignStatus.DRAFT, "draft"),
+    ("Aster Vale Foods — Wuse Deliveries", CampaignStatus.ACTIVE, "rolling"),
+    ("Cedar Bay Furnishings — Wuse Showroom", CampaignStatus.PAUSED, "paused"),
+    ("Oriole Books — Wuse Reading Week", CampaignStatus.COMPLETED, "completed"),
+    ("Sable Ridge Travel — Jabi Travel Enquiries", CampaignStatus.DRAFT, "draft"),
 )
 
 # (latitude, longitude); the final corridor is reserved for the exclusion anomaly.
 CORRIDORS = (
-    ((6.6018, 3.3515), (6.5880, 3.3650), (6.5730, 3.3810), (6.5580, 3.3970)),
-    ((6.5244, 3.3792), (6.5100, 3.3890), (6.4950, 3.4010), (6.4790, 3.4140)),
-    ((6.5059, 3.3431), (6.4930, 3.3560), (6.4800, 3.3690), (6.4660, 3.3820)),
-    ((6.4541, 3.3947), (6.4450, 3.4080), (6.4370, 3.4230), (6.4290, 3.4400)),
-    ((6.4698, 3.5852), (6.4560, 3.5700), (6.4430, 3.5530), (6.4320, 3.5360)),
-    ((6.5480, 3.4560), (6.5490, 3.4590), (6.5510, 3.4630), (6.5530, 3.4670)),
+    ((9.100450, 7.457875), (9.097000, 7.461250), (9.093250, 7.465250), (9.089500, 7.469250)),
+    ((9.081100, 7.464800), (9.077500, 7.467250), (9.073750, 7.470250), (9.069750, 7.473500)),
+    ((9.076475, 7.455775), (9.073250, 7.459000), (9.070000, 7.462250), (9.066500, 7.465500)),
+    ((9.063525, 7.468675), (9.061250, 7.472000), (9.059250, 7.475750), (9.057250, 7.480000)),
+    ((9.067450, 7.480300), (9.064000, 7.476500), (9.060750, 7.472250), (9.058000, 7.468000)),
+    ((9.087000, 7.465000), (9.087250, 7.465750), (9.087750, 7.466750), (9.088250, 7.467750)),
 )
 
 
@@ -206,8 +207,8 @@ async def _upsert_driver(session: AsyncSession, *, index: int, settings: Setting
         profile = DriverProfile(
             user_id=user.id,
             onboarding_status=onboarding_status.value,
-            license_number=f"LAG-2024-{58300 + index}",
-            service_city="Lagos",
+            license_number=f"ABJ-2024-{58300 + index}",
+            service_city="Abuja",
             country_code="NG",
             profile_metadata=f7_metadata(service_area=DRIVER_AREAS[index - 1]),
         )
@@ -288,9 +289,9 @@ async def _upsert_campaign(
             created_by_user_id=advertiser.id,
             name=name,
             description=(
-                "Delivery visibility around Lagos offices."
+                "Delivery visibility around Abuja offices."
                 if kind == "rolling"
-                else "Visibility around shops and offices in Lagos."
+                else "Visibility around shops and offices in Abuja."
             ),
             status=status_value.value,
             start_at=start_at,
@@ -339,28 +340,15 @@ def _zone_geometry(campaign_index: int, zone_type: CampaignZoneType) -> dict[str
             "type": "Polygon",
             "coordinates": [
                 [
-                    [3.454, 6.546],
-                    [3.469, 6.546],
-                    [3.469, 6.556],
-                    [3.454, 6.556],
-                    [3.454, 6.546],
+                    [7.464500, 9.086500],
+                    [7.468250, 9.086500],
+                    [7.468250, 9.089000],
+                    [7.464500, 9.089000],
+                    [7.464500, 9.086500],
                 ]
             ],
         }
-    west = 3.32 + campaign_index * 0.025
-    south = 6.40 + campaign_index * 0.02
-    return {
-        "type": "Polygon",
-        "coordinates": [
-            [
-                [west, south],
-                [west + 0.20, south],
-                [west + 0.20, south + 0.20],
-                [west, south + 0.20],
-                [west, south],
-            ]
-        ],
-    }
+    return district_polygon("Jabi" if campaign_index == 4 else "Wuse")
 
 
 async def _ensure_zones(
@@ -376,9 +364,9 @@ async def _ensure_zones(
         zone_types.append(CampaignZoneType.EXCLUSION)
     for zone_type in zone_types:
         name = (
-            "Apapa port access"
+            "Aminu Kano Crescent junction"
             if zone_type == CampaignZoneType.EXCLUSION
-            else ("Lagos Mainland", "Ikeja and Maryland", "Lagos Island", "Airport Road")[
+            else ("Wuse district", "Wuse offices", "Wuse bookshops", "Jabi Lake Road")[
                 campaign_index - 1
             ]
         )
@@ -398,13 +386,13 @@ async def _ensure_zones(
                 created_by_user_id=advertiser.id,
                 name=name,
                 description=(
-                    "Heavy industrial traffic; avoid during campaigns."
+                    "Busy junction; avoid during campaigns."
                     if zone_type == CampaignZoneType.EXCLUSION
                     else (
-                        "Reach shops and offices along the Yaba and Surulere routes.",
-                        "Reach furniture shoppers along Ikorodu Road and Maryland.",
-                        "Promote the reading week around Lagos Island bookshops.",
-                        "Reach travellers along Airport Road in Ikeja.",
+                        "Reach shops and offices along the Wuse II and Wuse routes.",
+                        "Reach furniture shoppers along Adetokunbo Ademola Crescent.",
+                        "Promote the reading week around Wuse bookshops.",
+                        "Reach travellers along Jabi Lake Road in Jabi.",
                     )[campaign_index - 1]
                 ),
                 zone_type=zone_type.value,
@@ -498,7 +486,7 @@ async def _ensure_assignment(
         accepted_at=None if is_offered else offered_at + timedelta(minutes=10),
         activated_at=None if is_offered else offered_at + timedelta(minutes=20),
         completed_at=min(campaign.end_at - timedelta(minutes=1), now) if is_completed else None,
-        notes="Collect the door panels at the Ikeja office.",
+        notes="Collect the door panels at the Wuse office.",
         assignment_metadata=f7_metadata(driver_index=asset.index),
     )
     session.add(assignment)
@@ -577,22 +565,22 @@ def _ping_specs(
     intervals = [60 + rng.randrange(0, 31) for _ in range(count - 1)]
     accuracy = [8.0 + rng.random() * 8.0 for _ in range(count)]
     if anomaly == "stationary":
-        coordinates = [(6.5244, 3.3792)] * count
+        coordinates = [(9.081100, 7.464800)] * count
     elif anomaly == "teleport":
-        coordinates[count // 2] = (6.7000, 3.2000)
+        coordinates[count // 2] = (9.160000, 7.340000)
     elif anomaly == "gap":
         intervals[count // 2] = 1200
     elif anomaly == "loop":
         coordinates = [
-            (6.5100, 3.3700),
-            (6.5200, 3.3800),
-            (6.5300, 3.3900),
-            (6.5200, 3.4000),
-            (6.5100, 3.4100),
-            (6.5000, 3.4000),
-            (6.4900, 3.3900),
-            (6.5000, 3.3800),
-            (6.5100, 3.3700),
+            (9.077500, 7.462500),
+            (9.080000, 7.465000),
+            (9.082500, 7.467500),
+            (9.080000, 7.470000),
+            (9.077500, 7.472500),
+            (9.075000, 7.470000),
+            (9.072500, 7.467500),
+            (9.075000, 7.465000),
+            (9.077500, 7.462500),
         ]
         intervals = [90] * (len(coordinates) - 1)
         accuracy = [10.0] * len(coordinates)
@@ -1040,7 +1028,7 @@ COMPLAINT_TEXT = (
         "driver",
         "pay_or_payout",
         "open",
-        "My Tuesday trip ended near Yaba but the earnings are still pending.",
+        "My Tuesday trip ended near Wuse II but the earnings are still pending.",
         None,
     ),
     (
@@ -1048,7 +1036,7 @@ COMPLAINT_TEXT = (
         "campaign_or_job",
         "answered",
         "The rear sticker is lifting at the left corner.",
-        "Please visit the Ikeja office tomorrow morning for a replacement.",
+        "Please visit the Wuse office tomorrow morning for a replacement.",
     ),
     (
         "driver",
@@ -1281,7 +1269,7 @@ async def _ensure_contact_work(session, *, graph, staff, settings):
     people = [graph.driver_profile, graph.rich.drivers[0].profile, graph.rich.drivers[1].profile]
     notes = (
         None,
-        "Amina can visit the Ikeja office on Thursday.",
+        "Amina can visit the Wuse office on Thursday.",
         "Chinedu was driving; call again after six.",
     )
     for index, (profile, note) in enumerate(zip(people, notes, strict=True)):
@@ -1340,8 +1328,8 @@ async def _ensure_reach_profiles(session):
     for name, description, state, density in (
         ("Abuja office traffic", "Weekday traffic around Wuse and Garki offices.", "active", "180"),
         (
-            "Lagos weekend traffic",
-            "Weekend traffic around Lagos shopping streets.",
+            "Abuja weekend traffic",
+            "Weekend traffic around Abuja shopping streets.",
             "inactive",
             "140",
         ),
@@ -1403,7 +1391,7 @@ async def ensure_golden_contributors(session, *, graph, settings):
             profile = DriverProfile(
                 user_id=driver.id,
                 onboarding_status="active",
-                service_city="Lagos",
+                service_city="Abuja",
                 country_code="NG",
             )
             session.add(profile)
@@ -1492,7 +1480,7 @@ async def _seed_cancelled_campaign(session, *, graph, staff, campaign, state):
     reason = (
         "Please cancel the collection campaign; the van delivery has been delayed."
         if "Home" in name
-        else "Please cancel the Island launch until the new branch is ready."
+        else "Please cancel the Asokoro launch until the new branch is ready."
     )
     cancellation = await request_campaign_cancellation(
         session,
@@ -1536,9 +1524,9 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
 
     names = (
         (
-            "Oriole Books — Yaba Book Fair",
+            "Oriole Books — Wuse II Book Fair",
             "draft",
-            "Invite readers to the weekend book fair around Yaba.",
+            "Invite readers to the weekend book fair around Wuse II.",
         ),
         (
             "Juniper Court Pharmacy — Garki Opening",
@@ -1563,19 +1551,19 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
         (
             "Dove Crescent Laundry — Home Collection",
             "cancelled",
-            "Reach households along the Lekki collection route.",
+            "Reach households along the Jabi collection route.",
         ),
         (
-            "Dove Crescent Laundry — Island Collection",
+            "Dove Crescent Laundry — Asokoro Collection",
             "cancelled",
-            "Introduce doorstep laundry collection around Victoria Island.",
+            "Introduce doorstep laundry collection around Asokoro.",
         ),
     )
     names += (
         (
-            "Marula Kitchens — Yaba Weekend Lunch",
+            "Marula Kitchens — Wuse II Weekend Lunch",
             "draft",
-            "Offer weekend lunch deliveries around Yaba homes.",
+            "Offer weekend lunch deliveries around Wuse II homes.",
         ),
         (
             "Marula Kitchens — Maitama Office Lunch",
@@ -1588,9 +1576,9 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
             "Promote weekend catering orders around Wuse II.",
         ),
         (
-            "Marula Kitchens — Lekki Lunch Collection",
+            "Marula Kitchens — Jabi Lunch Collection",
             "cancelled",
-            "Introduce a lunch collection point for Lekki residents.",
+            "Introduce a lunch collection point for Jabi residents.",
         ),
     )
     now = utc_now()
@@ -1668,9 +1656,9 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
                     campaign_id=campaign.id,
                     source=QuoteRequestSource.IN_PLATFORM,
                     request_details={
-                        "notes": "Please quote for weekend lunch deliveries around Yaba."
+                        "notes": "Please quote for weekend lunch deliveries around Wuse II."
                         if "Marula" in name
-                        else "Please quote for the Yaba book fair weekend."
+                        else "Please quote for the Wuse II book fair weekend."
                     },
                 )
             else:
@@ -1703,26 +1691,17 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
                 zone_specs=[
                     (
                         "Garki offices"
-                        if "Garki Office Lunch" in name
+                        if "Garki" in name
                         else {
-                            "draft": "Yaba bookshops",
-                            "pending_review": "Garki offices",
+                            "draft": "Wuse II bookshops",
+                            "pending_review": "Maitama offices"
+                            if "Maitama" in name
+                            else "Garki offices",
                             "approved": "Wuse II shops",
                             "rejected": "Maitama homes",
                         }[state],
                         "target",
-                        {
-                            "type": "Polygon",
-                            "coordinates": [
-                                [
-                                    [3.36, 6.48] if state == "draft" else [7.43, 9.02],
-                                    [3.40, 6.48] if state == "draft" else [7.51, 9.02],
-                                    [3.40, 6.53] if state == "draft" else [7.51, 9.11],
-                                    [3.36, 6.53] if state == "draft" else [7.43, 9.11],
-                                    [3.36, 6.48] if state == "draft" else [7.43, 9.02],
-                                ]
-                            ],
-                        },
+                        district_polygon(name),
                     )
                 ]
                 if state != "cancelled"
@@ -1780,9 +1759,9 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
                     entity_id=str(paused.id),
                     event_metadata={
                         "reason": (
-                            "Please hold lunch deliveries while the Ikeja kitchen is renovated."
+                            "Please hold lunch deliveries while the Wuse kitchen is renovated."
                             if paused.name.startswith("Marula Kitchens")
-                            else "Please hold deliveries while the Ikeja showroom is repainted."
+                            else "Please hold deliveries while the Wuse showroom is repainted."
                         ),
                         "pause_reason_kind": "operational",
                         "status_after": "paused",
@@ -2338,8 +2317,8 @@ async def ensure_trip_review_work(session, *, graph, staff, settings):
             trips[:4],
             ("pending", "pending", "passed", "failed"),
             (
-                "Please check the rear panel at the Ikeja office.",
-                "Meet the driver near Yaba market after the morning route.",
+                "Please check the rear panel at the Wuse office.",
+                "Meet the driver near Wuse II market after the morning route.",
                 "All panels are secure and the phone number is readable.",
                 "The rear panel is peeling; arrange a replacement before the next route.",
             ),
@@ -2372,8 +2351,8 @@ async def ensure_trip_review_work(session, *, graph, staff, settings):
             pings=[
                 LocationPingCreate(
                     recorded_at=trip.started_at + timedelta(minutes=1),
-                    lat=6.5100,
-                    lon=3.3890,
+                    lat=9.077500,
+                    lon=7.467250,
                     accuracy_m=10.0,
                     sequence_number=0,
                 )
@@ -2556,8 +2535,8 @@ async def _ensure_payout_review_history(session, *, graph, staff, settings):
         graph.trips,
         ("draft", "pending_approval", "approved", "rejected"),
         (
-            "Please check the Yaba distance after the route was corrected.",
-            "The Surulere return leg needs a second review.",
+            "Please check the Wuse II distance after the route was corrected.",
+            "The Wuse return leg needs a second review.",
             "The route review is complete; please confirm the earnings.",
             "Please recheck the distance recorded near the fuel station.",
         ),

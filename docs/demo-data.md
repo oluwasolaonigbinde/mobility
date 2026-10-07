@@ -26,9 +26,9 @@ No missing client answer is recorded as approved. These records are fictional an
 | Renewal lookback | `EVIDENCE_RENEWAL_LOOKBACK_DAYS=7` in those files | REQ-039 |
 | Reply window | `EVIDENCE_CHALLENGE_RESPONSE_HOURS=24` in those files | REQ-039 |
 | Invoice bank and number prefix | OPay, non-routable all-zero account `0000000000`, prefix `TXM`, held only in the seeded issuer profile and invoice snapshots | REQ-041, REQ-042 and REQ-052 |
-| Reach estimates | Lagos weekday: 240 contacts/km, 5/minute, road factor 1.15; Abuja office: 180/km, 4/minute, road factor 1; Lagos weekend: 140/km, 4/minute, road factor 1; morning/midday/evening/night factors 1.2/1/1.3/0.7; target/bonus/exclusion factors 1.2/1.35/0 | EXT-REPORT-METHOD: calculation, labels and limitations |
+| Reach estimates | Abuja weekday: 240 contacts/km, 5/minute, road factor 1.15; Abuja office: 180/km, 4/minute, road factor 1; Abuja weekend: 140/km, 4/minute, road factor 1; morning/midday/evening/night factors 1.2/1/1.3/0.7; target/bonus/exclusion factors 1.2/1.35/0 | EXT-REPORT-METHOD: calculation, labels and limitations |
 | Report calculation inputs | Seeded traffic profiles, routes, impression estimates, exposure scores and frozen measurement snapshots; `impressions_v1` / `exposure_v1` identify the existing calculation | EXT-REPORT-METHOD; no revenue or conversion inputs are invented |
-| Commercial records | Campaign budgets and quotations, including ₦1,000,000 portal campaigns, ₦3,000,000 scopes for the three additional report contributor histories, ₦1,800,000 for Ikeja Office Lunch, partial funding of ₦500,000, 7.5% VAT, five-vehicle scopes and zero production-cost components | EXT-COMMERCIAL-VALUES: approved quotation components, production prices and commissions; each real campaign's accepted quotation replaces its seeded snapshot |
+| Commercial records | Campaign budgets and quotations, including ₦1,000,000 portal campaigns, ₦3,000,000 scopes for the three additional report contributor histories, ₦1,800,000 for Wuse Office Lunch, partial funding of ₦500,000, 7.5% VAT, five-vehicle scopes and zero production-cost components | EXT-COMMERCIAL-VALUES: approved quotation components, production prices and commissions; each real campaign's accepted quotation replaces its seeded snapshot |
 | Complaint handling | Existing categories and fictional replies in the inventory below; no reply target is configured | REQ-020 and REQ-021 |
 | Staff roster and contacts | The seven fictional Terrax staff in the inventory, their departmental actors and `@terraxmedia.com` addresses | Client's actual staff names, departments and sign-in details |
 | Driver identity and payment details | Fictional people, plates, licence numbers and document cards; encrypted NIN `00000000000`, non-routable all-zero bank account `0000000000`, bank code `999` | Each applicant's actual documents, identity checks and verified exact bank-account version |
@@ -90,35 +90,35 @@ This one table lists persisted names and human-written fields, including frozen 
 | `audit_events.metadata.before.reason` | Hold transfers while Finance checks today's bank advice. |
 | `audit_events.metadata.note` | The upload matches the route recorded that morning.<br>The upload repeats a point already recorded on this route. |
 | `audit_events.metadata.purpose` | person_payee_approval |
-| `audit_events.metadata.reason` | Finance has checked the bank advice; transfers can continue.<br>Hold transfers while Finance checks today's bank advice.<br>Please hold deliveries while the Ikeja showroom is repainted.<br>Please hold lunch deliveries while the Ikeja kitchen is renovated.<br>Return the campaign payment after the advertiser's cancellation.<br>person_payee_approval:3641fbe3-1431-44bd-a679-e8397a5f166a<br>vehicle_approval:a6e1ba6d-0f2d-4439-a8da-a02dabea0a35 |
+| `audit_events.metadata.reason` | Finance has checked the bank advice; transfers can continue.<br>Hold transfers while Finance checks today's bank advice.<br>Please hold deliveries while the Wuse showroom is repainted.<br>Please hold lunch deliveries while the Wuse kitchen is renovated.<br>Return the campaign payment after the advertiser's cancellation.<br>person_payee_approval:3641fbe3-1431-44bd-a679-e8397a5f166a<br>vehicle_approval:a6e1ba6d-0f2d-4439-a8da-a02dabea0a35 |
 | `audit_events.metadata.rejection_reason` | Please enlarge the phone number before printing. |
 | `audit_events.metadata.resolution_note` | The car remained at the depot during the recorded trip.<br>The driver was waiting at the market entrance; the route checks out. |
-| `campaign_assignments.notes` | All agreed routes completed by Friday.<br>Collect the catering panels at the Wuse office on Friday.<br>Collect the door panels at the Ikeja office.<br>Deliver lunch orders around Yaba and Surulere.<br>Market deliveries finished on Friday. |
-| `campaign_assignments.offer_terms.branding.campaign_name` | Aster Vale Foods — Mainland Deliveries<br>Beryl Lane Grocers — Market Routes<br>Cedar Bay Furnishings — Ikeja Showroom<br>Linden Harbour Clothing — Lagos Commute<br>Marula Kitchens — Ikeja Office Lunch<br>Marula Kitchens — Island Lunch Deliveries<br>Marula Kitchens — Lagos Lunch Routes<br>Marula Kitchens — Wuse Lunch Rush<br>Marula Kitchens — Wuse Weekend Catering<br>Oriole Books — Island Reading Week<br>Sable Ridge Travel — Airport Arrivals |
+| `campaign_assignments.notes` | All agreed routes completed by Friday.<br>Collect the catering panels at the Wuse office on Friday.<br>Collect the door panels at the Wuse office.<br>Deliver lunch orders around Wuse II and Wuse.<br>Market deliveries finished on Friday. |
+| `campaign_assignments.offer_terms.branding.campaign_name` | Aster Vale Foods — Wuse Deliveries<br>Beryl Lane Grocers — Market Routes<br>Cedar Bay Furnishings — Wuse Showroom<br>Linden Harbour Clothing — Wuse Commute<br>Marula Kitchens — Wuse Office Lunch<br>Marula Kitchens — Wuse II Lunch Deliveries<br>Marula Kitchens — Wuse Lunch Routes<br>Marula Kitchens — Wuse Lunch Rush<br>Marula Kitchens — Wuse Weekend Catering<br>Oriole Books — Wuse Reading Week<br>Sable Ridge Travel — Jabi Travel Enquiries |
 | `campaign_assignments.offer_terms.creative.name` | Aster Vale Foods door panel<br>Beryl Lane Grocers door panel<br>Cedar Bay Furnishings door panel<br>Door panel — teal<br>Linden Harbour Clothing door panel<br>Marula Kitchens door panel<br>Oriole Books door panel<br>Sable Ridge Travel door panel |
-| `campaign_assignments.offer_terms.service_area.city` | abuja<br>lagos |
-| `campaign_assignments.offer_terms.zones.bonus[].name` | Aminu Kano Crescent<br>Surulere shops<br>Yaba offices |
-| `campaign_assignments.offer_terms.zones.exclusion[].name` | Apapa port access |
-| `campaign_assignments.offer_terms.zones.premium[].name` | Airport Road<br>Ikeja and Maryland<br>Lagos Island<br>Lagos Mainland<br>Lagos Market Corridor<br>Wuse II offices<br>Wuse II shops |
-| `campaign_assignments.offer_terms.zones.target[].name` | Airport Road<br>Ikeja and Maryland<br>Lagos Island<br>Lagos Mainland<br>Lagos Market Corridor<br>Wuse II offices<br>Wuse II shops |
-| `campaign_cancellation_settlement_revisions.snapshot.reason` | Please cancel the Island launch until the new branch is ready.<br>Please cancel the collection campaign; the van delivery has been delayed. |
-| `campaign_cancellations.reason` | Please cancel the Island launch until the new branch is ready.<br>Please cancel the collection campaign; the van delivery has been delayed. |
-| `campaign_change_requests.impact_preview.after.campaign_name` | Aster Vale Foods — Mainland Deliveries<br>Marula Kitchens — Lagos Lunch Routes |
-| `campaign_change_requests.impact_preview.before.campaign_name` | Aster Vale Foods — Mainland Deliveries<br>Marula Kitchens — Lagos Lunch Routes |
+| `campaign_assignments.offer_terms.service_area.city` | abuja |
+| `campaign_assignments.offer_terms.zones.bonus[].name` | Aminu Kano Crescent<br>Wuse shops<br>Wuse II offices |
+| `campaign_assignments.offer_terms.zones.exclusion[].name` | Utako motor park access |
+| `campaign_assignments.offer_terms.zones.premium[].name` | Jabi Lake Road<br>Wuse offices<br>Wuse bookshops<br>Wuse district<br>Wuse Market Corridor<br>Wuse II offices<br>Wuse II shops |
+| `campaign_assignments.offer_terms.zones.target[].name` | Jabi Lake Road<br>Wuse offices<br>Wuse bookshops<br>Wuse district<br>Wuse Market Corridor<br>Wuse II offices<br>Wuse II shops |
+| `campaign_cancellation_settlement_revisions.snapshot.reason` | Please cancel the Asokoro launch until the new branch is ready.<br>Please cancel the collection campaign; the van delivery has been delayed. |
+| `campaign_cancellations.reason` | Please cancel the Asokoro launch until the new branch is ready.<br>Please cancel the collection campaign; the van delivery has been delayed. |
+| `campaign_change_requests.impact_preview.after.campaign_name` | Aster Vale Foods — Wuse Deliveries<br>Marula Kitchens — Wuse Lunch Routes |
+| `campaign_change_requests.impact_preview.before.campaign_name` | Aster Vale Foods — Wuse Deliveries<br>Marula Kitchens — Wuse Lunch Routes |
 | `campaign_change_requests.impact_preview.request_reason` | Please cover the next week of office deliveries.<br>Please extend the lunch deliveries for another week. |
 | `campaign_creatives.name` | Aster Vale Foods door panel<br>Beryl Lane Grocers door panel<br>Cedar Bay Furnishings door panel<br>Copper Finch Bakery door panel<br>Door panel — teal<br>Dove Crescent Laundry door panel<br>Juniper Court Pharmacy door panel<br>Linden Harbour Clothing door panel<br>Mango Grove Interiors door panel<br>Marula Kitchens door panel<br>Oriole Books door panel<br>Sable Ridge Travel door panel |
 | `campaign_financial_authorizations.reason` | Full payment received for the agreed routes. |
 | `campaign_payout_rule_revisions.reason` | Daily rate agreed for the scheduled routes. |
-| `campaign_zones.description` | Deliver lunch orders to offices along Herbert Macaulay Way.<br>Heavy industrial traffic; avoid during campaigns.<br>Heavy port traffic; avoid during campaigns.<br>Invite readers to bookshops along Herbert Macaulay Way.<br>Promote local deliveries around Bode Thomas Street shops.<br>Promote lunch deliveries along Aminu Kano Crescent.<br>Promote the reading week around Lagos Island bookshops.<br>Promote weekend orders around Aminu Kano Crescent shops.<br>Reach furniture shoppers along Ikorodu Road and Maryland.<br>Reach households along the Maitama neighbourhood routes.<br>Reach lunch customers along the Yaba and Surulere routes.<br>Reach office workers along Aminu Kano Crescent.<br>Reach shops along the Mainland market routes.<br>Reach shops and offices along the Yaba and Surulere routes.<br>Reach travellers along Airport Road in Ikeja.<br>Reach weekday customers around Area 11 offices. |
-| `campaign_zones.name` | Airport Road<br>Aminu Kano Crescent<br>Apapa port access<br>Garki offices<br>Ikeja and Maryland<br>Lagos Island<br>Lagos Mainland<br>Lagos Market Corridor<br>Maitama homes<br>Surulere shops<br>Wuse II offices<br>Wuse II shops<br>Yaba bookshops<br>Yaba offices |
-| `campaigns.description` | Bring weekday lunch deliveries to offices around Garki.<br>Bring weekday lunches to offices along Allen Avenue.<br>Bring weekday lunches to offices around Maitama.<br>Deliver lunch orders around Yaba and Surulere.<br>Deliver weekday lunches around Lagos Island offices.<br>Delivery visibility around Lagos offices.<br>Introduce a lunch collection point for Lekki residents.<br>Introduce doorstep laundry collection around Victoria Island.<br>Introduce the new furniture collection around Maitama.<br>Invite readers to the weekend book fair around Yaba.<br>Lunchtime visibility around Wuse II offices.<br>Offer weekend lunch deliveries around Yaba homes.<br>Promote weekend bread orders around Wuse II.<br>Promote weekend catering orders around Wuse II.<br>Reach households along the Lekki collection route.<br>Visibility along Lagos Mainland commuter routes.<br>Visibility around Garki offices before the shop opens.<br>Visibility around Lagos markets and neighbourhood shops.<br>Visibility around shops and offices in Lagos. |
-| `campaigns.name` | Aster Vale Foods — Mainland Deliveries<br>Beryl Lane Grocers — Market Routes<br>Cedar Bay Furnishings — Ikeja Showroom<br>Copper Finch Bakery — Weekend Orders<br>Dove Crescent Laundry — Home Collection<br>Dove Crescent Laundry — Island Collection<br>Juniper Court Pharmacy — Garki Opening<br>Linden Harbour Clothing — Lagos Commute<br>Mango Grove Interiors — Maitama Collection<br>Marula Kitchens — Garki Office Lunch<br>Marula Kitchens — Ikeja Office Lunch<br>Marula Kitchens — Island Lunch Deliveries<br>Marula Kitchens — Lagos Lunch Routes<br>Marula Kitchens — Lekki Lunch Collection<br>Marula Kitchens — Maitama Office Lunch<br>Marula Kitchens — Wuse Lunch Rush<br>Marula Kitchens — Wuse Weekend Catering<br>Marula Kitchens — Yaba Weekend Lunch<br>Oriole Books — Island Reading Week<br>Oriole Books — Yaba Book Fair<br>Sable Ridge Travel — Airport Arrivals |
+| `campaign_zones.description` | Deliver lunch orders to offices along Aminu Kano Crescent.<br>Busy junction; avoid during campaigns.<br>Heavy motor park traffic; avoid during campaigns.<br>Invite readers to bookshops along Aminu Kano Crescent.<br>Promote local deliveries around Adetokunbo Ademola Crescent shops.<br>Promote lunch deliveries along Aminu Kano Crescent.<br>Promote the reading week around Wuse bookshops.<br>Promote weekend orders around Aminu Kano Crescent shops.<br>Reach furniture shoppers along Adetokunbo Ademola Crescent.<br>Reach households along the Maitama neighbourhood routes.<br>Reach lunch customers along the Wuse II and Wuse routes.<br>Reach office workers along Aminu Kano Crescent.<br>Reach shops along the Wuse market routes.<br>Reach shops and offices along the Wuse II and Wuse routes.<br>Reach travellers along Jabi Lake Road in Jabi.<br>Reach weekday customers around Area 11 offices. |
+| `campaign_zones.name` | Jabi Lake Road<br>Aminu Kano Crescent<br>Utako motor park access<br>Garki offices<br>Wuse offices<br>Wuse bookshops<br>Wuse district<br>Wuse Market Corridor<br>Maitama homes<br>Wuse shops<br>Wuse II offices<br>Wuse II shops<br>Wuse II bookshops |
+| `campaigns.description` | Bring weekday lunch deliveries to offices around Garki.<br>Bring weekday lunches to offices along Adetokunbo Ademola Crescent.<br>Bring weekday lunches to offices around Maitama.<br>Deliver lunch orders around Wuse II and Wuse.<br>Deliver weekday lunches around Wuse II offices.<br>Delivery visibility around Abuja offices.<br>Introduce a lunch collection point for Jabi residents.<br>Introduce doorstep laundry collection around Asokoro.<br>Introduce the new furniture collection around Maitama.<br>Invite readers to the weekend book fair around Wuse II.<br>Lunchtime visibility around Wuse II offices.<br>Offer weekend lunch deliveries around Wuse II homes.<br>Promote weekend bread orders around Wuse II.<br>Promote weekend catering orders around Wuse II.<br>Reach households along the Jabi collection route.<br>Visibility along Wuse district commuter routes.<br>Visibility around Garki offices before the shop opens.<br>Visibility around Abuja markets and neighbourhood shops.<br>Visibility around shops and offices in Abuja. |
+| `campaigns.name` | Aster Vale Foods — Wuse Deliveries<br>Beryl Lane Grocers — Market Routes<br>Cedar Bay Furnishings — Wuse Showroom<br>Copper Finch Bakery — Weekend Orders<br>Dove Crescent Laundry — Home Collection<br>Dove Crescent Laundry — Asokoro Collection<br>Juniper Court Pharmacy — Garki Opening<br>Linden Harbour Clothing — Wuse Commute<br>Mango Grove Interiors — Maitama Collection<br>Marula Kitchens — Garki Office Lunch<br>Marula Kitchens — Wuse Office Lunch<br>Marula Kitchens — Wuse II Lunch Deliveries<br>Marula Kitchens — Wuse Lunch Routes<br>Marula Kitchens — Jabi Lunch Collection<br>Marula Kitchens — Maitama Office Lunch<br>Marula Kitchens — Wuse Lunch Rush<br>Marula Kitchens — Wuse Weekend Catering<br>Marula Kitchens — Wuse II Weekend Lunch<br>Oriole Books — Wuse Reading Week<br>Oriole Books — Wuse II Book Fair<br>Sable Ridge Travel — Jabi Travel Enquiries |
 | `commercial_quotation_revisions.line_items[].description` | Vehicle advertising on the agreed routes |
 | `commercial_quotation_revisions.payment_terms.notes` | Payment before printing and installation. |
-| `commercial_quote_requests.request_details.notes` | Please quote for the Yaba book fair weekend.<br>Please quote for weekday visibility around the selected areas.<br>Please quote for weekend lunch deliveries around Yaba. |
+| `commercial_quote_requests.request_details.notes` | Please quote for the Wuse II book fair weekend.<br>Please quote for weekday visibility around the selected areas.<br>Please quote for weekend lunch deliveries around Wuse II. |
 | `commercial_terms.line_items[].description` | Vehicle advertising on the agreed routes |
 | `commercial_terms.payment_terms.notes` | Payment before printing and installation. |
-| `complaint_messages.body` | Can the cars cover Aminu Kano Crescent before lunch?<br>Could you send the invoice with our Wuse office address?<br>My Tuesday trip ended near Yaba but the earnings are still pending.<br>Please visit the Ikeja office tomorrow morning for a replacement.<br>The app stopped recording after I left the fuel station.<br>The corrected panel is fitted and the photos are attached.<br>The lunch menu on the back panel needs the new phone number.<br>The rear sticker is lifting at the left corner.<br>Yes, the morning route includes Aminu Kano Crescent.<br>Your route has been checked and the missing section has been corrected. |
+| `complaint_messages.body` | Can the cars cover Aminu Kano Crescent before lunch?<br>Could you send the invoice with our Wuse office address?<br>My Tuesday trip ended near Wuse II but the earnings are still pending.<br>Please visit the Wuse office tomorrow morning for a replacement.<br>The app stopped recording after I left the fuel station.<br>The corrected panel is fitted and the photos are attached.<br>The lunch menu on the back panel needs the new phone number.<br>The rear sticker is lifting at the left corner.<br>Yes, the morning route includes Aminu Kano Crescent.<br>Your route has been checked and the missing section has been corrected. |
 | `creative_review_events.rejection_reason` | Please enlarge the phone number before printing. |
 | `creative_review_events.reviewed_snapshot.name` | Aster Vale Foods door panel<br>Beryl Lane Grocers door panel<br>Cedar Bay Furnishings door panel<br>Copper Finch Bakery door panel<br>Door panel — teal<br>Dove Crescent Laundry door panel<br>Juniper Court Pharmacy door panel<br>Linden Harbour Clothing door panel<br>Mango Grove Interiors door panel<br>Marula Kitchens door panel<br>Oriole Books door panel<br>Sable Ridge Travel door panel |
 | `disclosure_query_decisions.reason` | privacy_floor_passed |
@@ -127,9 +127,9 @@ This one table lists persisted names and human-written fields, including frozen 
 | `driver_applications.service_city` | Abuja |
 | `driver_phone_versions.masked_phone` | 000••••0000 |
 | `driver_profiles.license_number` | ABJ-2023-49158<br>LAG-2024-58219<br>LAG-2024-58301<br>LAG-2024-58302<br>LAG-2024-58303<br>LAG-2024-58304<br>LAG-2024-58305<br>LAG-2024-58306<br>LAG-2024-58307<br>LAG-2024-58308<br>LAG-2024-58309 |
-| `driver_profiles.service_city` | Abuja<br>Lagos |
+| `driver_profiles.service_city` | Abuja |
 | `earnings_ledger_entries.description` | No earnings for this route<br>Trip payout |
-| `evidence_verifications.result_note` | All panels are secure and the phone number is readable.<br>Meet the driver near Yaba market after the morning route.<br>Please check the rear panel at the Ikeja office.<br>The rear panel is peeling; arrange a replacement before the next route. |
+| `evidence_verifications.result_note` | All panels are secure and the phone number is readable.<br>Meet the driver near Wuse II market after the morning route.<br>Please check the rear panel at the Wuse office.<br>The rear panel is peeling; arrange a replacement before the next route. |
 | `exposure_scores.result_snapshot.label` | Exposure score |
 | `file_upload_intents.original_filename` | aster-vale-foods.png<br>ayodele-bakare-driver-license.png<br>ayodele-bakare-driver-photo.png<br>ayodele-bakare-insurance.png<br>ayodele-bakare-registration.png<br>ayodele-bakare-signed-agreement.png<br>ayodele-bakare-vehicle-photo.png<br>back.png<br>beryl-lane-grocers.png<br>cedar-bay-furnishings.png<br>close_up.png<br>copper-finch-bakery.png<br>dove-crescent-laundry.png<br>front.png<br>juniper-court-pharmacy.png<br>left.png<br>linden-harbour-clothing.png<br>mango-grove-interiors.png<br>marula-kitchens.png<br>nneka-umeh-driver-license.png<br>nneka-umeh-driver-photo.png<br>nneka-umeh-signed-agreement.png<br>oriole-books.png<br>right.png<br>sable-ridge-travel.png<br>suleiman-idris-driver-license.png<br>suleiman-idris-driver-photo.png<br>suleiman-idris-signed-agreement.png |
 | `file_upload_intents.purpose` | creative<br>driver_kyc<br>installation_evidence<br>vehicle_evidence |
@@ -145,14 +145,14 @@ This one table lists persisted names and human-written fields, including frozen 
 | `invoices.issuer_snapshot.bank_name` | OPay |
 | `invoices.issuer_snapshot.legal_name` | Terrax Media Company Ltd |
 | `invoices.line_items[].description` | Vehicle advertising on the agreed routes |
-| `manual_driver_contact_tasks.completion_note` | Amina can visit the Ikeja office on Thursday.<br>Chinedu was driving; call again after six. |
+| `manual_driver_contact_tasks.completion_note` | Amina can visit the Wuse office on Thursday.<br>Chinedu was driving; call again after six. |
 | `manual_driver_contact_tasks.purpose` | Arrange an installation visit |
-| `notifications.payload.campaign_name` | Marula Kitchens — Lagos Lunch Routes |
+| `notifications.payload.campaign_name` | Marula Kitchens — Wuse Lunch Routes |
 | `payment_receipts.evidence_reference` | Transfer advice received by Finance. |
 | `payment_receipts.payer_name` | Aster Vale Foods<br>Beryl Lane Grocers<br>Cedar Bay Furnishings<br>Copper Finch Bakery<br>Dove Crescent Laundry<br>Linden Harbour Clothing<br>Marula Kitchens<br>Oriole Books |
 | `payout_automatic_alerts.detail.reason` | provider_unavailable |
 | `payout_automatic_controls.reason` | Finance has checked the bank advice; transfers can continue. |
-| `payout_correction_orders.reason` | Please check the Yaba distance after the route was corrected.<br>Please recheck the distance recorded near the fuel station.<br>The Surulere return leg needs a second review.<br>The route review is complete; please confirm the earnings. |
+| `payout_correction_orders.reason` | Please check the Wuse II distance after the route was corrected.<br>Please recheck the distance recorded near the fuel station.<br>The Wuse return leg needs a second review.<br>The route review is complete; please confirm the earnings. |
 | `payout_submission_intents.provider_name` | fake |
 | `quarantined_ping_batches.resolution_note` | The upload matches the route recorded that morning.<br>The upload repeats a point already recorded on this route. |
 | `receipt_lifecycle_events.reason` | First instalment received; the balance is due before printing.<br>Return the campaign payment after the advertiser's cancellation.<br>Transfer amount matches the accepted quotation. |
@@ -161,8 +161,8 @@ This one table lists persisted names and human-written fields, including frozen 
 | `report_issuances.snapshot.metrics[].values[].label` | Active tracking time<br>Distance<br>NGN<br>Trip count<br>Value |
 | `stored_files.original_filename` | aster-vale-foods.png<br>ayodele-bakare-driver-license.png<br>ayodele-bakare-driver-photo.png<br>ayodele-bakare-insurance.png<br>ayodele-bakare-registration.png<br>ayodele-bakare-signed-agreement.png<br>ayodele-bakare-vehicle-photo.png<br>back.png<br>beryl-lane-grocers.png<br>cardvert-campaign-performance-analysis-v1.csv<br>cardvert-campaign-performance-analysis-v1.pdf<br>cedar-bay-furnishings.png<br>close_up.png<br>copper-finch-bakery.png<br>dove-crescent-laundry.png<br>front.png<br>juniper-court-pharmacy.png<br>left.png<br>linden-harbour-clothing.png<br>mango-grove-interiors.png<br>marula-kitchens.png<br>nneka-umeh-driver-license.png<br>nneka-umeh-driver-photo.png<br>nneka-umeh-signed-agreement.png<br>oriole-books.png<br>right.png<br>sable-ridge-travel.png<br>suleiman-idris-driver-license.png<br>suleiman-idris-driver-photo.png<br>suleiman-idris-signed-agreement.png |
 | `stored_files.purpose` | creative<br>driver_kyc<br>installation_evidence<br>report_export<br>vehicle_evidence |
-| `traffic_density_profiles.description` | Weekday traffic around Lagos offices and markets.<br>Weekday traffic around Wuse and Garki offices.<br>Weekend traffic around Lagos shopping streets. |
-| `traffic_density_profiles.name` | Abuja office traffic<br>Lagos weekday traffic<br>Lagos weekend traffic |
+| `traffic_density_profiles.description` | Weekday traffic around Abuja offices and markets.<br>Weekday traffic around Wuse and Garki offices.<br>Weekend traffic around Abuja shopping streets. |
+| `traffic_density_profiles.name` | Abuja office traffic<br>Abuja weekday traffic<br>Abuja weekend traffic |
 | `trip_sessions.end_reason` | driver_finished |
 | `trip_sessions.seal_reason` | client_complete |
 | `users.email` | abdulrahman.yusuf@mail.ng<br>adesola.aderemi@copperfinch.ng<br>admin@demo.mobility.local<br>advertiser@demo.mobility.local<br>aisha.garba@terraxmedia.com<br>automatic-payouts@cardvert.invalid<br>ayodele.bakare@mail.ng<br>chiamaka.obi@terraxmedia.com<br>chukwudi.agu@mail.ng<br>driver.wuse@demo.mobility.local<br>driver01@demo.mobility.local<br>driver02@demo.mobility.local<br>driver03@demo.mobility.local<br>driver04@demo.mobility.local<br>driver05@demo.mobility.local<br>driver06@demo.mobility.local<br>driver07@demo.mobility.local<br>driver08@demo.mobility.local<br>driver09@demo.mobility.local<br>driver@demo.mobility.local<br>efe.okoro@terraxmedia.com<br>ejiro.oghene@dovecrescent.ng<br>fatima.adamu@mail.ng<br>funmilayo.ajayi@lindenharbour.ng<br>halima.mohammed@oriolebooks.ng<br>hauwa.sani@terraxmedia.com<br>ibrahim.danjuma@terraxmedia.com<br>ijeoma.nwachukwu@junipercourt.ng<br>kabir.usman@mangogrove.ng<br>nneka.umeh@mail.ng<br>obinna.onyekachi@mail.ng<br>olumide.fashola@terraxmedia.com<br>osahon.igbinosa@sableridge.ng<br>suleiman.idris@mail.ng<br>tamuno.briggs@beryllane.ng<br>temitope.ojo@terraxmedia.com<br>uche.nnaji@cedarbay.ng<br>viewer@demo.mobility.local<br>yetunde.akinyemi@astervale.ng<br>yewande.afolabi@mail.ng |
@@ -177,28 +177,26 @@ This one table lists persisted names and human-written fields, including frozen 
 
 ## Wave 2 C renewal and phone examples — 7 October 2026
 
-Development/preview drivers use Ofcom's reserved fictional mobile range
-[07700 900000–900999](https://www.ofcom.org.uk/phones-and-broadband/phone-numbers/numbers-for-drama),
-which is not allocated to real customers. These UK country-code numbers are
-deliberately different from a plausible routable Nigerian mobile number.
+Development/preview drivers use synthetic Nigerian-format +234 numbers.
+The deliberately invalid national prefix keeps them distinct from real subscriber numbers.
 No WhatsApp/SMS is sent by the application or seed.
 
 | Login | Fictional saved phone |
 | --- | --- |
-| driver@demo.mobility.local | +447700900100 |
-| driver01…driver09@demo.mobility.local | +447700900101…+447700900109, respectively |
-| abdulrahman.yusuf@mail.ng | +447700900110 |
-| nneka.umeh@mail.ng | +447700900111 |
-| ayodele.bakare@mail.ng | +447700900112 |
-| suleiman.idris@mail.ng | +447700900113 |
-| damilola.akinwale@demo.mobility.local | +447700900114 |
-| Terrax development/preview destination | +447700900999 |
+| driver@demo.mobility.local | +2340000000100 |
+| driver01…driver09@demo.mobility.local | +2340000000101…+2340000000109, respectively |
+| abdulrahman.yusuf@mail.ng | +2340000000110 |
+| nneka.umeh@mail.ng | +2340000000111 |
+| ayodele.bakare@mail.ng | +2340000000112 |
+| suleiman.idris@mail.ng | +2340000000113 |
+| damilola.akinwale@demo.mobility.local | +2340000000114 |
+| Terrax development/preview destination | +2347068369842 |
 
 Damilola Akinwale (`LagosRoutes2026!`) has an active login, a readable
-renewal example with identity documents rejected as unreadable, and vehicle
-documents explicitly marked expired for ABJ-714-KM. The six clearly fictional
+renewal example with only the driving licence rejected as unreadable, and only
+insurance marked expired on 3 October 2026 for ABJ-714-KM. The six clearly fictional
 PNG documents are privately stored and scanned through the existing seed
-pipeline. No licence/insurance expiry date or renewal period is invented.
+pipeline. The insurance date is an explicit fictional fixture, not a client renewal interval.
 Work remains pending until the current complete identity/bank and car revisions
 pass the existing review gates. Reruns preserve submitted revisions and decisions.
 
@@ -218,3 +216,9 @@ Existing Start demo drivers retain the trusted no-application/no-KYC baseline.
 The seed does not manufacture approved KYC or car snapshots without reviewed
 documents. Its existing synthetic payee, encrypted zero-value bank details and
 payout verification fixtures remain unchanged and are reused on rerun.
+
+### Abuja geography and temporary demo contact (REQ-125/128)
+
+Campaigns, routes and GPS use Abuja. The Wuse campaigns and their synthetic trip corridors occupy approximately 9.055–9.105° N, 7.43–7.51° E. Other place-specific campaigns use the named Abuja district. Brands are fictional; neighbourhood and street names are real. Disposable databases must be freshly seeded to replace old Lagos histories; immutable financial/trip history is never rewritten on rerun.
+
+Driver numbers +2340000000100 through +2340000000114 are synthetic E.164-shaped fixtures, not Nigerian subscriber numbers (the national prefix begins with zero). They are never sent messages. Terrax’s temporary destination +2347068369842 is the owner’s own number, authorized for local/preview demonstration only; REQ-126 asks the PM for Terrax’s real preview WhatsApp number. Production/staging settings remain blank and their existing operator/wording gates remain binding.

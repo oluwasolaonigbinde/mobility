@@ -56,7 +56,7 @@ def test_manual_contact_requires_current_purpose_matched_authority(
     )
     profile = create_test_driver_profile(db_sessionmaker, user_id=driver.id)
 
-    settings.phone_verification_terrax_number = "+447700900999"
+    settings.phone_verification_terrax_number = "+2347068369842"
 
     async def scenario():
         async with db_sessionmaker() as session:
@@ -290,7 +290,7 @@ def test_missing_manual_contact_task_returns_hidden_not_found(db_sessionmaker, s
 def test_verified_phone_consent_and_manual_contact_are_versioned_and_secret_safe(
     db_sessionmaker, settings
 ) -> None:
-    settings.phone_verification_terrax_number = "+447700900999"
+    settings.phone_verification_terrax_number = "+2347068369842"
     admin = create_test_user(db_sessionmaker, email="contact-admin@example.com")
     driver = create_test_user(
         db_sessionmaker,

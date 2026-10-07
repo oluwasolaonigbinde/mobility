@@ -30,9 +30,9 @@ class VehicleEvidenceSubmissionCreate(BaseModel):
 
     client_request_id: UUID
     expected_submission_id: UUID | None = None
-    registration_file_id: UUID
-    insurance_file_id: UUID
-    vehicle_photo_file_id: UUID
+    registration_file_id: UUID | None = None
+    insurance_file_id: UUID | None = None
+    vehicle_photo_file_id: UUID | None = None
 
 
 class DriverKycSubmissionRead(BaseModel):

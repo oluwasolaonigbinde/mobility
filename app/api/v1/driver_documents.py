@@ -15,7 +15,6 @@ from app.api.v1.dependencies import (
 from app.api.v1.kyc import _crypto
 from app.core.errors import AppError
 from app.models.driver import DriverProfile
-from app.models.stored_file import StoredFile
 from app.models.vehicle import Vehicle
 from app.schemas.driver_onboarding import (
     AdminDriverDocumentsRead,
@@ -67,20 +66,11 @@ async def _stages(
     return person, stages
 
 
-async def _names(session: AsyncSession, documents: dict[str, UUID]) -> dict[str, str]:
-    files = list(
-        await session.scalars(select(StoredFile).where(StoredFile.id.in_(documents.values())))
-    )
-    names = {
-        file.id: file.original_filename.replace("driver-kyc.", "driver-documents.").replace(
-            "vehicle-evidence.", "vehicle-documents."
-        )
-        for file in files
-    }
-    return {kind: names[file_id] for kind, file_id in documents.items() if file_id in names}
-
-
-@router.get("/driver/documents", response_model=DriverDocumentsRead)
+@router.get(
+    "/driver/documents",
+    response_model=DriverDocumentsRead,
+    response_model_exclude={"person_payee": {"masked_nin"}},
+)
 async def driver_documents(
     user: DriverUserDependency, session: SessionDependency
 ) -> DriverDocumentsRead:
@@ -89,7 +79,7 @@ async def driver_documents(
     now = await database_clock(session)
     vehicle_reads = []
     for stage in vehicles:
-        read = _admin_vehicle_response(stage)
+        read = _admin_vehicle_response(stage, now)
         if (
             read.status == "approved"
             and read.valid_until
@@ -99,9 +89,14 @@ async def driver_documents(
         vehicle_reads.append(
             VehicleStageRead(**read.model_dump(exclude={"document_file_ids", "decided_by_user_id"}))
         )
+    person_read = _admin_person_payee_response(person, now)
+    if person_read.status == "approved" and any(
+        item.status == "expired" for item in person_read.documents.values()
+    ):
+        person_read = person_read.model_copy(update={"status": "expired"})
     return DriverDocumentsRead(
         person_payee=PersonPayeeStageRead(
-            **_admin_person_payee_response(person).model_dump(
+            **person_read.model_dump(
                 exclude={
                     "document_file_ids",
                     "bank_account_version_id",
@@ -111,19 +106,14 @@ async def driver_documents(
                 }
             )
         ),
-        person_document_names=await _names(session, person.document_file_ids),
         vehicles=vehicle_reads,
-        vehicle_document_names={
-            str(stage.vehicle.id): await _names(session, stage.document_file_ids)
-            for stage in vehicles
-            if stage.vehicle is not None
-        },
     )
 
 
 @router.post(
     "/driver/documents/person-payee",
     response_model=PersonPayeeStageRead,
+    response_model_exclude={"masked_nin"},
     status_code=status.HTTP_201_CREATED,
 )
 async def renew_person_payee(

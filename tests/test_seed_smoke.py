@@ -33,8 +33,8 @@ def test_demo_seed_frontend_smoke_paths(
     assert campaigns_response.status_code == 200
     assert campaigns_response.json()["total"] >= 1
     campaign_items = {item["name"]: item for item in campaigns_response.json()["items"]}
-    assert campaign_items["Marula Kitchens — Lagos Lunch Routes"]["description"] == (
-        "Deliver lunch orders around Yaba and Surulere."
+    assert campaign_items["Marula Kitchens — Wuse Lunch Routes"]["description"] == (
+        "Deliver lunch orders around Wuse II and Wuse."
     )
     assert campaign_items["Marula Kitchens — Wuse Lunch Rush"]["description"] == (
         "Lunchtime visibility around Wuse II offices."
@@ -63,7 +63,7 @@ def test_demo_seed_frontend_smoke_paths(
     assert palmpay_heatmap_response.status_code == 200
     assert palmpay_heatmap_response.json()["features"]
 
-    market_routes_id = campaign_items["Marula Kitchens — Ikeja Office Lunch"]["id"]
+    market_routes_id = campaign_items["Marula Kitchens — Wuse Office Lunch"]["id"]
     market_routes_summary_response = postgis_db_client.get(
         f"/api/v1/advertiser/campaigns/{market_routes_id}/summary",
         headers=advertiser_headers,

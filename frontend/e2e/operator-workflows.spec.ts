@@ -79,7 +79,7 @@ test("named search narrows driver, vehicle and assignment work lists", async ({ 
   await expect(main.getByText("Chinedu Okafor")).toHaveCount(0);
   await main.getByRole("link", { name: /Tunde Adebayo/ }).click();
   await expect(
-    main.locator("#jobs").getByRole("link", { name: "Aster Vale Foods — Mainland Deliveries" }),
+    main.locator("#jobs").getByRole("link", { name: "Aster Vale Foods — Wuse Deliveries" }),
   ).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
@@ -90,14 +90,14 @@ test("activation readiness never invites a second activation of active work", as
   await page.getByRole("link", { name: /Tunde Adebayo/ }).click();
   await page
     .locator("#jobs")
-    .getByRole("link", { name: "Aster Vale Foods — Mainland Deliveries" })
+    .getByRole("link", { name: "Aster Vale Foods — Wuse Deliveries" })
     .click();
   const drawer = page.getByRole("dialog");
   await expect(drawer.getByText(/already active/i)).toBeVisible();
   await expect(drawer.getByRole("button", { name: /activate/i })).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
-  await page.goto("/admin/campaigns?tab=getting-ready&q=Airport");
-  await page.getByRole("link", { name: "Sable Ridge Travel — Airport Arrivals" }).click();
+  await page.goto("/admin/campaigns?tab=getting-ready&q=Jabi");
+  await page.getByRole("link", { name: "Sable Ridge Travel — Jabi Travel Enquiries" }).click();
   await page
     .locator("#drivers")
     .getByRole("link", { name: "Installation photos and job details" })
@@ -158,14 +158,14 @@ test("payout selection explains ineligible credits and closeout keeps paid facts
   await expect(page.getByRole("checkbox", { name: /Select Emeka Nwankwo/ }).first()).toBeDisabled();
   await expectNoHorizontalOverflow(page);
   await page.goto("/admin/campaigns?tab=live&q=Lunch");
-  await page.getByRole("link", { name: "Marula Kitchens — Lagos Lunch Routes" }).click();
+  await page.getByRole("link", { name: "Marula Kitchens — Wuse Lunch Routes" }).click();
   await page.getByRole("link", { name: "Review settlement and payout position" }).click();
   const closeout = page.getByRole("dialog");
   await expect(
     closeout.getByRole("heading", { name: "Settlement and payout position" }),
   ).toBeVisible();
-  await expect(closeout.getByText("Pay records marked paid: ₦761.53")).toBeVisible();
-  await expect(closeout.getByText("Confirmed provider transfers: ₦761.53")).toBeVisible();
+  await expect(closeout.getByText("Pay records marked paid: ₦189.70")).toBeVisible();
+  await expect(closeout.getByText("Confirmed provider transfers: ₦189.70")).toBeVisible();
   await expect(closeout.getByRole("button", { name: /complete|close campaign/i })).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
 });

@@ -306,7 +306,30 @@ async def submit_driver_kyc(
         .order_by(DriverKycSubmission.version.desc())
         .limit(1)
     )
-    _require_person_capture_state(current, allow_document_renewal)
+    from app.models.kyc import DriverKycReviewDecision
+    from app.services.document_reviews import document_outcomes
+
+    prior_decision = (
+        await session.scalar(
+            select(DriverKycReviewDecision).where(
+                DriverKycReviewDecision.submission_id == current.id
+            )
+        )
+        if current
+        else None
+    )
+    naturally_expired = bool(
+        current
+        and current.status == KycSubmissionStatus.APPROVED
+        and any(
+            item["status"] == "expired"
+            for item in document_outcomes(
+                prior_decision, document_file_ids, await database_clock(session)
+            ).values()
+        )
+    )
+    if not (allow_document_renewal and naturally_expired):
+        _require_person_capture_state(current, allow_document_renewal)
     current_version = current.version if current else None
     nin_record_id = uuid4()
     try:
@@ -425,6 +448,33 @@ def _require_person_capture_state(current: DriverKycSubmission | None, allow_ren
         )
 
 
+async def _resolve_vehicle_renewal_documents(
+    session, vehicle_id, expected_submission_id, document_file_ids, required
+):
+    previous = None
+    if expected_submission_id is not None:
+        previous = await session.get(VehicleEvidenceSubmission, expected_submission_id)
+        if previous is None or previous.vehicle_id != vehicle_id:
+            raise _error(
+                "VEHICLE_REVISION_STALE",
+                "Vehicle documents changed. Refresh before uploading again",
+                409,
+            )
+        if previous.purged_at is not None:
+            if set(document_file_ids) != required:
+                raise _error(
+                    "VEHICLE_EVIDENCE_INVALID", "Replace all removed vehicle evidence", 422
+                )
+        else:
+            document_file_ids = {
+                **await _vehicle_documents(session, previous.id),
+                **document_file_ids,
+            }
+    if set(document_file_ids) != required:
+        raise _error("VEHICLE_EVIDENCE_INVALID", "All vehicle evidence is required", 422)
+    return document_file_ids
+
+
 async def submit_vehicle_evidence(
     session: AsyncSession,
     *,
@@ -439,8 +489,8 @@ async def submit_vehicle_evidence(
 
     await _lock_users(session, {actor_user_id})
     required = {item.value for item in VehicleEvidenceDocumentType}
-    if set(document_file_ids) != required:
-        raise _error("VEHICLE_EVIDENCE_INVALID", "All vehicle evidence is required", 422)
+    if not set(document_file_ids).issubset(required):
+        raise _error("VEHICLE_EVIDENCE_INVALID", "Unknown vehicle document", 422)
     profile_id = await session.scalar(
         select(DriverProfile.id).where(DriverProfile.user_id == actor_user_id)
     )
@@ -454,6 +504,10 @@ async def submit_vehicle_evidence(
     )
     if vehicle is None:
         raise _error("VEHICLE_NOT_FOUND", "Vehicle was not found", status.HTTP_404_NOT_FOUND)
+    replacements = dict(document_file_ids)
+    document_file_ids = await _resolve_vehicle_renewal_documents(
+        session, vehicle.id, expected_submission_id, document_file_ids, required
+    )
     existing = await session.scalar(
         select(VehicleEvidenceSubmission).where(
             VehicleEvidenceSubmission.vehicle_id == vehicle.id,
@@ -517,6 +571,18 @@ async def submit_vehicle_evidence(
                 "VEHICLE_RESUBMISSION_NOT_ALLOWED",
                 "Only rejected or expired documents can be replaced",
                 409,
+            )
+        from app.services.document_reviews import document_outcomes
+
+        outcomes = document_outcomes(decision, required, now)
+        required_replacements = {
+            kind for kind, item in outcomes.items() if item["status"] in {"rejected", "expired"}
+        }
+        if not required_replacements.issubset(replacements):
+            raise _error(
+                "VEHICLE_REPLACEMENTS_REQUIRED",
+                "Replace the documents marked rejected or expired",
+                422,
             )
     current_version = current.version if current else None
     submission = VehicleEvidenceSubmission(

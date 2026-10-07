@@ -1928,6 +1928,13 @@
             "title": "Document File Ids",
             "type": "object"
           },
+          "documents": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/DocumentReviewRead"
+            },
+            "title": "Documents",
+            "type": "object"
+          },
           "encryption_algorithm": {
             "anyOf": [
               {
@@ -1982,6 +1989,16 @@
                 "type": "null"
               }
             ]
+          },
+          "replace_bank": {
+            "default": false,
+            "title": "Replace Bank",
+            "type": "boolean"
+          },
+          "replace_nin": {
+            "default": false,
+            "title": "Replace Nin",
+            "type": "boolean"
           },
           "status": {
             "$ref": "#/components/schemas/PersonPayeeStageStatus"
@@ -2398,6 +2415,13 @@
               "type": "string"
             },
             "title": "Document File Ids",
+            "type": "object"
+          },
+          "documents": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/DocumentReviewRead"
+            },
+            "title": "Documents",
             "type": "object"
           },
           "make": {
@@ -11665,6 +11689,52 @@
         "title": "DisplayProofRead",
         "type": "object"
       },
+      "DocumentReviewRead": {
+        "additionalProperties": false,
+        "properties": {
+          "expires_on": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires On"
+          },
+          "reason_code": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/KycReviewReason"
+              },
+              {
+                "$ref": "#/components/schemas/VehicleReviewReason"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason Code"
+          },
+          "status": {
+            "enum": [
+              "accepted",
+              "on_file",
+              "rejected",
+              "expired"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "DocumentReviewRead",
+        "type": "object"
+      },
       "DriverAccountSetupComplete": {
         "additionalProperties": false,
         "properties": {
@@ -12080,25 +12150,8 @@
       },
       "DriverDocumentsRead": {
         "properties": {
-          "person_document_names": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "title": "Person Document Names",
-            "type": "object"
-          },
           "person_payee": {
             "$ref": "#/components/schemas/PersonPayeeStageRead"
-          },
-          "vehicle_document_names": {
-            "additionalProperties": {
-              "additionalProperties": {
-                "type": "string"
-              },
-              "type": "object"
-            },
-            "title": "Vehicle Document Names",
-            "type": "object"
           },
           "vehicles": {
             "items": {
@@ -20410,22 +20463,43 @@
         "additionalProperties": false,
         "properties": {
           "account_name": {
-            "format": "password",
-            "title": "Account Name",
-            "type": "string",
-            "writeOnly": true
+            "anyOf": [
+              {
+                "format": "password",
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Name"
           },
           "account_number": {
-            "format": "password",
-            "title": "Account Number",
-            "type": "string",
-            "writeOnly": true
+            "anyOf": [
+              {
+                "format": "password",
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Number"
           },
           "bank_code": {
-            "format": "password",
-            "title": "Bank Code",
-            "type": "string",
-            "writeOnly": true
+            "anyOf": [
+              {
+                "format": "password",
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank Code"
           },
           "client_request_id": {
             "format": "uuid",
@@ -20433,14 +20507,28 @@
             "type": "string"
           },
           "driver_license_file_id": {
-            "format": "uuid",
-            "title": "Driver License File Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driver License File Id"
           },
           "driver_photo_file_id": {
-            "format": "uuid",
-            "title": "Driver Photo File Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driver Photo File Id"
           },
           "expected_submission_id": {
             "format": "uuid",
@@ -20448,26 +20536,33 @@
             "type": "string"
           },
           "nin": {
-            "format": "password",
-            "title": "Nin",
-            "type": "string",
-            "writeOnly": true
+            "anyOf": [
+              {
+                "format": "password",
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nin"
           },
           "signed_agreement_file_id": {
-            "format": "uuid",
-            "title": "Signed Agreement File Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signed Agreement File Id"
           }
         },
         "required": [
           "client_request_id",
-          "nin",
-          "account_name",
-          "account_number",
-          "bank_code",
-          "driver_license_file_id",
-          "driver_photo_file_id",
-          "signed_agreement_file_id",
           "expected_submission_id"
         ],
         "title": "PersonPayeeRenewalCreate",
@@ -20488,6 +20583,13 @@
           },
           "decision": {
             "$ref": "#/components/schemas/KycSubmissionStatus"
+          },
+          "document_reviews": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/DocumentReviewRead"
+            },
+            "title": "Document Reviews",
+            "type": "object"
           },
           "documents_readable_confirmed": {
             "default": false,
@@ -20548,6 +20650,13 @@
             ],
             "title": "Decided At"
           },
+          "documents": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/DocumentReviewRead"
+            },
+            "title": "Documents",
+            "type": "object"
+          },
           "masked_nin": {
             "anyOf": [
               {
@@ -20580,6 +20689,16 @@
                 "type": "null"
               }
             ]
+          },
+          "replace_bank": {
+            "default": false,
+            "title": "Replace Bank",
+            "type": "boolean"
+          },
+          "replace_nin": {
+            "default": false,
+            "title": "Replace Nin",
+            "type": "boolean"
           },
           "status": {
             "$ref": "#/components/schemas/PersonPayeeStageStatus"
@@ -25743,26 +25862,44 @@
             "title": "Expected Submission Id"
           },
           "insurance_file_id": {
-            "format": "uuid",
-            "title": "Insurance File Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Insurance File Id"
           },
           "registration_file_id": {
-            "format": "uuid",
-            "title": "Registration File Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Registration File Id"
           },
           "vehicle_photo_file_id": {
-            "format": "uuid",
-            "title": "Vehicle Photo File Id",
-            "type": "string"
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle Photo File Id"
           }
         },
         "required": [
-          "client_request_id",
-          "registration_file_id",
-          "insurance_file_id",
-          "vehicle_photo_file_id"
+          "client_request_id"
         ],
         "title": "VehicleEvidenceSubmissionCreate",
         "type": "object"
@@ -26057,6 +26194,13 @@
           "decision": {
             "$ref": "#/components/schemas/KycSubmissionStatus"
           },
+          "document_reviews": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/DocumentReviewRead"
+            },
+            "title": "Document Reviews",
+            "type": "object"
+          },
           "documents_readable_confirmed": {
             "default": false,
             "title": "Documents Readable Confirmed",
@@ -26157,6 +26301,13 @@
               }
             ],
             "title": "Decided At"
+          },
+          "documents": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/DocumentReviewRead"
+            },
+            "title": "Documents",
+            "type": "object"
           },
           "make": {
             "anyOf": [

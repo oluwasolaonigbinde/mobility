@@ -5611,6 +5611,10 @@ export interface components {
             document_file_ids?: {
                 [key: string]: string;
             };
+            /** Documents */
+            documents?: {
+                [key: string]: components["schemas"]["DocumentReviewRead"];
+            };
             /** Encryption Algorithm */
             encryption_algorithm?: string | null;
             /** Encryption Key Version */
@@ -5620,6 +5624,16 @@ export interface components {
             /** Purged At */
             purged_at?: string | null;
             reason_code?: components["schemas"]["KycReviewReason"] | null;
+            /**
+             * Replace Bank
+             * @default false
+             */
+            replace_bank: boolean;
+            /**
+             * Replace Nin
+             * @default false
+             */
+            replace_nin: boolean;
             status: components["schemas"]["PersonPayeeStageStatus"];
             /** Submission Id */
             submission_id?: string | null;
@@ -5778,6 +5792,10 @@ export interface components {
             /** Document File Ids */
             document_file_ids?: {
                 [key: string]: string;
+            };
+            /** Documents */
+            documents?: {
+                [key: string]: components["schemas"]["DocumentReviewRead"];
             };
             /** Make */
             make?: string | null;
@@ -9105,6 +9123,18 @@ export interface components {
              */
             verified_at: string;
         };
+        /** DocumentReviewRead */
+        DocumentReviewRead: {
+            /** Expires On */
+            expires_on?: string | null;
+            /** Reason Code */
+            reason_code?: components["schemas"]["KycReviewReason"] | components["schemas"]["VehicleReviewReason"] | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "accepted" | "on_file" | "rejected" | "expired";
+        };
         /** DriverAccountSetupComplete */
         DriverAccountSetupComplete: {
             /** New Password */
@@ -9275,17 +9305,7 @@ export interface components {
         };
         /** DriverDocumentsRead */
         DriverDocumentsRead: {
-            /** Person Document Names */
-            person_document_names?: {
-                [key: string]: string;
-            };
             person_payee: components["schemas"]["PersonPayeeStageRead"];
-            /** Vehicle Document Names */
-            vehicle_document_names?: {
-                [key: string]: {
-                    [key: string]: string;
-                };
-            };
             /** Vehicles */
             vehicles?: components["schemas"]["VehicleStageRead"][];
         };
@@ -12558,51 +12578,30 @@ export interface components {
         };
         /** PersonPayeeRenewalCreate */
         PersonPayeeRenewalCreate: {
-            /**
-             * Account Name
-             * Format: password
-             */
-            account_name: string;
-            /**
-             * Account Number
-             * Format: password
-             */
-            account_number: string;
-            /**
-             * Bank Code
-             * Format: password
-             */
-            bank_code: string;
+            /** Account Name */
+            account_name?: string | null;
+            /** Account Number */
+            account_number?: string | null;
+            /** Bank Code */
+            bank_code?: string | null;
             /**
              * Client Request Id
              * Format: uuid
              */
             client_request_id: string;
-            /**
-             * Driver License File Id
-             * Format: uuid
-             */
-            driver_license_file_id: string;
-            /**
-             * Driver Photo File Id
-             * Format: uuid
-             */
-            driver_photo_file_id: string;
+            /** Driver License File Id */
+            driver_license_file_id?: string | null;
+            /** Driver Photo File Id */
+            driver_photo_file_id?: string | null;
             /**
              * Expected Submission Id
              * Format: uuid
              */
             expected_submission_id: string;
-            /**
-             * Nin
-             * Format: password
-             */
-            nin: string;
-            /**
-             * Signed Agreement File Id
-             * Format: uuid
-             */
-            signed_agreement_file_id: string;
+            /** Nin */
+            nin?: string | null;
+            /** Signed Agreement File Id */
+            signed_agreement_file_id?: string | null;
         };
         /** PersonPayeeReviewDecisionCreate */
         PersonPayeeReviewDecisionCreate: {
@@ -12617,6 +12616,10 @@ export interface components {
              */
             client_request_id: string;
             decision: components["schemas"]["KycSubmissionStatus"];
+            /** Document Reviews */
+            document_reviews?: {
+                [key: string]: components["schemas"]["DocumentReviewRead"];
+            };
             /**
              * Documents Readable Confirmed
              * @default false
@@ -12645,11 +12648,25 @@ export interface components {
             created_at?: string | null;
             /** Decided At */
             decided_at?: string | null;
+            /** Documents */
+            documents?: {
+                [key: string]: components["schemas"]["DocumentReviewRead"];
+            };
             /** Masked Nin */
             masked_nin?: string | null;
             /** Purged At */
             purged_at?: string | null;
             reason_code?: components["schemas"]["KycReviewReason"] | null;
+            /**
+             * Replace Bank
+             * @default false
+             */
+            replace_bank: boolean;
+            /**
+             * Replace Nin
+             * @default false
+             */
+            replace_nin: boolean;
             status: components["schemas"]["PersonPayeeStageStatus"];
             /** Submission Id */
             submission_id?: string | null;
@@ -14638,21 +14655,12 @@ export interface components {
             client_request_id: string;
             /** Expected Submission Id */
             expected_submission_id?: string | null;
-            /**
-             * Insurance File Id
-             * Format: uuid
-             */
-            insurance_file_id: string;
-            /**
-             * Registration File Id
-             * Format: uuid
-             */
-            registration_file_id: string;
-            /**
-             * Vehicle Photo File Id
-             * Format: uuid
-             */
-            vehicle_photo_file_id: string;
+            /** Insurance File Id */
+            insurance_file_id?: string | null;
+            /** Registration File Id */
+            registration_file_id?: string | null;
+            /** Vehicle Photo File Id */
+            vehicle_photo_file_id?: string | null;
         };
         /** VehicleEvidenceSubmissionRead */
         VehicleEvidenceSubmissionRead: {
@@ -14755,6 +14763,10 @@ export interface components {
              */
             client_request_id: string;
             decision: components["schemas"]["KycSubmissionStatus"];
+            /** Document Reviews */
+            document_reviews?: {
+                [key: string]: components["schemas"]["DocumentReviewRead"];
+            };
             /**
              * Documents Readable Confirmed
              * @default false
@@ -14797,6 +14809,10 @@ export interface components {
             created_at?: string | null;
             /** Decided At */
             decided_at?: string | null;
+            /** Documents */
+            documents?: {
+                [key: string]: components["schemas"]["DocumentReviewRead"];
+            };
             /** Make */
             make?: string | null;
             /** Model */

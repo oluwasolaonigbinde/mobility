@@ -12,6 +12,7 @@ from app.api.v1.dependencies import (
 from app.core.errors import AppError
 from app.core.rate_limit import login_client_ip
 from app.models.driver_application import DriverApplication
+from app.models.kyc import VehicleReviewReason
 from app.models.user import UserRole, UserStatus
 from app.models.vehicle import VehicleType
 from app.schemas.driver_applications import (
@@ -60,13 +61,25 @@ from app.services.vehicle_onboarding import (
 router = APIRouter(prefix="/admin", tags=["Admin Users"])
 
 
-def _admin_person_payee_response(view) -> AdminPersonPayeeStageRead:
+def _admin_person_payee_response(view, now=None) -> AdminPersonPayeeStageRead:
+    from app.services.document_reviews import retained_document_outcomes
+
     submission = view.submission
     decision = view.decision
     if submission is None:
         return AdminPersonPayeeStageRead(status="not_submitted")
     return AdminPersonPayeeStageRead(
         status=submission.status,
+        documents=retained_document_outcomes(
+            decision,
+            view.document_file_ids,
+            ("driver_license", "driver_photo", "signed_agreement"),
+            now,
+        ),
+        replace_nin=submission.purged_at is not None
+        or bool(decision and decision.reason_code == "identity_mismatch"),
+        replace_bank=submission.purged_at is not None
+        or bool(decision and decision.reason_code == "bank_account_mismatch"),
         submission_id=submission.id,
         version=submission.version,
         masked_nin=f"*******{submission.nin_last_four}" if submission.purged_at is None else None,
@@ -83,7 +96,9 @@ def _admin_person_payee_response(view) -> AdminPersonPayeeStageRead:
     )
 
 
-def _admin_vehicle_response(view: VehicleStageView) -> AdminVehicleStageRead:
+def _admin_vehicle_response(view: VehicleStageView, now=None) -> AdminVehicleStageRead:
+    from app.services.document_reviews import retained_document_outcomes
+
     vehicle = view.vehicle
     submission = view.submission
     decision = view.decision
@@ -102,18 +117,32 @@ def _admin_vehicle_response(view: VehicleStageView) -> AdminVehicleStageRead:
         )
     return AdminVehicleStageRead(
         status=submission.status,
+        documents=retained_document_outcomes(
+            decision, view.document_file_ids, ("registration", "insurance", "vehicle_photo"), now
+        ),
+        purged_at=submission.purged_at,
         vehicle_id=vehicle.id,
         submission_id=submission.id,
         version=submission.version,
-        plate_number=submission.plate_number_snapshot,
-        plate_country_code=submission.plate_country_code_snapshot,
-        vehicle_type=submission.vehicle_type_snapshot,
-        make=submission.make_snapshot,
-        model=submission.model_snapshot,
-        year=submission.year_snapshot,
-        color=submission.color_snapshot,
+        plate_number=vehicle.plate_number
+        if submission.purged_at
+        else submission.plate_number_snapshot,
+        plate_country_code=vehicle.plate_country_code
+        if submission.purged_at
+        else submission.plate_country_code_snapshot,
+        vehicle_type=VehicleType(vehicle.vehicle_type)
+        if submission.purged_at
+        else (
+            VehicleType(submission.vehicle_type_snapshot)
+            if submission.vehicle_type_snapshot
+            else None
+        ),
+        make=vehicle.make if submission.purged_at else submission.make_snapshot,
+        model=vehicle.model if submission.purged_at else submission.model_snapshot,
+        year=vehicle.year if submission.purged_at else submission.year_snapshot,
+        color=vehicle.color if submission.purged_at else submission.color_snapshot,
         valid_until=decision.valid_until if decision else None,
-        reason_code=decision.reason_code if decision else None,
+        reason_code=VehicleReviewReason(decision.reason_code) if decision else None,
         created_at=submission.created_at,
         decided_at=decision.created_at if decision else None,
         document_file_ids=view.document_file_ids,

@@ -224,6 +224,10 @@ async def submit_application_person_payee(
     )
     if profile is None or profile.user_id != user_id:
         raise _error("PERSON_PAYEE_AUTHORITY_INVALID", "Driver documents are unavailable", 409)
+    if isinstance(payload, PersonPayeeRenewalCreate):
+        return await _submit_partial_person_renewal(
+            session, profile=profile, payload=payload, crypto=crypto, settings=settings
+        )
     documents = {
         "driver_license": payload.driver_license_file_id,
         "driver_photo": payload.driver_photo_file_id,
@@ -242,18 +246,6 @@ async def submit_application_person_payee(
     )
     applicant_capture_reference = f"driver-application-capture-v1:{payload.client_request_id}"
     if existing is not None:
-        if isinstance(payload, PersonPayeeRenewalCreate):
-            previous = await session.get(DriverKycSubmission, payload.expected_submission_id)
-            if (
-                previous is None
-                or previous.driver_profile_id != profile.id
-                or previous.version != existing.version - 1
-            ):
-                raise _error(
-                    "PERSON_PAYEE_RETRY_CONFLICT",
-                    "The document retry does not match the original request",
-                    409,
-                )
         require_submission_payload(existing)
         stored_details = await read_applicant_verified_bank_account(
             session,
@@ -296,14 +288,6 @@ async def submit_application_person_payee(
         .order_by(DriverKycSubmission.version.desc())
         .limit(1)
     )
-    if isinstance(payload, PersonPayeeRenewalCreate) and (
-        current is None or current.id != payload.expected_submission_id
-    ):
-        raise _error(
-            "PERSON_PAYEE_REVISION_STALE",
-            "Your documents changed. Refresh before uploading again",
-            409,
-        )
     if current is not None and current.status not in {
         KycSubmissionStatus.REJECTED,
         KycSubmissionStatus.EXPIRED,
@@ -338,11 +322,209 @@ async def submit_application_person_payee(
         allow_invited_actor=True,
         allow_document_renewal=True,
     )
-    if isinstance(payload, PersonPayeeRenewalCreate):
-        from app.services.vehicle_onboarding import reconcile_driver_work_eligibility
-
-        await reconcile_driver_work_eligibility(session, driver_profile_id=profile.id)
     return PersonPayeeView(kyc_view.submission, None, kyc_view.document_file_ids)
+
+
+async def _submit_partial_person_renewal(session, *, profile, payload, crypto, settings):
+    from app.services.document_reviews import document_outcomes
+
+    original = await session.get(DriverKycSubmission, payload.expected_submission_id)
+    if original is None or original.driver_profile_id != profile.id:
+        raise _error(
+            "PERSON_PAYEE_REVISION_STALE",
+            "Your documents changed. Refresh before uploading again",
+            409,
+        )
+    existing = await session.scalar(
+        select(DriverKycSubmission).where(
+            DriverKycSubmission.driver_profile_id == profile.id,
+            DriverKycSubmission.client_request_id == payload.client_request_id,
+        )
+    )
+    current = await session.scalar(
+        select(DriverKycSubmission)
+        .where(
+            DriverKycSubmission.driver_profile_id == profile.id,
+        )
+        .order_by(DriverKycSubmission.version.desc())
+        .limit(1)
+    )
+    if existing is not None:
+        if original.version != existing.version - 1:
+            raise _error(
+                "PERSON_PAYEE_RETRY_CONFLICT",
+                "The document retry does not match the original request",
+                409,
+            )
+    elif current is None or current.id != original.id:
+        raise _error(
+            "PERSON_PAYEE_REVISION_STALE",
+            "Your documents changed. Refresh before uploading again",
+            409,
+        )
+    if original.status not in {
+        KycSubmissionStatus.REJECTED,
+        KycSubmissionStatus.EXPIRED,
+        KycSubmissionStatus.APPROVED,
+    }:
+        raise _error(
+            "PERSON_PAYEE_RESUBMISSION_NOT_ALLOWED",
+            "Only rejected or expired evidence can be resubmitted",
+            409,
+        )
+    previous_documents = await _documents(session, original.id)
+    decision = await session.scalar(
+        select(DriverKycReviewDecision).where(DriverKycReviewDecision.submission_id == original.id)
+    )
+    from app.services.payout_rule_serialization import database_clock
+
+    outcomes = document_outcomes(decision, previous_documents, await database_clock(session))
+    if (
+        existing is None
+        and original.status == KycSubmissionStatus.APPROVED
+        and not any(item["status"] == "expired" for item in outcomes.values())
+    ):
+        raise _error(
+            "PERSON_PAYEE_RESUBMISSION_NOT_ALLOWED",
+            "Only rejected or expired documents can be replaced",
+            409,
+        )
+    documents = _renewal_person_documents(
+        original, payload, previous_documents, outcomes, exact_retry=existing is not None
+    )
+    nin = await _renewal_nin(session, profile, original, decision, payload, crypto)
+    bank_id = await _renewal_bank_version(
+        session, profile, original, decision, existing, payload, crypto
+    )
+    view = await submit_driver_kyc(
+        session,
+        actor_user_id=profile.user_id,
+        client_request_id=payload.client_request_id,
+        nin=nin,
+        bank_account_version_id=bank_id,
+        document_file_ids=documents,
+        crypto=crypto,
+        settings=settings,
+        allow_invited_actor=True,
+        allow_document_renewal=True,
+    )
+    from app.services.vehicle_onboarding import reconcile_driver_work_eligibility
+
+    await reconcile_driver_work_eligibility(session, driver_profile_id=profile.id)
+    return PersonPayeeView(view.submission, None, view.document_file_ids)
+
+
+def _renewal_person_documents(
+    original, payload, previous_documents, outcomes, *, exact_retry=False
+):
+    supplied_documents = {
+        kind: value
+        for kind in ("driver_license", "driver_photo", "signed_agreement")
+        if (value := getattr(payload, f"{kind}_file_id")) is not None
+    }
+    required = {
+        kind
+        for kind, item in outcomes.items()
+        if not exact_retry and item["status"] in {"rejected", "expired"}
+    }
+    required.update(
+        {"driver_license", "driver_photo", "signed_agreement"} - set(previous_documents)
+    )
+    if original.purged_at is not None:
+        required.update({"driver_license", "driver_photo", "signed_agreement"})
+    if not required.issubset(supplied_documents):
+        raise _error(
+            "PERSON_PAYEE_REPLACEMENTS_REQUIRED",
+            "Replace the documents marked rejected or expired",
+            422,
+        )
+    return {**previous_documents, **supplied_documents}
+
+
+async def _renewal_nin(session, profile, original, decision, payload, crypto):
+    from app.adapters.crypto import AssociatedData, CryptoOperationError
+    from app.services.kyc import DRIVER_NIN_FIELD, _envelope
+
+    nin = payload.nin.get_secret_value() if payload.nin else None
+    if (
+        original.purged_at is not None
+        or (decision and decision.reason_code == KycReviewReason.IDENTITY_MISMATCH)
+    ) and nin is None:
+        raise _error("PERSON_PAYEE_NIN_REQUIRED", "Enter your corrected NIN", 422)
+    if nin is None:
+        try:
+            nin = crypto.decrypt(
+                _envelope(original.encrypted_nin),
+                AssociatedData(
+                    tenant_id=profile.user_id,
+                    record_id=original.nin_record_id,
+                    field_name=DRIVER_NIN_FIELD,
+                ),
+            ).decode("ascii")
+        except (CryptoOperationError, UnicodeDecodeError):
+            raise _error(
+                "KYC_DECRYPTION_FAILED", "Saved identity details could not be authenticated", 409
+            ) from None
+        await create_audit_event(
+            session,
+            actor_user_id=profile.user_id,
+            action="driver.kyc.renewal_reuse",
+            entity_type="driver_kyc_submission",
+            entity_id=str(original.id),
+            metadata={"version": original.version},
+        )
+    return nin
+
+
+async def _renewal_bank_version(session, profile, original, decision, existing, payload, crypto):
+    bank_values = [payload.account_name, payload.account_number, payload.bank_code]
+    if any(bank_values) and not all(bank_values):
+        raise _error(
+            "PERSON_PAYEE_BANK_DETAILS_REQUIRED",
+            "Enter the account name, number and bank together",
+            422,
+        )
+    replace_bank = original.purged_at is not None or bool(
+        decision and decision.reason_code == KycReviewReason.BANK_ACCOUNT_MISMATCH
+    )
+    if replace_bank and not all(bank_values):
+        raise _error("PERSON_PAYEE_BANK_DETAILS_REQUIRED", "Enter your corrected bank details", 422)
+    bank_id = original.bank_account_version_id
+    if all(bank_values):
+        details = VerifiedBankAccountDetails(
+            account_name=payload.account_name.get_secret_value(),
+            account_number=payload.account_number.get_secret_value(),
+            bank_code=payload.bank_code.get_secret_value(),
+        )
+        if existing:
+            stored = await read_applicant_verified_bank_account(
+                session,
+                bank_account_version_id=existing.bank_account_version_id,
+                actor_user_id=profile.user_id,
+                crypto=crypto,
+                purpose="onboarding_exact_retry",
+            )
+            if stored != details:
+                raise _error(
+                    "PERSON_PAYEE_RETRY_CONFLICT",
+                    "The document retry does not match the original request",
+                    409,
+                )
+            bank_id = existing.bank_account_version_id
+        else:
+            payee, _ = await create_applicant_payee(
+                session, driver_profile_id=profile.id, actor_user_id=profile.user_id
+            )
+            account = await add_applicant_bank_account_version(
+                session,
+                payee_id=payee.id,
+                details=details,
+                verification_reference=f"driver-application-capture-v1:{payload.client_request_id}",
+                actor_user_id=profile.user_id,
+                crypto=crypto,
+            )
+            bank_id = account.id
+    return bank_id
 
 
 def _decision_fingerprint(*, application_id: UUID, payload: PersonPayeeReviewDecisionCreate) -> str:
@@ -583,10 +765,22 @@ async def review_application_person_payee(
             document_file_ids=documents,
             actor_user_id=actor_user_id,
         )
+    from app.services.document_reviews import validate_document_reviews
+
+    await validate_document_reviews(
+        session,
+        payload=payload,
+        documents=documents,
+        submission_id=submission.id,
+        actor_user_id=actor_user_id,
+    )
     decision = DriverKycReviewDecision(
         submission_id=submission.id,
         client_request_id=payload.client_request_id,
         request_fingerprint=fingerprint,
+        document_reviews={
+            key: item.model_dump(mode="json") for key, item in payload.document_reviews.items()
+        },
         decision=payload.decision,
         reason_code=payload.reason_code,
         identity_match_confirmed=payload.identity_match_confirmed,

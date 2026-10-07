@@ -12,7 +12,7 @@ async function loginAsAdvertiser(page: Page) {
 
 async function openSeededCampaign(page: Page) {
   await page.goto("/advertiser/campaigns");
-  await page.getByRole("link", { name: "Marula Kitchens — Lagos Lunch Routes" }).click();
+  await page.getByRole("link", { name: "Marula Kitchens — Wuse Lunch Routes" }).click();
   await page.waitForURL(/\/advertiser\/campaigns\/[0-9a-f-]{36}$/);
 }
 
@@ -34,7 +34,7 @@ test("coverage map ranks the golden campaign's populated target zone", async ({ 
   await page.getByRole("link", { name: /Coverage map/ }).click();
   await page.waitForURL(/\/map$/);
 
-  await expect(page.getByText("#1 Lagos Mainland", { exact: true })).toBeVisible();
+  await expect(page.getByText("#1 Wuse district", { exact: true })).toBeVisible();
   await expect(page.getByText(/integrity check/i)).not.toBeVisible();
   await expect(
     page.getByText("No zone ranking is available for this report yet."),

@@ -86,7 +86,7 @@ from app.services.users import normalize_email, validate_password_length
 from app.services.vehicles import normalize_plate_number
 
 SEED_VERSION = "slice_12_v1"
-DEMO_BBOX = "3.35,6.43,3.47,6.56"
+DEMO_BBOX = "7.457500,9.057500,7.487500,9.090000"
 DEMO_PASSWORDS = {
     "admin@demo.mobility.local": "DemoAdmin12345!",
     "advertiser@demo.mobility.local": "DemoAdvertiser12345!",
@@ -95,16 +95,16 @@ DEMO_PASSWORDS = {
 }
 LOCAL_ENVIRONMENTS = {"local", "dev", "development", "test", "testing"}
 DEMO_DRIVER_PHONE_NUMBERS = {
-    "damilola.akinwale@demo.mobility.local": "+447700900114",
-    "driver@demo.mobility.local": "+447700900100",
+    "damilola.akinwale@demo.mobility.local": "+2340000000114",
+    "driver@demo.mobility.local": "+2340000000100",
     **{
-        f"driver{index:02d}@demo.mobility.local": f"+447700900{100 + index}"
+        f"driver{index:02d}@demo.mobility.local": f"+2340000000{100 + index}"
         for index in range(1, 10)
     },
-    "abdulrahman.yusuf@mail.ng": "+447700900110",
-    "nneka.umeh@mail.ng": "+447700900111",
-    "ayodele.bakare@mail.ng": "+447700900112",
-    "suleiman.idris@mail.ng": "+447700900113",
+    "abdulrahman.yusuf@mail.ng": "+2340000000110",
+    "nneka.umeh@mail.ng": "+2340000000111",
+    "ayodele.bakare@mail.ng": "+2340000000112",
+    "suleiman.idris@mail.ng": "+2340000000113",
 }
 PRODUCTION_ENVIRONMENTS = {"prod", "production", "staging"}
 
@@ -312,7 +312,7 @@ async def upsert_driver_profile(session: AsyncSession, *, driver: User) -> Drive
             user_id=driver.id,
             onboarding_status=DriverOnboardingStatus.ACTIVE.value,
             license_number="LAG-2024-58219",
-            service_city="Lagos",
+            service_city="Abuja",
             country_code="NG",
             profile_metadata=demo_metadata(persona="demo_driver"),
         )
@@ -320,7 +320,7 @@ async def upsert_driver_profile(session: AsyncSession, *, driver: User) -> Drive
     else:
         profile.onboarding_status = DriverOnboardingStatus.ACTIVE.value
         profile.license_number = "LAG-2024-58219"
-        profile.service_city = "Lagos"
+        profile.service_city = "Abuja"
         profile.country_code = "NG"
         profile.profile_metadata = demo_metadata(persona="demo_driver")
     await session.flush()
@@ -381,12 +381,12 @@ async def upsert_campaign(
     campaign = await session.scalar(
         select(Campaign).where(
             Campaign.organization_id == organization.id,
-            Campaign.name == "Marula Kitchens — Lagos Lunch Routes",
+            Campaign.name == "Marula Kitchens — Wuse Lunch Routes",
         )
     )
     values = {
         "created_by_user_id": advertiser.id,
-        "description": ("Deliver lunch orders around Yaba and Surulere."),
+        "description": ("Deliver lunch orders around Wuse II and Wuse."),
         "status": CampaignStatus.ACTIVE.value,
         "start_at": now - timedelta(days=14),
         "end_at": now + timedelta(days=14),
@@ -398,7 +398,7 @@ async def upsert_campaign(
     if campaign is None:
         campaign = Campaign(
             organization_id=organization.id,
-            name="Marula Kitchens — Lagos Lunch Routes",
+            name="Marula Kitchens — Wuse Lunch Routes",
             **values,
         )
         session.add(campaign)
@@ -447,49 +447,49 @@ async def upsert_creative(session: AsyncSession, *, campaign: Campaign) -> Campa
 def zone_geometries() -> list[tuple[str, str, dict[str, Any]]]:
     return [
         (
-            "Lagos Mainland",
+            "Wuse district",
             CampaignZoneType.TARGET.value,
             {
                 "type": "Polygon",
                 "coordinates": [
                     [
-                        [3.365, 6.445],
-                        [3.445, 6.445],
-                        [3.445, 6.535],
-                        [3.365, 6.535],
-                        [3.365, 6.445],
+                        [7.461250, 9.061250],
+                        [7.481250, 9.061250],
+                        [7.481250, 9.100000],
+                        [7.461250, 9.100000],
+                        [7.461250, 9.061250],
                     ]
                 ],
             },
         ),
         (
-            "Yaba offices",
+            "Wuse II offices",
             CampaignZoneType.BONUS.value,
             {
                 "type": "Polygon",
                 "coordinates": [
                     [
-                        [3.385, 6.465],
-                        [3.425, 6.465],
-                        [3.425, 6.515],
-                        [3.385, 6.515],
-                        [3.385, 6.465],
+                        [7.462000, 9.078000],
+                        [7.478000, 9.078000],
+                        [7.478000, 9.094000],
+                        [7.462000, 9.094000],
+                        [7.462000, 9.078000],
                     ]
                 ],
             },
         ),
         (
-            "Apapa port access",
+            "Aminu Kano Crescent junction",
             CampaignZoneType.EXCLUSION.value,
             {
                 "type": "Polygon",
                 "coordinates": [
                     [
-                        [3.455, 6.540],
-                        [3.465, 6.540],
-                        [3.465, 6.550],
-                        [3.455, 6.550],
-                        [3.455, 6.540],
+                        [7.464750, 9.085000],
+                        [7.467250, 9.085000],
+                        [7.467250, 9.087500],
+                        [7.464750, 9.087500],
+                        [7.464750, 9.085000],
                     ]
                 ],
             },
@@ -517,16 +517,16 @@ async def upsert_zones(
         values = {
             "created_by_user_id": advertiser.id,
             "description": {
-                "Lagos Mainland": "Reach lunch customers along the Yaba and Surulere routes.",
-                "Yaba offices": "Deliver lunch orders to offices along Herbert Macaulay Way.",
-                "Apapa port access": "Heavy port traffic; avoid during campaigns.",
-                "Lagos Market Corridor": "Reach shops along the Mainland market routes.",
-                "Surulere shops": "Promote local deliveries around Bode Thomas Street shops.",
+                "Wuse district": "Reach lunch customers along the Wuse II and Wuse routes.",
+                "Aminu Kano Crescent junction": "Busy junction; avoid during campaigns.",
+                "Wuse Market Corridor": "Reach shops along the Wuse market routes.",
+                "Wuse shops": "Promote local deliveries around Adetokunbo Ademola Crescent shops.",
                 "Wuse II offices": "Reach office workers along Aminu Kano Crescent.",
                 "Aminu Kano Crescent": "Promote lunch deliveries along Aminu Kano Crescent.",
                 "Garki offices": "Reach weekday customers around Area 11 offices.",
-                "Yaba bookshops": "Invite readers to bookshops along Herbert Macaulay Way.",
+                "Wuse II bookshops": "Invite readers to bookshops along Aminu Kano Crescent.",
                 "Wuse II shops": "Promote weekend orders around Aminu Kano Crescent shops.",
+                "Maitama offices": "Reach weekday customers around Maitama offices.",
                 "Maitama homes": "Reach households along the Maitama neighbourhood routes.",
             }[name],
             "zone_type": zone_type,
@@ -585,7 +585,7 @@ async def upsert_assignment(
             offered_at=campaign.start_at + timedelta(days=1),
             accepted_at=campaign.start_at + timedelta(days=1, minutes=5),
             activated_at=campaign.start_at + timedelta(days=2),
-            notes="Deliver lunch orders around Yaba and Surulere.",
+            notes="Deliver lunch orders around Wuse II and Wuse.",
             assignment_metadata=demo_metadata(),
         )
         session.add(assignment)
@@ -600,7 +600,7 @@ async def upsert_assignment(
         assignment.activated_at = assignment.activated_at or campaign.start_at + timedelta(days=2)
         assignment.cancelled_at = None
         assignment.completed_at = None
-        assignment.notes = "Deliver lunch orders around Yaba and Surulere."
+        assignment.notes = "Deliver lunch orders around Wuse II and Wuse."
         assignment.assignment_metadata = demo_metadata()
         await session.flush()
     await ensure_activation_event(
@@ -665,48 +665,48 @@ def trip_specs(now: datetime) -> list[tuple[str, datetime, list[tuple[float, flo
             "demo-trip-0",
             now.replace(hour=7, minute=40, second=0, microsecond=0) - timedelta(days=6),
             [
-                (6.4720, 3.3610),
-                (6.4800, 3.3740),
-                (6.4910, 3.3870),
-                (6.5030, 3.3990),
-                (6.5140, 3.4120),
-                (6.5260, 3.4250),
+                (9.068000, 7.460250),
+                (9.070000, 7.463500),
+                (9.072750, 7.466750),
+                (9.075750, 7.469750),
+                (9.078500, 7.473000),
+                (9.081500, 7.476250),
             ],
         ),
         (
             "demo-trip-00",
             now.replace(hour=16, minute=20, second=0, microsecond=0) - timedelta(days=4),
             [
-                (6.5310, 3.3710),
-                (6.5200, 3.3830),
-                (6.5070, 3.3950),
-                (6.4930, 3.4080),
-                (6.4790, 3.4210),
-                (6.4640, 3.4350),
+                (9.082750, 7.462750),
+                (9.080000, 7.465750),
+                (9.076750, 7.468750),
+                (9.073250, 7.472000),
+                (9.069750, 7.475250),
+                (9.066000, 7.478750),
             ],
         ),
         (
             "demo-trip-1",
             now.replace(hour=8, minute=15, second=0, microsecond=0) - timedelta(days=2),
             [
-                (6.4550, 3.3700),
-                (6.4630, 3.3820),
-                (6.4740, 3.3950),
-                (6.4880, 3.4070),
-                (6.5010, 3.4180),
-                (6.5140, 3.4320),
+                (9.063750, 7.462500),
+                (9.065750, 7.465500),
+                (9.068500, 7.468750),
+                (9.072000, 7.471750),
+                (9.075250, 7.474500),
+                (9.078500, 7.478000),
             ],
         ),
         (
             "demo-trip-2",
             now.replace(hour=17, minute=30, second=0, microsecond=0) - timedelta(days=1),
             [
-                (6.4480, 3.3720),
-                (6.4590, 3.3860),
-                (6.4710, 3.3980),
-                (6.4860, 3.4100),
-                (6.4980, 3.4210),
-                (6.5220, 3.4380),
+                (9.062000, 7.463000),
+                (9.064750, 7.466500),
+                (9.067750, 7.469500),
+                (9.071500, 7.472500),
+                (9.074500, 7.475250),
+                (9.080500, 7.479500),
             ],
         ),
     ]
@@ -720,36 +720,36 @@ def palmpay_trip_specs(
             "palmpay-wuse-trip-1",
             now.replace(hour=7, minute=45, second=0, microsecond=0) - timedelta(days=3),
             [
-                (9.0465, 7.4550),
-                (9.0550, 7.4620),
-                (9.0645, 7.4685),
-                (9.0740, 7.4740),
-                (9.0830, 7.4810),
-                (9.0910, 7.4880),
+                (9.067425, 7.456000),
+                (9.071250, 7.460200),
+                (9.075525, 7.464100),
+                (9.079800, 7.467400),
+                (9.083850, 7.471600),
+                (9.087450, 7.475800),
             ],
         ),
         (
             "palmpay-wuse-trip-2",
             now.replace(hour=13, minute=10, second=0, microsecond=0) - timedelta(days=2),
             [
-                (9.0910, 7.4520),
-                (9.0830, 7.4590),
-                (9.0750, 7.4660),
-                (9.0660, 7.4730),
-                (9.0570, 7.4810),
-                (9.0490, 7.4900),
+                (9.087450, 7.454200),
+                (9.083850, 7.458400),
+                (9.080250, 7.462600),
+                (9.076200, 7.466800),
+                (9.072150, 7.471600),
+                (9.068550, 7.477000),
             ],
         ),
         (
             "palmpay-wuse-trip-3",
             now.replace(hour=17, minute=20, second=0, microsecond=0) - timedelta(days=1),
             [
-                (9.0500, 7.4900),
-                (9.0580, 7.4820),
-                (9.0670, 7.4750),
-                (9.0760, 7.4680),
-                (9.0850, 7.4610),
-                (9.0930, 7.4540),
+                (9.069000, 7.477000),
+                (9.072600, 7.472200),
+                (9.076650, 7.468000),
+                (9.080700, 7.463800),
+                (9.084750, 7.459600),
+                (9.088350, 7.455400),
             ],
         ),
     ]
@@ -763,36 +763,36 @@ def palmpay_market_trip_specs(
             "demo-story-palmpay-market-1",
             now.replace(hour=8, minute=20, second=0, microsecond=0) - timedelta(days=10),
             [
-                (6.6010, 3.3510),
-                (6.5840, 3.3660),
-                (6.5670, 3.3810),
-                (6.5500, 3.3970),
-                (6.5330, 3.4130),
-                (6.5160, 3.4290),
+                (9.100250, 7.457750),
+                (9.096000, 7.461500),
+                (9.091750, 7.465250),
+                (9.087500, 7.469250),
+                (9.083250, 7.473250),
+                (9.079000, 7.477250),
             ],
         ),
         (
             "demo-story-palmpay-market-2",
             now.replace(hour=13, minute=40, second=0, microsecond=0) - timedelta(days=6),
             [
-                (6.5160, 3.4290),
-                (6.5310, 3.4160),
-                (6.5470, 3.4030),
-                (6.5630, 3.3900),
-                (6.5790, 3.3770),
-                (6.5950, 3.3640),
+                (9.079000, 7.477250),
+                (9.082750, 7.474000),
+                (9.086750, 7.470750),
+                (9.090750, 7.467500),
+                (9.094750, 7.464250),
+                (9.098750, 7.461000),
             ],
         ),
         (
             "demo-story-palmpay-market-3",
             now.replace(hour=17, minute=15, second=0, microsecond=0) - timedelta(days=2),
             [
-                (6.4720, 3.3610),
-                (6.4800, 3.3740),
-                (6.4910, 3.3870),
-                (6.5030, 3.3990),
-                (6.5140, 3.4120),
-                (6.5260, 3.4250),
+                (9.068000, 7.460250),
+                (9.070000, 7.463500),
+                (9.072750, 7.466750),
+                (9.075750, 7.469750),
+                (9.078500, 7.473000),
+                (9.081500, 7.476250),
             ],
         ),
     ]
@@ -801,33 +801,33 @@ def palmpay_market_trip_specs(
 def palmpay_market_zone_specs() -> list[tuple[str, str, dict[str, Any]]]:
     return [
         (
-            "Lagos Market Corridor",
+            "Wuse Market Corridor",
             CampaignZoneType.TARGET.value,
             {
                 "type": "Polygon",
                 "coordinates": [
                     [
-                        [3.345, 6.460],
-                        [3.440, 6.460],
-                        [3.440, 6.610],
-                        [3.345, 6.610],
-                        [3.345, 6.460],
+                        [7.456250, 9.065000],
+                        [7.480000, 9.065000],
+                        [7.480000, 9.102500],
+                        [7.456250, 9.102500],
+                        [7.456250, 9.065000],
                     ]
                 ],
             },
         ),
         (
-            "Surulere shops",
+            "Wuse shops",
             CampaignZoneType.BONUS.value,
             {
                 "type": "Polygon",
                 "coordinates": [
                     [
-                        [3.375, 6.490],
-                        [3.420, 6.490],
-                        [3.420, 6.580],
-                        [3.375, 6.580],
-                        [3.375, 6.490],
+                        [7.463750, 9.072500],
+                        [7.475000, 9.072500],
+                        [7.475000, 9.095000],
+                        [7.463750, 9.095000],
+                        [7.463750, 9.072500],
                     ]
                 ],
             },
@@ -919,8 +919,8 @@ async def upsert_driver_story_campaigns(
     now = utc_now()
     specs = (
         {
-            "name": "Linden Harbour Clothing — Lagos Commute",
-            "description": "Visibility along Lagos Mainland commuter routes.",
+            "name": "Linden Harbour Clothing — Wuse Commute",
+            "description": "Visibility along Wuse district commuter routes.",
             "campaign_status": CampaignStatus.COMPLETED,
             "assignment_status": CampaignAssignmentStatus.COMPLETED,
             "start_at": now - timedelta(days=120),
@@ -929,7 +929,7 @@ async def upsert_driver_story_campaigns(
         },
         {
             "name": "Beryl Lane Grocers — Market Routes",
-            "description": "Visibility around Lagos markets and neighbourhood shops.",
+            "description": "Visibility around Abuja markets and neighbourhood shops.",
             "campaign_status": CampaignStatus.ACTIVE,
             "assignment_status": CampaignAssignmentStatus.COMPLETED,
             "start_at": now - timedelta(days=30),
@@ -940,13 +940,13 @@ async def upsert_driver_story_campaigns(
     specs += (
         {
             **specs[0],
-            "name": "Marula Kitchens — Island Lunch Deliveries",
-            "description": "Deliver weekday lunches around Lagos Island offices.",
+            "name": "Marula Kitchens — Wuse II Lunch Deliveries",
+            "description": "Deliver weekday lunches around Wuse II offices.",
         },
         {
             **specs[1],
-            "name": "Marula Kitchens — Ikeja Office Lunch",
-            "description": "Bring weekday lunches to offices along Allen Avenue.",
+            "name": "Marula Kitchens — Wuse Office Lunch",
+            "description": "Bring weekday lunches to offices along Adetokunbo Ademola Crescent.",
             "campaign_status": CampaignStatus.PAUSED,
         },
     )
@@ -1066,24 +1066,24 @@ async def upsert_driver_story_campaigns(
                     "demo-story-airtel-1",
                     now.replace(hour=9, minute=10, second=0, microsecond=0) - timedelta(days=70),
                     [
-                        (6.6010, 3.3510),
-                        (6.5840, 3.3660),
-                        (6.5670, 3.3810),
-                        (6.5500, 3.3970),
-                        (6.5330, 3.4130),
-                        (6.5160, 3.4290),
+                        (9.100250, 7.457750),
+                        (9.096000, 7.461500),
+                        (9.091750, 7.465250),
+                        (9.087500, 7.469250),
+                        (9.083250, 7.473250),
+                        (9.079000, 7.477250),
                     ],
                 ),
                 (
                     "demo-story-airtel-2",
                     now.replace(hour=15, minute=30, second=0, microsecond=0) - timedelta(days=58),
                     [
-                        (6.5160, 3.4290),
-                        (6.5310, 3.4160),
-                        (6.5470, 3.4030),
-                        (6.5630, 3.3900),
-                        (6.5790, 3.3770),
-                        (6.5950, 3.3640),
+                        (9.079000, 7.477250),
+                        (9.082750, 7.474000),
+                        (9.086750, 7.470750),
+                        (9.090750, 7.467500),
+                        (9.094750, 7.464250),
+                        (9.098750, 7.461000),
                     ],
                 ),
             ]
@@ -1105,9 +1105,9 @@ async def upsert_driver_story_campaigns(
                     + timedelta(
                         days=(
                             1
-                            if spec["name"] == "Marula Kitchens — Island Lunch Deliveries"
+                            if spec["name"] == "Marula Kitchens — Wuse II Lunch Deliveries"
                             else -1
-                            if spec["name"] == "Marula Kitchens — Ikeja Office Lunch"
+                            if spec["name"] == "Marula Kitchens — Wuse Office Lunch"
                             else 0
                         )
                     ),
@@ -1289,7 +1289,7 @@ async def upsert_traffic_profile(
     session: AsyncSession,
 ) -> TrafficDensityProfile:
     profile = await session.scalar(
-        select(TrafficDensityProfile).where(TrafficDensityProfile.name == "Lagos weekday traffic")
+        select(TrafficDensityProfile).where(TrafficDensityProfile.name == "Abuja weekday traffic")
     )
     if profile is None:
         await session.execute(
@@ -1303,8 +1303,8 @@ async def upsert_traffic_profile(
         profile = await create_traffic_density_profile(
             session,
             TrafficDensityProfileCreate(
-                name="Lagos weekday traffic",
-                description="Weekday traffic around Lagos offices and markets.",
+                name="Abuja weekday traffic",
+                description="Weekday traffic around Abuja offices and markets.",
                 profile_type="urban",
                 traffic_density_per_km=Decimal("240.0"),
                 dwell_impressions_per_minute=Decimal("5.0"),
@@ -1322,7 +1322,7 @@ async def upsert_traffic_profile(
             ),
         )
     else:
-        profile.description = "Weekday traffic around Lagos offices and markets."
+        profile.description = "Weekday traffic around Abuja offices and markets."
         profile.profile_type = "urban"
         profile.traffic_density_per_km = Decimal("240.0")
         profile.dwell_impressions_per_minute = Decimal("5.0")
@@ -1536,11 +1536,11 @@ async def upsert_palmpay_graph(
                     "type": "Polygon",
                     "coordinates": [
                         [
-                            [7.44, 9.035],
-                            [7.505, 9.035],
-                            [7.505, 9.105],
-                            [7.44, 9.105],
-                            [7.44, 9.035],
+                            [7.45, 9.065],
+                            [7.485, 9.065],
+                            [7.485, 9.105],
+                            [7.45, 9.105],
+                            [7.45, 9.065],
                         ]
                     ],
                 },
@@ -1552,11 +1552,11 @@ async def upsert_palmpay_graph(
                     "type": "Polygon",
                     "coordinates": [
                         [
-                            [7.455, 9.05],
-                            [7.49, 9.05],
-                            [7.49, 9.09],
-                            [7.455, 9.09],
-                            [7.455, 9.05],
+                            [7.460, 9.083],
+                            [7.472, 9.083],
+                            [7.472, 9.097],
+                            [7.460, 9.097],
+                            [7.460, 9.083],
                         ]
                     ],
                 },

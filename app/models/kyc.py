@@ -183,6 +183,10 @@ class DriverKycReviewDecision(Base):
         UniqueConstraint("client_request_id", name="uq_driver_kyc_review_decisions_client_request"),
     )
 
+    document_reviews: Mapped[dict[str, Any]] = mapped_column(
+        JSON, nullable=False, default=dict, server_default=text("'{}'")
+    )
+
     id: Mapped[UUID] = mapped_column(
         primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
     )
@@ -335,6 +339,10 @@ class VehicleEvidenceReviewDecision(Base):
             "submission_id", "sequence", name="uq_vehicle_review_decisions_submission_sequence"
         ),
         UniqueConstraint("client_request_id", name="uq_vehicle_review_decisions_client_request"),
+    )
+
+    document_reviews: Mapped[dict[str, Any]] = mapped_column(
+        JSON, nullable=False, default=dict, server_default=text("'{}'")
     )
 
     id: Mapped[UUID] = mapped_column(

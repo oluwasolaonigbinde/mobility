@@ -24,7 +24,7 @@ def setup_phone(db_client, db_sessionmaker, settings):
         "/api/v1/driver/contact/phone", headers=headers, json={"phone": "+447700900101"}
     )
     assert saved.status_code == 200
-    settings.phone_verification_terrax_number = "+447700900999"
+    settings.phone_verification_terrax_number = "+2347068369842"
     return driver, headers
 
 
@@ -207,7 +207,7 @@ def test_request_limit_survives_number_changes_and_live_retry_converges(
     "environment,number,operator,name,notice,available",
     [
         ("test", "", False, "", "", False),
-        ("test", "+447700900999", False, "", "", True),
+        ("test", "+2347068369842", False, "", "", True),
         ("development", "+2347074200080", True, "Somto", "approved-reference", False),
         ("production", "+2347074200080", False, "Somto", "approved-reference", False),
         ("production", "+2347074200080", True, "", "approved-reference", False),

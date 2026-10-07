@@ -168,7 +168,16 @@ async def _current_person_payee_approved(
             == submission.bank_account_version_id
         )
     )
-    return decision is not None and verification is not None
+    from app.services.document_reviews import document_outcomes
+
+    current_documents = document_outcomes(
+        decision, decision.document_reviews if decision else {}, await database_clock(session)
+    )
+    return (
+        decision is not None
+        and verification is not None
+        and not any(item["status"] == "expired" for item in current_documents.values())
+    )
 
 
 async def _vehicle_approved(
@@ -829,11 +838,24 @@ async def review_application_vehicle(
             actor_user_id=actor_user_id,
             document_file_ids=documents,
         )
+    from app.services.document_reviews import validate_document_reviews
+
+    await validate_document_reviews(
+        session,
+        payload=payload,
+        documents=documents,
+        submission_id=submission.id,
+        actor_user_id=actor_user_id,
+        vehicle=True,
+    )
     decision = VehicleEvidenceReviewDecision(
         submission_id=submission.id,
         sequence=sequence,
         client_request_id=payload.client_request_id,
         request_fingerprint=fingerprint,
+        document_reviews={
+            key: item.model_dump(mode="json") for key, item in payload.document_reviews.items()
+        },
         decision=payload.decision.value,
         reason_code=payload.reason_code.value,
         owner_match_confirmed=payload.owner_match_confirmed,
@@ -932,6 +954,8 @@ async def expire_due_vehicle_approvals(session: AsyncSession, *, limit: int = 10
         )
         if application_id is None:
             continue
+        from app.services.document_reviews import document_outcomes
+
         request_id = uuid4()
         payload = VehicleReviewDecisionCreate(
             client_request_id=request_id,
@@ -956,7 +980,10 @@ async def expire_due_vehicle_approvals(session: AsyncSession, *, limit: int = 10
                 roadworthy_confirmed=False,
                 pilot_car_confirmed=False,
                 documents_readable_confirmed=False,
-                valid_until=None,
+                valid_until=approved.valid_until,
+                document_reviews=document_outcomes(
+                    approved, await _documents(session, submission.id)
+                ),
                 decided_by_user_id=None,
             )
         )

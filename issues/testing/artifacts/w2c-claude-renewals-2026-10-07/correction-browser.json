@@ -1,0 +1,40 @@
+{
+  "viewport": 375,
+  "person": {
+    "driver_license": {
+      "status": "rejected",
+      "reason_code": "unreadable_evidence",
+      "expires_on": null
+    },
+    "driver_photo": {
+      "status": "accepted",
+      "reason_code": null,
+      "expires_on": null
+    },
+    "signed_agreement": {
+      "status": "accepted",
+      "reason_code": null,
+      "expires_on": null
+    }
+  },
+  "car": {
+    "registration": {
+      "status": "accepted",
+      "reason_code": null,
+      "expires_on": null
+    },
+    "insurance": {
+      "status": "expired",
+      "reason_code": "expired_evidence",
+      "expires_on": "2026-10-03"
+    },
+    "vehicle_photo": {
+      "status": "accepted",
+      "reason_code": null,
+      "expires_on": null
+    }
+  },
+  "campaignURL": "http://localhost:3368/advertiser/campaigns/67ab522b-66b5-4c9c-a2c0-1682764a0747",
+  "mapURL": "http://localhost:3368/advertiser/campaigns/67ab522b-66b5-4c9c-a2c0-1682764a0747/map",
+  "mapText": "CAMPAIGNS / MARULA KITCHENS — WUSE LUNCH ROUTES / CAMPAIGN COVERAGE MAP\n\nCAMPAIGN COVERAGE MAP\n\nCampaign areas\nLIVE\n\nAreas ranked by estimated ad exposure from this campaign’s trips.\n\nZONE RANKING\n\nTop zones by estimated ad exposure\nREADY\n\n#1 Wuse district\n\n23,838 estimated ad exposure\n\n95 AREA VISITS\n\nCAMPAIGN ACTIVITY SCORE: 38.32 / 100\n\nHow this is calculated\nWuse district\n1. Wuse district"
+}

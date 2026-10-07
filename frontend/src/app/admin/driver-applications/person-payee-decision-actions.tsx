@@ -204,6 +204,79 @@ export function PersonPayeeDecisionActions({
               <option value="rejected_evidence">Documents not approved</option>
             </select>
           </label>
+          <fieldset className="border-edge my-2 rounded-lg border p-3 text-xs">
+            <legend>Document outcomes for rejection or expiry</legend>
+            <div className="my-3">
+              <p className="font-medium">Driving licence</p>
+              <label className="flex flex-col gap-1">
+                Outcome
+                <select
+                  name="outcome_driver_license"
+                  defaultValue="on_file"
+                  className="border-edge bg-raised rounded border p-2"
+                >
+                  <option value="on_file">On file, review incomplete</option>
+                  <option value="replace">Needs replacement</option>
+                  <option value="accepted">Accepted (view first)</option>
+                </select>
+              </label>
+              <label className="mt-2 flex flex-col gap-1">
+                Driving licence expiry (if recorded)
+                <input
+                  type="date"
+                  name="expires_driver_license"
+                  className="border-edge bg-raised rounded border p-2"
+                />
+              </label>
+            </div>
+            <div className="my-3">
+              <p className="font-medium">Driver photo</p>
+              <label className="flex flex-col gap-1">
+                Outcome
+                <select
+                  name="outcome_driver_photo"
+                  defaultValue="on_file"
+                  className="border-edge bg-raised rounded border p-2"
+                >
+                  <option value="on_file">On file, review incomplete</option>
+                  <option value="replace">Needs replacement</option>
+                  <option value="accepted">Accepted (view first)</option>
+                </select>
+              </label>
+              <label className="mt-2 flex flex-col gap-1">
+                Driver photo expiry (if recorded)
+                <input
+                  type="date"
+                  name="expires_driver_photo"
+                  className="border-edge bg-raised rounded border p-2"
+                />
+              </label>
+            </div>
+            <div className="my-3">
+              <p className="font-medium">Signed agreement</p>
+              <label className="flex flex-col gap-1">
+                Outcome
+                <select
+                  name="outcome_signed_agreement"
+                  defaultValue="on_file"
+                  className="border-edge bg-raised rounded border p-2"
+                >
+                  <option value="on_file">On file, review incomplete</option>
+                  <option value="replace">Needs replacement</option>
+                  <option value="accepted">Accepted (view first)</option>
+                </select>
+              </label>
+              <label className="mt-2 flex flex-col gap-1">
+                Signed agreement expiry (if recorded)
+                <input
+                  type="date"
+                  name="expires_signed_agreement"
+                  className="border-edge bg-raised rounded border p-2"
+                />
+              </label>
+            </div>
+            <p>Record each document’s outcome. Accepted documents stay on file during renewal.</p>
+          </fieldset>
           <div className="flex flex-wrap gap-2">
             <Button
               type="submit"

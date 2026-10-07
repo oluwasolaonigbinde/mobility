@@ -37,7 +37,7 @@ from app.models.kyc import (
     VehicleEvidenceSubmission,
 )
 from app.models.stored_file import FileScanStatus, FileUploadIntent, StoredFile
-from app.models.user import UserRole
+from app.models.user import User, UserRole
 from app.models.vehicle import Vehicle
 from app.schemas.driver_onboarding import (
     ApplicantVehicleSubmissionCreate,
@@ -909,8 +909,9 @@ def test_vehicle_submission_and_decision_exact_retries_converge_changed_retries_
     assert conflict.json()["error"]["code"] == "VEHICLE_DECISION_RETRY_CONFLICT"
 
 
+@pytest.mark.parametrize("run_worker", [False, True])
 def test_vehicle_expiry_worker_appends_history_and_closes_eligibility(
-    db_client, db_sessionmaker, settings
+    db_client, db_sessionmaker, settings, run_worker
 ) -> None:
     token, application, admin = _approved_applicant(
         db_client, db_sessionmaker, settings, suffix="expiry-worker"
@@ -946,7 +947,11 @@ def test_vehicle_expiry_worker_appends_history_and_closes_eligibility(
 
     async def sweep_and_inspect() -> tuple[dict[str, int | float], list[str], str, str]:
         await asyncio.sleep(2.1)
-        result = await sweep_vehicle_approval_expiries({"sessionmaker": db_sessionmaker})
+        result = (
+            await sweep_vehicle_approval_expiries({"sessionmaker": db_sessionmaker})
+            if run_worker
+            else {"expired": 0}
+        )
         async with db_sessionmaker() as session:
             decisions = list(
                 (
@@ -960,12 +965,55 @@ def test_vehicle_expiry_worker_appends_history_and_closes_eligibility(
             profile = await session.get(DriverProfile, application.driver_profile_id)
             vehicle = await session.get(Vehicle, UUID(submitted["vehicle_id"]))
             assert profile is not None and vehicle is not None
+            latest = await session.scalar(
+                select(VehicleEvidenceReviewDecision)
+                .where(
+                    VehicleEvidenceReviewDecision.submission_id == UUID(submitted["submission_id"])
+                )
+                .order_by(VehicleEvidenceReviewDecision.sequence.desc())
+            )
+            if run_worker:
+                assert latest.valid_until.replace(tzinfo=UTC) == expires
+                assert latest.document_reviews == {kind: {"status": "accepted"} for kind in files}
             return result, decisions, profile.onboarding_status, vehicle.status
 
     result, decisions, profile_status, vehicle_status = asyncio.run(sweep_and_inspect())
-    assert result["expired"] == 1
-    assert decisions == ["approved", "expired"]
-    assert (profile_status, vehicle_status) == ("pending", "pending")
+    assert result["expired"] == int(run_worker)
+    assert decisions == (["approved", "expired"] if run_worker else ["approved"])
+    if run_worker:
+        assert (profile_status, vehicle_status) == ("pending", "pending")
+
+    async def driver_email():
+        from app.core.security import hash_password
+
+        async with db_sessionmaker() as session:
+            profile = await session.get(DriverProfile, application.driver_profile_id)
+            user = await session.get(User, profile.user_id)
+            # This applicant fixture has no account access until setup is completed.
+            user.status = "active"
+            user.must_change_password = False
+            user.password_hash = hash_password(PASSWORD)
+            await session.commit()
+            return user.email
+
+    driver_headers = auth_headers(db_client, asyncio.run(driver_email()), PASSWORD)
+    read = db_client.get("/api/v1/driver/documents", headers=driver_headers)
+    assert read.status_code == 200, read.text
+    status = read.json()["vehicles"][0]
+    assert status["status"] == "expired"
+    assert all(item["status"] == "accepted" for item in status["documents"].values())
+    renewal = db_client.post(
+        f"/api/v1/driver/vehicles/{submitted['vehicle_id']}/evidence-submissions",
+        headers=driver_headers,
+        json={
+            "client_request_id": str(uuid4()),
+            "expected_submission_id": submitted["submission_id"],
+        },
+    )
+    assert renewal.status_code == 201, renewal.text
+    assert renewal.json()["document_file_ids"] == {
+        kind: str(value) for kind, value in files.items()
+    }
 
 
 def test_postgres_concurrent_identical_vehicle_decisions_converge_after_lock(

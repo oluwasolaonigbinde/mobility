@@ -136,9 +136,17 @@ async def create_vehicle_evidence_submission(
         vehicle_id=vehicle_id,
         client_request_id=payload.client_request_id,
         document_file_ids={
-            "registration": payload.registration_file_id,
-            "insurance": payload.insurance_file_id,
-            "vehicle_photo": payload.vehicle_photo_file_id,
+            **(
+                {"registration": payload.registration_file_id}
+                if payload.registration_file_id
+                else {}
+            ),
+            **({"insurance": payload.insurance_file_id} if payload.insurance_file_id else {}),
+            **(
+                {"vehicle_photo": payload.vehicle_photo_file_id}
+                if payload.vehicle_photo_file_id
+                else {}
+            ),
         },
         expected_submission_id=payload.expected_submission_id,
     )

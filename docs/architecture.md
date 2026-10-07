@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.124 — 2026-10-07. Canonical source of truth: current state AND target state.**
+**Version 1.126 — 2026-10-07. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -3614,6 +3614,7 @@ It does not authorize deployment or close external launch gates.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.126 | 2026-10-07 | D69–D71: partial document renewals, per-document review outcomes, Abuja/Nigerian demo fixtures and touched-test verification without local coverage; REQ-125–130. |
 | v1.124 | 2026-10-07 | **W2-C renewals and reverse phone verification (D66/D67, REQ-119/120).** Profile renews rejected/expired current person/bank and owned vehicle revisions through existing private scanned uploads and encrypted capture. Staff Documents reviews every current revision using audited View. Staff decisions bind the displayed submission ID. Driver issuance alone reveals phone codes; staff records received code and saved sender, with durable limits, one-use expiry, hash-only storage and live configuration/operator/wording gates. Migration 0100 replaces obsolete send evidence. Local implementation verified: 211 backend and 170 frontend cases; 95.0166% changed lines / 82.7089% branches; receipt in `issues/testing/w2c-renewals-phone-2026-10-07.md`. No deployment or merged acceptance. |
 | v1.123 | 2026-10-06 | **W1-P payouts (D64, REQ-036/040/053; renumbered at merge from v1.116/D59 on 6 Oct 2026).** Terrax bears fees outside Cardvert; full frozen earnings and D43 remain unchanged. §16.3 records dispute serialization, atomic sanitized alert audits, actor-only run subjects, bounded rotating candidate scans (`0099`) and original per-day cash attribution. Correction cash counts in full on every saved v4 trip day; missing/malformed allocations are held with an audited/notified Finance alert. Local evidence is in `issues/testing/w1p-payouts-2026-10-05.md`; combined Wave 1 CI and approved merge into master remain pending (REQ-053 one-time D41 exception). |
 | v1.122 | 2026-10-05 | **W1B locally verified templates and budget proof (REQ-037/049/117, D44/D65).** Verify all accepted fixed quote lines count once through the existing billing authority and retain evaluation keys. Replace Render/AWS/Mapbox templates with Hetzner S3 and MapTiler; add internal ClamAV, signature persistence/egress and health dependencies; align configurable API workers. Focused delivery evidence in `issues/testing/w1b-budget-hosting-evidence-2026-10-05.md`; templates only, no external gate changes. |
@@ -3744,3 +3745,9 @@ It does not authorize deployment or close external launch gates.
 W1B identifiers renumbered at merge on 2026-10-06: Compose REQ-108 → REQ-117, wording REQ-112 → REQ-116, D62 → D65, architecture v1.117 → v1.122. Master identifiers retain their meanings.
 
 Combined Wave 1 merge: payout architecture entry renumbered at merge from lane v1.122 to v1.123 because W1-B retains v1.122. Both original lane approvals remain historical; D64/D65 and request identifiers are unchanged.
+
+### v1.126 — 7 October driver renewal correction (D69–D71)
+
+Amends §23 onboarding/renewals and §20 contact demo configuration: per-document outcomes are immutable JSON on the exact review, included in review retry fingerprints; acceptance requires exact private-file read authority. Driver partial input is completed server-side from the retained owned revision before existing versioned submission services run. NIN stays encrypted at rest and absent from browser responses; unchanged bank versions and files are reused. Purged records require complete fresh replacement; incomplete attempts fail closed without recovering erased data. Known document dates constrain approval and work eligibility in Nigeria time. Vehicle approval expiry preserves individual document facts, including optional actual dates, and permits a new review with zero uploads. It never assigns an insurance date from an approval date. Start remains gated by current person/car approval; ending an active owned trip remains available.
+
+Demo seed source/fixtures use Abuja geography and synthetic +234 driver phones. Only +2347068369842 is authorized as the temporary local/preview Terrax destination; production/staging remain blank and existing external gates hold (REQ-126). §9 verification for this owner correction uses touched tests without local coverage (D71); CI coverage gates/baselines are unchanged. No launch-package reprioritization, provider calls, deployment or push is authorized.

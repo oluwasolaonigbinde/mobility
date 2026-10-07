@@ -12,20 +12,26 @@ const documents = {
   person_payee: {
     status: "rejected",
     submission_id: "person",
-    reason_code: "bank_account_mismatch",
+    reason_code: "unreadable_evidence",
+    documents: {
+      driver_license: { status: "rejected", reason_code: "unreadable_evidence" },
+      driver_photo: { status: "accepted" },
+      signed_agreement: { status: "accepted" },
+    },
   },
-  person_document_names: { driver_license: "driver-kyc.png" },
   vehicles: [
     {
       vehicle_id: "vehicle",
       submission_id: "car",
       plate_number: "ABJ-714-KM",
       status: "expired",
-      valid_until: "2026-10-03T10:00:00Z",
-      reason_code: "expired_evidence",
+      documents: {
+        registration: { status: "accepted" },
+        insurance: { status: "expired", reason_code: "expired_evidence", expires_on: "2026-10-03" },
+        vehicle_photo: { status: "accepted" },
+      },
     },
   ],
-  vehicle_document_names: { vehicle: { insurance: "vehicle-evidence.png" } },
 };
 beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
@@ -38,107 +44,161 @@ afterEach(() => {
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
-it("shows the actual reasons, files and recorded vehicle date without inventing licence expiry", async () => {
+it("shows each recorded outcome, only failed uploads, no filenames or saved identity/bank fields", async () => {
   render(<DocumentRenewals />);
   expect(screen.getByRole("status")).toHaveTextContent("Loading");
-  await screen.findByText(/Your bank details did not match/);
-  expect(screen.getByText(/Driving licence: driver-kyc.png/)).toBeTruthy();
-  expect(screen.getByText(/expired on/)).toHaveTextContent("3 Oct");
-  expect(screen.queryByText(/licence expired/)).toBeNull();
-  expect(screen.getAllByRole("button", { name: "Send new documents" })).toHaveLength(2);
+  await screen.findByText("hard to read, upload a clearer photo");
+  expect(screen.getByText("expired 3 Oct, upload a current document")).toBeTruthy();
+  expect(screen.getAllByText("accepted")).toHaveLength(4);
+  expect(screen.getByLabelText("Replace Driving licence")).toBeTruthy();
+  expect(screen.getByLabelText("Replace Insurance")).toBeTruthy();
+  expect(screen.queryByLabelText("NIN")).toBeNull();
+  expect(screen.queryByLabelText("Bank account number")).toBeNull();
+  expect(screen.queryByLabelText("Replace Your photo")).toBeNull();
+  expect(screen.queryByText(/\.png|No file chosen|Choose File/)).toBeNull();
+  expect(screen.getByText(/Starting new campaign trips is paused/)).toBeTruthy();
+  expect(screen.getByText(/Starting new campaign trips in this car is paused/)).toBeTruthy();
 });
-it("handles load failure/retry and missing/current waiting documents", async () => {
+it("offers a named bank list only for rejected bank details", async () => {
+  fetchMock.mockResolvedValue(
+    Response.json({
+      ...documents,
+      person_payee: {
+        ...documents.person_payee,
+        replace_bank: true,
+        documents: { driver_license: { status: "accepted" } },
+      },
+      vehicles: [],
+    }),
+  );
+  render(<DocumentRenewals />);
+  await screen.findByLabelText("Bank");
+  expect(screen.getByRole("option", { name: "Guaranty Trust Bank" })).toHaveValue("058");
+  expect(screen.queryByLabelText("Bank code")).toBeNull();
+  expect(screen.queryByLabelText("NIN")).toBeNull();
+  expect(screen.queryByLabelText(/Replace/)).toBeNull();
+});
+it("handles loading failure and retry", async () => {
   fetchMock.mockRejectedValueOnce(new Error("offline"));
   render(<DocumentRenewals />);
   await screen.findByRole("alert");
-  fetchMock.mockResolvedValue(
-    Response.json({ person_payee: { status: "not_submitted" }, vehicles: [] }),
-  );
   fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-  await screen.findByText(/No documents are recorded yet/);
-  expect(screen.queryByRole("button", { name: "Send new documents" })).toBeNull();
+  await screen.findByText("hard to read, upload a clearer photo");
 });
-it("hides replacement controls for approved and pending documents", async () => {
+it("requests all fresh vehicle files after payload purge", async () => {
+  fetchMock.mockResolvedValue(
+    Response.json({
+      person_payee: { status: "approved" },
+      vehicles: [{ ...documents.vehicles[0], purged_at: "2026-10-07T10:00:00Z", documents: {} }],
+    }),
+  );
+  render(<DocumentRenewals />);
+  await screen.findByLabelText("Replace Vehicle registration");
+  expect(screen.getByLabelText("Replace Insurance")).toBeTruthy();
+  expect(screen.getByLabelText("Replace Vehicle photo")).toBeTruthy();
+});
+it.each(["driver_photo", "insurance"])(
+  "offers the missing retained document (%s)",
+  async (kind) => {
+    const data = structuredClone(documents);
+    const group = kind === "insurance" ? data.vehicles[0]!.documents : data.person_payee.documents;
+    Object.assign(group, { [kind]: { status: "rejected", reason_code: "missing_evidence" } });
+    fetchMock.mockResolvedValue(Response.json(data));
+    render(<DocumentRenewals />);
+    await screen.findByText("missing, upload this document");
+    expect(
+      screen.getByLabelText(kind === "insurance" ? "Replace Insurance" : "Replace Your photo"),
+    ).toBeTruthy();
+  },
+);
+it("hides renewal controls while waiting and for approved documents", async () => {
   fetchMock.mockResolvedValue(
     Response.json({
       ...documents,
       person_payee: { status: "pending_review" },
-      vehicles: [{ status: "approved", vehicle_id: "v", plate_number: "ABC" }],
+      vehicles: [
+        { vehicle_id: "v", status: "approved", documents: { insurance: { status: "accepted" } } },
+      ],
     }),
   );
   render(<DocumentRenewals />);
-  await screen.findByText(/waiting for Terrax to review/);
-  expect(screen.getByText("Your documents are approved.")).toBeTruthy();
-  expect(screen.queryByRole("button", { name: "Send new documents" })).toBeNull();
+  await screen.findByText("Terrax is reviewing your changes.");
+  expect(screen.queryByRole("button", { name: "Send for review" })).toBeNull();
 });
-it("requires complete files and retains a recoverable upload failure", async () => {
+it("offers zero-file renewal for an expired whole-car approval without relabelling accepted insurance", async () => {
+  fetchMock.mockResolvedValue(
+    Response.json({
+      person_payee: { status: "approved" },
+      vehicles: [
+        {
+          vehicle_id: "v",
+          submission_id: "s",
+          status: "expired",
+          valid_until: "2026-10-03T10:00:00Z",
+          documents: { insurance: { status: "accepted" } },
+        },
+      ],
+    }),
+  );
   render(<DocumentRenewals />);
-  await screen.findByText(/Your bank details did not match/);
-  const form = screen.getAllByRole("button", { name: "Send new documents" })[0]!.closest("form")!;
-  fireEvent.submit(form);
-  await screen.findByRole("alert");
+  await screen.findByText(/Vehicle approval expired/);
+  expect(screen.getByText("accepted")).toBeTruthy();
+  expect(screen.queryByLabelText(/Replace/)).toBeNull();
+  fireEvent.submit(screen.getByRole("button", { name: "Send for review" }).closest("form")!);
+  await waitFor(() =>
+    expect(fetchMock.mock.calls.some((call) => call[1]?.method === "POST")).toBe(true),
+  );
   expect(mocks.upload).not.toHaveBeenCalled();
 });
-function mockCompleteForm() {
-  const file = new File(["fictional document"], "renewal.png", { type: "image/png" });
+function selectedFile() {
+  const file = new File(["fictional document"], "secret-filename.png", { type: "image/png" });
   Object.defineProperty(file, "arrayBuffer", { value: async () => new ArrayBuffer(4) });
   const original = globalThis.crypto;
   vi.stubGlobal("crypto", {
     randomUUID: () => original.randomUUID(),
     subtle: { digest: async () => new ArrayBuffer(32) },
   });
-  vi.spyOn(FormData.prototype, "get").mockImplementation((key) => {
-    const fields: Record<string, string> = {
-      nin: "00000000000",
-      account_name: "Damilola Akinwale",
-      account_number: "0000000000",
-      bank_code: "000",
-    };
-    return fields[key] ?? file;
-  });
+  vi.spyOn(FormData.prototype, "get").mockImplementation(() => file);
 }
 it.each([0, 1])(
-  "reuses uploads and the complete revision on a lost response, then shows waiting state (%s)",
+  "retries one replacement without duplicate upload or changing the request (%s)",
   async (index) => {
-    mockCompleteForm();
+    selectedFile();
     render(<DocumentRenewals />);
-    await screen.findByText(/Your bank details did not match/);
+    await screen.findByText("hard to read, upload a clearer photo");
     const form = screen
-      .getAllByRole("button", { name: "Send new documents" })
+      .getAllByRole("button", { name: "Send for review" })
       [index]!.closest("form")!;
     fetchMock.mockRejectedValueOnce(new Error("Connection lost. Try again."));
     fireEvent.submit(form);
     await screen.findByText("Connection lost. Try again.");
     const firstBody = fetchMock.mock.calls.find((call) => call[1]?.method === "POST")![1].body;
-    expect(JSON.parse(firstBody).expected_submission_id).toBe(index ? "car" : "person");
-    expect(mocks.upload).toHaveBeenCalledTimes(3);
-    fetchMock.mockResolvedValueOnce(Response.json({ id: "new-revision" }));
+    const body = JSON.parse(firstBody);
+    expect(Object.keys(body).sort()).toEqual(
+      [
+        "client_request_id",
+        "expected_submission_id",
+        index ? "insurance_file_id" : "driver_license_file_id",
+      ].sort(),
+    );
+    expect(mocks.upload).toHaveBeenCalledTimes(1);
+    fetchMock.mockResolvedValueOnce(Response.json({ id: "new" }));
     fetchMock.mockResolvedValueOnce(
-      Response.json({
-        ...documents,
-        person_payee: { status: "pending_review" },
-        vehicles: [{ vehicle_id: "vehicle", status: "pending_review" }],
-      }),
+      Response.json({ person_payee: { status: "pending_review" }, vehicles: [] }),
     );
     fireEvent.submit(form);
-    await waitFor(() =>
-      expect(screen.getAllByText(/waiting for Terrax to review/)).toHaveLength(2),
-    );
+    await screen.findByText("Terrax is reviewing your changes.");
     const posts = fetchMock.mock.calls.filter((call) => call[1]?.method === "POST");
     expect(posts[1]![1].body).toBe(firstBody);
-    expect(mocks.upload).toHaveBeenCalledTimes(3);
-    expect(mocks.refresh).toHaveBeenCalled();
+    expect(mocks.upload).toHaveBeenCalledTimes(1);
   },
 );
-it("can retry a failed scan upload without submitting a partial revision", async () => {
-  mockCompleteForm();
+it("recovers a failed scan without submitting a revision", async () => {
+  selectedFile();
   mocks.upload.mockRejectedValueOnce(new Error("Choose another file."));
   render(<DocumentRenewals />);
-  await screen.findByText(/Your bank details did not match/);
-  fireEvent.submit(
-    screen.getAllByRole("button", { name: "Send new documents" })[0]!.closest("form")!,
-  );
+  await screen.findByText("hard to read, upload a clearer photo");
+  fireEvent.submit(screen.getAllByRole("button", { name: "Send for review" })[0]!.closest("form")!);
   await screen.findByText("Choose another file.");
   expect(fetchMock.mock.calls.some((call) => call[1]?.method === "POST")).toBe(false);
-  expect(screen.getAllByRole("button", { name: "Send new documents" })[0]).toBeEnabled();
 });

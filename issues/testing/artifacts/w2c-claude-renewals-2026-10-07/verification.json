@@ -1,0 +1,1371 @@
+{
+  "backend_unique_final_passes": 173,
+  "backend_final_failures": 0,
+  "backend_final_skips": 0,
+  "backend_runs": [
+    {
+      "report": "correction-core.xml",
+      "cases": 37,
+      "passed": 32
+    },
+    {
+      "report": "correction-touched.xml",
+      "cases": 117,
+      "passed": 115
+    },
+    {
+      "report": "correction-final.xml",
+      "cases": 60,
+      "passed": 58
+    },
+    {
+      "report": "correction-tail.xml",
+      "cases": 5,
+      "passed": 3
+    },
+    {
+      "report": "correction-defaults.xml",
+      "cases": 2,
+      "passed": 2
+    },
+    {
+      "report": "correction-purge-retry-final.xml",
+      "cases": 2,
+      "passed": 2
+    }
+  ],
+  "backend_cases": {
+    "tests.test_w2c_renewals::test_active_driver_can_read_document_renewal_status": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_renewals::test_active_account_without_application_renews_and_staff_reviews_current_revision[rejected]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_renewals::test_active_account_without_application_renews_and_staff_reviews_current_revision[expired]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_renewals::test_vehicle_renewal_status_names_dates_ownership_and_exact_retry": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_renewals::test_postgres_renewal_races_leave_one_revision_no_orphan_bank[distinct]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_renewals::test_postgres_renewal_races_leave_one_revision_no_orphan_bank[exact]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_renewals::test_postgres_renewal_races_leave_one_revision_no_orphan_bank[review]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_renewals::test_locked_driver_authority_refreshes_preloaded_account": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_renewals::test_staff_document_status_is_current_secret_free_and_role_scoped": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_renewals::test_partial_person_renewal_reuses_accepted_files_and_saved_details[unreadable_evidence-driver_license_file_id]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_renewals::test_partial_person_renewal_reuses_accepted_files_and_saved_details[bank_account_mismatch-None]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_renewals::test_partial_person_renewal_reuses_accepted_files_and_saved_details[identity_mismatch-None]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_renewals::test_nonapproved_review_cannot_fabricate_accepted_document_without_read": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_renewals::test_vehicle_partial_renewal_keeps_accepted_files_and_separates_approval_expiry[False]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_renewals::test_vehicle_partial_renewal_keeps_accepted_files_and_separates_approval_expiry[True]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_reverse_phone::test_driver_can_request_a_code_that_staff_cannot_read": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_reverse_phone::test_reverse_verification_fails_closed[expired]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_reverse_phone::test_reverse_verification_fails_closed[exhausted]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_reverse_phone::test_reverse_verification_fails_closed[changed_phone]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_reverse_phone::test_reverse_verification_fails_closed[foreign_challenge]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_reverse_phone::test_request_limit_survives_number_changes_and_live_retry_converges": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_reverse_phone::test_configuration_gates[test--False---False]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_reverse_phone::test_configuration_gates[test-+2347068369842-False---True]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_reverse_phone::test_configuration_gates[development-+2347074200080-True-Somto-approved-reference-False]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_reverse_phone::test_configuration_gates[production-+2347074200080-False-Somto-approved-reference-False]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_reverse_phone::test_configuration_gates[production-+2347074200080-True--approved-reference-False]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_reverse_phone::test_configuration_gates[production-+2347074200080-True-Somto--False]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_reverse_phone::test_configuration_gates[production-+447700900999-True-Somto-approved-reference-False]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_reverse_phone::test_configuration_gates[production-+2347074200080-True-Somto-approved-reference-True]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_reverse_phone::test_missing_config_denies_issuance_and_removes_availability": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_reverse_phone::test_postgres_phone_requests_records_and_account_edits_serialize[request]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_reverse_phone::test_postgres_phone_requests_records_and_account_edits_serialize[record]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_reverse_phone::test_postgres_phone_requests_records_and_account_edits_serialize[edit_admin_first]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_reverse_phone::test_postgres_phone_requests_records_and_account_edits_serialize[edit_driver_first]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_reverse_phone::test_restoring_a_phone_after_staff_edit_creates_unverified_version": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_reverse_phone::test_staff_cannot_verify_phone_for_inactive_driver": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_seed_demo::test_abuja_seed_definitions_have_consistent_names_and_geography": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_driver_person_payee_onboarding::test_postgres_access_renewal_and_public_capture_do_not_deadlock": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_person_payee_onboarding::test_public_applicant_can_submit_person_payee_without_plaintext_projection": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_person_payee_onboarding::test_public_application_access_scopes_shared_private_upload_flow": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_person_payee_onboarding::test_exact_submission_retry_converges_and_changed_retry_fails": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_person_payee_onboarding::test_incomplete_person_payee_cannot_be_approved": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_person_payee_onboarding::test_admin_approval_is_idempotent_audited_safe_and_non_work_eligible": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_person_payee_onboarding::test_approval_fails_closed_for_unsafe_evidence_and_unavailable_key": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_person_payee_onboarding::test_person_payee_decision_requires_an_active_admin": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_person_payee_onboarding::test_rejected_or_expired_submission_resubmits_as_new_truthful_version[rejected-unreadable_evidence]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_person_payee_onboarding::test_rejected_or_expired_submission_resubmits_as_new_truthful_version[expired-expired_evidence]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_person_payee_onboarding::test_public_applicant_cannot_be_manually_activated_before_vehicle_approval": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_person_payee_onboarding::test_postgres_concurrent_conflicting_decisions_serialize_once": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_vehicle_approval::test_complete_approval_terminalizes_application_and_revokes_access[None]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_vehicle_approval::test_complete_approval_terminalizes_application_and_revokes_access[review_reference_uuid1]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_vehicle_approval::test_vehicle_approval_denies_cross_owner_and_self_approval": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_vehicle_approval::test_vehicle_approval_fails_closed_for_unsafe_and_unread_evidence[None]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_vehicle_approval::test_vehicle_approval_fails_closed_for_unsafe_and_unread_evidence[review_reference_uuid1]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_vehicle_approval::test_vehicle_approval_rejects_reads_with_wrong_entity_type[None]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_vehicle_approval::test_vehicle_approval_rejects_reads_with_wrong_entity_type[review_reference_uuid1]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_vehicle_approval::test_missing_vehicle_object_cannot_create_qualifying_read_or_approval": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_vehicle_approval::test_terminal_application_blocks_material_vehicle_revision_without_rewriting_history": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_vehicle_approval::test_rejected_vehicle_can_resubmit_as_a_new_immutable_revision": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_vehicle_approval::test_applicant_car_list_shows_only_their_own_cars_by_plate": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_vehicle_approval::test_staff_car_view_prefers_a_car_awaiting_review": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_vehicle_approval::test_vehicle_eligibility_opens_and_expiry_closes_assignment_and_trip": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_vehicle_approval::test_vehicle_submission_and_decision_exact_retries_converge_changed_retries_conflict": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_vehicle_approval::test_vehicle_expiry_worker_appends_history_and_closes_eligibility": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_vehicle_approval::test_postgres_concurrent_identical_vehicle_decisions_converge_after_lock": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_vehicle_approval::test_postgres_concurrent_applicant_plate_conflict_preserves_outer_write": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_vehicle_approval::test_postgres_nin_rewrap_and_trip_share_eligibility_before_profile_order": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_driver_vehicle_approval::test_postgres_terminal_application_fences_revision_while_expiry_serializes": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_kyc::test_kyc_submission_is_masked_idempotent_encrypted_and_reveal_is_audited": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_kyc::test_kyc_rejects_cross_driver_bank_files_and_uncleared_evidence": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_kyc::test_tampered_nin_fails_closed_without_read_audit": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_kyc::test_vehicle_evidence_is_owned_versioned_and_idempotent": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_kyc::test_nin_rewrap_appends_once_and_preserves_ciphertext": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_kyc::test_rewrap_cannot_resurrect_a_superseded_nin_chain": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_kyc::test_postgres_concurrent_kyc_retry_and_versions_serialize": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_kyc::test_kyc_models_have_no_plaintext_nin_column": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_kyc::test_driver_collects_encrypted_id_with_no_legal_collection_reference": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[withdrawn-create]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[withdrawn-retry]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[withdrawn-list]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[withdrawn-complete]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[different_purpose-create]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[different_purpose-retry]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[different_purpose-list]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[different_purpose-complete]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[new_phone-create]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[new_phone-retry]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[new_phone-list]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[new_phone-complete]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_admin_contact_queue_names_each_task_driver": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_postgres_contact_completion_serializes_with_consent_withdrawal[False]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_postgres_contact_completion_serializes_with_consent_withdrawal[True]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_missing_manual_contact_task_returns_hidden_not_found": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_verified_phone_consent_and_manual_contact_are_versioned_and_secret_safe": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_password_reset_delivery_hash_mismatch_leaves_expiring_reclaimable_claim": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_password_reset_is_non_enumerating_single_use_expiring_and_revokes_sessions": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_concurrent_password_reset_requests_obey_account_rate_limit": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_contact_completion_checks_saved_account_and_preserves_completed_retry[phone]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_contact_completion_checks_saved_account_and_preserves_completed_retry[blank]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_contact_completion_checks_saved_account_and_preserves_completed_retry[malformed]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_contact_completion_checks_saved_account_and_preserves_completed_retry[inactive]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_contact_completion_checks_saved_account_and_preserves_completed_retry[role]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_contact_completion_checks_saved_account_and_preserves_completed_retry[same]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_postgres_contact_completion_serializes_with_account_edit[False-False]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_postgres_contact_completion_serializes_with_account_edit[False-True]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_postgres_contact_completion_serializes_with_account_edit[True-False]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_contacts_and_recovery::test_postgres_contact_completion_serializes_with_account_edit[True-True]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_demo_seed_refuses_production_even_with_override": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_renewal_seed_is_scanned_fictional_and_idempotent": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_demo_seed_requires_explicit_local_confirmation": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_demo_seed_allows_test_environment_without_override": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_demo_seed_refuses_unapproved_nonlocal_environment": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_demo_seed_requires_a_database_url": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_demo_seed_requires_postgres": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_seed_missing_assignment_dates_stop_before_authority_writes[accepted_at]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_seed_missing_assignment_dates_stop_before_authority_writes[activated_at]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_seed_missing_applicant_authority_stops_dependent_calls[access]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_seed_missing_applicant_authority_stops_dependent_calls[submission]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_seed_missing_vehicle_submission_stops_document_reads_and_review": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_demo_seed_requires_the_current_migration_head": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_demo_seed_rejects_an_ambiguous_migration_head": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_demo_seed_refuses_an_existing_user_with_an_incompatible_role": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_demo_seed_refuses_a_vehicle_owned_by_another_driver": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_demo_seed_refuses_conflicting_existing_trip_evidence": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_rich_demo_seed_refuses_invalid_density[not-a-number]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_rich_demo_seed_refuses_invalid_density[-1]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_rich_demo_seed_handles_empty_and_unknown_campaign_windows": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_rich_demo_seed_refuses_invalid_trip_lifecycle[campaign0-trip0-assignment0-rolling]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_rich_demo_seed_refuses_invalid_trip_lifecycle[campaign1-trip1-assignment1-rolling]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_rich_demo_seed_refuses_invalid_trip_lifecycle[campaign2-trip2-assignment2-rolling]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_rich_demo_seed_refuses_invalid_trip_lifecycle[campaign3-trip3-assignment3-rolling]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_demo_seed_command_runs_the_guarded_seed_and_prints_its_summary": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_demo_seed_summary_is_human_readable": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_demo_seed_command_reports_failures[error0-DEMO_SEED_DISALLOWED: Demo seed is disabled\\n{\"environment\": \"production\"}]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_demo_seed_command_reports_failures[error1-DEMO_SEED_NOT_CONFIRMED: Explicit confirmation is required]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_demo_seed_command_reports_failures[error2-DEMO_SEED_FAILED: database unavailable]": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_demo_seed_is_not_registered_on_app_startup": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_no_seed_or_demo_migrations": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_openapi_has_frontend_contract_tags_and_examples": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_demo_seed_runs_with_immutable_guards_from_alembic_head": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_demo_seed_reuses_legacy_organization_billing_identity": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_seed_business_ownership_and_applicant_financial_separation": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_demo_seed_is_idempotent_with_postgis": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_seed_demo::test_demo_seed_preserves_existing_payout_metadata": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_demo_seed_preserves_legacy_v1_evidence_and_money_fence": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_rich_seed_later_rerun_only_appends_valid_rolling_trips": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_demo::test_ordinary_demo_driver_can_start_and_end_using_production_authority": {
+      "status": "pass",
+      "run": "correction-touched.xml"
+    },
+    "tests.test_seed_smoke::test_demo_seed_frontend_smoke_paths": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_migration_0100_reverse_phone_verification::test_0100_expires_obsolete_challenges_and_matches_models": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_openapi::test_openapi_schema_generates": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_openapi::test_openapi_matches_committed_json_artifacts": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_openapi::test_generated_validation_responses_use_the_runtime_error_envelope": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_openapi::test_path_query_and_body_validation_match_advertised_envelope_without_input_echo": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_renewals::test_purged_person_requires_fresh_full_inputs_without_recovering_erased_nin": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_renewals::test_recorded_person_document_expiry_blocks_work_and_allows_partial_renewal": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_renewals::test_exact_person_renewal_retry_survives_retained_document_expiring_overnight": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_renewals::test_missing_retained_file_is_visible_and_can_be_replaced[False]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_renewals::test_missing_retained_file_is_visible_and_can_be_replaced[True]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_renewals::test_purged_vehicle_read_requests_and_accepts_complete_fresh_replacement": {
+      "status": "pass",
+      "run": "correction-tail.xml"
+    },
+    "tests.test_document_review_outcomes::test_missing_nonapproved_document_outcomes_never_infer_acceptance_or_replacement": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_document_review_outcomes::test_recorded_expiry_uses_the_nigeria_calendar_day[accepted-2026-10-06-False]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_document_review_outcomes::test_recorded_expiry_uses_the_nigeria_calendar_day[accepted-2026-10-07-True]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_document_review_outcomes::test_recorded_expiry_uses_the_nigeria_calendar_day[expired-2026-10-07-False]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_document_review_outcomes::test_recorded_expiry_uses_the_nigeria_calendar_day[expired-2026-10-06-True]": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_document_review_outcomes::test_approval_cannot_outlast_recorded_insurance_expiry": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_document_review_outcomes::test_later_projection_expires_only_the_document_with_a_known_date": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_driver_vehicle_approval::test_vehicle_expiry_worker_appends_history_and_closes_eligibility[False]": {
+      "status": "pass",
+      "run": "correction-tail.xml"
+    },
+    "tests.test_driver_vehicle_approval::test_vehicle_expiry_worker_appends_history_and_closes_eligibility[True]": {
+      "status": "pass",
+      "run": "correction-tail.xml"
+    },
+    "tests.test_trip_evidence_r34::test_python_matches_shared_typescript_golden_vector": {
+      "status": "pass",
+      "run": "correction-final.xml"
+    },
+    "tests.test_w2c_renewals::test_partial_retry_after_source_payload_purge_fails_closed[False]": {
+      "status": "pass",
+      "run": "correction-purge-retry-final.xml"
+    },
+    "tests.test_w2c_renewals::test_partial_retry_after_source_payload_purge_fails_closed[True]": {
+      "status": "pass",
+      "run": "correction-purge-retry-final.xml"
+    },
+    "tests.test_migration_0014_partitioning::test_canonical_alembic_check_is_empty_at_exact_head": {
+      "status": "pass",
+      "run": "correction-defaults.xml"
+    },
+    "tests.test_migration_0014_partitioning::test_canonical_alembic_check_detects_visible_schema_drift": {
+      "status": "pass",
+      "run": "correction-defaults.xml"
+    }
+  },
+  "frontend_passes": 141,
+  "frontend_files": 8,
+  "frontend_cases": {
+    "frontend/src/lib/trips/ping-queue.test.ts": [
+      {
+        "name": "addPing assigns monotonic sequence numbers and tracks cumulative counts",
+        "status": "passed"
+      },
+      {
+        "name": "addPing keeps per-trip sequences independent",
+        "status": "passed"
+      },
+      {
+        "name": "addPing serializes concurrent additions without reusing a sequence or losing counters",
+        "status": "passed"
+      },
+      {
+        "name": "cutBatch moves pending pings into one batch with a minted key, atomically",
+        "status": "passed"
+      },
+      {
+        "name": "cutBatch returns null when there is nothing to cut and does not bump counters",
+        "status": "passed"
+      },
+      {
+        "name": "cutBatch respects the max size and preserves cut order across batches",
+        "status": "passed"
+      },
+      {
+        "name": "cutBatch RM4: the key survives retries \u2014 recordAttempt never re-mints",
+        "status": "passed"
+      },
+      {
+        "name": "cutBatch serializes an addition racing a cut without losing or duplicating evidence",
+        "status": "passed"
+      },
+      {
+        "name": "ACK semantics keeps the bounded legacy acknowledgement path for active v1 recovery",
+        "status": "passed"
+      },
+      {
+        "name": "ACK semantics terminal rejection retains the exact batch as durable diagnostic evidence",
+        "status": "passed"
+      },
+      {
+        "name": "ACK semantics persists the signed receipt and rebuilds the exact manifest after reload",
+        "status": "passed"
+      },
+      {
+        "name": "driver identity isolation does not enumerate another driver's leftovers on the same origin",
+        "status": "passed"
+      },
+      {
+        "name": "encrypted at-rest state stores coordinates only as ciphertext under a non-extractable key",
+        "status": "passed"
+      },
+      {
+        "name": "encrypted at-rest state fails closed when ciphertext is tampered",
+        "status": "passed"
+      },
+      {
+        "name": "encrypted at-rest state fails closed instead of replacing a missing driver key",
+        "status": "passed"
+      },
+      {
+        "name": "serialized legacy migration upgrades the v1 production default database in place",
+        "status": "passed"
+      },
+      {
+        "name": "serialized legacy migration encrypts v1 plaintext, preserves counters and resumes owner binding after interruption",
+        "status": "passed"
+      },
+      {
+        "name": "serialized legacy migration keeps mismatched legacy state encrypted-unbound and invisible until its owner reauthenticates",
+        "status": "passed"
+      },
+      {
+        "name": "serialized legacy migration requires the migration Web Lock for production-scoped opens",
+        "status": "passed"
+      },
+      {
+        "name": "reload recovery (RM5) pending pings, unsent batches, and the sequence survive a reopen",
+        "status": "passed"
+      },
+      {
+        "name": "forgetTrip clears every store for the trip and leaves other trips alone",
+        "status": "passed"
+      },
+      {
+        "name": "deadletter-only recovery (OFF-002) still discovers a trip whose only leftover evidence is a dead letter",
+        "status": "passed"
+      },
+      {
+        "name": "deadletter-only recovery (OFF-002) forgetTrip clears retained dead letters so a reconciled trip stops recurring",
+        "status": "passed"
+      },
+      {
+        "name": "break-case recovery visibility (OFF-002/OFF-003) finds a deadletter-only trip after an abrupt close that never ran close()",
+        "status": "passed"
+      },
+      {
+        "name": "break-case recovery visibility (OFF-002/OFF-003) leaves no partial evidence and no consumed sequence when the write aborts",
+        "status": "passed"
+      },
+      {
+        "name": "break-case recovery visibility (OFF-002/OFF-003) keeps a corrupted dead letter discoverable while reading it still fails closed",
+        "status": "passed"
+      },
+      {
+        "name": "durable End boundary freezes queued writes once and restores the identical End after reload",
+        "status": "passed"
+      },
+      {
+        "name": "freezes a legacy End watermark before retry and forbids later capture",
+        "status": "passed"
+      },
+      {
+        "name": "retains complete signed per-sample disposition atomically without resending settled peers",
+        "status": "passed"
+      },
+      {
+        "name": "refuses an inconsistent signed partial disposition without deleting its batch",
+        "status": "passed"
+      }
+    ],
+    "frontend/src/lib/trips/trip-evidence.test.ts": [
+      {
+        "name": "trip evidence v2 canonical contract matches the shared Python/TypeScript batch and manifest vectors",
+        "status": "passed"
+      },
+      {
+        "name": "trip evidence v2 canonical contract sorts object keys by UTF-8 bytes and rejects non-finite values",
+        "status": "passed"
+      },
+      {
+        "name": "trip evidence v2 canonical contract rejects non-millisecond evidence timestamps",
+        "status": "passed"
+      }
+    ],
+    "frontend/src/app/admin/driver-applications/actions.test.ts": [
+      {
+        "name": "reviewPersonPayeeAction performs explicit audited reads of the exact identity, account and document",
+        "status": "passed"
+      },
+      {
+        "name": "reviewPersonPayeeAction audits every direct document read with the automatic application-review purpose",
+        "status": "passed"
+      },
+      {
+        "name": "reviewPersonPayeeAction refuses empty Reject reason but permits empty reason for Approve and Expire",
+        "status": "passed"
+      },
+      {
+        "name": "reviewPersonPayeeAction promotes only the exact account version with an authorized reference",
+        "status": "passed"
+      },
+      {
+        "name": "reviewPersonPayeeAction requires all explicit approval facts before the governed decision endpoint",
+        "status": "passed"
+      },
+      {
+        "name": "reviewPersonPayeeAction records typed rejection evidence without approval attestations",
+        "status": "passed"
+      },
+      {
+        "name": "reviewPersonPayeeAction binds profile-only person and vehicle reviews to the displayed current revision",
+        "status": "passed"
+      },
+      {
+        "name": "reviewPersonPayeeAction audits exact vehicle evidence and requires every approval fact",
+        "status": "passed"
+      },
+      {
+        "name": "reviewPersonPayeeAction starts approved driver account setup without exposing the one-use authority",
+        "status": "passed"
+      },
+      {
+        "name": "logs every vehicle View with automatic vehicle-review purpose and current IDs",
+        "status": "passed"
+      }
+    ],
+    "frontend/src/app/admin/driver-applications/document-labels.test.tsx": [
+      {
+        "name": "uses clear identity document labels with direct audited reads",
+        "status": "passed"
+      },
+      {
+        "name": "uses car document labels and hides unknown internal document keys",
+        "status": "passed"
+      }
+    ],
+    "frontend/src/app/admin/driver-applications/person-payee-decision-actions.test.tsx": [
+      {
+        "name": "keeps all five rows without allowing reads or decisions when nothing is submitted",
+        "status": "passed"
+      },
+      {
+        "name": "directly acknowledges and performs each existing logged read of Identity (NIN)",
+        "status": "passed"
+      },
+      {
+        "name": "directly acknowledges and performs each existing logged read of Bank account",
+        "status": "passed"
+      },
+      {
+        "name": "directly acknowledges and performs each existing logged read of Driver\u2019s licence",
+        "status": "passed"
+      },
+      {
+        "name": "directly acknowledges and performs each existing logged read of Driver photo",
+        "status": "passed"
+      },
+      {
+        "name": "directly acknowledges and performs each existing logged read of Signed agreement",
+        "status": "passed"
+      },
+      {
+        "name": "clears the document link on hide and presents failed reads without exposing data",
+        "status": "passed"
+      },
+      {
+        "name": "discards revealed evidence and bank reference when current record IDs change",
+        "status": "passed"
+      },
+      {
+        "name": "keeps unavailable document rows and the exact bank reference requirements",
+        "status": "passed"
+      },
+      {
+        "name": "shows the combined approved decision separately from a bank check",
+        "status": "passed"
+      },
+      {
+        "name": "shows the combined rejected decision separately from a bank check",
+        "status": "passed"
+      },
+      {
+        "name": "shows the combined expired decision separately from a bank check",
+        "status": "passed"
+      },
+      {
+        "name": "does not restore an old response after hide and a newer logged read",
+        "status": "passed"
+      },
+      {
+        "name": "requires a chosen reason only for Reject and posts the selected reason",
+        "status": "passed"
+      }
+    ],
+    "frontend/src/app/admin/driver-applications/vehicle-decision-actions.test.tsx": [
+      {
+        "name": "marks approval expiry as required while a vehicle awaits review",
+        "status": "passed"
+      },
+      {
+        "name": "directly reads the current car registration once per View",
+        "status": "passed"
+      },
+      {
+        "name": "directly reads the current car insurance once per View",
+        "status": "passed"
+      },
+      {
+        "name": "directly reads the current car photo once per View",
+        "status": "passed"
+      },
+      {
+        "name": "hides one car document independently and logs its reopened read",
+        "status": "passed"
+      },
+      {
+        "name": "clears failed reads on hide and retries with a fresh audited read",
+        "status": "passed"
+      },
+      {
+        "name": "discards an older response after manual reset and a newer read",
+        "status": "passed"
+      },
+      {
+        "name": "discards an older response after file reset and a newer read",
+        "status": "passed"
+      },
+      {
+        "name": "discards an older response after submission reset and a newer read",
+        "status": "passed"
+      },
+      {
+        "name": "discards an older response after vehicle reset and a newer read",
+        "status": "passed"
+      },
+      {
+        "name": "clears actual car read state on timeout",
+        "status": "passed"
+      },
+      {
+        "name": "clears actual car read state on pagehide",
+        "status": "passed"
+      },
+      {
+        "name": "clears actual car read state on visibilitychange",
+        "status": "passed"
+      },
+      {
+        "name": "does not read empty collections and preserves the approved-car decision branch",
+        "status": "passed"
+      },
+      {
+        "name": "times each vehicle document independently",
+        "status": "passed"
+      }
+    ],
+    "frontend/src/app/driver/(portal)/profile/document-renewals.test.tsx": [
+      {
+        "name": "shows each recorded outcome, only failed uploads, no filenames or saved identity/bank fields",
+        "status": "passed"
+      },
+      {
+        "name": "offers a named bank list only for rejected bank details",
+        "status": "passed"
+      },
+      {
+        "name": "handles loading failure and retry",
+        "status": "passed"
+      },
+      {
+        "name": "requests all fresh vehicle files after payload purge",
+        "status": "passed"
+      },
+      {
+        "name": "offers the missing retained document (driver_photo)",
+        "status": "passed"
+      },
+      {
+        "name": "offers the missing retained document (insurance)",
+        "status": "passed"
+      },
+      {
+        "name": "hides renewal controls while waiting and for approved documents",
+        "status": "passed"
+      },
+      {
+        "name": "offers zero-file renewal for an expired whole-car approval without relabelling accepted insurance",
+        "status": "passed"
+      },
+      {
+        "name": "retries one replacement without duplicate upload or changing the request (0)",
+        "status": "passed"
+      },
+      {
+        "name": "retries one replacement without duplicate upload or changing the request (1)",
+        "status": "passed"
+      },
+      {
+        "name": "recovers a failed scan without submitting a revision",
+        "status": "passed"
+      }
+    ],
+    "frontend/src/app/driver/(portal)/track/trip-tracker.test.tsx": [
+      {
+        "name": "plain evidence delivery status says captured evidence is saved on this phone when buffered offline",
+        "status": "passed"
+      },
+      {
+        "name": "assignment activation authority tells the driver to wait for Terrax Media to start the job",
+        "status": "passed"
+      },
+      {
+        "name": "assignment activation authority names an activated campaign that cannot start yet instead of claiming none",
+        "status": "passed"
+      },
+      {
+        "name": "storage fail-closed (finding 5) blocks starting a trip when IndexedDB cannot open",
+        "status": "passed"
+      },
+      {
+        "name": "storage fail-closed (finding 5) disables ending when storage failed with an active trip (no false completeness)",
+        "status": "passed"
+      },
+      {
+        "name": "single-writer lock fail-closed (finding 6) never calls Start before the exclusive writer lock is acquired",
+        "status": "passed"
+      },
+      {
+        "name": "single-writer lock fail-closed (finding 6) calls Start only after the writer lock and every live prerequisite are held",
+        "status": "passed"
+      },
+      {
+        "name": "single-writer lock fail-closed (finding 6) does not continue Start after navigation releases the writer",
+        "status": "passed"
+      },
+      {
+        "name": "single-writer lock fail-closed (finding 6) reconciles an unknown Start response while retaining the acquired writer",
+        "status": "passed"
+      },
+      {
+        "name": "single-writer lock fail-closed (finding 6) retries only reconciliation after Start remains unknown",
+        "status": "passed"
+      },
+      {
+        "name": "single-writer lock fail-closed (finding 6) reacquires the writer before reconciling an active trip after reload",
+        "status": "passed"
+      },
+      {
+        "name": "single-writer lock fail-closed (finding 6) without Web Locks support: warns and disables End",
+        "status": "passed"
+      },
+      {
+        "name": "single-writer lock fail-closed (finding 6) when another tab holds the lock: warns and disables End",
+        "status": "passed"
+      },
+      {
+        "name": "live runtime truth records the refused Start assessment before releasing held capabilities",
+        "status": "passed"
+      },
+      {
+        "name": "live runtime truth does not claim active health without a currently held wake lock",
+        "status": "passed"
+      },
+      {
+        "name": "live runtime truth does not capture while the document is hidden",
+        "status": "passed"
+      },
+      {
+        "name": "live runtime truth stops capture synchronously when visibility is lost",
+        "status": "passed"
+      },
+      {
+        "name": "live runtime truth stops capture when the held wake sentinel releases",
+        "status": "passed"
+      },
+      {
+        "name": "live runtime truth closes driver-scoped storage and disables End on revoked keepalive",
+        "status": "passed"
+      },
+      {
+        "name": "end watermark honesty (finding 5) retains complete receipts and attempts reconciliation when End is only ended",
+        "status": "passed"
+      },
+      {
+        "name": "end watermark honesty (finding 5) finishes End without deleting retained evidence after terminal adjudication",
+        "status": "passed"
+      },
+      {
+        "name": "end watermark honesty (finding 5) forgets complete receipts when End authoritatively returns sealed",
+        "status": "passed"
+      },
+      {
+        "name": "end watermark honesty (finding 5) reports complete only when the queue is drained",
+        "status": "passed"
+      },
+      {
+        "name": "end watermark honesty (finding 5) reports incomplete when unsynced data remains after the final drain",
+        "status": "passed"
+      },
+      {
+        "name": "end watermark honesty (finding 5) forces clientComplete false when diagnostic dead letters remain",
+        "status": "passed"
+      },
+      {
+        "name": "end watermark honesty (finding 5) joins an already-running ordered drain before computing the End watermark",
+        "status": "passed"
+      },
+      {
+        "name": "end watermark honesty (finding 5) retains a batch when a nominally successful upload has no explicit ACK",
+        "status": "passed"
+      },
+      {
+        "name": "end watermark honesty (finding 5) holds a deactivated-assignment batch instead of dead-lettering it (OFF-006)",
+        "status": "passed"
+      },
+      {
+        "name": "end watermark honesty (finding 5) dead-letters one terminal batch and continues draining later evidence",
+        "status": "passed"
+      },
+      {
+        "name": "end watermark honesty (finding 5) does not resume capture when End committed but its response was lost",
+        "status": "passed"
+      },
+      {
+        "name": "end watermark honesty (finding 5) keeps the frozen End boundary while an unknown End still appears active",
+        "status": "passed"
+      },
+      {
+        "name": "end watermark honesty (finding 5) keeps capture stopped and offers reconciliation while End authority is unavailable",
+        "status": "passed"
+      },
+      {
+        "name": "end watermark honesty (finding 5) does not submit a watermark after storage fails during the final drain",
+        "status": "passed"
+      },
+      {
+        "name": "end watermark honesty (finding 5) revalidates current trip authority before resuming after End cancellation",
+        "status": "passed"
+      },
+      {
+        "name": "stranded-data recovery (finding 7) reconciles and forgets a receipt-only v2 trip discovered after reload",
+        "status": "passed"
+      },
+      {
+        "name": "stranded-data recovery (finding 7) drains an active legacy-v1 encrypted batch without requiring a v2 receipt",
+        "status": "passed"
+      },
+      {
+        "name": "stranded-data recovery (finding 7) drains leftover trips on mount, on a timer, and on reconnect",
+        "status": "passed"
+      },
+      {
+        "name": "durable-before-acknowledgement capture (OFF-003) does not display a captured fix until the encrypted queue has persisted it",
+        "status": "passed"
+      },
+      {
+        "name": "durable-before-acknowledgement capture (OFF-003) never acknowledges a fix that the durable write rejected (quota or abort)",
+        "status": "passed"
+      },
+      {
+        "name": "deadletter-only recovery (OFF-002) surfaces and reconciles a deadletter-only trip without resending terminal evidence",
+        "status": "passed"
+      },
+      {
+        "name": "unreadable retained evidence (OFF-003) says evidence is retained but unreadable instead of claiming storage is unavailable",
+        "status": "passed"
+      },
+      {
+        "name": "recovery termination and fault containment (OFF-002) retries an incomplete trip until the server signs its final adjudication",
+        "status": "passed"
+      },
+      {
+        "name": "recovery termination and fault containment (OFF-002) retains diagnostic evidence after the server's final adjudication (OFF-006)",
+        "status": "passed"
+      },
+      {
+        "name": "recovery termination and fault containment (OFF-002) stops reserving the writer lock once every leftover trip is terminal",
+        "status": "passed"
+      },
+      {
+        "name": "recovery termination and fault containment (OFF-002) keeps capture running when a leftover trip's diagnostics cannot be read",
+        "status": "passed"
+      },
+      {
+        "name": "correction End generation and current-trip recovery flushes deferred current-trip evidence before reconciling a lost End response",
+        "status": "passed"
+      },
+      {
+        "name": "correction End generation and current-trip recovery fences a visibility preparation and an old GPS callback across End",
+        "status": "passed"
+      },
+      {
+        "name": "signed partial acknowledgement display excludes signed rejections from synced count and retains their End evidence",
+        "status": "passed"
+      },
+      {
+        "name": "signed partial acknowledgement display normalizes invalid optional heading 360 before enqueue",
+        "status": "passed"
+      },
+      {
+        "name": "signed partial acknowledgement display normalizes invalid optional heading -1 before enqueue",
+        "status": "passed"
+      },
+      {
+        "name": "signed partial acknowledgement display normalizes invalid optional heading Infinity before enqueue",
+        "status": "passed"
+      },
+      {
+        "name": "retains settled rejected-sample receipts when recovering an earlier trip",
+        "status": "passed"
+      },
+      {
+        "name": "restores a frozen End after reload without reopening capture and retries it identically",
+        "status": "passed"
+      },
+      {
+        "name": "fails closed when the durable End marker cannot commit",
+        "status": "passed"
+      },
+      {
+        "name": "finishes a restored protocol 1 End without overstating completeness",
+        "status": "passed"
+      },
+      {
+        "name": "finishes a restored protocol 2 End without overstating completeness",
+        "status": "passed"
+      }
+    ]
+  },
+  "browser_cases": {
+    "admin.spec.ts::assignments section lists the seeded pairing": {
+      "status": "pass",
+      "run": "correction-e2e-final.xml"
+    },
+    "admin.spec.ts::daily-rate terms show the frozen version and publishing controls": {
+      "status": "pass",
+      "run": "correction-e2e-final.xml"
+    },
+    "analytics.spec.ts::report shows issued daily figures for the golden campaign": {
+      "status": "pass",
+      "run": "correction-e2e-final.xml"
+    },
+    "analytics.spec.ts::coverage map ranks the golden campaign's populated target zone": {
+      "status": "pass",
+      "run": "correction-e2e-final.xml"
+    },
+    "billing.spec.ts::admin can discover campaign commercial billing": {
+      "status": "pass",
+      "run": "correction-e2e-final.xml"
+    },
+    "billing.spec.ts::quotation acceptance and invoice facts survive role changes and reloads": {
+      "status": "pass",
+      "run": "correction-e2e-final.xml"
+    },
+    "driver.spec.ts::jobs tab shows an offer alongside active and completed campaigns": {
+      "status": "pass",
+      "run": "correction-e2e-final.xml"
+    },
+    "operator-workflows.spec.ts::named search narrows driver, vehicle and assignment work lists": {
+      "status": "pass",
+      "run": "correction-e2e-final.xml"
+    },
+    "operator-workflows.spec.ts::activation readiness never invites a second activation of active work": {
+      "status": "pass",
+      "run": "correction-e2e-final.xml"
+    },
+    "operator-workflows.spec.ts::payout selection explains ineligible credits and closeout keeps paid facts separate": {
+      "status": "pass",
+      "run": "correction-e2e-payout.xml"
+    },
+    "zones.spec.ts::zones page renders the seeded campaign's zones on a map": {
+      "status": "pass",
+      "run": "correction-e2e-final.xml"
+    }
+  },
+  "local_coverage": "NOT RUN, D71/REQ-129; CI baselines unchanged",
+  "runtime": "isolated synthetic PostgreSQL/PostGIS + test API, Windows Next dev16.3.6 WASM; tracked16.4 dependencies unchanged",
+  "static": {
+    "ruff": "25 owned paths check/format PASS",
+    "python_types": "15 modules, 0 unsuppressed errors; unchanged tracked baseline",
+    "frontend_source_types": "source + e2e PASS via temporary source-only config",
+    "eslint_prettier": "14 changed TS/TSX files PASS",
+    "openapi_types": "byte-identical generated types",
+    "whole_project_types": "FAIL in unchanged advertiser/billing generated dev PageProps; source-only PASS; production build deferred to CI"
+  }
+}

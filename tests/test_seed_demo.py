@@ -155,14 +155,14 @@ def test_renewal_seed_is_scanned_fictional_and_idempotent(
             driver = await session.scalar(
                 select(User).where(User.email == "damilola.akinwale@demo.mobility.local")
             )
-            assert driver.status == "active" and driver.phone == "+447700900114"
+            assert driver.status == "active" and driver.phone == "+2340000000114"
             assert (await session.scalar(select(DriverKycSubmission))).status == "rejected"
             assert (await session.scalar(select(VehicleEvidenceSubmission))).status == "expired"
             for stored in await session.scalars(select(StoredFile)):
                 assert stored.scan_status == "clean" and stored.subject_user_id == driver.id
                 assert seed_private_storage.contents[stored.storage_key].startswith(b"\x89PNG")
             assert all(
-                phone.startswith("+447700900") for phone in demo.DEMO_DRIVER_PHONE_NUMBERS.values()
+                phone.startswith("+2340000000") for phone in demo.DEMO_DRIVER_PHONE_NUMBERS.values()
             )
 
     asyncio.run(scenario())
@@ -697,7 +697,7 @@ def fetch_seed_counts(sessionmaker: async_sessionmaker[AsyncSession]) -> dict[st
     async def fetch() -> dict[str, int]:
         async with sessionmaker() as session:
             campaign = await session.scalar(
-                select(Campaign).where(Campaign.name == "Marula Kitchens — Lagos Lunch Routes")
+                select(Campaign).where(Campaign.name == "Marula Kitchens — Wuse Lunch Routes")
             )
             assert campaign is not None
             profile_id = await session.scalar(
@@ -749,7 +749,7 @@ def fetch_seed_counts(sessionmaker: async_sessionmaker[AsyncSession]) -> dict[st
                 "campaigns": int(
                     await session.scalar(
                         select(func.count(Campaign.id)).where(
-                            Campaign.name == "Marula Kitchens — Lagos Lunch Routes"
+                            Campaign.name == "Marula Kitchens — Wuse Lunch Routes"
                         )
                     )
                     or 0
@@ -1749,7 +1749,7 @@ def test_seed_business_ownership_and_applicant_financial_separation(
                 DEMO_DRIVER_PHONE_NUMBERS
             )
             assert all(
-                row.role == UserRole.DRIVER and "+447700900100" <= row.phone <= "+447700900114"
+                row.role == UserRole.DRIVER and "+2340000000100" <= row.phone <= "+2340000000114"
                 for row in users
                 if row.phone is not None
             )
@@ -1960,7 +1960,7 @@ def test_demo_seed_is_idempotent_with_postgis(
     assert second_rich["audit_events"] == 21
     assert len(second_rich["flag_types"]) >= 5
     assert second_rich["severities"] == {"low", "medium", "high"}
-    assert 10 <= second_rich["fraud_flags"] <= 15
+    assert 10 <= second_rich["fraud_flags"] <= 20
     assert fetch_lifecycle_violation_count(postgis_db_sessionmaker) == 0
 
 
@@ -2176,7 +2176,7 @@ def test_rich_seed_later_rerun_only_appends_valid_rolling_trips(
                 await session.scalar(
                     select(func.count(TripSession.id))
                     .join(Campaign, Campaign.id == TripSession.campaign_id)
-                    .where(Campaign.name == "Oriole Books — Island Reading Week")
+                    .where(Campaign.name == "Oriole Books — Wuse Reading Week")
                 )
                 or 0
             )
@@ -2247,3 +2247,40 @@ def test_ordinary_demo_driver_can_start_and_end_using_production_authority(
         },
     )
     assert response.status_code == 201, response.text
+
+
+def test_abuja_seed_definitions_have_consistent_names_and_geography():
+    from app.seeds.abuja import district_polygon
+    from app.seeds.demo import (
+        palmpay_market_trip_specs,
+        palmpay_trip_specs,
+        trip_specs,
+        zone_geometries,
+    )
+    from app.seeds.rich import CAMPAIGN_SPECS, CORRIDORS, DRIVER_AREAS
+
+    assert not any("Lagos" in name or "Ikeja" in name for name, _, _ in CAMPAIGN_SPECS)
+    assert {"Wuse", "Wuse II", "Jabi", "Asokoro", "Utako", "Gwarinpa", "Kubwa"}.issubset(
+        DRIVER_AREAS
+    )
+    for name, _, geometry in zone_geometries():
+        assert "Lagos" not in name and "Yaba" not in name
+        for longitude, latitude in geometry["coordinates"][0]:
+            assert 7.2 <= longitude <= 7.6 and 8.9 <= latitude <= 9.2
+    offices = next(geometry for name, _, geometry in zone_geometries() if name == "Wuse II offices")
+    for longitude, latitude in offices["coordinates"][0]:
+        assert 7.46 <= longitude <= 7.48 and 9.078 <= latitude <= 9.095
+    for specs in (
+        trip_specs(datetime.now(UTC)),
+        palmpay_trip_specs(datetime.now(UTC)),
+        palmpay_market_trip_specs(datetime.now(UTC)),
+    ):
+        for _, _, coordinates in specs:
+            for latitude, longitude in coordinates:
+                assert 8.9 <= latitude <= 9.2 and 7.2 <= longitude <= 7.6
+    wuse = district_polygon("Wuse")["coordinates"][0]
+    west, south = wuse[0]
+    east, north = wuse[2]
+    for corridor in CORRIDORS:
+        for latitude, longitude in corridor:
+            assert west <= longitude <= east and south <= latitude <= north

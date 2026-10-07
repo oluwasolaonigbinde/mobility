@@ -18,42 +18,67 @@ const labels: Record<string, string> = {
   insurance: "Insurance",
   vehicle_photo: "Vehicle photo",
 };
+// Provider codes stay inside the form; drivers choose bank names.
+// Sources: paystack.com/docs/payments/direct-debit/ and globusbank.com/Files/List-of-Nigerian-Banks.pdf.
+const banks = [
+  ["044", "Access Bank"],
+  ["023", "Citibank Nigeria"],
+  ["050", "Ecobank Nigeria"],
+  ["070", "Fidelity Bank"],
+  ["011", "First Bank of Nigeria"],
+  ["214", "First City Monument Bank"],
+  ["00103", "Globus Bank"],
+  ["058", "Guaranty Trust Bank"],
+  ["301", "Jaiz Bank"],
+  ["082", "Keystone Bank"],
+  ["50211", "Kuda Bank"],
+  ["100004", "OPay"],
+  ["076", "Polaris Bank"],
+  ["105", "PremiumTrust Bank"],
+  ["101", "Providus Bank"],
+  ["221", "Stanbic IBTC Bank"],
+  ["068", "Standard Chartered Bank"],
+  ["232", "Sterling Bank"],
+  ["100", "Suntrust Bank"],
+  ["102", "Titan Bank"],
+  ["032", "Union Bank"],
+  ["033", "United Bank for Africa"],
+  ["215", "Unity Bank"],
+  ["035", "Wema Bank"],
+  ["057", "Zenith Bank"],
+];
 const reasons: Record<string, string> = {
-  missing_evidence: "A document is missing. Send the complete set of documents.",
-  rejected_evidence: "Your documents were not approved. Upload current, clear documents.",
-  expired_evidence: "Your documents have expired. Upload current documents.",
-  unsafe_evidence: "A document failed the file checks. Choose another file.",
-  identity_mismatch:
-    "Your identity details did not match. Check your NIN and licence before sending again.",
-  bank_account_mismatch:
-    "Your bank details did not match. Check the account name, number and bank before sending again.",
-  unreadable_evidence: "A document was hard to read. Upload a clear photo or scan.",
-  owner_mismatch:
-    "The vehicle owner details did not match. Check the registration before sending again.",
-  vehicle_identity_mismatch:
-    "The vehicle details did not match. Upload documents for this vehicle.",
-  not_roadworthy:
-    "The vehicle was not approved as roadworthy. Contact Terrax before sending new documents.",
-  not_pilot_eligible:
-    "This vehicle was not approved for the pilot. Contact Terrax before sending new documents.",
+  missing_evidence: "missing, upload this document",
+  rejected_evidence: "not approved, upload a replacement",
+  expired_evidence: "expired, upload a current document",
+  unsafe_evidence: "file checks failed, upload another file",
+  unreadable_evidence: "hard to read, upload a clearer photo",
+  identity_mismatch: "identity details do not match, upload a replacement",
+  owner_mismatch: "owner details do not match, upload a replacement",
+  vehicle_identity_mismatch: "vehicle details do not match, upload a replacement",
+  not_roadworthy: "contact Terrax about roadworthiness",
+  not_pilot_eligible: "contact Terrax about pilot eligibility",
 };
 
 function RenewalForm({
   submissionId,
   vehicleId,
   onSent,
+  kinds,
+  replaceNin = false,
+  replaceBank = false,
 }: {
   submissionId: string;
   vehicleId?: string;
   onSent: () => Promise<void>;
+  kinds: string[];
+  replaceNin?: boolean;
+  replaceBank?: boolean;
 }) {
   const requestId = useRef(crypto.randomUUID());
   const uploads = useRef(new Map<string, { requestId: string; fileId?: string }>());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const kinds = vehicleId
-    ? ["registration", "insurance", "vehicle_photo"]
-    : ["driver_license", "driver_photo", "signed_agreement"];
   async function submit(form: FormData) {
     setBusy(true);
     setError("");
@@ -62,9 +87,11 @@ function RenewalForm({
         client_request_id: requestId.current,
         expected_submission_id: submissionId,
       };
-      if (!vehicleId)
-        for (const field of ["nin", "account_name", "account_number", "bank_code"])
-          body[field] = String(form.get(field) ?? "");
+      for (const field of [
+        ...(replaceNin ? ["nin"] : []),
+        ...(replaceBank ? ["account_name", "account_number", "bank_code"] : []),
+      ])
+        body[field] = String(form.get(field) ?? "");
       for (const kind of kinds) {
         const file = form.get(kind);
         if (!(file instanceof File) || !file.size)
@@ -108,17 +135,19 @@ function RenewalForm({
   }
   return (
     <form action={submit} className="mt-4 flex flex-col gap-4">
-      {!vehicleId ? (
+      {replaceNin ? (
+        <Field
+          name="nin"
+          label="NIN"
+          inputMode="numeric"
+          minLength={11}
+          maxLength={11}
+          required
+          autoComplete="off"
+        />
+      ) : null}
+      {replaceBank ? (
         <>
-          <Field
-            name="nin"
-            label="NIN"
-            inputMode="numeric"
-            minLength={11}
-            maxLength={11}
-            required
-            autoComplete="off"
-          />
           <Field name="account_name" label="Bank account name" required />
           <Field
             name="account_number"
@@ -127,29 +156,39 @@ function RenewalForm({
             required
             autoComplete="off"
           />
-          <Field name="bank_code" label="Bank code" required />
+          <label className="micro text-muted flex flex-col gap-2">
+            Bank
+            <select
+              name="bank_code"
+              required
+              disabled={busy}
+              className="border-edge bg-raised text-ink h-11 rounded-lg border px-3 text-sm"
+            >
+              <option value="">Choose your bank</option>
+              {banks.map(([code, name]) => (
+                <option key={code} value={code}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="text-muted text-sm">If your bank is missing, contact Terrax to add it.</p>
         </>
       ) : null}
       {kinds.map((kind) => (
-        <label key={kind} className="text-sm">
-          {labels[kind]}
-          <input
-            className="border-edge mt-2 block w-full rounded-lg border p-2"
-            name={kind}
-            type="file"
-            accept="application/pdf,image/jpeg,image/png,image/webp"
-            required
-            disabled={busy}
-          />
-        </label>
+        <UploadControl key={kind} kind={kind} disabled={busy} />
       ))}
+      {kinds.length ? (
+        <p className="text-muted text-sm">
+          Choose a PDF, JPEG, PNG or WebP.{" "}
+          {vehicleId ? "Up to 20 MB per file." : "Up to 10 MB per file."}
+        </p>
+      ) : null}
       <p className="text-muted text-sm">
-        Choose a PDF, JPEG, PNG or WebP.{" "}
-        {vehicleId ? "Up to 20 MB per file." : "Up to 10 MB per file."} Terrax will review your new
-        documents before you can drive.
+        Terrax will review your changes. Your other documents and saved details stay on file.
       </p>
       <Button type="submit" disabled={busy}>
-        {busy ? "Uploading and checking files…" : "Send new documents"}
+        {busy ? "Uploading and checking files..." : "Send for review"}
       </Button>
       {error ? (
         <p role="alert" className="text-coral text-sm">
@@ -160,44 +199,60 @@ function RenewalForm({
   );
 }
 
+function UploadControl({ kind, disabled }: { kind: string; disabled: boolean }) {
+  const [selected, setSelected] = useState(false);
+  return (
+    <label className="border-edge bg-raised focus-within:border-amber relative flex cursor-pointer items-center justify-between gap-3 rounded-lg border px-3 py-3 text-sm">
+      <span>{labels[kind]}</span>
+      <span className="text-amber shrink-0">
+        {selected ? "File selected · Change" : "Upload replacement"}
+      </span>
+      <input
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        aria-label={`Replace ${labels[kind]}`}
+        name={kind}
+        type="file"
+        accept="application/pdf,image/jpeg,image/png,image/webp"
+        required
+        disabled={disabled}
+        onChange={(event) => setSelected(Boolean(event.target.files?.length))}
+      />
+    </label>
+  );
+}
+
 function DocumentStatus({
-  status,
-  names,
-  reason,
-  validUntil,
+  documents,
 }: {
-  status: string;
-  names: Record<string, string>;
-  reason?: string | null;
-  validUntil?: string | null;
+  documents: Record<string, components["schemas"]["DocumentReviewRead"]>;
 }) {
   return (
-    <>
-      <p className="mt-2 text-sm">
-        {status === "pending_review"
-          ? "Your documents have been sent and are waiting for Terrax to review."
-          : status === "approved"
-            ? "Your documents are approved."
-            : status === "not_submitted"
-              ? "No documents are recorded yet. Contact Terrax for help."
-              : (reasons[reason ?? ""] ?? "Upload current documents for Terrax to review.")}
-      </p>
-      {validUntil ? (
-        <p className="mt-2 text-sm">
-          Vehicle approval {status === "expired" ? "expired on" : "ends on"}{" "}
-          {formatDate(validUntil)}.
-        </p>
-      ) : null}
-      {Object.entries(names).length ? (
-        <ul className="text-muted mt-3 space-y-1 text-sm">
-          {Object.entries(names).map(([kind, name]) => (
-            <li key={kind} className="break-all">
-              {labels[kind]}: {name}
-            </li>
-          ))}
-        </ul>
-      ) : null}
-    </>
+    <ul className="mt-3 space-y-3 text-sm">
+      {Object.entries(documents).map(([kind, item]) => (
+        <li key={kind}>
+          <span className="font-medium">{labels[kind]}: </span>
+          <span
+            className={
+              item.status === "rejected" || item.status === "expired" ? "text-coral" : "text-muted"
+            }
+          >
+            {item.status === "accepted"
+              ? "accepted"
+              : item.status === "on_file"
+                ? "on file, awaiting review"
+                : item.status === "expired" && item.expires_on
+                  ? `expired ${new Date(item.expires_on + "T12:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "Africa/Lagos" })}, upload a current document`
+                  : (reasons[item.reason_code ?? ""] ?? "upload a replacement")}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function replacements(documents: Record<string, components["schemas"]["DocumentReviewRead"]>) {
+  return Object.keys(documents).filter((kind) =>
+    ["rejected", "expired"].includes(documents[kind]?.status ?? "on_file"),
   );
 }
 
@@ -246,7 +301,7 @@ export function DocumentRenewals() {
   if (!documents)
     return (
       <Panel className="p-5">
-        <p role="status">Loading your documents…</p>
+        <p role="status">Loading your documents...</p>
       </Panel>
     );
   const person = documents.person_payee;
@@ -255,15 +310,45 @@ export function DocumentRenewals() {
       <h2 className="font-medium">Your documents</h2>
       <section className="mt-4">
         <h3 className="font-medium">Identity and bank details</h3>
-        <DocumentStatus
-          status={person.status}
-          names={documents.person_document_names ?? {}}
-          reason={person.reason_code}
-        />
+        <DocumentStatus documents={person.documents ?? {}} />
+        {person.purged_at ? (
+          <p className="text-muted mt-3 text-sm">
+            Your previous documents and saved details have been removed. Send a new set for Terrax
+            to review.
+          </p>
+        ) : null}
+        {person.status === "pending_review" ? (
+          <p role="status" className="text-muted mt-3 text-sm">
+            Terrax is reviewing your changes.
+          </p>
+        ) : null}
+        {person.replace_bank && !person.purged_at ? (
+          <p className="text-coral mt-3 text-sm">
+            Bank details did not match. Choose your bank and enter the corrected account details.
+          </p>
+        ) : null}
+        {person.replace_nin && !person.purged_at ? (
+          <p className="text-coral mt-3 text-sm">
+            Identity details did not match. Enter your corrected NIN.
+          </p>
+        ) : null}
+        {person.status !== "approved" ? (
+          <p className="text-muted mt-3 text-sm">
+            Starting new campaign trips is paused until Terrax approves your identity and bank
+            review. You can still sign in and finish a trip already in progress.
+          </p>
+        ) : null}
         {person.submission_id && ["rejected", "expired"].includes(person.status) ? (
           <RenewalForm
             key={person.submission_id}
             submissionId={person.submission_id}
+            kinds={
+              person.purged_at
+                ? ["driver_license", "driver_photo", "signed_agreement"]
+                : replacements(person.documents ?? {})
+            }
+            replaceNin={person.replace_nin}
+            replaceBank={person.replace_bank}
             onSent={sent}
           />
         ) : null}
@@ -271,12 +356,27 @@ export function DocumentRenewals() {
       {(documents.vehicles ?? []).map((vehicle) => (
         <section className="border-edge mt-6 border-t pt-4" key={vehicle.vehicle_id}>
           <h3 className="font-medium">Vehicle documents · {vehicle.plate_number}</h3>
-          <DocumentStatus
-            status={vehicle.status ?? "not_submitted"}
-            names={(documents.vehicle_document_names ?? {})[vehicle.vehicle_id ?? ""] ?? {}}
-            reason={vehicle.reason_code}
-            validUntil={vehicle.valid_until}
-          />
+          <DocumentStatus documents={vehicle.documents ?? {}} />
+          {vehicle.valid_until ? (
+            <p className="text-muted mt-3 text-sm">
+              Vehicle approval {vehicle.status === "expired" ? "expired on" : "ends on"}{" "}
+              {formatDate(vehicle.valid_until)}.
+            </p>
+          ) : null}
+          {vehicle.status === "pending_review" ? (
+            <p role="status" className="text-muted mt-3 text-sm">
+              Terrax is reviewing this car’s documents.
+            </p>
+          ) : null}
+          {vehicle.status !== "approved" ? (
+            <p className="text-muted mt-3 text-sm">
+              Starting new campaign trips in this car is paused until Terrax approves its review.
+              You can finish a trip already in progress.
+              {person.status === "approved"
+                ? " If you have another approved car, you can continue with it."
+                : ""}
+            </p>
+          ) : null}
           {vehicle.submission_id &&
           vehicle.vehicle_id &&
           ["rejected", "expired"].includes(vehicle.status ?? "") ? (
@@ -284,6 +384,11 @@ export function DocumentRenewals() {
               key={vehicle.submission_id}
               vehicleId={vehicle.vehicle_id}
               submissionId={vehicle.submission_id}
+              kinds={
+                vehicle.purged_at
+                  ? ["registration", "insurance", "vehicle_photo"]
+                  : replacements(vehicle.documents ?? {})
+              }
               onSent={sent}
             />
           ) : null}

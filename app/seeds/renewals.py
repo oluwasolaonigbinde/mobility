@@ -1,5 +1,6 @@
 """One fictional active login with documents requiring renewal, local seed only."""
 
+from datetime import date
 from uuid import uuid5
 
 from sqlalchemy import select
@@ -10,6 +11,7 @@ from app.models.kyc import DriverKycSubmission, KycSubmissionStatus, VehicleEvid
 from app.models.user import UserRole
 from app.models.vehicle import Vehicle
 from app.schemas.driver_onboarding import (
+    DocumentReviewRead,
     KycReviewReason,
     PersonPayeeReviewDecisionCreate,
     VehicleReviewDecisionCreate,
@@ -27,7 +29,8 @@ from app.services.vehicle_onboarding import review_application_vehicle
 
 async def ensure_demo_renewals(session, *, settings, reviewer):
     from app.seeds.demo import upsert_user
-    from app.seeds.demo_authority import managed_seed_image
+    from app.seeds.demo_authority import build_storage_provider, managed_seed_image
+    from app.services.stored_files import issue_admin_file_download
 
     driver = await upsert_user(
         session,
@@ -112,6 +115,16 @@ async def ensure_demo_renewals(session, *, settings, reviewer):
                 k: files[k] for k in ("driver_license", "driver_photo", "signed_agreement")
             },
         )
+        for kind in ("driver_photo", "signed_agreement"):
+            await issue_admin_file_download(
+                session,
+                actor_user_id=reviewer.id,
+                file_id=files[kind],
+                access_purpose="kyc_review",
+                reason=f"person_payee_approval:{view.submission.id}",
+                storage=build_storage_provider(settings),
+                settings=settings,
+            )
         await review_application_person_payee(
             session,
             driver_profile_id=profile.id,
@@ -121,6 +134,13 @@ async def ensure_demo_renewals(session, *, settings, reviewer):
                 client_request_id=uuid5(driver.id, "renewal-person-review"),
                 decision=KycSubmissionStatus.REJECTED,
                 reason_code=KycReviewReason.UNREADABLE_EVIDENCE,
+                document_reviews={
+                    "driver_license": DocumentReviewRead(
+                        status="rejected", reason_code=KycReviewReason.UNREADABLE_EVIDENCE
+                    ),
+                    "driver_photo": DocumentReviewRead(status="accepted"),
+                    "signed_agreement": DocumentReviewRead(status="accepted"),
+                },
             ),
         )
     if not await session.scalar(
@@ -136,6 +156,16 @@ async def ensure_demo_renewals(session, *, settings, reviewer):
             settings=settings,
             document_file_ids={k: files[k] for k in ("registration", "insurance", "vehicle_photo")},
         )
+        for kind in ("registration", "vehicle_photo"):
+            await issue_admin_file_download(
+                session,
+                actor_user_id=reviewer.id,
+                file_id=files[kind],
+                access_purpose="kyc_review",
+                reason=f"vehicle_approval:{view.submission.id}",
+                storage=build_storage_provider(settings),
+                settings=settings,
+            )
         await review_application_vehicle(
             session,
             driver_profile_id=profile.id,
@@ -146,5 +176,14 @@ async def ensure_demo_renewals(session, *, settings, reviewer):
                 client_request_id=uuid5(driver.id, "renewal-vehicle-review"),
                 decision=KycSubmissionStatus.EXPIRED,
                 reason_code=VehicleReviewReason.EXPIRED_EVIDENCE,
+                document_reviews={
+                    "registration": DocumentReviewRead(status="accepted"),
+                    "insurance": DocumentReviewRead(
+                        status="expired",
+                        reason_code=VehicleReviewReason.EXPIRED_EVIDENCE,
+                        expires_on=date(2026, 10, 3),
+                    ),
+                    "vehicle_photo": DocumentReviewRead(status="accepted"),
+                },
             ),
         )

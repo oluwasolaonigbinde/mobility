@@ -195,6 +195,28 @@ export async function reviewPersonPayeeAction(
   try {
     const api = createApiClient(await getSessionToken());
     const body: components["schemas"]["PersonPayeeReviewDecisionCreate"] = {
+      document_reviews: Object.fromEntries(
+        ["driver_license", "driver_photo", "signed_agreement"].map((kind) => [
+          kind,
+          {
+            status:
+              decision === "approved"
+                ? "accepted"
+                : formData.get(`outcome_${kind}`) === "replace"
+                  ? decision
+                  : formData.get(`outcome_${kind}`) === "accepted"
+                    ? "accepted"
+                    : "on_file",
+            reason_code:
+              decision !== "approved" && formData.get(`outcome_${kind}`) === "replace"
+                ? reasonCode
+                : null,
+            expires_on: formData.get(`expires_${kind}`)
+              ? String(formData.get(`expires_${kind}`))
+              : null,
+          },
+        ]),
+      ),
       submission_id: parsed.data.submission_id,
       client_request_id: parsed.data.client_request_id,
       decision,
@@ -334,6 +356,28 @@ export async function reviewVehicleAction(
   try {
     const api = createApiClient(await getSessionToken());
     const body: components["schemas"]["VehicleReviewDecisionCreate"] = {
+      document_reviews: Object.fromEntries(
+        ["registration", "insurance", "vehicle_photo"].map((kind) => [
+          kind,
+          {
+            status:
+              decision === "approved"
+                ? "accepted"
+                : formData.get(`outcome_${kind}`) === "replace"
+                  ? decision
+                  : formData.get(`outcome_${kind}`) === "accepted"
+                    ? "accepted"
+                    : "on_file",
+            reason_code:
+              decision !== "approved" && formData.get(`outcome_${kind}`) === "replace"
+                ? reasonCode
+                : null,
+            expires_on: formData.get(`expires_${kind}`)
+              ? String(formData.get(`expires_${kind}`))
+              : null,
+          },
+        ]),
+      ),
       client_request_id: parsed.data.client_request_id,
       decision,
       reason_code: reasonCode,

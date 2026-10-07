@@ -265,13 +265,14 @@ def phone_verification_available(settings: Settings) -> bool:
     if not PHONE_PATTERN.fullmatch(number):
         return False
     if settings.environment in {"local", "dev", "development", "test", "testing", "preview"}:
-        # Demo authority applies only to Ofcom's reserved mobile drama range.
-        return bool(re.fullmatch(r"\+447700900[0-9]{3}", number))
+        # Owner-approved temporary destination; no provider or send operation.
+        return number == "+2347068369842"
     return bool(
         settings.phone_operator_external_approved
         and settings.phone_operator_name.strip()
         and settings.phone_whatsapp_notice_approval_reference.strip()
         and not re.fullmatch(r"\+447700900[0-9]{3}", number)
+        and not number.startswith("+2340")
     )
 
 

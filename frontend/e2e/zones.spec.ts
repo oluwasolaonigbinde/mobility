@@ -21,24 +21,24 @@ test("zones page renders the seeded campaign's zones on a map", async ({ page })
 
   // Reach zones via the campaign detail link (proves the wiring, not just the URL)
   await page.goto("/advertiser/campaigns");
-  await page.getByRole("link", { name: "Marula Kitchens — Lagos Lunch Routes" }).click();
+  await page.getByRole("link", { name: "Marula Kitchens — Wuse Lunch Routes" }).click();
   await page.waitForURL(/\/advertiser\/campaigns\/[0-9a-f-]{36}$/);
   await page.getByRole("link", { name: /^Zones(?: · \d+)?$/ }).click();
   await page.waitForURL(/\/zones$/);
 
   // Zone list from the backend
-  await expect(page.getByText("Lagos Mainland")).toBeVisible();
-  await expect(page.getByText("Yaba offices")).toBeVisible();
-  await expect(page.getByText("Apapa port access")).toBeVisible();
+  await expect(page.getByText("Wuse district")).toBeVisible();
+  await expect(page.getByText("Wuse II offices")).toBeVisible();
+  await expect(page.getByText("Aminu Kano Crescent junction")).toBeVisible();
   await expect(page.getByText("Zones · 3")).toBeVisible();
 
   // Map mounted with a WebGL canvas and the draw affordance
   await expect(page.getByTestId("zones-map").locator("canvas")).toBeVisible();
   await expect(page.getByRole("button", { name: /Draw zone/ })).toBeVisible();
 
-  await page.getByRole("button", { name: "Delete Lagos Mainland" }).click();
+  await page.getByRole("button", { name: "Delete Wuse district" }).click();
   const confirmation = page.getByRole("alertdialog");
-  await expect(confirmation).toContainText("Delete Lagos Mainland?");
+  await expect(confirmation).toContainText("Delete Wuse district?");
   await confirmation.getByRole("button", { name: "Keep zone" }).click();
   await expect(confirmation).not.toBeVisible();
 });

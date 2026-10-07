@@ -166,6 +166,79 @@ export function VehicleDecisionActions({
             <option value="missing_evidence">Missing documents</option>
           </select>
         </label>
+        <fieldset className="border-edge my-2 rounded-lg border p-3 text-xs">
+          <legend>Document outcomes for rejection or expiry</legend>
+          <div className="my-3">
+            <p className="font-medium">Registration</p>
+            <label className="flex flex-col gap-1">
+              Outcome
+              <select
+                name="outcome_registration"
+                defaultValue="on_file"
+                className="border-edge bg-raised rounded border p-2"
+              >
+                <option value="on_file">On file, review incomplete</option>
+                <option value="replace">Needs replacement</option>
+                <option value="accepted">Accepted (view first)</option>
+              </select>
+            </label>
+            <label className="mt-2 flex flex-col gap-1">
+              Registration expiry (if recorded)
+              <input
+                type="date"
+                name="expires_registration"
+                className="border-edge bg-raised rounded border p-2"
+              />
+            </label>
+          </div>
+          <div className="my-3">
+            <p className="font-medium">Insurance</p>
+            <label className="flex flex-col gap-1">
+              Outcome
+              <select
+                name="outcome_insurance"
+                defaultValue="on_file"
+                className="border-edge bg-raised rounded border p-2"
+              >
+                <option value="on_file">On file, review incomplete</option>
+                <option value="replace">Needs replacement</option>
+                <option value="accepted">Accepted (view first)</option>
+              </select>
+            </label>
+            <label className="mt-2 flex flex-col gap-1">
+              Insurance expiry (if recorded)
+              <input
+                type="date"
+                name="expires_insurance"
+                className="border-edge bg-raised rounded border p-2"
+              />
+            </label>
+          </div>
+          <div className="my-3">
+            <p className="font-medium">Vehicle photo</p>
+            <label className="flex flex-col gap-1">
+              Outcome
+              <select
+                name="outcome_vehicle_photo"
+                defaultValue="on_file"
+                className="border-edge bg-raised rounded border p-2"
+              >
+                <option value="on_file">On file, review incomplete</option>
+                <option value="replace">Needs replacement</option>
+                <option value="accepted">Accepted (view first)</option>
+              </select>
+            </label>
+            <label className="mt-2 flex flex-col gap-1">
+              Vehicle photo expiry (if recorded)
+              <input
+                type="date"
+                name="expires_vehicle_photo"
+                className="border-edge bg-raised rounded border p-2"
+              />
+            </label>
+          </div>
+          <p>Record each document’s outcome. Accepted documents stay on file during renewal.</p>
+        </fieldset>
         <div className="flex flex-wrap gap-2">
           <Button
             type="submit"

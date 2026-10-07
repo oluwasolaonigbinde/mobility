@@ -65,6 +65,7 @@ def test_0100_expires_obsolete_challenges_and_matches_models(monkeypatch):
             "provider_message_id",
         }
         assert "verified_by_user_id" in columns
+        upgrade_to(url, "head", monkeypatch)
         command.check(Config("alembic.ini"))
     finally:
         asyncio.run(drop_database(url))
