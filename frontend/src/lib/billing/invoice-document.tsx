@@ -69,7 +69,7 @@ export function formatCampaignDuration(scope: Record<string, unknown> | undefine
 /** 0.075 → "7.5 %" */
 export function formatVatRate(rate: string): string {
   const percent = Number(rate) * 100;
-  return Number.isFinite(percent) ? `${Number(percent.toFixed(4))} %` : "—";
+  return Number.isFinite(percent) ? `${Number(percent.toFixed(4))}%` : "—";
 }
 
 function title(invoice: Invoice): { heading: string; note: string | null } {
@@ -223,8 +223,10 @@ export function InvoiceDocument({
             <dd className="font-mono">{money(invoice.net_amount)}</dd>
           </div>
           <div className="flex justify-between gap-4">
-            <dt>VAT ({formatVatRate(invoice.tax_rate)})</dt>
-            <dd className="font-mono">{money(invoice.tax_amount)}</dd>
+            <dt>Included VAT</dt>
+            <dd className="font-mono">
+              VAT {formatVatRate(invoice.tax_rate)} · {money(invoice.tax_amount)}
+            </dd>
           </div>
           <div className="border-edge flex justify-between gap-4 border-t pt-2 text-base font-semibold">
             <dt>Invoice total (VAT inclusive)</dt>

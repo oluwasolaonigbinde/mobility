@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.123 — 2026-10-06. Canonical source of truth: current state AND target state.**
+**Version 1.125 — 2026-10-07. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -2273,6 +2273,14 @@ channel adapter; its concrete provider/account remains an external parameter.
 
 ### 20.2 Rules
 
+**[BUILT locally W2-D, D68/REQ-121]** Feed and mark-read projections resolve only
+allowlisted campaign-event references through current business rows. Multiple
+references must agree. Active advertiser membership/organization/campaign scope,
+own driver assignment and active admin authority govern both campaign names and
+internal Open links; malformed, absent or inaccessible context stays generic.
+Panel content uses sentence case and the body font; small labels retain capitals.
+No payload URL/display text is trusted and persisted notices remain immutable.
+
 - Services **never call a messaging provider inline** — they insert notification
   rows. Only the worker talks to providers.
 - Templates are code (typed builders per notification type), not a CMS — at
@@ -3104,6 +3112,20 @@ boundary (`src/lib/format.ts`).
 
 ### 27.4 Report naming and ROI gate (Q30/D20)
 
+**[BUILT locally W2-D, D68/REQ-123]** New issuance snapshots use export schema
+`campaign-performance-export-v2` and freeze "Not enough data" for suppressed
+totals. Measurement formulas/manifests and the deterministic renderer stay
+unchanged. Existing v1 issuances replay their own frozen snapshot/version and
+retain their CSV/PDF bytes and integrity hashes. No old snapshot is rewritten.
+
+**[BUILT locally W2-D, D68/REQ-122/124]** Change-form edits invalidate the preview and
+late responses cannot re-enable confirmation. Customer money displays use
+grouping and two decimals, with VAT as a percentage and amount; stored money
+and payout rules stay unchanged. Terminal campaigns omit new quotation requests.
+Driver earnings uses Ready to pay, Waiting for review and Paid consistently,
+one short explanation without a duplicate page-count summary, and neutral zero-hold styling;
+public daily-pay copy follows D43's campaign-area and proportional short-day rule.
+
 The standard advertiser deliverable is **Campaign Performance Analysis**. It
 may present the approved operational and modelled measures from immutable
 `measurement_run` inputs, with measured/modelled labels, provenance,
@@ -3597,6 +3619,7 @@ It does not authorize deployment or close external launch gates.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.125 | 2026-10-07 | **W2-D polish implementation (D68, REQ-121–124).** Current-access campaign notification context, edit-bound previews, export-only v2 suppression wording preserving historical integrity, customer money/VAT and earnings/public copy. Local implementation and focused verification are recorded in [the W2-D receipt](../issues/testing/w2d-polish-2026-10-07.md), with required independent review verdicts; no external action or programme reprioritization. |
 | v1.123 | 2026-10-06 | **W1-P payouts (D64, REQ-036/040/053; renumbered at merge from v1.116/D59 on 6 Oct 2026).** Terrax bears fees outside Cardvert; full frozen earnings and D43 remain unchanged. §16.3 records dispute serialization, atomic sanitized alert audits, actor-only run subjects, bounded rotating candidate scans (`0099`) and original per-day cash attribution. Correction cash counts in full on every saved v4 trip day; missing/malformed allocations are held with an audited/notified Finance alert. Local evidence is in `issues/testing/w1p-payouts-2026-10-05.md`; combined Wave 1 CI and approved merge into master remain pending (REQ-053 one-time D41 exception). |
 | v1.122 | 2026-10-05 | **W1B locally verified templates and budget proof (REQ-037/049/117, D44/D65).** Verify all accepted fixed quote lines count once through the existing billing authority and retain evaluation keys. Replace Render/AWS/Mapbox templates with Hetzner S3 and MapTiler; add internal ClamAV, signature persistence/egress and health dependencies; align configurable API workers. Focused delivery evidence in `issues/testing/w1b-budget-hosting-evidence-2026-10-05.md`; templates only, no external gate changes. |
 | v1.121 | 2026-10-05 | **REQ-108 CI efficiency, local implementation.** §10.3 records trigger, concurrency, shared candidate guard, duration planning, selective scanner, timeout and independent E2E scheduling changes. Timing snapshot imported from six verified green-run artifacts; real after timing and D41 remain pending owner-authorized branch CI after REQ-106 green master/rebase. No image digest, product contract, coverage policy or launch-gate change. |

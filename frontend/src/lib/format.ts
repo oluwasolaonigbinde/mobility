@@ -23,7 +23,8 @@ export function formatMoney(
   return new Intl.NumberFormat("en-NG", {
     style: "currency",
     currency,
-    maximumFractionDigits: n >= 1000 ? 0 : 2,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(n);
 }
 

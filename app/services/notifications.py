@@ -18,6 +18,7 @@ from app.models.assignment_activity import (
 )
 from app.models.billing import BudgetCampaignTransition, BudgetPolicyEvaluation
 from app.models.campaign import Campaign
+from app.models.campaign_assignment import CampaignAssignment
 from app.models.contact import PasswordResetToken
 from app.models.driver import DriverProfile
 from app.models.driver_application import DriverAccountSetupToken, DriverApplicationAccessToken
@@ -35,8 +36,115 @@ from app.models.organization import (
     OrganizationMembership,
     OrganizationStatus,
 )
+from app.models.trip import TripSession
 from app.models.trip_analytics import FraudFlag
 from app.models.user import User, UserRole, UserStatus
+
+_CAMPAIGN_NOTICE_TYPES = {
+    NotificationType.ASSIGNMENT_OFFERED,
+    NotificationType.ASSIGNMENT_ACCEPTED,
+    NotificationType.CAMPAIGN_APPROVED,
+    NotificationType.CAMPAIGN_REJECTED,
+    NotificationType.CREATIVE_APPROVED,
+    NotificationType.CREATIVE_REJECTED,
+    NotificationType.QUOTATION_READY,
+    NotificationType.FUNDING_CONFIRMED,
+    NotificationType.BUDGET_ALERT,
+    NotificationType.BUDGET_URGENT_ALERT,
+    NotificationType.CAMPAIGN_BUDGET_PAUSED,
+    NotificationType.CAMPAIGN_BUDGET_RESUMED,
+    NotificationType.CAMPAIGN_CANCELLED,
+    NotificationType.EVIDENCE_CHALLENGE_CREATED,
+    NotificationType.EVIDENCE_VERIFIED,
+    NotificationType.PAYOUT_RELEASED,
+    NotificationType.FRAUD_HOLD_RAISED,
+    NotificationType.FRAUD_REVIEW_RESOLVED,
+    NotificationType.FRAUD_DISPUTE_REPLIED,
+    NotificationType.ACTIVITY_FLOOR_BREACHED,
+    NotificationType.ACTIVITY_FLOOR_RECOVERED,
+    NotificationType.ASSIGNMENT_INACTIVE,
+    NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED,
+}
+
+
+async def _notification_reference_scope(
+    session: AsyncSession, payload: dict[str, Any]
+) -> tuple[set[UUID], set[UUID]] | None:
+    campaigns: set[UUID] = set()
+    assignments: set[UUID] = set()
+    models = {
+        "campaign_id": Campaign,
+        "assignment_id": CampaignAssignment,
+        "trip_session_id": TripSession,
+        "activity_flag_id": AssignmentActivityFlag,
+        "fraud_flag_id": FraudFlag,
+    }
+    for key, model in models.items():
+        if key not in payload:
+            continue
+        try:
+            identity = UUID(str(payload[key]))
+        except ValueError:
+            return None
+        row = await session.get(model, identity)
+        if row is None:
+            return None
+        if isinstance(row, FraudFlag):
+            row = await session.get(TripSession, row.trip_session_id)
+            if row is None:
+                return None
+        campaigns.add(row.id if isinstance(row, Campaign) else row.campaign_id)
+        if not isinstance(row, Campaign):
+            assignments.add(row.id if isinstance(row, CampaignAssignment) else row.assignment_id)
+    if len(campaigns) != 1 or len(assignments) > 1:
+        return None
+    return campaigns, assignments
+
+
+async def notification_campaign_context(
+    session: AsyncSession, *, notice: Notification, user: User
+) -> tuple[str, str] | None:
+    """Project authorized display context without changing immutable outbox facts."""
+    if (
+        notice.type_key not in _CAMPAIGN_NOTICE_TYPES
+        or notice.recipient_user_id != user.id
+        or user.status != UserStatus.ACTIVE
+    ):
+        return None
+    scope = await _notification_reference_scope(session, notice.payload)
+    if scope is None:
+        return None
+    campaign_ids, assignment_ids = scope
+    campaign_id = next(iter(campaign_ids))
+    campaign = await session.get(Campaign, campaign_id)
+    if campaign is None:
+        return None
+    if user.role == UserRole.ADMIN:
+        return campaign.name, f"/admin/campaigns/{campaign.id}"
+    if user.role == UserRole.ADVERTISER:
+        from app.services.campaigns import get_advertiser_campaign
+
+        try:
+            campaign = await get_advertiser_campaign(
+                session, user_id=user.id, campaign_id=campaign_id
+            )
+        except AppError:
+            return None
+        return campaign.name, f"/advertiser/campaigns/{campaign.id}"
+    assignment = await session.scalar(
+        select(CampaignAssignment)
+        .join(DriverProfile, CampaignAssignment.driver_profile_id == DriverProfile.id)
+        .where(
+            DriverProfile.user_id == user.id,
+            CampaignAssignment.campaign_id == campaign_id,
+            *([CampaignAssignment.id.in_(assignment_ids)] if assignment_ids else []),
+        )
+        .order_by(CampaignAssignment.offered_at.desc(), CampaignAssignment.id.desc())
+        .limit(1)
+    )
+    if assignment is None:
+        return None
+    return campaign.name, f"/driver/assignments?assignment_id={assignment.id}"
 
 
 def _canonical_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -634,9 +742,7 @@ async def create_activity_flag_notice(
             "activity_event": event_type.value,
             "activity_event_sequence": event_sequence,
         },
-        dedupe_key=(
-            f"assignment_activity:{event_type.value}:v2:{flag.id}:{event_sequence}"
-        ),
+        dedupe_key=(f"assignment_activity:{event_type.value}:v2:{flag.id}:{event_sequence}"),
     )
 
 
@@ -709,9 +815,7 @@ async def mark_notification_read(
     return notice
 
 
-async def mark_all_notifications_read(
-    session: AsyncSession, *, recipient_user_id: UUID
-) -> int:
+async def mark_all_notifications_read(session: AsyncSession, *, recipient_user_id: UUID) -> int:
     read_at = (
         func.statement_timestamp()
         if session.get_bind().dialect.name == "postgresql"

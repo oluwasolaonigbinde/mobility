@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
-import { formatDate, formatDateRange } from "@/lib/format";
+import { formatDate, formatDateRange, formatMoneyExact } from "@/lib/format";
 import { dailyRateSentences, offerTermLines } from "@/lib/assignments/offer-terms";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
@@ -44,12 +44,26 @@ const statusExplanation: Record<AssignmentStatus, string> = {
   completed: "Completed. This campaign is kept for your records only.",
 };
 
-export default async function DriverAssignmentsPage() {
+export default async function DriverAssignmentsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ assignment_id?: string }>;
+}) {
+  const selectedAssignmentId = (await searchParams)?.assignment_id;
   const api = createApiClient(await getSessionToken());
   const [campaignJourney, assignments] = await Promise.all([
     readDriverApi(() => loadDriverCampaignJourney().then((data) => ({ data }))),
     readDriverApi(() =>
-      api.GET("/api/v1/driver/campaign-assignments", { params: { query: { limit: 50 } } }),
+      selectedAssignmentId
+        ? api
+            .GET("/api/v1/driver/campaign-assignments/{assignment_id}", {
+              params: { path: { assignment_id: selectedAssignmentId } },
+            })
+            .then(({ data, error }) => ({
+              data: data ? { items: [data], total: 1, limit: 1, offset: 0 } : undefined,
+              error,
+            }))
+        : api.GET("/api/v1/driver/campaign-assignments", { params: { query: { limit: 50 } } }),
     ),
   ]);
 
@@ -212,17 +226,21 @@ export default async function DriverAssignmentsPage() {
                       <>
                         <p>
                           Base:{" "}
-                          {String(
-                            (a.offer_terms.payout as Record<string, unknown> | null | undefined)
-                              ?.hourly_rate_naira ?? "—",
+                          {formatMoneyExact(
+                            String(
+                              (a.offer_terms.payout as Record<string, unknown> | null | undefined)
+                                ?.hourly_rate_naira ?? "—",
+                            ) || "—",
                           )}
                           /hr
                         </p>
                         <p>
                           Premium:{" "}
-                          {String(
-                            (a.offer_terms.payout as Record<string, unknown> | null | undefined)
-                              ?.premium_hourly_rate_naira ?? "—",
+                          {formatMoneyExact(
+                            String(
+                              (a.offer_terms.payout as Record<string, unknown> | null | undefined)
+                                ?.premium_hourly_rate_naira ?? "—",
+                            ) || "—",
                           )}
                           /hr
                         </p>

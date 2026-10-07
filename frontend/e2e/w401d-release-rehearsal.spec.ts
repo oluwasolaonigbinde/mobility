@@ -28,13 +28,17 @@ test("W4-01D history, hold, dispute, outcome and fail-safe PWA rehearsal", async
   await expect(page.getByText("Completed", { exact: true }).first()).toBeVisible();
 
   await page.goto("/driver/earnings");
-  await expect(page.getByText(/This page: 1 held/)).toBeVisible();
-  await expect(page.getByText("Held", { exact: true })).toBeVisible();
+  await expect(page.getByText("1 trip needs review")).toBeVisible();
+  await expect(
+    page.locator("li").getByText("Waiting for review", { exact: true }).first(),
+  ).toBeVisible();
   await page.getByText("Balance details", { exact: true }).click();
   await expect(page.getByText("Owed, taken from your payouts", { exact: true })).toBeVisible();
   await expect(page.getByText("Voided", { exact: true }).first()).toBeVisible();
 
-  await page.getByRole("link", { name: /Lagos Release Rehearsal.*1,250\.00.*Held/s }).click();
+  await page
+    .getByRole("link", { name: /Lagos Release Rehearsal.*1,250\.00.*Waiting for review/s })
+    .click();
   await expect(page).toHaveURL(new RegExp(`/driver/earnings/trips/${heldTrip}$`));
   await expect(page.getByText("Hourly pay · base and premium-zone rates fixed")).toBeVisible();
   await expect(page.getByText("Route pattern needs review")).toBeVisible();
@@ -65,10 +69,10 @@ test("W4-01D history, hold, dispute, outcome and fail-safe PWA rehearsal", async
   await expect(page.getByText("Staff completed their review of a trip.")).toBeVisible();
 
   await page.goto("/driver/earnings");
-  await expect(page.getByText(/This page: 0 held/)).toBeVisible();
-  await expect(page.getByText(/This page:.*2 released/)).toBeVisible();
+  await expect(page.getByText("0 trips need review")).toBeVisible();
+  await expect(page.locator("li").getByText("Ready to pay", { exact: true }).first()).toBeVisible();
   await page.reload();
-  await expect(page.getByText(/This page: 0 held/)).toBeVisible();
+  await expect(page.getByText("0 trips need review")).toBeVisible();
 
   const manifest = await request.get("/driver/manifest.webmanifest");
   expect(manifest.ok()).toBeTruthy();
@@ -97,10 +101,10 @@ test("W4-01D history, hold, dispute, outcome and fail-safe PWA rehearsal", async
 
   if (testInfo.project.name === "chromium") {
     await context.setOffline(true);
-    await expect(page.getByText(/This page:/)).toHaveCount(0);
+    await expect(page.getByText("Paid means money successfully transferred.")).toHaveCount(0);
     await expect(page.getByText("Current earnings hidden while offline")).toBeVisible();
     await context.setOffline(false);
-    await expect(page.getByText(/This page: 0 held/)).toBeVisible();
+    await expect(page.getByText("0 trips need review")).toBeVisible();
     await expect(page.getByText("Current earnings hidden while offline")).toHaveCount(0);
 
     await context.setOffline(true);
@@ -130,10 +134,10 @@ test("W4-01D history, hold, dispute, outcome and fail-safe PWA rehearsal", async
   await page.goto("/driver/earnings");
   await expect(page).toHaveURL(/\/login/);
   await page.goBack();
-  await expect(page.getByText(/This page:/)).toHaveCount(0);
+  await expect(page.getByText("Paid means money successfully transferred.")).toHaveCount(0);
 
   await installSession(context, `w401d-wrong-role-${scope}`);
   await page.goto("/driver/earnings");
   await expect(page).toHaveURL(/\/advertiser/);
-  await expect(page.getByText(/This page:/)).toHaveCount(0);
+  await expect(page.getByText("Paid means money successfully transferred.")).toHaveCount(0);
 });

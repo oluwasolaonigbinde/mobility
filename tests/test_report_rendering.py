@@ -1,6 +1,7 @@
 import csv
 import hashlib
 import io
+from types import SimpleNamespace
 
 import pytest
 
@@ -138,6 +139,46 @@ def export_snapshot(*, include_roi: bool = False, profile_count: int = 1) -> dic
             },
         }
     return snapshot
+
+
+def test_historical_v1_suppression_bytes_keep_pre_change_golden_hashes() -> None:
+    # Independently captured with the renderer from ec267529, before W2-D.
+    snapshot = export_snapshot()
+    snapshot["metrics"][1]["values"][0]["value"] = "Omitted - insufficient frozen evidence"
+    assert hashlib.sha256(render_report_csv(snapshot)).hexdigest() == (
+        "bd583c0647751896049e74874d4335e71f5a84697e1f44eedb3cef1d9ad1cdaa"
+    )
+    assert hashlib.sha256(render_report_pdf(snapshot)).hexdigest() == (
+        "8faa1aab4bd59755da69b73346da08aaf8611050c00e3ee003e052f7ba318d74"
+    )
+    assert "Omitted - insufficient frozen evidence" in " ".join(_pdf_report_lines(snapshot))
+
+
+def test_new_export_snapshot_freezes_plain_suppression_text_in_csv_and_pdf() -> None:
+    from app.services.report_issuances import REPORT_SCHEMA_VERSION, _metric_snapshot
+
+    snapshot = export_snapshot()
+    movement = snapshot["metrics"][0]
+    metric = SimpleNamespace(
+        id="verified_vehicle_movement",
+        label=movement["label"],
+        metric_class=movement["class"],
+        trip_count=0,
+        distance_m=None,
+        active_tracking_seconds=None,
+        completeness=SimpleNamespace(**completeness(covered=0)),
+    )
+    snapshot["schema_version"] = REPORT_SCHEMA_VERSION
+    snapshot["issuance"]["schema_version"] = REPORT_SCHEMA_VERSION
+    snapshot["metrics"] = _metric_snapshot(SimpleNamespace(metrics=[metric]))
+    csv_bytes = render_report_csv(snapshot)
+    pdf_lines = " ".join(_pdf_report_lines(snapshot))
+    assert REPORT_SCHEMA_VERSION == "campaign-performance-export-v2"
+    assert b"Not enough data" in csv_bytes
+    assert "Not enough data" in pdf_lines
+    assert b"insufficient frozen evidence" not in csv_bytes
+    assert "insufficient frozen evidence" not in pdf_lines
+    assert render_report_pdf(snapshot).startswith(b"%PDF-1.4")
 
 
 def test_renderers_are_deterministic_formula_safe_and_share_the_snapshot() -> None:

@@ -1,0 +1,101 @@
+{
+  "originalWalkthrough": [
+    {
+      "role": "advertiser",
+      "width": 1440,
+      "authorizedDestination": "/advertiser/campaigns/b7969b2a-8254-4563-a8f4-69f08ddc9b14",
+      "panelBounds": {
+        "x": 899.1875,
+        "y": 47.75,
+        "width": 384,
+        "height": 641
+      }
+    },
+    {
+      "width": 1440,
+      "stalePreviewCleared": true,
+      "freshConfirmation": true
+    },
+    {
+      "role": "advertiser",
+      "width": 375,
+      "authorizedDestination": "/advertiser/campaigns/b7969b2a-8254-4563-a8f4-69f08ddc9b14",
+      "panelBounds": {
+        "x": 16,
+        "y": 56,
+        "width": 343,
+        "height": 641
+      }
+    },
+    {
+      "width": 375,
+      "stalePreviewCleared": true,
+      "freshConfirmation": true
+    },
+    {
+      "role": "driver",
+      "width": 1440,
+      "authorizedDestination": "/driver/assignments?assignment_id=e00bfb08-e701-4d01-8c68-e9d05291bcd7",
+      "panelBounds": {
+        "x": 465.109375,
+        "y": 46.5,
+        "width": 384,
+        "height": 491.5
+      }
+    },
+    {
+      "role": "driver",
+      "width": 375,
+      "authorizedDestination": "/driver/assignments?assignment_id=e00bfb08-e701-4d01-8c68-e9d05291bcd7",
+      "panelBounds": {
+        "x": 16,
+        "y": 56,
+        "width": 343,
+        "height": 491.5
+      }
+    },
+    {
+      "role": "admin",
+      "width": 1440,
+      "authorizedDestination": "/admin/campaigns/b7969b2a-8254-4563-a8f4-69f08ddc9b14",
+      "panelBounds": {
+        "x": 874.234375,
+        "y": 48.25,
+        "width": 384,
+        "height": 491.5
+      }
+    },
+    {
+      "role": "admin",
+      "width": 375,
+      "authorizedDestination": "/admin/campaigns/b7969b2a-8254-4563-a8f4-69f08ddc9b14",
+      "panelBounds": {
+        "x": 16,
+        "y": 56,
+        "width": 343,
+        "height": 491.5
+      }
+    }
+  ],
+  "claudeCorrectionWalkthrough": [
+    {
+      "notificationComputedStyle": {
+        "transform": "none",
+        "font": "interCyrillicExt, interCyrillic, interGreekExt, interGreek, interVietnamese, interLatinExt, interLatin, \"interLatin Fallback\", ui-sans-serif, system-ui, sans-serif",
+        "bodyFont": "interCyrillicExt, interCyrillic, interGreekExt, interGreek, interVietnamese, interLatinExt, interLatin, \"interLatin Fallback\", ui-sans-serif, system-ui, sans-serif",
+        "spacing": "normal"
+      },
+      "previewClears": true
+    },
+    {
+      "role": "advertiser",
+      "width": 375,
+      "noOverflow": true
+    },
+    {
+      "role": "driver",
+      "width": 375,
+      "noOverflow": true
+    }
+  ]
+}

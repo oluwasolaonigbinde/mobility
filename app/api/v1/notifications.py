@@ -24,6 +24,7 @@ from app.services.notifications import (
     list_current_user_notifications,
     mark_all_notifications_read,
     mark_notification_read,
+    notification_campaign_context,
     record_email_delivery_receipt,
     unread_notification_count,
 )
@@ -84,7 +85,9 @@ def driver_notification_response(notice: Notification) -> DriverNotificationRead
     )
 
 
-def notification_feed_response(notice: Notification) -> NotificationFeedItemRead:
+def notification_feed_response(
+    notice: Notification, context: tuple[str, str] | None = None
+) -> NotificationFeedItemRead:
     """Render from the small approved type allowlist, never from JSON payload."""
     rendered = {
         NotificationType.ASSIGNMENT_OFFERED.value: (
@@ -179,8 +182,7 @@ def notification_feed_response(notice: Notification) -> NotificationFeedItemRead
         ),
         NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED.value: (
             "Assignment activity resumed",
-            "Verified activity resumed for this assignment, so the activity flag "
-            "has been cleared.",
+            "Verified activity resumed for this assignment, so the activity flag has been cleared.",
         ),
         NotificationType.PAYOUT_AUTOMATIC_ALERT.value: (
             "Automatic payout needs attention",
@@ -220,8 +222,10 @@ def notification_feed_response(notice: Notification) -> NotificationFeedItemRead
         id=notice.id,
         type_key=notice.type_key,
         channel=notice.channel,
-        title=title,
+        title=f"{context[0]} · {title}" if context else title,
         body=body,
+        campaign_name=context[0] if context else None,
+        action_url=context[1] if context else None,
         created_at=notice.created_at,
         read_at=notice.read_at,
     )
@@ -241,7 +245,12 @@ async def current_user_notifications(
         offset=offset,
     )
     return NotificationFeedListRead(
-        items=[notification_feed_response(notice) for notice in notices],
+        items=[
+            notification_feed_response(
+                notice, await notification_campaign_context(session, notice=notice, user=user)
+            )
+            for notice in notices
+        ],
         total=total,
         limit=limit,
         offset=offset,
@@ -269,7 +278,9 @@ async def read_notification(
         notification_id=notification_id,
     )
     await session.commit()
-    return notification_feed_response(notice)
+    return notification_feed_response(
+        notice, await notification_campaign_context(session, notice=notice, user=user)
+    )
 
 
 @router.post("/notifications/read-all", response_model=NotificationUnreadCountRead)

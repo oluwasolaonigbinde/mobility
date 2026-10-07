@@ -8,7 +8,7 @@ const HIDDEN_KEY =
   /(^id$|_id$|_ids$|sha256|fingerprint|checksum|hash|wkt|version|semantics|marker|^daily_rate_naira$|^daily_target_miles$|^shortfall_strategy$|^deduction_per_mile_naira$|^minimum_miles$|^outside_area_weight$)/;
 
 function naira(value: unknown): string {
-  return formatMoneyExact(String(value)).replace(/\.00$/, "");
+  return formatMoneyExact(String(value));
 }
 
 function number(value: unknown): string {
@@ -93,7 +93,12 @@ export function offerTermLines(terms: Record<string, unknown>, prefix = ""): Off
     } else if (value && typeof value === "object") {
       lines.push(...offerTermLines(value as Record<string, unknown>, label));
     } else {
-      const text = scalar(value);
+      const text =
+        key.endsWith("_naira") &&
+        value !== "" &&
+        (typeof value === "string" || typeof value === "number")
+          ? naira(value)
+          : scalar(value);
       if (text !== null) lines.push({ label, value: text });
     }
   }

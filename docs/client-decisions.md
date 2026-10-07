@@ -148,7 +148,8 @@ details: Terrax Media Company Ltd, 73 Lome Crescent, Wuse Zone 7, FCT Abuja,
 07074200080, terraxmediacompany@gmail.com, **TIN 2521515778093, RC 8688553**
 (D43g); fields include serial number, RC number, client and CEO signature
 lines, campaign duration, quantity (the number of advert campaigns) and bank
-details (client answers item 6). The invoice leads with the VAT-inclusive
+details (client answers item 6). Advertiser and driver amounts use grouping and two decimal places; VAT shows
+its percentage and amount (D68, REQ-124). The invoice leads with the VAT-inclusive
 total; staff still enter prices before VAT. Real invoice bank details stay
 unset until Terrax supplies them, and a real invoice cannot be issued without
 them or without the accountant's sign-off (D42). Demo/staging sample invoices
@@ -159,6 +160,7 @@ become verified issuer facts or real payment instructions.
 [REQ-042](requests.md) accountant's confirmation and [REQ-052](requests.md) someone to check the sample invoice.
 
 **History:**
+- **2026-10-07** — Owner W2-D brief requires advertiser/driver money grouped with two decimal places and VAT shown as "VAT 7.5% · ₦…"; stored values and issued invoices remain unchanged (D68, REQ-124). Earlier display precision varied by amount.
 - **2026-08-14** — Client confirmed in-platform invoices and VAT-inclusive display (Q14, Q28, D18).
 - **2026-09-24** — Client supplied company details and invoice fields (client answers item 6).
 - **2026-09-29** — Owner approved the invoice layout: bank slots left blank until the real OPay details arrive, prices still entered before VAT (D42, REQ-009). Built in `0b53eab`.
@@ -196,8 +198,12 @@ headroom; reductions, removals and date changes need admin approval and a
 reason (Q9). Campaign changes waiting for approval show "Needs staff review";
 changes waiting for funding show "Waiting for funding", reusing the existing
 staff status labels without changing their authority (D63, REQ-113).
+Editing any change-form field clears its preview; confirmation requires a fresh
+preview of those inputs (D68, REQ-122). Completed and cancelled campaigns no
+longer offer a new custom-quotation request (D68, REQ-124).
 
 **History:**
+- **2026-10-07** — Owner W2-D brief replaces retained previews after edits with fresh-preview confirmation, and removes terminal-campaign quotation requests (D68, REQ-122/124); existing funding and approval rules remain.
 - **2026-08-14** — Client confirmed the lifecycle (Q6, Q9, Q15, D18).
 - **2026-09-24** — Owner added the submission requirements (D38d). Built in `7a9ceb0` (REQ-001).
 - **2026-10-06** — Owner approved the existing staff labels for advertiser campaign-change states that previously showed "Status unavailable". Reuse the shared labels; funding and reasoned independent staff approval remain unchanged (D63, REQ-113). Built in `1f91b8a`; browser typing alignment in `097382c`.
@@ -344,6 +350,7 @@ seven-day review target and are never released automatically; unresolved cases
 escalate after day seven (Q22).
 
 **History:**
+- **2026-10-07** — Owner Claude polish review clarifies the earnings presentation: Ready to pay, Waiting for review and Paid consistently, no repeated page-count summary and one short explanation (REQ-124); amount and payment authority are unchanged.
 - **2026-07** — Hold-and-review adopted (D5); client confirmed 2026-08-14 (Q21, Q22, D18).
 
 ### Complaints and support
@@ -374,8 +381,13 @@ developer drafts short messages for Terrax to approve (client answers item 15).
 The notification panel is an unread inbox: Mark read removes that item and
 Mark all read clears current unread items, including older pages. Read records
 remain stored; notifications arriving afterward appear normally (D54, REQ-075).
+Campaign notices name the campaign and offer Open only when the recipient can
+currently access its campaign or driver assignment; inaccessible context stays
+generic without a name or link (D68, REQ-121).
 
 **History:**
+- **2026-10-07** — Owner Claude polish review requires sentence-case notification titles/body in the body font, retaining capitals for small labels (REQ-121); notification content and access checks are unchanged.
+- **2026-10-07** — Owner W2-D brief replaces generic campaign notices with currently authorized campaign names and Open links (D68, REQ-121); immutable notification payloads and delivery channels remain.
 - **2026-10-06** — The earlier Mark read investigation, accessible panel close/focus and simpler company-preference wording are integrated (REQ-073/074/076). Built in `c2ab2d9`; full CI, including the real preference-change browser case, passed. REQ-075 retains its separate unread-inbox walkthrough obligation.
 - **2026-08-14** — Client confirmed channels (Q34, D18); **2026-08-24** owner decision on email preferences (D24).
 - **2026-09-24** — Client supplied the support number (client answers items 14–15).
@@ -388,10 +400,14 @@ verified operations, clearly labelled estimated exposure and target-area
 coverage. Financial ROI appears only when an advertiser supplies conversion or
 revenue data and an approved method exists (Q12, Q30, D20c). Advertisers do not
 see driver names or profiles.
+New CSV/PDF issuances say "Not enough data" for unavailable totals. Existing
+issued reports, stored snapshots, bytes and integrity hashes retain their original
+wording; the export snapshot version changes for new issuances (D68, REQ-123).
 
 **Still open:** [REQ-018](requests.md) — confirm no driver identity in reports.
 
 **History:**
+- **2026-10-07** — Owner W2-D brief replaces "Omitted - insufficient frozen evidence" in new export snapshots only; old issuance content and verification remain unchanged (D68, REQ-123).
 - **2026-08-14** — Client confirmed the report shape and ROI rule (Q12, Q30, D18, D20).
 - **2026-09-24** — Client's answer mentioned "admin officer & driver profile and the car", which conflicts with the privacy boundary; asked to clarify (client answers item 5).
 

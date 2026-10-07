@@ -226,7 +226,7 @@ export default async function CampaignDetailPage({
             hint={`${formatKm(summary?.route_analytics.target_zone_distance_m)} in target zones`}
           />
           <Stat
-            label="GPS evidence quality"
+            label="GPS signal quality"
             value={formatScore(summary?.route_analytics.average_quality_score)}
             tone="amber"
             hint="Average across analysed trips"
@@ -262,6 +262,7 @@ export default async function CampaignDetailPage({
       {commercialResult.available ? (
         <CommercialPanel
           campaignId={campaign.id}
+          canRequestQuotation={!["completed", "cancelled"].includes(campaign.status)}
           commercial={commercialResult.data}
           error={
             query.commercial_error

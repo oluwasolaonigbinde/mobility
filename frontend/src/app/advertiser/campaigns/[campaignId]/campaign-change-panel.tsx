@@ -50,12 +50,16 @@ export function CampaignChangePanel({
   editable?: boolean;
 }) {
   const [commandId, setCommandId] = useState(clientRequestId);
+  const [formRevision, setFormRevision] = useState(0);
   const [clearedPreviewCommandId, setClearedPreviewCommandId] = useState<string>();
   const [confirmedRequests, setConfirmedRequests] = useState<ChangeRequest[]>([]);
   const recordedConfirmation = useRef<string | undefined>(undefined);
   const [previewState, previewAction, previewPending] = useActionState(
-    previewCampaignChangeAction,
-    initialState,
+    async (state: CampaignReviewActionState & { formRevision?: number }, form: FormData) => ({
+      ...(await previewCampaignChangeAction(state, form)),
+      formRevision: Number(form.get("form_revision")),
+    }),
+    initialState as CampaignReviewActionState & { formRevision?: number },
   );
   const [confirmState, confirmAction, confirmPending] = useActionState(
     confirmCampaignChangeAction,
@@ -75,7 +79,9 @@ export function CampaignChangePanel({
   }, [confirmState.commandId, confirmState.confirmedRequest]);
 
   const previewIsCurrent =
-    Boolean(previewState.commandId) && previewState.commandId !== clearedPreviewCommandId;
+    Boolean(previewState.commandId) &&
+    previewState.commandId !== clearedPreviewCommandId &&
+    previewState.formRevision === formRevision;
   const proposal = previewIsCurrent ? previewState.proposal : undefined;
   const preview = previewIsCurrent ? previewState.preview : undefined;
   const currentConfirmation = confirmState.confirmedRequest;
@@ -100,7 +106,13 @@ export function CampaignChangePanel({
         </p>
       </div>
       {editable ? (
-        <form key={commandId} action={previewAction} className="grid gap-3 md:grid-cols-2">
+        <form
+          key={commandId}
+          action={previewAction}
+          onChange={() => setFormRevision((revision) => revision + 1)}
+          className="grid gap-3 md:grid-cols-2"
+        >
+          <input type="hidden" name="form_revision" value={formRevision} />
           <input type="hidden" name="campaign_id" value={campaignId} />
           <input type="hidden" name="client_request_id" value={commandId} />
           <label className="text-sm">
@@ -196,20 +208,26 @@ export function CampaignChangePanel({
                     {fieldLabel[field] ?? field.replaceAll("_", " ")}
                   </dt>
                   <dd className="mt-1 font-mono text-xs break-all">
-                    {exactValue(preview.before[field])} → {exactValue(value)}
+                    {field.endsWith("budget_amount")
+                      ? formatMoney(preview.before[field] as string, currency)
+                      : exactValue(preview.before[field])}{" "}
+                    →{" "}
+                    {field.endsWith("budget_amount")
+                      ? formatMoney(value as string, currency)
+                      : exactValue(value)}
                   </dd>
                 </div>
               ))}
             <div>
               <dt className="micro text-muted">Extra driver pay this could need</dt>
               <dd className="mt-1 font-mono text-xs">
-                {preview.currency} {preview.requested_liability_amount}
+                {formatMoney(preview.requested_liability_amount, preview.currency)}
               </dd>
             </div>
             <div>
               <dt className="micro text-muted">Driver pay your recorded funding still covers</dt>
               <dd className="mt-1 font-mono text-xs">
-                {preview.currency} {preview.available_liability_amount}
+                {formatMoney(preview.available_liability_amount, preview.currency)}
               </dd>
             </div>
           </dl>
@@ -266,8 +284,7 @@ export function CampaignChangePanel({
                 <span className="micro text-faint">{formatDate(request.created_at)}</span>
               </div>
               <p className="text-muted mt-2 text-sm">
-                {request.classifications.join(" · ")} · additional driver liability{" "}
-                {formatMoney(request.requested_liability_amount, currency)}
+                Additional driver pay {formatMoney(request.requested_liability_amount, currency)}
               </p>
               {request.review_reason ? (
                 <p className="mt-1 text-sm">Decision: {request.review_reason}</p>

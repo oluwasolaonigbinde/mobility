@@ -4,6 +4,18 @@
 
 The visible states below were reproduced through the running UI. Source and product documents were checked to distinguish a defect from an intentional gate. For the consequential status and offer actions, the exact unpressed boundary is stated; one status transition was also verified in a transaction that was rolled back. Priorities are suggested for triage, not authorization to change the delivery queue.
 
+## W2-D local recheck — 7 October 2026
+
+Verified in the isolated `mobility-w2d` worktree on `w2/polish`, based on
+`ec267529`, with a synthetic local stack and unchanged demo seed source.
+These findings are fixed locally; master integration and combined CI remain
+owner work. The dated September table below remains historical evidence.
+
+| ID | Local status | Evidence |
+| --- | --- | --- |
+| QA-08 | Fixed locally (REQ-121 / D68) | Current-access campaign names and canonical Open links for advertiser, driver and admin; malformed, conflicting or unauthorized context remains generic. Focused scope tests plus real navigation at 375px and 1440px; [receipt](issues/testing/w2d-polish-2026-10-07.md). |
+| QA-14 | Fixed locally (REQ-122 / D68) | All form edits invalidate preview; late responses cannot restore confirmation. Five-field/delayed-response tests plus real edit/repreview/confirm at both widths; [receipt](issues/testing/w2d-polish-2026-10-07.md). |
+
 ## Recheck on the main checkout — 24 September 2026
 
 Rechecked on a separate stack built from the main checkout (`21a5981` + the

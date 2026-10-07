@@ -206,6 +206,91 @@ def run_publication_cleanup(db_sessionmaker, settings, storage) -> int:
     )
 
 
+def test_v1_request_replay_keeps_snapshot_bytes_and_new_reissue_uses_v2_wording(
+    db_client, db_sessionmaker, settings, report_storage, monkeypatch
+) -> None:
+    from app.models.measurement import MeasurementRun
+    from app.models.report_issuance import ReportIssuance
+    from app.services.measurement import measurement_run_reproducible
+
+    _, advertiser, _, run = issue_run(db_client, db_sessionmaker)
+    request_id = uuid4()
+    # The old builder differs only in these frozen export constants; historical
+    # renderer output is separately anchored to ec267529's golden hashes.
+    with monkeypatch.context() as legacy:
+        legacy.setattr(
+            report_issuance_service, "REPORT_SCHEMA_VERSION", "campaign-performance-export-v1"
+        )
+        legacy.setattr(
+            report_issuance_service,
+            "SUPPRESSED_TOTAL_LABEL",
+            "Omitted - insufficient frozen evidence",
+        )
+        original = request_issuance(db_client, advertiser, run["id"], request_id=request_id)
+    assert original.status_code == 202, original.text
+    old_id = UUID(original.json()["id"])
+
+    async def inspect(identity):
+        async with db_sessionmaker() as session:
+            issuance = await session.get(ReportIssuance, identity)
+            measurement = await session.get(MeasurementRun, UUID(run["id"]))
+            assert measurement_run_reproducible(measurement)
+            return (
+                issuance.snapshot,
+                issuance.snapshot_sha256,
+                report_issuance_service._rendered_pair(issuance),
+            )
+
+    old_snapshot, old_hash, old_pair = asyncio.run(inspect(old_id))
+    replay = request_issuance(db_client, advertiser, run["id"], request_id=request_id)
+    assert replay.status_code == 202, replay.text
+    assert replay.json()["id"] == str(old_id)
+    replay_snapshot, replay_hash, replay_pair = asyncio.run(inspect(old_id))
+    assert replay_snapshot == old_snapshot
+    assert replay_hash == old_hash
+    assert [item.content for item in replay_pair] == [item.content for item in old_pair]
+    report_storage.fail_pdf_once = True
+    assert run_worker(db_sessionmaker, settings, report_storage) == 1
+    headers = auth_headers(db_client, advertiser.email, PASSWORD)
+    pending = db_client.get(f"/api/v1/advertiser/report-issuances/{old_id}", headers=headers)
+    assert pending.json()["status"] == "queued"
+    assert pending.json()["artifacts"] == []
+
+    async def make_old_retry_due():
+        async with db_sessionmaker() as session:
+            issuance = await session.get(ReportIssuance, old_id)
+            issuance.next_attempt_at = datetime.now(UTC) - timedelta(seconds=1)
+            await session.commit()
+
+    asyncio.run(make_old_retry_due())
+    assert run_worker(db_sessionmaker, settings, report_storage) == 1
+    ready = db_client.get(f"/api/v1/advertiser/report-issuances/{old_id}", headers=headers)
+    assert ready.json()["status"] == "ready"
+    assert sorted(report_storage.contents.values()) == sorted(item.content for item in old_pair)
+    for item in old_pair:
+        artifact = next(row for row in ready.json()["artifacts"] if row["format"] == item.format)
+        assert artifact["checksum_sha256"] == hashlib.sha256(item.content).hexdigest()
+        download = db_client.post(
+            f"/api/v1/advertiser/report-issuances/{old_id}/artifacts/{item.format}/download",
+            json={"reason": "Verify historical report download integrity"},
+            headers=headers,
+        )
+        assert download.status_code == 200, download.text
+        assert download.json()["url"] == "http://storage.test/private-download"
+
+    newer = request_issuance(db_client, advertiser, run["id"], reissue_of_id=old_id)
+    assert newer.status_code == 202, newer.text
+    new_snapshot, _, new_pair = asyncio.run(inspect(UUID(newer.json()["id"])))
+    assert new_snapshot["schema_version"] == "campaign-performance-export-v2"
+    assert old_snapshot["schema_version"] == "campaign-performance-export-v1"
+    assert [item.content for item in asyncio.run(inspect(old_id))[2]] == [
+        item.content for item in old_pair
+    ]
+    assert all(
+        item.checksum_sha256 == hashlib.sha256(item.content).hexdigest() for item in new_pair
+    )
+
+
 def test_performance_issuance_replay_worker_download_and_tamper_fail_closed(
     db_client, db_sessionmaker, settings, report_storage
 ) -> None:
@@ -237,7 +322,7 @@ def test_performance_issuance_replay_worker_download_and_tamper_fail_closed(
     assert b"roi" not in rendered_pdf_bytes(pdf_content).lower()
     assert first.json()["id"].encode() in csv_content
     assert first.json()["id"].encode() in rendered_pdf_bytes(pdf_content)
-    assert b"campaign-performance-export-v1" in csv_content
+    assert b"campaign-performance-export-v2" in csv_content
     assert b"campaign-report-renderer-v1" in rendered_pdf_bytes(pdf_content)
     from app.services.measurement import (
         DENSITY_PARAMETER_CALIBRATION,

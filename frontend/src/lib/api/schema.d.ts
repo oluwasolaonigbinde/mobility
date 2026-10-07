@@ -11738,8 +11738,12 @@ export interface components {
         NotificationChannel: "in_app" | "transactional_email";
         /** NotificationFeedItemRead */
         NotificationFeedItemRead: {
+            /** Action Url */
+            action_url?: string | null;
             /** Body */
             body: string;
+            /** Campaign Name */
+            campaign_name?: string | null;
             channel: components["schemas"]["NotificationChannel"];
             /**
              * Created At

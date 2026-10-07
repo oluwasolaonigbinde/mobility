@@ -5,8 +5,13 @@ from uuid import uuid4
 import pytest
 from conftest import (
     auth_headers,
+    create_test_campaign,
+    create_test_campaign_assignment,
+    create_test_driver_profile,
     create_test_organization,
+    create_test_trip_session,
     create_test_user,
+    create_test_vehicle,
     fetch_audit_events,
 )
 from sqlalchemy import func, select
@@ -22,6 +27,314 @@ from app.services.notifications import create_notification, notification_dedupe_
 from app.services.organizations import get_notification_preference, update_notification_preference
 
 PASSWORD = "long-secure-password"
+
+
+@pytest.mark.parametrize(
+    "blocked", ["unknown_type", "account_type", "inactive_user", "wrong_recipient"]
+)
+def test_non_campaign_or_inactive_context_never_queries_private_facts(blocked):
+    from app.models.user import User
+    from app.services.notifications import notification_campaign_context
+
+    user = User(id=uuid4(), role="advertiser", status="active")
+    notice = Notification(
+        recipient_user_id=user.id,
+        type_key="campaign_approved",
+        payload={"campaign_id": str(uuid4())},
+    )
+    if blocked == "unknown_type":
+        notice.type_key = "unrecognized_future_type"
+    elif blocked == "account_type":
+        notice.type_key = NotificationType.PASSWORD_RESET_REQUESTED
+    elif blocked == "inactive_user":
+        user.status = "disabled"
+    else:
+        notice.recipient_user_id = uuid4()
+    # Any private-fact read would fail because there is deliberately no session.
+    assert asyncio.run(notification_campaign_context(None, notice=notice, user=user)) is None
+
+
+@pytest.mark.parametrize("reference", ["activity_flag_id", "fraud_flag_id"])
+def test_typed_review_reference_resolves_its_canonical_campaign(reference):
+    from unittest.mock import AsyncMock
+
+    from app.models.assignment_activity import AssignmentActivityFlag
+    from app.models.trip import TripSession
+    from app.models.trip_analytics import FraudFlag
+    from app.services.notifications import _notification_reference_scope
+
+    campaign_id, assignment_id, reference_id, trip_id = (uuid4() for _ in range(4))
+    row = (
+        AssignmentActivityFlag(
+            id=reference_id, campaign_id=campaign_id, assignment_id=assignment_id
+        )
+        if reference == "activity_flag_id"
+        else FraudFlag(id=reference_id, trip_session_id=trip_id)
+    )
+    trip = TripSession(id=trip_id, campaign_id=campaign_id, assignment_id=assignment_id)
+    session = AsyncMock()
+    session.get.side_effect = [row, trip] if reference == "fraud_flag_id" else [row]
+    assert asyncio.run(_notification_reference_scope(session, {reference: str(reference_id)})) == (
+        {campaign_id},
+        {assignment_id},
+    )
+    if reference == "fraud_flag_id":
+        session.get.side_effect = [row, None]
+        assert (
+            asyncio.run(_notification_reference_scope(session, {reference: str(reference_id)}))
+            is None
+        )
+
+
+def _campaign_notice(
+    db_sessionmaker, recipient, payload, type_key=NotificationType.CAMPAIGN_APPROVED
+):
+    async def insert():
+        async with db_sessionmaker() as session:
+            notice = await create_notification(
+                session,
+                recipient_user_id=recipient.id,
+                type_key=type_key,
+                payload=payload,
+                dedupe_key=None,
+            )
+            await session.commit()
+            return notice.id
+
+    return asyncio.run(insert())
+
+
+@pytest.mark.parametrize("role", [UserRole.ADMIN, UserRole.ADVERTISER, UserRole.DRIVER])
+def test_campaign_context_is_projected_for_each_role_and_mark_read(
+    db_client, db_sessionmaker, role
+):
+    owner = create_test_user(
+        db_sessionmaker,
+        email="context-owner@example.com",
+        role=UserRole.ADVERTISER,
+        password=PASSWORD,
+    )
+    organization, _ = create_test_organization(db_sessionmaker, owner_user_id=owner.id)
+    campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=owner.id,
+        name="PalmPay Wuse Blitz",
+    )
+    actor = (
+        owner
+        if role == UserRole.ADVERTISER
+        else create_test_user(
+            db_sessionmaker, email="context-actor@example.com", role=role, password=PASSWORD
+        )
+    )
+    payload = {
+        "campaign_id": str(campaign.id),
+        "campaign_name": "UNTRUSTED",
+        "action_url": "https://attacker.invalid",
+    }
+    if role == UserRole.DRIVER:
+        profile = create_test_driver_profile(db_sessionmaker, user_id=actor.id)
+        vehicle = create_test_vehicle(db_sessionmaker, driver_profile_id=profile.id)
+        assignment = create_test_campaign_assignment(
+            db_sessionmaker,
+            campaign_id=campaign.id,
+            driver_profile_id=profile.id,
+            vehicle_id=vehicle.id,
+            assigned_by_user_id=owner.id,
+        )
+        payload["assignment_id"] = str(assignment.id)
+        expected_url = f"/driver/assignments?assignment_id={assignment.id}"
+    else:
+        expected_url = f"/{role.value}/campaigns/{campaign.id}"
+    notice_id = _campaign_notice(db_sessionmaker, actor, payload)
+    headers = auth_headers(db_client, actor.email, PASSWORD)
+    feed = db_client.get("/api/v1/notifications", headers=headers).json()["items"][0]
+    read = db_client.post(f"/api/v1/notifications/{notice_id}/read", headers=headers)
+    assert read.status_code == 200, read.text
+    for item in (feed, read.json()):
+        assert item["campaign_name"] == campaign.name
+        assert item["action_url"] == expected_url
+        assert campaign.name in item["title"]
+        assert "UNTRUSTED" not in str(item)
+        assert "attacker" not in str(item)
+
+
+@pytest.mark.parametrize(
+    "invalid",
+    [
+        "other_tenant",
+        "disabled_member",
+        "inactive_org",
+        "malformed",
+        "missing",
+        "absent",
+        "account_type",
+        "conflict",
+    ],
+)
+def test_campaign_context_fails_closed_in_feed_and_mark_read(db_client, db_sessionmaker, invalid):
+    actor = create_test_user(
+        db_sessionmaker,
+        email="scope-actor@example.com",
+        role=UserRole.ADVERTISER,
+        password=PASSWORD,
+    )
+    owner = create_test_user(
+        db_sessionmaker,
+        email="scope-owner@example.com",
+        role=UserRole.ADVERTISER,
+        password=PASSWORD,
+    )
+    organization, membership = create_test_organization(db_sessionmaker, owner_user_id=actor.id)
+    other_org, _ = create_test_organization(
+        db_sessionmaker, owner_user_id=owner.id, name="Other company"
+    )
+    campaign = create_test_campaign(
+        db_sessionmaker,
+        organization_id=organization.id,
+        created_by_user_id=actor.id,
+        name="PRIVATE campaign",
+    )
+    other = create_test_campaign(
+        db_sessionmaker,
+        organization_id=other_org.id,
+        created_by_user_id=owner.id,
+        name="OTHER PRIVATE",
+    )
+    payload = {"campaign_id": str(campaign.id)}
+    notice_type = NotificationType.CAMPAIGN_APPROVED
+    if invalid == "other_tenant":
+        payload["campaign_id"] = str(other.id)
+    elif invalid == "malformed":
+        payload["campaign_id"] = "not-a-uuid"
+    elif invalid == "missing":
+        payload["campaign_id"] = str(uuid4())
+    elif invalid == "absent":
+        payload = {}
+    elif invalid == "account_type":
+        notice_type = NotificationType.COMPLAINT_REPLIED
+    elif invalid == "conflict":
+        driver = create_test_user(
+            db_sessionmaker, email="scope-driver@example.com", role=UserRole.DRIVER
+        )
+        profile = create_test_driver_profile(db_sessionmaker, user_id=driver.id)
+        vehicle = create_test_vehicle(db_sessionmaker, driver_profile_id=profile.id)
+        assignment = create_test_campaign_assignment(
+            db_sessionmaker,
+            campaign_id=other.id,
+            driver_profile_id=profile.id,
+            vehicle_id=vehicle.id,
+            assigned_by_user_id=owner.id,
+        )
+        payload["assignment_id"] = str(assignment.id)
+    notice_id = _campaign_notice(db_sessionmaker, actor, payload, notice_type)
+    headers = auth_headers(db_client, actor.email, PASSWORD)
+    if invalid in {"disabled_member", "inactive_org"}:
+
+        async def revoke():
+            async with db_sessionmaker() as session:
+                if invalid == "disabled_member":
+                    row = await session.get(OrganizationMembership, membership.id)
+                    row.status = "disabled"
+                else:
+                    from app.models.organization import AdvertiserOrganization
+
+                    row = await session.get(AdvertiserOrganization, organization.id)
+                    row.status = "suspended"
+                await session.commit()
+
+        asyncio.run(revoke())
+    feed = db_client.get("/api/v1/notifications", headers=headers)
+    read = db_client.post(f"/api/v1/notifications/{notice_id}/read", headers=headers)
+    assert feed.status_code == read.status_code == 200
+    for item in (feed.json()["items"][0], read.json()):
+        assert item["campaign_name"] is None
+        assert item["action_url"] is None
+        assert "PRIVATE" not in str(item)
+
+
+def test_driver_context_resolves_trip_and_denies_another_drivers_assignment(
+    db_client, db_sessionmaker
+):
+    owner = create_test_user(db_sessionmaker, email="trip-owner@example.com")
+    organization, _ = create_test_organization(db_sessionmaker)
+    campaign = create_test_campaign(
+        db_sessionmaker, organization_id=organization.id, created_by_user_id=owner.id
+    )
+    driver = create_test_user(
+        db_sessionmaker,
+        email="trip-context-driver@example.com",
+        role=UserRole.DRIVER,
+        password=PASSWORD,
+    )
+    profile = create_test_driver_profile(db_sessionmaker, user_id=driver.id)
+    vehicle = create_test_vehicle(db_sessionmaker, driver_profile_id=profile.id)
+    assignment = create_test_campaign_assignment(
+        db_sessionmaker,
+        campaign_id=campaign.id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        assigned_by_user_id=owner.id,
+    )
+    trip = create_test_trip_session(
+        db_sessionmaker,
+        assignment_id=assignment.id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        campaign_id=campaign.id,
+        started_by_user_id=driver.id,
+    )
+    _campaign_notice(
+        db_sessionmaker, driver, {"trip_session_id": str(trip.id)}, NotificationType.PAYOUT_RELEASED
+    )
+    headers = auth_headers(db_client, driver.email, PASSWORD)
+    item = db_client.get("/api/v1/notifications", headers=headers).json()["items"][0]
+    assert item["action_url"] == f"/driver/assignments?assignment_id={assignment.id}"
+    stranger = create_test_user(
+        db_sessionmaker, email="trip-stranger@example.com", role=UserRole.DRIVER, password=PASSWORD
+    )
+    stranger_notice_id = _campaign_notice(
+        db_sessionmaker,
+        stranger,
+        {"assignment_id": str(assignment.id)},
+        NotificationType.ASSIGNMENT_OFFERED,
+    )
+    other_item = db_client.get(
+        "/api/v1/notifications", headers=auth_headers(db_client, stranger.email, PASSWORD)
+    ).json()["items"][0]
+    assert other_item["action_url"] is None
+    assert other_item["campaign_name"] is None
+    read = db_client.post(
+        f"/api/v1/notifications/{stranger_notice_id}/read",
+        headers=auth_headers(db_client, stranger.email, PASSWORD),
+    )
+    assert read.status_code == 200
+    assert read.json()["campaign_name"] is None
+    assert read.json()["action_url"] is None
+
+    # The two references agree on campaign but disagree on the driver's job.
+    other_profile = create_test_driver_profile(db_sessionmaker, user_id=stranger.id)
+    other_vehicle = create_test_vehicle(
+        db_sessionmaker, driver_profile_id=other_profile.id, plate_number="OTHER-123"
+    )
+    other_assignment = create_test_campaign_assignment(
+        db_sessionmaker,
+        campaign_id=campaign.id,
+        driver_profile_id=other_profile.id,
+        vehicle_id=other_vehicle.id,
+        assigned_by_user_id=owner.id,
+    )
+    conflict_id = _campaign_notice(
+        db_sessionmaker,
+        driver,
+        {"trip_session_id": str(trip.id), "assignment_id": str(other_assignment.id)},
+        NotificationType.PAYOUT_RELEASED,
+    )
+    conflict_item = db_client.get("/api/v1/notifications", headers=headers).json()["items"][0]
+    assert conflict_item["campaign_name"] is None
+    conflict_read = db_client.post(f"/api/v1/notifications/{conflict_id}/read", headers=headers)
+    assert conflict_read.json()["action_url"] is None
 
 
 @pytest.mark.parametrize(
@@ -47,8 +360,7 @@ PASSWORD = "long-secure-password"
         (
             NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED,
             "Assignment activity resumed",
-            "Verified activity resumed for this assignment, so the activity flag "
-            "has been cleared.",
+            "Verified activity resumed for this assignment, so the activity flag has been cleared.",
         ),
         (
             NotificationType.BUDGET_URGENT_ALERT,
@@ -382,9 +694,7 @@ def test_advertiser_notification_preference_is_shared_audited_and_cross_org_hidd
 
     asyncio.run(add_colleague())
     owner_headers = auth_headers(db_client, "owner@example.com", PASSWORD)
-    preference = db_client.get(
-        "/api/v1/advertiser/notification-preferences", headers=owner_headers
-    )
+    preference = db_client.get("/api/v1/advertiser/notification-preferences", headers=owner_headers)
     assert preference.json() == {
         "transactional_email_enabled": True,
         "in_app_enabled": True,
@@ -396,10 +706,13 @@ def test_advertiser_notification_preference_is_shared_audited_and_cross_org_hidd
     )
     assert changed.status_code == http_status.HTTP_200_OK
     assert changed.json()["transactional_email_enabled"] is False
-    assert db_client.get(
-        "/api/v1/advertiser/notification-preferences",
-        headers=auth_headers(db_client, "colleague@example.com", PASSWORD),
-    ).json()["transactional_email_enabled"] is False
+    assert (
+        db_client.get(
+            "/api/v1/advertiser/notification-preferences",
+            headers=auth_headers(db_client, "colleague@example.com", PASSWORD),
+        ).json()["transactional_email_enabled"]
+        is False
+    )
     events = fetch_audit_events(db_sessionmaker)
     assert events[-1].action == "advertiser_notification_preferences.updated"
     assert events[-1].event_metadata["before"] == {"transactional_email_enabled": True}
