@@ -35,3 +35,7 @@ W1B identifiers renumbered at merge on 2026-10-06: Compose REQ-108 → REQ-117 (
 ## Owner integration direction — 6 October 2026
 
 Merge current local master (4cf1df66) with a real merge, preserve both lanes and master records, renumber W1B identifiers as above, rerun touched tests before the merge commit. Owner one-time D41 exception: no per-lane push/CI; one combined CI run later. Then wait for the payouts session to report its master merge; merge w1/payouts, resolve records conflicts, rerun touched checks and commit the combined Wave 1 branch. No push or merge into master. This supersedes the earlier CI-green/per-lane push gate for Wave 1 only.
+
+## Owner master refresh — 7 October 2026
+
+Real merge exact current master e502670 into combined Wave1, preserving incoming Next.js16.4.0/sharp0.35.5 package files and REQ-118. Preserve lane numbers and all records; reorder only D64/D65 rows, no decision-content changes. Rerun W1B touched files and review integrated source/evidence before committing. No push, deployment or merge into master; combined CI remains separately authorized later.
