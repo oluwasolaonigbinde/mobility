@@ -174,3 +174,47 @@ This one table lists persisted names and human-written fields, including frozen 
 | `whatsapp_consents.purpose` | Installation and trip updates |
 | Artwork and installation photo text | Marula Kitchens; Lunch delivered.; Good Food Brighter Days; each fictional business name above; Closer to your neighbourhood; Lagos • Abuja |
 | Applicant document artwork | Driver licence; Portrait; Vehicle advertising agreement; Vehicle registration; Insurance; Vehicle photo; each applicant's full name above; Abuja; I agree to keep the panels fitted and report any damage promptly.; Signed; ABJ-2024-58219; ABJ-603-MR; Toyota Corolla White 2020 |
+
+## Wave 2 C renewal and phone examples — 7 October 2026
+
+Development/preview drivers use Ofcom's reserved fictional mobile range
+[07700 900000–900999](https://www.ofcom.org.uk/phones-and-broadband/phone-numbers/numbers-for-drama),
+which is not allocated to real customers. These UK country-code numbers are
+deliberately different from a plausible routable Nigerian mobile number.
+No WhatsApp/SMS is sent by the application or seed.
+
+| Login | Fictional saved phone |
+| --- | --- |
+| driver@demo.mobility.local | +447700900100 |
+| driver01…driver09@demo.mobility.local | +447700900101…+447700900109, respectively |
+| abdulrahman.yusuf@mail.ng | +447700900110 |
+| nneka.umeh@mail.ng | +447700900111 |
+| ayodele.bakare@mail.ng | +447700900112 |
+| suleiman.idris@mail.ng | +447700900113 |
+| damilola.akinwale@demo.mobility.local | +447700900114 |
+| Terrax development/preview destination | +447700900999 |
+
+Damilola Akinwale (`LagosRoutes2026!`) has an active login, a readable
+renewal example with identity documents rejected as unreadable, and vehicle
+documents explicitly marked expired for ABJ-714-KM. The six clearly fictional
+PNG documents are privately stored and scanned through the existing seed
+pipeline. No licence/insurance expiry date or renewal period is invented.
+Work remains pending until the current complete identity/bank and car revisions
+pass the existing review gates. Reruns preserve submitted revisions and decisions.
+
+Use Profile → Your documents to upload replacements; review them in the driver's
+Documents section. View each current document; Show NIN and bank View remain
+separate audited reads. Bank approval still requires verification authority.
+For the phone demonstration, save the driver's fictional number, tap Verify my
+phone, then enter the displayed code and that same sender in Phone → Record
+phone verification, or Support → Driver contact. Staff never fetch the code.
+Production/staging destinations remain blank; real use additionally requires
+`PHONE_OPERATOR_EXTERNAL_APPROVED`, `PHONE_OPERATOR_NAME` and
+`PHONE_WHATSAPP_NOTICE_APPROVAL_REFERENCE` with REQ-032 approved wording.
+Preview deployment is a separate owner action; this change provides configuration
+and source only.
+
+Existing Start demo drivers retain the trusted no-application/no-KYC baseline.
+The seed does not manufacture approved KYC or car snapshots without reviewed
+documents. Its existing synthetic payee, encrypted zero-value bank details and
+payout verification fixtures remain unchanged and are reused on rerun.

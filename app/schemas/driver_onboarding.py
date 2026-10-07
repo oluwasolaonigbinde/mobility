@@ -41,10 +41,9 @@ class ApplicantStoredFileRead(BaseModel):
     scan_status: str
 
 
-class PersonPayeeSubmissionCreate(BaseModel):
+class PersonPayeeCaptureCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    application_access_token: SecretStr = Field(repr=False)
     client_request_id: UUID
     nin: SecretStr = Field(repr=False)
     account_name: SecretStr = Field(repr=False)
@@ -63,6 +62,14 @@ class PersonPayeeSubmissionCreate(BaseModel):
         return value
 
 
+class PersonPayeeSubmissionCreate(PersonPayeeCaptureCreate):
+    application_access_token: SecretStr = Field(repr=False)
+
+
+class PersonPayeeRenewalCreate(PersonPayeeCaptureCreate):
+    expected_submission_id: UUID
+
+
 class PersonPayeeStageRead(BaseModel):
     status: PersonPayeeStageStatus
     submission_id: UUID | None = None
@@ -79,6 +86,7 @@ class PersonPayeeReviewDecisionCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     client_request_id: UUID
+    submission_id: UUID
     decision: KycSubmissionStatus
     reason_code: KycReviewReason
     identity_match_confirmed: bool = False
@@ -153,6 +161,18 @@ class ApplicantVehicleListRead(BaseModel):
 class AdminVehicleStageRead(VehicleStageRead):
     document_file_ids: dict[str, UUID] = Field(default_factory=dict)
     decided_by_user_id: UUID | None = None
+
+
+class DriverDocumentsRead(BaseModel):
+    person_payee: PersonPayeeStageRead
+    person_document_names: dict[str, str] = Field(default_factory=dict)
+    vehicles: list[VehicleStageRead] = Field(default_factory=list)
+    vehicle_document_names: dict[str, dict[str, str]] = Field(default_factory=dict)
+
+
+class AdminDriverDocumentsRead(BaseModel):
+    person_payee: AdminPersonPayeeStageRead
+    vehicles: list[AdminVehicleStageRead] = Field(default_factory=list)
 
 
 class VehicleReviewDecisionCreate(BaseModel):

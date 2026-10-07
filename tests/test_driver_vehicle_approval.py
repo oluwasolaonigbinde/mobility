@@ -17,6 +17,7 @@ from test_driver_person_payee_onboarding import (
     PASSWORD,
     _application,
     _complete_admin_review,
+    _current_submission_id,
     _person_payee_payload,
     _register,
     _seed_clean_kyc_files,
@@ -96,6 +97,7 @@ def _approved_applicant(db_client, db_sessionmaker, settings, *, suffix: str):
         f"/api/v1/admin/driver-applications/{application.id}/person-payee-decision",
         headers=auth_headers(db_client, admin.email, PASSWORD),
         json={
+            "submission_id": _current_submission_id(db_sessionmaker, application.driver_profile_id),
             "client_request_id": str(uuid4()),
             "decision": "approved",
             "reason_code": "complete_current_evidence",
@@ -967,7 +969,7 @@ def test_vehicle_expiry_worker_appends_history_and_closes_eligibility(
 
 
 def test_postgres_concurrent_identical_vehicle_decisions_converge_after_lock(
-    postgis_db_client, postgis_db_sessionmaker, settings, monkeypatch
+    postgis_db_client, postgis_db_sessionmaker, settings
 ) -> None:
     token, application, admin = _approved_applicant(
         postgis_db_client, postgis_db_sessionmaker, settings, suffix="pg-decision-retry"
@@ -1013,31 +1015,13 @@ def test_postgres_concurrent_identical_vehicle_decisions_converge_after_lock(
     )
 
     async def exercise() -> tuple[list[UUID], int]:
-        arrived = 0
-        both_prechecks_complete = asyncio.Event()
-        synchronized_tasks: set[asyncio.Task] = set()
-        original_retry_view = vehicle_onboarding_service._decision_retry_view
-
-        async def synchronized_retry_view(*args, **kwargs):
-            nonlocal arrived
-            result = await original_retry_view(*args, **kwargs)
-            task = asyncio.current_task()
-            assert task is not None
-            if task not in synchronized_tasks:
-                synchronized_tasks.add(task)
-                assert result is None
-                arrived += 1
-                if arrived == 2:
-                    both_prechecks_complete.set()
-                await both_prechecks_complete.wait()
-            return result
-
-        monkeypatch.setattr(
-            vehicle_onboarding_service, "_decision_retry_view", synchronized_retry_view
-        )
+        # Start both independent commands together. Synchronizing an internal
+        # retry read after the shared User lock would manufacture a deadlock.
+        barrier = asyncio.Barrier(2)
 
         async def decide(actor_user_id: UUID) -> UUID:
             async with postgis_db_sessionmaker() as session:
+                await barrier.wait()
                 view = await review_application_vehicle(
                     session,
                     application_id=application.id,

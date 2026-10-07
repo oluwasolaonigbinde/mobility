@@ -395,6 +395,25 @@
         "title": "AdminCreativeReviewListResponse",
         "type": "object"
       },
+      "AdminDriverDocumentsRead": {
+        "properties": {
+          "person_payee": {
+            "$ref": "#/components/schemas/AdminPersonPayeeStageRead"
+          },
+          "vehicles": {
+            "items": {
+              "$ref": "#/components/schemas/AdminVehicleStageRead"
+            },
+            "title": "Vehicles",
+            "type": "array"
+          }
+        },
+        "required": [
+          "person_payee"
+        ],
+        "title": "AdminDriverDocumentsRead",
+        "type": "object"
+      },
       "AdminDriverProfileRead": {
         "properties": {
           "country_code": {
@@ -2034,6 +2053,17 @@
             "title": "Attempt Count",
             "type": "integer"
           },
+          "driver_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driver Name"
+          },
           "driver_profile_id": {
             "format": "uuid",
             "title": "Driver Profile Id",
@@ -2062,29 +2092,6 @@
             "title": "Phone Version Id",
             "type": "string"
           },
-          "sent_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sent At"
-          },
-          "sent_channel": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sent Channel"
-          },
           "status": {
             "title": "Status",
             "type": "string"
@@ -2109,8 +2116,6 @@
           "attempt_count",
           "max_attempts",
           "expires_at",
-          "sent_channel",
-          "sent_at",
           "verified_at",
           "driver_profile_id",
           "masked_phone"
@@ -12030,6 +12035,16 @@
       },
       "DriverContactStateRead": {
         "properties": {
+          "challenge": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PhoneChallengeRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "phone": {
             "anyOf": [
               {
@@ -12039,6 +12054,11 @@
                 "type": "null"
               }
             ]
+          },
+          "verification_available": {
+            "default": false,
+            "title": "Verification Available",
+            "type": "boolean"
           },
           "whatsapp_consent": {
             "anyOf": [
@@ -12056,6 +12076,42 @@
           "whatsapp_consent"
         ],
         "title": "DriverContactStateRead",
+        "type": "object"
+      },
+      "DriverDocumentsRead": {
+        "properties": {
+          "person_document_names": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "title": "Person Document Names",
+            "type": "object"
+          },
+          "person_payee": {
+            "$ref": "#/components/schemas/PersonPayeeStageRead"
+          },
+          "vehicle_document_names": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "title": "Vehicle Document Names",
+            "type": "object"
+          },
+          "vehicles": {
+            "items": {
+              "$ref": "#/components/schemas/VehicleStageRead"
+            },
+            "title": "Vehicles",
+            "type": "array"
+          }
+        },
+        "required": [
+          "person_payee"
+        ],
+        "title": "DriverDocumentsRead",
         "type": "object"
       },
       "DriverEarningsCurrencySummary": {
@@ -12705,6 +12761,70 @@
         ],
         "title": "DriverOnboardingStatus",
         "type": "string"
+      },
+      "DriverPhoneChallengeRead": {
+        "properties": {
+          "attempt_count": {
+            "title": "Attempt Count",
+            "type": "integer"
+          },
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "max_attempts": {
+            "title": "Max Attempts",
+            "type": "integer"
+          },
+          "phone_version_id": {
+            "format": "uuid",
+            "title": "Phone Version Id",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "terrax_number": {
+            "title": "Terrax Number",
+            "type": "string"
+          },
+          "verified_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verified At"
+          }
+        },
+        "required": [
+          "id",
+          "phone_version_id",
+          "status",
+          "attempt_count",
+          "max_attempts",
+          "expires_at",
+          "verified_at",
+          "code",
+          "terrax_number"
+        ],
+        "title": "DriverPhoneChallengeRead",
+        "type": "object"
       },
       "DriverPhoneUpdate": {
         "additionalProperties": false,
@@ -20286,6 +20406,73 @@
         "title": "PaystackWebhookReceipt",
         "type": "object"
       },
+      "PersonPayeeRenewalCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "account_name": {
+            "format": "password",
+            "title": "Account Name",
+            "type": "string",
+            "writeOnly": true
+          },
+          "account_number": {
+            "format": "password",
+            "title": "Account Number",
+            "type": "string",
+            "writeOnly": true
+          },
+          "bank_code": {
+            "format": "password",
+            "title": "Bank Code",
+            "type": "string",
+            "writeOnly": true
+          },
+          "client_request_id": {
+            "format": "uuid",
+            "title": "Client Request Id",
+            "type": "string"
+          },
+          "driver_license_file_id": {
+            "format": "uuid",
+            "title": "Driver License File Id",
+            "type": "string"
+          },
+          "driver_photo_file_id": {
+            "format": "uuid",
+            "title": "Driver Photo File Id",
+            "type": "string"
+          },
+          "expected_submission_id": {
+            "format": "uuid",
+            "title": "Expected Submission Id",
+            "type": "string"
+          },
+          "nin": {
+            "format": "password",
+            "title": "Nin",
+            "type": "string",
+            "writeOnly": true
+          },
+          "signed_agreement_file_id": {
+            "format": "uuid",
+            "title": "Signed Agreement File Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_request_id",
+          "nin",
+          "account_name",
+          "account_number",
+          "bank_code",
+          "driver_license_file_id",
+          "driver_photo_file_id",
+          "signed_agreement_file_id",
+          "expected_submission_id"
+        ],
+        "title": "PersonPayeeRenewalCreate",
+        "type": "object"
+      },
       "PersonPayeeReviewDecisionCreate": {
         "additionalProperties": false,
         "properties": {
@@ -20314,10 +20501,16 @@
           },
           "reason_code": {
             "$ref": "#/components/schemas/KycReviewReason"
+          },
+          "submission_id": {
+            "format": "uuid",
+            "title": "Submission Id",
+            "type": "string"
           }
         },
         "required": [
           "client_request_id",
+          "submission_id",
           "decision",
           "reason_code"
         ],
@@ -20487,7 +20680,6 @@
           }
         },
         "required": [
-          "application_access_token",
           "client_request_id",
           "nin",
           "account_name",
@@ -20495,7 +20687,8 @@
           "bank_code",
           "driver_license_file_id",
           "driver_photo_file_id",
-          "signed_agreement_file_id"
+          "signed_agreement_file_id",
+          "application_access_token"
         ],
         "title": "PersonPayeeSubmissionCreate",
         "type": "object"
@@ -20525,29 +20718,6 @@
             "title": "Phone Version Id",
             "type": "string"
           },
-          "sent_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sent At"
-          },
-          "sent_channel": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Sent Channel"
-          },
           "status": {
             "title": "Status",
             "type": "string"
@@ -20572,60 +20742,42 @@
           "attempt_count",
           "max_attempts",
           "expires_at",
-          "sent_channel",
-          "sent_at",
           "verified_at"
         ],
         "title": "PhoneChallengeRead",
         "type": "object"
       },
-      "PhoneChallengeSent": {
+      "PhoneVerificationRecord": {
         "additionalProperties": false,
         "properties": {
-          "channel": {
-            "enum": [
-              "whatsapp",
-              "voice"
-            ],
-            "title": "Channel",
+          "challenge_id": {
+            "format": "uuid",
+            "title": "Challenge Id",
             "type": "string"
           },
-          "operator_evidence_reference": {
-            "maxLength": 255,
-            "minLength": 1,
-            "title": "Operator Evidence Reference",
-            "type": "string"
-          },
-          "provider_message_id": {
-            "maxLength": 255,
-            "minLength": 1,
-            "title": "Provider Message Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "channel",
-          "operator_evidence_reference",
-          "provider_message_id"
-        ],
-        "title": "PhoneChallengeSent",
-        "type": "object"
-      },
-      "PhoneChallengeVerify": {
-        "additionalProperties": false,
-        "properties": {
           "code": {
+            "format": "password",
             "maxLength": 6,
             "minLength": 6,
-            "pattern": "^[0-9]{6}$",
             "title": "Code",
-            "type": "string"
+            "type": "string",
+            "writeOnly": true
+          },
+          "sender_phone": {
+            "format": "password",
+            "maxLength": 32,
+            "minLength": 8,
+            "title": "Sender Phone",
+            "type": "string",
+            "writeOnly": true
           }
         },
         "required": [
-          "code"
+          "challenge_id",
+          "code",
+          "sender_phone"
         ],
-        "title": "PhoneChallengeVerify",
+        "title": "PhoneVerificationRecord",
         "type": "object"
       },
       "PhysicalSpotCheckCreate": {
@@ -25577,6 +25729,18 @@
             "format": "uuid",
             "title": "Client Request Id",
             "type": "string"
+          },
+          "expected_submission_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Submission Id"
           },
           "insurance_file_id": {
             "format": "uuid",
@@ -30999,6 +31163,248 @@
         ]
       }
     },
+    "/api/v1/admin/drivers/{driver_profile_id}/documents": {
+      "get": {
+        "operationId": "admin_documents_api_v1_admin_drivers__driver_profile_id__documents_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "driver_profile_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Driver Profile Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminDriverDocumentsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Documents",
+        "tags": [
+          "Driver document renewals"
+        ]
+      }
+    },
+    "/api/v1/admin/drivers/{driver_profile_id}/documents/person-payee-decision": {
+      "post": {
+        "operationId": "admin_person_decision_api_v1_admin_drivers__driver_profile_id__documents_person_payee_decision_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "driver_profile_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Driver Profile Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonPayeeReviewDecisionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminPersonPayeeStageRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Person Decision",
+        "tags": [
+          "Driver document renewals"
+        ]
+      }
+    },
+    "/api/v1/admin/drivers/{driver_profile_id}/phone-verification": {
+      "post": {
+        "operationId": "admin_record_phone_verification_api_v1_admin_drivers__driver_profile_id__phone_verification_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "driver_profile_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Driver Profile Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PhoneVerificationRecord"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverPhoneVersionRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Record Phone Verification",
+        "tags": [
+          "Verified contacts"
+        ]
+      }
+    },
+    "/api/v1/admin/drivers/{driver_profile_id}/vehicles/{vehicle_id}/submissions/{submission_id}/decision": {
+      "post": {
+        "operationId": "admin_vehicle_decision_api_v1_admin_drivers__driver_profile_id__vehicles__vehicle_id__submissions__submission_id__decision_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "driver_profile_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Driver Profile Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "vehicle_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Vehicle Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "submission_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Submission Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VehicleReviewDecisionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminVehicleStageRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Vehicle Decision",
+        "tags": [
+          "Driver document renewals"
+        ]
+      }
+    },
     "/api/v1/admin/drivers/{user_id}/profile": {
       "post": {
         "operationId": "admin_create_driver_profile_api_v1_admin_drivers__user_id__profile_post",
@@ -35846,6 +36252,23 @@
               "title": "Offset",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "driver_profile_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Driver Profile Id"
+            }
           }
         ],
         "responses": {
@@ -35876,64 +36299,6 @@
           }
         ],
         "summary": "Admin Phone Verification Work",
-        "tags": [
-          "Verified contacts"
-        ]
-      }
-    },
-    "/api/v1/admin/phone-verification/{challenge_id}/sent": {
-      "post": {
-        "operationId": "admin_record_phone_verification_sent_api_v1_admin_phone_verification__challenge_id__sent_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "challenge_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Challenge Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PhoneChallengeSent"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PhoneChallengeRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Admin Record Phone Verification Sent",
         "tags": [
           "Verified contacts"
         ]
@@ -43602,7 +43967,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PhoneChallengeRead"
+                  "$ref": "#/components/schemas/DriverPhoneChallengeRead"
                 }
               }
             },
@@ -43625,64 +43990,6 @@
           }
         ],
         "summary": "Driver Request Phone Verification",
-        "tags": [
-          "Verified contacts"
-        ]
-      }
-    },
-    "/api/v1/driver/contact/phone-verification/{challenge_id}/verify": {
-      "post": {
-        "operationId": "driver_verify_phone_api_v1_driver_contact_phone_verification__challenge_id__verify_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "challenge_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Challenge Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PhoneChallengeVerify"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DriverPhoneVersionRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Driver Verify Phone",
         "tags": [
           "Verified contacts"
         ]
@@ -43767,6 +44074,88 @@
         "summary": "Driver Withdraw Whatsapp Consent",
         "tags": [
           "Verified contacts"
+        ]
+      }
+    },
+    "/api/v1/driver/documents": {
+      "get": {
+        "operationId": "driver_documents_api_v1_driver_documents_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverDocumentsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Driver Documents",
+        "tags": [
+          "Driver document renewals"
+        ]
+      }
+    },
+    "/api/v1/driver/documents/person-payee": {
+      "post": {
+        "operationId": "renew_person_payee_api_v1_driver_documents_person_payee_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonPayeeRenewalCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PersonPayeeStageRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Renew Person Payee",
+        "tags": [
+          "Driver document renewals"
         ]
       }
     },

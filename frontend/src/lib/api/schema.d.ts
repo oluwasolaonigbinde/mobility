@@ -897,6 +897,74 @@ export interface paths {
         patch: operations["admin_update_driver_profile_api_v1_admin_drivers__driver_profile_id__patch"];
         trace?: never;
     };
+    "/api/v1/admin/drivers/{driver_profile_id}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Documents */
+        get: operations["admin_documents_api_v1_admin_drivers__driver_profile_id__documents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/drivers/{driver_profile_id}/documents/person-payee-decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Person Decision */
+        post: operations["admin_person_decision_api_v1_admin_drivers__driver_profile_id__documents_person_payee_decision_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/drivers/{driver_profile_id}/phone-verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Record Phone Verification */
+        post: operations["admin_record_phone_verification_api_v1_admin_drivers__driver_profile_id__phone_verification_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/drivers/{driver_profile_id}/vehicles/{vehicle_id}/submissions/{submission_id}/decision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Vehicle Decision */
+        post: operations["admin_vehicle_decision_api_v1_admin_drivers__driver_profile_id__vehicles__vehicle_id__submissions__submission_id__decision_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/drivers/{user_id}/profile": {
         parameters: {
             query?: never;
@@ -2097,23 +2165,6 @@ export interface paths {
         get: operations["admin_phone_verification_work_api_v1_admin_phone_verification_challenges_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/phone-verification/{challenge_id}/sent": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Admin Record Phone Verification Sent */
-        post: operations["admin_record_phone_verification_sent_api_v1_admin_phone_verification__challenge_id__sent_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4136,23 +4187,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/driver/contact/phone-verification/{challenge_id}/verify": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Driver Verify Phone */
-        post: operations["driver_verify_phone_api_v1_driver_contact_phone_verification__challenge_id__verify_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/driver/contact/whatsapp-consent": {
         parameters: {
             query?: never;
@@ -4181,6 +4215,40 @@ export interface paths {
         put?: never;
         /** Driver Withdraw Whatsapp Consent */
         post: operations["driver_withdraw_whatsapp_consent_api_v1_driver_contact_whatsapp_consent_withdraw_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Driver Documents */
+        get: operations["driver_documents_api_v1_driver_documents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/documents/person-payee": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Renew Person Payee */
+        post: operations["renew_person_payee_api_v1_driver_documents_person_payee_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4962,6 +5030,12 @@ export interface components {
             /** Total */
             total: number;
         };
+        /** AdminDriverDocumentsRead */
+        AdminDriverDocumentsRead: {
+            person_payee: components["schemas"]["AdminPersonPayeeStageRead"];
+            /** Vehicles */
+            vehicles?: components["schemas"]["AdminVehicleStageRead"][];
+        };
         /** AdminDriverProfileRead */
         AdminDriverProfileRead: {
             /** Country Code */
@@ -5567,6 +5641,8 @@ export interface components {
         AdminPhoneChallengeRead: {
             /** Attempt Count */
             attempt_count: number;
+            /** Driver Name */
+            driver_name?: string | null;
             /**
              * Driver Profile Id
              * Format: uuid
@@ -5591,10 +5667,6 @@ export interface components {
              * Format: uuid
              */
             phone_version_id: string;
-            /** Sent At */
-            sent_at: string | null;
-            /** Sent Channel */
-            sent_channel: string | null;
             /** Status */
             status: string;
             /** Verified At */
@@ -9192,8 +9264,30 @@ export interface components {
         };
         /** DriverContactStateRead */
         DriverContactStateRead: {
+            challenge?: components["schemas"]["PhoneChallengeRead"] | null;
             phone: components["schemas"]["DriverPhoneVersionRead"] | null;
+            /**
+             * Verification Available
+             * @default false
+             */
+            verification_available: boolean;
             whatsapp_consent: components["schemas"]["WhatsappConsentRead"] | null;
+        };
+        /** DriverDocumentsRead */
+        DriverDocumentsRead: {
+            /** Person Document Names */
+            person_document_names?: {
+                [key: string]: string;
+            };
+            person_payee: components["schemas"]["PersonPayeeStageRead"];
+            /** Vehicle Document Names */
+            vehicle_document_names?: {
+                [key: string]: {
+                    [key: string]: string;
+                };
+            };
+            /** Vehicles */
+            vehicles?: components["schemas"]["VehicleStageRead"][];
         };
         /** DriverEarningsCurrencySummary */
         DriverEarningsCurrencySummary: {
@@ -9434,6 +9528,36 @@ export interface components {
          * @enum {string}
          */
         DriverOnboardingStatus: "pending" | "active" | "suspended" | "rejected";
+        /** DriverPhoneChallengeRead */
+        DriverPhoneChallengeRead: {
+            /** Attempt Count */
+            attempt_count: number;
+            /** Code */
+            code: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Max Attempts */
+            max_attempts: number;
+            /**
+             * Phone Version Id
+             * Format: uuid
+             */
+            phone_version_id: string;
+            /** Status */
+            status: string;
+            /** Terrax Number */
+            terrax_number: string;
+            /** Verified At */
+            verified_at: string | null;
+        };
         /** DriverPhoneUpdate */
         DriverPhoneUpdate: {
             /** Phone */
@@ -12432,6 +12556,54 @@ export interface components {
             /** Event */
             event: string;
         };
+        /** PersonPayeeRenewalCreate */
+        PersonPayeeRenewalCreate: {
+            /**
+             * Account Name
+             * Format: password
+             */
+            account_name: string;
+            /**
+             * Account Number
+             * Format: password
+             */
+            account_number: string;
+            /**
+             * Bank Code
+             * Format: password
+             */
+            bank_code: string;
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /**
+             * Driver License File Id
+             * Format: uuid
+             */
+            driver_license_file_id: string;
+            /**
+             * Driver Photo File Id
+             * Format: uuid
+             */
+            driver_photo_file_id: string;
+            /**
+             * Expected Submission Id
+             * Format: uuid
+             */
+            expected_submission_id: string;
+            /**
+             * Nin
+             * Format: password
+             */
+            nin: string;
+            /**
+             * Signed Agreement File Id
+             * Format: uuid
+             */
+            signed_agreement_file_id: string;
+        };
         /** PersonPayeeReviewDecisionCreate */
         PersonPayeeReviewDecisionCreate: {
             /**
@@ -12456,6 +12628,11 @@ export interface components {
              */
             identity_match_confirmed: boolean;
             reason_code: components["schemas"]["KycReviewReason"];
+            /**
+             * Submission Id
+             * Format: uuid
+             */
+            submission_id: string;
         };
         /** PersonPayeeStageRead */
         PersonPayeeStageRead: {
@@ -12553,31 +12730,28 @@ export interface components {
              * Format: uuid
              */
             phone_version_id: string;
-            /** Sent At */
-            sent_at: string | null;
-            /** Sent Channel */
-            sent_channel: string | null;
             /** Status */
             status: string;
             /** Verified At */
             verified_at: string | null;
         };
-        /** PhoneChallengeSent */
-        PhoneChallengeSent: {
+        /** PhoneVerificationRecord */
+        PhoneVerificationRecord: {
             /**
-             * Channel
-             * @enum {string}
+             * Challenge Id
+             * Format: uuid
              */
-            channel: "whatsapp" | "voice";
-            /** Operator Evidence Reference */
-            operator_evidence_reference: string;
-            /** Provider Message Id */
-            provider_message_id: string;
-        };
-        /** PhoneChallengeVerify */
-        PhoneChallengeVerify: {
-            /** Code */
+            challenge_id: string;
+            /**
+             * Code
+             * Format: password
+             */
             code: string;
+            /**
+             * Sender Phone
+             * Format: password
+             */
+            sender_phone: string;
         };
         /** PhysicalSpotCheckCreate */
         PhysicalSpotCheckCreate: {
@@ -14462,6 +14636,8 @@ export interface components {
              * Format: uuid
              */
             client_request_id: string;
+            /** Expected Submission Id */
+            expected_submission_id?: string | null;
             /**
              * Insurance File Id
              * Format: uuid
@@ -17034,6 +17210,144 @@ export interface operations {
             };
         };
     };
+    admin_documents_api_v1_admin_drivers__driver_profile_id__documents_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                driver_profile_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminDriverDocumentsRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_person_decision_api_v1_admin_drivers__driver_profile_id__documents_person_payee_decision_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                driver_profile_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonPayeeReviewDecisionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPersonPayeeStageRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_record_phone_verification_api_v1_admin_drivers__driver_profile_id__phone_verification_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                driver_profile_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PhoneVerificationRecord"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverPhoneVersionRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_vehicle_decision_api_v1_admin_drivers__driver_profile_id__vehicles__vehicle_id__submissions__submission_id__decision_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                driver_profile_id: string;
+                vehicle_id: string;
+                submission_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["VehicleReviewDecisionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminVehicleStageRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     admin_create_driver_profile_api_v1_admin_drivers__user_id__profile_post: {
         parameters: {
             query?: never;
@@ -19472,6 +19786,7 @@ export interface operations {
             query?: {
                 limit?: number;
                 offset?: number;
+                driver_profile_id?: string | null;
             };
             header?: never;
             path?: never;
@@ -19486,41 +19801,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminPhoneChallengeListRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_record_phone_verification_sent_api_v1_admin_phone_verification__challenge_id__sent_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                challenge_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PhoneChallengeSent"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PhoneChallengeRead"];
                 };
             };
             /** @description Request validation failed */
@@ -24010,42 +24290,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PhoneChallengeRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    driver_verify_phone_api_v1_driver_contact_phone_verification__challenge_id__verify_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                challenge_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PhoneChallengeVerify"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DriverPhoneVersionRead"];
+                    "application/json": components["schemas"]["DriverPhoneChallengeRead"];
                 };
             };
             /** @description Request validation failed */
@@ -24108,6 +24353,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WhatsappConsentRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    driver_documents_api_v1_driver_documents_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverDocumentsRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    renew_person_payee_api_v1_driver_documents_person_payee_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonPayeeRenewalCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonPayeeStageRead"];
                 };
             };
             /** @description Request validation failed */

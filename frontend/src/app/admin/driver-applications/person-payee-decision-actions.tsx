@@ -90,6 +90,7 @@ function AccountVerification({ versionId }: { versionId: string }) {
 
 export function PersonPayeeDecisionActions({
   applicationId,
+  driverProfileId,
   submissionId,
   bankAccountVersionId,
   bankAccountVerified,
@@ -97,6 +98,7 @@ export function PersonPayeeDecisionActions({
   status = "pending_review",
 }: {
   applicationId: string;
+  driverProfileId?: string;
   submissionId?: string | null;
   bankAccountVersionId?: string | null;
   bankAccountVerified: boolean;
@@ -108,7 +110,7 @@ export function PersonPayeeDecisionActions({
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <p className="text-muted mb-2 text-sm">
-        Each view is logged. Evidence is hidden after one minute or when you leave this page.
+        Each view is logged. Documents are hidden after one minute or when you leave this page.
       </p>
       <p className="text-faint mb-2 text-xs">
         Identity documents are reviewed together. Bank details are checked separately before the
@@ -171,7 +173,11 @@ export function PersonPayeeDecisionActions({
       {status === "pending_review" && submissionId && bankAccountVersionId ? (
         <form action={action} className="flex flex-col gap-2">
           <input type="hidden" name="application_id" value={applicationId} />
+          {driverProfileId ? (
+            <input type="hidden" name="driver_profile_id" value={driverProfileId} />
+          ) : null}
           <input type="hidden" name="client_request_id" value={submissionId} />
+          <input type="hidden" name="submission_id" value={submissionId} />
           <label className="text-muted flex items-center gap-2 text-xs">
             <input type="checkbox" name="identity_match_confirmed" /> Identity matches
           </label>

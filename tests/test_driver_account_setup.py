@@ -22,6 +22,10 @@ from app.models.driver_application import (
 )
 from app.models.notification import Notification, NotificationType
 from app.models.user import User, UserRole, UserStatus
+from app.schemas.driver_onboarding import (
+    PersonPayeeReviewDecisionCreate,
+    VehicleReviewDecisionCreate,
+)
 from app.services.account_recovery import (
     complete_password_reset,
     request_password_reset,
@@ -32,7 +36,9 @@ from app.services.driver_account_setup import (
     initiate_driver_account_setup,
     synthetic_driver_account_setup_token,
 )
+from app.services.driver_onboarding import review_application_person_payee
 from app.services.email_delivery import process_email_notification
+from app.services.vehicle_onboarding import review_application_vehicle
 
 
 def _approve(client, maker, settings):
@@ -177,9 +183,7 @@ def test_driver_account_setup_supersedes_replays_and_activates_atomically(
             user = await session.get(User, application.user_id)
             assert len(setups) == 2 and user is not None
             tokens = [
-                synthetic_driver_account_setup_token(
-                    row, settings, synthetic_test_authority=True
-                )
+                synthetic_driver_account_setup_token(row, settings, synthetic_test_authority=True)
                 for row in setups
             ]
             old_session, _ = create_access_token(
@@ -206,9 +210,7 @@ def test_driver_account_setup_supersedes_replays_and_activates_atomically(
     assert all(token not in str([notice.payload for notice in notices]) for token in tokens)
 
     async def deliver():
-        by_setup = {
-            notice.payload["driver_account_setup_id"]: notice for notice in notices
-        }
+        by_setup = {notice.payload["driver_account_setup_id"]: notice for notice in notices}
         adapter = RecordingEmailAdapter()
         superseded_result = await process_email_notification(
             db_sessionmaker,
@@ -291,13 +293,17 @@ def test_driver_account_setup_supersedes_replays_and_activates_atomically(
     assert accesses and all(access.invalidated_at is not None for access in accesses)
     assert initiation_audits == 2
     assert completion_audits == 1
-    assert db_client.get(
-        "/api/v1/me", headers={"Authorization": f"Bearer {old_session}"}
-    ).status_code == 401
-    assert db_client.post(
-        "/api/v1/auth/login",
-        json={"email": application.email, "password": "replacement-driver-password"},
-    ).status_code == 200
+    assert (
+        db_client.get("/api/v1/me", headers={"Authorization": f"Bearer {old_session}"}).status_code
+        == 401
+    )
+    assert (
+        db_client.post(
+            "/api/v1/auth/login",
+            json={"email": application.email, "password": "replacement-driver-password"},
+        ).status_code
+        == 200
+    )
 
 
 def test_setup_denies_nonapproved_and_expired_authority(
@@ -313,9 +319,7 @@ def test_setup_denies_nonapproved_and_expired_authority(
 
     async def expire():
         async with db_sessionmaker() as session:
-            setup = await session.get(
-                DriverAccountSetupToken, UUID(initiated.json()["id"])
-            )
+            setup = await session.get(DriverAccountSetupToken, UUID(initiated.json()["id"]))
             user = await session.get(User, application.user_id)
             assert setup is not None and user is not None
             token = synthetic_driver_account_setup_token(
@@ -341,9 +345,7 @@ def test_setup_denies_nonapproved_and_expired_authority(
 
     async def reject():
         async with db_sessionmaker() as session:
-            setup = await session.get(
-                DriverAccountSetupToken, UUID(reissue.json()["id"])
-            )
+            setup = await session.get(DriverAccountSetupToken, UUID(reissue.json()["id"]))
             app = await session.get(DriverApplication, application.id)
             assert setup is not None and app is not None
             token = synthetic_driver_account_setup_token(
@@ -441,17 +443,16 @@ def test_driver_password_reset_requires_active_status_and_revokes_old_session(
     old_token, resets = asyncio.run(scenario())
     assert len(resets) == 1
     assert resets[0].user_id == active.id
-    assert db_client.get(
-        "/api/v1/me", headers={"Authorization": f"Bearer {old_token}"}
-    ).status_code == 401
+    assert (
+        db_client.get("/api/v1/me", headers={"Authorization": f"Bearer {old_token}"}).status_code
+        == 401
+    )
 
 
 def test_concurrent_setup_completion_has_one_winner(
     postgis_db_client, postgis_db_sessionmaker, settings
 ) -> None:
-    application, admin_headers = _approve(
-        postgis_db_client, postgis_db_sessionmaker, settings
-    )
+    application, admin_headers = _approve(postgis_db_client, postgis_db_sessionmaker, settings)
     initiated = postgis_db_client.post(
         f"/api/v1/admin/driver-applications/{application.id}/account-setup",
         headers=admin_headers,
@@ -461,9 +462,7 @@ def test_concurrent_setup_completion_has_one_winner(
 
     async def exercise():
         async with postgis_db_sessionmaker() as session:
-            setup = await session.get(
-                DriverAccountSetupToken, UUID(initiated.json()["id"])
-            )
+            setup = await session.get(DriverAccountSetupToken, UUID(initiated.json()["id"]))
             assert setup is not None
             token = synthetic_driver_account_setup_token(
                 setup, settings, synthetic_test_authority=True
@@ -553,3 +552,81 @@ def test_concurrent_identical_setup_initiation_converges(
     assert setup_ids[0] == setup_ids[1]
     assert setup_count == 1
     assert audit_count == 1
+
+
+@pytest.mark.parametrize("operation", ["initiate", "complete"])
+@pytest.mark.parametrize("stage", ["person", "vehicle"])
+def test_setup_and_exact_review_retry_share_user_first_order(
+    postgis_db_client, postgis_db_sessionmaker, settings, operation, stage
+):
+    application, headers, requests = prepare(postgis_db_client, postgis_db_sessionmaker, settings)
+    for path, body in requests.values():
+        assert postgis_db_client.post(path, headers=headers, json=body).status_code == 200
+    initiated = postgis_db_client.post(
+        f"/api/v1/admin/driver-applications/{application.id}/account-setup",
+        headers=headers,
+        json={"client_request_id": str(uuid4())},
+    )
+    assert initiated.status_code == 201
+
+    async def scenario():
+        async with postgis_db_sessionmaker() as session:
+            setup = await session.get(DriverAccountSetupToken, UUID(initiated.json()["id"]))
+            actor_id = setup.issued_by_user_id
+            token = synthetic_driver_account_setup_token(
+                setup, settings, synthetic_test_authority=True
+            )
+        barrier = asyncio.Barrier(2)
+
+        async def setup_worker():
+            async with postgis_db_sessionmaker() as session:
+                await barrier.wait()
+                if operation == "complete":
+                    await complete_driver_account_setup(
+                        session,
+                        token=token,
+                        new_password="review-overlap-password",
+                        settings=settings,
+                    )
+                else:
+                    await initiate_driver_account_setup(
+                        session,
+                        application_id=application.id,
+                        actor_user_id=actor_id,
+                        client_request_id=uuid4(),
+                        settings=settings,
+                    )
+                await session.commit()
+
+        async def review_worker():
+            async with postgis_db_sessionmaker() as session:
+                await barrier.wait()
+                path, body = requests[stage]
+                if stage == "person":
+                    await review_application_person_payee(
+                        session,
+                        application_id=application.id,
+                        actor_user_id=actor_id,
+                        payload=PersonPayeeReviewDecisionCreate.model_validate(body),
+                    )
+                else:
+                    parts = path.split("/")
+                    await review_application_vehicle(
+                        session,
+                        application_id=application.id,
+                        vehicle_id=UUID(parts[-4]),
+                        submission_id=UUID(parts[-2]),
+                        actor_user_id=actor_id,
+                        payload=VehicleReviewDecisionCreate.model_validate(body),
+                    )
+                await session.commit()
+
+        await asyncio.wait_for(asyncio.gather(setup_worker(), review_worker()), timeout=20)
+        async with postgis_db_sessionmaker() as session:
+            user = await session.get(User, application.user_id)
+            assert user.status == ("active" if operation == "complete" else "invited")
+            assert await session.scalar(select(func.count(DriverAccountSetupToken.id))) == (
+                1 if operation == "complete" else 2
+            )
+
+    asyncio.run(scenario())

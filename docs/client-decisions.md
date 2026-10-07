@@ -247,7 +247,13 @@ is registered to its driver, who is the payee; no fleet owners (Q23). Vehicle
 approval ends on an admin-entered date (D31). Pilot vehicles: roadworthy cars
 (Q19) **and motorcycles** (D43h).
 
+Signed-in active driver accounts can renew rejected or expired identity, bank
+and vehicle documents in Profile, with the same scanned uploads and audited
+staff review. Work remains blocked until the current reviews pass. Unknown
+renewal periods stay unset (D66, REQ-119).
+
 **History:**
+- **2026-10-07** — Owner's Wave 2 C brief opens signed-in renewal for rejected/expired current documents (D66, REQ-119), replacing the later-stage deferral recorded on 1 Oct. Approval and activation remain separate; unknown renewal periods remain unset. Local implementation/verification: `issues/testing/w2c-renewals-phone-2026-10-07.md`; owner merge/combined acceptance pending.
 - **2026-08-14** — Client confirmed self-registration, requirements, owner-drivers and cars (Q13, Q19, Q23, Q26, D18).
 - **2026-10-05** — Owner restored staff-created driver logins beside the existing-profile form on `/admin/drivers/new`; self-registration remains `/apply`, and password, document approval and activation rules remain unchanged (D62, REQ-112). D51 removed the obsolete shared `/admin/users/new` page; it is not restored. Built in `1f91b8a`.
 - **2026-09-02** — Owner decisions on activation and vehicle approval dates (D28, D31).
@@ -375,10 +381,18 @@ The notification panel is an unread inbox: Mark read removes that item and
 Mark all read clears current unread items, including older pages. Read records
 remain stored; notifications arriving afterward appear normally (D54, REQ-075).
 
+For phone verification, only the signed-in driver sees a one-time code and
+sends it by WhatsApp or SMS to the configured Terrax number. Customer Service
+records the received code and sender number; Cardvert verifies the current
+phone once, limits attempts and logs the staff action. No configured number
+means no driver button. Live use waits for approved wording (REQ-032) and a
+named operator (D67, REQ-120).
+
 **History:**
 - **2026-10-06** — The earlier Mark read investigation, accessible panel close/focus and simpler company-preference wording are integrated (REQ-073/074/076). Built in `c2ab2d9`; full CI, including the real preference-change browser case, passed. REQ-075 retains its separate unread-inbox walkthrough obligation.
 - **2026-08-14** — Client confirmed channels (Q34, D18); **2026-08-24** owner decision on email preferences (D24).
 - **2026-09-24** — Client supplied the support number (client answers items 14–15).
+- **2026-10-07** — D67 replaces the earlier operator-send/driver-enter verification with driver-send/staff-record. The code is visible only to its driver; live wording and operator gates remain open. Local implementation/verification: `issues/testing/w2c-renewals-phone-2026-10-07.md`; owner merge/combined acceptance pending.
 - **2026-10-02** — Owner clarified that read notifications must disappear from the panel (D54, REQ-075), replacing its earlier history-list presentation. Built in `c2ab2d9`; the separate unread-inbox browser walkthrough remains open under REQ-075.
 
 ### Advertiser reporting and privacy

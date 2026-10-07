@@ -39,7 +39,6 @@ from app.models.kyc import (
     DriverKycSubmission,
     KycReviewReason,
     KycSubmissionStatus,
-    VehicleEvidenceSubmission,
     VehicleReviewReason,
 )
 from app.models.payee import Payee, PayeeBankAccount, PayeeBankAccountVersion, PayeeVersion
@@ -658,6 +657,7 @@ async def _ensure_applicant_review(session, *, application, person, stage, staff
         application_id=application.id,
         actor_user_id=staff[2].id,
         payload=PersonPayeeReviewDecisionCreate(
+            submission_id=view.submission.id,
             client_request_id=uuid5(application.id, "person-review"),
             decision=KycSubmissionStatus(stage),
             reason_code=KycReviewReason.COMPLETE_CURRENT_EVIDENCE
@@ -821,7 +821,11 @@ async def ensure_demo_start_authority(
     )
 
     if not await session.scalar(
-        select(DriverKycSubmission.id).where(DriverKycSubmission.driver_profile_id == profile.id)
+        select(Payee.id).where(
+            Payee.tenant_id == driver.id,
+            Payee.payee_type == "driver",
+            Payee.subject_id == profile.id,
+        )
     ):
         payee = Payee(
             tenant_id=driver.id,
@@ -856,13 +860,6 @@ async def ensure_demo_start_authority(
                 tenant_id=driver.id, record_id=bank.id, field_name="bank_account.details"
             ),
         )
-        nin_record_id = uuid4()
-        nin_envelope = crypto.encrypt(
-            b"00000000000",
-            AssociatedData(
-                tenant_id=driver.id, record_id=nin_record_id, field_name="driver_kyc.nin"
-            ),
-        )
         bank_version = PayeeBankAccountVersion(
             bank_account_id=bank.id,
             payee_version_id=payee_version.id,
@@ -886,45 +883,6 @@ async def ensure_demo_start_authority(
                 created_at=assignment.accepted_at,
             )
         )
-        session.add(
-            DriverKycSubmission(
-                driver_profile_id=profile.id,
-                nin_record_id=nin_record_id,
-                version=1,
-                client_request_id=uuid4(),
-                status="approved",
-                encrypted_nin=nin_envelope.to_mapping(),
-                encryption_algorithm="AES-256-GCM",
-                encryption_key_version=nin_envelope.key_version,
-                nin_last_four="0000",
-                bank_account_version_id=bank_version.id,
-                created_by_user_id=driver.id,
-            )
-        )
-    if not await session.scalar(
-        select(VehicleEvidenceSubmission.id).where(
-            VehicleEvidenceSubmission.vehicle_id == vehicle.id
-        )
-    ):
-        session.add(
-            VehicleEvidenceSubmission(
-                vehicle_id=vehicle.id,
-                version=1,
-                client_request_id=uuid4(),
-                status="approved",
-                snapshot_trusted=True,
-                plate_number_snapshot=vehicle.plate_number,
-                plate_number_normalized_snapshot=vehicle.plate_number_normalized,
-                plate_country_code_snapshot=vehicle.plate_country_code,
-                vehicle_type_snapshot=vehicle.vehicle_type,
-                make_snapshot=vehicle.make,
-                model_snapshot=vehicle.model,
-                year_snapshot=vehicle.year,
-                color_snapshot=vehicle.color,
-                created_by_user_id=driver.id,
-            )
-        )
-
     image_revision = (
         await session.scalar(
             select(func.max(InstallationEvidenceSubmission.revision)).where(

@@ -1,0 +1,37 @@
+{
+  "environment": "owned synthetic local PostgreSQL + Next webpack development browser",
+  "viewports": [
+    375,
+    1440
+  ],
+  "results": {
+    "six_private_document_uploads_scanned_and_submitted": "PASS",
+    "person_and_car_waiting_state": "PASS",
+    "current_revision_audited_nin_bank_and_six_private_document_reads": "PASS",
+    "person_approved_car_rejected_without_invented_expiry": "PASS",
+    "driver_only_code_and_blank_staff_form": "PASS",
+    "phone_change_clears_old_code": "PASS",
+    "reload_recovers_same_live_code": "PASS",
+    "expired_reload_and_exhausted_attempts_clear_code": "PASS",
+    "reverse_staff_recording_and_driver_verified_refresh": "PASS",
+    "actual_staff_action_success_and_each_of_five_wrong_code_responses_exclude_issued_code": "PASS",
+    "owned_panels_fit_375_and_1440": "PASS"
+  },
+  "persisted_browser_audit_counts": {
+    "admin.bank_account.payout_verified": 1,
+    "admin.bank_account.read": 1,
+    "admin.driver_person_payee.approved": 1,
+    "admin.driver_vehicle.rejected": 1,
+    "admin.kyc.nin_read": 1,
+    "stored_file.read": 6,
+    "admin.phone_verification.failed": 14,
+    "admin.phone_verification.recorded": 3
+  },
+  "limits": [
+    "Synthetic private storage/scanner fixture; real multipart uploads and production routes, no provider call.",
+    "Synthetic bank confirmation is internal fixture evidence only.",
+    "Installed Next16.3.6 differs from manifest16.4; native SWC absent, webpack development preview used without dependency edits.",
+    "Existing 375px shared header overflow belongs to W2-D; owned renewal/phone panels fit.",
+    "No physical-device, release-build, deployed-preview or live-operator proof claimed."
+  ]
+}

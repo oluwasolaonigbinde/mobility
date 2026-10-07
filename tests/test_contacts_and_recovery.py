@@ -2,7 +2,7 @@ import asyncio
 import hashlib
 import json
 from datetime import UTC, datetime, timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from conftest import (
@@ -24,7 +24,7 @@ from app.models.contact import (
     WhatsappConsent,
 )
 from app.models.notification import Notification, NotificationType
-from app.models.user import User, UserRole
+from app.models.user import User, UserRole, UserStatus
 from app.services.account_recovery import (
     complete_password_reset,
     request_password_reset,
@@ -36,11 +36,10 @@ from app.services.contacts import (
     grant_whatsapp_consent,
     list_manual_driver_contact_tasks,
     list_phone_verification_work,
-    record_phone_challenge_sent,
+    record_phone_verification,
     request_phone_verification,
     set_driver_phone,
     synthetic_phone_challenge_code,
-    verify_phone_challenge,
     withdraw_whatsapp_consent,
 )
 from app.services.email_delivery import process_email_notification
@@ -56,6 +55,8 @@ def test_manual_contact_requires_current_purpose_matched_authority(
         db_sessionmaker, email="contact-authority-driver@example.com", role=UserRole.DRIVER
     )
     profile = create_test_driver_profile(db_sessionmaker, user_id=driver.id)
+
+    settings.phone_verification_terrax_number = "+447700900999"
 
     async def scenario():
         async with db_sessionmaker() as session:
@@ -105,6 +106,7 @@ def test_manual_contact_requires_current_purpose_matched_authority(
                 with pytest.raises(AppError) as denied:
                     await complete_manual_driver_contact_task(
                         session,
+                        settings=settings,
                         task_id=task.id,
                         actor_user_id=admin.id,
                         outcome="reached",
@@ -218,6 +220,7 @@ def test_postgres_contact_completion_serializes_with_consent_withdrawal(
             try:
                 result = await complete_manual_driver_contact_task(
                     session,
+                    settings=settings,
                     task_id=task_id,
                     actor_user_id=admin.id,
                     outcome="reached",
@@ -264,7 +267,7 @@ def test_postgres_contact_completion_serializes_with_consent_withdrawal(
     asyncio.run(scenario())
 
 
-def test_missing_manual_contact_task_returns_hidden_not_found(db_sessionmaker) -> None:
+def test_missing_manual_contact_task_returns_hidden_not_found(db_sessionmaker, settings) -> None:
     admin = create_test_user(db_sessionmaker, email="contact-missing-admin@example.com")
 
     async def scenario() -> None:
@@ -272,6 +275,7 @@ def test_missing_manual_contact_task_returns_hidden_not_found(db_sessionmaker) -
             with pytest.raises(AppError) as missing:
                 await complete_manual_driver_contact_task(
                     session,
+                    settings=settings,
                     task_id=uuid4(),
                     actor_user_id=admin.id,
                     outcome="reached",
@@ -283,55 +287,10 @@ def test_missing_manual_contact_task_returns_hidden_not_found(db_sessionmaker) -
     asyncio.run(scenario())
 
 
-def test_missing_phone_challenge_returns_hidden_not_found(db_sessionmaker, settings) -> None:
-    admin = create_test_user(db_sessionmaker, email="phone-missing-admin@example.com")
-    settings.phone_operator_external_approved = True
-
-    async def scenario() -> None:
-        async with db_sessionmaker() as session:
-            with pytest.raises(AppError) as missing:
-                await record_phone_challenge_sent(
-                    session,
-                    challenge_id=uuid4(),
-                    actor_user_id=admin.id,
-                    channel="whatsapp",
-                    operator_evidence_reference="operator-evidence",
-                    provider_message_id="provider-message",
-                    settings=settings,
-                )
-            assert missing.value.code == "PHONE_CHALLENGE_NOT_FOUND"
-            assert missing.value.status_code == 404
-
-    asyncio.run(scenario())
-
-
-def test_missing_phone_challenge_verify_returns_hidden_not_found(db_sessionmaker, settings) -> None:
-    driver = create_test_user(
-        db_sessionmaker,
-        email="phone-verify-missing-driver@example.com",
-        role=UserRole.DRIVER,
-    )
-    create_test_driver_profile(db_sessionmaker, user_id=driver.id)
-
-    async def scenario() -> None:
-        async with db_sessionmaker() as session:
-            with pytest.raises(AppError) as missing:
-                await verify_phone_challenge(
-                    session,
-                    user_id=driver.id,
-                    challenge_id=uuid4(),
-                    code="123456",
-                    settings=settings,
-                )
-            assert missing.value.code == "PHONE_CHALLENGE_NOT_FOUND"
-            assert missing.value.status_code == 404
-
-    asyncio.run(scenario())
-
-
 def test_verified_phone_consent_and_manual_contact_are_versioned_and_secret_safe(
     db_sessionmaker, settings
 ) -> None:
+    settings.phone_verification_terrax_number = "+447700900999"
     admin = create_test_user(db_sessionmaker, email="contact-admin@example.com")
     driver = create_test_user(
         db_sessionmaker,
@@ -361,41 +320,24 @@ def test_verified_phone_consent_and_manual_contact_are_versioned_and_secret_safe
             assert code not in challenge.code_hash
             assert hashlib.sha256(code.encode()).hexdigest() != challenge.code_hash
             assert hashlib.sha256(b"+2348031234567").hexdigest() != phone.phone_fingerprint
-            with pytest.raises(AppError) as unavailable:
-                await record_phone_challenge_sent(
-                    session,
-                    challenge_id=challenge.id,
-                    actor_user_id=admin.id,
-                    channel="whatsapp",
-                    operator_evidence_reference="synthetic-test-evidence",
-                    provider_message_id="synthetic-test-message",
-                    settings=settings,
-                )
-            assert unavailable.value.code == "PHONE_OPERATOR_UNAVAILABLE"
-            await record_phone_challenge_sent(
-                session,
-                challenge_id=challenge.id,
-                actor_user_id=admin.id,
-                channel="whatsapp",
-                operator_evidence_reference="synthetic-test-evidence",
-                provider_message_id="synthetic-test-message",
-                settings=settings,
-                synthetic_test_authority=True,
-            )
             with pytest.raises(AppError) as wrong:
-                await verify_phone_challenge(
+                await record_phone_verification(
                     session,
-                    user_id=driver.id,
+                    driver_profile_id=profile.id,
+                    actor_user_id=admin.id,
                     challenge_id=challenge.id,
                     code="000000" if code != "000000" else "000001",
+                    sender_phone="+2348031234567",
                     settings=settings,
                 )
-            assert wrong.value.code == "PHONE_CHALLENGE_INVALID"
-            verified = await verify_phone_challenge(
+            assert wrong.value.code == "PHONE_VERIFICATION_MISMATCH"
+            verified = await record_phone_verification(
                 session,
-                user_id=driver.id,
+                driver_profile_id=profile.id,
+                actor_user_id=admin.id,
                 challenge_id=challenge.id,
                 code=code,
+                sender_phone="+2348031234567",
                 settings=settings,
             )
             assert verified.id == phone.id
@@ -423,6 +365,7 @@ def test_verified_phone_consent_and_manual_contact_are_versioned_and_secret_safe
             assert task is not None and retry is not None and task.id == retry.id
             completed = await complete_manual_driver_contact_task(
                 session,
+                settings=settings,
                 task_id=task.id,
                 actor_user_id=admin.id,
                 outcome="reached",
@@ -504,9 +447,7 @@ def test_password_reset_delivery_hash_mismatch_leaves_expiring_reclaimable_claim
 
             async def send(self, message) -> EmailSubmission:
                 self.idempotency_keys.append(message.idempotency_key)
-                return EmailSubmission(
-                    provider_message_id=f"provider-{message.idempotency_key}"
-                )
+                return EmailSubmission(provider_message_id=f"provider-{message.idempotency_key}")
 
         now = datetime.now(UTC)
         with pytest.raises(RuntimeError, match="password reset token evidence mismatch"):
@@ -708,5 +649,185 @@ def test_concurrent_password_reset_requests_obey_account_rate_limit(
         async with postgis_db_sessionmaker() as session:
             assert await session.scalar(select(func.count()).select_from(PasswordResetAttempt)) == 1
             assert await session.scalar(select(func.count()).select_from(PasswordResetToken)) == 1
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("change", ["phone", "blank", "malformed", "inactive", "role", "same"])
+def test_contact_completion_checks_saved_account_and_preserves_completed_retry(
+    db_sessionmaker, settings, change
+):
+    admin = create_test_user(db_sessionmaker, email="completion-current-admin@example.com")
+    driver = create_test_user(
+        db_sessionmaker, email="completion-current-driver@example.com", role=UserRole.DRIVER
+    )
+    profile = create_test_driver_profile(db_sessionmaker, user_id=driver.id)
+
+    async def scenario():
+        async with db_sessionmaker() as session:
+            phone = await set_driver_phone(
+                session, user_id=driver.id, phone="+447700900101", settings=settings
+            )
+            phone.verified_at = datetime.now(UTC)
+            await session.flush()
+            await grant_whatsapp_consent(
+                session,
+                user_id=driver.id,
+                purpose="campaign_assignment_offer",
+                notice_version="synthetic-approved-notice",
+            )
+            task = await create_manual_driver_contact_task(
+                session,
+                driver_profile_id=profile.id,
+                event_key="synthetic:current:1",
+                purpose="campaign_assignment_offer",
+            )
+            assert task is not None
+            user = await session.get(User, driver.id)
+            if change in {"phone", "blank", "malformed"}:
+                user.phone = {"phone": "+447700900102", "blank": None, "malformed": "0"}[change]
+            elif change == "inactive":
+                user.status = UserStatus.DISABLED
+            elif change == "role":
+                user.role = UserRole.ADVERTISER
+            else:
+                user.phone = "+44 7700 900101"
+            await session.commit()
+
+            async def complete():
+                return await complete_manual_driver_contact_task(
+                    session,
+                    task_id=task.id,
+                    actor_user_id=admin.id,
+                    outcome="reached",
+                    note="Synthetic completed contact",
+                    settings=settings,
+                )
+
+            if change != "same":
+                with pytest.raises(AppError) as denied:
+                    await complete()
+                assert denied.value.code == "CONTACT_TASK_AUTHORITY_INACTIVE"
+                await session.refresh(task)
+                assert task.status == "open" and task.completed_at is None
+                assert (
+                    await session.scalar(
+                        select(func.count(AuditEvent.id)).where(
+                            AuditEvent.action == "operations.driver_contact_task.completed"
+                        )
+                    )
+                    == 0
+                )
+            else:
+                assert (await complete()).status == "completed"
+                user.phone = "+447700900102"
+                user.status = UserStatus.DISABLED
+                user.role = UserRole.ADVERTISER
+                await session.commit()
+                assert (await complete()).status == "completed"
+                assert (
+                    await session.scalar(
+                        select(func.count(AuditEvent.id)).where(
+                            AuditEvent.action == "operations.driver_contact_task.completed"
+                        )
+                    )
+                    == 1
+                )
+
+    asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("driver_first", [False, True])
+@pytest.mark.parametrize("edit_first", [False, True])
+def test_postgres_contact_completion_serializes_with_account_edit(
+    postgis_db_sessionmaker, settings, driver_first, edit_first
+):
+    from app.schemas.users import UserUpdate
+    from app.services.users import update_user
+
+    factory = postgis_db_sessionmaker
+
+    def assign_ids(_mapper, _connection, user):
+        user.id = UUID(int=1 if (user.role == UserRole.DRIVER) == driver_first else 2)
+
+    event.listen(User, "before_insert", assign_ids)
+    try:
+        admin = create_test_user(factory, email="contact-edit-admin@example.com")
+        driver = create_test_user(
+            factory, email="contact-edit-driver@example.com", role=UserRole.DRIVER
+        )
+    finally:
+        event.remove(User, "before_insert", assign_ids)
+    profile = create_test_driver_profile(factory, user_id=driver.id)
+
+    async def scenario():
+        async with factory() as session:
+            phone = await set_driver_phone(
+                session, user_id=driver.id, phone="+447700900101", settings=settings
+            )
+            phone.verified_at = datetime.now(UTC)
+            await session.flush()
+            await grant_whatsapp_consent(
+                session,
+                user_id=driver.id,
+                purpose="campaign_assignment_offer",
+                notice_version="synthetic-approved-notice",
+            )
+            task = await create_manual_driver_contact_task(
+                session,
+                driver_profile_id=profile.id,
+                event_key="synthetic:edit:1",
+                purpose="campaign_assignment_offer",
+            )
+            assert task is not None
+            task_id = task.id
+            await session.commit()
+
+        async def complete(session):
+            try:
+                result = await complete_manual_driver_contact_task(
+                    session,
+                    task_id=task_id,
+                    actor_user_id=admin.id,
+                    outcome="reached",
+                    note="Synthetic contact",
+                    settings=settings,
+                )
+                return result.status
+            except AppError as exc:
+                return exc.code
+
+        async def edit(session):
+            await update_user(
+                session,
+                driver.id,
+                UserUpdate(phone="+447700900102"),
+                actor_user_id=admin.id,
+                actor_session_version=admin.session_version,
+            )
+            return "edited"
+
+        first, second = (edit, complete) if edit_first else (complete, edit)
+        async with factory() as first_session, factory() as second_session:
+            first_result = await first(first_session)
+            second_task = asyncio.create_task(second(second_session))
+            try:
+                with pytest.raises(TimeoutError):
+                    await asyncio.wait_for(asyncio.shield(second_task), timeout=0.1)
+                await first_session.commit()
+                second_result = await asyncio.wait_for(second_task, timeout=10)
+                await second_session.commit()
+            finally:
+                if not second_task.done():
+                    second_task.cancel()
+                    await asyncio.gather(second_task, return_exceptions=True)
+        completion = second_result if edit_first else first_result
+        assert completion == ("CONTACT_TASK_AUTHORITY_INACTIVE" if edit_first else "completed")
+        async with factory() as session:
+            stored = await session.get(ManualDriverContactTask, task_id)
+            assert stored.status == ("open" if edit_first else "completed")
+            assert (await session.get(User, driver.id)).phone == "+447700900102"
+            if not edit_first:
+                assert await complete(session) == "completed"
 
     asyncio.run(scenario())

@@ -28,8 +28,11 @@ from app.models.campaign_cancellation import CampaignCancellation
 from app.models.campaign_zone import CampaignZone
 from app.models.driver import DriverProfile
 from app.models.impression import ImpressionEstimate
+from app.models.kyc import DriverKycSubmission, VehicleEvidenceSubmission
 from app.models.organization import AdvertiserOrganization, OrganizationMembership
+from app.models.payee import PayeeBankAccountVersion
 from app.models.payout import EarningsLedgerEntry, PayoutCalculation
+from app.models.stored_file import StoredFile
 from app.models.trip import (
     LocationPing,
     LocationPingBatch,
@@ -37,7 +40,7 @@ from app.models.trip import (
     TripSession,
 )
 from app.models.trip_analytics import FraudFlag, TripAnalytics
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.models.vehicle import Vehicle
 from app.schemas.trips import (
     LocationPingBatchCreate,
@@ -47,12 +50,14 @@ from app.schemas.trips import (
 from app.seeds import demo, rich
 from app.seeds.demo import (
     DEMO_BBOX,
+    DEMO_DRIVER_PHONE_NUMBERS,
     DEMO_PASSWORDS,
     SEED_VERSION,
     build_demo_graph,
     ensure_seed_allowed,
     upsert_trips_and_pings,
 )
+from app.seeds.renewals import ensure_demo_renewals
 from app.seeds.rich import F7_DRIVER_PASSWORDS, F7_SEED_VERSION
 from app.services.payouts import get_trip_for_payout
 from app.services.trip_evidence import (
@@ -104,6 +109,63 @@ def test_demo_seed_refuses_production_even_with_override() -> None:
         ensure_seed_allowed(settings)
 
     assert exc.value.code == "DEMO_SEED_DISALLOWED"
+
+
+def test_renewal_seed_is_scanned_fictional_and_idempotent(
+    postgis_db_sessionmaker, settings, seed_private_storage
+):
+    async def scenario():
+        async with postgis_db_sessionmaker() as session:
+            reviewer = await demo.upsert_user(
+                session,
+                email="renewal-seed-reviewer@demo.mobility.local",
+                password="SyntheticStaff2026!",
+                full_name="Olumide Fashola",
+                role=UserRole.ADMIN,
+                settings=settings,
+            )
+            await ensure_demo_renewals(session, settings=settings, reviewer=reviewer)
+            await session.commit()
+            before = [
+                await session.scalar(select(func.count(model.id)))
+                for model in (
+                    User,
+                    DriverProfile,
+                    Vehicle,
+                    DriverKycSubmission,
+                    VehicleEvidenceSubmission,
+                    PayeeBankAccountVersion,
+                    StoredFile,
+                )
+            ]
+            await ensure_demo_renewals(session, settings=settings, reviewer=reviewer)
+            await session.commit()
+            assert before == [
+                await session.scalar(select(func.count(model.id)))
+                for model in (
+                    User,
+                    DriverProfile,
+                    Vehicle,
+                    DriverKycSubmission,
+                    VehicleEvidenceSubmission,
+                    PayeeBankAccountVersion,
+                    StoredFile,
+                )
+            ]
+            driver = await session.scalar(
+                select(User).where(User.email == "damilola.akinwale@demo.mobility.local")
+            )
+            assert driver.status == "active" and driver.phone == "+447700900114"
+            assert (await session.scalar(select(DriverKycSubmission))).status == "rejected"
+            assert (await session.scalar(select(VehicleEvidenceSubmission))).status == "expired"
+            for stored in await session.scalars(select(StoredFile)):
+                assert stored.scan_status == "clean" and stored.subject_user_id == driver.id
+                assert seed_private_storage.contents[stored.storage_key].startswith(b"\x89PNG")
+            assert all(
+                phone.startswith("+447700900") for phone in demo.DEMO_DRIVER_PHONE_NUMBERS.values()
+            )
+
+    asyncio.run(scenario())
 
 
 def test_demo_seed_requires_explicit_local_confirmation() -> None:
@@ -175,9 +237,13 @@ def test_seed_missing_assignment_dates_stop_before_authority_writes(settings, mo
     monkeypatch.setattr(demo_authority, "ensure_daily_terms", terms)
     monkeypatch.setattr(demo_authority, "seed_campaign_financials", financials)
     with pytest.raises(ValueError, match="assignment .* date is missing"):
-        asyncio.run(demo_authority.ensure_demo_start_authority(
-            session, graph=SimpleNamespace(assignment=assignment), settings=settings,
-        ))
+        asyncio.run(
+            demo_authority.ensure_demo_start_authority(
+                session,
+                graph=SimpleNamespace(assignment=assignment),
+                settings=settings,
+            )
+        )
     session.scalar.assert_not_awaited()
     terms.assert_not_awaited()
     financials.assert_not_awaited()
@@ -204,10 +270,17 @@ def test_seed_missing_applicant_authority_stops_dependent_calls(settings, monkey
     monkeypatch.setattr("app.services.payees.verify_bank_account_version_for_payout", verify)
     monkeypatch.setattr(demo_authority, "managed_seed_image", managed)
     with pytest.raises(ValueError, match="Expected demo .* is missing"):
-        asyncio.run(demo_authority._ensure_applicant_review(
-            session, application=application, person=person, stage="approved",
-            staff=[], settings=settings, clock=[datetime.now(UTC)],
-        ))
+        asyncio.run(
+            demo_authority._ensure_applicant_review(
+                session,
+                application=application,
+                person=person,
+                stage="approved",
+                staff=[],
+                settings=settings,
+                clock=[datetime.now(UTC)],
+            )
+        )
     review.assert_not_awaited()
     verify.assert_not_awaited()
     if missing == "access":
@@ -231,13 +304,21 @@ def test_seed_missing_vehicle_submission_stops_document_reads_and_review(setting
     monkeypatch.setattr("app.services.stored_files.issue_admin_file_download", read)
     monkeypatch.setattr("app.services.driver_account_setup.initiate_driver_account_setup", setup)
     with pytest.raises(ValueError, match="vehicle submission is missing"):
-        asyncio.run(demo_authority._ensure_applicant_vehicle(
-            object(), application=SimpleNamespace(id=UUID(int=1)), person=object(),
-            token="seed-token", staff=[], settings=settings, clock=[datetime.now(UTC)],
-        ))
+        asyncio.run(
+            demo_authority._ensure_applicant_vehicle(
+                object(),
+                application=SimpleNamespace(id=UUID(int=1)),
+                person=object(),
+                token="seed-token",
+                staff=[],
+                settings=settings,
+                clock=[datetime.now(UTC)],
+            )
+        )
     read.assert_not_awaited()
     review.assert_not_awaited()
     setup.assert_not_awaited()
+
 
 def test_demo_seed_requires_the_current_migration_head(monkeypatch: pytest.MonkeyPatch) -> None:
     session = SimpleNamespace(
@@ -1389,7 +1470,31 @@ def test_demo_seed_runs_with_immutable_guards_from_alembic_head(
 
         async def seed() -> None:
             async with sessionmaker() as session:
-                await build_demo_graph(session, migrated_settings)
+                graph = await build_demo_graph(session, migrated_settings)
+                # Existing Start fixtures use the trusted no-application/no-KYC baseline;
+                # the renewal example alone has complete audited document revisions.
+                assert not await session.scalar(
+                    select(DriverKycSubmission.id).where(
+                        DriverKycSubmission.driver_profile_id == graph.driver_profile.id
+                    )
+                )
+                assert not await session.scalar(
+                    select(VehicleEvidenceSubmission.id).where(
+                        VehicleEvidenceSubmission.vehicle_id == graph.vehicle.id
+                    )
+                )
+                renewal_driver = await session.scalar(
+                    select(DriverProfile).join(User).where(User.full_name == "Damilola Akinwale")
+                )
+                assert renewal_driver is not None
+                assert (
+                    await session.scalar(
+                        select(DriverKycSubmission.status).where(
+                            DriverKycSubmission.driver_profile_id == renewal_driver.id
+                        )
+                    )
+                    == "rejected"
+                )
                 await session.commit()
 
         asyncio.run(seed())
@@ -1639,7 +1744,15 @@ def test_seed_business_ownership_and_applicant_financial_separation(
                 )
                 assert details["account_number"] == "0000000000"
                 assert details["bank_code"] == "999"
-            assert all(row.phone is None for row in await session.scalars(select(User)))
+            users = list(await session.scalars(select(User)))
+            assert {row.email: row.phone for row in users if row.phone is not None} == (
+                DEMO_DRIVER_PHONE_NUMBERS
+            )
+            assert all(
+                row.role == UserRole.DRIVER and "+447700900100" <= row.phone <= "+447700900114"
+                for row in users
+                if row.phone is not None
+            )
             submissions = list(
                 await session.scalars(
                     select(DriverKycSubmission).where(
@@ -1793,7 +1906,7 @@ def test_demo_seed_is_idempotent_with_postgis(
         "users": 4,
         "organizations": 1,
         "memberships": 12,
-        "driver_profiles": 19,
+        "driver_profiles": 20,
         "vehicles": 1,
         "campaigns": 1,
         "creatives": 1,

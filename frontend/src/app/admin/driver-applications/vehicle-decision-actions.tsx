@@ -52,12 +52,14 @@ function EvidenceRead({
 
 export function VehicleDecisionActions({
   applicationId,
+  driverProfileId,
   vehicleId,
   submissionId,
   documentFileIds,
   status,
 }: {
   applicationId: string;
+  driverProfileId?: string;
   vehicleId: string;
   submissionId: string;
   documentFileIds: Record<string, string>;
@@ -69,6 +71,9 @@ export function VehicleDecisionActions({
     return (
       <form action={action} className="flex min-w-0 flex-col gap-2">
         <input type="hidden" name="application_id" value={applicationId} />
+        {driverProfileId ? (
+          <input type="hidden" name="driver_profile_id" value={driverProfileId} />
+        ) : null}
         <input type="hidden" name="vehicle_id" value={vehicleId} />
         <input type="hidden" name="submission_id" value={submissionId} />
         <input type="hidden" name="client_request_id" value={decisionRequestId} />
@@ -115,6 +120,9 @@ export function VehicleDecisionActions({
       ))}
       <form action={action} className="flex flex-col gap-2">
         <input type="hidden" name="application_id" value={applicationId} />
+        {driverProfileId ? (
+          <input type="hidden" name="driver_profile_id" value={driverProfileId} />
+        ) : null}
         <input type="hidden" name="vehicle_id" value={vehicleId} />
         <input type="hidden" name="submission_id" value={submissionId} />
         <input type="hidden" name="client_request_id" value={decisionRequestId} />

@@ -19,8 +19,7 @@ from app.db.base import Base
 
 
 class PhoneChallengeStatus(StrEnum):
-    PENDING_OPERATOR = "pending_operator"
-    SENT = "sent"
+    PENDING = "pending"
     VERIFIED = "verified"
     EXPIRED = "expired"
     EXHAUSTED = "exhausted"
@@ -40,9 +39,7 @@ class PasswordResetAttempt(Base):
         Index("ix_password_reset_attempt_ip", "ip_digest", "requested_at"),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     email_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     ip_digest: Mapped[str] = mapped_column(String(64), nullable=False)
     issued_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
@@ -60,9 +57,7 @@ class PasswordResetToken(Base):
         Index("ix_password_reset_tokens_user", "user_id", "created_at"),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     attempt_id: Mapped[UUID] = mapped_column(
         ForeignKey("password_reset_attempts.id", ondelete="RESTRICT"), nullable=False
     )
@@ -86,9 +81,7 @@ class DriverPhoneVersion(Base):
         Index("ix_driver_phone_versions_profile", "driver_profile_id", "version"),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     driver_profile_id: Mapped[UUID] = mapped_column(
         ForeignKey("driver_profiles.id", ondelete="RESTRICT"), nullable=False
     )
@@ -112,24 +105,14 @@ class PhoneVerificationChallenge(Base):
             name="ck_phone_challenges_attempt_count",
         ),
         CheckConstraint(
-            "status IN ('pending_operator', 'sent', 'verified', 'expired', 'exhausted')",
+            "status IN ('pending', 'verified', 'expired', 'exhausted')",
             name="ck_phone_challenges_status",
         ),
         CheckConstraint("expires_at > created_at", name="ck_phone_challenges_expiry"),
-        CheckConstraint(
-            "(sent_by_user_id IS NULL AND sent_channel IS NULL AND sent_at IS NULL "
-            "AND operator_evidence_reference IS NULL AND provider_message_id IS NULL) OR "
-            "(sent_by_user_id IS NOT NULL AND sent_channel IN ('whatsapp', 'voice') "
-            "AND sent_at IS NOT NULL AND length(trim(operator_evidence_reference)) > 0 "
-            "AND length(trim(provider_message_id)) > 0)",
-            name="ck_phone_challenges_send_evidence",
-        ),
         Index("ix_phone_challenges_version", "phone_version_id", "created_at"),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     phone_version_id: Mapped[UUID] = mapped_column(
         ForeignKey("driver_phone_versions.id", ondelete="RESTRICT"), nullable=False
     )
@@ -141,13 +124,9 @@ class PhoneVerificationChallenge(Base):
     max_attempts: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    sent_by_user_id: Mapped[UUID | None] = mapped_column(
+    verified_by_user_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT")
     )
-    sent_channel: Mapped[str | None] = mapped_column(String(16))
-    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    operator_evidence_reference: Mapped[str | None] = mapped_column(String(255))
-    provider_message_id: Mapped[str | None] = mapped_column(String(255))
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
@@ -167,9 +146,7 @@ class WhatsappConsent(Base):
         Index("ix_whatsapp_consents_profile", "driver_profile_id", "version"),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     driver_profile_id: Mapped[UUID] = mapped_column(
         ForeignKey("driver_profiles.id", ondelete="RESTRICT"), nullable=False
     )
@@ -207,9 +184,7 @@ class ManualDriverContactTask(Base):
         Index("ix_manual_contact_tasks_status", "status", "created_at"),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     driver_profile_id: Mapped[UUID] = mapped_column(
         ForeignKey("driver_profiles.id", ondelete="RESTRICT"), nullable=False
     )

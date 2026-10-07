@@ -25,6 +25,7 @@ from app.models.payee import (
     PayeeBankAccountVersion,
 )
 from app.schemas.driver_onboarding import (
+    PersonPayeeRenewalCreate,
     PersonPayeeReviewDecisionCreate,
     PersonPayeeStageStatus,
     PersonPayeeSubmissionCreate,
@@ -149,33 +150,80 @@ async def person_payee_status_by_reference(
     return await _view_for_profile(session, profile_id=application.driver_profile_id)
 
 
+async def _lock_review_users(
+    session: AsyncSession,
+    *,
+    actor_user_id: UUID,
+    application_id: UUID | None,
+    driver_profile_id: UUID | None,
+) -> None:
+    from app.services.users import _lock_users
+
+    query = select(DriverProfile.user_id)
+    if application_id is not None:
+        query = query.join(
+            DriverApplication, DriverApplication.driver_profile_id == DriverProfile.id
+        ).where(DriverApplication.id == application_id)
+    else:
+        query = query.where(DriverProfile.id == driver_profile_id)
+    subject = await session.scalar(query)
+    await _lock_users(session, {actor_user_id, subject} if subject else {actor_user_id})
+    await require_active_admin(session, actor_user_id)
+
+
+async def _capture_identity(
+    session: AsyncSession,
+    payload: PersonPayeeSubmissionCreate | PersonPayeeRenewalCreate,
+    actor_user_id: UUID | None,
+    settings: Settings,
+) -> tuple[UUID, UUID]:
+    from app.services.users import _lock_users
+
+    if isinstance(payload, PersonPayeeSubmissionCreate):
+        application = await application_from_access_token(
+            session,
+            token=payload.application_access_token.get_secret_value(),
+            settings=settings,
+            lock=False,
+        )
+        await _lock_users(session, {application.user_id})
+        application = await application_from_access_token(
+            session,
+            token=payload.application_access_token.get_secret_value(),
+            settings=settings,
+            lock=True,
+        )
+        return application.user_id, application.driver_profile_id
+    from app.services.kyc import _driver_profile
+
+    if actor_user_id is None:
+        raise _error("KYC_SCOPE_NOT_FOUND", "Driver documents were not found", 404)
+    await _lock_users(session, {actor_user_id})
+    profile_id = await session.scalar(
+        select(DriverProfile.id).where(DriverProfile.user_id == actor_user_id)
+    )
+    if profile_id is None:
+        raise _error("KYC_SCOPE_NOT_FOUND", "Driver documents were not found", 404)
+    await _acquire_work_eligibility_authority(session, driver_profile_id=profile_id)
+    profile = await _driver_profile(session, actor_user_id=actor_user_id, lock=True)
+    return profile.user_id, profile.id
+
+
 async def submit_application_person_payee(
     session: AsyncSession,
     *,
-    payload: PersonPayeeSubmissionCreate,
+    payload: PersonPayeeSubmissionCreate | PersonPayeeRenewalCreate,
+    actor_user_id: UUID | None = None,
     crypto: CryptoProvider,
     settings: Settings,
 ) -> PersonPayeeView:
-    application = await application_from_access_token(
-        session,
-        token=payload.application_access_token.get_secret_value(),
-        settings=settings,
-        lock=True,
-    )
-    await _acquire_work_eligibility_authority(
-        session, driver_profile_id=application.driver_profile_id
-    )
+    user_id, profile_id = await _capture_identity(session, payload, actor_user_id, settings)
+    await _acquire_work_eligibility_authority(session, driver_profile_id=profile_id)
     profile = await session.scalar(
-        select(DriverProfile)
-        .where(DriverProfile.id == application.driver_profile_id)
-        .with_for_update()
+        select(DriverProfile).where(DriverProfile.id == profile_id).with_for_update()
     )
-    if profile is None or profile.user_id != application.user_id:
-        raise _error(
-            "PERSON_PAYEE_AUTHORITY_INVALID",
-            "Driver onboarding authority is unavailable",
-            status.HTTP_409_CONFLICT,
-        )
+    if profile is None or profile.user_id != user_id:
+        raise _error("PERSON_PAYEE_AUTHORITY_INVALID", "Driver documents are unavailable", 409)
     documents = {
         "driver_license": payload.driver_license_file_id,
         "driver_photo": payload.driver_photo_file_id,
@@ -194,11 +242,23 @@ async def submit_application_person_payee(
     )
     applicant_capture_reference = f"driver-application-capture-v1:{payload.client_request_id}"
     if existing is not None:
+        if isinstance(payload, PersonPayeeRenewalCreate):
+            previous = await session.get(DriverKycSubmission, payload.expected_submission_id)
+            if (
+                previous is None
+                or previous.driver_profile_id != profile.id
+                or previous.version != existing.version - 1
+            ):
+                raise _error(
+                    "PERSON_PAYEE_RETRY_CONFLICT",
+                    "The document retry does not match the original request",
+                    409,
+                )
         require_submission_payload(existing)
         stored_details = await read_applicant_verified_bank_account(
             session,
             bank_account_version_id=existing.bank_account_version_id,
-            actor_user_id=application.user_id,
+            actor_user_id=user_id,
             crypto=crypto,
             purpose="onboarding_exact_retry",
         )
@@ -218,7 +278,7 @@ async def submit_application_person_payee(
             )
         view = await submit_driver_kyc(
             session,
-            actor_user_id=application.user_id,
+            actor_user_id=user_id,
             client_request_id=payload.client_request_id,
             nin=payload.nin.get_secret_value(),
             bank_account_version_id=existing.bank_account_version_id,
@@ -226,6 +286,7 @@ async def submit_application_person_payee(
             crypto=crypto,
             settings=settings,
             allow_invited_actor=True,
+            allow_document_renewal=True,
         )
         return PersonPayeeView(view.submission, None, view.document_file_ids)
 
@@ -235,6 +296,14 @@ async def submit_application_person_payee(
         .order_by(DriverKycSubmission.version.desc())
         .limit(1)
     )
+    if isinstance(payload, PersonPayeeRenewalCreate) and (
+        current is None or current.id != payload.expected_submission_id
+    ):
+        raise _error(
+            "PERSON_PAYEE_REVISION_STALE",
+            "Your documents changed. Refresh before uploading again",
+            409,
+        )
     if current is not None and current.status not in {
         KycSubmissionStatus.REJECTED,
         KycSubmissionStatus.EXPIRED,
@@ -247,19 +316,19 @@ async def submit_application_person_payee(
     payee, _ = await create_applicant_payee(
         session,
         driver_profile_id=profile.id,
-        actor_user_id=application.user_id,
+        actor_user_id=user_id,
     )
     account = await add_applicant_bank_account_version(
         session,
         payee_id=payee.id,
         details=details,
         verification_reference=applicant_capture_reference,
-        actor_user_id=application.user_id,
+        actor_user_id=user_id,
         crypto=crypto,
     )
     kyc_view = await submit_driver_kyc(
         session,
-        actor_user_id=application.user_id,
+        actor_user_id=user_id,
         client_request_id=payload.client_request_id,
         nin=payload.nin.get_secret_value(),
         bank_account_version_id=account.id,
@@ -267,7 +336,12 @@ async def submit_application_person_payee(
         crypto=crypto,
         settings=settings,
         allow_invited_actor=True,
+        allow_document_renewal=True,
     )
+    if isinstance(payload, PersonPayeeRenewalCreate):
+        from app.services.vehicle_onboarding import reconcile_driver_work_eligibility
+
+        await reconcile_driver_work_eligibility(session, driver_profile_id=profile.id)
     return PersonPayeeView(kyc_view.submission, None, kyc_view.document_file_ids)
 
 
@@ -391,41 +465,41 @@ async def _require_exact_review_evidence(
 async def review_application_person_payee(
     session: AsyncSession,
     *,
-    application_id: UUID,
+    application_id: UUID | None = None,
+    driver_profile_id: UUID | None = None,
     actor_user_id: UUID,
     payload: PersonPayeeReviewDecisionCreate,
 ) -> PersonPayeeView:
-    from app.services.vehicle_onboarding import reconcile_application_approval
-
-    await require_active_admin(session, actor_user_id)
     _validate_decision_facts(payload)
-    fingerprint = _decision_fingerprint(application_id=application_id, payload=payload)
+    authority_id = application_id or driver_profile_id
+    if authority_id is None:
+        raise _error("DRIVER_PROFILE_NOT_FOUND", "Driver documents were not found", 404)
+    await _lock_review_users(
+        session,
+        actor_user_id=actor_user_id,
+        application_id=application_id,
+        driver_profile_id=driver_profile_id,
+    )
+    fingerprint = _decision_fingerprint(application_id=authority_id, payload=payload)
     application = await session.scalar(
         select(DriverApplication)
-        .where(DriverApplication.id == application_id)
+        .where(
+            DriverApplication.id == application_id
+            if application_id
+            else DriverApplication.driver_profile_id == driver_profile_id
+        )
         .with_for_update()
         .execution_options(populate_existing=True)
     )
-    if application is None:
-        raise _error(
-            "DRIVER_APPLICATION_NOT_FOUND",
-            "Driver application was not found",
-            status.HTTP_404_NOT_FOUND,
-        )
-    await _acquire_work_eligibility_authority(
-        session, driver_profile_id=application.driver_profile_id
-    )
+    if application_id and application is None:
+        raise _error("DRIVER_APPLICATION_NOT_FOUND", "Driver application was not found", 404)
+    profile_id = application.driver_profile_id if application else authority_id
+    await _acquire_work_eligibility_authority(session, driver_profile_id=profile_id)
     profile = await session.scalar(
-        select(DriverProfile)
-        .where(DriverProfile.id == application.driver_profile_id)
-        .with_for_update()
+        select(DriverProfile).where(DriverProfile.id == profile_id).with_for_update()
     )
     if profile is None:
-        raise _error(
-            "PERSON_PAYEE_INCOMPLETE",
-            "A complete current person/payee submission is required",
-            status.HTTP_409_CONFLICT,
-        )
+        raise _error("PERSON_PAYEE_INCOMPLETE", "Driver documents are unavailable", 409)
     retry = await session.scalar(
         select(DriverKycReviewDecision).where(
             DriverKycReviewDecision.client_request_id == payload.client_request_id
@@ -436,19 +510,24 @@ async def review_application_person_payee(
             select(DriverKycSubmission)
             .where(
                 DriverKycSubmission.id == retry.submission_id,
-                DriverKycSubmission.driver_profile_id == application.driver_profile_id,
+                DriverKycSubmission.driver_profile_id == profile_id,
             )
             .with_for_update()
         )
-        if original_submission is None or retry.request_fingerprint != fingerprint:
+        if (
+            original_submission is None
+            or retry.request_fingerprint != fingerprint
+            or original_submission.id != payload.submission_id
+        ):
             raise _error(
                 "PERSON_PAYEE_DECISION_RETRY_CONFLICT",
                 "The decision retry does not match the original request",
                 status.HTTP_409_CONFLICT,
             )
-        await reconcile_application_approval(
+        await _reconcile_review_eligibility(
             session,
             application=application,
+            driver_profile_id=profile.id,
             actor_user_id=actor_user_id,
             source_entity_type="driver_kyc_submission",
             source_entity_id=original_submission.id,
@@ -469,7 +548,7 @@ async def review_application_person_payee(
         )
     submission = await session.scalar(
         select(DriverKycSubmission)
-        .where(DriverKycSubmission.driver_profile_id == application.driver_profile_id)
+        .where(DriverKycSubmission.driver_profile_id == profile_id)
         .order_by(DriverKycSubmission.version.desc())
         .limit(1)
         .with_for_update()
@@ -479,6 +558,10 @@ async def review_application_person_payee(
             "PERSON_PAYEE_INCOMPLETE",
             "A complete current person/payee submission is required",
             status.HTTP_409_CONFLICT,
+        )
+    if submission.id != payload.submission_id:
+        raise _error(
+            "PERSON_PAYEE_REVISION_STALE", "Documents changed. Refresh before reviewing them", 409
         )
     require_submission_payload(submission)
     if submission.status != KycSubmissionStatus.PENDING_REVIEW:
@@ -521,7 +604,7 @@ async def review_application_person_payee(
         entity_type="driver_kyc_submission",
         entity_id=str(submission.id),
         metadata={
-            "application_id": str(application.id),
+            "driver_profile_id": str(profile.id),
             "version": submission.version,
             "reason_code": payload.reason_code.value,
             "identity_match_confirmed": payload.identity_match_confirmed,
@@ -529,9 +612,10 @@ async def review_application_person_payee(
             "documents_readable_confirmed": payload.documents_readable_confirmed,
         },
     )
-    await reconcile_application_approval(
+    await _reconcile_review_eligibility(
         session,
         application=application,
+        driver_profile_id=profile.id,
         actor_user_id=actor_user_id,
         source_entity_type="driver_kyc_submission",
         source_entity_id=submission.id,
@@ -556,3 +640,29 @@ async def application_person_payee_view(
     session: AsyncSession, *, application: DriverApplication
 ) -> PersonPayeeView:
     return await _view_for_profile(session, profile_id=application.driver_profile_id)
+
+
+async def _reconcile_review_eligibility(
+    session: AsyncSession,
+    *,
+    application: DriverApplication | None,
+    driver_profile_id: UUID,
+    actor_user_id: UUID,
+    source_entity_type: str,
+    source_entity_id: UUID,
+) -> None:
+    from app.services.vehicle_onboarding import (
+        reconcile_application_approval,
+        reconcile_driver_work_eligibility,
+    )
+
+    if application:
+        await reconcile_application_approval(
+            session,
+            application=application,
+            actor_user_id=actor_user_id,
+            source_entity_type=source_entity_type,
+            source_entity_id=source_entity_id,
+        )
+    else:
+        await reconcile_driver_work_eligibility(session, driver_profile_id=driver_profile_id)

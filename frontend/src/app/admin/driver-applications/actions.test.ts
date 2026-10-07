@@ -27,6 +27,7 @@ const VEHICLE_ID = "00000000-0000-4000-8000-00000000000e";
 function form(intent: "approve" | "reject" | "expire", checks = true): FormData {
   const data = new FormData();
   data.set("application_id", APPLICATION_ID);
+  data.set("submission_id", SUBMISSION_ID);
   data.set("client_request_id", "00000000-0000-4000-8000-0000000000aa");
   data.set("intent", intent);
   data.set("reason_code", "unreadable_evidence");
@@ -154,6 +155,7 @@ describe("reviewPersonPayeeAction", () => {
       {
         params: { path: { application_id: APPLICATION_ID } },
         body: {
+          submission_id: SUBMISSION_ID,
           client_request_id: "00000000-0000-4000-8000-0000000000aa",
           decision: "approved",
           reason_code: "complete_current_evidence",
@@ -177,6 +179,35 @@ describe("reviewPersonPayeeAction", () => {
       bank_account_match_confirmed: false,
       documents_readable_confirmed: false,
     });
+  });
+  it("binds profile-only person and vehicle reviews to the displayed current revision", async () => {
+    const person = form("reject", false);
+    person.set("driver_profile_id", VERSION_ID);
+    await reviewPersonPayeeAction({}, person);
+    expect(mocks.post).toHaveBeenLastCalledWith(
+      "/api/v1/admin/drivers/{driver_profile_id}/documents/person-payee-decision",
+      expect.objectContaining({
+        params: { path: { driver_profile_id: VERSION_ID } },
+        body: expect.objectContaining({ submission_id: SUBMISSION_ID }),
+      }),
+    );
+    const car = form("expire", false);
+    car.set("driver_profile_id", VERSION_ID);
+    car.set("vehicle_id", VEHICLE_ID);
+    await reviewVehicleAction({}, car);
+    expect(mocks.post).toHaveBeenLastCalledWith(
+      "/api/v1/admin/drivers/{driver_profile_id}/vehicles/{vehicle_id}/submissions/{submission_id}/decision",
+      expect.objectContaining({
+        params: {
+          path: {
+            driver_profile_id: VERSION_ID,
+            vehicle_id: VEHICLE_ID,
+            submission_id: SUBMISSION_ID,
+          },
+        },
+        body: expect.objectContaining({ decision: "expired" }),
+      }),
+    );
   });
 
   it("audits exact vehicle evidence and requires every approval fact", async () => {

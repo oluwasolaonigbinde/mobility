@@ -26,7 +26,7 @@ from app.models.vehicle import Vehicle, VehicleStatus
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.payout_rule_serialization import database_clock
-from app.services.users import validate_password_length
+from app.services.users import _lock_users, validate_password_length
 
 
 def _utc(value: datetime) -> datetime:
@@ -72,9 +72,7 @@ def synthetic_driver_account_setup_token(
     return driver_account_setup_token_for_delivery(row, settings)
 
 
-async def _current_evidence_digest(
-    session: AsyncSession, *, application: DriverApplication
-) -> str:
+async def _current_evidence_digest(session: AsyncSession, *, application: DriverApplication) -> str:
     from app.models.kyc import VehicleEvidenceReviewDecision, VehicleEvidenceSubmission
     from app.services.vehicle_onboarding import reconcile_driver_work_eligibility
 
@@ -224,8 +222,21 @@ async def initiate_driver_account_setup(
     client_request_id: UUID,
     settings: Settings,
 ) -> DriverAccountSetupToken:
-    await require_active_admin(session, actor_user_id)
     await _acquire_client_request_lock(session, client_request_id)
+    subject_id = await session.scalar(
+        select(DriverApplication.user_id).where(DriverApplication.id == application_id)
+    )
+    users = await _lock_users(
+        session, {actor_user_id, subject_id} if subject_id is not None else {actor_user_id}
+    )
+    await require_active_admin(session, actor_user_id)
+    application = await session.scalar(
+        select(DriverApplication)
+        .where(DriverApplication.id == application_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    user = users.get(subject_id) if subject_id is not None else None
     fingerprint = _request_fingerprint(application_id, actor_user_id)
     retry = await session.scalar(
         select(DriverAccountSetupToken)
@@ -240,19 +251,9 @@ async def initiate_driver_account_setup(
                 status_code=status.HTTP_409_CONFLICT,
             )
         return retry
-    application = await session.scalar(
-        select(DriverApplication)
-        .where(DriverApplication.id == application_id)
-        .with_for_update()
-        .execution_options(populate_existing=True)
-    )
-    user = (
-        await session.scalar(select(User).where(User.id == application.user_id).with_for_update())
-        if application is not None
-        else None
-    )
     if (
         application is None
+        or application.user_id != subject_id
         or application.status != DriverApplicationStatus.APPROVED.value
         or user is None
         or user.role != UserRole.DRIVER.value
@@ -319,30 +320,34 @@ async def complete_driver_account_setup(
 ) -> User:
     validate_password_length(new_password, settings)
     setup_id = _token_id(token.strip())
-    setup = (
-        await session.scalar(
-            select(DriverAccountSetupToken)
-            .where(DriverAccountSetupToken.id == setup_id)
-            .with_for_update()
-        )
+    identity = (
+        (
+            await session.execute(
+                select(
+                    DriverAccountSetupToken.user_id, DriverAccountSetupToken.application_id
+                ).where(DriverAccountSetupToken.id == setup_id)
+            )
+        ).first()
         if setup_id is not None
         else None
     )
-    if setup is None:
+    if identity is None:
         raise AppError(
             "DRIVER_ACCOUNT_SETUP_INVALID",
             "Driver account setup is invalid or expired",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
+    users = await _lock_users(session, {identity.user_id})
+    user = users.get(identity.user_id)
     application = await session.scalar(
         select(DriverApplication)
-        .where(DriverApplication.id == setup.application_id)
+        .where(DriverApplication.id == identity.application_id)
         .with_for_update()
         .execution_options(populate_existing=True)
     )
-    user = await session.scalar(
-        select(User)
-        .where(User.id == setup.user_id)
+    setup = await session.scalar(
+        select(DriverAccountSetupToken)
+        .where(DriverAccountSetupToken.id == setup_id)
         .with_for_update()
         .execution_options(populate_existing=True)
     )
@@ -351,6 +356,9 @@ async def complete_driver_account_setup(
     invalid = (
         application is None
         or user is None
+        or setup is None
+        or setup.user_id != identity.user_id
+        or setup.application_id != identity.application_id
         or setup.used_at is not None
         or setup.superseded_at is not None
         or now >= _utc(setup.expires_at)
@@ -367,6 +375,7 @@ async def complete_driver_account_setup(
             "Driver account setup is invalid or expired",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
+    assert setup is not None
     evidence_sha256 = await _current_evidence_digest(session, application=application)
     if not hmac.compare_digest(evidence_sha256, setup.evidence_sha256):
         raise AppError(

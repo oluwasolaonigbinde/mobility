@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.123 — 2026-10-06. Canonical source of truth: current state AND target state.**
+**Version 1.124 — 2026-10-07. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -2168,6 +2168,18 @@ validity and challenge/proof validity remain empty under
 
 ### 19.3 Consumers of the same pattern
 
+**[BUILT locally — D66/REQ-119; owner merge/combined CI pending]** Active signed-in driver
+accounts renew rejected/expired current person/bank or owned vehicle documents
+from Profile. Capture uses the same private upload, scan, encryption, immutable
+revision and audited review services. Staff review current renewals under the
+driver hub Documents section, including staff-created profiles. No public
+application capability is restored. Current bank and document approval governs
+work eligibility; account activation remains separate. Drivers see review
+reasons, submitted document names and recorded approval-expiry dates. Exact
+licence/identity expiry dates and renewal periods remain unset where absent;
+the UI never invents them or treats a vehicle approval date as a licence date.
+Local verification: `issues/testing/w2c-renewals-phone-2026-10-07.md`.
+
 | File kind | Linked to | Reviewer |
 |-----------|-----------|----------|
 | Creative assets (D7/Q18) | `campaign_creatives` | Admin approval (§18) |
@@ -2295,31 +2307,36 @@ channel adapter; its concrete provider/account remains an external parameter.
 
 ### 20.3 Pilot phone verification and WhatsApp consent
 
-Automated WhatsApp/SMS delivery is post-MVP, so the pilot verifies a driver's
-claimed phone through a bounded manual-send/system-verify flow:
+**[BUILT locally — D67/REQ-120; owner merge/combined CI pending]** Automated WhatsApp/SMS
+delivery remains post-MVP. Verification uses a reverse check:
 
-1. The driver requests verification; the server creates a rate-limited,
-   attempt-limited, short-lived challenge, stores only a keyed hash, and exposes
-   the challenge as an operations work item with only the claimed phone mask.
-2. A named operator sends the code manually to that number by the approved
-   WhatsApp/voice channel and records `sent_by`, channel, `sent_at`, an opaque
-   operator evidence reference and provider message identity. Live recording
-   fails closed without `EXT-PHONE-OPERATOR`; audit payloads retain only
-   fingerprints of provider evidence, and the code itself is never copied into
-   API responses, notification payloads, audits or logs.
-3. The driver enters the code in-product. A valid one-use challenge marks only
-   that phone version verified; expiry, number change, too many attempts, or
-   withdrawal fail closed and require a new challenge.
+1. The signed-in driver requests a rate-limited, attempt-limited, short-lived
+   challenge. Only the driver response shows its code; storage holds only a
+   keyed hash. The driver sends it by WhatsApp or SMS to the configured Terrax
+   number. Missing configuration disables the feature and hides the button.
+2. Customer Service records the received code and sender number on the driver
+   page. No staff screen or response contains the code. The server serializes
+   User authority before profile, phone version and challenge; it checks the sender against
+   the saved phone, expiry, unused state and bounded attempts. Failed attempts
+   are durably counted. Codes and sender values never enter audits or logs.
+3. A successful staff action marks only the current phone version verified
+   and records its actor/time. Replacement, expiry, exhaustion and replay fail
+   closed. Live issuance and recording require approved WhatsApp wording
+   (REQ-032) and `EXT-PHONE-OPERATOR`; registered synthetic development/preview
+   configuration may demonstrate the flow without enabling live contact.
 4. WhatsApp opt-in is a separate versioned consent record (purpose, notice
    version, `granted_at`, `withdrawn_at`). Normal manual-contact tasks require a
    currently verified phone and active consent matching the task's exact purpose
    and phone version at creation, exact retry, listing, and completion. Contact
-   mutations serialize profile → phone → consent → task against withdrawal and
-   phone replacement. Withdrawn or mismatched OPEN tasks remain in history but
+   mutations lock User authority before profile → phone → consent → task against
+   withdrawal and phone replacement. Fresh manual completion locks actor and
+   driver Users in UUID order, then requires an active DRIVER whose canonical
+   saved phone matches the verified version. Completed exact retries return
+   their historical receipt before rechecking changed driver state. Withdrawn or mismatched OPEN tasks remain in history but
    leave actionable work and cannot be completed. Completed evidence and exact
    completion retries remain available. Privacy/security incident
    escalation follows its separate authorised runbook rather than pretending
-   consent exists.
+   consent exists. Local verification: `issues/testing/w2c-renewals-phone-2026-10-07.md`.
 
 ### 20.4 In-app complaints and the Customer Service inbox [BUILT]
 
@@ -2662,7 +2679,7 @@ aggregates only, k-floor rules of §22.2 apply to any zone-level display.
   gets the same generic onboarding error. Access codes are not carried in URLs
   or browser storage. Staff/applicant vehicle projections prefer a submission
   awaiting review. Existing onboarding/upload/live-use gates remain in force;
-  this does not provide active-driver document renewal or phone verification.
+  D66 adds active-account document renewal through Profile; D67 adds reverse phone verification (§19.3, §20.3).
 - **Approved-applicant activation (D28/ONB-009) [BUILT — migration `0089`]:** approval of the
   current person/payee and vehicle evidence does not itself activate the user.
   After both decisions pass, an active Cardvert admin uses the idempotent
@@ -3597,6 +3614,7 @@ It does not authorize deployment or close external launch gates.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.124 | 2026-10-07 | **W2-C renewals and reverse phone verification (D66/D67, REQ-119/120).** Profile renews rejected/expired current person/bank and owned vehicle revisions through existing private scanned uploads and encrypted capture. Staff Documents reviews every current revision using audited View. Staff decisions bind the displayed submission ID. Driver issuance alone reveals phone codes; staff records received code and saved sender, with durable limits, one-use expiry, hash-only storage and live configuration/operator/wording gates. Migration 0100 replaces obsolete send evidence. Local implementation verified: 211 backend and 170 frontend cases; 95.0166% changed lines / 82.7089% branches; receipt in `issues/testing/w2c-renewals-phone-2026-10-07.md`. No deployment or merged acceptance. |
 | v1.123 | 2026-10-06 | **W1-P payouts (D64, REQ-036/040/053; renumbered at merge from v1.116/D59 on 6 Oct 2026).** Terrax bears fees outside Cardvert; full frozen earnings and D43 remain unchanged. §16.3 records dispute serialization, atomic sanitized alert audits, actor-only run subjects, bounded rotating candidate scans (`0099`) and original per-day cash attribution. Correction cash counts in full on every saved v4 trip day; missing/malformed allocations are held with an audited/notified Finance alert. Local evidence is in `issues/testing/w1p-payouts-2026-10-05.md`; combined Wave 1 CI and approved merge into master remain pending (REQ-053 one-time D41 exception). |
 | v1.122 | 2026-10-05 | **W1B locally verified templates and budget proof (REQ-037/049/117, D44/D65).** Verify all accepted fixed quote lines count once through the existing billing authority and retain evaluation keys. Replace Render/AWS/Mapbox templates with Hetzner S3 and MapTiler; add internal ClamAV, signature persistence/egress and health dependencies; align configurable API workers. Focused delivery evidence in `issues/testing/w1b-budget-hosting-evidence-2026-10-05.md`; templates only, no external gate changes. |
 | v1.121 | 2026-10-05 | **REQ-108 CI efficiency, local implementation.** §10.3 records trigger, concurrency, shared candidate guard, duration planning, selective scanner, timeout and independent E2E scheduling changes. Timing snapshot imported from six verified green-run artifacts; real after timing and D41 remain pending owner-authorized branch CI after REQ-106 green master/rebase. No image digest, product contract, coverage policy or launch-gate change. |

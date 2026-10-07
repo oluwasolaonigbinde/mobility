@@ -24,7 +24,7 @@ from app.models.user import User, UserRole, UserStatus
 from app.schemas.driver_applications import DriverApplicationCreate
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
-from app.services.users import get_user_by_email
+from app.services.users import _lock_users, get_user_by_email
 
 PUBLIC_APPLICATION_MESSAGE = "Application received for review."
 PUBLIC_STATUS_MESSAGE = "Application status is pending review."
@@ -89,6 +89,12 @@ async def issue_driver_application_access(
     application: DriverApplication,
     settings: Settings,
 ) -> DriverApplicationAccessToken | None:
+    subject_id = await session.scalar(
+        select(DriverApplication.user_id).where(DriverApplication.id == application.id)
+    )
+    if subject_id is None:
+        return None
+    users = await _lock_users(session, {subject_id})
     locked_application = await session.scalar(
         select(DriverApplication)
         .where(DriverApplication.id == application.id)
@@ -97,6 +103,7 @@ async def issue_driver_application_access(
     )
     if (
         locked_application is None
+        or locked_application.user_id != subject_id
         or locked_application.status != DriverApplicationStatus.PENDING.value
     ):
         return None
@@ -111,7 +118,7 @@ async def issue_driver_application_access(
     access.token_sha256 = hashlib.sha256(token.encode()).hexdigest()
     session.add(access)
     await session.flush()
-    user = await session.get(User, locked_application.user_id)
+    user = users.get(subject_id)
     if user is None:  # pragma: no cover - protected by FK
         raise RuntimeError("driver onboarding access recipient disappeared")
     from app.services.notifications import create_driver_onboarding_access_notification

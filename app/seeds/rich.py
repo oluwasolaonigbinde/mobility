@@ -173,6 +173,8 @@ def _set_known_credential_flag(user: User) -> None:
 
 
 async def _upsert_driver(session: AsyncSession, *, index: int, settings: Settings) -> DriverAsset:
+    from app.seeds.demo import DEMO_DRIVER_PHONE_NUMBERS
+
     email = f"driver{index:02d}@demo.mobility.local"
     password = F7_DRIVER_PASSWORDS[email]
     validate_password_length(password, settings)
@@ -193,6 +195,7 @@ async def _upsert_driver(session: AsyncSession, *, index: int, settings: Setting
         user.full_name = DRIVER_NAMES[index - 1]
         user.status = UserStatus.ACTIVE.value
         _set_known_credential_flag(user)
+    user.phone = DEMO_DRIVER_PHONE_NUMBERS[email]
     await session.flush()
 
     profile = await session.scalar(select(DriverProfile).where(DriverProfile.user_id == user.id))
@@ -1194,7 +1197,7 @@ async def ensure_portal_people(session, *, graph, settings):
                 )
             )
     await session.flush()
-    await _ensure_contact_work(session, graph=graph, staff=staff)
+    await _ensure_contact_work(session, graph=graph, staff=staff, settings=settings)
     await _ensure_reach_profiles(session)
     return staff
 
@@ -1271,8 +1274,9 @@ async def business_owner(session, campaign_name):
     return organization, person
 
 
-async def _ensure_contact_work(session, *, graph, staff):
+async def _ensure_contact_work(session, *, graph, staff, settings):
     from app.models.contact import DriverPhoneVersion, ManualDriverContactTask, WhatsappConsent
+    from app.services.contacts import mask_phone, phone_fingerprint
 
     people = [graph.driver_profile, graph.rich.drivers[0].profile, graph.rich.drivers[1].profile]
     notes = (
@@ -1285,11 +1289,14 @@ async def _ensure_contact_work(session, *, graph, staff):
         if await session.get(ManualDriverContactTask, key):
             continue
         now = utc_now() - timedelta(days=3 - index)
+        user = await session.get(User, profile.user_id)
+        if user is None or user.phone is None:
+            raise ValueError("Demo driver has no fictional saved phone")
         phone = DriverPhoneVersion(
             driver_profile_id=profile.id,
             version=1,
-            phone_fingerprint=hashlib.sha256(key.bytes).hexdigest(),
-            masked_phone="000••••0000",
+            phone_fingerprint=phone_fingerprint(user.phone, settings),
+            masked_phone=mask_phone(user.phone),
             recorded_by_user_id=profile.user_id,
             recorded_at=now,
             verified_at=now,

@@ -230,7 +230,7 @@ def test_subject_link_registry_counts_recovery_contact_and_trip_manifest_rows(
             challenge = PhoneVerificationChallenge(
                 phone_version_id=phone.id,
                 code_hash="e" * 64,
-                status="pending_operator",
+                status="pending",
                 max_attempts=3,
                 created_at=now,
                 expires_at=now + timedelta(hours=1),

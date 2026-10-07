@@ -21,7 +21,7 @@ from app.models.contact import (
     WhatsappConsent,
 )
 from app.models.driver import DriverProfile
-from app.models.user import User
+from app.models.user import User, UserRole, UserStatus
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.payout_rule_serialization import database_clock
@@ -60,7 +60,7 @@ def mask_phone(phone: str) -> str:
 def _challenge_code(challenge_id: UUID, settings: Settings) -> str:
     digest = hmac.new(
         settings.jwt_secret_key.encode(),
-        f"phone-verification:v1:{challenge_id}".encode(),
+        f"phone-verification:v2:{challenge_id}".encode(),
         hashlib.sha256,
     ).digest()
     return f"{int.from_bytes(digest[:8], 'big') % 1_000_000:06d}"
@@ -69,7 +69,7 @@ def _challenge_code(challenge_id: UUID, settings: Settings) -> str:
 def _challenge_code_hash(code: str, settings: Settings) -> str:
     return hmac.new(
         settings.jwt_secret_key.encode(),
-        f"phone-verification-code:v1:{code}".encode(),
+        f"phone-verification-code:v2:{code}".encode(),
         hashlib.sha256,
     ).hexdigest()
 
@@ -85,22 +85,27 @@ def synthetic_phone_challenge_code(
 async def _locked_driver_context(
     session: AsyncSession, *, user_id: UUID
 ) -> tuple[DriverProfile, User]:
-    row = (
-        await session.execute(
-            select(DriverProfile, User)
-            .join(User, User.id == DriverProfile.user_id)
-            .where(DriverProfile.user_id == user_id)
-            .with_for_update()
-            .execution_options(populate_existing=True)
-        )
-    ).first()
-    if row is None:
+    from app.services.users import _lock_users
+
+    user = (await _lock_users(session, {user_id})).get(user_id)
+    profile = await session.scalar(
+        select(DriverProfile)
+        .where(DriverProfile.user_id == user_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if (
+        profile is None
+        or user is None
+        or user.role != UserRole.DRIVER
+        or user.status != UserStatus.ACTIVE
+    ):
         raise AppError(
             "DRIVER_PROFILE_NOT_FOUND",
             "Driver profile was not found",
             status_code=status.HTTP_404_NOT_FOUND,
         )
-    return row[0], row[1]
+    return profile, user
 
 
 async def _latest_phone_version(
@@ -124,7 +129,11 @@ async def set_driver_phone(
     normalized = normalize_phone(phone)
     fingerprint = phone_fingerprint(normalized, settings)
     latest = await _latest_phone_version(session, driver_profile_id=profile.id, lock=True)
-    if latest is not None and latest.phone_fingerprint == fingerprint:
+    try:
+        saved_phone_matches = bool(user.phone) and normalize_phone(user.phone) == normalized
+    except AppError:
+        saved_phone_matches = False
+    if latest is not None and latest.phone_fingerprint == fingerprint and saved_phone_matches:
         return latest
     now = await database_clock(session)
     active_consents = list(
@@ -166,14 +175,15 @@ async def set_driver_phone(
 async def request_phone_verification(
     session: AsyncSession, *, user_id: UUID, settings: Settings
 ) -> PhoneVerificationChallenge:
-    profile, _ = await _locked_driver_context(session, user_id=user_id)
-    phone = await _latest_phone_version(session, driver_profile_id=profile.id, lock=True)
-    if phone is None:
+    require_phone_verification_available(settings)
+    profile, user = await _locked_driver_context(session, user_id=user_id)
+    if not user.phone:
         raise AppError(
             "PHONE_VERSION_REQUIRED",
             "Record a phone number before requesting verification",
             status_code=status.HTTP_409_CONFLICT,
         )
+    phone = await set_driver_phone(session, user_id=user_id, phone=user.phone, settings=settings)
     if phone.verified_at is not None:
         raise AppError(
             "PHONE_ALREADY_VERIFIED",
@@ -187,8 +197,7 @@ async def request_phone_verification(
             PhoneVerificationChallenge.phone_version_id == phone.id,
             PhoneVerificationChallenge.status.in_(
                 [
-                    PhoneChallengeStatus.PENDING_OPERATOR.value,
-                    PhoneChallengeStatus.SENT.value,
+                    PhoneChallengeStatus.PENDING.value,
                 ]
             ),
             PhoneVerificationChallenge.expires_at > now,
@@ -204,8 +213,12 @@ async def request_phone_verification(
         await session.scalar(
             select(func.count())
             .select_from(PhoneVerificationChallenge)
+            .join(
+                DriverPhoneVersion,
+                DriverPhoneVersion.id == PhoneVerificationChallenge.phone_version_id,
+            )
             .where(
-                PhoneVerificationChallenge.phone_version_id == phone.id,
+                DriverPhoneVersion.driver_profile_id == profile.id,
                 PhoneVerificationChallenge.created_at >= window_start,
             )
         )
@@ -223,7 +236,7 @@ async def request_phone_verification(
         id=challenge_id,
         phone_version_id=phone.id,
         code_hash=_challenge_code_hash(code, settings),
-        status=PhoneChallengeStatus.PENDING_OPERATOR.value,
+        status=PhoneChallengeStatus.PENDING.value,
         attempt_count=0,
         max_attempts=settings.phone_verification_max_code_attempts,
         created_at=now,
@@ -247,216 +260,184 @@ async def request_phone_verification(
     return challenge
 
 
-async def record_phone_challenge_sent(
-    session: AsyncSession,
-    *,
-    challenge_id: UUID,
-    actor_user_id: UUID,
-    channel: str,
-    operator_evidence_reference: str,
-    provider_message_id: str,
-    settings: Settings,
-    synthetic_test_authority: bool = False,
-) -> PhoneVerificationChallenge:
-    await require_active_admin(session, actor_user_id)
-    if not settings.phone_operator_external_approved and not (
-        synthetic_test_authority and settings.environment in {"test", "testing"}
-    ):
+def phone_verification_available(settings: Settings) -> bool:
+    number = settings.phone_verification_terrax_number.strip()
+    if not PHONE_PATTERN.fullmatch(number):
+        return False
+    if settings.environment in {"local", "dev", "development", "test", "testing", "preview"}:
+        # Demo authority applies only to Ofcom's reserved mobile drama range.
+        return bool(re.fullmatch(r"\+447700900[0-9]{3}", number))
+    return bool(
+        settings.phone_operator_external_approved
+        and settings.phone_operator_name.strip()
+        and settings.phone_whatsapp_notice_approval_reference.strip()
+        and not re.fullmatch(r"\+447700900[0-9]{3}", number)
+    )
+
+
+def require_phone_verification_available(settings: Settings) -> None:
+    if not phone_verification_available(settings):
         raise AppError(
-            "PHONE_OPERATOR_UNAVAILABLE",
-            "EXT-PHONE-OPERATOR is missing; live phone sends are disabled",
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            "PHONE_VERIFICATION_UNAVAILABLE",
+            "Phone verification is not available yet",
+            status_code=503,
         )
-    if channel not in {"whatsapp", "voice"}:
-        raise AppError(
-            "INVALID_PHONE_VERIFICATION_CHANNEL",
-            "Verification channel must be WhatsApp or voice",
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
-    evidence_reference = operator_evidence_reference.strip()
-    message_id = provider_message_id.strip()
-    if not evidence_reference or not message_id:
-        raise AppError(
-            "PHONE_OPERATOR_EVIDENCE_REQUIRED",
-            "Provider submission evidence is required",
-            status_code=status.HTTP_400_BAD_REQUEST,
-        )
-    challenge = await session.scalar(
+
+
+def driver_phone_challenge_code(challenge: PhoneVerificationChallenge, settings: Settings) -> str:
+    # Called only by the authenticated owner response, never staff serializers.
+    return _challenge_code(challenge.id, settings)
+
+
+async def current_phone_challenge(
+    session: AsyncSession, phone: DriverPhoneVersion | None
+) -> PhoneVerificationChallenge | None:
+    if phone is None:
+        return None
+    return await session.scalar(
         select(PhoneVerificationChallenge)
-        .where(PhoneVerificationChallenge.id == challenge_id)
-        .with_for_update()
+        .where(PhoneVerificationChallenge.phone_version_id == phone.id)
+        .order_by(
+            PhoneVerificationChallenge.created_at.desc(), PhoneVerificationChallenge.id.desc()
+        )
+        .limit(1)
     )
-    if challenge is None:
-        raise AppError(
-            "PHONE_CHALLENGE_NOT_FOUND", "Phone challenge was not found", status_code=404
-        )
-    if challenge.status == PhoneChallengeStatus.SENT.value:
-        if (
-            challenge.sent_by_user_id == actor_user_id
-            and challenge.sent_channel == channel
-            and challenge.operator_evidence_reference == evidence_reference
-            and challenge.provider_message_id == message_id
-        ):
-            return challenge
-        raise AppError(
-            "PHONE_CHALLENGE_SEND_CONFLICT",
-            "Phone challenge send evidence already exists",
-            status_code=status.HTTP_409_CONFLICT,
-        )
-    now = await database_clock(session)
-    if challenge.status != PhoneChallengeStatus.PENDING_OPERATOR.value or now >= _utc(
-        challenge.expires_at
-    ):
-        challenge.status = PhoneChallengeStatus.EXPIRED.value
-        raise AppError(
-            "PHONE_CHALLENGE_EXPIRED",
-            "Phone verification challenge has expired",
-            status_code=status.HTTP_409_CONFLICT,
-        )
-    challenge.status = PhoneChallengeStatus.SENT.value
-    challenge.sent_by_user_id = actor_user_id
-    challenge.sent_channel = channel
-    challenge.sent_at = now
-    challenge.operator_evidence_reference = evidence_reference
-    challenge.provider_message_id = message_id
-    await session.flush()
-    await create_audit_event(
-        session,
-        actor_user_id=actor_user_id,
-        action="admin.phone_verification.sent",
-        entity_type="phone_verification_challenge",
-        entity_id=str(challenge.id),
-        metadata={
-            "channel": channel,
-            "operator_evidence_fingerprint": hashlib.sha256(
-                evidence_reference.encode()
-            ).hexdigest(),
-            "provider_message_fingerprint": hashlib.sha256(message_id.encode()).hexdigest(),
-            "sent_at": now.isoformat(),
-        },
-    )
-    return challenge
 
 
 async def list_phone_verification_work(
-    session: AsyncSession, *, limit: int, offset: int
+    session: AsyncSession, *, limit: int, offset: int, driver_profile_id: UUID | None = None
 ) -> tuple[list[tuple[PhoneVerificationChallenge, DriverPhoneVersion]], int]:
     now = await database_clock(session)
-    work_statuses = [
-        PhoneChallengeStatus.PENDING_OPERATOR.value,
-        PhoneChallengeStatus.SENT.value,
-    ]
-    total = int(
-        await session.scalar(
-            select(func.count())
-            .select_from(PhoneVerificationChallenge)
-            .where(
-                PhoneVerificationChallenge.status.in_(work_statuses),
-                PhoneVerificationChallenge.expires_at > now,
-            )
+    newer_phone = aliased(DriverPhoneVersion)
+    newer_exists = (
+        select(newer_phone.id)
+        .where(
+            newer_phone.driver_profile_id == DriverPhoneVersion.driver_profile_id,
+            newer_phone.version > DriverPhoneVersion.version,
         )
-        or 0
+        .correlate(DriverPhoneVersion)
+        .exists()
     )
-    rows = list(
-        (
-            await session.execute(
-                select(PhoneVerificationChallenge, DriverPhoneVersion)
-                .join(
-                    DriverPhoneVersion,
-                    DriverPhoneVersion.id == PhoneVerificationChallenge.phone_version_id,
-                )
-                .where(
-                    PhoneVerificationChallenge.status.in_(work_statuses),
-                    PhoneVerificationChallenge.expires_at > now,
-                )
-                .order_by(
-                    PhoneVerificationChallenge.created_at,
-                    PhoneVerificationChallenge.id,
-                )
-                .limit(limit)
-                .offset(offset)
-            )
-        ).all()
+    base = (
+        select(PhoneVerificationChallenge, DriverPhoneVersion)
+        .join(
+            DriverPhoneVersion, DriverPhoneVersion.id == PhoneVerificationChallenge.phone_version_id
+        )
+        .join(DriverProfile, DriverProfile.id == DriverPhoneVersion.driver_profile_id)
+        .join(User, User.id == DriverProfile.user_id)
+        .where(
+            PhoneVerificationChallenge.status == PhoneChallengeStatus.PENDING.value,
+            PhoneVerificationChallenge.expires_at > now,
+            DriverPhoneVersion.verified_at.is_(None),
+            ~newer_exists,
+            User.status == UserStatus.ACTIVE.value,
+        )
     )
+    if driver_profile_id is not None:
+        base = base.where(DriverPhoneVersion.driver_profile_id == driver_profile_id)
+    total = int(await session.scalar(select(func.count()).select_from(base.subquery())) or 0)
+    rows = (
+        await session.execute(
+            base.order_by(PhoneVerificationChallenge.created_at, PhoneVerificationChallenge.id)
+            .limit(limit)
+            .offset(offset)
+        )
+    ).all()
     return [(row[0], row[1]) for row in rows], total
 
 
-async def verify_phone_challenge(
+async def record_phone_verification(
     session: AsyncSession,
     *,
-    user_id: UUID,
+    driver_profile_id: UUID,
+    actor_user_id: UUID,
     challenge_id: UUID,
     code: str,
+    sender_phone: str,
     settings: Settings,
 ) -> DriverPhoneVersion:
+    require_phone_verification_available(settings)
+    user_id = await session.scalar(
+        select(DriverProfile.user_id).where(DriverProfile.id == driver_profile_id)
+    )
+    if user_id is None:
+        raise AppError("DRIVER_PROFILE_NOT_FOUND", "Driver profile was not found", status_code=404)
+    from app.services.users import _lock_users
+
+    await _lock_users(session, {actor_user_id, user_id})
+    await require_active_admin(session, actor_user_id)
     profile, user = await _locked_driver_context(session, user_id=user_id)
-    current_phone = await _latest_phone_version(session, driver_profile_id=profile.id, lock=True)
+    phone = await _latest_phone_version(session, driver_profile_id=profile.id, lock=True)
     challenge = await session.scalar(
         select(PhoneVerificationChallenge)
         .where(PhoneVerificationChallenge.id == challenge_id)
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
-    if challenge is None:
-        raise AppError(
-            "PHONE_CHALLENGE_NOT_FOUND",
-            "Phone challenge was not found",
-            status_code=status.HTTP_404_NOT_FOUND,
-        )
-    if current_phone is None or challenge.phone_version_id != current_phone.id:
+    if challenge is None or phone is None or challenge.phone_version_id != phone.id:
         raise AppError(
             "PHONE_CHALLENGE_INVALID",
-            "Phone verification challenge is invalid",
-            status_code=status.HTTP_400_BAD_REQUEST,
+            "This verification request is no longer available",
+            status_code=409,
         )
-    if challenge.status == PhoneChallengeStatus.VERIFIED.value:
-        return current_phone
     now = await database_clock(session)
+    if challenge.status != PhoneChallengeStatus.PENDING.value or phone.verified_at is not None:
+        raise AppError(
+            "PHONE_CHALLENGE_USED",
+            "Request a new code if this phone still needs verification",
+            status_code=409,
+        )
     if now >= _utc(challenge.expires_at):
         challenge.status = PhoneChallengeStatus.EXPIRED.value
+        await session.commit()
         raise AppError(
-            "PHONE_CHALLENGE_INVALID",
-            "Phone verification challenge is invalid",
-            status_code=status.HTTP_400_BAD_REQUEST,
+            "PHONE_CHALLENGE_EXPIRED",
+            "The code expired. Ask the driver to request another code",
+            status_code=409,
         )
-    if challenge.status != PhoneChallengeStatus.SENT.value:
-        raise AppError(
-            "PHONE_CHALLENGE_NOT_SENT",
-            "Phone verification challenge has not been sent",
-            status_code=status.HTTP_409_CONFLICT,
+    try:
+        sender = normalize_phone(sender_phone)
+        matches_phone = (
+            bool(user.phone)
+            and sender == normalize_phone(user.phone)
+            and phone_fingerprint(sender, settings) == phone.phone_fingerprint
         )
-    supplied_hash = _challenge_code_hash(code, settings)
-    if not hmac.compare_digest(supplied_hash, challenge.code_hash):
-        challenge.attempt_count += 1
+    except AppError:
+        matches_phone = False
+    challenge.attempt_count += 1
+    if not matches_phone or not hmac.compare_digest(
+        _challenge_code_hash(code, settings), challenge.code_hash
+    ):
         if challenge.attempt_count >= challenge.max_attempts:
             challenge.status = PhoneChallengeStatus.EXHAUSTED.value
         await create_audit_event(
             session,
-            actor_user_id=user.id,
-            action="driver.contact.phone_verification.failed",
+            actor_user_id=actor_user_id,
+            action="admin.phone_verification.failed",
             entity_type="phone_verification_challenge",
             entity_id=str(challenge.id),
             metadata={"attempt_count": challenge.attempt_count},
         )
         await session.commit()
         raise AppError(
-            "PHONE_CHALLENGE_INVALID",
-            "Phone verification challenge is invalid",
-            status_code=status.HTTP_400_BAD_REQUEST,
+            "PHONE_VERIFICATION_MISMATCH",
+            "The code or sender number does not match. Check the message received",
+            status_code=400,
         )
-    challenge.attempt_count += 1
     challenge.status = PhoneChallengeStatus.VERIFIED.value
     challenge.verified_at = now
-    current_phone.verified_at = now
-    await session.flush()
+    challenge.verified_by_user_id = actor_user_id
+    phone.verified_at = now
     await create_audit_event(
         session,
-        actor_user_id=user.id,
-        action="driver.contact.phone_verified",
+        actor_user_id=actor_user_id,
+        action="admin.phone_verification.recorded",
         entity_type="driver_phone_version",
-        entity_id=str(current_phone.id),
-        metadata={"version": current_phone.version, "verified_at": now.isoformat()},
+        entity_id=str(phone.id),
+        metadata={"version": phone.version, "challenge_id": str(challenge.id)},
     )
-    return current_phone
+    await session.flush()
+    return phone
 
 
 async def grant_whatsapp_consent(
@@ -689,10 +670,17 @@ async def _manual_contact_authority(
 
 
 async def current_driver_contact_state(
-    session: AsyncSession, *, user_id: UUID
+    session: AsyncSession, *, user_id: UUID, settings: Settings
 ) -> tuple[DriverPhoneVersion | None, WhatsappConsent | None]:
-    profile, _ = await _locked_driver_context(session, user_id=user_id)
+    profile, user = await _locked_driver_context(session, user_id=user_id)
     phone = await _latest_phone_version(session, driver_profile_id=profile.id)
+    if phone is not None:
+        try:
+            current_fingerprint = phone_fingerprint(normalize_phone(user.phone or ""), settings)
+        except AppError:
+            return None, None
+        if phone.phone_fingerprint != current_fingerprint:
+            return None, None
     consent = await session.scalar(
         select(WhatsappConsent)
         .where(WhatsappConsent.driver_profile_id == profile.id)
@@ -775,8 +763,19 @@ async def complete_manual_driver_contact_task(
     actor_user_id: UUID,
     outcome: str,
     note: str,
+    settings: Settings,
 ) -> ManualDriverContactTask:
-    await require_active_admin(session, actor_user_id)
+    if (
+        await session.scalar(
+            select(User.id).where(
+                User.id == actor_user_id,
+                User.role == UserRole.ADMIN,
+                User.status == UserStatus.ACTIVE,
+            )
+        )
+        is None
+    ):
+        raise AppError("FORBIDDEN_ROLE", "Admin role is required", status_code=403)
     normalized_note = note.strip()
     if outcome not in {"attempted", "reached", "failed"} or not normalized_note:
         raise AppError(
@@ -787,12 +786,21 @@ async def complete_manual_driver_contact_task(
     identity = (
         await session.execute(
             select(
-                ManualDriverContactTask.driver_profile_id, ManualDriverContactTask.purpose
-            ).where(ManualDriverContactTask.id == task_id)
+                ManualDriverContactTask.driver_profile_id,
+                ManualDriverContactTask.purpose,
+                DriverProfile.user_id,
+            )
+            .join(DriverProfile, DriverProfile.id == ManualDriverContactTask.driver_profile_id)
+            .where(ManualDriverContactTask.id == task_id)
         )
     ).first()
     if identity is None:
         raise AppError("CONTACT_TASK_NOT_FOUND", "Contact task was not found", status_code=404)
+    from app.services.users import _lock_users
+
+    users = await _lock_users(session, {actor_user_id, identity.user_id})
+    await require_active_admin(session, actor_user_id)
+    driver = users.get(identity.user_id)
     authority = await _manual_contact_authority(
         session, driver_profile_id=identity.driver_profile_id, purpose=identity.purpose
     )
@@ -816,7 +824,17 @@ async def complete_manual_driver_contact_task(
             "Contact task already has different completion evidence",
             status_code=status.HTTP_409_CONFLICT,
         )
-    if authority is None or not _task_matches_authority(task, *authority, task.purpose):
+    current_fingerprint = None
+    if driver is not None and driver.role == UserRole.DRIVER and driver.status == UserStatus.ACTIVE:
+        try:
+            current_fingerprint = phone_fingerprint(driver.phone or "", settings)
+        except AppError:
+            pass
+    if (
+        authority is None
+        or authority[0].phone_fingerprint != current_fingerprint
+        or not _task_matches_authority(task, *authority, task.purpose)
+    ):
         raise AppError(
             "CONTACT_TASK_AUTHORITY_INACTIVE",
             "The task no longer has current consent for its purpose and phone",

@@ -14,6 +14,7 @@ import { OperationForm } from "../operation-form";
 import { completePages, worklistHref } from "../worklist-reads";
 import { ApiError } from "@/lib/api/errors";
 import type { components } from "@/lib/api/schema";
+import { RecordPhoneVerification } from "../drivers/record-phone-verification";
 
 type Query = {
   tab?: string;
@@ -70,6 +71,15 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
                 history: p.history === "true",
               },
             },
+          })
+          .then(({ data }) => data)
+          .catch(() => undefined)
+      : undefined;
+  const phoneWork =
+    tab === "contact"
+      ? await api
+          .GET("/api/v1/admin/phone-verification-challenges", {
+            params: { query: { driver_profile_id: p.driver_profile_id, limit: 25, offset } },
           })
           .then(({ data }) => data)
           .catch(() => undefined)
@@ -222,6 +232,40 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
             Contact tasks use the driver&apos;s current consent and verified phone. Completed
             outcomes remain recorded.
           </p>
+          <section className="mb-6">
+            <h2 className="mb-3 font-medium">Phone verification</h2>
+            {!phoneWork ? (
+              <QueueUnavailable />
+            ) : (
+              <>
+                {!phoneWork.items.length ? (
+                  <p>No phone verifications are waiting.</p>
+                ) : (
+                  phoneWork.items.map((item) => (
+                    <div className="border-edge mb-3 rounded-lg border p-4" key={item.id}>
+                      <Link
+                        className="text-cyan underline"
+                        href={`/admin/drivers/${item.driver_profile_id}#phone`}
+                      >
+                        {item.driver_name ?? "Driver"}
+                      </Link>
+                      <p className="mt-2 text-sm">{item.masked_phone}</p>
+                      <RecordPhoneVerification
+                        driverId={item.driver_profile_id}
+                        challengeId={item.id}
+                      />
+                    </div>
+                  ))
+                )}
+                <Pagination
+                  total={phoneWork.total}
+                  limit={25}
+                  offset={offset}
+                  hrefFor={(o) => href({ offset: String(o), task: undefined })}
+                />
+              </>
+            )}
+          </section>
           <Link
             className="text-cyan mb-4 inline-block underline"
             href={href({

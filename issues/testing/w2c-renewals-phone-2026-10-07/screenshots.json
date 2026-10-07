@@ -1,0 +1,85 @@
+{
+  "synthetic_local_demo": true,
+  "screenshots": [
+    {
+      "file": "renewal-form-375.png",
+      "viewport_width": 375,
+      "sha256": "159e6cf2a4bde3f6db1eaae0e2433839a32c071732af60e0d9cf50ad6881927d"
+    },
+    {
+      "file": "renewal-form-1440.png",
+      "viewport_width": 1440,
+      "sha256": "3c0fe8fc9deed3c676fb4966171d9ba98f42e6fd43e4ee8d7412e4f1119f694c"
+    },
+    {
+      "file": "renewal-waiting-375.png",
+      "viewport_width": 375,
+      "sha256": "27f8f229d46786dccfd930b967f36d48863327b7cde6739b56e98c27246a1757"
+    },
+    {
+      "file": "renewal-waiting-1440.png",
+      "viewport_width": 1440,
+      "sha256": "977cad2683f0ac028b6576ab8eb8a0fa4581f3e98e268cb1e54094a2dc403104"
+    },
+    {
+      "file": "renewal-reviewed-375.png",
+      "viewport_width": 375,
+      "sha256": "0a1f06cf25960cf6b6981f6bf9e74bb42add8c8e8d24c3cb84cc2897b4cc4f4f"
+    },
+    {
+      "file": "renewal-reviewed-1440.png",
+      "viewport_width": 1440,
+      "sha256": "a70f6f9970d2c51736c2ffbc321a3bfa3b369f9fd0fc95303779d608576796f3"
+    },
+    {
+      "file": "driver-phone-code-375.png",
+      "viewport_width": 375,
+      "sha256": "63af27f6c71a5765d547a0831f668b69d9f494c1a15345737d5556d71b227241"
+    },
+    {
+      "file": "driver-phone-code-1440.png",
+      "viewport_width": 1440,
+      "sha256": "32df3c41b17e7ba44aff42470f2190cde387504e6ba799671a2ebda5eb05dc38"
+    },
+    {
+      "file": "staff-phone-blank-375.png",
+      "viewport_width": 375,
+      "sha256": "ce974a838468741d7a234d08ac072ef8247ccd23cf1eceae50a148f00964a3da"
+    },
+    {
+      "file": "staff-phone-blank-1440.png",
+      "viewport_width": 1440,
+      "sha256": "b1dfedbe5e1bd4717d479fad49c78b23bc88d1aab880081fb6e61918022d3ea0"
+    },
+    {
+      "file": "driver-phone-expired-375.png",
+      "viewport_width": 375,
+      "sha256": "63039d937d01418c3cb26286737725b330d167b8e65f4654899736d5e59e81dd"
+    },
+    {
+      "file": "driver-phone-expired-1440.png",
+      "viewport_width": 1440,
+      "sha256": "0a04f801b2e123a8f8f29e708e3c26a1cb2ec410baea99e243d5dd578377a289"
+    },
+    {
+      "file": "driver-phone-exhausted-375.png",
+      "viewport_width": 375,
+      "sha256": "80b11cb4de2a5f54c21f6c4d4559ae223ef715d4a79f73013f0e4dc749222a7c"
+    },
+    {
+      "file": "driver-phone-exhausted-1440.png",
+      "viewport_width": 1440,
+      "sha256": "0a04f801b2e123a8f8f29e708e3c26a1cb2ec410baea99e243d5dd578377a289"
+    },
+    {
+      "file": "driver-phone-verified-375.png",
+      "viewport_width": 375,
+      "sha256": "50b0e8eff7c9a8ed082e1a16050efc34023e7d3aa0d2eb9a22d202e3cc9eef3c"
+    },
+    {
+      "file": "driver-phone-verified-1440.png",
+      "viewport_width": 1440,
+      "sha256": "81df88a59ff3f8130d17a6256d520e2d7770384a952fec1698b579166bf76a19"
+    }
+  ]
+}

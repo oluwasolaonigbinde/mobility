@@ -11,7 +11,10 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: mocks.get }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
-vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
+vi.mock("next/navigation", () => ({
+  notFound: mocks.notFound,
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 vi.mock("../driver-applications/person-payee-decision-actions", () => ({
   PersonPayeeDecisionActions: (p: Record<string, unknown>) => {
     mocks.person(p);
@@ -80,6 +83,37 @@ import { ApiError } from "@/lib/api/errors";
 const driverId = "00000000-0000-4000-8000-000000000001";
 const appId = "00000000-0000-4000-8000-000000000002";
 const userId = "00000000-0000-4000-8000-000000000003";
+it("reviews every current vehicle in Documents and provides only a blank received-code form", async () => {
+  reads();
+  const original = mocks.get.getMockImplementation()!;
+  mocks.get.mockImplementation(async (path, options) => {
+    if (path === "/api/v1/admin/drivers/{driver_profile_id}/documents")
+      return {
+        data: {
+          person_payee: application.person_payee,
+          vehicles: [
+            application.vehicle,
+            {
+              ...application.vehicle,
+              vehicle_id: "second",
+              submission_id: "second-sub",
+              plate_number: "ABJ-714-KM",
+            },
+          ],
+        },
+      };
+    if (path.endsWith("/phone-verification-challenges"))
+      return { data: { items: [{ id: "pending-challenge" }], total: 1 } };
+    return original(path, options);
+  });
+  render(await DriverHub({ driverId }));
+  expect(mocks.vehicle).toHaveBeenCalledTimes(2);
+  expect(mocks.vehicle).toHaveBeenCalledWith(
+    expect.objectContaining({ driverProfileId: driverId, submissionId: "second-sub" }),
+  );
+  expect(screen.getByRole("button", { name: "Record phone verification" })).toBeVisible();
+  expect(screen.queryByLabelText("Code received")).toBeNull();
+});
 const driver = {
   id: driverId,
   user_id: userId,
@@ -122,6 +156,10 @@ function reads({
   failApplication?: boolean;
 } = {}) {
   mocks.get.mockImplementation(async (path: string) => {
+    if (path === "/api/v1/admin/drivers/{driver_profile_id}/documents")
+      return failApplication || app.user_id !== userId
+        ? { data: undefined }
+        : { data: { person_payee: app.person_payee, vehicles: [app.vehicle] } };
     if (path === "/api/v1/admin/drivers/{driver_profile_id}") return { data: driver };
     if (path === "/api/v1/admin/driver-applications/{application_id}") return { data: app };
     if (path === "/api/v1/admin/driver-applications") {
@@ -195,6 +233,7 @@ it("keeps exact audited document identities and blocks generic activation for a 
   expect(screen.getByRole("heading", { name: "Ada Okafor" })).toBeTruthy();
   expect(mocks.person).toHaveBeenCalledWith({
     applicationId: appId,
+    driverProfileId: driverId,
     submissionId: "person",
     bankAccountVersionId: "bank",
     bankAccountVerified: true,
@@ -341,7 +380,7 @@ it.each([1, 25])("bounds cold hub reads independently of row count (%s)", async 
       query: { trips_offset: "25", jobs_offset: "25", currency: "NGN" },
     }),
   );
-  expect(mocks.get).toHaveBeenCalledTimes(11);
+  expect(mocks.get).toHaveBeenCalledTimes(13);
   expect(mocks.get).toHaveBeenCalledWith("/api/v1/admin/driver-applications", {
     params: { query: { driver_profile_id: driverId, user_id: userId, history: true, limit: 1 } },
   });
@@ -488,7 +527,7 @@ it.each([false, true])(
     render(
       await DriverHub({ driverId, query: { application: appId, trip: "trip", currency: "NGN" } }),
     );
-    expect(mocks.get).toHaveBeenCalledTimes(failCandidate ? 12 : 11);
+    expect(mocks.get).toHaveBeenCalledTimes(failCandidate ? 14 : 13);
     expect(
       mocks.get.mock.calls.some(
         ([path]) => path.endsWith("/readiness") || path.endsWith("/analytics"),
@@ -558,6 +597,19 @@ it("passes the known not-submitted state to the five-row document review", async
   reads();
   const normal = mocks.get.getMockImplementation()!;
   mocks.get.mockImplementation(async (path, opts) => {
+    if (path.endsWith("/documents"))
+      return {
+        data: {
+          person_payee: {
+            status: "not_submitted",
+            submission_id: null,
+            bank_account_version_id: null,
+            bank_account_verified: false,
+            document_file_ids: {},
+          },
+          vehicles: [],
+        },
+      };
     if (path.endsWith("/driver-applications"))
       return {
         data: {

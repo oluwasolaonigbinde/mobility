@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
+import type { components } from "@/lib/api/schema";
 import { getSessionToken } from "@/lib/auth/session";
 
 export interface PersonPayeeDecisionState {
@@ -127,7 +128,9 @@ export async function verifyPersonPayeeAccountAction(
 }
 
 const schema = z.object({
+  submission_id: z.string().uuid(),
   application_id: z.string().uuid(),
+  driver_profile_id: z.string().uuid().optional(),
   client_request_id: z.string().uuid(),
   intent: z.enum(["approve", "reject", "expire"]),
   reason_code: z
@@ -152,7 +155,9 @@ export async function reviewPersonPayeeAction(
 ): Promise<PersonPayeeDecisionState> {
   const intent = String(formData.get("intent") ?? "");
   const parsed = schema.safeParse({
+    submission_id: String(formData.get("submission_id") ?? ""),
     application_id: String(formData.get("application_id") ?? ""),
+    driver_profile_id: String(formData.get("driver_profile_id") ?? "") || undefined,
     client_request_id: String(formData.get("client_request_id") ?? ""),
     intent,
     reason_code:
@@ -188,20 +193,27 @@ export async function reviewPersonPayeeAction(
     decision === "approved" ? "complete_current_evidence" : parsed.data.reason_code;
   if (!reasonCode) return { error: "Select a reason for this decision." };
   try {
-    await createApiClient(await getSessionToken()).POST(
-      "/api/v1/admin/driver-applications/{application_id}/person-payee-decision",
-      {
+    const api = createApiClient(await getSessionToken());
+    const body: components["schemas"]["PersonPayeeReviewDecisionCreate"] = {
+      submission_id: parsed.data.submission_id,
+      client_request_id: parsed.data.client_request_id,
+      decision,
+      reason_code: reasonCode,
+      identity_match_confirmed: parsed.data.identity_match_confirmed,
+      bank_account_match_confirmed: parsed.data.bank_account_match_confirmed,
+      documents_readable_confirmed: parsed.data.documents_readable_confirmed,
+    };
+    if (parsed.data.driver_profile_id) {
+      await api.POST("/api/v1/admin/drivers/{driver_profile_id}/documents/person-payee-decision", {
+        params: { path: { driver_profile_id: parsed.data.driver_profile_id } },
+        body,
+      });
+    } else {
+      await api.POST("/api/v1/admin/driver-applications/{application_id}/person-payee-decision", {
         params: { path: { application_id: parsed.data.application_id } },
-        body: {
-          client_request_id: parsed.data.client_request_id,
-          decision,
-          reason_code: reasonCode,
-          identity_match_confirmed: parsed.data.identity_match_confirmed,
-          bank_account_match_confirmed: parsed.data.bank_account_match_confirmed,
-          documents_readable_confirmed: parsed.data.documents_readable_confirmed,
-        },
-      },
-    );
+        body,
+      });
+    }
   } catch (error) {
     if (error instanceof ApiError) return { error: error.message };
     return { error: "Could not reach the onboarding service." };
@@ -248,6 +260,7 @@ export async function reviewVehicleEvidenceAction(
 
 const vehicleDecisionSchema = z.object({
   application_id: z.string().uuid(),
+  driver_profile_id: z.string().uuid().optional(),
   vehicle_id: z.string().uuid(),
   submission_id: z.string().uuid(),
   client_request_id: z.string().uuid(),
@@ -279,6 +292,7 @@ export async function reviewVehicleAction(
   const intent = String(formData.get("intent") ?? "");
   const parsed = vehicleDecisionSchema.safeParse({
     application_id: String(formData.get("application_id") ?? ""),
+    driver_profile_id: String(formData.get("driver_profile_id") ?? "") || undefined,
     vehicle_id: String(formData.get("vehicle_id") ?? ""),
     submission_id: String(formData.get("submission_id") ?? ""),
     client_request_id: String(formData.get("client_request_id") ?? ""),
@@ -318,29 +332,47 @@ export async function reviewVehicleAction(
     decision === "approved" ? "complete_current_evidence" : parsed.data.reason_code;
   if (!reasonCode) return { error: "Select a reason for this decision." };
   try {
-    await createApiClient(await getSessionToken()).POST(
-      "/api/v1/admin/driver-applications/{application_id}/vehicles/{vehicle_id}/submissions/{submission_id}/decision",
-      {
-        params: {
-          path: {
-            application_id: parsed.data.application_id,
-            vehicle_id: parsed.data.vehicle_id,
-            submission_id: parsed.data.submission_id,
+    const api = createApiClient(await getSessionToken());
+    const body: components["schemas"]["VehicleReviewDecisionCreate"] = {
+      client_request_id: parsed.data.client_request_id,
+      decision,
+      reason_code: reasonCode,
+      owner_match_confirmed: parsed.data.owner_match_confirmed,
+      vehicle_identity_confirmed: parsed.data.vehicle_identity_confirmed,
+      roadworthy_confirmed: parsed.data.roadworthy_confirmed,
+      pilot_car_confirmed: parsed.data.pilot_car_confirmed,
+      documents_readable_confirmed: parsed.data.documents_readable_confirmed,
+      valid_until: validUntil,
+    };
+    if (parsed.data.driver_profile_id) {
+      await api.POST(
+        "/api/v1/admin/drivers/{driver_profile_id}/vehicles/{vehicle_id}/submissions/{submission_id}/decision",
+        {
+          params: {
+            path: {
+              driver_profile_id: parsed.data.driver_profile_id,
+              vehicle_id: parsed.data.vehicle_id,
+              submission_id: parsed.data.submission_id,
+            },
           },
+          body,
         },
-        body: {
-          client_request_id: parsed.data.client_request_id,
-          decision,
-          reason_code: reasonCode,
-          owner_match_confirmed: parsed.data.owner_match_confirmed,
-          vehicle_identity_confirmed: parsed.data.vehicle_identity_confirmed,
-          roadworthy_confirmed: parsed.data.roadworthy_confirmed,
-          pilot_car_confirmed: parsed.data.pilot_car_confirmed,
-          documents_readable_confirmed: parsed.data.documents_readable_confirmed,
-          valid_until: validUntil,
+      );
+    } else {
+      await api.POST(
+        "/api/v1/admin/driver-applications/{application_id}/vehicles/{vehicle_id}/submissions/{submission_id}/decision",
+        {
+          params: {
+            path: {
+              application_id: parsed.data.application_id,
+              vehicle_id: parsed.data.vehicle_id,
+              submission_id: parsed.data.submission_id,
+            },
+          },
+          body,
         },
-      },
-    );
+      );
+    }
   } catch (error) {
     if (error instanceof ApiError) return { error: error.message };
     return { error: "Could not reach the vehicle approval service." };

@@ -1,0 +1,60 @@
+{
+  "base": "ec267529d26688bb18d72d41ac3ced4a68221a5a",
+  "application_sha256": {
+    "app/api/v1/admin.py": "0a627b5f5f960c105037a82cb584e3be38a9c54d855f3191492349156cc3fbcb",
+    "app/api/v1/contacts.py": "bec5b97dae8820637e33d6546013c2d3ce1dc1f96978cefa309f68dbab8b73b8",
+    "app/api/v1/driver_documents.py": "869f53c157ef7299ba8f9c17a545c07cd564adefe5892bd78fb6580f4e532c89",
+    "app/api/v1/kyc.py": "49ff98ddb9d8f73a3163cea3ef9186a69ad147a03374dd4e0e53af2f2e2e7e10",
+    "app/api/v1/router.py": "08fe788e6850d46a8bc31b3f3a41c0eca513f18912cf2dda35ba13a2d7658637",
+    "app/core/config.py": "b03544dfc8c6c5b19c9951885ccd00898bba2c1f51e6d90484d3dda6fe1a2855",
+    "app/models/contact.py": "4abb612ea4dcccd5651c9852f96f1116be411b1aa67e62441f92feb723facdba",
+    "app/schemas/contacts.py": "b85bdfbcb6d06588e69c699af301a9c7956c729dbeecdf7c8dd7912fc899f980",
+    "app/schemas/driver_onboarding.py": "b8057c65dc29d810f776ef8cceb76cf3a57debf0a709a02cbe989c7089dd9d6a",
+    "app/schemas/kyc.py": "b9b38e8bcae8e0096a264f124a070b568bfb327d29ab024b6eefcf12588a080c",
+    "app/seeds/demo.py": "9524478af809b2cc0ff529b0a32ed69f1ab1a6e59c1d557d9242b83bd19f72c1",
+    "app/seeds/demo_authority.py": "58f761419b8a754ba427c84dab2fdc5f99e418031a396c9389aa90caf128b62f",
+    "app/seeds/renewals.py": "b7098a580571278041b1df603d8b637f8a3faa4370eb498e3e5571520f372d1c",
+    "app/seeds/rich.py": "7b61a226fefa41e59f847144d97eab4cc86c859fe4c105ce68307bdda06d56b3",
+    "app/services/contacts.py": "dd9529a01f3100892b79f9657afd5ff837198f55af8fedf30c08c004c06f9cca",
+    "app/services/driver_account_setup.py": "7ac87d8035f76d147e7860cf3ad040adba47f88d0f5d9e80356b842db1633af2",
+    "app/services/driver_applications.py": "335d7c1f40fe6e25b6fb119de6df7f65a93936ef08319c1921330b8ec2e29933",
+    "app/services/driver_onboarding.py": "ec20ab67483130f021b0e75493e76a6dd75ae1a6feedcc19ad1135a8732bced6",
+    "app/services/kyc.py": "db592991c6350b8cf52ec69f4cfb8eb68431ebeaa13235575c5263840e56cd82",
+    "app/services/vehicle_onboarding.py": "4df55df9871b716bc95ab2cc42c900f2cbdf81873af0e576b7c8ea05c183bf5b"
+  },
+  "isolated_runtime": "/verify",
+  "all_hashes_match": true,
+  "frontend_sha256": {
+    "frontend/src/app/admin/driver-applications/actions.ts": "57ca5eb676aaaff9ae73de52f26939c9088788d5487e6cdde9729dc8585bce83",
+    "frontend/src/app/admin/driver-applications/person-payee-decision-actions.tsx": "c90ba21bf21f774339935b7cf08f5f882ecbe9207ce8fa84079ec947997a5284",
+    "frontend/src/app/admin/driver-applications/vehicle-decision-actions.tsx": "88344a831b8c068e00a1f5794a2a32cabfe52a3096219586d63c2a8f56e02dcd",
+    "frontend/src/app/admin/drivers/driver-hub.tsx": "9f22a05c4169bb486fa5ebc6351af34187c1963e135c1468234e7fc4c659668f",
+    "frontend/src/app/admin/drivers/phone-verification-actions.ts": "a2253f4df0c4311f6cdccfc98f1d665bfaa9a2a280dd04e75c7068680ac9b11a",
+    "frontend/src/app/admin/drivers/record-phone-verification.tsx": "99ee6feec8d6cdf6c74fd8fc2bf4136e76bde39e065cde0929713c84e21ba652",
+    "frontend/src/app/admin/support/page.tsx": "a073aa09020f02222d0f19a98993a00de2de1d68242191cc79de9f89957ccb66",
+    "frontend/src/app/api/driver/contact/phone-verification/route.ts": "8b94501f4e1dd08e0da0e9b8a0c7887275821ace91f4c771f97d65cf3f35b562",
+    "frontend/src/app/api/driver/contact/phone/route.ts": "ba84586ba6fa8dd1edab195878a629bc876f548c0b0b1968592f2463370a47df",
+    "frontend/src/app/api/driver/contact/route.ts": "27a7c5a8efdbfe6bb0fa2f79c268e6213a65678fe1dc45af752e28ab24174a50",
+    "frontend/src/app/api/driver/documents/person-payee/route.ts": "e69ae130da33f3e0c25f5e303a33527275d17a316ef8c63681cea882e3ab16a3",
+    "frontend/src/app/api/driver/documents/route.ts": "8b2f0310bf3c64abc0f8e434bc5f1e32401fae5abf9aa89845d78efd71f3c377",
+    "frontend/src/app/api/driver/vehicles/[vehicleId]/documents/route.ts": "7ca3c84b35dfe7d643aaf41f6e8094f03a65e58504bf72a47ae9237f15c44526",
+    "frontend/src/app/driver/(portal)/profile/document-renewals.tsx": "cdc7ce58c398430a01ceec03a54cf1c9c8994d03d152b9115ec4a32a5ad601d2",
+    "frontend/src/app/driver/(portal)/profile/page.tsx": "db90d7226d880a30578777fa49099763ae97b8326e7c10388903d7f12bca9fb4",
+    "frontend/src/app/driver/(portal)/profile/phone-verification.tsx": "caf641ba6026c837289107976e4a36e09d0b6b5ac8855ee6927dedd1ec4d70bf",
+    "frontend/src/lib/files/onboarding-upload.ts": "0ae156f7141a2c19f751fe3b49b3dc783b0a50788d4c60b7ab977e4a8b9e3f5e"
+  },
+  "generated_contract_sha256": {
+    "openapi.json": "2bb3da24e261d3090e8a789f336cb94f539cd28717a97dd863a647aa012603d5",
+    "docs/api/openapi.snapshot.json": "2bb3da24e261d3090e8a789f336cb94f539cd28717a97dd863a647aa012603d5",
+    "frontend/src/lib/api/schema.d.ts": "29eb920792ea0a86a115a2ddb32ef5d512762498e7fe1dde57937b288e5cb1e2"
+  },
+  "fresh_backend_coverage": {
+    "concurrency": [
+      "thread",
+      "greenlet"
+    ],
+    "data_file": "/verify/coverage/.coverage-greenlet",
+    "all_owned_executed_lines_in_bounds": true,
+    "corrupt_previous_data_combined": false
+  }
+}

@@ -15,6 +15,9 @@ vi.mock("next/navigation", async (importOriginal) => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
 
+vi.mock("./document-renewals", () => ({ DocumentRenewals: () => <p>Your documents</p> }));
+vi.mock("./phone-verification", () => ({ PhoneVerification: () => <p>Phone verification</p> }));
+
 import DriverProfilePage from "./page";
 
 describe("DriverProfilePage campaign authority", () => {

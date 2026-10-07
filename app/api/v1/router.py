@@ -17,6 +17,7 @@ from app.api.v1.campaigns import router as campaigns_router
 from app.api.v1.complaints import router as complaints_router
 from app.api.v1.contacts import router as contacts_router
 from app.api.v1.disbursements import router as disbursements_router
+from app.api.v1.driver_documents import router as driver_documents_router
 from app.api.v1.driver_profiles import router as driver_profiles_router
 from app.api.v1.fraud_disputes import router as fraud_disputes_router
 from app.api.v1.health import router as health_router
@@ -76,6 +77,7 @@ api_router.include_router(trip_analytics_router)
 api_router.include_router(trips_router)
 api_router.include_router(trips_admin_router)
 api_router.include_router(driver_profiles_router)
+api_router.include_router(driver_documents_router)
 api_router.include_router(fraud_disputes_router)
 api_router.include_router(vehicles_router)
 api_router.include_router(webhooks_router)

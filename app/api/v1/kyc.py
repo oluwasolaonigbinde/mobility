@@ -140,6 +140,7 @@ async def create_vehicle_evidence_submission(
             "insurance": payload.insurance_file_id,
             "vehicle_photo": payload.vehicle_photo_file_id,
         },
+        expected_submission_id=payload.expected_submission_id,
     )
     await session.commit()
     return _vehicle_response(view)

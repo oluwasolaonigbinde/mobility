@@ -1,0 +1,751 @@
+{
+  "base": "ec267529d26688bb18d72d41ac3ced4a68221a5a",
+  "changed": {
+    "line_covered": 572,
+    "line_total": 602,
+    "line_percent": 95.0166,
+    "branch_covered": 287,
+    "branch_total": 347,
+    "branch_percent": 82.7089
+  },
+  "files": {
+    "app/api/v1/admin.py": {
+      "line_covered": 4,
+      "line_total": 4,
+      "line_percent": 100.0,
+      "branch_covered": 3,
+      "branch_total": 4,
+      "branch_percent": 75.0,
+      "missing_lines": [],
+      "missing_branches": [
+        [
+          90,
+          0,
+          "jump to line 91"
+        ]
+      ]
+    },
+    "app/api/v1/contacts.py": {
+      "line_covered": 17,
+      "line_total": 17,
+      "line_percent": 100.0,
+      "branch_covered": 2,
+      "branch_total": 2,
+      "branch_percent": 100.0,
+      "missing_lines": [],
+      "missing_branches": []
+    },
+    "app/api/v1/driver_documents.py": {
+      "line_covered": 69,
+      "line_total": 70,
+      "line_percent": 98.5714,
+      "branch_covered": 9,
+      "branch_total": 10,
+      "branch_percent": 90.0,
+      "missing_lines": [
+        98
+      ],
+      "missing_branches": [
+        [
+          93,
+          0,
+          "jump to line 98"
+        ]
+      ]
+    },
+    "app/api/v1/kyc.py": {
+      "line_covered": 0,
+      "line_total": 0,
+      "line_percent": 100.0,
+      "branch_covered": 0,
+      "branch_total": 0,
+      "branch_percent": 100.0,
+      "missing_lines": [],
+      "missing_branches": []
+    },
+    "app/api/v1/router.py": {
+      "line_covered": 2,
+      "line_total": 2,
+      "line_percent": 100.0,
+      "branch_covered": 0,
+      "branch_total": 0,
+      "branch_percent": 100.0,
+      "missing_lines": [],
+      "missing_branches": []
+    },
+    "app/core/config.py": {
+      "line_covered": 3,
+      "line_total": 3,
+      "line_percent": 100.0,
+      "branch_covered": 0,
+      "branch_total": 0,
+      "branch_percent": 100.0,
+      "missing_lines": [],
+      "missing_branches": []
+    },
+    "app/models/contact.py": {
+      "line_covered": 8,
+      "line_total": 8,
+      "line_percent": 100.0,
+      "branch_covered": 0,
+      "branch_total": 0,
+      "branch_percent": 100.0,
+      "missing_lines": [],
+      "missing_branches": []
+    },
+    "app/schemas/contacts.py": {
+      "line_covered": 22,
+      "line_total": 23,
+      "line_percent": 95.6522,
+      "branch_covered": 1,
+      "branch_total": 2,
+      "branch_percent": 50.0,
+      "missing_lines": [
+        55
+      ],
+      "missing_branches": [
+        [
+          54,
+          0,
+          "jump to line 55"
+        ]
+      ]
+    },
+    "app/schemas/driver_onboarding.py": {
+      "line_covered": 14,
+      "line_total": 14,
+      "line_percent": 100.0,
+      "branch_covered": 0,
+      "branch_total": 0,
+      "branch_percent": 100.0,
+      "missing_lines": [],
+      "missing_branches": []
+    },
+    "app/schemas/kyc.py": {
+      "line_covered": 1,
+      "line_total": 1,
+      "line_percent": 100.0,
+      "branch_covered": 0,
+      "branch_total": 0,
+      "branch_percent": 100.0,
+      "missing_lines": [],
+      "missing_branches": []
+    },
+    "app/seeds/demo.py": {
+      "line_covered": 5,
+      "line_total": 5,
+      "line_percent": 100.0,
+      "branch_covered": 2,
+      "branch_total": 2,
+      "branch_percent": 100.0,
+      "missing_lines": [],
+      "missing_branches": []
+    },
+    "app/seeds/demo_authority.py": {
+      "line_covered": 0,
+      "line_total": 0,
+      "line_percent": 100.0,
+      "branch_covered": 0,
+      "branch_total": 0,
+      "branch_percent": 100.0,
+      "missing_lines": [],
+      "missing_branches": []
+    },
+    "app/seeds/renewals.py": {
+      "line_covered": 38,
+      "line_total": 38,
+      "line_percent": 100.0,
+      "branch_covered": 10,
+      "branch_total": 10,
+      "branch_percent": 100.0,
+      "missing_lines": [],
+      "missing_branches": []
+    },
+    "app/seeds/rich.py": {
+      "line_covered": 7,
+      "line_total": 8,
+      "line_percent": 87.5,
+      "branch_covered": 1,
+      "branch_total": 2,
+      "branch_percent": 50.0,
+      "missing_lines": [
+        1294
+      ],
+      "missing_branches": [
+        [
+          1293,
+          0,
+          "jump to line 1294"
+        ]
+      ]
+    },
+    "app/services/contacts.py": {
+      "line_covered": 75,
+      "line_total": 83,
+      "line_percent": 90.3614,
+      "branch_covered": 31,
+      "branch_total": 36,
+      "branch_percent": 86.1111,
+      "missing_lines": [
+        134,
+        135,
+        337,
+        364,
+        405,
+        406,
+        683,
+        778
+      ],
+      "missing_branches": [
+        [
+          336,
+          0,
+          "jump to line 337"
+        ],
+        [
+          363,
+          0,
+          "jump to line 364"
+        ],
+        [
+          677,
+          0,
+          "jump to line 684"
+        ],
+        [
+          682,
+          0,
+          "jump to line 683"
+        ],
+        [
+          768,
+          0,
+          "jump to line 778"
+        ]
+      ]
+    },
+    "app/services/driver_account_setup.py": {
+      "line_covered": 13,
+      "line_total": 13,
+      "line_percent": 100.0,
+      "branch_covered": 1,
+      "branch_total": 2,
+      "branch_percent": 50.0,
+      "missing_lines": [],
+      "missing_branches": [
+        [
+          334,
+          0,
+          "jump to line 335"
+        ]
+      ]
+    },
+    "app/services/driver_applications.py": {
+      "line_covered": 5,
+      "line_total": 6,
+      "line_percent": 83.3333,
+      "branch_covered": 1,
+      "branch_total": 2,
+      "branch_percent": 50.0,
+      "missing_lines": [
+        96
+      ],
+      "missing_branches": [
+        [
+          95,
+          0,
+          "jump to line 96"
+        ]
+      ]
+    },
+    "app/services/driver_onboarding.py": {
+      "line_covered": 52,
+      "line_total": 59,
+      "line_percent": 88.1356,
+      "branch_covered": 20,
+      "branch_total": 28,
+      "branch_percent": 71.4286,
+      "missing_lines": [
+        200,
+        206,
+        226,
+        252,
+        476,
+        495,
+        502
+      ],
+      "missing_branches": [
+        [
+          199,
+          0,
+          "jump to line 200"
+        ],
+        [
+          205,
+          0,
+          "jump to line 206"
+        ],
+        [
+          225,
+          0,
+          "jump to line 226"
+        ],
+        [
+          245,
+          0,
+          "jump to line 257"
+        ],
+        [
+          247,
+          0,
+          "jump to line 252"
+        ],
+        [
+          475,
+          0,
+          "jump to line 476"
+        ],
+        [
+          494,
+          0,
+          "jump to line 495"
+        ],
+        [
+          517,
+          0,
+          "jump to line 522"
+        ]
+      ]
+    },
+    "app/services/kyc.py": {
+      "line_covered": 36,
+      "line_total": 39,
+      "line_percent": 92.3077,
+      "branch_covered": 14,
+      "branch_total": 18,
+      "branch_percent": 77.7778,
+      "missing_lines": [
+        421,
+        497,
+        516
+      ],
+      "missing_branches": [
+        [
+          420,
+          0,
+          "jump to line 421"
+        ],
+        [
+          447,
+          0,
+          "jump to line 449"
+        ],
+        [
+          496,
+          0,
+          "jump to line 497"
+        ],
+        [
+          512,
+          0,
+          "jump to line 516"
+        ]
+      ]
+    },
+    "app/services/vehicle_onboarding.py": {
+      "line_covered": 13,
+      "line_total": 15,
+      "line_percent": 86.6667,
+      "branch_covered": 3,
+      "branch_total": 6,
+      "branch_percent": 50.0,
+      "missing_lines": [
+        718,
+        743
+      ],
+      "missing_branches": [
+        [
+          279,
+          0,
+          "jump to line 281"
+        ],
+        [
+          717,
+          0,
+          "jump to line 718"
+        ],
+        [
+          742,
+          0,
+          "jump to line 743"
+        ]
+      ]
+    },
+    "frontend/src/app/admin/driver-applications/actions.ts": {
+      "line_covered": 10,
+      "line_total": 10,
+      "line_percent": 100.0,
+      "branch_covered": 13,
+      "branch_total": 14,
+      "branch_percent": 92.8571,
+      "missing_lines": [],
+      "missing_branches": [
+        [
+          158,
+          14,
+          "1"
+        ]
+      ]
+    },
+    "frontend/src/app/admin/driver-applications/person-payee-decision-actions.tsx": {
+      "line_covered": 0,
+      "line_total": 0,
+      "line_percent": 100.0,
+      "branch_covered": 1,
+      "branch_total": 2,
+      "branch_percent": 50.0,
+      "missing_lines": [],
+      "missing_branches": [
+        [
+          176,
+          27,
+          "0"
+        ]
+      ]
+    },
+    "frontend/src/app/admin/driver-applications/vehicle-decision-actions.tsx": {
+      "line_covered": 0,
+      "line_total": 0,
+      "line_percent": 100.0,
+      "branch_covered": 2,
+      "branch_total": 4,
+      "branch_percent": 50.0,
+      "missing_lines": [],
+      "missing_branches": [
+        [
+          74,
+          5,
+          "0"
+        ],
+        [
+          123,
+          8,
+          "0"
+        ]
+      ]
+    },
+    "frontend/src/app/admin/drivers/driver-hub.tsx": {
+      "line_covered": 5,
+      "line_total": 5,
+      "line_percent": 100.0,
+      "branch_covered": 22,
+      "branch_total": 26,
+      "branch_percent": 84.6154,
+      "missing_lines": [],
+      "missing_branches": [
+        [
+          365,
+          63,
+          "1"
+        ],
+        [
+          371,
+          65,
+          "1"
+        ],
+        [
+          379,
+          68,
+          "1"
+        ],
+        [
+          380,
+          69,
+          "1"
+        ]
+      ]
+    },
+    "frontend/src/app/admin/drivers/phone-verification-actions.ts": {
+      "line_covered": 8,
+      "line_total": 8,
+      "line_percent": 100.0,
+      "branch_covered": 4,
+      "branch_total": 4,
+      "branch_percent": 100.0,
+      "missing_lines": [],
+      "missing_branches": []
+    },
+    "frontend/src/app/admin/drivers/record-phone-verification.tsx": {
+      "line_covered": 7,
+      "line_total": 7,
+      "line_percent": 100.0,
+      "branch_covered": 10,
+      "branch_total": 10,
+      "branch_percent": 100.0,
+      "missing_lines": [],
+      "missing_branches": []
+    },
+    "frontend/src/app/admin/support/page.tsx": {
+      "line_covered": 3,
+      "line_total": 5,
+      "line_percent": 60.0,
+      "branch_covered": 7,
+      "branch_total": 8,
+      "branch_percent": 87.5,
+      "missing_lines": [
+        85,
+        264
+      ],
+      "missing_branches": [
+        [
+          237,
+          24,
+          "0"
+        ]
+      ]
+    },
+    "frontend/src/app/api/driver/contact/phone-verification/route.ts": {
+      "line_covered": 1,
+      "line_total": 1,
+      "line_percent": 100.0,
+      "branch_covered": 0,
+      "branch_total": 0,
+      "branch_percent": 100.0,
+      "missing_lines": [],
+      "missing_branches": []
+    },
+    "frontend/src/app/api/driver/contact/phone/route.ts": {
+      "line_covered": 4,
+      "line_total": 4,
+      "line_percent": 100.0,
+      "branch_covered": 0,
+      "branch_total": 0,
+      "branch_percent": 100.0,
+      "missing_lines": [],
+      "missing_branches": []
+    },
+    "frontend/src/app/api/driver/contact/route.ts": {
+      "line_covered": 2,
+      "line_total": 2,
+      "line_percent": 100.0,
+      "branch_covered": 0,
+      "branch_total": 0,
+      "branch_percent": 100.0,
+      "missing_lines": [],
+      "missing_branches": []
+    },
+    "frontend/src/app/api/driver/documents/person-payee/route.ts": {
+      "line_covered": 4,
+      "line_total": 4,
+      "line_percent": 100.0,
+      "branch_covered": 0,
+      "branch_total": 0,
+      "branch_percent": 100.0,
+      "missing_lines": [],
+      "missing_branches": []
+    },
+    "frontend/src/app/api/driver/documents/route.ts": {
+      "line_covered": 2,
+      "line_total": 2,
+      "line_percent": 100.0,
+      "branch_covered": 0,
+      "branch_total": 0,
+      "branch_percent": 100.0,
+      "missing_lines": [],
+      "missing_branches": []
+    },
+    "frontend/src/app/api/driver/vehicles/[vehicleId]/documents/route.ts": {
+      "line_covered": 6,
+      "line_total": 6,
+      "line_percent": 100.0,
+      "branch_covered": 0,
+      "branch_total": 0,
+      "branch_percent": 100.0,
+      "missing_lines": [],
+      "missing_branches": []
+    },
+    "frontend/src/app/driver/(portal)/profile/document-renewals.tsx": {
+      "line_covered": 61,
+      "line_total": 61,
+      "line_percent": 100.0,
+      "branch_covered": 63,
+      "branch_total": 77,
+      "branch_percent": 81.8182,
+      "missing_lines": [],
+      "missing_branches": [
+        [
+          67,
+          2,
+          "1"
+        ],
+        [
+          71,
+          5,
+          "1"
+        ],
+        [
+          104,
+          10,
+          "1"
+        ],
+        [
+          152,
+          13,
+          "0"
+        ],
+        [
+          183,
+          18,
+          "1"
+        ],
+        [
+          183,
+          19,
+          "1"
+        ],
+        [
+          187,
+          21,
+          "1"
+        ],
+        [
+          220,
+          23,
+          "1"
+        ],
+        [
+          223,
+          24,
+          "1"
+        ],
+        [
+          271,
+          30,
+          "1"
+        ],
+        [
+          275,
+          31,
+          "1"
+        ],
+        [
+          276,
+          33,
+          "1"
+        ],
+        [
+          276,
+          34,
+          "1"
+        ],
+        [
+          282,
+          37,
+          "1"
+        ]
+      ]
+    },
+    "frontend/src/app/driver/(portal)/profile/page.tsx": {
+      "line_covered": 0,
+      "line_total": 0,
+      "line_percent": 100.0,
+      "branch_covered": 2,
+      "branch_total": 2,
+      "branch_percent": 100.0,
+      "missing_lines": [],
+      "missing_branches": []
+    },
+    "frontend/src/app/driver/(portal)/profile/phone-verification.tsx": {
+      "line_covered": 70,
+      "line_total": 74,
+      "line_percent": 94.5946,
+      "branch_covered": 49,
+      "branch_total": 60,
+      "branch_percent": 81.6667,
+      "missing_lines": [
+        64,
+        65,
+        91,
+        116
+      ],
+      "missing_branches": [
+        [
+          34,
+          0,
+          "1"
+        ],
+        [
+          37,
+          2,
+          "1"
+        ],
+        [
+          51,
+          3,
+          "1"
+        ],
+        [
+          79,
+          5,
+          "0"
+        ],
+        [
+          81,
+          6,
+          "1"
+        ],
+        [
+          82,
+          7,
+          "2"
+        ],
+        [
+          106,
+          8,
+          "1"
+        ],
+        [
+          116,
+          9,
+          "0"
+        ],
+        [
+          116,
+          9,
+          "1"
+        ],
+        [
+          137,
+          11,
+          "1"
+        ],
+        [
+          154,
+          12,
+          "1"
+        ]
+      ]
+    },
+    "frontend/src/lib/files/onboarding-upload.ts": {
+      "line_covered": 5,
+      "line_total": 5,
+      "line_percent": 100.0,
+      "branch_covered": 16,
+      "branch_total": 16,
+      "branch_percent": 100.0,
+      "missing_lines": [],
+      "missing_branches": []
+    }
+  },
+  "floors": {
+    "changed_lines": 90,
+    "changed_branches": 80
+  },
+  "measurement": {
+    "backend": "coverage7.16 thread,greenlet fresh dataset only",
+    "frontend": "Vitest4.1.11 v8",
+    "policy_sha256": "76d9b781df12b29e1be37a293f720fe98ee9f4529e33f4abf8934dbc4409d5cc",
+    "backend_lcov_sha256": "a813e427a4f1455b23502cd99e490f49a95646c9c4b0846d5203d6a2bfcead3b",
+    "frontend_lcov_sha256": "e98533abbb9cfc9e296c9e63cfc005f123c35da70c475eac5bce81471e88a036"
+  }
+}

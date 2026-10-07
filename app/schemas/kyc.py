@@ -29,6 +29,7 @@ class VehicleEvidenceSubmissionCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     client_request_id: UUID
+    expected_submission_id: UUID | None = None
     registration_file_id: UUID
     insurance_file_id: UUID
     vehicle_photo_file_id: UUID

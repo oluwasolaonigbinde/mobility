@@ -32,7 +32,6 @@ from app.schemas.driver_onboarding import (
     ApplicantVehicleSubmissionCreate,
     VehicleReviewDecisionCreate,
 )
-from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.driver_applications import (
     application_from_access_token,
@@ -195,11 +194,6 @@ async def reconcile_driver_work_eligibility(
 ) -> bool:
     """Project current applicant approvals into the existing work-gate statuses."""
 
-    application_id = await session.scalar(
-        select(DriverApplication.id).where(DriverApplication.driver_profile_id == driver_profile_id)
-    )
-    if application_id is None:
-        return False
     await acquire_work_eligibility_lock(session, driver_profile_id=driver_profile_id)
     profile = await session.scalar(
         select(DriverProfile).where(DriverProfile.id == driver_profile_id).with_for_update()
@@ -272,12 +266,17 @@ async def ensure_current_driver_vehicle_eligibility(
     now: datetime,
     lock: bool,
 ) -> None:
-    """Fail closed for public applicants; preserve pre-existing operator flow."""
+    """Enforce current approvals once a driver has entered document review."""
 
     application_id = await session.scalar(
         select(DriverApplication.id).where(DriverApplication.driver_profile_id == driver_profile.id)
     )
-    if application_id is None:
+    has_documents = await session.scalar(
+        select(DriverKycSubmission.id)
+        .where(DriverKycSubmission.driver_profile_id == driver_profile.id)
+        .limit(1)
+    )
+    if application_id is None and has_documents is None:
         return
     if not await _current_person_payee_approved(
         session, driver_profile_id=driver_profile.id, lock=lock
@@ -336,6 +335,15 @@ async def submit_application_vehicle(
     payload: ApplicantVehicleSubmissionCreate,
     settings,
 ) -> VehicleStageView:
+    from app.services.users import _lock_users
+
+    application = await application_from_access_token(
+        session,
+        token=payload.application_access_token.get_secret_value(),
+        settings=settings,
+        lock=False,
+    )
+    await _lock_users(session, {application.user_id})
     application = await application_from_access_token(
         session,
         token=payload.application_access_token.get_secret_value(),
@@ -540,8 +548,7 @@ async def application_vehicle_view(
     if not vehicles:
         return VehicleStageView(None, None, None, {})
     latest = [
-        (vehicle, await _latest_submission(session, vehicle.id, lock=False))
-        for vehicle in vehicles
+        (vehicle, await _latest_submission(session, vehicle.id, lock=False)) for vehicle in vehicles
     ]
     vehicle, submission = next(
         (
@@ -573,8 +580,7 @@ async def applicant_vehicles(
         )
     ).all()
     return [
-        (vehicle, await _latest_submission(session, vehicle.id, lock=False))
-        for vehicle in vehicles
+        (vehicle, await _latest_submission(session, vehicle.id, lock=False)) for vehicle in vehicles
     ]
 
 
@@ -691,16 +697,29 @@ async def _decision_retry_view(
 async def review_application_vehicle(
     session: AsyncSession,
     *,
-    application_id: UUID,
+    application_id: UUID | None = None,
+    driver_profile_id: UUID | None = None,
     vehicle_id: UUID,
     submission_id: UUID,
     actor_user_id: UUID,
     payload: VehicleReviewDecisionCreate,
 ) -> VehicleStageView:
-    await require_active_admin(session, actor_user_id)
+    from app.services.driver_onboarding import _lock_review_users, _reconcile_review_eligibility
+
+    await _lock_review_users(
+        session,
+        actor_user_id=actor_user_id,
+        application_id=application_id,
+        driver_profile_id=driver_profile_id,
+    )
     now = await database_clock(session)
+    authority_id = application_id or driver_profile_id
+    if authority_id is None:
+        raise _error("DRIVER_PROFILE_NOT_FOUND", "Driver documents were not found", 404)
     fingerprint = _decision_fingerprint(
-        application_id=application_id, submission_id=submission_id, payload=payload
+        application_id=authority_id,
+        submission_id=submission_id,
+        payload=payload,
     )
     retry_view = await _decision_retry_view(
         session,
@@ -712,27 +731,26 @@ async def review_application_vehicle(
         _validate_decision(payload, now=now)
     application = await session.scalar(
         select(DriverApplication)
-        .where(DriverApplication.id == application_id)
+        .where(
+            DriverApplication.id == application_id
+            if application_id
+            else DriverApplication.driver_profile_id == driver_profile_id
+        )
         .with_for_update()
         .execution_options(populate_existing=True)
     )
-    if application is None:
-        raise _error(
-            "DRIVER_APPLICATION_NOT_FOUND",
-            "Driver application was not found",
-            status.HTTP_404_NOT_FOUND,
-        )
+    if application_id and application is None:
+        raise _error("DRIVER_APPLICATION_NOT_FOUND", "Driver application was not found", 404)
+    profile_id = application.driver_profile_id if application else authority_id
     await acquire_work_eligibility_lock(
-        session, driver_profile_id=application.driver_profile_id, vehicle_id=vehicle_id
+        session, driver_profile_id=profile_id, vehicle_id=vehicle_id
     )
     profile = await session.scalar(
-        select(DriverProfile)
-        .where(DriverProfile.id == application.driver_profile_id)
-        .with_for_update()
+        select(DriverProfile).where(DriverProfile.id == profile_id).with_for_update()
     )
     vehicle = await session.scalar(
         select(Vehicle)
-        .where(Vehicle.id == vehicle_id, Vehicle.driver_profile_id == application.driver_profile_id)
+        .where(Vehicle.id == vehicle_id, Vehicle.driver_profile_id == profile_id)
         .with_for_update()
     )
     submission = await session.scalar(
@@ -752,9 +770,10 @@ async def review_application_vehicle(
         fingerprint=fingerprint,
     )
     if retry_view is not None:
-        await reconcile_application_approval(
+        await _reconcile_review_eligibility(
             session,
             application=application,
+            driver_profile_id=profile.id,
             actor_user_id=actor_user_id,
             source_entity_type="vehicle_evidence_submission",
             source_entity_id=submission.id,
@@ -828,9 +847,10 @@ async def review_application_vehicle(
     session.add(decision)
     submission.status = payload.decision.value
     await session.flush()
-    await reconcile_application_approval(
+    await _reconcile_review_eligibility(
         session,
         application=application,
+        driver_profile_id=profile.id,
         actor_user_id=actor_user_id,
         source_entity_type="vehicle_evidence_submission",
         source_entity_id=submission.id,
@@ -842,7 +862,7 @@ async def review_application_vehicle(
         entity_type="vehicle_evidence_submission",
         entity_id=str(submission.id),
         metadata={
-            "application_id": str(application.id),
+            "driver_profile_id": str(profile.id),
             "vehicle_id": str(vehicle.id),
             "version": submission.version,
             "sequence": sequence,

@@ -1,5 +1,6 @@
 import re
 from dataclasses import dataclass
+from datetime import UTC
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
@@ -22,6 +23,7 @@ from app.models.kyc import (
     KycSubmissionStatus,
     VehicleEvidenceDocument,
     VehicleEvidenceDocumentType,
+    VehicleEvidenceReviewDecision,
     VehicleEvidenceSubmission,
 )
 from app.models.payee import Payee, PayeeBankAccount, PayeeBankAccountVersion, PayeeType
@@ -30,6 +32,7 @@ from app.models.user import User, UserRole, UserStatus
 from app.models.vehicle import Vehicle
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
+from app.services.payout_rule_serialization import database_clock
 
 DRIVER_NIN_FIELD = "driver_kyc.nin"
 PURPOSE_PATTERN = re.compile(r"^[a-z][a-z0-9_]{2,63}$")
@@ -89,8 +92,8 @@ async def _driver_profile(
     user_query = select(User).where(User.id == actor_user_id)
     query = select(DriverProfile).where(DriverProfile.user_id == actor_user_id)
     if lock:
-        user_query = user_query.with_for_update()
-        query = query.with_for_update()
+        user_query = user_query.with_for_update().execution_options(populate_existing=True)
+        query = query.with_for_update().execution_options(populate_existing=True)
     user = await session.scalar(user_query)
     profile = await session.scalar(query)
     allowed_statuses = {UserStatus.ACTIVE}
@@ -221,7 +224,11 @@ async def submit_driver_kyc(
     crypto: CryptoProvider,
     settings: Settings,
     allow_invited_actor: bool = False,
+    allow_document_renewal: bool = False,
 ) -> DriverKycView:
+    from app.services.users import _lock_users
+
+    await _lock_users(session, {actor_user_id})
     if len(nin) != 11 or not nin.isascii() or not nin.isdigit():
         raise _error("KYC_NIN_INVALID", "NIN must contain exactly 11 digits", 422)
     required = {item.value for item in DriverKycDocumentType}
@@ -293,12 +300,14 @@ async def submit_driver_kyc(
         actor_user_id=actor_user_id,
         purpose=FilePurpose.DRIVER_KYC,
     )
-    current_version = await session.scalar(
-        select(DriverKycSubmission.version)
+    current = await session.scalar(
+        select(DriverKycSubmission)
         .where(DriverKycSubmission.driver_profile_id == profile.id)
         .order_by(DriverKycSubmission.version.desc())
         .limit(1)
     )
+    _require_person_capture_state(current, allow_document_renewal)
+    current_version = current.version if current else None
     nin_record_id = uuid4()
     try:
         envelope = crypto.encrypt(
@@ -348,6 +357,10 @@ async def submit_driver_kyc(
         entity_id=str(submission.id),
         metadata={"version": submission.version, "key_version": envelope.key_version},
     )
+    if not allow_invited_actor:
+        from app.services.vehicle_onboarding import reconcile_driver_work_eligibility
+
+        await reconcile_driver_work_eligibility(session, driver_profile_id=profile.id)
     return DriverKycView(submission, document_file_ids)
 
 
@@ -395,6 +408,23 @@ async def current_driver_kyc(session: AsyncSession, *, actor_user_id: UUID) -> D
     return DriverKycView(submission, await _driver_documents(session, submission.id))
 
 
+def _require_person_capture_state(current: DriverKycSubmission | None, allow_renewal: bool) -> None:
+    if current is None:
+        return
+    if not allow_renewal:
+        raise _error(
+            "PERSON_PAYEE_RENEWAL_REQUIRED",
+            "Use Profile to renew your identity and bank details",
+            409,
+        )
+    if current.status not in {KycSubmissionStatus.REJECTED, KycSubmissionStatus.EXPIRED}:
+        raise _error(
+            "PERSON_PAYEE_RESUBMISSION_NOT_ALLOWED",
+            "Only rejected or expired documents can be replaced",
+            409,
+        )
+
+
 async def submit_vehicle_evidence(
     session: AsyncSession,
     *,
@@ -403,10 +433,19 @@ async def submit_vehicle_evidence(
     client_request_id: UUID,
     document_file_ids: dict[str, UUID],
     settings: Settings,
+    expected_submission_id: UUID | None = None,
 ) -> VehicleEvidenceView:
+    from app.services.users import _lock_users
+
+    await _lock_users(session, {actor_user_id})
     required = {item.value for item in VehicleEvidenceDocumentType}
     if set(document_file_ids) != required:
         raise _error("VEHICLE_EVIDENCE_INVALID", "All vehicle evidence is required", 422)
+    profile_id = await session.scalar(
+        select(DriverProfile.id).where(DriverProfile.user_id == actor_user_id)
+    )
+    if profile_id is not None:
+        await _acquire_work_eligibility_authority(session, driver_profile_id=profile_id)
     profile = await _driver_profile(session, actor_user_id=actor_user_id, lock=True)
     vehicle = await session.scalar(
         select(Vehicle)
@@ -424,7 +463,17 @@ async def submit_vehicle_evidence(
     if existing is not None:
         require_submission_payload(existing)
         existing_docs = await _vehicle_documents(session, existing.id)
-        if existing_docs != document_file_ids:
+        previous = (
+            await session.get(VehicleEvidenceSubmission, expected_submission_id)
+            if expected_submission_id
+            else None
+        )
+        expected_matches = (existing.version == 1 and expected_submission_id is None) or (
+            previous is not None
+            and previous.vehicle_id == vehicle.id
+            and previous.version == existing.version - 1
+        )
+        if existing_docs != document_file_ids or not expected_matches:
             raise _error(
                 "VEHICLE_EVIDENCE_RETRY_CONFLICT",
                 "The evidence retry does not match the original request",
@@ -437,12 +486,39 @@ async def submit_vehicle_evidence(
         actor_user_id=actor_user_id,
         purpose=FilePurpose.VEHICLE_EVIDENCE,
     )
-    current_version = await session.scalar(
-        select(VehicleEvidenceSubmission.version)
+    current = await session.scalar(
+        select(VehicleEvidenceSubmission)
         .where(VehicleEvidenceSubmission.vehicle_id == vehicle.id)
         .order_by(VehicleEvidenceSubmission.version.desc())
         .limit(1)
     )
+    if current is not None:
+        if current.id != expected_submission_id:
+            raise _error(
+                "VEHICLE_REVISION_STALE",
+                "Vehicle documents changed. Refresh before uploading again",
+                409,
+            )
+        decision = await session.scalar(
+            select(VehicleEvidenceReviewDecision)
+            .where(VehicleEvidenceReviewDecision.submission_id == current.id)
+            .order_by(VehicleEvidenceReviewDecision.sequence.desc())
+            .limit(1)
+        )
+        now = await database_clock(session)
+        expired_approval = bool(
+            decision and decision.valid_until and decision.valid_until.replace(tzinfo=UTC) <= now
+        )
+        if current.status not in {
+            KycSubmissionStatus.REJECTED,
+            KycSubmissionStatus.EXPIRED,
+        } and not (current.status == KycSubmissionStatus.APPROVED and expired_approval):
+            raise _error(
+                "VEHICLE_RESUBMISSION_NOT_ALLOWED",
+                "Only rejected or expired documents can be replaced",
+                409,
+            )
+    current_version = current.version if current else None
     submission = VehicleEvidenceSubmission(
         id=uuid4(),
         vehicle_id=vehicle.id,
@@ -479,6 +555,9 @@ async def submit_vehicle_evidence(
         entity_id=str(submission.id),
         metadata={"vehicle_id": str(vehicle.id), "version": submission.version},
     )
+    from app.services.vehicle_onboarding import reconcile_driver_work_eligibility
+
+    await reconcile_driver_work_eligibility(session, driver_profile_id=profile.id)
     return VehicleEvidenceView(submission, document_file_ids)
 
 

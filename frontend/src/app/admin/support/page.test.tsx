@@ -6,6 +6,7 @@ import { ApiError } from "@/lib/api/errors";
 const { get } = vi.hoisted(() => ({ get: vi.fn() }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: get }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock("../hub-drawer", () => ({
   HubDrawer: ({ children, closeHref }: { children: ReactNode; closeHref: string }) => (
     <section aria-label="Drawer">
@@ -61,6 +62,31 @@ const page = (query: Record<string, string> = {}) =>
 describe("Support work lists", () => {
   beforeEach(() => {
     get.mockReset();
+  });
+  it("shows named current phone work with masked numbers and an empty received-code form", async () => {
+    get.mockImplementation(async (path) => ({
+      data: {
+        items: path.endsWith("phone-verification-challenges")
+          ? [
+              {
+                id: "challenge",
+                driver_profile_id: "driver",
+                driver_name: "Damilola Akinwale",
+                masked_phone: "+44••••0114",
+              },
+            ]
+          : [],
+        total: path.endsWith("phone-verification-challenges") ? 1 : 0,
+      },
+    }));
+    render(await page({ tab: "contact" }));
+    expect(screen.getByRole("link", { name: "Damilola Akinwale" })).toHaveAttribute(
+      "href",
+      "/admin/drivers/driver#phone",
+    );
+    expect(screen.getByText("+44••••0114")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Record phone verification" })).toBeVisible();
+    expect(screen.queryByLabelText("Code received")).toBeNull();
   });
   it("keeps the driver and list filters in row, page and close links", async () => {
     get.mockResolvedValue({ data: { items: [complaint], total: 30 } });

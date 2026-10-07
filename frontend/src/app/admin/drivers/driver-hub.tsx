@@ -23,6 +23,7 @@ import { AssignmentForm } from "../assignments/new/assignment-form";
 import { CancelAssignmentButton } from "../assignments/cancel-button";
 import { ProcessTripForm } from "../payouts/process-trip-form";
 import { DriverDetailsForm } from "./details-form";
+import { RecordPhoneVerification } from "./record-phone-verification";
 
 const sections = [
   { id: "details", title: "Details" },
@@ -182,8 +183,24 @@ export default async function DriverHub({
           .catch(() => ({ data: undefined }))
       : Promise.resolve({ data: undefined }),
   ]);
+  const [documents, phoneWork] = await Promise.all([
+    id
+      ? api
+          .GET("/api/v1/admin/drivers/{driver_profile_id}/documents", {
+            params: { path: { driver_profile_id: id } },
+          })
+          .catch(() => ({ data: undefined }))
+      : Promise.resolve({ data: undefined }),
+    id
+      ? api
+          .GET("/api/v1/admin/phone-verification-challenges", {
+            params: { query: { driver_profile_id: id, limit: 1 } },
+          })
+          .catch(() => ({ data: undefined }))
+      : Promise.resolve({ data: undefined }),
+  ]);
   const account = accounts.data?.items.find((u) => u.id === userId);
-  const p = application?.person_payee;
+  const p = documents.data?.person_payee;
   const v = application?.vehicle;
   const status = driver?.onboarding_status ?? application!.status;
   const selectedTrip = query.trip
@@ -337,17 +354,33 @@ export default async function DriverHub({
         <HubSection id="documents" title="Documents">
           {p ? (
             <PersonPayeeDecisionActions
-              applicationId={application!.id}
+              applicationId={application?.id ?? id!}
+              driverProfileId={id}
               submissionId={p.submission_id}
               bankAccountVersionId={p.bank_account_version_id}
               bankAccountVerified={p.bank_account_verified}
               documentFileIds={p.document_file_ids ?? {}}
               status={p.status}
             />
-          ) : !applicationAvailable ? (
+          ) : !documents.data ? (
             <QueueUnavailable />
           ) : (
             <p>No current identity submission is linked to this driver.</p>
+          )}
+          {(documents.data?.vehicles ?? []).map((vehicle) =>
+            vehicle.submission_id && vehicle.vehicle_id ? (
+              <section key={vehicle.submission_id} className="border-edge mt-6 border-t pt-4">
+                <h3 className="mb-3 font-medium">Vehicle documents · {vehicle.plate_number}</h3>
+                <VehicleDecisionActions
+                  applicationId={application?.id ?? id!}
+                  driverProfileId={id}
+                  vehicleId={vehicle.vehicle_id}
+                  submissionId={vehicle.submission_id}
+                  documentFileIds={vehicle.document_file_ids ?? {}}
+                  status={vehicle.status ?? "not_submitted"}
+                />
+              </section>
+            ) : null,
           )}
         </HubSection>
         <HubSection id="cars" title="Cars">
@@ -379,19 +412,6 @@ export default async function DriverHub({
                         activationBlocked={!applicationAvailable || v?.vehicle_id === car.id}
                       />
                     </div>
-                    {v?.vehicle_id === car.id &&
-                    v.submission_id &&
-                    ["approved", "pending_review"].includes(v.status) ? (
-                      <div className="mt-3">
-                        <VehicleDecisionActions
-                          applicationId={application!.id}
-                          vehicleId={car.id}
-                          submissionId={v.submission_id}
-                          documentFileIds={v.document_file_ids ?? {}}
-                          status={v.status}
-                        />
-                      </div>
-                    ) : null}
                   </div>
                 ))
               )}
@@ -416,6 +436,19 @@ export default async function DriverHub({
           ) : (
             <>
               <p>{person.phone ?? "No phone recorded"}</p>
+              {!phoneWork.data ? (
+                <QueueUnavailable />
+              ) : phoneWork.data.items[0] && id ? (
+                <RecordPhoneVerification
+                  key={phoneWork.data.items[0].id}
+                  driverId={id}
+                  challengeId={phoneWork.data.items[0].id}
+                />
+              ) : (
+                <p className="text-muted mt-2 text-sm">
+                  No phone verification is waiting to be recorded.
+                </p>
+              )}
               {contacts.data?.items.map((task) => (
                 <Link
                   key={task.id}

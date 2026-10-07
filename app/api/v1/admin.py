@@ -13,6 +13,7 @@ from app.core.errors import AppError
 from app.core.rate_limit import login_client_ip
 from app.models.driver_application import DriverApplication
 from app.models.user import UserRole, UserStatus
+from app.models.vehicle import VehicleType
 from app.schemas.driver_applications import (
     DriverAccountSetupInitiate,
     DriverAccountSetupRead,
@@ -68,7 +69,8 @@ def _admin_person_payee_response(view) -> AdminPersonPayeeStageRead:
         status=submission.status,
         submission_id=submission.id,
         version=submission.version,
-        masked_nin=f"*******{submission.nin_last_four}",
+        masked_nin=f"*******{submission.nin_last_four}" if submission.purged_at is None else None,
+        purged_at=submission.purged_at,
         bank_account_verified=view.bank_account_verified,
         reason_code=decision.reason_code if decision else None,
         created_at=submission.created_at,
@@ -85,8 +87,19 @@ def _admin_vehicle_response(view: VehicleStageView) -> AdminVehicleStageRead:
     vehicle = view.vehicle
     submission = view.submission
     decision = view.decision
-    if vehicle is None or submission is None:
+    if vehicle is None:
         return AdminVehicleStageRead()
+    if submission is None:
+        return AdminVehicleStageRead(
+            vehicle_id=vehicle.id,
+            plate_number=vehicle.plate_number,
+            plate_country_code=vehicle.plate_country_code,
+            vehicle_type=VehicleType(vehicle.vehicle_type),
+            make=vehicle.make,
+            model=vehicle.model,
+            year=vehicle.year,
+            color=vehicle.color,
+        )
     return AdminVehicleStageRead(
         status=submission.status,
         vehicle_id=vehicle.id,

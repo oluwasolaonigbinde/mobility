@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from test_driver_person_payee_onboarding import (
     PASSWORD,
     _complete_admin_review,
+    _current_submission_id,
     _person_payee_payload,
     _seed_clean_kyc_files,
 )
@@ -62,6 +63,7 @@ def prepare(client, maker, settings):
         "person": (
             f"/api/v1/admin/driver-applications/{application.id}/person-payee-decision",
             {
+                "submission_id": _current_submission_id(maker, application.driver_profile_id),
                 "client_request_id": str(uuid4()),
                 "decision": "approved",
                 "reason_code": "complete_current_evidence",

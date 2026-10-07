@@ -42,6 +42,65 @@ PASSWORD = "long-secure-password"
 NIN = "12345678901"
 
 
+def test_postgres_access_renewal_and_public_capture_do_not_deadlock(
+    postgis_db_client, postgis_db_sessionmaker, settings
+):
+    token, _ = _register(
+        postgis_db_client, postgis_db_sessionmaker, settings, suffix="access-overlap"
+    )
+    application = _application(
+        postgis_db_sessionmaker, email="person-payee-access-overlap@example.com"
+    )
+    files = _seed_clean_kyc_files(postgis_db_sessionmaker, email=application.email)
+    payload = PersonPayeeSubmissionCreate.model_validate(_person_payee_payload(token, files))
+    barrier = asyncio.Barrier(2)
+
+    async def capture():
+        async with postgis_db_sessionmaker() as session:
+            await barrier.wait()
+            await submit_application_person_payee(
+                session,
+                payload=payload,
+                crypto=EnvelopeCryptoProvider(keys={1: bytes(range(32))}, active_key_version=1),
+                settings=settings,
+            )
+            await session.commit()
+
+    async def renew():
+        async with postgis_db_sessionmaker() as session:
+            current = await session.get(DriverApplication, application.id)
+            await barrier.wait()
+            access = await issue_driver_application_access(
+                session, application=current, settings=settings
+            )
+            assert access is not None
+            await session.commit()
+
+    async def scenario():
+        await asyncio.wait_for(asyncio.gather(capture(), renew()), timeout=20)
+        async with postgis_db_sessionmaker() as session:
+            assert await session.scalar(select(func.count(DriverKycSubmission.id))) == 1
+            assert await session.scalar(select(func.count(PayeeBankAccountVersion.id))) == 1
+
+    asyncio.run(scenario())
+
+
+def _current_submission_id(maker, profile_id):
+    async def fetch():
+        async with maker() as session:
+            return (
+                await session.scalar(
+                    select(DriverKycSubmission.id)
+                    .where(DriverKycSubmission.driver_profile_id == profile_id)
+                    .order_by(DriverKycSubmission.version.desc())
+                    .limit(1)
+                )
+                or uuid4()
+            )
+
+    return str(asyncio.run(fetch()))
+
+
 def _register(db_client, db_sessionmaker, settings, *, suffix: str) -> tuple[str, Response]:
     enabled = settings.model_copy(update={"driver_registration_enabled": True})
     db_client.app.dependency_overrides[get_settings] = lambda: enabled
@@ -376,6 +435,7 @@ def test_incomplete_person_payee_cannot_be_approved(db_client, db_sessionmaker, 
         f"/api/v1/admin/driver-applications/{application.id}/person-payee-decision",
         headers=auth_headers(db_client, admin.email, PASSWORD),
         json={
+            "submission_id": _current_submission_id(db_sessionmaker, application.driver_profile_id),
             "client_request_id": str(uuid4()),
             "decision": "approved",
             "reason_code": "complete_current_evidence",
@@ -434,6 +494,7 @@ def test_admin_approval_is_idempotent_audited_safe_and_non_work_eligible(
     asyncio.run(add_large_nonqualifying_history())
     decision_id = uuid4()
     decision = {
+        "submission_id": _current_submission_id(db_sessionmaker, application.driver_profile_id),
         "client_request_id": str(decision_id),
         "decision": "approved",
         "reason_code": "complete_current_evidence",
@@ -537,7 +598,18 @@ def test_admin_approval_is_idempotent_audited_safe_and_non_work_eligible(
         json={**decision, "client_request_id": str(uuid4())},
     )
     assert stale_review.status_code == 409
-    assert stale_review.json()["error"]["code"] == "PERSON_PAYEE_REVIEW_EVIDENCE_INCOMPLETE"
+    assert stale_review.json()["error"]["code"] == "PERSON_PAYEE_REVISION_STALE"
+    reopened_review = db_client.post(
+        path,
+        headers=auth_headers(db_client, admin.email, PASSWORD),
+        json={
+            **decision,
+            "submission_id": _current_submission_id(db_sessionmaker, application.driver_profile_id),
+            "client_request_id": str(uuid4()),
+        },
+    )
+    assert reopened_review.status_code == 409
+    assert reopened_review.json()["error"]["code"] == "PERSON_PAYEE_REVIEW_EVIDENCE_INCOMPLETE"
 
 
 def test_approval_fails_closed_for_unsafe_evidence_and_unavailable_key(
@@ -557,6 +629,7 @@ def test_approval_fails_closed_for_unsafe_evidence_and_unavailable_key(
         password=PASSWORD,
     )
     decision_payload = {
+        "submission_id": _current_submission_id(db_sessionmaker, application.driver_profile_id),
         "client_request_id": str(uuid4()),
         "decision": "approved",
         "reason_code": "complete_current_evidence",
@@ -647,6 +720,7 @@ def test_person_payee_decision_requires_an_active_admin(
         f"/api/v1/admin/driver-applications/{application.id}/person-payee-decision",
         headers=auth_headers(db_client, advertiser.email, PASSWORD),
         json={
+            "submission_id": _current_submission_id(db_sessionmaker, application.driver_profile_id),
             "client_request_id": str(uuid4()),
             "decision": "approved",
             "reason_code": "complete_current_evidence",
@@ -684,6 +758,7 @@ def test_rejected_or_expired_submission_resubmits_as_new_truthful_version(
         f"/api/v1/admin/driver-applications/{application.id}/person-payee-decision",
         headers=auth_headers(db_client, admin.email, PASSWORD),
         json={
+            "submission_id": _current_submission_id(db_sessionmaker, application.driver_profile_id),
             "client_request_id": str(uuid4()),
             "decision": decision,
             "reason_code": reason,
@@ -819,6 +894,14 @@ def test_postgres_concurrent_conflicting_decisions_serialize_once(
                     application_id=application.id,
                     actor_user_id=actor_id,
                     payload=PersonPayeeReviewDecisionCreate(
+                        submission_id=(
+                            await session.scalar(
+                                select(DriverKycSubmission.id).where(
+                                    DriverKycSubmission.driver_profile_id
+                                    == application.driver_profile_id
+                                )
+                            )
+                        ),
                         client_request_id=uuid4(),
                         decision=decision,
                         reason_code=reason,

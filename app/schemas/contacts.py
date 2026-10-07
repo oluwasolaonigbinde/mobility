@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
 
 class DriverPhoneUpdate(BaseModel):
@@ -27,27 +27,38 @@ class PhoneChallengeRead(BaseModel):
     attempt_count: int
     max_attempts: int
     expires_at: datetime
-    sent_channel: str | None
-    sent_at: datetime | None
     verified_at: datetime | None
 
+    @field_validator("expires_at", "verified_at")
+    @classmethod
+    def utc_dates(cls, value: datetime | None) -> datetime | None:
+        return value.replace(tzinfo=UTC) if value is not None and value.tzinfo is None else value
 
-class PhoneChallengeVerify(BaseModel):
+
+class DriverPhoneChallengeRead(PhoneChallengeRead):
+    code: str
+    terrax_number: str
+
+
+class PhoneVerificationRecord(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    code: str = Field(min_length=6, max_length=6, pattern=r"^[0-9]{6}$")
+    challenge_id: UUID
+    code: SecretStr = Field(repr=False, min_length=6, max_length=6)
+    sender_phone: SecretStr = Field(repr=False, min_length=8, max_length=32)
 
-
-class PhoneChallengeSent(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    channel: Literal["whatsapp", "voice"]
-    operator_evidence_reference: str = Field(min_length=1, max_length=255)
-    provider_message_id: str = Field(min_length=1, max_length=255)
+    @field_validator("code")
+    @classmethod
+    def validate_code(cls, value: SecretStr) -> SecretStr:
+        code = value.get_secret_value()
+        if not code.isascii() or not code.isdigit():
+            raise ValueError("Enter the six digits received")
+        return value
 
 
 class AdminPhoneChallengeRead(PhoneChallengeRead):
     driver_profile_id: UUID
+    driver_name: str | None = None
     masked_phone: str
 
 
@@ -78,6 +89,8 @@ class WhatsappConsentRead(BaseModel):
 class DriverContactStateRead(BaseModel):
     phone: DriverPhoneVersionRead | None
     whatsapp_consent: WhatsappConsentRead | None
+    verification_available: bool = False
+    challenge: PhoneChallengeRead | None = None
 
 
 class ManualContactTaskComplete(BaseModel):

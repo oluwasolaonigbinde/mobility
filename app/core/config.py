@@ -241,6 +241,9 @@ class Settings(BaseSettings):
     paystack_secret_key: OptionalSecret = None
     paystack_checkout_return_url: str = ""
     phone_operator_external_approved: bool = False
+    phone_operator_name: str = ""
+    phone_whatsapp_notice_approval_reference: str = ""
+    phone_verification_terrax_number: str = ""
     phone_verification_ttl_seconds: int = 600
     phone_verification_max_code_attempts: int = 5
     phone_verification_request_max_attempts: int = 3

@@ -94,6 +94,18 @@ DEMO_PASSWORDS = {
     "driver@demo.mobility.local": "DemoDriver12345!",
 }
 LOCAL_ENVIRONMENTS = {"local", "dev", "development", "test", "testing"}
+DEMO_DRIVER_PHONE_NUMBERS = {
+    "damilola.akinwale@demo.mobility.local": "+447700900114",
+    "driver@demo.mobility.local": "+447700900100",
+    **{
+        f"driver{index:02d}@demo.mobility.local": f"+447700900{100 + index}"
+        for index in range(1, 10)
+    },
+    "abdulrahman.yusuf@mail.ng": "+447700900110",
+    "nneka.umeh@mail.ng": "+447700900111",
+    "ayodele.bakare@mail.ng": "+447700900112",
+    "suleiman.idris@mail.ng": "+447700900113",
+}
 PRODUCTION_ENVIRONMENTS = {"prod", "production", "staging"}
 
 
@@ -200,7 +212,7 @@ async def upsert_user(
             email=normalized_email,
             password_hash=hash_password(password),
             full_name=full_name,
-            phone=None,
+            phone=DEMO_DRIVER_PHONE_NUMBERS.get(normalized_email),
             role=role.value,
             status=status_value,
         )
@@ -219,6 +231,8 @@ async def upsert_user(
     else:
         user.full_name = full_name
         user.status = status_value
+        if normalized_email in DEMO_DRIVER_PHONE_NUMBERS:
+            user.phone = DEMO_DRIVER_PHONE_NUMBERS[normalized_email]
         if not verify_password(password, user.password_hash):
             user.password_hash = hash_password(password)
     # Seeded credentials are documented and used by e2e; forcing their first
@@ -1777,6 +1791,9 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
 
     await ensure_portal_audiences(session, graph=graph, settings=settings)
     await ensure_portal_payouts(session, graph=graph, staff=staff, settings=settings)
+    from app.seeds.renewals import ensure_demo_renewals
+
+    await ensure_demo_renewals(session, settings=settings, reviewer=staff[2])
     return graph
 
 

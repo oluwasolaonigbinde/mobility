@@ -9,6 +9,7 @@ from test_driver_person_payee_onboarding import (
     PASSWORD,
     _application,
     _complete_admin_review,
+    _current_submission_id,
     _person_payee_payload,
     _register,
     _seed_clean_kyc_files,
@@ -37,8 +38,9 @@ from app.services.payees import (
 )
 
 
-def _approval_payload(request_id=None) -> dict[str, object]:
+def _approval_payload(submission_id, request_id=None) -> dict[str, object]:
     return {
+        "submission_id": submission_id,
         "client_request_id": str(request_id or uuid4()),
         "decision": "approved",
         "reason_code": "complete_current_evidence",
@@ -95,10 +97,13 @@ def test_approval_requires_actual_exact_current_review_reads(
     approval = db_client.post(
         f"/api/v1/admin/driver-applications/{application.id}/person-payee-decision",
         headers=auth_headers(db_client, admin.email, PASSWORD),
-        json=_approval_payload(),
+        json=_approval_payload(
+            _current_submission_id(db_sessionmaker, application.driver_profile_id)
+        ),
     )
     assert approval.status_code == 409
     assert approval.json()["error"]["code"] == "PERSON_PAYEE_BANK_ACCOUNT_UNVERIFIED"
+
     async def current_submission():
         from app.models.kyc import DriverKycSubmission
 
@@ -120,7 +125,9 @@ def test_approval_requires_actual_exact_current_review_reads(
     response = db_client.post(
         f"/api/v1/admin/driver-applications/{application.id}/person-payee-decision",
         headers=headers,
-        json=_approval_payload(),
+        json=_approval_payload(
+            _current_submission_id(db_sessionmaker, application.driver_profile_id)
+        ),
     )
 
     assert response.status_code == 409
@@ -135,7 +142,9 @@ def test_approval_requires_actual_exact_current_review_reads(
     approved = db_client.post(
         f"/api/v1/admin/driver-applications/{application.id}/person-payee-decision",
         headers=headers,
-        json=_approval_payload(),
+        json=_approval_payload(
+            _current_submission_id(db_sessionmaker, application.driver_profile_id)
+        ),
     )
     assert approved.status_code == 200, approved.json()
 
@@ -195,7 +204,9 @@ def test_person_payee_approval_rejects_evidence_with_wrong_entity_type(
     response = db_client.post(
         f"/api/v1/admin/driver-applications/{application.id}/person-payee-decision",
         headers=auth_headers(db_client, admin.email, PASSWORD),
-        json=_approval_payload(),
+        json=_approval_payload(
+            _current_submission_id(db_sessionmaker, application.driver_profile_id)
+        ),
     )
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "PERSON_PAYEE_REVIEW_EVIDENCE_INCOMPLETE"
@@ -299,7 +310,9 @@ def test_person_payee_approval_rejects_each_other_near_match_evidence(
     response = db_client.post(
         f"/api/v1/admin/driver-applications/{application.id}/person-payee-decision",
         headers=auth_headers(db_client, admin.email, PASSWORD),
-        json=_approval_payload(),
+        json=_approval_payload(
+            _current_submission_id(db_sessionmaker, application.driver_profile_id)
+        ),
     )
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "PERSON_PAYEE_REVIEW_EVIDENCE_INCOMPLETE"
@@ -360,12 +373,11 @@ def test_applicant_capture_is_not_payout_authority(db_client, db_sessionmaker, s
                     verification_reference=f"conflicting-provider-{uuid4().hex}",
                     actor_user_id=admin.id,
                 )
-            assert (
-                verification_conflict.value.code
-                == "BANK_ACCOUNT_PAYOUT_VERIFICATION_CONFLICT"
-            )
+            assert verification_conflict.value.code == "BANK_ACCOUNT_PAYOUT_VERIFICATION_CONFLICT"
             _, permitted = await _frozen_payee_authority(
-                session, None, payee  # type: ignore[arg-type]
+                session,
+                None,
+                payee,  # type: ignore[arg-type]
             )
             second_version = await add_applicant_bank_account_version(
                 session,
@@ -377,9 +389,7 @@ def test_applicant_capture_is_not_payout_authority(db_client, db_sessionmaker, s
                 ),
                 verification_reference=f"applicant-capture-{uuid4().hex}",
                 actor_user_id=application.user_id,
-                crypto=EnvelopeCryptoProvider(
-                    keys={1: bytes(range(32))}, active_key_version=1
-                ),
+                crypto=EnvelopeCryptoProvider(keys={1: bytes(range(32))}, active_key_version=1),
             )
             with pytest.raises(AppError) as stale:
                 await _frozen_payee_authority(session, None, payee)  # type: ignore[arg-type]
@@ -414,6 +424,7 @@ def test_historical_decision_retry_resolves_original_submission(
     )
     request_id = uuid4()
     decision = {
+        "submission_id": _current_submission_id(db_sessionmaker, application.driver_profile_id),
         "client_request_id": str(request_id),
         "decision": "rejected",
         "reason_code": "unreadable_evidence",
@@ -443,15 +454,9 @@ def test_historical_decision_retry_resolves_original_submission(
 def test_resubmission_invalidates_every_stale_exact_review_read(
     db_client, db_sessionmaker, settings
 ) -> None:
-    access_token, _ = _register(
-        db_client, db_sessionmaker, settings, suffix="stale-review"
-    )
-    application = _application(
-        db_sessionmaker, email="person-payee-stale-review@example.com"
-    )
-    files = _seed_clean_kyc_files(
-        db_sessionmaker, email="person-payee-stale-review@example.com"
-    )
+    access_token, _ = _register(db_client, db_sessionmaker, settings, suffix="stale-review")
+    application = _application(db_sessionmaker, email="person-payee-stale-review@example.com")
+    files = _seed_clean_kyc_files(db_sessionmaker, email="person-payee-stale-review@example.com")
     first = db_client.post(
         "/api/v1/auth/driver-onboarding/person-payee",
         json=_person_payee_payload(access_token, files),
@@ -473,6 +478,7 @@ def test_resubmission_invalidates_every_stale_exact_review_read(
         f"/api/v1/admin/driver-applications/{application.id}/person-payee-decision",
         headers=headers,
         json={
+            "submission_id": _current_submission_id(db_sessionmaker, application.driver_profile_id),
             "client_request_id": str(uuid4()),
             "decision": "rejected",
             "reason_code": "identity_mismatch",
@@ -523,13 +529,12 @@ def test_resubmission_invalidates_every_stale_exact_review_read(
     stale_documents = db_client.post(
         path,
         headers=headers,
-        json=_approval_payload(),
+        json=_approval_payload(
+            _current_submission_id(db_sessionmaker, application.driver_profile_id)
+        ),
     )
     assert stale_documents.status_code == 409
-    assert (
-        stale_documents.json()["error"]["code"]
-        == "PERSON_PAYEE_REVIEW_EVIDENCE_INCOMPLETE"
-    )
+    assert stale_documents.json()["error"]["code"] == "PERSON_PAYEE_REVIEW_EVIDENCE_INCOMPLETE"
     for file_id in files.values():
         assert (
             db_client.post(
@@ -542,7 +547,16 @@ def test_resubmission_invalidates_every_stale_exact_review_read(
             ).status_code
             == 200
         )
-    assert db_client.post(path, headers=headers, json=_approval_payload()).status_code == 200
+    assert (
+        db_client.post(
+            path,
+            headers=headers,
+            json=_approval_payload(
+                _current_submission_id(db_sessionmaker, application.driver_profile_id)
+            ),
+        ).status_code
+        == 200
+    )
 
 
 def test_status_references_are_indistinguishable_across_every_mutation_probe(
@@ -574,7 +588,7 @@ def test_status_references_are_indistinguishable_across_every_mutation_probe(
         (
             "/api/v1/auth/driver-onboarding/files/uploads",
             lambda reference: {
-                    "application_access_token": reference,
+                "application_access_token": reference,
                 "upload": {
                     "client_request_id": str(uuid4()),
                     "purpose": "driver_kyc",
@@ -613,9 +627,7 @@ def test_status_references_are_indistinguishable_across_every_mutation_probe(
 def test_fresh_and_duplicate_driver_probes_deliver_separate_non_enumerating_authority(
     db_client, db_sessionmaker, settings, caplog
 ) -> None:
-    fresh_token, fresh = _register(
-        db_client, db_sessionmaker, settings, suffix="access-delivery"
-    )
+    fresh_token, fresh = _register(db_client, db_sessionmaker, settings, suffix="access-delivery")
 
     async def existing_access_ids() -> set:
         async with db_sessionmaker() as session:
@@ -732,8 +744,12 @@ def test_fresh_and_duplicate_driver_probes_deliver_separate_non_enumerating_auth
         return results[0], results[1]
 
     expired, unknown = asyncio.run(invalid_errors())
-    assert expired == unknown == (
-        "ONBOARDING_ACCESS_INVALID",
-        "Driver onboarding access is unavailable",
-        404,
+    assert (
+        expired
+        == unknown
+        == (
+            "ONBOARDING_ACCESS_INVALID",
+            "Driver onboarding access is unavailable",
+            404,
+        )
     )

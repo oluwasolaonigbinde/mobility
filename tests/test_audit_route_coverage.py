@@ -364,12 +364,21 @@ AUDITED = {
     ("POST", "/api/v1/driver/contact/phone-verification"): (
         "driver.contact.phone_verification.requested"
     ),
-    ("POST", "/api/v1/driver/contact/phone-verification/{challenge_id}/verify"): (
-        "driver.contact.phone_*"
+    ("POST", "/api/v1/admin/drivers/{driver_profile_id}/phone-verification"): (
+        "admin.phone_verification.*"
     ),
-    ("POST", "/api/v1/admin/phone-verification/{challenge_id}/sent"): (
-        "admin.phone_verification.sent"
-    ),
+    (
+        "POST",
+        "/api/v1/driver/documents/person-payee",
+    ): "driver.kyc.submitted|driver.kyc.retry_read|driver_application.bank_account.*",
+    (
+        "POST",
+        "/api/v1/admin/drivers/{driver_profile_id}/documents/person-payee-decision",
+    ): "admin.driver_person_payee.*",
+    (
+        "POST",
+        "/api/v1/admin/drivers/{driver_profile_id}/vehicles/{vehicle_id}/submissions/{submission_id}/decision",
+    ): "admin.driver_vehicle.*|admin.driver_application.approved",
     ("POST", "/api/v1/driver/contact/whatsapp-consent"): (
         "driver.contact.whatsapp_consent.granted"
     ),

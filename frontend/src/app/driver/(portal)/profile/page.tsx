@@ -5,6 +5,8 @@ import { getSessionToken } from "@/lib/auth/session";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { ProfileForm } from "./profile-form";
+import { DocumentRenewals } from "./document-renewals";
+import { PhoneVerification } from "./phone-verification";
 import { CampaignJourneyPanel } from "@/components/driver/campaign-journey-panel";
 import { DriverDataUnavailable } from "@/components/driver/data-unavailable";
 import { FreshDriverAuthority } from "@/components/driver/fresh-authority";
@@ -90,10 +92,10 @@ export default async function DriverProfilePage() {
         ) : (
           <>
             <Panel className="p-5">
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
                   <p className="text-base font-medium">{p.full_name}</p>
-                  <p className="micro text-faint mt-0.5">{p.email}</p>
+                  <p className="micro text-faint mt-0.5 break-all">{p.email}</p>
                 </div>
                 <StatusChip
                   tone={
@@ -134,6 +136,9 @@ export default async function DriverProfilePage() {
                 }}
               />
             </Panel>
+
+            <DocumentRenewals />
+            <PhoneVerification savedPhone={p.phone ?? ""} />
 
             <Panel className="overflow-hidden">
               <div className="border-edge border-b px-5 py-3.5">

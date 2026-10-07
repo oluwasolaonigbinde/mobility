@@ -388,11 +388,13 @@ def test_rewrap_cannot_resurrect_a_superseded_nin_chain(db_sessionmaker, setting
                 crypto=first_crypto,
                 settings=settings,
             )
+            first.submission.status = "rejected"
             await submit_driver_kyc(
                 session,
                 actor_user_id=driver.id,
                 client_request_id=uuid4(),
                 nin="10987654321",
+                allow_document_renewal=True,
                 bank_account_version_id=bank_id,
                 document_file_ids=document_file_ids,
                 crypto=first_crypto,
@@ -426,18 +428,22 @@ def test_postgres_concurrent_kyc_retry_and_versions_serialize(
 
     async def submit(request_id: UUID):
         async with postgis_db_sessionmaker() as session:
-            view = await submit_driver_kyc(
-                session,
-                actor_user_id=driver.id,
-                client_request_id=request_id,
-                nin=NIN,
-                bank_account_version_id=bank_id,
-                document_file_ids=document_file_ids,
-                crypto=crypto,
-                settings=settings,
-            )
-            await session.commit()
-            return view.submission.id, view.submission.version
+            try:
+                view = await submit_driver_kyc(
+                    session,
+                    actor_user_id=driver.id,
+                    client_request_id=request_id,
+                    nin=NIN,
+                    bank_account_version_id=bank_id,
+                    document_file_ids=document_file_ids,
+                    crypto=crypto,
+                    settings=settings,
+                )
+                await session.commit()
+                return view.submission.id, view.submission.version
+            except AppError as exc:
+                await session.rollback()
+                return exc.code
 
     async def exercise():
         exact = await asyncio.gather(submit(shared_request), submit(shared_request))
@@ -448,8 +454,8 @@ def test_postgres_concurrent_kyc_retry_and_versions_serialize(
 
     exact, later, count = asyncio.run(exercise())
     assert exact[0] == exact[1]
-    assert sorted(version for _, version in later) == [2, 3]
-    assert count == 3
+    assert later == ["PERSON_PAYEE_RENEWAL_REQUIRED"] * 2
+    assert count == 1
 
 
 def test_kyc_models_have_no_plaintext_nin_column() -> None:
