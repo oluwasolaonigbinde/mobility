@@ -1,0 +1,18 @@
+{
+  "oldIssuance": "88fbb978-350f-4952-b971-ed3dcb77e0ab",
+  "newIssuance": "25de03ce-d765-487f-a904-3b7845fd947f",
+  "formats": {
+    "csv": {
+      "historicalBytesUnchanged": true,
+      "oldSha256": "ab23dad46d9b81ecddef259143b45024ef72976f67098a12b0a249bd33097f5e",
+      "redownloadSha256": "ab23dad46d9b81ecddef259143b45024ef72976f67098a12b0a249bd33097f5e",
+      "newSha256": "a850748963e8be85ae45c1ace95327e897fa2ac2c1582c380056a93ea9324ff8"
+    },
+    "pdf": {
+      "historicalBytesUnchanged": true,
+      "oldSha256": "06e0fe17cf3a5dcf11f331c9e6cdd881b166d31a32f5551ab0e6a19485093ef7",
+      "redownloadSha256": "06e0fe17cf3a5dcf11f331c9e6cdd881b166d31a32f5551ab0e6a19485093ef7",
+      "newSha256": "59a2a263e66e3dcc2740d9120faabed145832894986b0d2b1b1041ada138f73d"
+    }
+  }
+}

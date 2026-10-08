@@ -24,9 +24,11 @@ describe("formatMoney", () => {
   it("formats NGN amounts", () => {
     expect(formatMoney("13389.00", "NGN")).toContain("13,389");
   });
-  it("keeps decimals for small amounts only", () => {
-    expect(formatMoney("12.50", "NGN")).toContain("12.5");
-    expect(formatMoney("125000", "NGN")).not.toContain(".");
+  it("groups naira and always keeps two decimal places", () => {
+    expect(formatMoney("12.50", "NGN")).toBe("₦12.50");
+    expect(formatMoney("1234567", "NGN")).toBe("₦1,234,567.00");
+    expect(formatMoney("1234.56", "NGN")).toBe("₦1,234.56");
+    expect(formatMoney("0", "NGN")).toBe("₦0.00");
   });
   it("returns em dash for absent values", () => {
     expect(formatMoney(null)).toBe("—");

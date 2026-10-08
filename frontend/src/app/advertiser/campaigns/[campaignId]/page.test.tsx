@@ -18,10 +18,16 @@ vi.mock("@/lib/auth/current-user", () => ({ requireRole }));
 vi.mock("next/navigation", () => ({ redirect, notFound }));
 vi.mock("./status-actions", () => ({ StatusActions: () => <button>Submit for review</button> }));
 vi.mock("./commercial-panel", () => ({
-  CommercialPanel: ({ error }: { error?: string }) => (
+  CommercialPanel: ({
+    error,
+    canRequestQuotation,
+  }: {
+    error?: string;
+    canRequestQuotation?: boolean;
+  }) => (
     <section>
       <h2>Commercial terms</h2>
-      <button>Request quotation</button>
+      {canRequestQuotation && <button>Request quotation</button>}
       {error && <p>{error}</p>}
     </section>
   ),
@@ -121,21 +127,25 @@ describe("resilient campaign detail", () => {
     expect(document.body).not.toHaveTextContent("Private backend detail");
   });
 
-  it("offers no artwork or change requests on a finished campaign", async () => {
-    get.mockImplementation(async (path: string) =>
-      path.endsWith("campaign-1") || path.endsWith("{campaign_id}")
-        ? { data: { ...campaign, status: "completed" } }
-        : healthy(path),
-    );
-    render(await CampaignDetailPage(input));
-    expect(screen.queryByRole("link", { name: "Add artwork" })).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Request campaign change" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.getByText("No review history is recorded for this campaign."),
-    ).toBeInTheDocument();
-  });
+  it.each(["completed", "cancelled"])(
+    "offers no artwork, change or quotation requests on a %s campaign",
+    async (status) => {
+      get.mockImplementation(async (path: string) =>
+        path.endsWith("campaign-1") || path.endsWith("{campaign_id}")
+          ? { data: { ...campaign, status } }
+          : healthy(path),
+      );
+      render(await CampaignDetailPage(input));
+      expect(screen.queryByRole("button", { name: "Request quotation" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "Add artwork" })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Request campaign change" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByText("No review history is recorded for this campaign."),
+      ).toBeInTheDocument();
+    },
+  );
 
   it("does not mistake an optional 404 for a missing campaign", async () => {
     get.mockImplementation(async (path: string) => {
@@ -428,7 +438,7 @@ describe("resilient campaign detail", () => {
         "Estimated opportunities to see the ad, based on routes and traffic. This is not a count of people or measured views.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByText("GPS evidence quality")).toBeInTheDocument();
+    expect(screen.getByText("GPS signal quality")).toBeInTheDocument();
     expect(screen.queryByText("Quality score")).not.toBeInTheDocument();
     expect(screen.getByText("Driver pay to date")).toBeInTheDocument();
     expect(

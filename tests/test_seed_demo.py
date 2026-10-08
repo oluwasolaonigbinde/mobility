@@ -1459,6 +1459,8 @@ def test_demo_seed_runs_with_immutable_guards_from_alembic_head(
     settings: Settings,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    from app.models.kyc import DriverKycReviewDecision, VehicleEvidenceReviewDecision
+
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     engine = None
     try:
@@ -1471,18 +1473,33 @@ def test_demo_seed_runs_with_immutable_guards_from_alembic_head(
         async def seed() -> None:
             async with sessionmaker() as session:
                 graph = await build_demo_graph(session, migrated_settings)
-                # Existing Start fixtures use the trusted no-application/no-KYC baseline;
-                # the renewal example alone has complete audited document revisions.
-                assert not await session.scalar(
-                    select(DriverKycSubmission.id).where(
+                person = await session.scalar(
+                    select(DriverKycSubmission).where(
                         DriverKycSubmission.driver_profile_id == graph.driver_profile.id
                     )
                 )
-                assert not await session.scalar(
-                    select(VehicleEvidenceSubmission.id).where(
+                car = await session.scalar(
+                    select(VehicleEvidenceSubmission).where(
                         VehicleEvidenceSubmission.vehicle_id == graph.vehicle.id
                     )
                 )
+                assert person.status == car.status == "approved" and car.snapshot_trusted
+                person_review = await session.scalar(
+                    select(DriverKycReviewDecision).where(
+                        DriverKycReviewDecision.submission_id == person.id
+                    )
+                )
+                car_review = await session.scalar(
+                    select(VehicleEvidenceReviewDecision).where(
+                        VehicleEvidenceReviewDecision.submission_id == car.id
+                    )
+                )
+                assert person_review.decision == car_review.decision == "approved"
+                for review in (person_review, car_review):
+                    assert len(review.document_reviews) == 3
+                    assert all(
+                        item["status"] == "accepted" for item in review.document_reviews.values()
+                    )
                 renewal_driver = await session.scalar(
                     select(DriverProfile).join(User).where(User.full_name == "Damilola Akinwale")
                 )
@@ -2202,7 +2219,7 @@ def test_rich_seed_later_rerun_only_appends_valid_rolling_trips(
 
 
 def test_ordinary_demo_driver_can_start_and_end_using_production_authority(
-    postgis_db_client, postgis_db_sessionmaker, settings, monkeypatch
+    postgis_db_client, postgis_db_sessionmaker, settings, monkeypatch, seed_private_storage
 ):
     from conftest import auth_headers
 
@@ -2211,6 +2228,70 @@ def test_ordinary_demo_driver_can_start_and_end_using_production_authority(
     headers = auth_headers(
         postgis_db_client, graph.driver.email, DEMO_PASSWORDS[graph.driver.email]
     )
+
+    def current_documents():
+        response = postgis_db_client.get("/api/v1/driver/documents", headers=headers)
+        assert response.status_code == 200, response.text
+        documents = response.json()
+        person = documents["person_payee"]
+        assert person["status"] == "approved" and person["bank_account_verified"]
+        car = next(
+            item for item in documents["vehicles"] if item["vehicle_id"] == str(graph.vehicle.id)
+        )
+        assert car["status"] == "approved"
+        evidence = postgis_db_client.get(
+            f"/api/v1/driver/vehicles/{graph.vehicle.id}/evidence-current", headers=headers
+        )
+        assert evidence.status_code == 200 and evidence.json()["snapshot_trusted"]
+        for stage in (person, car):
+            assert len(stage["documents"]) == 3
+            assert all(item["status"] == "accepted" for item in stage["documents"].values())
+        assert (
+            person["documents"]["driver_license"]["expires_on"]
+            > datetime.now(UTC).date().isoformat()
+        )
+        assert car["documents"]["insurance"]["expires_on"] > datetime.now(UTC).date().isoformat()
+        return documents
+
+    async def document_snapshot():
+        from app.models.kyc import DriverKycReviewDecision, VehicleEvidenceReviewDecision
+
+        async with postgis_db_sessionmaker() as session:
+            files = list(
+                await session.scalars(
+                    select(StoredFile)
+                    .where(
+                        StoredFile.subject_user_id == graph.driver.id,
+                        StoredFile.purpose.in_(["driver_kyc", "vehicle_evidence"]),
+                    )
+                    .order_by(StoredFile.id)
+                )
+            )
+            assert len(files) == 6
+            for stored in files:
+                assert stored.scan_status == "clean"
+                assert seed_private_storage.contents[stored.storage_key].startswith(b"\x89PNG")
+                assert await session.scalar(
+                    select(AuditEvent.id).where(
+                        AuditEvent.action == "stored_file.read",
+                        AuditEvent.entity_id == str(stored.id),
+                    )
+                )
+            person_review = await session.scalar(
+                select(DriverKycReviewDecision)
+                .join(DriverKycSubmission)
+                .where(DriverKycSubmission.driver_profile_id == graph.driver_profile.id)
+            )
+            car_review = await session.scalar(
+                select(VehicleEvidenceReviewDecision)
+                .join(VehicleEvidenceSubmission)
+                .where(VehicleEvidenceSubmission.vehicle_id == graph.vehicle.id)
+            )
+            assert person_review.decision == car_review.decision == "approved"
+            return [row.id for row in files], person_review.id, car_review.id
+
+    first_document_facts = asyncio.run(document_snapshot())
+    first_documents = current_documents()
     response = postgis_db_client.post(
         "/api/v1/driver/trips/start",
         headers=headers,
@@ -2237,6 +2318,8 @@ def test_ordinary_demo_driver_can_start_and_end_using_production_authority(
     )
     assert ended.status_code == 200, ended.text
     seed_demo_graph(postgis_db_sessionmaker, settings)
+    assert current_documents() == first_documents
+    assert asyncio.run(document_snapshot()) == first_document_facts
     response = postgis_db_client.post(
         "/api/v1/driver/trips/start",
         headers=headers,

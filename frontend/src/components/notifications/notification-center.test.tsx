@@ -52,6 +52,48 @@ afterEach(() => {
 });
 
 describe("NotificationCenter", () => {
+  it("opens the authorized named campaign and closes the panel", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((path: string) => {
+        if (isList(path))
+          return response({
+            items: [
+              {
+                ...notice("campaign"),
+                campaign_name: "PalmPay Wuse Blitz",
+                action_url: "/advertiser/campaigns/123",
+              },
+            ],
+            total: 1,
+            limit: 20,
+            offset: 0,
+          });
+        return response({ unread_count: 1 });
+      }),
+    );
+    renderCentre();
+    fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
+    const link = await screen.findByRole("link", { name: "Open PalmPay Wuse Blitz" });
+    expect(link).toHaveAttribute("href", "/advertiser/campaigns/123");
+    fireEvent.click(link);
+    expect(screen.queryByRole("region", { name: "Notifications" })).not.toBeInTheDocument();
+  });
+
+  it("does not offer Open for notices without an authorized destination", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((path: string) =>
+        isList(path)
+          ? response({ items: [notice("generic")], total: 1, limit: 20, offset: 0 })
+          : response({ unread_count: 1 }),
+      ),
+    );
+    renderCentre();
+    fireEvent.click(screen.getByRole("button", { name: /notifications/i }));
+    await screen.findByText("Notice generic");
+    expect(screen.queryByRole("link", { name: /^Open/ })).not.toBeInTheDocument();
+  });
   it("hides saved read notices and closes the panel without changing notifications", async () => {
     const fetchMock = vi.fn<(input: string, init?: RequestInit) => Promise<Response>>((input) => {
       if (input === "/api/notifications/unread-count") return response({ unread_count: 0 });

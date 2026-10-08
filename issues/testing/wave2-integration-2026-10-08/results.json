@@ -1,0 +1,2877 @@
+{
+  "parents": [
+    "74cdb314240fd4168432ea227b9739f62fad9c0d",
+    "78ad55808e785e0b0a1ecad38185da5b09359664"
+  ],
+  "comparison_base": "ec267529d26688bb18d72d41ac3ced4a68221a5a",
+  "coverage": "NOT RUN locally under D71",
+  "runtime_source_hashes_match_index": 121,
+  "frontend_changed": {
+    "cases": 191,
+    "passed": 191,
+    "failed": 0,
+    "skipped": 0,
+    "case_verdicts": [
+      {
+        "id": "src/lib/format.test.ts::formatCount > formats decimal strings from the API",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/format.test.ts::formatCount > handles null/undefined/garbage as em dash",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/format.test.ts::formatMoney > formats NGN amounts",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/format.test.ts::formatMoney > groups naira and always keeps two decimal places",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/format.test.ts::formatMoney > returns em dash for absent values",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/format.test.ts::formatScore > renders 0-1 scores as percentages",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/format.test.ts::formatKm > converts meters to km",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/format.test.ts::formatDuration > formats hours and minutes",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/format.test.ts::formatDuration > formats sub-hour and sub-minute values",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/format.test.ts::formatDuration > dashes out nullish and invalid values",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/format.test.ts::formatMoneyExact > never rounds kobo away",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/format.test.ts::formatDateTime > shows the wall-clock time for rate-flip instants",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/format.test.ts::formatDateTime > dashes for missing or invalid input",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/components/marketing/pathways.test.tsx::driver pay introduction > explains the daily miles condition and shorter-day proportional pay beside the application link",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/components/notifications/notification-center.test.tsx::NotificationCenter > opens the authorized named campaign and closes the panel",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/components/notifications/notification-center.test.tsx::NotificationCenter > does not offer Open for notices without an authorized destination",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/components/notifications/notification-center.test.tsx::NotificationCenter > hides saved read notices and closes the panel without changing notifications",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/components/notifications/notification-center.test.tsx::NotificationCenter > polls only the unread count while visible and fetches the list only on open",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/components/notifications/notification-center.test.tsx::NotificationCenter > removes single read notices and keeps unread pagination correct",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/components/notifications/notification-center.test.tsx::NotificationCenter > removes all read notices and keeps unread pagination correct",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/components/notifications/notification-center.test.tsx::NotificationCenter > sends read commands without a body media type and JSON preferences with one",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/components/notifications/notification-center.test.tsx::NotificationCenter > reaches older notifications page by page and shows each once",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/components/notifications/notification-center.test.tsx::NotificationCenter > keeps the cached unread badge while a background poll is in flight",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/components/notifications/notification-center.test.tsx::NotificationCenter > invalidates the list and count after read mutations",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/components/notifications/notification-center.test.tsx::NotificationCenter > renders the new activity notices with their truthful driver copy",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/components/notifications/notification-center.test.tsx::NotificationCenter > shows the organization-wide mandatory in-app setting and email toggle only to advertisers",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/components/notifications/notification-center.test.tsx::NotificationCenter > surfaces failed mutations with accessible retry actions",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/components/notifications/notification-center.test.tsx::NotificationCenter > hides cached notification authority and blocks mutations while offline",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/components/notifications/notification-center.test.tsx::NotificationCenter > clears role-scoped notification state and redirects on session revocation",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/components/notifications/notification-center.test.tsx::NotificationCenter > removes the previous user's cached notices when the session scope changes",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/assignments/offer-terms.test.ts::offerTermLines > lists every accepted term in words without IDs, hashes, geometry or versions",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/assignments/offer-terms.test.ts::installationViewLabel > names the client's five views and falls back to words for other codes",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/assignments/offer-terms.test.ts::dailyRateSentences > states the day rate, target, proportional rule, stop rule and full outside miles",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/assignments/offer-terms.test.ts::dailyRateSentences > states the per-mile deduction, the minimum and the outside-area share",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/assignments/offer-terms.test.ts::dailyRateSentences > returns nothing for hourly offers and hides the raw daily-rate keys",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/billing/invoice-document.test.tsx::InvoiceDocument > lays out an issued invoice with every field the client asked for",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/billing/invoice-document.test.tsx::InvoiceDocument > marks a draft, leaves unrecorded facts blank and shows no payments block",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/billing/invoice-document.test.tsx::InvoiceDocument > names a real issued or void invoice plainly",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/billing/invoice-document.test.tsx::invoice formatting > formats rates, dates and durations without guessing",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/billing/invoice-document.test.tsx::invoice formatting > reads a campaign instant as its Nigeria calendar day",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/files/onboarding-upload.test.ts::uses owned upload/confirmation/scan routes and leaves signed-in confirmation bodyless",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/files/onboarding-upload.test.ts::retains public capability submission while rejecting unsafe uploaded files",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::reviews every current vehicle in Documents and provides only a blank received-code form",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::keeps exact audited document identities and blocks generic activation for a public applicant",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::keeps generic activation blocked for any linked public application (approved)",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::keeps generic activation blocked for any linked public application (pending_review)",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::allows the existing activation action after a successful scoped read confirms no application",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::uses identity-scoped complaint and contact reads and opens their exact Support selection",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::account setup is available only for an approved invited account (invited)",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::account setup is available only for an approved invited account (active)",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::does not link another person's documents even when their email matches",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::links accepted jobs to the campaign drawer without claiming readiness or offering Start",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::labels calculation dates accurately and recalculates only the selected trip without an ID field",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::keeps failed document reads unavailable and activation blocked",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::bounds cold hub reads independently of row count (1)",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::bounds cold hub reads independently of row count (25)",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::does not render a denied driver or fan out secondary reads",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::uses the same sections for an applicant without a driver profile",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::keeps failed secondary reads unavailable instead of claiming empty records or zero pay",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::shows driver's own reviews and activity and preserves each page's filters",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::labels actual job lifecycle dates",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::bounds a selected application query even when candidate lookup fails (false)",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::bounds a selected application query even when candidate lookup fails (true)",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::uses actual active staff-added driver and car states without inventing document approval",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::prioritizes pending_review documents, bank true, car pending_review before invited sign-in",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::prioritizes approved documents, bank false, car pending_review before invited sign-in",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::prioritizes approved documents, bank true, car pending_review before invited sign-in",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::prioritizes approved documents, bank true, car approved before invited sign-in",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::keeps a known document blocker when the account read fails",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::passes the known not-submitted state to the five-row document review",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/driver-hub.test.tsx::keeps suspension ahead of document review and sign-in",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/phone-verification-actions.test.ts::forwards staff received input but never returns it",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/phone-verification-actions.test.ts::rejects malformed code without echoing inputs",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/phone-verification-actions.test.ts::rejects malformed sender_phone without echoing inputs",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/phone-verification-actions.test.ts::rejects malformed challenge_id without echoing inputs",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/phone-verification-actions.test.ts::rejects malformed driver_profile_id without echoing inputs",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/phone-verification-actions.test.ts::returns safe server mismatch and unavailable errors without input",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/record-phone-verification.test.tsx::starts with empty received-message inputs and records success once",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/drivers/record-phone-verification.test.tsx::shows a safe error and allows a correction",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/actions.test.ts::reviewPersonPayeeAction > performs explicit audited reads of the exact identity, account and document",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/actions.test.ts::reviewPersonPayeeAction > audits every direct document read with the automatic application-review purpose",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/actions.test.ts::reviewPersonPayeeAction > refuses empty Reject reason but permits empty reason for Approve and Expire",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/actions.test.ts::reviewPersonPayeeAction > promotes only the exact account version with an authorized reference",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/actions.test.ts::reviewPersonPayeeAction > requires all explicit approval facts before the governed decision endpoint",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/actions.test.ts::reviewPersonPayeeAction > records typed rejection evidence without approval attestations",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/actions.test.ts::reviewPersonPayeeAction > binds profile-only person and vehicle reviews to the displayed current revision",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/actions.test.ts::reviewPersonPayeeAction > audits exact vehicle evidence and requires every approval fact",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/actions.test.ts::reviewPersonPayeeAction > starts approved driver account setup without exposing the one-use authority",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/actions.test.ts::logs every vehicle View with automatic vehicle-review purpose and current IDs",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/support/page.test.tsx::Support work lists > shows named current phone work with masked numbers and an empty received-code form",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/support/page.test.tsx::Support work lists > keeps the driver and list filters in row, page and close links",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/support/page.test.tsx::Support work lists > loads an off-page complaint independently and keeps its conversation",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/support/page.test.tsx::Support work lists > does not expose another company's selected complaint",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/support/page.test.tsx::Support work lists > separates a selected complaint 404 from an empty list",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/support/page.test.tsx::Support work lists > separates a selected complaint 503 from an empty list",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/support/page.test.tsx::Support work lists > locates a scoped contact on a later page and permits current work",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/support/page.test.tsx::Support work lists > keeps contact history read-only and never labels a missing name as empty",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/api/driver/renewals-phone-routes.test.ts::uses signed-in authority and no-store for driver reads and sole code response",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/api/driver/renewals-phone-routes.test.ts::forwards current revision IDs and upload references to owned routes",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/api/driver/renewals-phone-routes.test.ts::keeps safe rejection errors free from driver code and token",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/api/driver/renewals-phone-routes.test.ts::rejects malformed sensitive JSON without echoing it or calling the backend",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/campaign-change-panel.test.tsx::CampaignChangePanel > starts a fresh command after success and supports a second change without reload",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/campaign-change-panel.test.tsx::CampaignChangePanel > lists earlier requests without a form once changes are no longer accepted",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/campaign-change-panel.test.tsx::CampaignChangePanel > clears a preview when Total budget changes and requires another preview",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/campaign-change-panel.test.tsx::CampaignChangePanel > clears a preview when Daily budget changes and requires another preview",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/campaign-change-panel.test.tsx::CampaignChangePanel > clears a preview when New start, Nigeria time (WAT) changes and requires another preview",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/campaign-change-panel.test.tsx::CampaignChangePanel > clears a preview when New end, Nigeria time (WAT) changes and requires another preview",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/campaign-change-panel.test.tsx::CampaignChangePanel > clears a preview when Reason changes and requires another preview",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/campaign-change-panel.test.tsx::CampaignChangePanel > does not restore a preview that resolves after the user edits",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/campaign-change-panel.test.tsx::uses a plain campaign-change section name",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/commercial-panel.test.tsx::CommercialPanel copy > hides new quotation requests for terminal campaigns",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/commercial-panel.test.tsx::CommercialPanel copy > groups money with kobo and labels VAT as a percentage",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/commercial-panel.test.tsx::CommercialPanel copy > keeps visible request success through the authoritative commercial refresh",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/commercial-panel.test.tsx::CommercialPanel copy > tells the advertiser what happens after a quotation request",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/commercial-panel.test.tsx::CommercialPanel copy > keeps acceptance final and the quoted amounts unchanged",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/commercial-panel.test.tsx::CommercialPanel copy > shows every recorded scope and payment term as readable text, not JSON",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/commercial-panel.test.tsx::CommercialPanel copy > keeps the accepted revision visible as an immutable receipt",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/commercial-panel.test.tsx::CommercialPanel copy > labels the accepted funding basis plainly",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/commercial-panel.test.tsx::CommercialPanel copy > names the latest budget alert level in plain words",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > preserves campaign-only controls and healthy sections when summary is gated",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > offers no artwork, change or quotation requests on a completed campaign",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > offers no artwork, change or quotation requests on a cancelled campaign",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > does not mistake an optional 404 for a missing campaign",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > isolates a failed /summary read without false empty data or dependent controls",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > isolates a failed /creatives read without false empty data or dependent controls",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > isolates a failed /commercial read without false empty data or dependent controls",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > isolates a failed /review-history read without false empty data or dependent controls",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > isolates a failed /change-requests read without false empty data or dependent controls",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > redirects expiry during optional /summary after successful user/campaign reads",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > redirects expiry during optional /creatives after successful user/campaign reads",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > redirects expiry during optional /commercial after successful user/campaign reads",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > redirects expiry during optional /review-history after successful user/campaign reads",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > redirects expiry during optional /change-requests after successful user/campaign reads",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > stops before optional requests for required authority failure ApiError: Private backend detail",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > stops before optional requests for required authority failure ApiError: Private backend detail",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > shows required unavailable without404 or auxiliary reads for undefined",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > shows required unavailable without404 or auxiliary reads for ApiError: Private backend detail",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > shows required unavailable without404 or auxiliary reads for ApiError: Private backend detail",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > shows required unavailable without404 or auxiliary reads for TypeError: fetch failed",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > rethrows programmer errors before optional reads",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > keeps successful metrics, counts, empty histories and section controls unchanged",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > renders a successful history and creative list",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > preserves successful creative variants, cost and rejection provenance",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > degrades only the creative reason when its history cannot be read",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > sanitizes a sensitive commercial error query at the page boundary",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > presents a campaign with demo metadata true as an ordinary campaign",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > presents a campaign with demo metadata true as an ordinary campaign",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > presents a campaign with demo metadata false as an ordinary campaign",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/page.test.tsx::resilient campaign detail > labels campaign results by what they measure",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/new/wizard.test.tsx::turns a partial creation into an attachment retry with a reload-safe target",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/new/wizard.test.tsx::reload recovery opens only creative editing for the existing campaign",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/new/wizard.test.tsx::does not offer an attach action that would change nothing",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/new/wizard.test.tsx::formats budget summaries while keeping the exact submitted values",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/assignments/page.test.tsx::DriverAssignmentsPage history availability > shows unavailable rather than a successful empty history on provider failure",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/assignments/page.test.tsx::DriverAssignmentsPage history availability > explains who assigns offers when there are no jobs",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/assignments/page.test.tsx::DriverAssignmentsPage history availability > opens the exact owned job from a notification even beyond the first history page",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/assignments/page.test.tsx::DriverAssignmentsPage history availability > shows unavailable when a notification's selected job cannot be read",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/assignments/page.test.tsx::DriverAssignmentsPage history availability > keeps the activation and Start checks in plain status explanations",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/assignments/page.test.tsx::DriverAssignmentsPage history availability > lists the accepted terms in words without the fingerprint or raw JSON (D38c)",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/assignments/page.test.tsx::DriverAssignmentsPage history availability > shows daily-rate pay terms as plain sentences instead of hourly lines",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/earnings/page.test.tsx::DriverEarningsPage canonical settlement projection > renders batch-payable and carried debt as distinct values",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/earnings/page.test.tsx::DriverEarningsPage canonical settlement projection > does not claim a larger debt was already covered by available earnings",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/earnings/page.test.tsx::DriverEarningsPage canonical settlement projection > renders every backend summary independently and distinguishes held from cleared pending rows",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/earnings/page.test.tsx::DriverEarningsPage canonical settlement projection > does not present an empty or cached balance when any canonical source is unavailable",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/earnings/page.test.tsx::DriverEarningsPage canonical settlement projection > keeps authoritative money visible when only optional campaign labels fail",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/earnings/page.test.tsx::DriverEarningsPage canonical settlement projection > uses backend pagination facts and keeps the payment hierarchy truthful beyond 50 rows",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/earnings/page.test.tsx::DriverEarningsPage canonical settlement projection > renders the authoritative second page with truthful row numbers",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/earnings/page.test.tsx::DriverEarningsPage canonical settlement projection > renders a truthful recovery path when the requested offset is past the end",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/profile/document-renewals.test.tsx::shows each recorded outcome, only failed uploads, no filenames or saved identity/bank fields",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/profile/document-renewals.test.tsx::offers a named bank list only for rejected bank details",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/profile/document-renewals.test.tsx::handles loading failure and retry",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/profile/document-renewals.test.tsx::requests all fresh vehicle files after payload purge",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/profile/document-renewals.test.tsx::offers the missing retained document (driver_photo)",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/profile/document-renewals.test.tsx::offers the missing retained document (insurance)",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/profile/document-renewals.test.tsx::hides renewal controls while waiting and for approved documents",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/profile/document-renewals.test.tsx::offers zero-file renewal for an expired whole-car approval without relabelling accepted insurance",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/profile/document-renewals.test.tsx::retries one replacement without duplicate upload or changing the request (0)",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/profile/document-renewals.test.tsx::retries one replacement without duplicate upload or changing the request (1)",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/profile/document-renewals.test.tsx::recovers a failed scan without submitting a revision",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/profile/page.test.tsx::DriverProfilePage campaign authority > shows server totals rather than the length of each limited page",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/profile/page.test.tsx::DriverProfilePage campaign authority > does not publish a second readiness claim when canonical evidence is degraded",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/profile/phone-verification.test.tsx::does not redisplay delayed issuance after authoritative verified status",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/profile/phone-verification.test.tsx::does not redisplay delayed issuance after authoritative replaced status",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/profile/phone-verification.test.tsx::does not redisplay delayed issuance after authoritative expired status",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/profile/phone-verification.test.tsx::hides issuance without configured authority and shows loading safely",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/profile/phone-verification.test.tsx::shows driver-only instructions, recovers same live code, hides on phone change and records verified refresh",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/profile/phone-verification.test.tsx::clears expired code and explains exhausted challenges",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/profile/phone-verification.test.tsx::saves a changed phone, clears code and reports failed issuance without secret state",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/profile/phone-verification.test.tsx::clears code on backgrounding and handles initial load failure",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/profile/phone-verification.test.tsx::replaces terminal status after requesting a fresh code without retaining a stale expiry hint",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/profile/phone-verification.test.tsx::recognizes a saved number established by first issuance even after hiding the code",
+        "verdict": "PASS"
+      }
+    ]
+  },
+  "frontend_additional": {
+    "cases": 172,
+    "passed": 172,
+    "failed": 0,
+    "skipped": 0,
+    "case_verdicts": [
+      {
+        "id": "src/components/driver/pwa-contract.test.ts::Cardvert driver install/update contract > publishes the public Cardvert standalone manifest at driver scope",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/components/driver/pwa-contract.test.ts::Cardvert driver install/update contract > ships the declared driver-180.png icon at its real square size",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/components/driver/pwa-contract.test.ts::Cardvert driver install/update contract > ships the declared driver-192.png icon at its real square size",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/components/driver/pwa-contract.test.ts::Cardvert driver install/update contract > ships the declared driver-512.png icon at its real square size",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/components/driver/pwa-contract.test.ts::Cardvert driver install/update contract > keeps authenticated traffic network-only and deletes only Cardvert-prefixed caches",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > allows only the proven standalone foreground contract",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > maps installability 0",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > maps installability 1",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > maps installability 2",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > maps installability 3",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > maps installability 4",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > maps installability 5",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > maps screen wake lock unprobed",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > maps screen wake lock released",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > maps screen wake lock denied",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > maps screen wake lock unavailable",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > pauses hidden capture and rejects unknown visibility",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > maps location prompt",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > maps location denied",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > maps location revoked",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > maps location unavailable",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > continues durable foreground capture offline on an active trip but blocks Start and End",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > never authorizes offline capture or active health without an active trip",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > fails closed 0",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > fails closed 1",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > fails closed 2",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > fails closed 3",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > fails closed 4",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > fails closed 5",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > fails closed 6",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > retains durable active-trip capture but not Start/End when session is unavailable",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > retains durable active-trip capture but not Start/End when session is offline",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > keeps background capture explicitly rejected without blocking foreground readiness",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::R14-A capability policy > freezes the complete D15/D16 protocol",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::deterministic probes > does not infer a usable fix from Permissions API grant",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::deterministic probes > proves Web Locks exclusivity and classifies contention/denial/absence",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::deterministic probes > classifies wake-lock and foreground-location outcomes",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::deterministic probes > maps BFF session 0",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::deterministic probes > maps BFF session 1",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::deterministic probes > maps BFF session 2",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::deterministic probes > maps BFF session 3",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::deterministic probes > maps BFF session 4",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/pwa/capability-contract.test.ts::deterministic probes > maps BFF session 5",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::addPing > assigns monotonic sequence numbers and tracks cumulative counts",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::addPing > keeps per-trip sequences independent",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::addPing > serializes concurrent additions without reusing a sequence or losing counters",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::cutBatch > moves pending pings into one batch with a minted key, atomically",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::cutBatch > returns null when there is nothing to cut and does not bump counters",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::cutBatch > respects the max size and preserves cut order across batches",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::cutBatch > RM4: the key survives retries \u2014 recordAttempt never re-mints",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::cutBatch > serializes an addition racing a cut without losing or duplicating evidence",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::ACK semantics > keeps the bounded legacy acknowledgement path for active v1 recovery",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::ACK semantics > terminal rejection retains the exact batch as durable diagnostic evidence",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::ACK semantics > persists the signed receipt and rebuilds the exact manifest after reload",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::driver identity isolation > does not enumerate another driver's leftovers on the same origin",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::encrypted at-rest state > stores coordinates only as ciphertext under a non-extractable key",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::encrypted at-rest state > fails closed when ciphertext is tampered",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::encrypted at-rest state > fails closed instead of replacing a missing driver key",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::serialized legacy migration > upgrades the v1 production default database in place",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::serialized legacy migration > encrypts v1 plaintext, preserves counters and resumes owner binding after interruption",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::serialized legacy migration > keeps mismatched legacy state encrypted-unbound and invisible until its owner reauthenticates",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::serialized legacy migration > requires the migration Web Lock for production-scoped opens",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::reload recovery (RM5) > pending pings, unsent batches, and the sequence survive a reopen",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::forgetTrip > clears every store for the trip and leaves other trips alone",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::deadletter-only recovery (OFF-002) > still discovers a trip whose only leftover evidence is a dead letter",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::deadletter-only recovery (OFF-002) > forgetTrip clears retained dead letters so a reconciled trip stops recurring",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::break-case recovery visibility (OFF-002/OFF-003) > finds a deadletter-only trip after an abrupt close that never ran close()",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::break-case recovery visibility (OFF-002/OFF-003) > leaves no partial evidence and no consumed sequence when the write aborts",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::break-case recovery visibility (OFF-002/OFF-003) > keeps a corrupted dead letter discoverable while reading it still fails closed",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::durable End boundary > freezes queued writes once and restores the identical End after reload",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::freezes a legacy End watermark before retry and forbids later capture",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::retains complete signed per-sample disposition atomically without resending settled peers",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/ping-queue.test.ts::refuses an inconsistent signed partial disposition without deleting its batch",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/trip-evidence.test.ts::trip evidence v2 canonical contract > matches the shared Python/TypeScript batch and manifest vectors",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/trip-evidence.test.ts::trip evidence v2 canonical contract > sorts object keys by UTF-8 bytes and rejects non-finite values",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/lib/trips/trip-evidence.test.ts::trip evidence v2 canonical contract > rejects non-millisecond evidence timestamps",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/document-labels.test.tsx::uses clear identity document labels with direct audited reads",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/document-labels.test.tsx::uses car document labels and hides unknown internal document keys",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/person-payee-decision-actions.test.tsx::keeps all five rows without allowing reads or decisions when nothing is submitted",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/person-payee-decision-actions.test.tsx::directly acknowledges and performs each existing logged read of Identity (NIN)",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/person-payee-decision-actions.test.tsx::directly acknowledges and performs each existing logged read of Bank account",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/person-payee-decision-actions.test.tsx::directly acknowledges and performs each existing logged read of Driver\u2019s licence",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/person-payee-decision-actions.test.tsx::directly acknowledges and performs each existing logged read of Driver photo",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/person-payee-decision-actions.test.tsx::directly acknowledges and performs each existing logged read of Signed agreement",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/person-payee-decision-actions.test.tsx::clears the document link on hide and presents failed reads without exposing data",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/person-payee-decision-actions.test.tsx::discards revealed evidence and bank reference when current record IDs change",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/person-payee-decision-actions.test.tsx::keeps unavailable document rows and the exact bank reference requirements",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/person-payee-decision-actions.test.tsx::shows the combined approved decision separately from a bank check",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/person-payee-decision-actions.test.tsx::shows the combined rejected decision separately from a bank check",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/person-payee-decision-actions.test.tsx::shows the combined expired decision separately from a bank check",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/person-payee-decision-actions.test.tsx::does not restore an old response after hide and a newer logged read",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/person-payee-decision-actions.test.tsx::requires a chosen reason only for Reject and posts the selected reason",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/vehicle-decision-actions.test.tsx::marks approval expiry as required while a vehicle awaits review",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/vehicle-decision-actions.test.tsx::directly reads the current car registration once per View",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/vehicle-decision-actions.test.tsx::directly reads the current car insurance once per View",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/vehicle-decision-actions.test.tsx::directly reads the current car photo once per View",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/vehicle-decision-actions.test.tsx::hides one car document independently and logs its reopened read",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/vehicle-decision-actions.test.tsx::clears failed reads on hide and retries with a fresh audited read",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/vehicle-decision-actions.test.tsx::discards an older response after manual reset and a newer read",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/vehicle-decision-actions.test.tsx::discards an older response after file reset and a newer read",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/vehicle-decision-actions.test.tsx::discards an older response after submission reset and a newer read",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/vehicle-decision-actions.test.tsx::discards an older response after vehicle reset and a newer read",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/vehicle-decision-actions.test.tsx::clears actual car read state on timeout",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/vehicle-decision-actions.test.tsx::clears actual car read state on pagehide",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/vehicle-decision-actions.test.tsx::clears actual car read state on visibilitychange",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/vehicle-decision-actions.test.tsx::does not read empty collections and preserves the approved-car decision branch",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/admin/driver-applications/vehicle-decision-actions.test.tsx::times each vehicle document independently",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/campaign-cancellation-panel.test.tsx::CampaignCancellationPanel > requires an explicit permanent-cutoff confirmation before enabling cancellation",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::plain evidence delivery status > says captured evidence is saved on this phone when buffered offline",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::assignment activation authority > tells the driver to wait for Terrax Media to start the job",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::assignment activation authority > names an activated campaign that cannot start yet instead of claiming none",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::storage fail-closed (finding 5) > blocks starting a trip when IndexedDB cannot open",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::storage fail-closed (finding 5) > disables ending when storage failed with an active trip (no false completeness)",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::single-writer lock fail-closed (finding 6) > never calls Start before the exclusive writer lock is acquired",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::single-writer lock fail-closed (finding 6) > calls Start only after the writer lock and every live prerequisite are held",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::single-writer lock fail-closed (finding 6) > does not continue Start after navigation releases the writer",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::single-writer lock fail-closed (finding 6) > reconciles an unknown Start response while retaining the acquired writer",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::single-writer lock fail-closed (finding 6) > retries only reconciliation after Start remains unknown",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::single-writer lock fail-closed (finding 6) > reacquires the writer before reconciling an active trip after reload",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::single-writer lock fail-closed (finding 6) > without Web Locks support: warns and disables End",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::single-writer lock fail-closed (finding 6) > when another tab holds the lock: warns and disables End",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::live runtime truth > records the refused Start assessment before releasing held capabilities",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::live runtime truth > does not claim active health without a currently held wake lock",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::live runtime truth > does not capture while the document is hidden",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::live runtime truth > stops capture synchronously when visibility is lost",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::live runtime truth > stops capture when the held wake sentinel releases",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::live runtime truth > closes driver-scoped storage and disables End on revoked keepalive",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::end watermark honesty (finding 5) > retains complete receipts and attempts reconciliation when End is only ended",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::end watermark honesty (finding 5) > finishes End without deleting retained evidence after terminal adjudication",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::end watermark honesty (finding 5) > forgets complete receipts when End authoritatively returns sealed",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::end watermark honesty (finding 5) > reports complete only when the queue is drained",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::end watermark honesty (finding 5) > reports incomplete when unsynced data remains after the final drain",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::end watermark honesty (finding 5) > forces clientComplete false when diagnostic dead letters remain",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::end watermark honesty (finding 5) > joins an already-running ordered drain before computing the End watermark",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::end watermark honesty (finding 5) > retains a batch when a nominally successful upload has no explicit ACK",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::end watermark honesty (finding 5) > holds a deactivated-assignment batch instead of dead-lettering it (OFF-006)",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::end watermark honesty (finding 5) > dead-letters one terminal batch and continues draining later evidence",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::end watermark honesty (finding 5) > does not resume capture when End committed but its response was lost",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::end watermark honesty (finding 5) > keeps the frozen End boundary while an unknown End still appears active",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::end watermark honesty (finding 5) > keeps capture stopped and offers reconciliation while End authority is unavailable",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::end watermark honesty (finding 5) > does not submit a watermark after storage fails during the final drain",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::end watermark honesty (finding 5) > revalidates current trip authority before resuming after End cancellation",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::stranded-data recovery (finding 7) > reconciles and forgets a receipt-only v2 trip discovered after reload",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::stranded-data recovery (finding 7) > drains an active legacy-v1 encrypted batch without requiring a v2 receipt",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::stranded-data recovery (finding 7) > drains leftover trips on mount, on a timer, and on reconnect",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::durable-before-acknowledgement capture (OFF-003) > does not display a captured fix until the encrypted queue has persisted it",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::durable-before-acknowledgement capture (OFF-003) > never acknowledges a fix that the durable write rejected (quota or abort)",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::deadletter-only recovery (OFF-002) > surfaces and reconciles a deadletter-only trip without resending terminal evidence",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::unreadable retained evidence (OFF-003) > says evidence is retained but unreadable instead of claiming storage is unavailable",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::recovery termination and fault containment (OFF-002) > retries an incomplete trip until the server signs its final adjudication",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::recovery termination and fault containment (OFF-002) > retains diagnostic evidence after the server's final adjudication (OFF-006)",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::recovery termination and fault containment (OFF-002) > stops reserving the writer lock once every leftover trip is terminal",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::recovery termination and fault containment (OFF-002) > keeps capture running when a leftover trip's diagnostics cannot be read",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::correction End generation and current-trip recovery > flushes deferred current-trip evidence before reconciling a lost End response",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::correction End generation and current-trip recovery > fences a visibility preparation and an old GPS callback across End",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::signed partial acknowledgement display > excludes signed rejections from synced count and retains their End evidence",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::signed partial acknowledgement display > normalizes invalid optional heading 360 before enqueue",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::signed partial acknowledgement display > normalizes invalid optional heading -1 before enqueue",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::signed partial acknowledgement display > normalizes invalid optional heading Infinity before enqueue",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::retains settled rejected-sample receipts when recovering an earlier trip",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::restores a frozen End after reload without reopening capture and retries it identically",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::fails closed when the durable End marker cannot commit",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::finishes a restored protocol 1 End without overstating completeness",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/driver/(portal)/track/trip-tracker.test.tsx::finishes a restored protocol 2 End without overstating completeness",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/report/page.test.tsx::CampaignReportPage fail-closed states > says no report exists yet when no frozen run has been issued",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/report/page.test.tsx::CampaignReportPage fail-closed states > explains the privacy gate rather than implying corrupted data",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/report/page.test.tsx::CampaignReportPage fail-closed states > withholds a half-issued report as an integrity failure",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/report/page.test.tsx::CampaignReportPage fail-closed states > renders an explicit unavailable state for a pending analysis",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/report/page.test.tsx::CampaignReportPage fail-closed states > preserves non-enumerating not-found behavior",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/report/page.test.tsx::CampaignReportPage frozen daily metrics > withholds a suppressed daily chart behind the exact frozen omission label",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/report/page.test.tsx::CampaignReportPage frozen daily metrics > withholds daily rows for a mixed cohort even when its qualifying total is not suppressed",
+        "verdict": "PASS"
+      },
+      {
+        "id": "src/app/advertiser/campaigns/[campaignId]/report/page.test.tsx::CampaignReportPage frozen daily metrics > does not authorize one daily cost series for multiple frozen currencies",
+        "verdict": "PASS"
+      }
+    ]
+  },
+  "native_python": {
+    "cases": 1,
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0,
+    "case_verdicts": [
+      {
+        "id": "tests.test_trip_evidence_r34::test_python_matches_shared_typescript_golden_vector",
+        "verdict": "PASS"
+      }
+    ]
+  },
+  "final_seed_start": {
+    "cases": 1,
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0,
+    "case_verdicts": [
+      {
+        "id": "tests.test_seed_demo::test_ordinary_demo_driver_can_start_and_end_using_production_authority",
+        "verdict": "PASS"
+      }
+    ]
+  },
+  "final_seed_migrated_head": {
+    "cases": 1,
+    "passed": 1,
+    "failed": 0,
+    "skipped": 0,
+    "case_verdicts": [
+      {
+        "id": "tests.test_seed_demo::test_demo_seed_runs_with_immutable_guards_from_alembic_head",
+        "verdict": "PASS"
+      }
+    ]
+  },
+  "api_start_end": {
+    "primary_start": 201,
+    "primary_end": 200,
+    "renewal_person": "rejected",
+    "renewal_vehicle": "expired",
+    "renewal_licence": "rejected",
+    "renewal_insurance": "expired"
+  },
+  "work_guard": {
+    "primary": "eligible",
+    "renewal": "DRIVER_PERSON_PAYEE_NOT_APPROVED"
+  },
+  "browser": {
+    "base_track_chromium": "PASS",
+    "candidate_before_fix_chromium": "FAIL: absent trip-control button after warming; missing KYC/car evidence",
+    "candidate_after_fix_chromium": "PASS",
+    "merged_track": [
+      "chromium PASS",
+      "mobile-chrome PASS"
+    ],
+    "driver_spec_distinct_cases_passed": 14,
+    "first_broad_batch": "11 PASS, 3 desktop loading/navigation timing failures",
+    "warm_desktop_rerun": "3 PASS with unchanged assertions/timeouts; no retry configuration added"
+  },
+  "backend_batch": {
+    "cases": 314,
+    "passed": 313,
+    "failed": 1,
+    "skipped": 0,
+    "case_verdicts": [
+      {
+        "id": "tests.test_audit_route_coverage::test_every_mutating_route_is_registered",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_audit_route_coverage::test_registries_do_not_overlap_and_reasons_are_substantive",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_audit_route_coverage::test_audit_event_rolls_back_with_its_transaction",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_audit_route_coverage::test_trip_start_and_end_write_audit_events_and_pings_stay_exempt",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_audit_route_coverage::test_analytics_recompute_and_impression_estimate_write_audit_events",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_audit_route_coverage::test_traffic_density_profile_mutations_write_audit_events",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_audit_route_coverage::test_applicant_file_status_probe_stays_exempt",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[withdrawn-create]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[withdrawn-retry]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[withdrawn-list]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[withdrawn-complete]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[different_purpose-create]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[different_purpose-retry]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[different_purpose-list]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[different_purpose-complete]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[new_phone-create]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[new_phone-retry]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[new_phone-list]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_manual_contact_requires_current_purpose_matched_authority[new_phone-complete]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_admin_contact_queue_names_each_task_driver",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_postgres_contact_completion_serializes_with_consent_withdrawal[False]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_postgres_contact_completion_serializes_with_consent_withdrawal[True]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_missing_manual_contact_task_returns_hidden_not_found",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_verified_phone_consent_and_manual_contact_are_versioned_and_secret_safe",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_password_reset_delivery_hash_mismatch_leaves_expiring_reclaimable_claim",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_password_reset_is_non_enumerating_single_use_expiring_and_revokes_sessions",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_concurrent_password_reset_requests_obey_account_rate_limit",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_contact_completion_checks_saved_account_and_preserves_completed_retry[phone]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_contact_completion_checks_saved_account_and_preserves_completed_retry[blank]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_contact_completion_checks_saved_account_and_preserves_completed_retry[malformed]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_contact_completion_checks_saved_account_and_preserves_completed_retry[inactive]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_contact_completion_checks_saved_account_and_preserves_completed_retry[role]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_contact_completion_checks_saved_account_and_preserves_completed_retry[same]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_postgres_contact_completion_serializes_with_account_edit[False-False]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_postgres_contact_completion_serializes_with_account_edit[False-True]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_postgres_contact_completion_serializes_with_account_edit[True-False]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_contacts_and_recovery::test_postgres_contact_completion_serializes_with_account_edit[True-True]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_data_subject_inventory_registry::test_every_subject_reachable_model_is_registered_or_explicitly_excluded",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_data_subject_inventory_registry::test_subject_link_registry_counts_recovery_contact_and_trip_manifest_rows",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_document_review_outcomes::test_missing_nonapproved_document_outcomes_never_infer_acceptance_or_replacement",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_document_review_outcomes::test_recorded_expiry_uses_the_nigeria_calendar_day[accepted-2026-10-06-False]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_document_review_outcomes::test_recorded_expiry_uses_the_nigeria_calendar_day[accepted-2026-10-07-True]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_document_review_outcomes::test_recorded_expiry_uses_the_nigeria_calendar_day[expired-2026-10-07-False]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_document_review_outcomes::test_recorded_expiry_uses_the_nigeria_calendar_day[expired-2026-10-06-True]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_document_review_outcomes::test_approval_cannot_outlast_recorded_insurance_expiry",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_document_review_outcomes::test_later_projection_expires_only_the_document_with_a_known_date",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_account_setup::test_setup_hides_missing_application_but_preserves_real_ineligible_conflict",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_account_setup::test_setup_rechecks_active_admin_before_reading_application",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_account_setup::test_driver_account_setup_supersedes_replays_and_activates_atomically",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_account_setup::test_setup_denies_nonapproved_and_expired_authority",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_account_setup::test_driver_password_reset_requires_active_status_and_revokes_old_session",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_account_setup::test_concurrent_setup_completion_has_one_winner",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_account_setup::test_concurrent_identical_setup_initiation_converges",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_account_setup::test_setup_and_exact_review_retry_share_user_first_order[person-initiate]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_account_setup::test_setup_and_exact_review_retry_share_user_first_order[person-complete]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_account_setup::test_setup_and_exact_review_retry_share_user_first_order[vehicle-initiate]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_account_setup::test_setup_and_exact_review_retry_share_user_first_order[vehicle-complete]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_onboarding::test_postgres_access_renewal_and_public_capture_do_not_deadlock",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_onboarding::test_public_applicant_can_submit_person_payee_without_plaintext_projection",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_onboarding::test_public_application_access_scopes_shared_private_upload_flow",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_onboarding::test_exact_submission_retry_converges_and_changed_retry_fails",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_onboarding::test_incomplete_person_payee_cannot_be_approved",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_onboarding::test_admin_approval_is_idempotent_audited_safe_and_non_work_eligible",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_onboarding::test_approval_fails_closed_for_unsafe_evidence_and_unavailable_key",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_onboarding::test_person_payee_decision_requires_an_active_admin",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_onboarding::test_rejected_or_expired_submission_resubmits_as_new_truthful_version[rejected-unreadable_evidence]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_onboarding::test_rejected_or_expired_submission_resubmits_as_new_truthful_version[expired-expired_evidence]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_onboarding::test_public_applicant_cannot_be_manually_activated_before_vehicle_approval",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_onboarding::test_postgres_concurrent_conflicting_decisions_serialize_once",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_review_corrections::test_approval_requires_actual_exact_current_review_reads",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_review_corrections::test_person_payee_approval_rejects_evidence_with_wrong_entity_type",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_review_corrections::test_person_payee_approval_rejects_each_other_near_match_evidence[actor]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_review_corrections::test_person_payee_approval_rejects_each_other_near_match_evidence[action]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_review_corrections::test_person_payee_approval_rejects_each_other_near_match_evidence[entity_id]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_review_corrections::test_person_payee_approval_rejects_each_other_near_match_evidence[version]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_review_corrections::test_person_payee_approval_rejects_each_other_near_match_evidence[purpose]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_review_corrections::test_person_payee_approval_rejects_each_other_near_match_evidence[access_purpose]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_review_corrections::test_person_payee_approval_rejects_each_other_near_match_evidence[reason]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_review_corrections::test_applicant_capture_is_not_payout_authority",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_review_corrections::test_historical_decision_retry_resolves_original_submission",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_review_corrections::test_resubmission_invalidates_every_stale_exact_review_read",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_review_corrections::test_status_references_are_indistinguishable_across_every_mutation_probe",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_person_payee_review_corrections::test_fresh_and_duplicate_driver_probes_deliver_separate_non_enumerating_authority",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_vehicle_approval::test_complete_approval_terminalizes_application_and_revokes_access[None]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_vehicle_approval::test_complete_approval_terminalizes_application_and_revokes_access[review_reference_uuid1]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_vehicle_approval::test_vehicle_approval_denies_cross_owner_and_self_approval",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_vehicle_approval::test_vehicle_approval_fails_closed_for_unsafe_and_unread_evidence[None]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_vehicle_approval::test_vehicle_approval_fails_closed_for_unsafe_and_unread_evidence[review_reference_uuid1]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_vehicle_approval::test_vehicle_approval_rejects_reads_with_wrong_entity_type[None]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_vehicle_approval::test_vehicle_approval_rejects_reads_with_wrong_entity_type[review_reference_uuid1]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_vehicle_approval::test_missing_vehicle_object_cannot_create_qualifying_read_or_approval",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_vehicle_approval::test_terminal_application_blocks_material_vehicle_revision_without_rewriting_history",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_vehicle_approval::test_rejected_vehicle_can_resubmit_as_a_new_immutable_revision",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_vehicle_approval::test_applicant_car_list_shows_only_their_own_cars_by_plate",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_vehicle_approval::test_staff_car_view_prefers_a_car_awaiting_review",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_vehicle_approval::test_vehicle_eligibility_opens_and_expiry_closes_assignment_and_trip",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_vehicle_approval::test_vehicle_submission_and_decision_exact_retries_converge_changed_retries_conflict",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_vehicle_approval::test_vehicle_expiry_worker_appends_history_and_closes_eligibility[False]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_vehicle_approval::test_vehicle_expiry_worker_appends_history_and_closes_eligibility[True]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_vehicle_approval::test_postgres_concurrent_identical_vehicle_decisions_converge_after_lock",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_vehicle_approval::test_postgres_concurrent_applicant_plate_conflict_preserves_outer_write",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_vehicle_approval::test_postgres_nin_rewrap_and_trip_share_eligibility_before_profile_order",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_driver_vehicle_approval::test_postgres_terminal_application_fences_revision_while_expiry_serializes",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_kyc::test_kyc_submission_is_masked_idempotent_encrypted_and_reveal_is_audited",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_kyc::test_kyc_rejects_cross_driver_bank_files_and_uncleared_evidence",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_kyc::test_tampered_nin_fails_closed_without_read_audit",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_kyc::test_vehicle_evidence_is_owned_versioned_and_idempotent",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_kyc::test_nin_rewrap_appends_once_and_preserves_ciphertext",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_kyc::test_rewrap_cannot_resurrect_a_superseded_nin_chain",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_kyc::test_postgres_concurrent_kyc_retry_and_versions_serialize",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_kyc::test_kyc_models_have_no_plaintext_nin_column",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_kyc::test_driver_collects_encrypted_id_with_no_legal_collection_reference",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_migration_0100_reverse_phone_verification::test_0100_expires_obsolete_challenges_and_matches_models",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_non_campaign_or_inactive_context_never_queries_private_facts[unknown_type]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_non_campaign_or_inactive_context_never_queries_private_facts[account_type]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_non_campaign_or_inactive_context_never_queries_private_facts[inactive_user]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_non_campaign_or_inactive_context_never_queries_private_facts[wrong_recipient]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_typed_review_reference_resolves_its_canonical_campaign[activity_flag_id]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_typed_review_reference_resolves_its_canonical_campaign[fraud_flag_id]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_campaign_context_is_projected_for_each_role_and_mark_read[admin]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_campaign_context_is_projected_for_each_role_and_mark_read[advertiser]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_campaign_context_is_projected_for_each_role_and_mark_read[driver]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_campaign_context_fails_closed_in_feed_and_mark_read[other_tenant]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_campaign_context_fails_closed_in_feed_and_mark_read[disabled_member]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_campaign_context_fails_closed_in_feed_and_mark_read[inactive_org]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_campaign_context_fails_closed_in_feed_and_mark_read[malformed]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_campaign_context_fails_closed_in_feed_and_mark_read[missing]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_campaign_context_fails_closed_in_feed_and_mark_read[absent]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_campaign_context_fails_closed_in_feed_and_mark_read[account_type]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_campaign_context_fails_closed_in_feed_and_mark_read[conflict]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_driver_context_resolves_trip_and_denies_another_drivers_assignment",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_activity_notification_feed_copy_is_truthful[activity_floor_breached-Verified activity below floor-Your verified activity was below the configured weekly floor. Terrax Media will review the assignment.]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_activity_notification_feed_copy_is_truthful[activity_floor_recovered-Verified activity recovered-Your verified activity has recovered to the configured weekly floor.]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_activity_notification_feed_copy_is_truthful[assignment_inactive-Assignment inactive-No verified activity was recorded for this assignment for seven consecutive days. Terrax Media will review it.]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_activity_notification_feed_copy_is_truthful[assignment_activity_recovered-Assignment activity resumed-Verified activity resumed for this assignment, so the activity flag has been cleared.]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_activity_notification_feed_copy_is_truthful[budget_urgent_alert-Campaign budget nearly used-A campaign has almost used its budget and will pause when it runs out.]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_activity_notification_feed_copy_is_truthful[campaign_budget_resumed-Campaign resumed-Terrax Media resumed a campaign that was paused for budget.]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_notification_creator_replays_exactly_rejects_changed_facts_and_freezes_evidence",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_notification_orm_defaults_are_channel_aware",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_feed_is_recipient_scoped_ordered_sanitized_and_read_idempotent",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_unread_feed_pages_skip_read_rows_and_read_all_preserves_later_notices",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_advertiser_notification_preference_is_shared_audited_and_cross_org_hidden",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_notification_feed::test_notification_preference_and_audit_share_the_same_transaction",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_onboarding_approval_convergence::test_both_approval_orders_converge_without_user_activation[order0]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_onboarding_approval_convergence::test_both_approval_orders_converge_without_user_activation[order1]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_onboarding_approval_convergence::test_exact_review_retry_repairs_legacy_pending_projection[person]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_onboarding_approval_convergence::test_exact_review_retry_repairs_legacy_pending_projection[vehicle]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_locked_report_authorization_refreshes_preloaded_state[user_status]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_locked_report_authorization_refreshes_preloaded_state[user_role]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_locked_report_authorization_refreshes_preloaded_state[organization]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_locked_report_authorization_refreshes_preloaded_state[membership_status]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_locked_report_authorization_refreshes_preloaded_state[membership_role]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_v1_request_replay_keeps_snapshot_bytes_and_new_reissue_uses_v2_wording",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_performance_issuance_replay_worker_download_and_tamper_fail_closed",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_report_publication_and_download_need_no_legal_approval",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_lost_response_replay_does_not_recompose_mutable_latest_projection",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_roi_golden_reissue_and_changed_request_conflict",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_partial_storage_failure_exposes_no_artifact_and_retry_recovers_pair",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_expired_third_worker_claim_terminalizes_without_a_fourth_attempt",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_terminal_failure_can_only_recover_as_an_append_only_new_version",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_report_scope_and_revocation_remain_enforced_without_legal_gate",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_changed_authority_and_requester_can_discover_only_the_current_reissue_parent",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_report_audits_exclude_contents_urls_and_raw_errors",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_admin_request_status_download_and_expired_lease_recovery",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_concurrent_identical_requests_converge_on_postgres",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_publication_waiting_for_request_scope_does_not_hold_issuance",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_concurrent_identical_reissues_converge_on_postgres",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_expired_earlier_claim_retries_successfully_on_postgres",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_expired_final_claim_terminalizes_once_on_postgres",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_crash_after_first_object_write_leaves_no_unregistered_orphan",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_cleanup_waits_for_every_inflight_write_before_terminal_tombstone[csv]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_cleanup_waits_for_every_inflight_write_before_terminal_tombstone[pdf]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_uncertain_write_stays_unverified_and_does_not_starve_later_cleanup",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_retry_publishes_under_a_new_generation_and_new_keys",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_expired_publisher_cannot_publish_and_its_objects_are_reclaimed",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_abandoned_publisher_stops_before_writing_the_rest_of_the_pair",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_processing_lease_lapses_exactly_at_its_instant_without_sleeping",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_hard_crash_mid_publication_is_recovered_by_the_expired_generation_sweep",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_reclaiming_an_issuance_supersedes_its_still_leased_generation",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_finalize_rejects_a_corrupt_object_and_registers_no_partial_pair",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_finalize_rejects_a_missing_half_of_the_object_pair",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_a_surviving_object_is_never_recorded_as_a_cleaned_tombstone",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_a_crashed_cleanup_worker_releases_its_claim_for_the_next_sweep",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_cleanup_spares_published_generations_and_unregistered_objects",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_publication_generation_fences_are_enforced_by_the_database",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_concurrent_sweeps_never_double_publish_or_delete_a_live_generation_on_postgres",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_concurrent_cleanup_sweeps_reclaim_an_abandoned_generation_once_on_postgres",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_cleanup_never_claims_a_live_generation_on_postgres",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_crashed_publication_is_reclaimed_and_reissued_end_to_end_on_postgres",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_issuances::test_synthetic_roi_cannot_be_published_outside_local_environment",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_rendering::test_historical_v1_suppression_bytes_keep_pre_change_golden_hashes",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_rendering::test_new_export_snapshot_freezes_plain_suppression_text_in_csv_and_pdf",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_rendering::test_renderers_are_deterministic_formula_safe_and_share_the_snapshot",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_rendering::test_performance_only_artifacts_contain_no_roi_text",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_rendering::test_renderers_enforce_field_row_page_and_output_bounds",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_rendering::test_csv_pdf_and_screen_contract_share_one_frozen_projection",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_rendering::test_unicode_labels_are_embedded_in_the_pdf_without_ascii_replacement",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_rendering::test_suppressed_totals_are_omitted_rather_than_zero_filled",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_report_rendering::test_multi_profile_density_provenance_stays_inside_renderer_bounds",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_review_notifications::test_campaign_rejection_notifies_without_copying_the_reason",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_review_notifications::test_rejected_campaign_edit_and_resubmission_journey_on_postgresql",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_review_notifications::test_creative_decisions_notify_the_owning_company",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_review_notifications::test_creative_decision_service_notifies_with_identifiers_only",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_review_notifications::test_only_in_platform_quotations_ask_the_advertiser_to_review",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_demo_seed_refuses_production_even_with_override",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_renewal_seed_is_scanned_fictional_and_idempotent",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_demo_seed_requires_explicit_local_confirmation",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_demo_seed_allows_test_environment_without_override",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_demo_seed_refuses_unapproved_nonlocal_environment",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_demo_seed_requires_a_database_url",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_demo_seed_requires_postgres",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_seed_missing_assignment_dates_stop_before_authority_writes[accepted_at]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_seed_missing_assignment_dates_stop_before_authority_writes[activated_at]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_seed_missing_applicant_authority_stops_dependent_calls[access]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_seed_missing_applicant_authority_stops_dependent_calls[submission]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_seed_missing_vehicle_submission_stops_document_reads_and_review",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_demo_seed_requires_the_current_migration_head",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_demo_seed_rejects_an_ambiguous_migration_head",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_demo_seed_refuses_an_existing_user_with_an_incompatible_role",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_demo_seed_refuses_a_vehicle_owned_by_another_driver",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_demo_seed_refuses_conflicting_existing_trip_evidence",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_rich_demo_seed_refuses_invalid_density[not-a-number]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_rich_demo_seed_refuses_invalid_density[-1]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_rich_demo_seed_handles_empty_and_unknown_campaign_windows",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_rich_demo_seed_refuses_invalid_trip_lifecycle[campaign0-trip0-assignment0-rolling]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_rich_demo_seed_refuses_invalid_trip_lifecycle[campaign1-trip1-assignment1-rolling]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_rich_demo_seed_refuses_invalid_trip_lifecycle[campaign2-trip2-assignment2-rolling]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_rich_demo_seed_refuses_invalid_trip_lifecycle[campaign3-trip3-assignment3-rolling]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_demo_seed_command_runs_the_guarded_seed_and_prints_its_summary",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_demo_seed_summary_is_human_readable",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_demo_seed_command_reports_failures[error0-DEMO_SEED_DISALLOWED: Demo seed is disabled\\n{\"environment\": \"production\"}]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_demo_seed_command_reports_failures[error1-DEMO_SEED_NOT_CONFIRMED: Explicit confirmation is required]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_demo_seed_command_reports_failures[error2-DEMO_SEED_FAILED: database unavailable]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_demo_seed_is_not_registered_on_app_startup",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_no_seed_or_demo_migrations",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_openapi_has_frontend_contract_tags_and_examples",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_demo_seed_runs_with_immutable_guards_from_alembic_head",
+        "verdict": "FAIL"
+      },
+      {
+        "id": "tests.test_seed_demo::test_demo_seed_reuses_legacy_organization_billing_identity",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_seed_business_ownership_and_applicant_financial_separation",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_demo_seed_is_idempotent_with_postgis",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_demo_seed_preserves_existing_payout_metadata",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_demo_seed_preserves_legacy_v1_evidence_and_money_fence",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_rich_seed_later_rerun_only_appends_valid_rolling_trips",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_ordinary_demo_driver_can_start_and_end_using_production_authority",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_demo::test_abuja_seed_definitions_have_consistent_names_and_geography",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_seed_smoke::test_demo_seed_frontend_smoke_paths",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_renewals::test_active_driver_can_read_document_renewal_status",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_renewals::test_active_account_without_application_renews_and_staff_reviews_current_revision[rejected]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_renewals::test_active_account_without_application_renews_and_staff_reviews_current_revision[expired]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_renewals::test_vehicle_renewal_status_names_dates_ownership_and_exact_retry",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_renewals::test_postgres_renewal_races_leave_one_revision_no_orphan_bank[distinct]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_renewals::test_postgres_renewal_races_leave_one_revision_no_orphan_bank[exact]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_renewals::test_postgres_renewal_races_leave_one_revision_no_orphan_bank[review]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_renewals::test_locked_driver_authority_refreshes_preloaded_account",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_renewals::test_staff_document_status_is_current_secret_free_and_role_scoped",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_renewals::test_partial_person_renewal_reuses_accepted_files_and_saved_details[unreadable_evidence-driver_license_file_id]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_renewals::test_partial_person_renewal_reuses_accepted_files_and_saved_details[bank_account_mismatch-None]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_renewals::test_partial_person_renewal_reuses_accepted_files_and_saved_details[identity_mismatch-None]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_renewals::test_nonapproved_review_cannot_fabricate_accepted_document_without_read",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_renewals::test_vehicle_partial_renewal_keeps_accepted_files_and_separates_approval_expiry[False]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_renewals::test_vehicle_partial_renewal_keeps_accepted_files_and_separates_approval_expiry[True]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_renewals::test_purged_person_requires_fresh_full_inputs_without_recovering_erased_nin",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_renewals::test_recorded_person_document_expiry_blocks_work_and_allows_partial_renewal",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_renewals::test_exact_person_renewal_retry_survives_retained_document_expiring_overnight",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_renewals::test_missing_retained_file_is_visible_and_can_be_replaced[False]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_renewals::test_missing_retained_file_is_visible_and_can_be_replaced[True]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_renewals::test_purged_vehicle_read_requests_and_accepts_complete_fresh_replacement",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_renewals::test_partial_retry_after_source_payload_purge_fails_closed[False]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_renewals::test_partial_retry_after_source_payload_purge_fails_closed[True]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_reverse_phone::test_driver_can_request_a_code_that_staff_cannot_read",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_reverse_phone::test_reverse_verification_fails_closed[expired]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_reverse_phone::test_reverse_verification_fails_closed[exhausted]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_reverse_phone::test_reverse_verification_fails_closed[changed_phone]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_reverse_phone::test_reverse_verification_fails_closed[foreign_challenge]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_reverse_phone::test_request_limit_survives_number_changes_and_live_retry_converges",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_reverse_phone::test_configuration_gates[test--False---False]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_reverse_phone::test_configuration_gates[test-+2347068369842-False---True]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_reverse_phone::test_configuration_gates[development-+2347074200080-True-Somto-approved-reference-False]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_reverse_phone::test_configuration_gates[production-+2347074200080-False-Somto-approved-reference-False]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_reverse_phone::test_configuration_gates[production-+2347074200080-True--approved-reference-False]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_reverse_phone::test_configuration_gates[production-+2347074200080-True-Somto--False]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_reverse_phone::test_configuration_gates[production-+447700900999-True-Somto-approved-reference-False]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_reverse_phone::test_configuration_gates[production-+2347074200080-True-Somto-approved-reference-True]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_reverse_phone::test_missing_config_denies_issuance_and_removes_availability",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_reverse_phone::test_postgres_phone_requests_records_and_account_edits_serialize[request]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_reverse_phone::test_postgres_phone_requests_records_and_account_edits_serialize[record]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_reverse_phone::test_postgres_phone_requests_records_and_account_edits_serialize[edit_admin_first]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_reverse_phone::test_postgres_phone_requests_records_and_account_edits_serialize[edit_driver_first]",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_reverse_phone::test_restoring_a_phone_after_staff_edit_creates_unverified_version",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_w2c_reverse_phone::test_staff_cannot_verify_phone_for_inactive_driver",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_measurement_runs::test_measurement_run_replays_reproduces_reissues_and_drives_report",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_measurement_runs::test_measurement_and_screen_share_terminal_cohort_when_sources_arrive_late",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_measurement_runs::test_profile_revision_reissues_current_measurement_without_rewriting_frozen_run",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_measurement_runs::test_measurement_run_fails_closed_without_proof_or_roi_prerequisites",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_measurement_runs::test_synthetic_roi_run_freezes_complete_method_and_inputs",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_measurement_runs::test_measurement_issuance_does_not_require_legal_or_method_authorization",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_measurement_runs::test_measurement_result_manifest_is_canonical_json",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_measurement_runs::test_postgres_cohort_orders_trips_and_selects_one_replacement_payout",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_measurement_runs::test_concurrent_same_request_converges_on_postgres",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_measurement_runs::test_frozen_movement_metric_carries_the_exact_advert_viewing_caveat",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_measurement_runs::test_frozen_metrics_disclose_completeness_and_suppress_unsupported_totals",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_measurement_runs::test_a_cohort_with_no_completed_trip_omits_totals_instead_of_publishing_zero",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_measurement_runs::test_completeness_excludes_a_trip_that_ends_at_the_frozen_period_boundary",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_measurement_runs::test_density_provenance_missing_a_required_parameter_suppresses_contacts",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_measurement_runs::test_mixed_complete_and_incomplete_density_provenance_suppresses_the_total",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_measurement_runs::test_cost_completeness_covers_every_currency_without_suppressing_the_totals",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_measurement_runs::test_density_provenance_without_a_road_category_method_suppresses_contacts",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_measurement_runs::test_reproducibility_fails_closed_for_a_manifest_that_predates_this_contract",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_measurement_runs::test_frozen_modelled_contacts_freeze_density_parameter_source_and_calibration",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_measurement_runs::test_frozen_roi_exposes_every_contract_required_method_fact",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_openapi::test_openapi_schema_generates",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_openapi::test_openapi_matches_committed_json_artifacts",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_openapi::test_generated_validation_responses_use_the_runtime_error_envelope",
+        "verdict": "PASS"
+      },
+      {
+        "id": "tests.test_openapi::test_path_query_and_body_validation_match_advertised_envelope_without_input_echo",
+        "verdict": "PASS"
+      }
+    ]
+  },
+  "backend_latest": {
+    "unique_cases": 315,
+    "passed": 315,
+    "failed": 0,
+    "skipped": 0
+  },
+  "repeatable_test_selection": {
+    "backend": [
+      "tests/test_audit_route_coverage.py",
+      "tests/test_contacts_and_recovery.py",
+      "tests/test_data_subject_inventory_registry.py",
+      "tests/test_document_review_outcomes.py",
+      "tests/test_driver_account_setup.py",
+      "tests/test_driver_person_payee_onboarding.py",
+      "tests/test_driver_person_payee_review_corrections.py",
+      "tests/test_driver_vehicle_approval.py",
+      "tests/test_kyc.py",
+      "tests/test_migration_0100_reverse_phone_verification.py",
+      "tests/test_notification_feed.py",
+      "tests/test_onboarding_approval_convergence.py",
+      "tests/test_report_issuances.py",
+      "tests/test_report_rendering.py",
+      "tests/test_review_notifications.py",
+      "tests/test_seed_demo.py",
+      "tests/test_seed_smoke.py",
+      "tests/test_w2c_renewals.py",
+      "tests/test_w2c_reverse_phone.py",
+      "tests/test_measurement_runs.py",
+      "tests/test_openapi.py"
+    ],
+    "frontend": [
+      "src/app/admin/driver-applications/actions.test.ts",
+      "src/app/admin/drivers/driver-hub.test.tsx",
+      "src/app/admin/drivers/phone-verification-actions.test.ts",
+      "src/app/admin/drivers/record-phone-verification.test.tsx",
+      "src/app/admin/support/page.test.tsx",
+      "src/app/advertiser/campaigns/[campaignId]/campaign-change-panel.test.tsx",
+      "src/app/advertiser/campaigns/[campaignId]/commercial-panel.test.tsx",
+      "src/app/advertiser/campaigns/[campaignId]/page.test.tsx",
+      "src/app/advertiser/campaigns/new/wizard.test.tsx",
+      "src/app/api/driver/renewals-phone-routes.test.ts",
+      "src/app/driver/(portal)/assignments/page.test.tsx",
+      "src/app/driver/(portal)/earnings/page.test.tsx",
+      "src/app/driver/(portal)/profile/document-renewals.test.tsx",
+      "src/app/driver/(portal)/profile/page.test.tsx",
+      "src/app/driver/(portal)/profile/phone-verification.test.tsx",
+      "src/components/marketing/pathways.test.tsx",
+      "src/components/notifications/notification-center.test.tsx",
+      "src/lib/assignments/offer-terms.test.ts",
+      "src/lib/billing/invoice-document.test.tsx",
+      "src/lib/files/onboarding-upload.test.ts",
+      "src/lib/format.test.ts"
+    ],
+    "additional_frontend": [
+      "src/app/advertiser/campaigns/[campaignId]/campaign-cancellation-panel.test.tsx",
+      "src/app/advertiser/campaigns/[campaignId]/report/page.test.tsx",
+      "src/app/admin/driver-applications/person-payee-decision-actions.test.tsx",
+      "src/app/admin/driver-applications/vehicle-decision-actions.test.tsx",
+      "src/app/admin/driver-applications/document-labels.test.tsx",
+      "src/components/driver/pwa-contract.test.ts",
+      "src/lib/pwa/capability-contract.test.ts",
+      "src/lib/trips/trip-evidence.test.ts",
+      "src/lib/trips/ping-queue.test.ts",
+      "src/app/driver/(portal)/track/trip-tracker.test.tsx"
+    ]
+  },
+  "commands": {
+    "backend": "python -m pytest <backend selections> -q (TEST_DATABASE_URL configured for an owned PostgreSQL database)",
+    "frontend": "node node_modules/vitest/vitest.mjs run <frontend selections> --maxWorkers=1",
+    "browser": "playwright test e2e/driver.spec.ts --project=chromium --project=mobile-chrome; same tracking test on base and candidate, with unchanged assertions",
+    "final_seed_reruns": [
+      "python -m pytest tests/test_seed_demo.py::test_ordinary_demo_driver_can_start_and_end_using_production_authority -q",
+      "python -m pytest tests/test_seed_demo.py::test_demo_seed_runs_with_immutable_guards_from_alembic_head -q"
+    ],
+    "openapi": "python -m scripts.update_openapi_snapshot --check"
+  }
+}

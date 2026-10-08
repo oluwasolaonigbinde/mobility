@@ -2,6 +2,7 @@
 
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { components } from "@/lib/api/schema";
 import { formatDateTime } from "@/lib/format";
@@ -75,9 +76,11 @@ function useNetworkOnline() {
 function NotificationItemRow({
   notification,
   onRead,
+  onOpen,
 }: {
   notification: NotificationItem;
   onRead: (id: string) => void;
+  onOpen: () => void;
 }) {
   return (
     <li className="border-edge border-b py-3 last:border-0">
@@ -85,7 +88,17 @@ function NotificationItemRow({
         <div>
           <p className="text-sm font-medium">{notification.title}</p>
           <p className="text-muted mt-1 text-sm">{notification.body}</p>
-          <p className="micro text-faint mt-1.5">{formatDateTime(notification.created_at)}</p>
+          {notification.action_url ? (
+            <Link
+              href={notification.action_url}
+              onClick={onOpen}
+              aria-label={`Open ${notification.campaign_name ?? "campaign"}`}
+              className="micro text-amber mt-2 inline-block underline underline-offset-2"
+            >
+              Open
+            </Link>
+          ) : null}
+          <p className="text-faint mt-1.5 text-xs">{formatDateTime(notification.created_at)}</p>
         </div>
         {notification.read_at ? null : (
           <button
@@ -236,10 +249,10 @@ export function NotificationCenter({
         <section
           id="notification-centre"
           aria-label="Notifications"
-          className="border-edge bg-panel absolute top-full right-0 z-50 mt-2 w-[min(24rem,calc(100vw-2rem))] rounded-lg border p-4 shadow-xl"
+          className="border-edge bg-panel fixed top-14 right-4 z-50 w-[min(24rem,calc(100vw-2rem))] rounded-lg border p-4 font-sans tracking-normal normal-case shadow-xl sm:absolute sm:top-full sm:right-0 sm:mt-2"
         >
           <div className="flex items-center justify-between gap-3">
-            <p className="font-display text-base font-semibold">Notifications</p>
+            <p className="micro text-base font-semibold">Notifications</p>
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -325,6 +338,7 @@ export function NotificationCenter({
                     key={notification.id}
                     notification={notification}
                     onRead={(id) => markRead.mutate(id)}
+                    onOpen={() => setOpen(false)}
                   />
                 ))}
               </ul>

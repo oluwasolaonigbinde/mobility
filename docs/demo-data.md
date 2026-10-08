@@ -222,3 +222,15 @@ payout verification fixtures remain unchanged and are reused on rerun.
 Campaigns, routes and GPS use Abuja. The Wuse campaigns and their synthetic trip corridors occupy approximately 9.055–9.105° N, 7.43–7.51° E. Other place-specific campaigns use the named Abuja district. Brands are fictional; neighbourhood and street names are real. Disposable databases must be freshly seeded to replace old Lagos histories; immutable financial/trip history is never rewritten on rerun.
 
 Driver numbers +2340000000100 through +2340000000114 are synthetic E.164-shaped fixtures, not Nigerian subscriber numbers (the national prefix begins with zero). They are never sent messages. Terrax’s temporary destination +2347068369842 is the owner’s own number, authorized for local/preview demonstration only; REQ-126 asks the PM for Terrax’s real preview WhatsApp number. Production/staging settings remain blank and their existing operator/wording gates remain binding.
+
+## Primary demo trip documents — 8 October 2026
+
+REQ-131 restores the primary Emeka Nwankwo login's normal current-document
+example. Six clearly fictional PNGs belong to that driver and are privately
+stored/scanned. Existing submission and review services record person/payee and
+ABJ-482-KD approvals, exact NIN/bank/file access audits and accepted document
+outcomes. Licence, insurance and car approval use a 90-day demonstration horizon
+from initial seeding; this is fixture data, not a client expiry policy. Reseeding
+preserves existing submissions, files, reviews and dates. Damilola's rejected
+licence and expired insurance remain the renewal examples. Production work
+checks and financial history are unchanged.

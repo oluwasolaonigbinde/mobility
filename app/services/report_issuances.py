@@ -64,7 +64,7 @@ from app.services.report_rendering import (
 )
 from app.services.stored_files import _issue_download
 
-REPORT_SCHEMA_VERSION = "campaign-performance-export-v1"
+REPORT_SCHEMA_VERSION = "campaign-performance-export-v2"
 REPORT_RENDERER_VERSION = "campaign-report-renderer-v1"
 REPORT_LEASE_SECONDS = 120
 REPORT_MAX_ATTEMPTS = 3

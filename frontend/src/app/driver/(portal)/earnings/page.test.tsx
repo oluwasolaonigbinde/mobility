@@ -58,7 +58,9 @@ describe("DriverEarningsPage canonical settlement projection", () => {
 
     render(await DriverEarningsPage({}));
 
-    expect(screen.getByText("Available for payment")).toBeInTheDocument();
+    expect(screen.getAllByText("Ready to pay")[0]!).toBeInTheDocument();
+    expect(screen.getByText("0 trips need review")).toHaveClass("text-muted");
+    expect(screen.getByText("0 trips need review")).not.toHaveClass("text-amber", "text-coral");
     expect(screen.getByText("Owed, taken from your payouts")).toBeInTheDocument();
     expect(screen.getAllByText("₦90.00")).toHaveLength(1);
     expect(screen.getAllByText("₦60.00")).toHaveLength(1);
@@ -86,7 +88,7 @@ describe("DriverEarningsPage canonical settlement projection", () => {
 
     render(await DriverEarningsPage({}));
 
-    expect(screen.getByText("Available for payment").nextElementSibling).toHaveTextContent("₦0.00");
+    expect(screen.getAllByText("Ready to pay")[0]!.nextElementSibling).toHaveTextContent("₦0.00");
     expect(screen.getByText("Owed, taken from your payouts").nextElementSibling).toHaveTextContent(
       "₦60.00",
     );
@@ -197,18 +199,26 @@ describe("DriverEarningsPage canonical settlement projection", () => {
 
     render(await DriverEarningsPage({}));
 
-    for (const label of ["Released", "Paid ledger", "Voided", "Owed, taken from your payouts"]) {
+    for (const label of [
+      "Ready to pay",
+      "Paid (earnings records)",
+      "Voided",
+      "Owed, taken from your payouts",
+    ]) {
       expect(screen.getAllByText(label, { exact: true }).length).toBeGreaterThan(0);
     }
-    expect(screen.getByText("Held", { exact: true })).toBeInTheDocument();
-    expect(screen.getAllByText("Pending", { exact: true }).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Waiting for review", { exact: true })[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Waiting for review", { exact: true }).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Adjustment", { exact: true }).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Paid", { exact: true }).length).toBeGreaterThan(0);
     expect(screen.getByText("Debt carried", { exact: true })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Earnings and adjustments" })).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { name: "Ledger · earnings, corrections and debt" }),
-    ).toBeInTheDocument();
-    expect(screen.queryByText(/every naira traced to a trip/i)).not.toBeInTheDocument();
+      screen.queryByText(
+        /every naira traced to a trip|On this page:|Available for payment|Under review|^Held$|^Pending$|^Released$/i,
+      ),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Paid means money successfully transferred.")).toBeInTheDocument();
   });
 
   it("does not present an empty or cached balance when any canonical source is unavailable", async () => {
@@ -223,7 +233,7 @@ describe("DriverEarningsPage canonical settlement projection", () => {
       /earnings and review status are unavailable/i,
     );
     expect(screen.getByRole("alert")).toHaveTextContent(
-      /couldn't load your latest earnings, ledger or trip reviews, so no balance is shown\. Try again shortly\./i,
+      /couldn't load your latest earnings, payments or trip reviews, so no balance is shown\. Try again shortly\./i,
     );
     expect(screen.queryByText(/No entries yet/)).not.toBeInTheDocument();
     expect(screen.queryByText(/₦/)).not.toBeInTheDocument();
@@ -257,13 +267,11 @@ describe("DriverEarningsPage canonical settlement projection", () => {
     render(await DriverEarningsPage({}));
 
     expect(screen.getByText("Campaign labels unavailable")).toBeInTheDocument();
-    expect(screen.getByText("Available for payment").nextElementSibling).toHaveTextContent(
-      "₦90.00",
+    expect(screen.getAllByText("Ready to pay")[0]!.nextElementSibling).toHaveTextContent("₦90.00");
+    expect(screen.getByText("Waiting for review").nextElementSibling).toHaveTextContent(
+      "0 trips need review",
     );
-    expect(screen.getByText("Under review").nextElementSibling).toHaveTextContent(
-      "0 active trip holds",
-    );
-    expect(screen.getByText(/Pending earnings/)).toHaveTextContent("₦20.00");
+    expect(screen.getByText(/Waiting for review ₦/)).toHaveTextContent("₦20.00");
     expect(screen.getByText("Paid", { exact: true }).nextElementSibling).toHaveTextContent(
       "₦40.00",
     );
@@ -313,8 +321,8 @@ describe("DriverEarningsPage canonical settlement projection", () => {
     expect(get).toHaveBeenCalledWith("/api/v1/driver/earnings/ledger", {
       params: { query: { limit: 50, offset: 0 } },
     });
-    expect(screen.getByText("Available for payment")).toBeInTheDocument();
-    expect(screen.getByText("Under review")).toBeInTheDocument();
+    expect(screen.getAllByText("Ready to pay")[0]!).toBeInTheDocument();
+    expect(screen.getAllByText("Waiting for review")[0]).toBeInTheDocument();
     expect(screen.getByText("Paid", { exact: true })).toBeInTheDocument();
     expect(screen.getByText("Showing 1–50 of 75 entries")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Next" })).toHaveAttribute(

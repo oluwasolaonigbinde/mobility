@@ -63,7 +63,7 @@ DENSITY_PARAMETER_CALIBRATION = (
     "traffic profile; no independent field calibration or external traffic survey has been "
     "applied."
 )
-SUPPRESSED_TOTAL_LABEL = "Omitted - insufficient frozen evidence"
+SUPPRESSED_TOTAL_LABEL = "Not enough data"
 ROI_METHOD_LIMITATIONS = (
     "Return on investment is computed from advertiser-supplied conversion and revenue inputs "
     "that Cardvert does not verify. It is not causal lift, incremental value, verified "

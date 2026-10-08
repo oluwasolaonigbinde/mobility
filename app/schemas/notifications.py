@@ -26,6 +26,8 @@ class NotificationFeedItemRead(BaseModel):
     channel: NotificationChannel
     title: str
     body: str
+    campaign_name: str | None = None
+    action_url: str | None = None
     created_at: datetime
     read_at: datetime | None
 

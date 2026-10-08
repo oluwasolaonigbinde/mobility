@@ -13,6 +13,7 @@ import { createCampaignAction, type CreateCampaignState } from "./actions";
 import { Panel } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
 import { cx } from "@/lib/cx";
+import { formatMoney } from "@/lib/format";
 import { uploadCreativeFile, type CreativeUploadPhase } from "@/lib/files/creative-upload";
 
 const STEPS = ["Basics", "Creatives", "Review"] as const;
@@ -442,13 +443,13 @@ export function CampaignWizard({
                 [
                   "Budget",
                   values.basics.budget_amount
-                    ? `${currency} ${values.basics.budget_amount}`
+                    ? formatMoney(values.basics.budget_amount, currency)
                     : "not set",
                 ],
                 [
                   "Daily budget",
                   values.basics.daily_budget_amount
-                    ? `${currency} ${values.basics.daily_budget_amount}`
+                    ? formatMoney(values.basics.daily_budget_amount, currency)
                     : "not set",
                 ],
                 [

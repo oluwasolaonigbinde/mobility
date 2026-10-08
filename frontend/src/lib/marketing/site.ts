@@ -188,9 +188,9 @@ export const PATHWAYS: readonly [Pathway, Pathway] = [
     title: "Earn from the miles you already drive",
     points: [
       /** PRODUCT DRIVER_POINTS — the advertising travels with the driver's own driving. */
-      "Turn regular journeys into additional income",
+      "Earn a daily rate by covering your campaign's expected miles",
       "Access advertising opportunities suited to your vehicle",
-      "Participate without changing everyday driving habits",
+      "Only miles inside the campaign area count; shorter days earn a proportion of the daily rate",
     ],
     cta: { label: CTA.driver, href: ROUTES.driverApplication },
   },

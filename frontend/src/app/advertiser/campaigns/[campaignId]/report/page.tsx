@@ -170,7 +170,7 @@ export default async function CampaignReportPage({
                   <th className="px-4 py-3 text-right font-normal">Distance</th>
                   <th className="px-4 py-3 text-right font-normal">Estimated ad exposure</th>
                   <th className="px-4 py-3 text-right font-normal">Estimate quality factor</th>
-                  <th className="px-4 py-3 text-right font-normal">GPS evidence quality</th>
+                  <th className="px-4 py-3 text-right font-normal">GPS signal quality</th>
                   <th className="px-4 py-3 text-right font-normal">Driver cost</th>
                 </tr>
               </thead>

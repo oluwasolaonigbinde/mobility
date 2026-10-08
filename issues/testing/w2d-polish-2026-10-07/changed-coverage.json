@@ -1,0 +1,251 @@
+{
+  "base": "ec267529d26688bb18d72d41ac3ced4a68221a5a",
+  "lcov_sha256": {
+    "backend": "60cd40c02813765de349b2c88f5cb60971cb93fb7cfd3b0992fdfb65b83e2200",
+    "frontend": "c17636848ee97a653f5d88e087c5a5bcd7bb6c1d61a87690f0557e85defdaf89"
+  },
+  "metrics": {
+    "line_covered": 69,
+    "line_total": 70,
+    "line_percent": 98.5714,
+    "branch_covered": 67,
+    "branch_total": 73,
+    "branch_percent": 91.7808
+  },
+  "files": [
+    {
+      "path": "app/api/v1/notifications.py",
+      "line_covered": 2,
+      "line_total": 2,
+      "line_percent": 100.0,
+      "branch_covered": 0,
+      "branch_total": 0,
+      "branch_percent": 100.0,
+      "uncovered_lines": [],
+      "uncovered_branches": []
+    },
+    {
+      "path": "app/schemas/notifications.py",
+      "line_covered": 2,
+      "line_total": 2,
+      "line_percent": 100.0,
+      "branch_covered": 0,
+      "branch_total": 0,
+      "branch_percent": 100.0,
+      "uncovered_lines": [],
+      "uncovered_branches": []
+    },
+    {
+      "path": "app/services/measurement.py",
+      "line_covered": 1,
+      "line_total": 1,
+      "line_percent": 100.0,
+      "branch_covered": 0,
+      "branch_total": 0,
+      "branch_percent": 100.0,
+      "uncovered_lines": [],
+      "uncovered_branches": []
+    },
+    {
+      "path": "app/services/notifications.py",
+      "line_covered": 51,
+      "line_total": 52,
+      "line_percent": 98.0769,
+      "branch_covered": 25,
+      "branch_total": 26,
+      "branch_percent": 96.1538,
+      "uncovered_lines": [
+        121
+      ],
+      "uncovered_branches": [
+        [
+          120,
+          0,
+          "jump to line 121"
+        ]
+      ]
+    },
+    {
+      "path": "app/services/report_issuances.py",
+      "line_covered": 1,
+      "line_total": 1,
+      "line_percent": 100.0,
+      "branch_covered": 0,
+      "branch_total": 0,
+      "branch_percent": 100.0,
+      "uncovered_lines": [],
+      "uncovered_branches": []
+    },
+    {
+      "path": "frontend/src/app/advertiser/campaigns/[campaignId]/campaign-cancellation-panel.tsx",
+      "line_covered": 0,
+      "line_total": 0,
+      "line_percent": 100.0,
+      "branch_covered": 0,
+      "branch_total": 0,
+      "branch_percent": 100.0,
+      "uncovered_lines": [],
+      "uncovered_branches": []
+    },
+    {
+      "path": "frontend/src/app/advertiser/campaigns/[campaignId]/campaign-change-panel.tsx",
+      "line_covered": 4,
+      "line_total": 4,
+      "line_percent": 100.0,
+      "branch_covered": 5,
+      "branch_total": 7,
+      "branch_percent": 71.4286,
+      "uncovered_lines": [],
+      "uncovered_branches": [
+        [
+          211,
+          22,
+          "1"
+        ],
+        [
+          215,
+          23,
+          "1"
+        ]
+      ]
+    },
+    {
+      "path": "frontend/src/app/advertiser/campaigns/[campaignId]/commercial-panel.tsx",
+      "line_covered": 1,
+      "line_total": 1,
+      "line_percent": 100.0,
+      "branch_covered": 6,
+      "branch_total": 6,
+      "branch_percent": 100.0,
+      "uncovered_lines": [],
+      "uncovered_branches": []
+    },
+    {
+      "path": "frontend/src/app/advertiser/campaigns/[campaignId]/page.tsx",
+      "line_covered": 0,
+      "line_total": 0,
+      "line_percent": 100.0,
+      "branch_covered": 0,
+      "branch_total": 0,
+      "branch_percent": 100.0,
+      "uncovered_lines": [],
+      "uncovered_branches": []
+    },
+    {
+      "path": "frontend/src/app/advertiser/campaigns/[campaignId]/report/page.tsx",
+      "line_covered": 0,
+      "line_total": 0,
+      "line_percent": 100.0,
+      "branch_covered": 0,
+      "branch_total": 0,
+      "branch_percent": 100.0,
+      "uncovered_lines": [],
+      "uncovered_branches": []
+    },
+    {
+      "path": "frontend/src/app/advertiser/campaigns/new/wizard.tsx",
+      "line_covered": 0,
+      "line_total": 0,
+      "line_percent": 100.0,
+      "branch_covered": 0,
+      "branch_total": 0,
+      "branch_percent": 100.0,
+      "uncovered_lines": [],
+      "uncovered_branches": []
+    },
+    {
+      "path": "frontend/src/app/driver/(portal)/assignments/page.tsx",
+      "line_covered": 3,
+      "line_total": 3,
+      "line_percent": 100.0,
+      "branch_covered": 10,
+      "branch_total": 12,
+      "branch_percent": 83.3333,
+      "uncovered_lines": [],
+      "uncovered_branches": [
+        [
+          231,
+          27,
+          "1"
+        ],
+        [
+          240,
+          28,
+          "1"
+        ]
+      ]
+    },
+    {
+      "path": "frontend/src/app/driver/(portal)/earnings/page.tsx",
+      "line_covered": 0,
+      "line_total": 0,
+      "line_percent": 100.0,
+      "branch_covered": 10,
+      "branch_total": 10,
+      "branch_percent": 100.0,
+      "uncovered_lines": [],
+      "uncovered_branches": []
+    },
+    {
+      "path": "frontend/src/components/notifications/notification-center.tsx",
+      "line_covered": 1,
+      "line_total": 1,
+      "line_percent": 100.0,
+      "branch_covered": 3,
+      "branch_total": 4,
+      "branch_percent": 75.0,
+      "uncovered_lines": [],
+      "uncovered_branches": [
+        [
+          95,
+          8,
+          "1"
+        ]
+      ]
+    },
+    {
+      "path": "frontend/src/lib/assignments/offer-terms.ts",
+      "line_covered": 2,
+      "line_total": 2,
+      "line_percent": 100.0,
+      "branch_covered": 6,
+      "branch_total": 6,
+      "branch_percent": 100.0,
+      "uncovered_lines": [],
+      "uncovered_branches": []
+    },
+    {
+      "path": "frontend/src/lib/billing/invoice-document.tsx",
+      "line_covered": 1,
+      "line_total": 1,
+      "line_percent": 100.0,
+      "branch_covered": 2,
+      "branch_total": 2,
+      "branch_percent": 100.0,
+      "uncovered_lines": [],
+      "uncovered_branches": []
+    },
+    {
+      "path": "frontend/src/lib/format.ts",
+      "line_covered": 0,
+      "line_total": 0,
+      "line_percent": 100.0,
+      "branch_covered": 0,
+      "branch_total": 0,
+      "branch_percent": 100.0,
+      "uncovered_lines": [],
+      "uncovered_branches": []
+    },
+    {
+      "path": "frontend/src/lib/marketing/site.ts",
+      "line_covered": 0,
+      "line_total": 0,
+      "line_percent": 100.0,
+      "branch_covered": 0,
+      "branch_total": 0,
+      "branch_percent": 100.0,
+      "uncovered_lines": [],
+      "uncovered_branches": []
+    }
+  ]
+}

@@ -75,7 +75,7 @@ def test_campaign_rejection_notifies_without_copying_the_reason(db_client, db_se
     assert reason not in email.text_body
     feed = db_client.get("/api/v1/notifications", headers=advertiser_headers).json()["items"]
     assert [(item["title"], reason in item["body"]) for item in feed] == [
-        ("Campaign needs changes", False)
+        (f"{campaign.name} · Campaign needs changes", False)
     ]
 
     db_client.post(f"/api/v1/advertiser/campaigns/{campaign.id}/submit", headers=advertiser_headers)
@@ -188,8 +188,8 @@ def test_creative_decisions_notify_the_owning_company(
             "items"
         ]
     ]
-    assert "Artwork approved" in feed_titles
-    assert "Artwork needs changes" in feed_titles
+    assert f"{campaign.name} · Artwork approved" in feed_titles
+    assert f"{campaign.name} · Artwork needs changes" in feed_titles
 
 
 def test_creative_decision_service_notifies_with_identifiers_only(

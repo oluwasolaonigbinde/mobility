@@ -67,6 +67,30 @@ function revision(overrides: Partial<Commercial["revisions"][number]> = {}) {
 }
 
 describe("CommercialPanel copy", () => {
+  it("hides new quotation requests for terminal campaigns", () => {
+    render(
+      <CommercialPanel
+        campaignId={CAMPAIGN_ID}
+        commercial={commercial()}
+        canRequestQuotation={false}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Request custom quotation" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("groups money with kobo and labels VAT as a percentage", () => {
+    render(
+      <CommercialPanel
+        campaignId={CAMPAIGN_ID}
+        commercial={commercial({ revisions: [revision()] })}
+      />,
+    );
+    expect(screen.getByText("VAT 7.5% · ₦7,500.00")).toBeInTheDocument();
+    expect(screen.getAllByText("₦100,000.00").length).toBeGreaterThan(0);
+    expect(screen.getByText("₦107,500.00")).toBeInTheDocument();
+  });
   it("keeps visible request success through the authoritative commercial refresh", async () => {
     const user = userEvent.setup();
     vi.mocked(requestQuoteAction).mockResolvedValueOnce({
@@ -120,9 +144,9 @@ describe("CommercialPanel copy", () => {
 
     expect(screen.getByRole("button", { name: "Accept these exact terms" })).toBeInTheDocument();
     expect(screen.getByText("Vehicle wrap production")).toBeInTheDocument();
-    expect(screen.getAllByText("NGN 100000.00")).toHaveLength(3);
-    expect(screen.getByText(/0.0750 · NGN 7500.00/)).toBeInTheDocument();
-    expect(screen.getByText("NGN 107500.00")).toBeInTheDocument();
+    expect(screen.getAllByText("₦100,000.00")).toHaveLength(3);
+    expect(screen.getByText(/VAT 7.5% · ₦7,500.00/)).toBeInTheDocument();
+    expect(screen.getByText("₦107,500.00")).toBeInTheDocument();
     expect(screen.getByText(/before production/)).toBeInTheDocument();
     expect(screen.getAllByText(/2026-10-01/)).toHaveLength(2);
     expect(
@@ -210,7 +234,7 @@ describe("CommercialPanel copy", () => {
     );
 
     expect(screen.getByText("Payment basis")).toBeInTheDocument();
-    expect(screen.getByText("approved credit · ₦50,000")).toBeInTheDocument();
+    expect(screen.getByText("approved credit · ₦50,000.00")).toBeInTheDocument();
     expect(screen.queryByText("Funding authority")).not.toBeInTheDocument();
   });
 

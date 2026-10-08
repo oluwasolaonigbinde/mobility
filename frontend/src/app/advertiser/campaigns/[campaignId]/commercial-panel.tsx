@@ -28,7 +28,7 @@ const budgetStateLabel: Record<string, string> = {
 };
 
 function exactMoney(currency: string, amount: string | number) {
-  return `${currency} ${String(amount)}`;
+  return formatMoney(amount, currency);
 }
 
 function termLabel(key: string) {
@@ -135,9 +135,10 @@ function QuotationFacts({ quotation, accepted }: { quotation: Quotation; accepte
           </dd>
         </div>
         <div>
-          <dt className="micro text-muted">Included tax</dt>
+          <dt className="micro text-muted">Included VAT</dt>
           <dd className="mt-1 font-mono text-xs">
-            {quotation.tax_rate} · {exactMoney(quotation.currency, quotation.tax_amount)}
+            VAT {Number(quotation.tax_rate) * 100}% ·{" "}
+            {exactMoney(quotation.currency, quotation.tax_amount)}
           </dd>
         </div>
         <div>
@@ -177,10 +178,12 @@ export function CommercialPanel({
   campaignId,
   commercial,
   error,
+  canRequestQuotation = true,
 }: {
   campaignId: string;
   commercial: Commercial;
   error?: string;
+  canRequestQuotation?: boolean;
 }) {
   const latest = commercial.revisions.at(-1);
   const [requestState, requestAction, requesting] = useActionState(
@@ -223,7 +226,7 @@ export function CommercialPanel({
             </p>
           ) : null,
         )}
-        {!commercial.quote_request && !requestState.done ? (
+        {canRequestQuotation && !commercial.quote_request && !requestState.done ? (
           <form action={requestAction} className="flex flex-col gap-3 sm:flex-row">
             <input type="hidden" name="campaign_id" value={campaignId} />
             <input

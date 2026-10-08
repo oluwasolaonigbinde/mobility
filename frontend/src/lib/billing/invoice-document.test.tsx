@@ -57,7 +57,7 @@ const issued: Invoice = {
     bank_name: "Test Bank",
     bank_account_name: "Terrax Media Company Ltd",
     bank_account_number: "TEST-ACCOUNT",
-    invoice_wording: "Prices include 7.5 % VAT.",
+    invoice_wording: "Prices include 7.5% VAT.",
     external_input_reference: "INTERNAL-GATE-REFERENCE",
     synthetic_test_authority: true,
   },
@@ -117,7 +117,7 @@ describe("InvoiceDocument", () => {
     expect(rows[2]).toHaveTextContent("2Graphic design1₦70,001.00₦70,001.00");
 
     expect(fact("Subtotal (before VAT)")).toBe("₦370,001.00");
-    expect(fact("VAT (7.5 %)")).toBe("₦27,750.08");
+    expect(fact("Included VAT")).toBe("VAT 7.5% · ₦27,750.08");
     expect(fact("Invoice total (VAT inclusive)")).toBe("₦397,751.08");
     expect(screen.getByText(/One campaign day cancelled/)).toHaveTextContent(
       "Credit note: reduces the invoice by ₦10,752.50 (₦10,002.33 + VAT ₦750.17)",
@@ -126,7 +126,7 @@ describe("InvoiceDocument", () => {
     expect(fact("Paid so far")).toBe("₦50,000.00");
     expect(fact("Payment status")).toBe("Part paid");
     expect(fact("Account number")).toBe("TEST-ACCOUNT");
-    expect(screen.getByText("Prices include 7.5 % VAT.")).toBeVisible();
+    expect(screen.getByText("Prices include 7.5% VAT.")).toBeVisible();
     expect(screen.getByText("For the client")).toBeVisible();
     expect(screen.getByText("For Terrax Media Company Ltd")).toBeVisible();
     expect(screen.getByText("Chief Executive Officer")).toBeVisible();
@@ -188,8 +188,8 @@ describe("InvoiceDocument", () => {
 
 describe("invoice formatting", () => {
   it("formats rates, dates and durations without guessing", () => {
-    expect(formatVatRate("0.075000")).toBe("7.5 %");
-    expect(formatVatRate("0")).toBe("0 %");
+    expect(formatVatRate("0.075000")).toBe("7.5%");
+    expect(formatVatRate("0")).toBe("0%");
     expect(formatVatRate("not-a-rate")).toBe("—");
     expect(formatInvoiceDate(null)).toBe("Not yet recorded");
     expect(formatInvoiceDate("not-a-date")).toBe("Not yet recorded");

@@ -14,6 +14,8 @@ describe("offerTermLines", () => {
         revision_id: "r1",
         formula_version: "payout_v3",
         hourly_rate_naira: "1500.00",
+        premium_hourly_rate_naira: "",
+        missing_rate_naira: null,
         eligibility_params: { stationary_window_min: 5 },
       },
       zones: {
@@ -30,7 +32,7 @@ describe("offerTermLines", () => {
     expect(text).toContain("Currency: NGN");
     expect(text).toContain("Service area · City: Abuja");
     expect(text).toContain("Branding · Campaign name: Wuse Blitz");
-    expect(text).toContain("Payout · Hourly rate naira: 1500.00");
+    expect(text).toContain("Payout · Hourly rate naira: ₦1,500.00");
     expect(text).toContain("Payout · Eligibility params · Stationary window min: 5");
     expect(text).toContain("Zones · Target: Wuse II");
     expect(text).toContain("Eligibility · Teleport kmh: 180");
@@ -42,6 +44,7 @@ describe("offerTermLines", () => {
     );
     expect(text).not.toContain("Brand name");
     expect(text).not.toContain("Exclusion");
+    expect(text).not.toMatch(/Premium hourly rate|Missing rate|₦0.00/);
   });
 });
 
@@ -79,8 +82,8 @@ describe("dailyRateSentences", () => {
 
   it("states the day rate, target, proportional rule, stop rule and full outside miles", () => {
     expect(dailyRateSentences(offer({}))).toEqual([
-      "₦10,000 for a full day of 70 miles.",
-      "Driving more than 70 miles in a day still earns ₦10,000.",
+      "₦10,000.00 for a full day of 70 miles.",
+      "Driving more than 70 miles in a day still earns ₦10,000.00.",
       "Shorter days are paid in proportion to the miles covered.",
       "Stops of up to 5 minutes count as driving; longer stops add no miles.",
       "No miles are counted while your phone loses its location for more than 2 minutes.",
@@ -97,7 +100,7 @@ describe("dailyRateSentences", () => {
         outside_area_weight: "0.5000",
       }),
     );
-    expect(sentences).toContain("Each mile short of 70 takes ₦140 off the day's pay.");
+    expect(sentences).toContain("Each mile short of 70 takes ₦140.00 off the day's pay.");
     expect(sentences).toContain("Days under 20 miles are not paid.");
     expect(sentences).toContain("Miles outside the campaign area count at 50%.");
     expect(dailyRateSentences(offer({ outside_area_weight: "0.0000" }))).toContain(

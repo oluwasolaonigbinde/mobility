@@ -26,8 +26,8 @@ export function CampaignCancellationPanel({
       <p className="text-muted mt-2 max-w-3xl text-sm">
         Cancellation is permanent. New assignments and trip starts stop at one server-recorded
         cutoff. Verified driver earnings before that cutoff remain payable. Refund eligibility is
-        determined from accepted terms and production evidence; cancellation does not itself prove
-        that money was transferred.
+        determined from accepted terms and records of campaign preparation; cancellation does not
+        itself prove that money was transferred.
       </p>
       <form action={formAction} className="mt-5 grid gap-4">
         <input type="hidden" name="campaign_id" value={campaignId} />

@@ -20,6 +20,7 @@ const SECOND_REQUEST_ID = "00000000-0000-4000-8000-00000000000c";
 
 describe("CampaignChangePanel", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     mocks.preview.mockImplementation(async (_state: unknown, form: FormData) => ({
       commandId: String(form.get("client_request_id")),
       preview: {
@@ -115,6 +116,68 @@ describe("CampaignChangePanel", () => {
       screen.getByText(/only be requested while a campaign is scheduled, live or paused/),
     ).toBeInTheDocument();
     expect(screen.getByText("Applied")).toBeInTheDocument();
+  });
+
+  it.each([
+    "Total budget",
+    "Daily budget",
+    "New start, Nigeria time (WAT)",
+    "New end, Nigeria time (WAT)",
+    "Reason",
+  ])("clears a preview when %s changes and requires another preview", async (label) => {
+    const user = userEvent.setup();
+    render(
+      <CampaignChangePanel
+        campaignId={CAMPAIGN_ID}
+        clientRequestId={FIRST_REQUEST_ID}
+        currency="NGN"
+        requests={[]}
+      />,
+    );
+    await user.type(screen.getByLabelText("Total budget"), "1100.00");
+    await user.type(screen.getByLabelText("Reason"), "Expansion");
+    await user.click(screen.getByRole("button", { name: "Preview change" }));
+    await screen.findByRole("button", { name: "Confirm this change" });
+    const input = screen.getByLabelText(label);
+    const { fireEvent } = await import("@testing-library/react");
+    fireEvent.change(input, {
+      target: { value: label.startsWith("New") ? "2026-10-09T10:00" : "1200" },
+    });
+    expect(screen.queryByLabelText("Change preview")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Confirm this change" })).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("Reason"), "Updated expansion");
+    await user.click(screen.getByRole("button", { name: "Preview change" }));
+    await screen.findByRole("button", { name: "Confirm this change" });
+    expect(mocks.confirm).not.toHaveBeenCalled();
+  });
+
+  it("does not restore a preview that resolves after the user edits", async () => {
+    let resolve!: (value: unknown) => void;
+    const original = mocks.preview.getMockImplementation()!;
+    mocks.preview.mockImplementationOnce(
+      (_state, form) =>
+        new Promise((done) => {
+          resolve = async () => done(await original(_state, form));
+        }),
+    );
+    const user = userEvent.setup();
+    render(
+      <CampaignChangePanel
+        campaignId={CAMPAIGN_ID}
+        clientRequestId={FIRST_REQUEST_ID}
+        currency="NGN"
+        requests={[]}
+      />,
+    );
+    await user.type(screen.getByLabelText("Total budget"), "1100.00");
+    await user.type(screen.getByLabelText("Reason"), "Expansion");
+    await user.click(screen.getByRole("button", { name: "Preview change" }));
+    await user.type(screen.getByLabelText("Reason"), " edited");
+    resolve(undefined);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Preview change" })).toBeEnabled(),
+    );
+    expect(screen.queryByLabelText("Change preview")).not.toBeInTheDocument();
   });
 });
 

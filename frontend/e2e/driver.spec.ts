@@ -65,10 +65,10 @@ test("earnings tab shows totals and a trip-traceable ledger", async ({ page }) =
     .getByRole("link", { name: "Earnings" })
     .click();
   await page.waitForURL("**/driver/earnings");
-  await expect(page.getByText("Available for payment", { exact: true })).toBeVisible();
-  await expect(page.getByText("Under review", { exact: true })).toBeVisible();
+  await expect(page.getByText("Ready to pay", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Waiting for review", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Paid", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Payout journey")).toBeVisible();
+  await expect(page.getByText("Your payments")).toBeVisible();
   // Ledger rows are links into the per-trip earnings breakdown.
   await expect(page.locator('a[href*="/driver/earnings/trips/"]').first()).toBeVisible();
 });

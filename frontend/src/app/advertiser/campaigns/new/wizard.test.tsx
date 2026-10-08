@@ -72,3 +72,21 @@ it("does not offer an attach action that would change nothing", async () => {
   expect(screen.getByText(/nothing to attach/)).toBeInTheDocument();
   expect(createCampaignAction).not.toHaveBeenCalled();
 });
+
+it("formats budget summaries while keeping the exact submitted values", async () => {
+  const user = userEvent.setup();
+  render(<CampaignWizard currency="NGN" />);
+  await user.type(screen.getByLabelText("Campaign name *"), "Precise budgets");
+  await user.type(screen.getByLabelText("Total budget (NGN)"), "1234567.89");
+  await user.type(screen.getByLabelText("Daily budget (NGN)"), "10000.00");
+  await user.click(screen.getByRole("button", { name: "Continue →" }));
+  await user.click(screen.getByRole("button", { name: "Continue →" }));
+  expect(screen.getByText("₦1,234,567.89")).toBeInTheDocument();
+  expect(screen.getByText("₦10,000.00")).toBeInTheDocument();
+  await user.click(screen.getByRole("button", { name: "Create campaign" }));
+  await waitFor(() => expect(createCampaignAction).toHaveBeenCalled());
+  expect(vi.mocked(createCampaignAction).mock.calls[0]![0].basics).toMatchObject({
+    budget_amount: "1234567.89",
+    daily_budget_amount: "10000.00",
+  });
+});

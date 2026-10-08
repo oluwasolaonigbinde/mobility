@@ -39,6 +39,7 @@ from app.models.kyc import (
     DriverKycSubmission,
     KycReviewReason,
     KycSubmissionStatus,
+    VehicleEvidenceSubmission,
     VehicleReviewReason,
 )
 from app.models.payee import Payee, PayeeBankAccount, PayeeBankAccountVersion, PayeeVersion
@@ -777,6 +778,156 @@ async def _ensure_applicant_vehicle(session, *, application, person, token, staf
     )
 
 
+async def ensure_primary_demo_documents(session, *, driver, profile, vehicle, reviewer, settings):
+    """Normal fictional document submissions and audited reviews for the demo trip login."""
+    from app.schemas.driver_onboarding import (
+        DocumentReviewRead,
+        PersonPayeeReviewDecisionCreate,
+        VehicleReviewDecisionCreate,
+    )
+    from app.services.driver_onboarding import review_application_person_payee
+    from app.services.kyc import reveal_driver_nin, submit_driver_kyc, submit_vehicle_evidence
+    from app.services.payees import read_verified_bank_account
+    from app.services.stored_files import issue_admin_file_download
+    from app.services.vehicle_onboarding import review_application_vehicle
+
+    crypto = EnvelopeCryptoProvider(
+        keys=settings.payout_crypto_keys, active_key_version=settings.payout_crypto_key_version
+    )
+    valid_until = datetime.now(UTC) + timedelta(days=90)
+
+    async def documents(kinds, purpose):
+        return {
+            kind: (
+                await managed_seed_image(
+                    session,
+                    settings=settings,
+                    subject=driver,
+                    label=f"emeka-nwankwo-{kind.replace('_', '-')}",
+                    purpose=purpose,
+                    identity="primary-demo-documents",
+                )
+            ).id
+            for kind in kinds
+        }
+
+    async def read_files(files, reason):
+        for file_id in files.values():
+            await issue_admin_file_download(
+                session,
+                actor_user_id=reviewer.id,
+                file_id=file_id,
+                access_purpose="kyc_review",
+                reason=reason,
+                storage=build_storage_provider(settings),
+                settings=settings,
+            )
+
+    if not await session.scalar(
+        select(DriverKycSubmission.id).where(DriverKycSubmission.driver_profile_id == profile.id)
+    ):
+        bank = await session.scalar(
+            select(PayeeBankAccountVersion)
+            .join(PayeeBankAccount)
+            .join(Payee)
+            .where(Payee.subject_id == profile.id, Payee.tenant_id == driver.id)
+            .order_by(PayeeBankAccountVersion.version.desc())
+            .limit(1)
+        )
+        bank = require_seed_value(bank, "primary driver bank account")
+        files = await documents(
+            ("driver_license", "driver_photo", "signed_agreement"), FilePurpose.DRIVER_KYC.value
+        )
+        view = await submit_driver_kyc(
+            session,
+            actor_user_id=driver.id,
+            client_request_id=uuid5(driver.id, "primary-demo-person"),
+            nin="00000000000",
+            bank_account_version_id=bank.id,
+            document_file_ids=files,
+            crypto=crypto,
+            settings=settings,
+        )
+        await reveal_driver_nin(
+            session,
+            submission_id=view.submission.id,
+            actor_user_id=reviewer.id,
+            purpose="person_payee_approval",
+            crypto=crypto,
+        )
+        await read_verified_bank_account(
+            session,
+            bank_account_version_id=bank.id,
+            actor_user_id=reviewer.id,
+            purpose="person_payee_approval",
+            crypto=crypto,
+        )
+        await read_files(files, f"person_payee_approval:{view.submission.id}")
+        await review_application_person_payee(
+            session,
+            driver_profile_id=profile.id,
+            actor_user_id=reviewer.id,
+            payload=PersonPayeeReviewDecisionCreate(
+                submission_id=view.submission.id,
+                client_request_id=uuid5(driver.id, "primary-demo-person-review"),
+                decision=KycSubmissionStatus.APPROVED,
+                reason_code=KycReviewReason.COMPLETE_CURRENT_EVIDENCE,
+                identity_match_confirmed=True,
+                bank_account_match_confirmed=True,
+                documents_readable_confirmed=True,
+                document_reviews={
+                    kind: DocumentReviewRead(
+                        status="accepted",
+                        expires_on=valid_until.date() if kind == "driver_license" else None,
+                    )
+                    for kind in files
+                },
+            ),
+        )
+    if not await session.scalar(
+        select(VehicleEvidenceSubmission.id).where(
+            VehicleEvidenceSubmission.vehicle_id == vehicle.id
+        )
+    ):
+        files = await documents(
+            ("registration", "insurance", "vehicle_photo"), FilePurpose.VEHICLE_EVIDENCE.value
+        )
+        view = await submit_vehicle_evidence(
+            session,
+            actor_user_id=driver.id,
+            vehicle_id=vehicle.id,
+            client_request_id=uuid5(driver.id, "primary-demo-vehicle"),
+            document_file_ids=files,
+            settings=settings,
+        )
+        await read_files(files, f"vehicle_approval:{view.submission.id}")
+        await review_application_vehicle(
+            session,
+            driver_profile_id=profile.id,
+            vehicle_id=vehicle.id,
+            submission_id=view.submission.id,
+            actor_user_id=reviewer.id,
+            payload=VehicleReviewDecisionCreate(
+                client_request_id=uuid5(driver.id, "primary-demo-vehicle-review"),
+                decision=KycSubmissionStatus.APPROVED,
+                reason_code=VehicleReviewReason.COMPLETE_CURRENT_EVIDENCE,
+                owner_match_confirmed=True,
+                vehicle_identity_confirmed=True,
+                roadworthy_confirmed=True,
+                pilot_car_confirmed=True,
+                documents_readable_confirmed=True,
+                valid_until=valid_until,
+                document_reviews={
+                    kind: DocumentReviewRead(
+                        status="accepted",
+                        expires_on=valid_until.date() if kind == "insurance" else None,
+                    )
+                    for kind in files
+                },
+            ),
+        )
+
+
 async def ensure_demo_start_authority(
     session: AsyncSession, *, graph: StartAuthorityGraph, settings: Settings
 ) -> None:
@@ -882,6 +1033,15 @@ async def ensure_demo_start_authority(
                 verified_by_user_id=(finance or admin).id,
                 created_at=assignment.accepted_at,
             )
+        )
+    if driver.email == "driver@demo.mobility.local":
+        await ensure_primary_demo_documents(
+            session,
+            driver=driver,
+            profile=profile,
+            vehicle=vehicle,
+            reviewer=compliance or admin,
+            settings=settings,
         )
     image_revision = (
         await session.scalar(

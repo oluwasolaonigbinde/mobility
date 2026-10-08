@@ -52,7 +52,7 @@ export default async function DriverEarningsPage({
         <h1 className="font-display text-2xl font-semibold tracking-tight">Earnings</h1>
         <DriverDataUnavailable
           title="Earnings and review status are unavailable"
-          detail="Cardvert couldn't load your latest earnings, ledger or trip reviews, so no balance is shown. Try again shortly."
+          detail="Cardvert couldn't load your latest earnings, payments or trip reviews, so no balance is shown. Try again shortly."
           retryHref="/driver/earnings"
         />
       </div>
@@ -75,18 +75,6 @@ export default async function DriverEarningsPage({
     entry,
     presentation: presentLedgerEntry(entry, heldTripIds),
   }));
-  const heldEntries = presentedEntries.filter(
-    ({ presentation }) => presentation.status.label === "Held",
-  );
-  const pendingEntries = presentedEntries.filter(
-    ({ presentation }) => presentation.status.label === "Pending",
-  );
-  const releasedEntries = presentedEntries.filter(
-    ({ presentation }) => presentation.status.label === "Released",
-  );
-  const paidEntries = presentedEntries.filter(
-    ({ presentation }) => presentation.status.label === "Paid",
-  );
   const firstEntryNumber = entries.length === 0 ? 0 : ledgerOffset + 1;
   const lastEntryNumber = ledgerOffset + entries.length;
   const isPastEnd = entries.length === 0 && ledgerTotal > 0 && ledgerOffset >= ledgerTotal;
@@ -99,7 +87,7 @@ export default async function DriverEarningsPage({
     <FreshDriverAuthority
       refreshKey={crypto.randomUUID()}
       title="Current earnings hidden while offline"
-      detail="Reconnect to verify the latest balance, ledger and review status. Previously loaded money and hold details are not shown as current."
+      detail="Reconnect to see your current earnings, payments and trip reviews."
       retryHref="/driver/earnings"
     >
       <div className="animate-rise flex flex-col gap-4">
@@ -108,16 +96,16 @@ export default async function DriverEarningsPage({
         {assignments.state !== "ready" ? (
           <DriverDataUnavailable
             title="Campaign labels unavailable"
-            detail="Cardvert couldn't load optional campaign names. Amounts, review status and payment status below still come from their current authoritative sources."
+            detail="Campaign names couldn't load. Your current amounts and payment statuses are shown below."
             retryHref={`/driver/earnings?offset=${ledgerOffset}`}
           />
         ) : null}
 
         {totals.map((t) => {
           const values = [
-            ["Released", t.released_available_amount, "text-green"],
-            ["Available ledger", t.available_amount, "text-green"],
-            ["Paid ledger", t.paid_amount, "text-green"],
+            ["Ready to pay", t.released_available_amount, "text-green"],
+            ["Ready to pay before deductions", t.available_amount, "text-green"],
+            ["Paid (earnings records)", t.paid_amount, "text-green"],
             ["Owed, taken from your payouts", t.carry_forward_debt_amount, "text-coral"],
             ["Voided", t.voided_amount, "text-faint"],
             ["Lifetime earned", t.lifetime_earned_amount, ""],
@@ -125,20 +113,23 @@ export default async function DriverEarningsPage({
           return (
             <section key={t.currency} aria-label={`${t.currency} earnings`}>
               <p className="micro text-muted mb-2">{t.currency}</p>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <Panel className="p-4">
-                  <p className="micro text-faint">Available for payment</p>
+                  <p className="micro text-faint">Ready to pay</p>
                   <p className="font-display text-green mt-1 text-lg font-semibold">
                     {formatMoney(t.batch_payable_amount, t.currency)}
                   </p>
                 </Panel>
                 <Panel className="p-4">
-                  <p className="micro text-faint">Under review</p>
-                  <p className="font-display text-amber mt-1 text-lg font-semibold">
-                    {heldTripIds.size} active {heldTripIds.size === 1 ? "trip hold" : "trip holds"}
+                  <p className="micro text-faint">Waiting for review</p>
+                  <p
+                    className={`font-display mt-1 text-lg font-semibold ${heldTripIds.size > 0 ? "text-amber" : "text-muted"}`}
+                  >
+                    {heldTripIds.size}{" "}
+                    {heldTripIds.size === 1 ? "trip needs review" : "trips need review"}
                   </p>
                   <p className="text-faint mt-1 text-[11px]">
-                    Pending earnings {formatMoney(t.pending_amount, t.currency)}
+                    Waiting for review {formatMoney(t.pending_amount, t.currency)}
                   </p>
                 </Panel>
                 <Panel className="p-4">
@@ -160,7 +151,7 @@ export default async function DriverEarningsPage({
                     </Panel>
                   ))}
                   <Panel className="p-4">
-                    <p className="micro text-faint">Ledger entries</p>
+                    <p className="micro text-faint">Earnings records</p>
                     <p className="font-display mt-1 text-lg font-semibold">
                       {t.ledger_entry_count}
                     </p>
@@ -174,18 +165,9 @@ export default async function DriverEarningsPage({
         <Panel className="p-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <p className="micro text-muted">Payout journey</p>
-              <p className="mt-2 text-sm font-medium">
-                This page: {heldEntries.length} held · {pendingEntries.length} other pending ·{" "}
-                {releasedEntries.length} released · {paidEntries.length} paid
-              </p>
+              <p className="micro text-muted">Your payments</p>
               <p className="text-muted mt-1 text-xs leading-5">
-                Open a trip below to see its verified time, rate, cap progress, exclusions, and
-                ledger trail.
-              </p>
-              <p className="text-muted mt-1 text-xs leading-5">
-                Paid appears only after Cardvert records verified transfer success. No payment day
-                or destination is promised here.
+                Paid means money successfully transferred.
               </p>
             </div>
             <span className="bg-green/10 text-green flex size-10 shrink-0 items-center justify-center rounded-full font-mono">
@@ -196,7 +178,7 @@ export default async function DriverEarningsPage({
 
         <Panel className="overflow-hidden">
           <div className="border-edge border-b px-5 py-3.5">
-            <h2 className="micro text-muted">Ledger · earnings, corrections and debt</h2>
+            <h2 className="micro text-muted">Earnings and adjustments</h2>
             <p className="text-faint mt-1 text-xs">
               {isPastEnd
                 ? `No entries at this position · ${ledgerTotal} total`
@@ -206,7 +188,7 @@ export default async function DriverEarningsPage({
           {entries.length === 0 ? (
             isPastEnd ? (
               <div className="px-5 py-10 text-center text-sm">
-                <p className="text-muted">There are no ledger entries at this position.</p>
+                <p className="text-muted">There are no earnings records at this position.</p>
                 <Link
                   href={`/driver/earnings?offset=${lastPageOffset}`}
                   className="micro text-amber mt-3 inline-block"
@@ -241,7 +223,12 @@ export default async function DriverEarningsPage({
                         {formatMoneyExact(e.amount, e.currency)}
                       </span>
                       <StatusChip tone={presentation.status.tone}>
-                        {presentation.status.label}
+                        {presentation.status.label === "Released"
+                          ? "Ready to pay"
+                          : presentation.status.label === "Held" ||
+                              presentation.status.label === "Pending"
+                            ? "Waiting for review"
+                            : presentation.status.label}
                       </StatusChip>
                     </div>
                   </>
@@ -251,12 +238,12 @@ export default async function DriverEarningsPage({
                     {e.trip_session_id ? (
                       <Link
                         href={`/driver/earnings/trips/${e.trip_session_id}`}
-                        className="hover:bg-raised/60 flex items-center justify-between gap-3 px-5 py-3.5 transition-colors"
+                        className="hover:bg-raised/60 flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 transition-colors"
                       >
                         {row}
                       </Link>
                     ) : (
-                      <div className="flex items-center justify-between gap-3 px-5 py-3.5">
+                      <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
                         {row}
                       </div>
                     )}
@@ -267,7 +254,7 @@ export default async function DriverEarningsPage({
           )}
           {ledgerTotal > ledgerLimit && !isPastEnd ? (
             <nav
-              aria-label="Earnings ledger pages"
+              aria-label="Earnings pages"
               className="border-edge flex items-center justify-between border-t px-5 py-3.5"
             >
               {ledgerOffset > 0 ? (
