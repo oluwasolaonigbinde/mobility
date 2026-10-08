@@ -254,8 +254,9 @@ def test_campaign_context_fails_closed_in_feed_and_mark_read(db_client, db_sessi
         assert "PRIVATE" not in str(item)
 
 
+@pytest.mark.parametrize("conflict_first", [False, True])
 def test_driver_context_resolves_trip_and_denies_another_drivers_assignment(
-    db_client, db_sessionmaker
+    db_client, db_sessionmaker, conflict_first
 ):
     owner = create_test_user(db_sessionmaker, email="trip-owner@example.com")
     organization, _ = create_test_organization(db_sessionmaker)
@@ -285,8 +286,14 @@ def test_driver_context_resolves_trip_and_denies_another_drivers_assignment(
         campaign_id=campaign.id,
         started_by_user_id=driver.id,
     )
-    _campaign_notice(
-        db_sessionmaker, driver, {"trip_session_id": str(trip.id)}, NotificationType.PAYOUT_RELEASED
+    first_created_at = datetime(2026, 10, 8, 12, tzinfo=UTC)
+    trip_notice = _insert_notice(
+        db_sessionmaker,
+        recipient_user_id=driver.id,
+        key="trip-context",
+        created_at=first_created_at + timedelta(seconds=0 if conflict_first else 1),
+        type_key=NotificationType.PAYOUT_RELEASED,
+        payload={"trip_session_id": str(trip.id)},
     )
     headers = auth_headers(db_client, driver.email, PASSWORD)
     item = db_client.get("/api/v1/notifications", headers=headers).json()["items"][0]
@@ -325,15 +332,28 @@ def test_driver_context_resolves_trip_and_denies_another_drivers_assignment(
         vehicle_id=other_vehicle.id,
         assigned_by_user_id=owner.id,
     )
-    conflict_id = _campaign_notice(
+    conflict_notice = _insert_notice(
         db_sessionmaker,
-        driver,
-        {"trip_session_id": str(trip.id), "assignment_id": str(other_assignment.id)},
-        NotificationType.PAYOUT_RELEASED,
+        recipient_user_id=driver.id,
+        key="conflicting-trip-context",
+        created_at=first_created_at + timedelta(seconds=1 if conflict_first else 0),
+        type_key=NotificationType.PAYOUT_RELEASED,
+        payload={"trip_session_id": str(trip.id), "assignment_id": str(other_assignment.id)},
     )
-    conflict_item = db_client.get("/api/v1/notifications", headers=headers).json()["items"][0]
+    conflict_id = conflict_notice.id
+    feed = db_client.get("/api/v1/notifications", headers=headers)
+    assert feed.status_code == 200
+    items = feed.json()["items"]
+    expected_ids = [str(conflict_id), str(trip_notice.id)]
+    if not conflict_first:
+        expected_ids.reverse()
+    assert [item["id"] for item in items] == expected_ids
+    conflict_item = next(item for item in items if item["id"] == str(conflict_id))
     assert conflict_item["campaign_name"] is None
+    assert conflict_item["action_url"] is None
     conflict_read = db_client.post(f"/api/v1/notifications/{conflict_id}/read", headers=headers)
+    assert conflict_read.status_code == 200
+    assert conflict_read.json()["campaign_name"] is None
     assert conflict_read.json()["action_url"] is None
 
 
@@ -393,21 +413,29 @@ def test_activity_notification_feed_copy_is_truthful(type_key, title, body) -> N
 
 
 def _insert_notice(
-    db_sessionmaker, *, recipient_user_id, key: str, created_at: datetime
+    db_sessionmaker,
+    *,
+    recipient_user_id,
+    key: str,
+    created_at: datetime,
+    type_key=NotificationType.FRAUD_HOLD_RAISED,
+    payload=None,
 ) -> Notification:
-    async def insert() -> Notification:
+    if payload is None:
         payload = {"fraud_flag_id": "private-flag", "internal_token": "do-not-return"}
+
+    async def insert() -> Notification:
         async with db_sessionmaker() as session:
             notice = Notification(
                 recipient_user_id=recipient_user_id,
-                type_key=NotificationType.FRAUD_HOLD_RAISED.value,
+                type_key=type_key.value,
                 template_version="v1",
                 channel=NotificationChannel.IN_APP.value,
                 payload=payload,
                 dedupe_key=key,
                 dedupe_fingerprint=notification_dedupe_fingerprint(
                     recipient_user_id=recipient_user_id,
-                    type_key=NotificationType.FRAUD_HOLD_RAISED,
+                    type_key=type_key,
                     template_version="v1",
                     channel=NotificationChannel.IN_APP,
                     payload=payload,

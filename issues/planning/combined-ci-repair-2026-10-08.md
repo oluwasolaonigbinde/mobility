@@ -53,6 +53,10 @@ paused launch programme. Only touched test files run locally, without coverage.
    retention cutoffs and expected audits; assert the new current submission
    actually supersedes the old one through the authorised renewal path before
    asserting retention or stale-file access outcomes.
+   Notification context tests select the exact conflicting notice by ID and
+   exercise both feed orders using timestamps fixed at fixture insertion.
+   Feed and mark-read retain generic name/link context for conflicting references;
+   legitimate trip context remains authorized and frozen evidence guards stay intact.
 5. **C5 — money and geography:** Diagnose the payout fairness failure before
    choosing a minimal correction. Preserve scan/admission limits, legitimate
    fraud/dispute exclusions, frozen amounts and paid-day accounting; prove an

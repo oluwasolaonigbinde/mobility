@@ -124,3 +124,29 @@ Raw final evidence: `.w2c/ci-repair-static-preprod.xml`.
 The plan refinement, deployment supplement and same consolidated minimal-change
 reviewer are PASS on this bounded follow-up, with no findings. Full exact-SHA
 CI remains the condition for master acceptance.
+
+## Notification fixture follow-up
+
+[Run37769620815](https://github.com/oluwasolaonigbinde/mobility/actions/runs/37769620815)
+on `c43d43c8` passed static verification, frontend checks/build, both real-browser
+jobs and five backend shards. Shard1 failed only the driver notification
+context test: its `items[0]` selection sometimes chose the legitimate trip
+notice when SQLite creation timestamps tied and UUIDs determined feed order.
+The existing resolver already rejects contradictory assignment references.
+The backend aggregate therefore failed and changed-code coverage did not run.
+
+C4's follow-up inserts immutable notification fixtures with fixed timestamps
+and tests both possible feed orders. The existing helper keeps its original
+fraud-notice defaults, deriving fingerprints from the selected type/payload.
+A deterministic red run retained `items[0]`: legitimate-first failed with
+Launch Campaign, while the other30 cases passed. Final selection uses the exact
+conflict ID; both feed and successful mark-read responses retain name/link
+denials, while the legitimate trip link and foreign-assignment denials remain.
+No production source or evidence guard changed. The whole touched file passes
+31/31, including the existing creator replay/frozen-evidence test. Scoped Ruff
+check/format and whitespace checks pass; no retries, skips or baseline entries
+were added. Raw evidence stays local in `.w2c/ci-repair-notifications.xml`.
+The plan refinement, privacy/security supplement and same consolidated
+minimal-change reviewer are PASS on this final source/evidence, with no findings. Other C1-C6
+verdicts and their prior reviews remain unchanged. Full exact-SHA CI remains
+the condition for master acceptance.
