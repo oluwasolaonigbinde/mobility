@@ -22,9 +22,9 @@ def test_measurement_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
         upgrade_to(migration_url, PRE_MEASUREMENT_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0063_measurement_runs", monkeypatch)
         downgrade_to(migration_url, PRE_MEASUREMENT_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0063_measurement_runs", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -67,7 +67,7 @@ def test_populated_measurement_downgrade_refuses_and_rows_are_append_only(
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0063_measurement_runs", monkeypatch)
         asyncio.run(seed())
         with pytest.raises(RuntimeError, match="immutable measurement evidence"):
             downgrade_to(migration_url, PRE_MEASUREMENT_REVISION, monkeypatch)

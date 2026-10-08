@@ -21,9 +21,9 @@ def test_evidence_verification_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
         upgrade_to(migration_url, PRE_VERIFICATION_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0060_evidence_verifications", monkeypatch)
         downgrade_to(migration_url, PRE_VERIFICATION_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0060_evidence_verifications", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -56,7 +56,7 @@ def test_populated_evidence_verification_downgrade_refuses(monkeypatch) -> None:
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0060_evidence_verifications", monkeypatch)
         asyncio.run(seed())
         with pytest.raises(RuntimeError, match="evidence verification"):
             downgrade_to(migration_url, PRE_VERIFICATION_REVISION, monkeypatch)

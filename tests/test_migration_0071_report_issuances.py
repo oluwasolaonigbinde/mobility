@@ -26,9 +26,9 @@ def test_report_issuance_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
         upgrade_to(migration_url, PRE_REPORT_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0071_report_issuances", monkeypatch)
         downgrade_to(migration_url, PRE_REPORT_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0071_report_issuances", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -133,7 +133,7 @@ def test_report_frozen_authority_artifacts_and_populated_downgrade_are_guarded(
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0071_report_issuances", monkeypatch)
         asyncio.run(seed_and_mutate())
         with pytest.raises(RuntimeError, match="0071 downgrade blocked"):
             downgrade_to(migration_url, PRE_REPORT_REVISION, monkeypatch)

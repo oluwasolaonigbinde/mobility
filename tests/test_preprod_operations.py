@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from test_w403a_release_preparation import production_model
 
 ROOT = Path(__file__).resolve().parents[1]
 DEVELOPMENT_COMPOSE = ROOT / "docker-compose.yml"
@@ -17,34 +18,14 @@ STAGING_ENV = ROOT / "production.env.example"
 def compose_config(
     *, profiles: tuple[str, ...] = (), environment: dict[str, str] | None = None
 ) -> dict:
-    command = [
-        "docker",
-        "compose",
-        "-f",
-        str(PRODUCTION_COMPOSE),
-    ]
-    for profile in profiles:
-        command.extend(("--profile", profile))
-    command.extend(("--env-file", str(STAGING_ENV), "config", "--format", "json"))
-    process_environment = os.environ.copy()
-    if environment:
-        process_environment.update(environment)
-    result = subprocess.run(
-        command,
-        cwd=ROOT,
-        env=process_environment,
-        check=True,
-        capture_output=True,
-        text=True,
-    )
-    return json.loads(result.stdout)
+    return production_model(profiles=profiles, overrides=environment)
 
 
 def test_production_render_has_one_public_edge_and_no_development_mounts() -> None:
     model = compose_config()
     services = model["services"]
 
-    assert set(services) == {"api", "db", "edge", "frontend", "redis", "worker"}
+    assert set(services) == {"api", "clamav", "db", "edge", "frontend", "redis", "worker"}
     assert [port["published"] for port in services["edge"]["ports"]] == ["80", "443", "443"]
     assert all(not service.get("ports") for name, service in services.items() if name != "edge")
     assert services["api"]["command"] == [
@@ -56,6 +37,9 @@ def test_production_render_has_one_public_edge_and_no_development_mounts() -> No
         "8000",
         "--no-access-log",
     ]
+    assert services["api"]["environment"]["WEB_CONCURRENCY"] == "2"
+    assert services["api"]["depends_on"]["clamav"]["condition"] == "service_healthy"
+    assert set(services["clamav"]["networks"]) == {"data", "egress"}
     assert services["api"].get("volumes") is None
     assert all(service["restart"] == "unless-stopped" for service in services.values())
     assert all("build" not in service for service in services.values())
@@ -176,31 +160,9 @@ def test_development_compose_preserves_reload_mounts_profiles_and_ports() -> Non
 def test_production_render_fails_clearly_when_required_value_is_missing(
     tmp_path: Path, missing: str
 ) -> None:
-    lines = [
-        line for line in STAGING_ENV.read_text().splitlines() if not line.startswith(f"{missing}=")
-    ]
-    env_file = tmp_path / "missing.env"
-    env_file.write_text("\n".join(lines))
-    clean_environment = {"PATH": os.environ["PATH"], missing: ""}
-
-    result = subprocess.run(
-        [
-            "docker",
-            "compose",
-            "-f",
-            str(PRODUCTION_COMPOSE),
-            "--env-file",
-            str(env_file),
-            "config",
-        ],
-        cwd=ROOT,
-        env=clean_environment,
-        capture_output=True,
-        text=True,
-    )
-
-    assert result.returncode != 0
-    assert f"{missing} is required" in result.stderr
+    with pytest.raises(subprocess.CalledProcessError) as failure:
+        production_model(overrides={missing: ""})
+    assert f"{missing} is required" in failure.value.stderr
 
 
 def _write_executable(path: Path, contents: str) -> None:

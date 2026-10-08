@@ -18,6 +18,11 @@ from app.models.audit import AuditEvent
 from app.models.campaign import CampaignCreative
 from app.models.kyc import DriverKycDocument, DriverKycSubmission, KycSubmissionStatus
 from app.models.stored_file import FileUploadIntent, StoredFile, StoredObjectDeletion
+from app.schemas.driver_onboarding import PersonPayeeRenewalCreate, PersonPayeeReviewDecisionCreate
+from app.services.driver_onboarding import (
+    review_application_person_payee,
+    submit_application_person_payee,
+)
 from app.services.file_kyc_lifecycle import purge_terminal_file_kyc
 from app.services.kyc import submit_driver_kyc
 from app.services.stored_object_deletions import process_stored_object_deletions
@@ -122,7 +127,7 @@ def test_shared_files_survive_old_rejected_version_and_missing_policy_fails_clos
     db_sessionmaker,
     settings,
 ) -> None:
-    admin, driver, _, bank_id, files = _seed_driver_authority(
+    admin, driver, profile, bank_id, files = _seed_driver_authority(
         db_sessionmaker, suffix="retention-shared"
     )
     storage = FakeStorageProvider()
@@ -130,19 +135,11 @@ def test_shared_files_survive_old_rejected_version_and_missing_policy_fails_clos
 
     async def exercise():
         async with db_sessionmaker() as session:
-            await _create_terminal_submission(
-                session,
-                driver_id=driver.id,
-                bank_id=bank_id,
-                files=files,
-                now=now,
-                settings=settings,
-            )
-            await submit_driver_kyc(
+            pending = await submit_driver_kyc(
                 session,
                 actor_user_id=driver.id,
                 client_request_id=uuid4(),
-                nin="10987654321",
+                nin=NIN,
                 bank_account_version_id=bank_id,
                 document_file_ids={
                     name: files[name]
@@ -151,6 +148,42 @@ def test_shared_files_survive_old_rejected_version_and_missing_policy_fails_clos
                 crypto=EnvelopeCryptoProvider(keys={1: bytes(range(32))}, active_key_version=1),
                 settings=settings,
             )
+            previous = pending.submission
+            previous.created_at = now - timedelta(days=31)
+            await session.flush()
+            await review_application_person_payee(
+                session,
+                driver_profile_id=profile.id,
+                actor_user_id=admin.id,
+                payload=PersonPayeeReviewDecisionCreate(
+                    submission_id=previous.id,
+                    client_request_id=uuid4(),
+                    decision="rejected",
+                    reason_code="unreadable_evidence",
+                ),
+            )
+            current = await submit_application_person_payee(
+                session,
+                actor_user_id=driver.id,
+                payload=PersonPayeeRenewalCreate(
+                    expected_submission_id=previous.id,
+                    client_request_id=uuid4(),
+                    nin="10987654321",
+                    **{
+                        f"{name}_file_id": files[name]
+                        for name in ("driver_license", "driver_photo", "signed_agreement")
+                    },
+                ),
+                crypto=EnvelopeCryptoProvider(keys={1: bytes(range(32))}, active_key_version=1),
+                settings=settings,
+            )
+            assert current.submission.id != previous.id
+            assert current.submission.version == previous.version + 1
+            assert current.submission.bank_account_version_id == bank_id
+            assert current.document_file_ids == {
+                name: files[name] for name in ("driver_license", "driver_photo", "signed_agreement")
+            }
+            assert previous.created_at == now - timedelta(days=31)
             await session.commit()
         async with db_sessionmaker() as session:
             unavailable = await purge_terminal_file_kyc(
@@ -731,15 +764,25 @@ def test_kyc_retirement_keeps_deletion_pending_when_provider_versions_remain(
     async def exercise():
         async with db_sessionmaker() as session:
             submission = await _create_terminal_submission(
-                session, driver_id=driver.id, bank_id=bank_id, files=files, now=now,
+                session,
+                driver_id=driver.id,
+                bank_id=bank_id,
+                files=files,
+                now=now,
                 settings=settings,
             )
             identity = submission.id
             await session.commit()
             with pytest.raises(AppError) as unavailable:
                 await purge_terminal_file_kyc(
-                    session, storage=storage, retention_days=30, limit=10, dry_run=False,
-                    actor_user_id=admin.id, reason="version_deletion_retry", now=now,
+                    session,
+                    storage=storage,
+                    retention_days=30,
+                    limit=10,
+                    dry_run=False,
+                    actor_user_id=admin.id,
+                    reason="version_deletion_retry",
+                    now=now,
                 )
             assert unavailable.value.code == "FILE_STORAGE_UNAVAILABLE"
         async with db_sessionmaker() as session:
@@ -752,7 +795,11 @@ def test_kyc_retirement_keeps_deletion_pending_when_provider_versions_remain(
             assert len(failed) == 1
             assert failed[0].last_error_code == "storage_object_remains"
             assert failed[0].provider_deleted_at is None
-        assert await process_stored_object_deletions(
-            db_sessionmaker, storage=FakeStorageProvider(), limit=10
-        ) == 1
+        assert (
+            await process_stored_object_deletions(
+                db_sessionmaker, storage=FakeStorageProvider(), limit=10
+            )
+            == 1
+        )
+
     asyncio.run(exercise())

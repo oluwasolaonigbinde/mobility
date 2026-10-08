@@ -68,9 +68,9 @@ def test_report_publication_intents_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
         upgrade_to(migration_url, PRE_PUBLICATION_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0082_report_publication_intents", monkeypatch)
         downgrade_to(migration_url, PRE_PUBLICATION_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0082_report_publication_intents", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -118,17 +118,13 @@ def test_publication_fence_and_tombstone_are_enforced_in_the_database(monkeypatc
             async with engine.begin() as connection:
                 await connection.execute(text("SET LOCAL session_replication_role = replica"))
                 await connection.execute(text(SEED_ISSUANCE))
-                await connection.execute(
-                    text(seed_generation(FIRST, 1, "prepared", write_protocol=1))
-                )
+                await connection.execute(text(seed_generation(FIRST, 1, "prepared")))
 
             # Only one live generation per issuance may exist at a time.
             with pytest.raises(DBAPIError, match="uq_report_publication_intents_live"):
                 async with engine.begin() as connection:
                     await connection.execute(text("SET LOCAL session_replication_role = replica"))
-                    await connection.execute(
-                        text(seed_generation(SECOND, 2, "prepared", write_protocol=1))
-                    )
+                    await connection.execute(text(seed_generation(SECOND, 2, "prepared")))
 
             # The declared transition is allowed.
             async with engine.begin() as connection:
@@ -203,7 +199,7 @@ def test_publication_fence_and_tombstone_are_enforced_in_the_database(monkeypatc
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0082_report_publication_intents", monkeypatch)
         asyncio.run(exercise())
         # Only cleaned tombstones remain, so nothing is stranded and downgrade may proceed.
         downgrade_to(migration_url, PRE_PUBLICATION_REVISION, monkeypatch)
@@ -220,14 +216,12 @@ def test_downgrade_is_blocked_while_unreclaimed_publication_objects_exist(monkey
             async with engine.begin() as connection:
                 await connection.execute(text("SET LOCAL session_replication_role = replica"))
                 await connection.execute(text(SEED_ISSUANCE))
-                await connection.execute(
-                    text(seed_generation(FIRST, 1, "abandoned", write_protocol=1))
-                )
+                await connection.execute(text(seed_generation(FIRST, 1, "abandoned")))
         finally:
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0082_report_publication_intents", monkeypatch)
         asyncio.run(seed_abandoned())
         with pytest.raises(RuntimeError, match="0082 downgrade blocked"):
             downgrade_to(migration_url, PRE_PUBLICATION_REVISION, monkeypatch)

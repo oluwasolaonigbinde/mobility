@@ -54,7 +54,7 @@ test("advertiser preview and reasoned admin decision complete a mid-flight chang
     await page.getByRole("button", { name: "Preview change" }).click();
     const expansionPreview = page.getByLabel("Change preview");
     await expect(expansionPreview.getByText("Can apply now")).toBeVisible();
-    await expect(expansionPreview.getByText("NGN 0.00").first()).toBeVisible();
+    await expect(expansionPreview.getByText("₦0.00").first()).toBeVisible();
     await expansionPreview.getByRole("button", { name: "Confirm this change" }).click();
     await expect(page.getByText("✓ Campaign change confirmed.")).toBeVisible();
     await expect(page.getByText("Applied", { exact: true }).first()).toBeVisible();

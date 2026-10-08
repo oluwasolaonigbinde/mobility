@@ -79,9 +79,9 @@ def test_source_empty_roundtrip_append_only_and_populated_downgrade(monkeypatch)
 
     try:
         upgrade_to(migration_url, PRE_SOURCE_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0046_retargeting_sources", monkeypatch)
         downgrade_to(migration_url, PRE_SOURCE_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0046_retargeting_sources", monkeypatch)
         asyncio.run(seed_and_verify())
         with pytest.raises(RuntimeError, match="Refusing to drop populated"):
             downgrade_to(migration_url, PRE_SOURCE_REVISION, monkeypatch)

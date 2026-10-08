@@ -22,9 +22,9 @@ def test_installation_evidence_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
         upgrade_to(migration_url, PRE_EVIDENCE_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0057_installation_evidence", monkeypatch)
         downgrade_to(migration_url, PRE_EVIDENCE_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0057_installation_evidence", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -77,7 +77,7 @@ def test_installation_photo_is_append_only_and_populated_downgrade_refuses(
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0057_installation_evidence", monkeypatch)
         asyncio.run(seed_and_mutate())
         with pytest.raises(RuntimeError, match="installation evidence is populated"):
             downgrade_to(migration_url, PRE_EVIDENCE_REVISION, monkeypatch)

@@ -125,15 +125,15 @@ test("quotation acceptance and invoice facts survive role changes and reloads", 
   await page.getByRole("link", { name: campaignName }).click();
   const quotation = page.getByLabel("Latest quotation for review");
   await expect(quotation.getByText(`${quoteReference} · revision 1`)).toBeVisible();
-  await expect(quotation.getByRole("cell", { name: "NGN 100000.00" })).toBeVisible();
+  await expect(quotation.getByRole("cell", { name: "₦100,000.00" })).toBeVisible();
   await expect(
-    quotation.getByText("Production cost").locator("..").getByText("NGN 0.00"),
+    quotation.getByText("Production cost").locator("..").getByText("₦0.00"),
   ).toBeVisible();
   await expect(
-    quotation.getByText("Net", { exact: true }).locator("..").getByText("NGN 100000.00"),
+    quotation.getByText("Net", { exact: true }).locator("..").getByText("₦100,000.00"),
   ).toBeVisible();
-  await expect(quotation.getByText("NGN 7500.00")).toBeVisible();
-  await expect(quotation.getByText("NGN 107500.00")).toBeVisible();
+  await expect(quotation.getByText("₦7,500.00")).toBeVisible();
+  await expect(quotation.getByText("₦107,500.00")).toBeVisible();
   await page.getByRole("checkbox", { name: /I reviewed the scope/ }).check();
   await page.getByRole("button", { name: "Accept these exact terms" }).click();
   await expect(

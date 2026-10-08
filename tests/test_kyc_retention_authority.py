@@ -50,11 +50,11 @@ from app.services.stored_object_deletions import (
 
 
 @pytest.fixture
-def migrated_kyc_factory(monkeypatch):
+def migrated_kyc_factory(monkeypatch, request):
     url = asyncio.run(create_database_from_url(configured_postgres_url()))
     engine = create_async_engine(url, poolclass=NullPool)
     try:
-        upgrade_to(url, "head", monkeypatch)
+        upgrade_to(url, getattr(request, "param", "head"), monkeypatch)
         yield async_sessionmaker(engine, expire_on_commit=False)
     finally:
         asyncio.run(engine.dispose())
@@ -230,12 +230,6 @@ def test_kyc_review_identity_and_durable_payload_purge_precede_every_provider_de
                 await session.commit()
 
     asyncio.run(run())
-    with pytest.raises(RuntimeError, match="0087 downgrade blocked"):
-        downgrade_to(
-            factory.kw["bind"].url.render_as_string(hide_password=False),
-            "0086_audit_subjects",
-            monkeypatch,
-        )
 
 
 def test_failed_retirement_commit_cannot_delete_and_legacy_intent_waits_for_authority(
@@ -412,6 +406,7 @@ def test_document_binding_waits_on_parent_before_file_and_rejects_retired_payloa
     asyncio.run(run())
 
 
+@pytest.mark.parametrize("migrated_kyc_factory", ["0087_kyc_payload_retention"], indirect=True)
 def test_kyc_retention_migration_preserves_live_payload_and_serializes_downgrade(
     migrated_kyc_factory, settings, monkeypatch
 ):
@@ -420,7 +415,7 @@ def test_kyc_retention_migration_preserves_live_payload_and_serializes_downgrade
     # Empty guarded downgrade and re-upgrade remain available.
     downgrade_to(url, "0086_audit_subjects", monkeypatch)
     upgrade_to(url, "0087_kyc_payload_retention", monkeypatch)
-    _, driver, _, bank_id, files = _seed_driver_authority(factory, suffix="purge-migration")
+    admin, driver, _, bank_id, files = _seed_driver_authority(factory, suffix="purge-migration")
 
     async def seed_and_race():
         async with factory() as session:
@@ -469,3 +464,22 @@ def test_kyc_retention_migration_preserves_live_payload_and_serializes_downgrade
     downgrade_to(url, "0086_audit_subjects", monkeypatch)
     upgrade_to(url, "0087_kyc_payload_retention", monkeypatch)
     assert asyncio.run(snapshot_and_schema()) == before
+
+    async def retire_historical_payload():
+        async with factory() as session:
+            result = await purge_terminal_file_kyc(
+                session,
+                storage=FakeStorageProvider(),
+                retention_days=30,
+                limit=10,
+                dry_run=False,
+                actor_user_id=admin.id,
+                reason="synthetic_migration_guard",
+                now=datetime.now(UTC),
+            )
+            await session.commit()
+            assert result.purged_submissions == 1
+
+    asyncio.run(retire_historical_payload())
+    with pytest.raises(RuntimeError, match="0087 downgrade blocked"):
+        downgrade_to(url, "0086_audit_subjects", monkeypatch)

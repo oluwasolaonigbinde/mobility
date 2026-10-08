@@ -98,14 +98,6 @@
             {
                 "code": "reportArgumentType",
                 "range": {
-                    "startColumn": 21,
-                    "endColumn": 53,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
                     "startColumn": 20,
                     "endColumn": 62,
                     "lineCount": 1
@@ -548,32 +540,6 @@
                 "range": {
                     "startColumn": 29,
                     "endColumn": 49,
-                    "lineCount": 1
-                }
-            }
-        ],
-        "./app/api/v1/contacts.py": [
-            {
-                "code": "reportCallIssue",
-                "range": {
-                    "startColumn": 12,
-                    "endColumn": 5,
-                    "lineCount": 9
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 8,
-                    "endColumn": 15,
-                    "lineCount": 7
-                }
-            },
-            {
-                "code": "reportArgumentType",
-                "range": {
-                    "startColumn": 75,
-                    "endColumn": 97,
                     "lineCount": 1
                 }
             }

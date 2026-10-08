@@ -22,7 +22,7 @@ PRE_INVOICE_REVISION = "0034_canonical_receipts_allocations"
 def test_invoice_authority_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0035_vat_itemised_invoices", monkeypatch)
         assert asyncio.run(
             fetch_all(
                 migration_url,
@@ -36,7 +36,7 @@ def test_invoice_authority_empty_down_up_cycle(monkeypatch) -> None:
             ("invoices",),
         ]
         downgrade_to(migration_url, PRE_INVOICE_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0035_vat_itemised_invoices", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 

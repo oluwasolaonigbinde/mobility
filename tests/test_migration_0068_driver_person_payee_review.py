@@ -27,9 +27,9 @@ def test_driver_person_payee_review_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
         upgrade_to(migration_url, PRE_REVIEW_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0068_driver_person_payee_review", monkeypatch)
         downgrade_to(migration_url, PRE_REVIEW_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0068_driver_person_payee_review", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -73,7 +73,7 @@ def test_driver_person_payee_decision_is_append_only_and_blocks_populated_downgr
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0068_driver_person_payee_review", monkeypatch)
         asyncio.run(seed_and_mutate())
         with pytest.raises(RuntimeError, match="0068 downgrade blocked"):
             downgrade_to(migration_url, PRE_REVIEW_REVISION, monkeypatch)

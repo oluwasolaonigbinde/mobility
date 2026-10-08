@@ -21,7 +21,7 @@ PRE_RECONCILIATION_REVISION = "0029_payout_batch_reservation"
 def test_provider_reconciliation_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0030_provider_line_reconciliation", monkeypatch)
         assert asyncio.run(
             fetch_all(
                 migration_url,
@@ -46,7 +46,7 @@ def test_provider_reconciliation_empty_down_up_cycle(monkeypatch) -> None:
                 "WHERE table_name = 'payout_line_reconciliation_events'",
             )
         ) == [(0,)]
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0030_provider_line_reconciliation", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 

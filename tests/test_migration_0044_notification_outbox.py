@@ -40,7 +40,7 @@ async def _seed_legacy_notification(migration_url: str) -> None:
                     "INSERT INTO notifications "
                     "(id, recipient_user_id, type_key, template_version, payload, dedupe_key, "
                     "created_at) VALUES (:id, :recipient, 'fraud_hold_raised', 'v1', "
-                    "'{\"fraud_flag_id\": \"legacy\", \"trip_session_id\": \"trip\"}'::jsonb, "
+                    '\'{"fraud_flag_id": "legacy", "trip_session_id": "trip"}\'::jsonb, '
                     "'legacy-notice', '2026-08-24 10:00:00+00')"
                 ),
                 {"id": NOTICE_ID, "recipient": RECIPIENT_ID},
@@ -59,16 +59,20 @@ def test_notification_outbox_backfill_has_exact_fingerprint_and_lossless_downgra
         try:
             async with engine.connect() as connection:
                 row = (
-                    await connection.execute(
-                        text(
-                            "SELECT recipient_user_id, type_key, template_version, payload, "
-                            "channel, status, attempt_count, provider_message_id, "
-                            "dedupe_fingerprint, sent_at, delivered_at, read_at, created_at "
-                            "FROM notifications WHERE id = :id"
-                        ),
-                        {"id": NOTICE_ID},
+                    (
+                        await connection.execute(
+                            text(
+                                "SELECT recipient_user_id, type_key, template_version, payload, "
+                                "channel, status, attempt_count, provider_message_id, "
+                                "dedupe_fingerprint, sent_at, delivered_at, read_at, created_at "
+                                "FROM notifications WHERE id = :id"
+                            ),
+                            {"id": NOTICE_ID},
+                        )
                     )
-                ).mappings().one()
+                    .mappings()
+                    .one()
+                )
                 assert row["channel"] == "in_app"
                 assert row["status"] == "sent"
                 assert row["attempt_count"] == 0
@@ -111,7 +115,7 @@ def test_notification_outbox_backfill_has_exact_fingerprint_and_lossless_downgra
     try:
         upgrade_to(migration_url, PRE_OUTBOX_REVISION, monkeypatch)
         asyncio.run(_seed_legacy_notification(migration_url))
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0044_notification_outbox", monkeypatch)
         asyncio.run(verify_upgrade())
         downgrade_to(migration_url, PRE_OUTBOX_REVISION, monkeypatch)
         asyncio.run(verify_downgrade())
@@ -178,19 +182,22 @@ def test_notification_evidence_is_frozen_and_new_authority_blocks_downgrade(
                         "'44000000-0000-0000-0000-000000000004')"
                     )
                 )
-                assert await connection.scalar(
-                    text(
-                        "SELECT transactional_email_enabled FROM "
-                        "advertiser_organization_notification_preferences"
+                assert (
+                    await connection.scalar(
+                        text(
+                            "SELECT transactional_email_enabled FROM "
+                            "advertiser_organization_notification_preferences"
+                        )
                     )
-                ) is True
+                    is True
+                )
         finally:
             await engine.dispose()
 
     try:
         upgrade_to(migration_url, PRE_OUTBOX_REVISION, monkeypatch)
         asyncio.run(_seed_legacy_notification(migration_url))
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0044_notification_outbox", monkeypatch)
         asyncio.run(verify_guards_and_create_preference())
         with pytest.raises(RuntimeError, match="0044 downgrade blocked"):
             downgrade_to(migration_url, PRE_OUTBOX_REVISION, monkeypatch)

@@ -21,7 +21,7 @@ PRE_PROFILE_REVISION = "0032_commercial_quotation_terms"
 def test_company_profile_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0033_advertiser_company_profiles", monkeypatch)
         names = asyncio.run(
             fetch_all(
                 migration_url,
@@ -39,7 +39,7 @@ def test_company_profile_empty_down_up_cycle(monkeypatch) -> None:
             ("profile_notes",),
         ]
         downgrade_to(migration_url, PRE_PROFILE_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0033_advertiser_company_profiles", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -67,7 +67,7 @@ def test_company_profile_populated_downgrade_fails_closed(monkeypatch) -> None:
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0033_advertiser_company_profiles", monkeypatch)
         asyncio.run(seed())
         with pytest.raises(RuntimeError, match="0033 downgrade blocked"):
             downgrade_to(migration_url, PRE_PROFILE_REVISION, monkeypatch)

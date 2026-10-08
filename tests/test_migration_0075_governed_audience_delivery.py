@@ -26,9 +26,9 @@ def test_governed_audience_delivery_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
         upgrade_to(migration_url, PRE_GOVERNED_DELIVERY_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0075_governed_audience_delivery", monkeypatch)
         downgrade_to(migration_url, PRE_GOVERNED_DELIVERY_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0075_governed_audience_delivery", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -77,7 +77,7 @@ def test_delivery_approval_is_append_only_and_blocks_populated_downgrade(
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0075_governed_audience_delivery", monkeypatch)
         asyncio.run(seed_and_mutate())
         with pytest.raises(RuntimeError, match="0075 downgrade blocked"):
             downgrade_to(migration_url, PRE_GOVERNED_DELIVERY_REVISION, monkeypatch)
@@ -120,9 +120,7 @@ def test_governed_audience_models_have_no_owned_autogenerate_drift(monkeypatch) 
         for diff in diffs:
             candidate = diff[1] if len(diff) > 1 else None
             table = getattr(candidate, "table", None)
-            table_name = getattr(table, "name", None) or getattr(
-                candidate, "name", None
-            )
+            table_name = getattr(table, "name", None) or getattr(candidate, "name", None)
             if table_name in owned_tables:
                 owned_diffs.append(diff)
         assert owned_diffs == []

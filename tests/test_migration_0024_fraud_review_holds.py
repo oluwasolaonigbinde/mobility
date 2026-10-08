@@ -71,7 +71,7 @@ def test_fraud_review_schema_upgrade_downgrade_and_reupgrade(monkeypatch) -> Non
         )
         assert before == []
 
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0024_fraud_review_holds", monkeypatch)
         columns = asyncio.run(
             fetch_all(
                 migration_url,
@@ -97,8 +97,7 @@ def test_fraud_review_schema_upgrade_downgrade_and_reupgrade(monkeypatch) -> Non
         indexes = asyncio.run(
             fetch_all(
                 migration_url,
-                "SELECT indexname, indexdef FROM pg_indexes"
-                " WHERE tablename = 'fraud_flags'",
+                "SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'fraud_flags'",
             )
         )
         by_index = dict(indexes)
@@ -137,7 +136,7 @@ def test_fraud_review_schema_upgrade_downgrade_and_reupgrade(monkeypatch) -> Non
                 await engine.dispose()
 
         asyncio.run(remove_fixture())
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0024_fraud_review_holds", monkeypatch)
         restored_columns = asyncio.run(
             fetch_all(
                 migration_url,

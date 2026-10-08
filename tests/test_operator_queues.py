@@ -23,6 +23,38 @@ from app.models.stored_file import FileScanStatus, FileUploadIntent, StoredFile
 from app.models.user import User
 
 
+def _renew_person(client, *, admin, profile, driver_headers, first, files):
+    rejected = client.post(
+        f"/api/v1/admin/drivers/{profile.id}/documents/person-payee-decision",
+        headers=auth_headers(client, admin.email, PASSWORD),
+        json={
+            "submission_id": first["id"],
+            "client_request_id": str(uuid4()),
+            "decision": "rejected",
+            "reason_code": "unreadable_evidence",
+        },
+    )
+    assert rejected.status_code == 200, rejected.text
+    current = client.post(
+        "/api/v1/driver/documents/person-payee",
+        headers=driver_headers,
+        json={
+            "expected_submission_id": first["id"],
+            "client_request_id": str(uuid4()),
+            "nin": NIN,
+            **{
+                f"{kind}_file_id": str(files[kind])
+                for kind in ("driver_license", "driver_photo", "signed_agreement")
+            },
+        },
+    )
+    assert current.status_code == 201, current.text
+    status = client.get("/api/v1/driver/documents", headers=driver_headers).json()["person_payee"]
+    assert status["submission_id"] == current.json()["submission_id"] != first["id"]
+    assert status["version"] == first["version"] + 1
+    return current
+
+
 def test_campaign_artwork_discovery_requires_existing_parent_and_preserves_pagination(
     db_client, db_sessionmaker
 ):
@@ -138,15 +170,20 @@ def test_measurement_discovery_is_named_paginated_authorized_and_does_not_issue(
 
 
 def test_approval_reveal_denies_superseded_nin_without_read_audit(db_client, db_sessionmaker):
-    admin, driver, _, bank, files = _seed_driver_authority(db_sessionmaker, suffix="ops-stale")
+    admin, driver, profile, bank, files = _seed_driver_authority(
+        db_sessionmaker, suffix="ops-stale"
+    )
     driver_headers = auth_headers(db_client, driver.email, PASSWORD)
     first = db_client.post(
         "/api/v1/driver/kyc/submissions", headers=driver_headers, json=_payload(bank, files)
     ).json()
-    second = db_client.post(
-        "/api/v1/driver/kyc/submissions",
-        headers=driver_headers,
-        json=_payload(bank, files, client_request_id=str(uuid4())),
+    second = _renew_person(
+        db_client,
+        admin=admin,
+        profile=profile,
+        driver_headers=driver_headers,
+        first=first,
+        files=files,
     )
     assert second.status_code == 201, second.text
     headers = auth_headers(db_client, admin.email, PASSWORD)
@@ -157,7 +194,7 @@ def test_approval_reveal_denies_superseded_nin_without_read_audit(db_client, db_
     )
     assert stale.status_code == 409 and stale.json()["error"]["code"] == "KYC_REVIEW_STALE"
     current = db_client.post(
-        f"/api/v1/admin/kyc/submissions/{second.json()['id']}/nin/reveal",
+        f"/api/v1/admin/kyc/submissions/{second.json()['submission_id']}/nin/reveal",
         headers=headers,
         json={"purpose": "person_payee_approval"},
     )
@@ -172,7 +209,7 @@ def test_approval_reveal_denies_superseded_nin_without_read_audit(db_client, db_
                 )
             )
 
-    assert [r.entity_id for r in asyncio.run(reads())] == [second.json()["id"]]
+    assert [r.entity_id for r in asyncio.run(reads())] == [second.json()["submission_id"]]
 
 
 def test_driver_application_history_and_detail_serialize_terminal_rows_without_writes(
@@ -309,7 +346,7 @@ def _stored_file_reads(db_sessionmaker):
 def test_kyc_download_uses_current_person_file_authority_not_reason_text(
     db_client, db_sessionmaker
 ):
-    admin, driver, _, bank, files = _seed_driver_authority(
+    admin, driver, profile, bank, files = _seed_driver_authority(
         db_sessionmaker, suffix="ops-person-file-stale"
     )
     driver_headers = auth_headers(db_client, driver.email, PASSWORD)
@@ -321,12 +358,17 @@ def test_kyc_download_uses_current_person_file_authority_not_reason_text(
     current_file_id = _clone_clean_file(db_sessionmaker, stale_file_id)
     unlinked_file_id = _clone_clean_file(db_sessionmaker, stale_file_id)
     current_files = files | {"driver_license": current_file_id}
-    current = db_client.post(
-        "/api/v1/driver/kyc/submissions",
-        headers=driver_headers,
-        json=_payload(bank, current_files, client_request_id=str(uuid4())),
+    current = _renew_person(
+        db_client,
+        admin=admin,
+        profile=profile,
+        driver_headers=driver_headers,
+        first=first.json(),
+        files=current_files,
     )
     assert current.status_code == 201
+    assert current.json()["submission_id"] != first.json()["id"]
+    assert current.json()["version"] == first.json()["version"] + 1
     storage = FakeStorageProvider()
     db_client.app.dependency_overrides[get_storage_provider] = lambda: storage
     _seed_download_object(db_sessionmaker, storage, stale_file_id)
@@ -393,16 +435,30 @@ def test_kyc_download_uses_current_vehicle_file_authority_not_reason_text(
     stale_file_id = files["registration"]
     current_file_id = _clone_clean_file(db_sessionmaker, stale_file_id)
     unlinked_file_id = _clone_clean_file(db_sessionmaker, stale_file_id)
+    rejected = db_client.post(
+        f"/api/v1/admin/drivers/{profile.id}/vehicles/{vehicle.id}"
+        f"/submissions/{first.json()['id']}/decision",
+        headers=auth_headers(db_client, admin.email, PASSWORD),
+        json={
+            "client_request_id": str(uuid4()),
+            "decision": "rejected",
+            "reason_code": "unreadable_evidence",
+        },
+    )
+    assert rejected.status_code == 200, rejected.text
     current = db_client.post(
         path,
         headers=driver_headers,
         json=payload
         | {
             "client_request_id": str(uuid4()),
+            "expected_submission_id": first.json()["id"],
             "registration_file_id": str(current_file_id),
         },
     )
     assert current.status_code == 201
+    assert current.json()["id"] != first.json()["id"]
+    assert current.json()["version"] == first.json()["version"] + 1
     storage = FakeStorageProvider()
     db_client.app.dependency_overrides[get_storage_provider] = lambda: storage
     _seed_download_object(db_sessionmaker, storage, stale_file_id)
@@ -447,7 +503,7 @@ def test_kyc_review_download_service_denies_stale_and_unlinked_person_files(
     from app.core.errors import AppError
     from app.services.stored_files import issue_admin_file_download
 
-    admin, driver, _, bank, files = _seed_driver_authority(
+    admin, driver, profile, bank, files = _seed_driver_authority(
         db_sessionmaker, suffix="ops-person-file-service"
     )
     driver_headers = auth_headers(db_client, driver.email, PASSWORD)
@@ -458,14 +514,17 @@ def test_kyc_review_download_service_denies_stale_and_unlinked_person_files(
     stale_file_id = files["driver_license"]
     current_file_id = _clone_clean_file(db_sessionmaker, stale_file_id)
     unlinked_file_id = _clone_clean_file(db_sessionmaker, stale_file_id)
-    current = db_client.post(
-        "/api/v1/driver/kyc/submissions",
-        headers=driver_headers,
-        json=_payload(
-            bank, files | {"driver_license": current_file_id}, client_request_id=str(uuid4())
-        ),
+    current = _renew_person(
+        db_client,
+        admin=admin,
+        profile=profile,
+        driver_headers=driver_headers,
+        first=first.json(),
+        files=files | {"driver_license": current_file_id},
     )
     assert current.status_code == 201
+    assert current.json()["submission_id"] != first.json()["id"]
+    assert current.json()["version"] == first.json()["version"] + 1
     storage = FakeStorageProvider()
     for file_id in (stale_file_id, current_file_id, unlinked_file_id):
         _seed_download_object(db_sessionmaker, storage, file_id)

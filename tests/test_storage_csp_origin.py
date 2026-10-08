@@ -89,7 +89,12 @@ def live_caddy(tmp_path, endpoint):
 def test_live_caddy_csp_uses_only_the_exact_storage_origin(tmp_path, endpoint, expected):
     with live_caddy(tmp_path, endpoint) as (_, policy):
         directives = {parts[0]: parts[1:] for part in policy.split(";") if (parts := part.split())}
-        assert directives["connect-src"] == ["'self'", *([expected] if expected else [])]
+        assert directives["connect-src"] == [
+            "'self'",
+            *([expected] if expected else []),
+            "https://api.maptiler.com",
+        ]
+        assert directives["img-src"] == ["'self'", "data:", "blob:", "https://api.maptiler.com"]
         assert directives["default-src"] == ["'self'"]
         assert directives["frame-ancestors"] == ["'none'"]
         assert "*" not in policy

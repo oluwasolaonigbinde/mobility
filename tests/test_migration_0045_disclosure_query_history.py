@@ -40,9 +40,9 @@ def test_disclosure_history_empty_down_up_and_populated_downgrade_guard(monkeypa
 
     try:
         upgrade_to(migration_url, PRE_DISCLOSURE_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0045_disclosure_query_history", monkeypatch)
         downgrade_to(migration_url, PRE_DISCLOSURE_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0045_disclosure_query_history", monkeypatch)
         asyncio.run(seed())
         with pytest.raises(RuntimeError, match="Refusing to drop populated"):
             downgrade_to(migration_url, PRE_DISCLOSURE_REVISION, monkeypatch)

@@ -1101,32 +1101,9 @@ def test_confirmed_fraud_recovery_failure_rolls_back_every_money_state(
 def test_0084_migration_guards_round_trip_and_owned_drift(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
 
-    async def inspect_and_seed() -> list:
+    async def inspect_and_seed() -> None:
         engine = create_async_engine(migration_url, poolclass=NullPool)
         try:
-            async with engine.connect() as connection:
-                diffs = await connection.run_sync(
-                    lambda sync_connection: compare_metadata(
-                        MigrationContext.configure(
-                            sync_connection,
-                            opts={"compare_type": False, "compare_server_default": False},
-                        ),
-                        Base.metadata,
-                    )
-                )
-            owned = [
-                diff
-                for diff in diffs
-                if any(
-                    name in repr(diff)
-                    for name in (
-                        "payout_batch_lines",
-                        "payout_submission_intents",
-                        "payout_recovery_incidents",
-                        "payout_debt_obligations",
-                    )
-                )
-            ]
             async with engine.begin() as connection:
                 await connection.execute(text("SET LOCAL session_replication_role = replica"))
                 await connection.execute(
@@ -1217,16 +1194,46 @@ def test_0084_migration_guards_round_trip_and_owned_drift(monkeypatch) -> None:
                             "WHERE id = '84000000-0000-0000-0000-000000000008'"
                         )
                     )
-            return owned
+        finally:
+            await engine.dispose()
+
+    async def compare_owned() -> list:
+        engine = create_async_engine(migration_url, poolclass=NullPool)
+        try:
+            async with engine.connect() as connection:
+                diffs = await connection.run_sync(
+                    lambda sync_connection: compare_metadata(
+                        MigrationContext.configure(
+                            sync_connection,
+                            opts={"compare_type": False, "compare_server_default": False},
+                        ),
+                        Base.metadata,
+                    )
+                )
+            return [
+                diff
+                for diff in diffs
+                if any(
+                    name in repr(diff)
+                    for name in (
+                        "payout_batch_lines",
+                        "payout_submission_intents",
+                        "payout_recovery_incidents",
+                        "payout_debt_obligations",
+                    )
+                )
+            ]
         finally:
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0084_payout_conservation", monkeypatch)
         downgrade_to(migration_url, "0083_payout_submission_intents", monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
-        assert asyncio.run(inspect_and_seed()) == []
+        upgrade_to(migration_url, "0084_payout_conservation", monkeypatch)
+        asyncio.run(inspect_and_seed())
         with pytest.raises(RuntimeError, match="0084 downgrade blocked"):
             downgrade_to(migration_url, "0083_payout_submission_intents", monkeypatch)
+        upgrade_to(migration_url, "head", monkeypatch)
+        assert asyncio.run(compare_owned()) == []
     finally:
         asyncio.run(drop_database(migration_url))

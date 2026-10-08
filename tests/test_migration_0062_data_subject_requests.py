@@ -22,9 +22,9 @@ def test_dsr_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
         upgrade_to(migration_url, PRE_DSR_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0062_data_subject_requests", monkeypatch)
         downgrade_to(migration_url, PRE_DSR_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0062_data_subject_requests", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -66,16 +66,12 @@ def test_populated_dsr_downgrade_refuses_and_assessment_is_append_only(monkeypat
             with pytest.raises(DBAPIError, match="append-only"):
                 async with engine.begin() as connection:
                     await connection.execute(
-                        text(
-                            "UPDATE data_subject_location_assessments SET record_count = 2"
-                        )
+                        text("UPDATE data_subject_location_assessments SET record_count = 2")
                     )
             with pytest.raises(DBAPIError, match="identity is immutable"):
                 async with engine.begin() as connection:
                     await connection.execute(
-                        text(
-                            "UPDATE data_subject_requests SET request_type = 'rectification'"
-                        )
+                        text("UPDATE data_subject_requests SET request_type = 'rectification'")
                     )
             with pytest.raises(DBAPIError, match="append-only evidence"):
                 async with engine.begin() as connection:
@@ -84,7 +80,7 @@ def test_populated_dsr_downgrade_refuses_and_assessment_is_append_only(monkeypat
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0062_data_subject_requests", monkeypatch)
         asyncio.run(seed())
         with pytest.raises(RuntimeError, match="data-subject request evidence"):
             downgrade_to(migration_url, PRE_DSR_REVISION, monkeypatch)

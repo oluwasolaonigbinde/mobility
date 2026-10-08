@@ -16,7 +16,7 @@ const test = base.extend<{ context: BrowserContext; page: Page }>({
     const context = await chromium.launchPersistentContext(testInfo.outputPath("profile"), {
       headless: false,
       args: [`--app=${baseURL}/driver/track`],
-      geolocation: { latitude: 6.5244, longitude: 3.3792, accuracy: 8 },
+      geolocation: { latitude: 9.075, longitude: 7.47, accuracy: 8 },
       permissions: ["geolocation"],
     });
     await provide(context);
@@ -38,7 +38,7 @@ test("R59 real-stack release journey survives outages and converges exactly once
   if (process.env.R59_REAL_STACK !== "1") throw new Error("R59_REAL_STACK=1 is required");
 
   await context.grantPermissions(["geolocation"], { origin: process.env.PLAYWRIGHT_BASE_URL });
-  await context.setGeolocation({ latitude: 6.5244, longitude: 3.3792, accuracy: 8 });
+  await context.setGeolocation({ latitude: 9.075, longitude: 7.47, accuracy: 8 });
   await context.addInitScript(() => {
     Object.defineProperty(navigator, "wakeLock", {
       configurable: true,
@@ -91,8 +91,8 @@ test("R59 real-stack release journey survives outages and converges exactly once
 
   for (let index = 1; index <= 12; index += 1) {
     await context.setGeolocation({
-      latitude: 6.5244 + index * 0.00001,
-      longitude: 3.3792 + index * 0.00001,
+      latitude: 9.075 + index * 0.00001,
+      longitude: 7.47 + index * 0.00001,
       accuracy: 8,
     });
     await page.waitForTimeout(500);

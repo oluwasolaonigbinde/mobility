@@ -22,9 +22,9 @@ def test_campaign_cancellations_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
         upgrade_to(migration_url, PRE_CANCELLATION_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0059_campaign_cancellations", monkeypatch)
         downgrade_to(migration_url, PRE_CANCELLATION_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0059_campaign_cancellations", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -118,7 +118,7 @@ def test_cancellation_and_settlement_are_append_only_and_release_is_terminal(
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0059_campaign_cancellations", monkeypatch)
         asyncio.run(seed_and_mutate())
         with pytest.raises(RuntimeError, match="campaign cancellations are populated"):
             downgrade_to(migration_url, PRE_CANCELLATION_REVISION, monkeypatch)

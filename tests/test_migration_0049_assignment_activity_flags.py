@@ -35,9 +35,7 @@ PRE_ACTIVITY_REVISION = "0048_campaign_assignment_offer_lifecycle"
 
 
 def test_activity_migration_static_shape_and_sqlite_guards() -> None:
-    migration = Path(
-        "alembic/versions/0049_assignment_activity_flags.py"
-    ).read_text()
+    migration = Path("alembic/versions/0049_assignment_activity_flags.py").read_text()
     assert 'revision: str = "0049_assignment_activity_flags"' in migration
     assert f'down_revision: str | Sequence[str] | None = "{PRE_ACTIVITY_REVISION}"' in migration
     assert "assignment_activity_flags" in migration
@@ -65,9 +63,7 @@ def test_populated_upgrade_downgrade_reupgrade_preserves_guard(monkeypatch) -> N
             password="migration-password",
             role=UserRole.DRIVER,
         )
-        organization, _ = create_test_organization(
-            sessionmaker, owner_user_id=admin.id
-        )
+        organization, _ = create_test_organization(sessionmaker, owner_user_id=admin.id)
         campaign = create_test_campaign(
             sessionmaker,
             organization_id=organization.id,
@@ -147,16 +143,13 @@ def test_populated_upgrade_downgrade_reupgrade_preserves_guard(monkeypatch) -> N
     async def delete_evidence(sessionmaker) -> None:
         async with sessionmaker() as session:
             await session.execute(
-                text(
-                    "TRUNCATE TABLE assignment_activity_flag_events, "
-                    "assignment_activity_flags"
-                )
+                text("TRUNCATE TABLE assignment_activity_flag_events, assignment_activity_flags")
             )
             await session.commit()
 
     try:
         upgrade_to(migration_url, PRE_ACTIVITY_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0049_assignment_activity_flags", monkeypatch)
         engine, sessionmaker, assignment, campaign, profile, vehicle = seed_parent_rows()
         _flag_id, _ = asyncio.run(
             insert_evidence(sessionmaker, assignment, campaign, profile, vehicle)
@@ -168,6 +161,6 @@ def test_populated_upgrade_downgrade_reupgrade_preserves_guard(monkeypatch) -> N
         asyncio.run(delete_evidence(sessionmaker))
         asyncio.run(engine.dispose())
         downgrade_to(migration_url, PRE_ACTIVITY_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0049_assignment_activity_flags", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))

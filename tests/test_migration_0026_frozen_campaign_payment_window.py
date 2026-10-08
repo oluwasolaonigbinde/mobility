@@ -23,7 +23,7 @@ WINDOW_REVISION = "0026_frozen_campaign_payment_window"
 def test_frozen_campaign_window_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0026_frozen_campaign_payment_window", monkeypatch)
         rows = asyncio.run(
             fetch_all(
                 migration_url,
@@ -48,7 +48,7 @@ def test_frozen_campaign_window_empty_down_up_cycle(monkeypatch) -> None:
                 "AND column_name LIKE 'campaign_window_%'",
             )
         ) == [(0,)]
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0026_frozen_campaign_payment_window", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 

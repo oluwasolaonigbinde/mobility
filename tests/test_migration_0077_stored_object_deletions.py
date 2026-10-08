@@ -26,9 +26,9 @@ def test_stored_object_deletions_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
         upgrade_to(migration_url, PRE_DELETION_RECEIPT_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0077_stored_object_deletions", monkeypatch)
         downgrade_to(migration_url, PRE_DELETION_RECEIPT_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0077_stored_object_deletions", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 

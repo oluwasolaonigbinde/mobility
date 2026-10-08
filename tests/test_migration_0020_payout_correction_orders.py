@@ -27,7 +27,7 @@ def test_correction_orders_created_empty_and_downgrade_drops_them(monkeypatch) -
     source_url = configured_postgres_url()
     migration_url = asyncio.run(create_database_from_url(source_url))
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0020_payout_correction_orders", monkeypatch)
         count = asyncio.run(
             fetch_all(migration_url, "SELECT count(*) FROM payout_correction_orders")
         )
@@ -88,7 +88,7 @@ def test_correction_orders_created_empty_and_downgrade_drops_them(monkeypatch) -
             )
         )
         assert release_gone == [(0,)]
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0020_payout_correction_orders", monkeypatch)
         recount = asyncio.run(
             fetch_all(migration_url, "SELECT count(*) FROM payout_correction_orders")
         )

@@ -16,8 +16,8 @@ PRE_HARDENING_REVISION = "0035_vat_itemised_invoices"
 def test_invoice_hardening_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0036_invoice_authority_hardening", monkeypatch)
         downgrade_to(migration_url, PRE_HARDENING_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0036_invoice_authority_hardening", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))

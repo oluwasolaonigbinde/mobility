@@ -22,9 +22,9 @@ def test_email_delivery_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
         upgrade_to(migration_url, PRE_EMAIL_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0061_email_delivery", monkeypatch)
         downgrade_to(migration_url, PRE_EMAIL_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0061_email_delivery", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -59,7 +59,7 @@ def test_populated_email_delivery_downgrade_refuses(monkeypatch) -> None:
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0061_email_delivery", monkeypatch)
         asyncio.run(seed())
         with pytest.raises(RuntimeError, match="email delivery authority"):
             downgrade_to(migration_url, PRE_EMAIL_REVISION, monkeypatch)

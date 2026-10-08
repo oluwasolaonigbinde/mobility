@@ -18,7 +18,7 @@ def test_frozen_terms_columns_upgrade_downgrade_and_reupgrade(monkeypatch) -> No
     source_url = configured_postgres_url()
     migration_url = asyncio.run(create_database_from_url(source_url))
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0021_frozen_payout_v3_terms", monkeypatch)
         # 0019–0021 are deployed as one lane. 0021 itself asserts the interim
         # binding table is empty because the missing accepted geometry and
         # resolved settings cannot be reconstructed truthfully.
@@ -63,7 +63,7 @@ def test_frozen_terms_columns_upgrade_downgrade_and_reupgrade(monkeypatch) -> No
             )
         )
         assert remaining == [(0,)]
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0021_frozen_payout_v3_terms", monkeypatch)
         restored = asyncio.run(
             fetch_all(
                 migration_url,

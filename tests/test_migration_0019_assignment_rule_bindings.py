@@ -25,13 +25,36 @@ def test_bindings_table_created_empty_and_downgrade_drops_it(monkeypatch) -> Non
     source_url = configured_postgres_url()
     migration_url = asyncio.run(create_database_from_url(source_url))
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0019_assignment_rule_bindings", monkeypatch)
         count = asyncio.run(
             fetch_all(migration_url, "SELECT count(*) FROM assignment_rule_bindings")
         )
         # Create only, no backfill: pre-existing accepted assignments keep v2.
         assert count == [(0,)]
 
+        downgrade_to(migration_url, REVISION_PRE_BINDINGS, monkeypatch)
+        tables = asyncio.run(
+            fetch_all(
+                migration_url,
+                "SELECT count(*) FROM information_schema.tables"
+                " WHERE table_name = 'assignment_rule_bindings'",
+            )
+        )
+        assert tables == [(0,)]
+        upgrade_to(migration_url, "0019_assignment_rule_bindings", monkeypatch)
+        recount = asyncio.run(
+            fetch_all(migration_url, "SELECT count(*) FROM assignment_rule_bindings")
+        )
+        assert recount == [(0,)]
+    finally:
+        asyncio.run(drop_database(migration_url))
+
+
+def test_binding_table_constraints_exist(monkeypatch) -> None:
+    source_url = configured_postgres_url()
+    migration_url = asyncio.run(create_database_from_url(source_url))
+    try:
+        upgrade_to(migration_url, "head", monkeypatch)
         defaults = asyncio.run(
             fetch_all(
                 migration_url,
@@ -57,29 +80,6 @@ def test_bindings_table_created_empty_and_downgrade_drops_it(monkeypatch) -> Non
         )
         assert by_column["bound_at"][0] == "NO"
 
-        downgrade_to(migration_url, REVISION_PRE_BINDINGS, monkeypatch)
-        tables = asyncio.run(
-            fetch_all(
-                migration_url,
-                "SELECT count(*) FROM information_schema.tables"
-                " WHERE table_name = 'assignment_rule_bindings'",
-            )
-        )
-        assert tables == [(0,)]
-        upgrade_to(migration_url, "head", monkeypatch)
-        recount = asyncio.run(
-            fetch_all(migration_url, "SELECT count(*) FROM assignment_rule_bindings")
-        )
-        assert recount == [(0,)]
-    finally:
-        asyncio.run(drop_database(migration_url))
-
-
-def test_binding_table_constraints_exist(monkeypatch) -> None:
-    source_url = configured_postgres_url()
-    migration_url = asyncio.run(create_database_from_url(source_url))
-    try:
-        upgrade_to(migration_url, "head", monkeypatch)
         constraints = {
             row[0]
             for row in asyncio.run(

@@ -2,6 +2,7 @@
 
 import asyncio
 
+import pytest
 from alembic.config import Config
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -9,6 +10,7 @@ from sqlalchemy.pool import NullPool
 from test_migration_0014_partitioning import (
     configured_postgres_url,
     create_database_from_url,
+    downgrade_to,
     drop_database,
     fetch_all,
     upgrade_to,
@@ -67,5 +69,30 @@ def test_0100_expires_obsolete_challenges_and_matches_models(monkeypatch):
         assert "verified_by_user_id" in columns
         upgrade_to(url, "head", monkeypatch)
         command.check(Config("alembic.ini"))
+        before = asyncio.run(
+            fetch_all(url, "SELECT to_jsonb(c) FROM phone_verification_challenges c")
+        )
+        with pytest.raises(
+            RuntimeError,
+            match="^Reverse phone verification replaces the obsolete development flow$",
+        ):
+            downgrade_to(url, "0099_automatic_payout_scan_cursor", monkeypatch)
+        assert asyncio.run(fetch_all(url, "SELECT version_num FROM alembic_version")) == [
+            ("0101_document_review_outcomes",)
+        ]
+        assert (
+            asyncio.run(fetch_all(url, "SELECT to_jsonb(c) FROM phone_verification_challenges c"))
+            == before
+        )
+        assert {
+            row[0]
+            for row in asyncio.run(
+                fetch_all(
+                    url,
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name='phone_verification_challenges'",
+                )
+            )
+        } == columns
     finally:
         asyncio.run(drop_database(url))

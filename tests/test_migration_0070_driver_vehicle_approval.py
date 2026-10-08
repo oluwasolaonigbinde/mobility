@@ -26,9 +26,9 @@ def test_vehicle_approval_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
         upgrade_to(migration_url, PRE_VEHICLE_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0070_driver_vehicle_approval", monkeypatch)
         downgrade_to(migration_url, PRE_VEHICLE_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0070_driver_vehicle_approval", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -112,7 +112,7 @@ def test_vehicle_approval_backfill_is_untrusted_and_authority_is_append_only(mon
     try:
         upgrade_to(migration_url, PRE_VEHICLE_REVISION, monkeypatch)
         asyncio.run(seed_legacy_revision())
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0070_driver_vehicle_approval", monkeypatch)
         asyncio.run(inspect_and_mutate())
         with pytest.raises(RuntimeError, match="0070 downgrade blocked"):
             downgrade_to(migration_url, PRE_VEHICLE_REVISION, monkeypatch)

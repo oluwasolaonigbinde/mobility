@@ -28,8 +28,6 @@ def test_0099_cursor_round_trip_constraint_and_current_model(monkeypatch):
     try:
         upgrade_to(url, PREVIOUS, monkeypatch)
         upgrade_to(url, CURRENT, monkeypatch)
-        # Use the real Alembic filters for extension tables/runtime partitions.
-        command.check(Config("alembic.ini"))
         assert asyncio.run(
             fetch_all(
                 url,
@@ -68,5 +66,8 @@ def test_0099_cursor_round_trip_constraint_and_current_model(monkeypatch):
                 "SELECT candidate_cursor_at, candidate_cursor_id FROM payout_automatic_controls",
             )
         ) == [(None, None)]
+        # Current models are compared only after the historical cursor cycle.
+        upgrade_to(url, "head", monkeypatch)
+        command.check(Config("alembic.ini"))
     finally:
         asyncio.run(drop_database(url))

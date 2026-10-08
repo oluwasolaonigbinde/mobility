@@ -123,8 +123,9 @@ def test_frozen_disclosure_wording_is_taken_from_the_contract() -> None:
         "consistency",
     }
     assert all(value.strip() for value in rule.values())
-    # The owner approved plain screen wording; frozen CSV/PDF wording remains exact.
-    assert SUPPRESSED_TOTAL_LABEL == rule["omitted_label"]
+    # D71 approves plain wording for new v2 runs/exports; the v1 contract is historical.
+    assert rule["omitted_label"] == "Omitted - insufficient frozen evidence"
+    assert SUPPRESSED_TOTAL_LABEL == "Not enough data"
     assert SUPPRESSED_TOTAL_LABEL.isascii(), "the bounded PDF renderer is ASCII-only"
     frontend_label = (
         ADVERTISER_DIR / "campaigns" / "[campaignId]" / "report" / "measurement-authority.tsx"

@@ -4,9 +4,13 @@ import { ApiError } from "@/lib/api/errors";
 const mocks = vi.hoisted(() => ({
   post: vi.fn(),
   revalidatePath: vi.fn(),
+  refresh: vi.fn(),
 }));
 
-vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
+vi.mock("next/cache", () => ({
+  revalidatePath: mocks.revalidatePath,
+  refresh: mocks.refresh,
+}));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ POST: mocks.post }) }));
 
@@ -40,14 +44,32 @@ describe("commercial advertiser feedback", () => {
       error: "Review the quotation and confirm that you accept these exact terms.",
     });
     expect(mocks.post).not.toHaveBeenCalled();
+    expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
-  it("returns visible success without putting feedback in a URL", async () => {
+  it("refreshes preparation facts while retaining the accepted receipt and visible feedback", async () => {
+    const acceptedTerms = { id: "accepted-terms", quotation_revision_id: REVISION_ID };
+    mocks.post.mockResolvedValueOnce({ data: acceptedTerms });
     await expect(acceptQuoteAction({}, quotationForm({ confirmed: true }))).resolves.toMatchObject({
       done: "Quotation accepted. Your immutable receipt is shown below.",
-      acceptedTerms: {},
+      acceptedTerms,
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["missing receipt", "API failure"])("does not refresh after %s", async (failure) => {
+    if (failure === "missing receipt") mocks.post.mockResolvedValueOnce({ data: undefined });
+    else mocks.post.mockRejectedValueOnce(new Error("private backend detail"));
+    const result = await acceptQuoteAction({}, quotationForm({ confirmed: true }));
+    expect(result).toEqual({
+      error:
+        failure === "missing receipt"
+          ? "The accepted terms receipt is unavailable. Try again."
+          : "Could not accept the quotation. Try again.",
+    });
+    expect(mocks.refresh).not.toHaveBeenCalled();
+    expect(JSON.stringify(result)).not.toContain("private backend detail");
   });
 
   it("says who posts the quotation after a request (D38a)", async () => {

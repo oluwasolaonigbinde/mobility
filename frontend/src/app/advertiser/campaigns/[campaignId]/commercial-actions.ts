@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { refresh } from "next/cache";
 import { createApiClient } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
 import { publicActionError } from "@/lib/api/public-action-error";
@@ -74,6 +75,7 @@ export async function acceptQuoteAction(
       body: { acceptance_method: "in_platform" },
     });
     if (!data) return { error: "The accepted terms receipt is unavailable. Try again." };
+    refresh();
     return {
       done: "Quotation accepted. Your immutable receipt is shown below.",
       acceptedTerms: data,

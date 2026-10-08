@@ -59,16 +59,14 @@ def test_populated_correction_backfill_restores_append_only_and_blocks_downgrade
                 assert len(row.request_fingerprint) == 64
             async with engine.begin() as connection:
                 with pytest.raises(DBAPIError, match="append-only"):
-                    await connection.execute(
-                        text("UPDATE invoice_corrections SET reason = reason")
-                    )
+                    await connection.execute(text("UPDATE invoice_corrections SET reason = reason"))
         finally:
             await engine.dispose()
 
     try:
         upgrade_to(migration_url, "0040_budget_policy_blocked_state", monkeypatch)
         asyncio.run(seed())
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0041_invoice_correction_retry_identity", monkeypatch)
         asyncio.run(verify())
         with pytest.raises(RuntimeError, match="0041 downgrade blocked"):
             from test_migration_0014_partitioning import downgrade_to

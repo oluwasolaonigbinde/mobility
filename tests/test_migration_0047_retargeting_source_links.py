@@ -41,8 +41,8 @@ def test_link_empty_roundtrip_append_only_and_populated_downgrade(monkeypatch) -
                                 "(name,currency,status) VALUES "
                                 "('Link Migration Org','NGN','active') RETURNING id), "
                                 "c AS (INSERT INTO campaigns "
-                            "(organization_id,created_by_user_id,name,status,"
-                            "currency,metadata) "
+                                "(organization_id,created_by_user_id,name,status,"
+                                "currency,metadata) "
                                 "SELECT o.id,u.id,'Link Campaign','draft','NGN','{}'::jsonb "
                                 "FROM o,u RETURNING id,organization_id,created_by_user_id), "
                                 "z AS (INSERT INTO campaign_zones "
@@ -55,8 +55,8 @@ def test_link_empty_roundtrip_append_only_and_populated_downgrade(monkeypatch) -
                                 "(organization_id,source_type,snapshot,snapshot_sha256,expires_at) "
                                 "SELECT o.id,'manual-insight','{}'::jsonb,repeat('a',64),"
                                 "now()+interval '30 days' FROM o RETURNING id,organization_id) "
-                            "SELECT u.id AS user_id,o.id AS organization_id,"
-                            "c.id AS campaign_id,"
+                                "SELECT u.id AS user_id,o.id AS organization_id,"
+                                "c.id AS campaign_id,"
                                 "z.id AS zone_id,s.id AS source_id FROM u,o,c,z,s"
                             )
                         )
@@ -102,9 +102,9 @@ def test_link_empty_roundtrip_append_only_and_populated_downgrade(monkeypatch) -
 
     try:
         upgrade_to(migration_url, PRE_LINK_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0047_retargeting_source_links", monkeypatch)
         downgrade_to(migration_url, PRE_LINK_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0047_retargeting_source_links", monkeypatch)
         asyncio.run(seed_and_verify())
         with pytest.raises(RuntimeError, match="Refusing to drop populated"):
             downgrade_to(migration_url, PRE_LINK_REVISION, monkeypatch)
@@ -119,6 +119,7 @@ def test_link_active_identity_index_has_no_autogenerate_removal(monkeypatch) -> 
         engine = create_async_engine(migration_url, poolclass=NullPool)
         try:
             async with engine.connect() as connection:
+
                 def run(sync_connection):
                     context = MigrationContext.configure(
                         sync_connection,

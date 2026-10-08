@@ -57,7 +57,7 @@ def test_populated_upgrade_downgrade_reupgrade_preserves_application_evidence(mo
             country_code="NG",
         )
 
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0050_driver_applications", monkeypatch)
 
         async def insert_application() -> None:
             async with sessionmaker() as session:
@@ -91,7 +91,7 @@ def test_populated_upgrade_downgrade_reupgrade_preserves_application_evidence(mo
 
         asyncio.run(delete_application())
         downgrade_to(migration_url, PRE_APPLICATION_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0050_driver_applications", monkeypatch)
     finally:
         if engine is not None:
             asyncio.run(engine.dispose())

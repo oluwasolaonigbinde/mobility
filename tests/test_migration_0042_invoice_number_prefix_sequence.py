@@ -105,7 +105,7 @@ def test_shared_prefix_backfill_uses_max_issued_suffix_and_blocks_downgrade(monk
     try:
         upgrade_to(migration_url, "0041_invoice_correction_retry_identity", monkeypatch)
         asyncio.run(seed())
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0042_invoice_number_prefix_sequence", monkeypatch)
         asyncio.run(verify())
         with pytest.raises(RuntimeError, match="0042 downgrade blocked"):
             downgrade_to(migration_url, "0041_invoice_correction_retry_identity", monkeypatch)

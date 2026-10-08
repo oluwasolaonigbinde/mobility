@@ -22,7 +22,7 @@ PRE_DISPUTE_REVISION = "0024_fraud_review_holds"
 def test_dispute_notification_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0025_fraud_disputes_notifications", monkeypatch)
         tables = asyncio.run(
             fetch_all(
                 migration_url,
@@ -32,14 +32,17 @@ def test_dispute_notification_empty_down_up_cycle(monkeypatch) -> None:
         )
         assert tables == [("fraud_disputes",), ("notifications",)]
         downgrade_to(migration_url, PRE_DISPUTE_REVISION, monkeypatch)
-        assert asyncio.run(
-            fetch_all(
-                migration_url,
-                "SELECT table_name FROM information_schema.tables "
-                "WHERE table_name IN ('fraud_disputes', 'notifications')",
+        assert (
+            asyncio.run(
+                fetch_all(
+                    migration_url,
+                    "SELECT table_name FROM information_schema.tables "
+                    "WHERE table_name IN ('fraud_disputes', 'notifications')",
+                )
             )
-        ) == []
-        upgrade_to(migration_url, "head", monkeypatch)
+            == []
+        )
+        upgrade_to(migration_url, "0025_fraud_disputes_notifications", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 

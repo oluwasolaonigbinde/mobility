@@ -22,7 +22,7 @@ PRE_COMMERCIAL_REVISION = "0031_carry_forward_payout_debt"
 def test_commercial_terms_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0032_commercial_quotation_terms", monkeypatch)
         assert asyncio.run(
             fetch_all(
                 migration_url,
@@ -35,7 +35,7 @@ def test_commercial_terms_empty_down_up_cycle(monkeypatch) -> None:
             ("commercial_terms",),
         ]
         downgrade_to(migration_url, PRE_COMMERCIAL_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0032_commercial_quotation_terms", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -95,7 +95,7 @@ def test_commercial_authority_is_database_immutable_and_blocks_downgrade(monkeyp
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0032_commercial_quotation_terms", monkeypatch)
         asyncio.run(seed_and_mutate())
         with pytest.raises(RuntimeError, match="0032 downgrade blocked"):
             downgrade_to(migration_url, PRE_COMMERCIAL_REVISION, monkeypatch)

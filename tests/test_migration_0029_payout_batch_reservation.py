@@ -21,7 +21,7 @@ PRE_BATCH_REVISION = "0028_protected_payee_accounts"
 def test_payout_batch_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0029_payout_batch_reservation", monkeypatch)
         tables = asyncio.run(
             fetch_all(
                 migration_url,
@@ -39,7 +39,7 @@ def test_payout_batch_empty_down_up_cycle(monkeypatch) -> None:
                 "WHERE table_name IN ('payout_batches', 'payout_batch_lines')",
             )
         ) == [(0,)]
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0029_payout_batch_reservation", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -78,7 +78,7 @@ def test_payout_batch_populated_downgrade_fails_closed(monkeypatch, table_name: 
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0029_payout_batch_reservation", monkeypatch)
         asyncio.run(seed())
         with pytest.raises(RuntimeError, match="0029 downgrade blocked"):
             downgrade_to(migration_url, PRE_BATCH_REVISION, monkeypatch)

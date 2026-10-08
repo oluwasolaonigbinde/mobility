@@ -22,7 +22,7 @@ PRE_RECEIPT_REVISION = "0033_advertiser_company_profiles"
 def test_receipt_authority_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0034_canonical_receipts_allocations", monkeypatch)
         assert asyncio.run(
             fetch_all(
                 migration_url,
@@ -37,7 +37,7 @@ def test_receipt_authority_empty_down_up_cycle(monkeypatch) -> None:
             ("receipt_reconciliations",),
         ]
         downgrade_to(migration_url, PRE_RECEIPT_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0034_canonical_receipts_allocations", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -75,7 +75,7 @@ def test_receipts_are_database_immutable_and_block_downgrade(monkeypatch) -> Non
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0034_canonical_receipts_allocations", monkeypatch)
         asyncio.run(seed_and_mutate())
         with pytest.raises(RuntimeError, match="0034 downgrade blocked"):
             downgrade_to(migration_url, PRE_RECEIPT_REVISION, monkeypatch)

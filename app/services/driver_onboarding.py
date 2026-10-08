@@ -681,7 +681,12 @@ async def review_application_person_payee(
         select(DriverProfile).where(DriverProfile.id == profile_id).with_for_update()
     )
     if profile is None:
-        raise _error("PERSON_PAYEE_INCOMPLETE", "Driver documents are unavailable", 409)
+        code, message, status_code = (
+            ("DRIVER_PROFILE_NOT_FOUND", "Driver profile not found", 404)
+            if driver_profile_id is not None
+            else ("PERSON_PAYEE_INCOMPLETE", "Driver documents are unavailable", 409)
+        )
+        raise _error(code, message, status_code)
     retry = await session.scalar(
         select(DriverKycReviewDecision).where(
             DriverKycReviewDecision.client_request_id == payload.client_request_id

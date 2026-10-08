@@ -60,9 +60,9 @@ def test_campaign_review_empty_down_up_preserves_existing_campaigns(monkeypatch)
         upgrade_to(migration_url, PRE_REVIEW_REVISION, monkeypatch)
         asyncio.run(seed())
         assert asyncio.run(read()) == ("Preserved campaign", "draft")
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0043_campaign_review_lifecycle", monkeypatch)
         downgrade_to(migration_url, PRE_REVIEW_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0043_campaign_review_lifecycle", monkeypatch)
         assert asyncio.run(read()) == ("Preserved campaign", "draft")
     finally:
         asyncio.run(drop_database(migration_url))
@@ -111,7 +111,7 @@ def test_campaign_review_evidence_is_append_only_and_blocks_downgrade(monkeypatc
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0043_campaign_review_lifecycle", monkeypatch)
         asyncio.run(seed_and_mutate())
         with pytest.raises(RuntimeError, match="0043 downgrade blocked"):
             downgrade_to(migration_url, PRE_REVIEW_REVISION, monkeypatch)

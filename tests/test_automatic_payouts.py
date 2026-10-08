@@ -23,6 +23,7 @@ from conftest import (
 from sqlalchemy import select, update
 from test_mny03a_earnings_release import build_graph as build_manual_graph
 from test_payout_batches import _seed_authority
+from test_payouts_v2 import moving_points
 from test_payouts_v3 import add_target_zone
 from test_payouts_v4 import (
     TRIP_START,
@@ -33,6 +34,7 @@ from test_payouts_v4 import (
     drive,
     insert_v4_binding,
 )
+from test_trip_processing import add_pings, run_pipeline
 
 from app.adapters.crypto import EnvelopeCryptoProvider
 from app.adapters.disbursement import DisabledDisbursementAdapter, FakeDisbursementAdapter
@@ -1897,7 +1899,19 @@ def test_w1p_excluded_prefix_does_not_starve_later_candidate(
 ):
     db = postgis_db_sessionmaker
     old = clean_graph(db, settings, "w1p-excluded", payee=False)
-    new = clean_graph(db, settings, "w1p-later")
+    new = build_v4_graph(db, settings, "w1p-later")
+    # Separate real routes keep the later driver genuinely clean: identical
+    # synthetic tracks can legitimately be classified as cross-driver replay.
+    add_pings(
+        db,
+        trip_id=new.trip.id,
+        points=moving_points(new.trip.started_at, lon=3.45),
+        idempotency_key=f"v4-{new.trip.id}",
+    )
+    assert run_pipeline(db, new.trip.id, settings).overall == "completed"
+    assert fetch(db, FraudFlag) == []
+    release_all(db)
+    add_payee(db, new)
     execute(
         db,
         update(EarningsLedgerEntry)
@@ -2425,9 +2439,9 @@ def test_w1p_paid_manual_correction_uses_trip_days_and_respects_ceiling(
     correction_amount = Decimal("8000.00") - later_entry.amount
     correction_amount += Decimal("0.01") if over_ceiling else Decimal("-0.01")
     assert correction_amount > 0
-    calculation = fetch(
-        db, PayoutCalculation, PayoutCalculation.trip_session_id == graph.trip.id
-    )[0]
+    calculation = fetch(db, PayoutCalculation, PayoutCalculation.trip_session_id == graph.trip.id)[
+        0
+    ]
     assert len(calculation.amount_by_day) == 2
     fake = FakeDisbursementAdapter()
 

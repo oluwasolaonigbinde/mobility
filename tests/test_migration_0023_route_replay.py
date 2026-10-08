@@ -54,7 +54,7 @@ def test_route_replay_schema_upgrade_downgrade_and_reupgrade(monkeypatch) -> Non
         )
         assert before == [(None,)]
 
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0023_route_replay_signatures", monkeypatch)
         columns = asyncio.run(
             fetch_all(
                 migration_url,
@@ -79,8 +79,7 @@ def test_route_replay_schema_upgrade_downgrade_and_reupgrade(monkeypatch) -> Non
         indexes = asyncio.run(
             fetch_all(
                 migration_url,
-                "SELECT indexname FROM pg_indexes"
-                " WHERE tablename = 'route_replay_signatures'",
+                "SELECT indexname FROM pg_indexes WHERE tablename = 'route_replay_signatures'",
             )
         )
         assert {row[0] for row in indexes} >= {
@@ -130,7 +129,7 @@ def test_route_replay_schema_upgrade_downgrade_and_reupgrade(monkeypatch) -> Non
         )
         assert replay_flag_count == [(0,)]
 
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0023_route_replay_signatures", monkeypatch)
         restored = asyncio.run(
             fetch_all(
                 migration_url,

@@ -22,9 +22,9 @@ def test_budget_contact_recovery_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
         upgrade_to(migration_url, PRE_AUTHORITY_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0064_budget_notifications_recovery", monkeypatch)
         downgrade_to(migration_url, PRE_AUTHORITY_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0064_budget_notifications_recovery", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -82,7 +82,7 @@ def test_budget_transition_is_append_only_and_evidence_blocks_downgrade(monkeypa
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0064_budget_notifications_recovery", monkeypatch)
         asyncio.run(seed_and_mutate())
         with pytest.raises(RuntimeError, match="0064 downgrade blocked"):
             downgrade_to(migration_url, PRE_AUTHORITY_REVISION, monkeypatch)

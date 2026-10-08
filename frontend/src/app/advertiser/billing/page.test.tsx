@@ -78,7 +78,7 @@ describe("AdvertiserBillingPage", () => {
     expect(
       screen.getByText("Reversed – this payment no longer counts toward your campaign terms."),
     ).toBeInTheDocument();
-    expect(screen.getAllByText("₦250,000")).toHaveLength(4);
+    expect(screen.getAllByText("₦250,000.00")).toHaveLength(4);
     expect(
       screen.getByText(/Issued NGN invoices can be paid through Paystack/),
     ).toBeInTheDocument();

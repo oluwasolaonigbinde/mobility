@@ -21,7 +21,7 @@ PRE_DEBT_REVISION = "0030_provider_line_reconciliation"
 def test_carry_forward_debt_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0031_carry_forward_payout_debt", monkeypatch)
         assert asyncio.run(
             fetch_all(
                 migration_url,
@@ -44,7 +44,7 @@ def test_carry_forward_debt_empty_down_up_cycle(monkeypatch) -> None:
                 "WHERE table_name = 'driver_currency_debt_accounts'",
             )
         ) == [(0,)]
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0031_carry_forward_payout_debt", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 

@@ -26,9 +26,9 @@ def test_w3_04b_review_authority_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
         upgrade_to(migration_url, PRE_AUTHORITY_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0069_w3_04b_review_authority", monkeypatch)
         downgrade_to(migration_url, PRE_AUTHORITY_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0069_w3_04b_review_authority", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -112,9 +112,7 @@ def test_w3_04b_backfills_only_admin_account_versions_and_is_append_only(monkeyp
                         )
                     )
                 ).all()
-            assert [str(row[0]) for row in rows] == [
-                "69000000-0000-0000-0000-000000000011"
-            ]
+            assert [str(row[0]) for row in rows] == ["69000000-0000-0000-0000-000000000011"]
             with pytest.raises(DBAPIError, match="append-only"):
                 async with engine.begin() as connection:
                     await connection.execute(

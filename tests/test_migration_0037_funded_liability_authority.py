@@ -16,8 +16,8 @@ PRE_AUTHORITY_REVISION = "0036_invoice_authority_hardening"
 def test_funded_liability_authority_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0037_funded_liability_authority", monkeypatch)
         downgrade_to(migration_url, PRE_AUTHORITY_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0037_funded_liability_authority", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))

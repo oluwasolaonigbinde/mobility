@@ -22,9 +22,9 @@ def test_campaign_changes_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
         upgrade_to(migration_url, PRE_CAMPAIGN_CHANGES_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0058_campaign_changes", monkeypatch)
         downgrade_to(migration_url, PRE_CAMPAIGN_CHANGES_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0058_campaign_changes", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -51,7 +51,7 @@ def test_campaign_change_revision_is_append_only_and_populated_downgrade_refuses
                         "'58000000-0000-0000-0000-000000000003',"
                         "'58000000-0000-0000-0000-000000000004',"
                         "'58000000-0000-0000-0000-000000000005',repeat('a',64),"
-                        "'{\"budget_amount\":\"1200.00\"}', '[\"expansion\"]',"
+                        '\'{"budget_amount":"1200.00"}\', \'["expansion"]\','
                         "'{\"before\":{}}','applied',0,0,now())"
                     )
                 )
@@ -78,8 +78,8 @@ def test_campaign_change_revision_is_append_only_and_populated_downgrade_refuses
                         "'58000000-0000-0000-0000-000000000003',"
                         "'58000000-0000-0000-0000-000000000004',"
                         "'58000000-0000-0000-0000-000000000009',repeat('c',64),"
-                        "'{\"end_at\":\"2099-01-01T00:00:00+00:00\"}',"
-                        "'[\"date_change\",\"expansion\"]','{\"before\":{}}',"
+                        '\'{"end_at":"2099-01-01T00:00:00+00:00"}\','
+                        '\'["date_change","expansion"]\',\'{"before":{}}\','
                         "'pending_admin',10)"
                     )
                 )
@@ -95,8 +95,8 @@ def test_campaign_change_revision_is_append_only_and_populated_downgrade_refuses
                         "'58000000-0000-0000-0000-000000000003',"
                         "'58000000-0000-0000-0000-000000000004',"
                         "'58000000-0000-0000-0000-000000000012',repeat('d',64),"
-                        "'{\"end_at\":\"2099-01-02T00:00:00+00:00\"}',"
-                        "'[\"date_change\",\"expansion\"]','{\"before\":{}}',"
+                        '\'{"end_at":"2099-01-02T00:00:00+00:00"}\','
+                        '\'["date_change","expansion"]\',\'{"before":{}}\','
                         "'pending_funding',10,'58000000-0000-0000-0000-000000000004',"
                         "now(),'approved pending funding')"
                     )
@@ -114,7 +114,7 @@ def test_campaign_change_revision_is_append_only_and_populated_downgrade_refuses
                     await connection.execute(
                         text(
                             "UPDATE campaign_change_requests "
-                            "SET proposed_changes='{\"budget_amount\":\"1300.00\"}' "
+                            'SET proposed_changes=\'{"budget_amount":"1300.00"}\' '
                             "WHERE id='58000000-0000-0000-0000-000000000001'"
                         )
                     )
@@ -146,7 +146,7 @@ def test_campaign_change_revision_is_append_only_and_populated_downgrade_refuses
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0058_campaign_changes", monkeypatch)
         asyncio.run(seed_and_mutate())
         with pytest.raises(RuntimeError, match="campaign changes are populated"):
             downgrade_to(migration_url, PRE_CAMPAIGN_CHANGES_REVISION, monkeypatch)

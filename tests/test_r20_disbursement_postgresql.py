@@ -55,8 +55,7 @@ def test_concurrent_claim_commits_before_provider_io_and_submits_once(
                 intent = await probe.scalar(
                     select(PayoutSubmissionIntent)
                     .where(
-                        PayoutSubmissionIntent.idempotency_key
-                        == instructions[0].idempotency_key
+                        PayoutSubmissionIntent.idempotency_key == instructions[0].idempotency_key
                     )
                     .with_for_update(nowait=True)
                 )
@@ -70,16 +69,13 @@ def test_concurrent_claim_commits_before_provider_io_and_submits_once(
                         or 0
                     )
                 )
-            return await super().submit_batch(
-                batch_id=batch_id, instructions=instructions
-            )
+            return await super().submit_batch(batch_id=batch_id, instructions=instructions)
 
     adapter = LockProbeAdapter()
 
     async def exercise():
-        _, line_ids, intent_ids = await _prepare_batch(
-            postgis_db_sessionmaker, graph, adapter
-        )
+        _, line_ids, intent_ids = await _prepare_batch(postgis_db_sessionmaker, graph, adapter)
+
         async def process_one() -> str:
             result = await process_payout_submission_intent(
                 postgis_db_sessionmaker,
@@ -90,9 +86,7 @@ def test_concurrent_claim_commits_before_provider_io_and_submits_once(
                 losing_claim_finished.set()
             return result
 
-        results = await asyncio.wait_for(
-            asyncio.gather(process_one(), process_one()), timeout=10
-        )
+        results = await asyncio.wait_for(asyncio.gather(process_one(), process_one()), timeout=10)
         async with postgis_db_sessionmaker() as session:
             intent = await session.get(PayoutSubmissionIntent, intent_ids[0])
             line = await session.get(PayoutBatchLine, line_ids[0])
@@ -171,9 +165,7 @@ def test_crash_before_provider_call_queries_not_found_before_same_key_resend(
             )
             return crashed_claim, after_lookup, resubmits, intent, actions, outcomes
 
-    crashed_claim, after_lookup, resubmits, intent, actions, outcomes = asyncio.run(
-        exercise()
-    )
+    crashed_claim, after_lookup, resubmits, intent, actions, outcomes = asyncio.run(exercise())
     assert crashed_claim is not None and crashed_claim.action == "submit"
     assert after_lookup == "pending"
     assert sorted(resubmits) == ["resolved", "skipped"]
@@ -227,9 +219,7 @@ def test_provider_response_lost_before_db_commit_recovers_by_query_without_resub
             observation=DisbursementClaimObservation(
                 outcome=PayoutSubmissionObservationOutcome.SUBMITTED,
                 provider_submission_reference=receipt.provider_reference,
-                provider_transfer_reference=receipt.line_references[
-                    str(abandoned_claim.line_id)
-                ],
+                provider_transfer_reference=receipt.line_references[str(abandoned_claim.line_id)],
             ),
         )
         async with postgis_db_sessionmaker() as session:
@@ -262,7 +252,7 @@ def test_provider_response_lost_before_db_commit_recovers_by_query_without_resub
 def test_0083_database_guards_and_model_have_no_owned_drift(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
 
-    async def exercise() -> list:
+    async def exercise() -> None:
         engine = create_async_engine(migration_url, poolclass=NullPool)
         try:
             async with engine.begin() as connection:
@@ -342,6 +332,12 @@ def test_0083_database_guards_and_model_have_no_owned_drift(monkeypatch) -> None
                             "WHERE id = '83000000-0000-0000-0000-000000000001'"
                         )
                     )
+        finally:
+            await engine.dispose()
+
+    async def compare_owned() -> list:
+        engine = create_async_engine(migration_url, poolclass=NullPool)
+        try:
             async with engine.connect() as connection:
                 diffs = await connection.run_sync(
                     lambda sync_connection: compare_metadata(
@@ -368,9 +364,11 @@ def test_0083_database_guards_and_model_have_no_owned_drift(monkeypatch) -> None
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
-        assert asyncio.run(exercise()) == []
+        upgrade_to(migration_url, "0083_payout_submission_intents", monkeypatch)
+        asyncio.run(exercise())
         with pytest.raises(RuntimeError, match="0083 downgrade blocked"):
             downgrade_to(migration_url, "0082_report_publication_intents", monkeypatch)
+        upgrade_to(migration_url, "head", monkeypatch)
+        assert asyncio.run(compare_owned()) == []
     finally:
         asyncio.run(drop_database(migration_url))

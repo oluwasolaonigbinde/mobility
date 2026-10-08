@@ -22,9 +22,9 @@ def test_audience_delivery_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
         upgrade_to(migration_url, PRE_DELIVERY_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0066_audience_deliveries", monkeypatch)
         downgrade_to(migration_url, PRE_DELIVERY_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0066_audience_deliveries", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -71,7 +71,7 @@ def test_audience_delivery_is_append_only_and_blocks_populated_downgrade(
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0066_audience_deliveries", monkeypatch)
         asyncio.run(seed_and_mutate())
         with pytest.raises(RuntimeError, match="0066 downgrade blocked"):
             downgrade_to(migration_url, PRE_DELIVERY_REVISION, monkeypatch)

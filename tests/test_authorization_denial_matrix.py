@@ -265,7 +265,7 @@ def test_generated_right_role_guessed_mutation_matrix_hides_every_parameterized_
         owner_user_id=users[Principal.ADVERTISER].id,
     )
     create_test_driver_profile(db_sessionmaker, user_id=users[Principal.DRIVER].id)
-    settings.phone_operator_external_approved = True
+    settings.phone_verification_terrax_number = "+2347068369842"
     tokens = {principal: _token(user, settings) for principal, user in users.items()}
     routes = [
         route

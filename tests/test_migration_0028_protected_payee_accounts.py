@@ -36,7 +36,7 @@ def test_protected_payee_empty_down_up_cycle(monkeypatch) -> None:
             )
         )
         assert tables == [(table,) for table in TABLES]
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0028_protected_payee_accounts", monkeypatch)
         current_tables = asyncio.run(
             fetch_all(
                 migration_url,
@@ -58,7 +58,7 @@ def test_protected_payee_empty_down_up_cycle(monkeypatch) -> None:
             )
             == []
         )
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0028_protected_payee_accounts", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -114,7 +114,7 @@ def test_protected_payee_populated_downgrade_fails_closed(monkeypatch, table_nam
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0028_protected_payee_accounts", monkeypatch)
         asyncio.run(seed())
         with pytest.raises(RuntimeError, match="downgrade blocked"):
             downgrade_to(migration_url, PRE_PAYEE_REVISION, monkeypatch)

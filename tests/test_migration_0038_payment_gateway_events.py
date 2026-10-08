@@ -21,9 +21,9 @@ PRE_GATEWAY_REVISION = "0037_funded_liability_authority"
 def test_payment_gateway_events_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0038_payment_gateway_events", monkeypatch)
         downgrade_to(migration_url, PRE_GATEWAY_REVISION, monkeypatch)
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0038_payment_gateway_events", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -62,7 +62,7 @@ def test_gateway_event_is_append_only_and_blocks_populated_downgrade(monkeypatch
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0038_payment_gateway_events", monkeypatch)
         asyncio.run(seed_and_mutate())
         with pytest.raises(RuntimeError, match="0038 downgrade blocked"):
             downgrade_to(migration_url, PRE_GATEWAY_REVISION, monkeypatch)

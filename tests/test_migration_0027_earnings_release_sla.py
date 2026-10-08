@@ -21,7 +21,7 @@ PRE_RELEASE_REVISION = "0026_frozen_campaign_payment_window"
 def test_earnings_release_sla_empty_down_up_cycle(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0027_earnings_release_sla", monkeypatch)
         columns = asyncio.run(
             fetch_all(
                 migration_url,
@@ -44,7 +44,7 @@ def test_earnings_release_sla_empty_down_up_cycle(monkeypatch) -> None:
                 "AND table_name IN ('fraud_flags', 'earnings_ledger_entries')",
             )
         ) == [(0,)]
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0027_earnings_release_sla", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -52,7 +52,8 @@ def test_earnings_release_sla_empty_down_up_cycle(monkeypatch) -> None:
 @pytest.mark.parametrize(
     "seed_sqls",
     [
-        ("""
+        (
+            """
         INSERT INTO fraud_flags
           (id, trip_session_id, assignment_id, campaign_id, driver_profile_id,
            vehicle_id, flag_type, severity, status, description, evidence,
@@ -66,8 +67,10 @@ def test_earnings_release_sla_empty_down_up_cycle(monkeypatch) -> None:
            '27000000-0000-0000-0000-000000000006',
            'impossible_speed', 'high', 'open', 'fixture', '{}'::jsonb,
            now() - interval '7 days', now())
-        """,),
-        ("""
+        """,
+        ),
+        (
+            """
         INSERT INTO fraud_flags
           (id, trip_session_id, assignment_id, campaign_id, driver_profile_id,
            vehicle_id, flag_type, severity, status, description, evidence, detected_at)
@@ -80,7 +83,7 @@ def test_earnings_release_sla_empty_down_up_cycle(monkeypatch) -> None:
            '27000000-0000-0000-0000-000000000016',
            'impossible_speed', 'high', 'open', 'fixture', '{}'::jsonb, now())
         """,
-        """
+            """
         INSERT INTO earnings_ledger_entries
           (id, driver_profile_id, driver_user_id, campaign_id, trip_session_id,
            entry_type, status, amount, currency, occurred_at, source_fraud_flag_id)
@@ -92,12 +95,11 @@ def test_earnings_release_sla_empty_down_up_cycle(monkeypatch) -> None:
            '27000000-0000-0000-0000-000000000012',
            'reversal', 'available', 10, 'NGN', now(),
            '27000000-0000-0000-0000-000000000011')
-        """),
+        """,
+        ),
     ],
 )
-def test_earnings_release_sla_populated_downgrade_fails_closed(
-    monkeypatch, seed_sqls
-) -> None:
+def test_earnings_release_sla_populated_downgrade_fails_closed(monkeypatch, seed_sqls) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
 
     async def seed() -> None:
@@ -111,7 +113,7 @@ def test_earnings_release_sla_populated_downgrade_fails_closed(
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0027_earnings_release_sla", monkeypatch)
         asyncio.run(seed())
         with pytest.raises(RuntimeError, match="downgrade blocked"):
             downgrade_to(migration_url, PRE_RELEASE_REVISION, monkeypatch)

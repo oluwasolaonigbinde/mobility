@@ -197,9 +197,7 @@ async def fetch_catalog_authority(migration_url: str) -> dict[str, dict]:
                 return {
                     "key_columns": tuple(row.key_column_names),
                     "deferrable": row.deferrable,
-                    "initially": (
-                        "DEFERRED" if row.initially_deferred else "IMMEDIATE"
-                    ),
+                    "initially": ("DEFERRED" if row.initially_deferred else "IMMEDIATE"),
                     "included_columns": tuple(row.included_column_names),
                 }
 
@@ -232,8 +230,7 @@ async def fetch_catalog_authority(migration_url: str) -> dict[str, dict]:
                 {"table_names": table_names},
             )
             actual_checks = {
-                (row.table_name, row.constraint_name): row.definition
-                for row in check_rows
+                (row.table_name, row.constraint_name): row.definition for row in check_rows
             }
 
             expected_checks: dict[tuple[str, str], str] = {}
@@ -255,8 +252,7 @@ async def fetch_catalog_authority(migration_url: str) -> dict[str, dict]:
                 temporary_table = f"r04_expected_checks_{index}"
                 quoted_temporary_table = preparer.quote(temporary_table)
                 quoted_public_table = (
-                    f"{preparer.quote_schema('public')}."
-                    f"{preparer.quote(metadata_table.name)}"
+                    f"{preparer.quote_schema('public')}.{preparer.quote(metadata_table.name)}"
                 )
                 await connection.execute(
                     text(
@@ -333,8 +329,7 @@ async def fetch_catalog_authority(migration_url: str) -> dict[str, dict]:
                 {"table_names": table_names},
             )
             actual_geometry = {
-                (row.table_name, row.column_name): (row.subtype, row.srid)
-                for row in geometry_rows
+                (row.table_name, row.column_name): (row.subtype, row.srid) for row in geometry_rows
             }
     finally:
         await engine.dispose()
@@ -343,13 +338,10 @@ async def fetch_catalog_authority(migration_url: str) -> dict[str, dict]:
         included_columns = constraint.dialect_options["postgresql"].get("include") or ()
         return {
             "key_columns": tuple(column.name for column in constraint.columns),
-            "deferrable": (
-                constraint.deferrable if constraint.deferrable is not None else False
-            ),
+            "deferrable": (constraint.deferrable if constraint.deferrable is not None else False),
             "initially": constraint.initially or "IMMEDIATE",
             "included_columns": tuple(
-                column if isinstance(column, str) else column.name
-                for column in included_columns
+                column if isinstance(column, str) else column.name for column in included_columns
             ),
         }
 
@@ -520,7 +512,7 @@ def test_empty_database_upgrade_downgrade_cycle(monkeypatch) -> None:
     source_url = configured_postgres_url()
     migration_url = asyncio.run(create_database_from_url(source_url))
     try:
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0014_location_pings_partitioning", monkeypatch)
 
         relkind = asyncio.run(
             fetch_all(
@@ -616,7 +608,7 @@ def test_empty_database_upgrade_downgrade_cycle(monkeypatch) -> None:
         )
         assert tables == []
 
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0014_location_pings_partitioning", monkeypatch)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -751,7 +743,7 @@ def test_seeded_conversion_preserves_rows_and_routes_inserts(monkeypatch) -> Non
             ping_id for _, ping_ids in seeded["batches"].values() for ping_id in ping_ids
         )
 
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0014_location_pings_partitioning", monkeypatch)
 
         rows = partition_rows(migration_url)
         names = [name for name, _ in rows]
@@ -843,7 +835,7 @@ def test_seeded_conversion_preserves_rows_and_routes_inserts(monkeypatch) -> Non
         )
         assert {row[0] for row in pk_cols} == {"id"}
 
-        upgrade_to(migration_url, "head", monkeypatch)
+        upgrade_to(migration_url, "0014_location_pings_partitioning", monkeypatch)
         count = asyncio.run(fetch_all(migration_url, "SELECT count(*) FROM location_pings"))
         assert count == [(expected_total,)]
     finally:
@@ -874,57 +866,56 @@ def test_canonical_alembic_check_detects_visible_schema_drift(monkeypatch) -> No
             "unique constraint",
             "ALTER TABLE users DROP CONSTRAINT uq_users_email",
             "ALTER TABLE users ADD CONSTRAINT uq_users_email UNIQUE (email)",
-            lambda diff: diff[0] == "add_constraint"
-            and diff[1].name == "uq_users_email",
+            lambda diff: diff[0] == "add_constraint" and diff[1].name == "uq_users_email",
         ),
         (
             "foreign key",
             "ALTER TABLE vehicles DROP CONSTRAINT vehicles_driver_profile_id_fkey",
             "ALTER TABLE vehicles ADD CONSTRAINT vehicles_driver_profile_id_fkey "
             "FOREIGN KEY (driver_profile_id) REFERENCES driver_profiles(id) ON DELETE CASCADE",
-            lambda diff: diff[0] == "add_fk"
-            and diff[1].table.name == "vehicles"
-            and tuple(diff[1].columns.keys()) == ("driver_profile_id",),
+            lambda diff: (
+                diff[0] == "add_fk"
+                and diff[1].table.name == "vehicles"
+                and tuple(diff[1].columns.keys()) == ("driver_profile_id",)
+            ),
         ),
         (
             "column type",
             "ALTER TABLE users ALTER COLUMN full_name TYPE text",
             "ALTER TABLE users ALTER COLUMN full_name TYPE varchar(255)",
-            lambda diff: diff[0] == "modify_type"
-            and diff[2:4] == ("users", "full_name"),
+            lambda diff: diff[0] == "modify_type" and diff[2:4] == ("users", "full_name"),
         ),
         (
             "JSON subtype",
             (
                 "ALTER TABLE campaigns ALTER COLUMN metadata DROP DEFAULT",
-                "ALTER TABLE campaigns ALTER COLUMN metadata "
-                "TYPE json USING metadata::json",
+                "ALTER TABLE campaigns ALTER COLUMN metadata TYPE json USING metadata::json",
                 "ALTER TABLE campaigns ALTER COLUMN metadata SET DEFAULT '{}'::json",
             ),
             (
                 "ALTER TABLE campaigns ALTER COLUMN metadata DROP DEFAULT",
-                "ALTER TABLE campaigns ALTER COLUMN metadata "
-                "TYPE jsonb USING metadata::jsonb",
+                "ALTER TABLE campaigns ALTER COLUMN metadata TYPE jsonb USING metadata::jsonb",
                 "ALTER TABLE campaigns ALTER COLUMN metadata SET DEFAULT '{}'::jsonb",
             ),
-            lambda diff: diff[0] == "modify_type"
-            and diff[2:4] == ("campaigns", "metadata"),
+            lambda diff: diff[0] == "modify_type" and diff[2:4] == ("campaigns", "metadata"),
         ),
         (
             "server default",
             "ALTER TABLE users ALTER COLUMN must_change_password SET DEFAULT true",
             "ALTER TABLE users ALTER COLUMN must_change_password SET DEFAULT false",
-            lambda diff: diff[0] == "modify_default"
-            and diff[2:4] == ("users", "must_change_password"),
+            lambda diff: (
+                diff[0] == "modify_default" and diff[2:4] == ("users", "must_change_password")
+            ),
         ),
         (
             "JSON server default",
             "ALTER TABLE assignment_activity_flags ALTER COLUMN evidence "
             "SET DEFAULT '{\"drift\": true}'::json",
-            "ALTER TABLE assignment_activity_flags ALTER COLUMN evidence "
-            "SET DEFAULT '{}'::json",
-            lambda diff: diff[0] == "modify_default"
-            and diff[2:4] == ("assignment_activity_flags", "evidence"),
+            "ALTER TABLE assignment_activity_flags ALTER COLUMN evidence SET DEFAULT '{}'::json",
+            lambda diff: (
+                diff[0] == "modify_default"
+                and diff[2:4] == ("assignment_activity_flags", "evidence")
+            ),
         ),
     ]
     try:
@@ -935,8 +926,7 @@ def test_canonical_alembic_check_detects_visible_schema_drift(monkeypatch) -> No
                 with pytest.raises(AutogenerateDiffsDetected) as exc_info:
                     command.check(Config("alembic.ini"))
                 assert any(
-                    detects_mutation(diff)
-                    for diff in flatten_alembic_diffs(exc_info.value.diffs)
+                    detects_mutation(diff) for diff in flatten_alembic_diffs(exc_info.value.diffs)
                 ), f"canonical Alembic check did not report the {label} mutation"
             finally:
                 asyncio.run(execute_sql(migration_url, restore_statement))
