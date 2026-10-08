@@ -65,6 +65,9 @@ paused launch programme. Only touched test files run locally, without coverage.
    private ClamAV and configurable workers and CSP expectations for only the
    approved MapTiler connect/image origins. Preserve missing-value failures,
    TLS, confinement, hostile-origin rejection and provider-blank templates.
+   Keep the static verification CLI render-only: synthetic values are scoped
+   to its production Compose config command, never deployment/defaults. A real
+   --static-only regression runs its unchanged syntax/development/Caddy checks.
    Run affected deployment/CSP files in a Linux-compatible runtime.
 7. **C7 — delivery:** Scoped static checks, contract parity where relevant and
    whitespace checks pass; each criterion has concrete final-source evidence.

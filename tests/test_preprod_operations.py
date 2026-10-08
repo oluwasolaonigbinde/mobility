@@ -383,3 +383,13 @@ def test_restore_quiesces_and_conditionally_restarts_worker() -> None:
     assert '--profile worker up -d "${WORKER_SERVICE}"' in restore
     assert 'up -d "${WORKER_SERVICE}" >/dev/null || return' in restore
     assert '"${API_SERVICE}" "${FRONTEND_SERVICE}" "${WORKER_SERVICE}"' in restore
+
+
+def test_static_preprod_verification_renders_blank_secret_templates() -> None:
+    result = subprocess.run(
+        ["bash", "scripts/verify_preprod.sh", "--static-only"],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr

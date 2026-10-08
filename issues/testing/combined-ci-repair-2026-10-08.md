@@ -15,7 +15,7 @@ baseline entries. Original request closure list and worktree retention remain.
 | C3 | PASS | All 49 changed historical migration files have final passing verdicts on real disposable PostgreSQL databases: 114 distinct cases (111 initially passed; corrected 0019 whole-file 2/2 and 0082 whole-file 4/4 overlap those initial results). Every historical down/up, populated refusal, preservation and re-upgrade assertion remains. Current-head comparisons remain separate: 0019/R20/R22 follow-up 4/4; 0099 head autogeneration and deliberate drift pass. Extended 0100 case passes exact irreversible refusal with 0101 head, columns and complete challenge row unchanged. Inventory/denial follow-up 20/20 includes unchanged deliberate architecture drift detection; generated inventory now 315 operations/282 paths, 101 revisions/head0101. |
 | C4 | PASS | Whole queue/lifecycle follow-up 18/18, retention 5/5, renewals 23/23; whole denial-matrix and architecture follow-up 20/20. Unknown directly named driver review returns404; existing incomplete/stale/foreign/purged authority remains denied. Fixtures perform real rejection then Profile renewal and assert supersession while retaining original files, saved bank details, ages, owners, cutoffs and read/audit assertions. Denial fixture enables the approved reverse-verification test number rather than obsolete outbound configuration; all404/no-mutation assertions retained. |
 | C5 | PASS | All 68 payout cases have final passing verdicts: 67 initially passed plus corrected fairness case1/1 after distinct longitude3.45 (original BASE_LON3.40) eliminates legitimate route-replay exclusion. Real processing asserts zero fraud flags; scan cap/excluded prefix/exact later ledger remain. R20/R22 PostgreSQL guard/head checks pass. Real R59 journey1/1 passes outage, manifest, exactly-once and ledger assertions using Abuja GPS inside the seed polygon; timeouts/retries unchanged. |
-| C6 | PASS | Linux preprod32/32 and CSP8/8 including real browser allowed upload/hostile-origin blocking. Reused synthetic `production_model`, exact missing-value refusals, private ClamAV data+egress networks and configurable2workers. MapTiler exact connect/image origins only; templates/secrets and confinement unchanged. |
+| C6 | PASS | Linux preprod33/33 (including the real static CLI) and CSP8/8 including real browser allowed upload/hostile-origin blocking. Reused synthetic `production_model`, exact missing-value refusals, private ClamAV data+egress networks and configurable2workers. MapTiler exact connect/image origins only; templates/secrets and confinement unchanged. |
 | C7 | PASS | Plan reviewer PASS including C2 refinement; money/privacy/security/deployment specialist PASS and the same consolidated minimal-change reviewer final PASS on all source and evidence, no findings. Scoped Ruff check/format63 Python paths, six frontend ESLint/Prettier paths and whitespace checks pass. Final locked Next16.4 production build/TypeScript passes. No schema/native baseline change. |
 
 Local core execution initially reported92/100PASS; its eight failures have
@@ -102,3 +102,25 @@ current-head-only catalog/model checks keep head.
 
 Migration0100's irreversible replacement is unchanged. No containing commit
 SHA is embedded in this receipt.
+
+## Static CLI follow-up
+
+[Run37767080248](https://github.com/oluwasolaonigbinde/mobility/actions/runs/37767080248)
+on `f4261af4` passed all six backend test shards, frontend lint/types/unit/contract/build,
+the full ordinary browser suite and R59. Its backend aggregate failed because
+static verification failed; no aggregate coverage PASS is claimed. Its static
+CLI reached Compose's required-value refusal
+because W1B intentionally left template secrets blank; the earlier test-helper
+correction did not cover the script's own render command. The regression
+reproduced missing signing/database/storage values in the actual CLI.
+Nine synthetic overrides now apply only to production `compose config`;
+development render, shell syntax, Caddy validation, default test command,
+production templates and release preflight are unchanged. No export, deployment,
+provider action or live default was introduced. The entire touched preprod file
+passes33/33 on Linux, including the unmocked `--static-only` invocation and
+unchanged required-value refusals. Scoped Ruff check/format and whitespace pass.
+Shell CRLF from Windows was normalized in the disposable Linux checkout only.
+Raw final evidence: `.w2c/ci-repair-static-preprod.xml`.
+The plan refinement, deployment supplement and same consolidated minimal-change
+reviewer are PASS on this bounded follow-up, with no findings. Full exact-SHA
+CI remains the condition for master acceptance.
