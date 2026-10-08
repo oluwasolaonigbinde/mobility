@@ -527,7 +527,15 @@ The API image defaults to two configurable workers (D45).
 
 **Current rule:** CI fails on every high or critical dependency advisory except exactly GHSA-vfj7-8cjw-p6xm in the exclusively dev-only eslint-config-next lint chain, through 2026-11-04 UTC (D59, REQ-107). Reason: no patched braces release is available and exposure is confined to the development lint chain. The exception stops applying on 2026-11-05 UTC; malformed reports, audit errors and broader exposure fail closed. It does not change application behavior or authorize deployment.
 
+GitHub CI pins every Python setup location, including composite actions, to
+exactly 3.12.14 (owner instruction 2026-10-08, REQ-134). Exact shard and
+aggregate runtime provenance and all coverage gates remain unchanged.
+
 **History:**
+- **2026-10-08** — Owner required the exact 3.12.14 pin after the combined run
+  produced Python 3.12.14 and 3.12.15 shard manifests. Previously selectors used
+  floating 3.12; the existing mismatch refusal correctly blocked aggregation.
+  REQ-134 records this delivery-only correction; no production runtime change.
 - **Before 2026-10-05** — The frontend audit rejected every high or critical advisory without exceptions.
 - **2026-10-05** — Owner approved this one expiring advisory exception while finishing REQ-106, preserving all other high/critical checks and prohibiting npm's forced lint-package downgrade (D59, REQ-107). Built in `69655e2`.
 

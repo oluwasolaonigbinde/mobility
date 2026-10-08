@@ -150,3 +150,32 @@ The plan refinement, privacy/security supplement and same consolidated
 minimal-change reviewer are PASS on this final source/evidence, with no findings. Other C1-C6
 verdicts and their prior reviews remain unchanged. Full exact-SHA CI remains
 the condition for master acceptance.
+
+## Exact CI Python runtime follow-up — REQ-134
+
+[Run37772626527](https://github.com/oluwasolaonigbinde/mobility/actions/runs/37772626527)
+on `1ebca813` passed all six backend shards, static checks, frontend
+lint/types/unit/contract/build, ordinary real-stack browsers and R59. The
+backend aggregate failed with `pytest shard error: shard 2 runtime differs`;
+coverage aggregation and changed-code coverage PASS are not claimed. Downloaded
+producer manifests show shards0/1 used Python3.12.14, while shards2/3/4/5
+used3.12.15. All used CPython3.12 and coverage7.16.0. The exact provenance
+guard correctly rejected mixed interpreter patch versions.
+
+The owner explicitly extended scope to pin3.12.14 everywhere CI sets up
+Python, including composite actions, and requested the next free request.
+REQ-133 is reserved for the unrelated uncommitted demo-start row; this is
+REQ-134. The complete .github YAML inventory has exactly four setup-python
+selectors (static, shards, aggregate and changed-code coverage), all in ci.yml;
+no composite action sets up Python. Pre-change YAML assertion failed because
+all four selectors were floating3.12. Final YAML parsing finds all four exactly
+3.12.14. A host-side byte comparison proves these four literal replacements
+are the workflow's only changes. Exact shard/aggregate runtime comparison,
+coverage policies, retries and tests remain unchanged. Whitespace passes.
+No local coverage or additional pytest suite was run for these literal edits.
+
+C7's revised plan review, deployment/provenance supplement and the same
+consolidated minimal-change reviewer are PASS on this source/evidence, with no findings. Full
+exact-SHA CI must provide matching producer/downstream runtime and complete
+coverage evidence before master integration. REQ-134 will close with its own
+implementing SHA in the original single closing documentation commit.

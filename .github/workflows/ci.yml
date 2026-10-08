@@ -32,7 +32,7 @@ jobs:
           candidate-sha: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.12.14"
           cache: pip
           cache-dependency-path: pyproject.toml
       - run: pip install -e ".[dev,static]"
@@ -112,7 +112,7 @@ jobs:
             minio/minio:RELEASE.2025-07-23T15-54-02Z server /data
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.12.14"
           cache: pip
           cache-dependency-path: pyproject.toml
       - name: Install backend test runner dependencies
@@ -257,7 +257,7 @@ jobs:
           candidate-sha: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.12.14"
           cache: pip
           cache-dependency-path: pyproject.toml
       - run: pip install "coverage[toml]==7.16.0"
@@ -384,7 +384,7 @@ jobs:
           candidate-sha: ${{ github.event.pull_request.head.sha || github.sha }}
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.12.14"
       - uses: actions/download-artifact@v4
         with:
           name: r17-backend-lcov

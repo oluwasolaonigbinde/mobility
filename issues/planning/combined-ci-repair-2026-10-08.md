@@ -73,7 +73,14 @@ paused launch programme. Only touched test files run locally, without coverage.
    to its production Compose config command, never deployment/defaults. A real
    --static-only regression runs its unchanged syntax/development/Caddy checks.
    Run affected deployment/CSP files in a Linux-compatible runtime.
-7. **C7 — delivery:** Scoped static checks, contract parity where relevant and
+7. **C7 — delivery:** REQ-134 owner scope extension pins every GitHub CI
+   Python setup selector, including composite actions, to exactly 3.12.14.
+   The complete .github inventory has four selectors, all in ci.yml. Preserve
+   exact shard/aggregate runtime verification, coverage policy and retries.
+   YAML parsing and the bounded diff verify the pins; full CI must prove
+   consistent producer and downstream runtime evidence before integration.
+   Close REQ-134 with its own implementing SHA in the original closing docs commit.
+   Scoped static checks, contract parity where relevant and
    whitespace checks pass; each criterion has concrete final-source evidence.
    Independent plan review precedes implementation. Money, privacy/security and
    deployment supplements cover their changed boundary/evidence; the same
