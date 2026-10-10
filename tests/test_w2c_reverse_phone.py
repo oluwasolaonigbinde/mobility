@@ -125,25 +125,25 @@ def test_driver_can_request_a_code_that_staff_cannot_read(
 
 
 @pytest.mark.parametrize("mode", ["expired", "exhausted", "changed_phone", "foreign_challenge"])
-def test_reverse_verification_fails_closed(db_client, db_sessionmaker, settings, mode):
+def test_reverse_verification_fails_closed(
+    postgis_db_client, postgis_db_sessionmaker, settings, mode
+):
+    db_client, db_sessionmaker = postgis_db_client, postgis_db_sessionmaker
     driver, headers = setup_phone(db_client, db_sessionmaker, settings)
     challenge = db_client.post("/api/v1/driver/contact/phone-verification", headers=headers).json()
     admin = create_test_user(db_sessionmaker, email="reverse-negative-admin@example.com")
     staff = auth_headers(db_client, admin.email, "long-secure-password")
     profile = db_client.get("/api/v1/driver/profile", headers=headers).json()
     path = f"/api/v1/admin/drivers/{profile['id']}/phone-verification"
-    if mode in {"expired", "exhausted"}:
+    if mode == "expired":
 
         async def expire():
             async with db_sessionmaker() as session:
                 row = await session.get(
                     PhoneVerificationChallenge, __import__("uuid").UUID(challenge["id"])
                 )
-                if mode == "expired":
-                    row.created_at = datetime.now(UTC) - timedelta(hours=1)
-                    row.expires_at = datetime.now(UTC) - timedelta(minutes=1)
-                else:
-                    row.max_attempts = 1
+                row.created_at = datetime.now(UTC) - timedelta(hours=1)
+                row.expires_at = datetime.now(UTC) - timedelta(minutes=1)
                 await session.commit()
 
         asyncio.run(expire())
@@ -173,10 +173,73 @@ def test_reverse_verification_fails_closed(db_client, db_sessionmaker, settings,
         "sender_phone": "+447700900101",
     }
     if mode == "exhausted":
-        bad = {**payload, "sender_phone": "+447700900102"}
-        assert db_client.post(path, headers=staff, json=bad).status_code == 400
+
+        async def persisted_attempts(count):
+            from app.models.contact import DriverPhoneVersion
+
+            async with db_sessionmaker() as session:
+                row = await session.get(PhoneVerificationChallenge, UUID(challenge["id"]))
+                assert row.max_attempts == settings.phone_verification_max_code_attempts
+                assert row.attempt_count == count
+                assert row.status == ("exhausted" if count == row.max_attempts else "pending")
+                assert row.verified_at is None and row.verified_by_user_id is None
+                assert (
+                    await session.get(DriverPhoneVersion, row.phone_version_id)
+                ).verified_at is None
+                failures = list(
+                    await session.scalars(
+                        select(AuditEvent).where(
+                            AuditEvent.action == "admin.phone_verification.failed"
+                        )
+                    )
+                )
+                assert len(failures) == count
+                assert sorted(a.event_metadata["attempt_count"] for a in failures) == list(
+                    range(1, count + 1)
+                )
+                assert all(
+                    a.event_metadata == {"attempt_count": a.event_metadata["attempt_count"]}
+                    and a.actor_user_id == admin.id
+                    and a.entity_id == challenge["id"]
+                    and a.entity_type == "phone_verification_challenge"
+                    for a in failures
+                )
+                assert (
+                    await session.scalar(
+                        select(func.count(AuditEvent.id)).where(
+                            AuditEvent.action == "admin.phone_verification.recorded"
+                        )
+                    )
+                    == 0
+                )
+
+        malformed = db_client.post(path, headers=staff, json={**payload, "sender_phone": "x"})
+        assert malformed.status_code == 422 and challenge["code"] not in malformed.text
+        missing = db_client.post(
+            f"/api/v1/admin/drivers/{uuid4()}/phone-verification", headers=staff, json=payload
+        )
+        assert missing.status_code == 404
+        assert missing.json()["error"]["code"] == "DRIVER_PROFILE_NOT_FOUND"
+        asyncio.run(persisted_attempts(0))
+        wrong_code = "000000" if challenge["code"] != "000000" else "111111"
+        for count in range(1, settings.phone_verification_max_code_attempts + 1):
+            bad = (
+                {**payload, "sender_phone": "abcdefgh"}
+                if count == 1
+                else {**payload, "sender_phone": "+447700900102"}
+                if count == 2
+                else {**payload, "code": wrong_code}
+            )
+            failure = db_client.post(path, headers=staff, json=bad)
+            assert failure.status_code == 400
+            assert failure.json()["error"]["code"] == "PHONE_VERIFICATION_MISMATCH"
+            assert challenge["code"] not in failure.text and bad["sender_phone"] not in failure.text
+            asyncio.run(persisted_attempts(count))
     denied = db_client.post(path, headers=staff, json=payload)
     assert denied.status_code == 409
+    if mode == "exhausted":
+        assert denied.json()["error"]["code"] == "PHONE_CHALLENGE_USED"
+        asyncio.run(persisted_attempts(settings.phone_verification_max_code_attempts))
     assert challenge["code"] not in denied.text
     state = db_client.get("/api/v1/driver/contact", headers=headers).json()
     assert state["phone"]["verified"] is False
@@ -201,6 +264,71 @@ def test_request_limit_survives_number_changes_and_live_retry_converges(
         )
         result = db_client.post("/api/v1/driver/contact/phone-verification", headers=headers)
         assert result.status_code == expected
+
+
+@pytest.mark.parametrize("terminal", ["expired", "superseded", "verified"])
+def test_phone_queue_filters_current_driver_and_paginates_without_secrets(
+    db_client, db_sessionmaker, settings, monkeypatch, terminal
+):
+    _, headers = setup_phone(db_client, db_sessionmaker, settings)
+    first = db_client.post("/api/v1/driver/contact/phone-verification", headers=headers).json()
+    profile_id = db_client.get("/api/v1/driver/profile", headers=headers).json()["id"]
+    other = create_test_user(db_sessionmaker, email="queue-other@example.com", role=UserRole.DRIVER)
+    create_test_driver_profile(db_sessionmaker, user_id=other.id)
+    other_headers = auth_headers(db_client, other.email, "long-secure-password")
+    saved = db_client.put(
+        "/api/v1/driver/contact/phone", headers=other_headers, json={"phone": "+447700900104"}
+    )
+    assert saved.status_code == 200
+    # Stagger issuance so expiring the first request leaves the second current.
+    expires = datetime.fromisoformat(first["expires_at"].replace("Z", "+00:00"))
+    now = expires - timedelta(seconds=1)
+
+    async def clock(_):
+        return now
+
+    monkeypatch.setattr("app.services.contacts.database_clock", clock)
+    second_response = db_client.post(
+        "/api/v1/driver/contact/phone-verification", headers=other_headers
+    )
+    assert second_response.status_code == 200, second_response.text
+    second = second_response.json()
+    admin = create_test_user(db_sessionmaker, email="queue-admin@example.com")
+    staff = auth_headers(db_client, admin.email, "long-secure-password")
+    scoped = f"/api/v1/admin/phone-verification-challenges?driver_profile_id={profile_id}&limit=1"
+    page = db_client.get(scoped, headers=staff)
+    assert page.status_code == 200
+    assert page.json()["total"] == 1
+    assert [row["id"] for row in page.json()["items"]] == [first["id"]]
+    beyond = db_client.get(scoped + "&offset=1", headers=staff).json()
+    assert beyond["total"] == 1 and beyond["items"] == []
+    assert first["code"] not in page.text and second["code"] not in page.text
+    assert "code_hash" not in page.text
+    if terminal == "expired":
+        now = expires
+    elif terminal == "superseded":
+        changed = db_client.put(
+            "/api/v1/driver/contact/phone", headers=headers, json={"phone": "+447700900105"}
+        )
+        assert changed.status_code == 200
+    else:
+        verified = db_client.post(
+            f"/api/v1/admin/drivers/{profile_id}/phone-verification",
+            headers=staff,
+            json={
+                "challenge_id": first["id"],
+                "code": first["code"],
+                "sender_phone": "+447700900101",
+            },
+        )
+        assert verified.status_code == 200
+    hidden = db_client.get(scoped, headers=staff).json()
+    assert hidden["total"] == 0 and hidden["items"] == []
+    remaining = db_client.get("/api/v1/admin/phone-verification-challenges", headers=staff)
+    assert remaining.status_code == 200
+    assert remaining.json()["total"] == 1
+    assert [row["id"] for row in remaining.json()["items"]] == [second["id"]]
+    assert first["code"] not in remaining.text and second["code"] not in remaining.text
 
 
 @pytest.mark.parametrize(

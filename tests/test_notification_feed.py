@@ -229,8 +229,20 @@ def test_campaign_context_fails_closed_in_feed_and_mark_read(db_client, db_sessi
         )
         payload["assignment_id"] = str(assignment.id)
     notice_id = _campaign_notice(db_sessionmaker, actor, payload, notice_type)
+
+    async def stored_facts():
+        async with db_sessionmaker() as session:
+            notice = await session.get(Notification, notice_id)
+            return notice.payload, notice.dedupe_fingerprint
+
+    original_facts = asyncio.run(stored_facts())
     headers = auth_headers(db_client, actor.email, PASSWORD)
     if invalid in {"disabled_member", "inactive_org"}:
+        before = db_client.get("/api/v1/notifications", headers=headers)
+        assert before.status_code == 200
+        visible = next(item for item in before.json()["items"] if item["id"] == str(notice_id))
+        assert visible["campaign_name"] == campaign.name
+        assert visible["action_url"] == f"/advertiser/campaigns/{campaign.id}"
 
         async def revoke():
             async with db_sessionmaker() as session:
@@ -252,6 +264,15 @@ def test_campaign_context_fails_closed_in_feed_and_mark_read(db_client, db_sessi
         assert item["campaign_name"] is None
         assert item["action_url"] is None
         assert "PRIVATE" not in str(item)
+
+    async def inspect_immutable_notice():
+        async with db_sessionmaker() as session:
+            notice = await session.get(Notification, notice_id)
+            assert notice.payload == payload
+            assert (notice.payload, notice.dedupe_fingerprint) == original_facts
+            assert notice.read_at is not None
+
+    asyncio.run(inspect_immutable_notice())
 
 
 @pytest.mark.parametrize("conflict_first", [False, True])

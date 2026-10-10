@@ -103,3 +103,30 @@ path or launch-gate status change is planned. Any necessary material product or
 authority change requires a new owner decision; it cannot be disguised as a
 test update. The original request closure list remains authoritative; REQ-115,
 REQ-126 and unlisted requests are not silently closed.
+
+## Remaining coverage continuation — REQ-136, 10 October
+
+The reviewed continuation retains REQ-132/D33 authority: eligible coverage
+inventory additions use the existing reviewed refresh, while new type/complexity
+diagnostic waivers remain prohibited. Checkpoint 0 selects only genuinely missing,
+reachable renewal, phone-attempt and current-access assertions in the three
+existing test files. Already asserted routes reported as zero remain unresolved
+measurement questions; no instrumentation change or predicted gain is authorized.
+
+A1 requires the bounded diff and unchanged authority; A2 requires selected real
+API/DB behavior, exact denials, unchanged state and secret isolation without local
+coverage. The test-source checkpoint receives the security supplement and
+consolidated minimal-change review; it does not complete the delivery. A3 requires
+fresh complete changed-code evidence at both stabilized test candidate Q and final
+candidate R against fixed master M (`e6adcc4639f1fba345a3bb44059beb45ad76ea59`),
+at least 90% lines/80% branches. A4 requires exact trusted refresh floors and the
+unchanged checker's canonical LF receipt generated from Q's fresh reports, anchored
+to the actual next-push ancestor Q. Preserve and restore original working bytes
+through the reviewed external journal; never edit generated hashes or publish the
+old/provisional proposals. A5 requires normal provenance verification of R against
+Q and every exact-R CI job passing; latest-increment/no-change checks do not prove
+the complete batch. A6 requires final integrated provenance/security and
+minimal-change review with criterion evidence. A3–A5 and final integrated A6
+remain pending after this source checkpoint. Write the stable testing receipt once
+after verification settles; baseline, production rules and launch queue stay
+outside this checkpoint.

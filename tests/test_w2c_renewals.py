@@ -39,7 +39,7 @@ def test_active_driver_can_read_document_renewal_status(db_client, db_sessionmak
     assert car["valid_until"] is None and car["vehicle_type"] == "car"
 
 
-def prepare(client, maker, *, state="rejected"):
+def prepare(client, maker, *, state="rejected", reason=None):
     admin, driver, profile, bank_id, files = _seed_driver_authority(maker, suffix="renew")
     dh = auth_headers(client, driver.email, PASSWORD)
     ah = auth_headers(client, admin.email, PASSWORD)
@@ -53,7 +53,8 @@ def prepare(client, maker, *, state="rejected"):
             "submission_id": sid,
             "client_request_id": str(uuid4()),
             "decision": state,
-            "reason_code": "expired_evidence" if state == "expired" else "unreadable_evidence",
+            "reason_code": reason
+            or ("expired_evidence" if state == "expired" else "unreadable_evidence"),
         },
     )
     assert review.status_code == 200, review.text
@@ -70,6 +71,62 @@ def prepare(client, maker, *, state="rejected"):
         },
     }
     return admin, driver, profile, files, dh, ah, payload
+
+
+@pytest.mark.parametrize(
+    "reason,omitted,expected",
+    [
+        ("identity_mismatch", ("nin",), "PERSON_PAYEE_NIN_REQUIRED"),
+        (
+            "bank_account_mismatch",
+            ("account_name", "account_number", "bank_code"),
+            "PERSON_PAYEE_BANK_DETAILS_REQUIRED",
+        ),
+        ("bank_account_mismatch", ("bank_code",), "PERSON_PAYEE_BANK_DETAILS_REQUIRED"),
+        ("unreadable_evidence", ("nin",), "KYC_DECRYPTION_FAILED"),
+    ],
+)
+def test_person_renewal_denials_preserve_revision_bank_and_review(
+    postgis_db_client, postgis_db_sessionmaker, monkeypatch, reason, omitted, expected
+):
+    import json
+
+    from app.models.audit import AuditEvent
+    from app.models.kyc import DriverKycReviewDecision
+
+    client, maker = postgis_db_client, postgis_db_sessionmaker
+    _, _, profile, _, dh, _, payload = prepare(client, maker, reason=reason)
+    before = client.get("/api/v1/driver/documents", headers=dh).json()
+    for field in omitted:
+        payload.pop(field)
+    if expected == "KYC_DECRYPTION_FAILED":
+        # The saved envelope uses key 1; simulate its unavailability, not corrupt ciphertext.
+        monkeypatch.setattr(
+            "app.api.v1.driver_documents._crypto",
+            lambda _: EnvelopeCryptoProvider(keys={2: bytes(range(32))}, active_key_version=2),
+        )
+    denied = client.post("/api/v1/driver/documents/person-payee", headers=dh, json=payload)
+    assert denied.status_code == (409 if expected == "KYC_DECRYPTION_FAILED" else 422)
+    assert denied.json()["error"]["code"] == expected
+    assert client.get("/api/v1/driver/documents", headers=dh).json() == before
+    assert "12345678901" not in denied.text and "0123456789" not in denied.text
+
+    async def inspect():
+        async with maker() as session:
+            assert await session.scalar(select(func.count(DriverKycSubmission.id))) == 1
+            assert await session.scalar(select(func.count(PayeeBankAccountVersion.id))) == 1
+            assert await session.scalar(select(func.count(DriverKycReviewDecision.id))) == 1
+            assert (await session.get(DriverProfile, profile.id)).onboarding_status == "pending"
+            submission = await session.scalar(select(DriverKycSubmission))
+            assert submission.status == "rejected" and submission.encryption_key_version == 1
+            review = await session.scalar(select(DriverKycReviewDecision))
+            assert review.reason_code == reason
+            audits = list(await session.scalars(select(AuditEvent)))
+            assert not any(a.action == "driver.kyc.renewal_reuse" for a in audits)
+            metadata = json.dumps([a.event_metadata for a in audits])
+            assert "12345678901" not in metadata and "0123456789" not in metadata
+
+    asyncio.run(inspect())
 
 
 @pytest.mark.parametrize("state", ["rejected", "expired"])
@@ -182,6 +239,13 @@ def test_vehicle_renewal_status_names_dates_ownership_and_exact_retry(db_client,
     reviewpath = (
         f"/api/v1/admin/drivers/{profile.id}/vehicles/{vehicle.id}/submissions/{sid}/decision"
     )
+    pending = db_client.post(
+        route,
+        headers=dh,
+        json={"client_request_id": str(uuid4()), "expected_submission_id": sid},
+    )
+    assert pending.status_code == 409
+    assert pending.json()["error"]["code"] == "VEHICLE_RESUBMISSION_NOT_ALLOWED"
     reviewed = db_client.post(
         reviewpath,
         headers=ah,
@@ -199,12 +263,69 @@ def test_vehicle_renewal_status_names_dates_ownership_and_exact_retry(db_client,
     retry = db_client.post(route, headers=dh, json=renewal)
     assert second.status_code == retry.status_code == 201, second.text
     assert second.json()["id"] == retry.json()["id"] and second.json()["version"] == 2
-    assert (
-        db_client.post(
-            route, headers=dh, json={**renewal, "expected_submission_id": str(uuid4())}
-        ).status_code
-        == 409
+    for changes, code in [
+        ({"expected_submission_id": str(uuid4())}, "VEHICLE_REVISION_STALE"),
+        ({"expected_submission_id": second.json()["id"]}, "VEHICLE_EVIDENCE_RETRY_CONFLICT"),
+        ({"insurance_file_id": str(files["registration"])}, "VEHICLE_EVIDENCE_RETRY_CONFLICT"),
+        ({"client_request_id": str(uuid4())}, "VEHICLE_REVISION_STALE"),
+    ]:
+        denied = db_client.post(route, headers=dh, json={**renewal, **changes})
+        assert denied.status_code == 409
+        assert denied.json()["error"]["code"] == code
+    other_car = create_test_vehicle(
+        db_sessionmaker, driver_profile_id=profile.id, plate_number="DEF-456"
     )
+    other_submission = db_client.post(
+        f"/api/v1/driver/vehicles/{other_car.id}/evidence-submissions",
+        headers=dh,
+        json={**payload, "client_request_id": str(uuid4())},
+    )
+    assert other_submission.status_code == 201, other_submission.text
+    cross_vehicle = db_client.post(
+        route,
+        headers=dh,
+        json={**renewal, "expected_submission_id": other_submission.json()["id"]},
+    )
+    assert cross_vehicle.status_code == 409
+    assert cross_vehicle.json()["error"]["code"] == "VEHICLE_REVISION_STALE"
+
+    async def inspect_retries():
+        from app.models.audit import AuditEvent
+        from app.models.kyc import VehicleEvidenceDocument, VehicleEvidenceSubmission
+
+        async with db_sessionmaker() as session:
+            submissions = list(
+                await session.scalars(
+                    select(VehicleEvidenceSubmission)
+                    .where(VehicleEvidenceSubmission.vehicle_id == vehicle.id)
+                    .order_by(VehicleEvidenceSubmission.version)
+                )
+            )
+            assert [(str(s.id), s.version) for s in submissions] == [
+                (sid, 1),
+                (second.json()["id"], 2),
+            ]
+            documents = list(
+                await session.scalars(
+                    select(VehicleEvidenceDocument).where(
+                        VehicleEvidenceDocument.submission_id == UUID(second.json()["id"])
+                    )
+                )
+            )
+            assert {d.document_type: str(d.stored_file_id) for d in documents} == second.json()[
+                "document_file_ids"
+            ]
+            assert (
+                await session.scalar(
+                    select(func.count(AuditEvent.id)).where(
+                        AuditEvent.action == "driver.vehicle_evidence.submitted",
+                        AuditEvent.entity_id == second.json()["id"],
+                    )
+                )
+                == 1
+            )
+
+    asyncio.run(inspect_retries())
     assert (
         db_client.post(
             reviewpath,
@@ -442,6 +563,84 @@ def test_nonapproved_review_cannot_fabricate_accepted_document_without_read(
     )
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "DOCUMENT_REVIEW_READ_REQUIRED"
+    other_admin = create_test_user(db_sessionmaker, email="other-reader@example.com")
+    document_files = {k: files[k] for k in ("driver_license", "driver_photo", "signed_agreement")}
+    review_document_files(
+        db_client,
+        db_sessionmaker,
+        admin=other_admin,
+        submission_id=first["id"],
+        files=document_files,
+    )
+    payload = {
+        "submission_id": first["id"],
+        "client_request_id": str(uuid4()),
+        "decision": "rejected",
+        "reason_code": "bank_account_mismatch",
+        "document_reviews": {k: {"status": "accepted"} for k in document_files},
+    }
+    path = f"/api/v1/admin/drivers/{profile.id}/documents/person-payee-decision"
+
+    async def no_decision():
+        from app.models.kyc import DriverKycReviewDecision
+
+        async with db_sessionmaker() as session:
+            assert await session.scalar(select(func.count(DriverKycReviewDecision.id))) == 0
+            assert (
+                await session.get(DriverKycSubmission, UUID(first["id"]))
+            ).status == "pending_review"
+
+    # Another actor's reads cannot authorize this actor; nor can reading only two files.
+    for own_reads in ({}, {k: files[k] for k in ("driver_license", "driver_photo")}):
+        review_document_files(
+            db_client, db_sessionmaker, admin=admin, submission_id=first["id"], files=own_reads
+        )
+        denied = db_client.post(path, headers=ah, json=payload)
+        assert denied.status_code == 409
+        assert denied.json()["error"]["code"] == "DOCUMENT_REVIEW_READ_REQUIRED"
+        asyncio.run(no_decision())
+    incomplete = db_client.post(
+        path,
+        headers=ah,
+        json={**payload, "document_reviews": {"driver_license": {"status": "accepted"}}},
+    )
+    assert incomplete.status_code == 422
+    assert incomplete.json()["error"]["code"] == "DOCUMENT_REVIEW_INCOMPLETE"
+    asyncio.run(no_decision())
+    review_document_files(
+        db_client,
+        db_sessionmaker,
+        admin=admin,
+        submission_id=first["id"],
+        files={"signed_agreement": files["signed_agreement"]},
+    )
+    accepted = db_client.post(path, headers=ah, json=payload)
+    assert accepted.status_code == 200, accepted.text
+
+    async def inspect_reads():
+        from app.models.audit import AuditEvent
+        from app.models.kyc import DriverKycReviewDecision
+
+        async with db_sessionmaker() as session:
+            assert await session.scalar(select(func.count(DriverKycReviewDecision.id))) == 1
+            reads = list(
+                await session.scalars(
+                    select(AuditEvent).where(
+                        AuditEvent.action == "stored_file.read",
+                        AuditEvent.actor_user_id == admin.id,
+                    )
+                )
+            )
+            assert {a.entity_id for a in reads} == {str(f) for f in document_files.values()}
+            assert all(
+                a.entity_type == "stored_file"
+                and a.event_metadata["reason"] == f"person_payee_approval:{first['id']}"
+                and a.event_metadata["access_purpose"] == "kyc_review"
+                and a.event_metadata["file_purpose"] == "driver_kyc"
+                for a in reads
+            )
+
+    asyncio.run(inspect_reads())
 
 
 @pytest.mark.parametrize("whole_car", [False, True])
@@ -497,6 +696,11 @@ def test_vehicle_partial_renewal_keeps_accepted_files_and_separates_approval_exp
     assert current["documents"]["insurance"]["status"] == ("accepted" if whole_car else "expired")
     renewal = {"client_request_id": str(uuid4()), "expected_submission_id": first["id"]}
     if not whole_car:
+        denied = db_client.post(route, headers=dh, json=renewal)
+        assert denied.status_code == 422
+        assert denied.json()["error"]["code"] == "VEHICLE_REPLACEMENTS_REQUIRED"
+        unchanged = db_client.get("/api/v1/driver/documents", headers=dh).json()["vehicles"][0]
+        assert unchanged == current
         renewal["insurance_file_id"] = str(files["insurance"])
     updated = db_client.post(route, headers=dh, json=renewal)
     retry = db_client.post(route, headers=dh, json=renewal)
@@ -538,6 +742,128 @@ def review_document_files(client, maker, *, admin, submission_id, files, vehicle
             },
         )
         assert read.status_code == 200, read.text
+
+
+def test_vehicle_approval_expires_at_exact_boundary_without_inventing_document_expiry(
+    postgis_db_client, postgis_db_sessionmaker, monkeypatch
+):
+    from datetime import UTC, datetime, timedelta
+
+    from app.models.kyc import VehicleEvidenceSubmission
+    from app.models.vehicle import Vehicle
+    from app.services.vehicle_onboarding import ensure_current_driver_vehicle_eligibility
+
+    client, maker = postgis_db_client, postgis_db_sessionmaker
+    admin, _, profile, files, dh, ah, renewal_payload = prepare(client, maker)
+    person = client.post("/api/v1/driver/documents/person-payee", headers=dh, json=renewal_payload)
+    assert person.status_code == 201
+    _complete_admin_review(
+        client,
+        maker,
+        admin=admin,
+        application=SimpleNamespace(driver_profile_id=profile.id),
+        files={k: files[k] for k in ("driver_license", "driver_photo", "signed_agreement")},
+    )
+    approved_person = client.post(
+        f"/api/v1/admin/drivers/{profile.id}/documents/person-payee-decision",
+        headers=ah,
+        json={
+            "submission_id": person.json()["submission_id"],
+            "client_request_id": str(uuid4()),
+            "decision": "approved",
+            "reason_code": "complete_current_evidence",
+            "identity_match_confirmed": True,
+            "bank_account_match_confirmed": True,
+            "documents_readable_confirmed": True,
+        },
+    )
+    assert approved_person.status_code == 200, approved_person.text
+    car = create_test_vehicle(maker, driver_profile_id=profile.id)
+    route = f"/api/v1/driver/vehicles/{car.id}/evidence-submissions"
+    documents = {k: files[k] for k in ("registration", "insurance", "vehicle_photo")}
+    submitted = client.post(
+        route,
+        headers=dh,
+        json={
+            "client_request_id": str(uuid4()),
+            **{f"{k}_file_id": str(v) for k, v in documents.items()},
+        },
+    )
+    assert submitted.status_code == 201
+    sid = submitted.json()["id"]
+    review_document_files(
+        client, maker, admin=admin, submission_id=sid, files=documents, vehicle=True
+    )
+    expiry = datetime.now(UTC) + timedelta(days=1)
+    approved = client.post(
+        f"/api/v1/admin/drivers/{profile.id}/vehicles/{car.id}/submissions/{sid}/decision",
+        headers=ah,
+        json={
+            "client_request_id": str(uuid4()),
+            "decision": "approved",
+            "reason_code": "complete_current_evidence",
+            "valid_until": expiry.isoformat(),
+            "owner_match_confirmed": True,
+            "vehicle_identity_confirmed": True,
+            "roadworthy_confirmed": True,
+            "pilot_car_confirmed": True,
+            "documents_readable_confirmed": True,
+            "document_reviews": {k: {"status": "accepted"} for k in documents},
+        },
+    )
+    assert approved.status_code == 200, approved.text
+    renewal = {"client_request_id": str(uuid4()), "expected_submission_id": sid}
+    now = expiry - timedelta(microseconds=1)
+
+    async def clock(_):
+        return now
+
+    for module in (
+        "app.api.v1.driver_documents",
+        "app.services.kyc",
+        "app.services.vehicle_onboarding",
+    ):
+        monkeypatch.setattr(module + ".database_clock", clock)
+
+    async def work_allowed():
+        async with maker() as session:
+            await ensure_current_driver_vehicle_eligibility(
+                session,
+                driver_profile=await session.get(DriverProfile, profile.id),
+                vehicle=await session.get(Vehicle, car.id),
+                now=now,
+                lock=False,
+            )
+
+    before = client.get("/api/v1/driver/documents", headers=dh).json()["vehicles"][0]
+    assert before["status"] == "approved"
+    asyncio.run(work_allowed())
+    too_early = client.post(route, headers=dh, json=renewal)
+    assert too_early.status_code == 409
+    assert too_early.json()["error"]["code"] == "VEHICLE_RESUBMISSION_NOT_ALLOWED"
+    now = expiry
+    at_boundary = client.get("/api/v1/driver/documents", headers=dh).json()["vehicles"][0]
+    assert at_boundary["status"] == "expired"
+    assert all(
+        d["status"] == "accepted" and d["expires_on"] is None
+        for d in at_boundary["documents"].values()
+    )
+    with pytest.raises(AppError) as denied:
+        asyncio.run(work_allowed())
+    assert denied.value.code == "VEHICLE_APPROVAL_REQUIRED"
+
+    async def persisted_approval():
+        async with maker() as session:
+            assert (await session.get(VehicleEvidenceSubmission, UUID(sid))).status == "approved"
+
+    asyncio.run(persisted_approval())
+    renewed = client.post(route, headers=dh, json=renewal)
+    assert renewed.status_code == 201, renewed.text
+    assert renewed.json()["version"] == 2 and renewed.json()["status"] == "pending_review"
+    assert renewed.json()["document_file_ids"] == {k: str(v) for k, v in documents.items()}
+    with pytest.raises(AppError) as pending:
+        asyncio.run(work_allowed())
+    assert pending.value.code == "VEHICLE_APPROVAL_REQUIRED"
 
 
 def test_purged_person_requires_fresh_full_inputs_without_recovering_erased_nin(
