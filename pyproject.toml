@@ -20,7 +20,7 @@ dependencies = [
     # Paystack adapters (app/adapters/payments, app/adapters/disbursement).
     "httpx>=0.27,<1.0",
     "PyJWT>=2.9,<3.0",
-    "pydantic>=2.8,<3.0",
+    "pydantic==2.13.4",
     "pydantic-settings>=2.4,<3.0",
     "redis>=5,<7",
     "sentry-sdk[fastapi]>=2,<3",

@@ -130,3 +130,37 @@ minimal-change review with criterion evidence. A3–A5 and final integrated A6
 remain pending after this source checkpoint. Write the stable testing receipt once
 after verification settles; baseline, production rules and launch queue stay
 outside this checkpoint.
+
+## Pydantic CI-alignment checkpoint — REQ-132/136, 10 October
+
+The reviewed A1 amendment permits exactly `pydantic==2.13.4` in pyproject,
+aligning CI/development selection with the existing production input/hash lock.
+Failed Q selected 2.14.0/core 2.50.0: controlled reproduction isolates its
+114 Decimal pattern removals across 31 schemas. Current CI FastAPI/Starlette
+with production Pydantic/core restores the committed contract. Historical
+passing CI application dependency versions remain unknown. This changes D33
+policy content, not coverage instrumentation or a product/money/security rule.
+No FastAPI/Starlette pin, production lock, application or baseline change is
+included; architecture §9 and §10 remain true without an amendment.
+
+O1 requires this disclosed authority and exactly the four existing request,
+pyproject, planning and testing paths. O2 retains the controlled causal evidence
+and exact parity. O3 requires all four existing OpenAPI tests, the unchanged
+snapshot check, actual Decimal validation/serialization and focused existing
+money/security tests in Python 3.12.14 with FastAPI 0.143.0, Starlette 1.7.0,
+Pydantic 2.13.4/core 2.46.4. O4 requires deterministic Temp regeneration and
+byte equality for both JSONs and generated TypeScript; any delta fails this
+narrow route. Unchanged baselines do not trigger native baseline-change reruns;
+final CI still covers native fixtures and ordinary E2E/R59, with no device claim.
+O5 requires dependency compatibility/current security assessment, unchanged
+production locks and vulnerability gates, and dependency-bound money/security
+plus consolidated source reviews. Only bounded tests run locally, no coverage.
+
+O6 and A3-A6 remain pending delivery gates: fresh new-Q and final-R full-batch
+90% lines/80% branches against fixed M above, exact trusted floors, unchanged
+checker-generated canonical LF Q-anchored receipt, normal R-versus-Q provenance,
+every exact-R CI job and final integrated reviews. The pyproject policy change
+must naturally enter new-Q hashes; do not patch receipt hashes or reuse old
+reports. Failed Q has no complete backend aggregate. Already-asserted zero-LCOV
+paths remain unresolved; this repair makes no coverage-gain claim. No collector,
+eligibility, waiver, retry or latest-increment shortcut is authorized.

@@ -179,3 +179,67 @@ consolidated minimal-change reviewer are PASS on this source/evidence, with no f
 exact-SHA CI must provide matching producer/downstream runtime and complete
 coverage evidence before master integration. REQ-134 will close with its own
 implementing SHA in the original single closing documentation commit.
+
+## Pydantic CI-alignment source checkpoint — REQ-132/136, 10 October
+
+The approved, independently plan-reviewed A1 amendment pins only pyproject's
+Pydantic requirement to 2.13.4, matching the unchanged production input/hash
+lock (core 2.46.4). Exact failed-Q evidence and controlled substitutions isolate
+114 removed Decimal patterns across 31 schemas under 2.14.0; historical passing
+CI application versions remain unknown. Prior production-schema and mixed-CI
+counterexperiments each established one generation plus HTTP equality, not three.
+No FastAPI/Starlette pin, application/schema change or baseline refresh is made.
+
+Bounded local verification uses the existing test container's Python 3.12.14
+with isolated public packages in container Temp: FastAPI 0.143.0, Starlette 1.7.0,
+Pydantic 2.13.4/core 2.46.4, settings 2.15.0, pytest 8.4.2 and coverage 7.16.0
+(no coverage invocation). Inherited configuration is cleared, cwd is external
+Temp, and sockets are blocked before app import. No repository .env is loaded.
+All four existing `tests/test_openapi.py` cases pass with real TestClient,
+including the runtime error envelope and absence of rejected-input echo. One
+existing payout malformed-data case and seven existing config secret-validation/
+credential-redaction cases also pass: 12 total, no skips, one upstream TestClient
+httpx deprecation warning. Sixteen probes against the actual payout-v4 and
+audience-approval models preserve valid/scientific-notation Decimal serialization
+and malformed, scale, precision, negative, over-bound and non-finite refusals.
+These are bounded dependency evidence, not complete financial-workflow equivalence;
+the existing patterns' scientific-notation limitation is not fixed by this pin.
+
+The unchanged snapshot generator `--check` passes. Two separate fresh Python
+processes regenerate both JSONs into Temp with exact tracked-byte equality:
+SHA256 `7f1db411dbbd79acfc403be537f7ac18be6d1eaa2b6bd2d9b8c0702ede78ab4d`.
+Temp openapi-typescript 7.13.0 generation is also byte-equal to tracked types:
+`a36a221f17e8de40755042b96914cb355f6a296512dd5aeb6b71897723dab636`.
+All three §9 baselines stay unchanged. The native baseline-change rerun trigger
+is not exercised; exact final CI still owns native fixtures, E2E and R59.
+No physical-device claim is made.
+
+`pip check` passes; every project/dev requirement accepts the selected versions,
+and the public-package resolver dry-run accepts that installed selection.
+Settings 2.15.0 requires Pydantic >=2.7.0. This is not a claim that all transitive
+packages equal CI or that a clean complete CI environment was rebuilt. Public
+PyPI version records and OSV queries on 10 October return no known advisories for
+Pydantic 2.13.4, core 2.46.4 and settings 2.15.0; this is point-in-time evidence,
+not proof of absolute safety. Production hashes and the full CI pip-audit gate
+remain unchanged, without suppressions. Python pins, coverage options, checker,
+eligibility and instrumentation are unchanged; the intentional pyproject policy
+content change must naturally enter new-Q receipt hashes.
+
+O1 scope/authority, O2 causal parity, O3 bounded behavior and O4 unchanged
+baselines have local source evidence. O5 dependency/provenance evidence and the
+required money/security and consolidated source-review outcomes are retained in
+external Temp `mobility-pydantic-implementation-20261010`, with exact commands,
+XML, model results, public advisory responses, source hashes and O1-O6 matrix.
+No review here substitutes for final integrated A6. The testing receipt is
+written once after local verification stabilizes and contains no containing SHA.
+Both permitted containers are restored to their original stopped state; owner
+untracked directories are untouched. Whitespace/TOML checks pass. No full local
+suite/coverage, Git publication, account/provider action or deployment occurred.
+
+O6, A3-A5 and final integrated A6 remain pending: fresh new-Q six-shard backend
+aggregate/provenance and frontend LCOV; full fixed-M 90% changed lines/80% branches
+at Q and R; exact trusted global/backend/frontend/named floors; unchanged checker
+canonical LF Q-anchored receipt; normal R-versus-Q provenance; every exact-R full
+CI job and final integrated reviews. Failed Q has no complete backend aggregate;
+asserted-but-zero LCOV remains unresolved. No old-report reuse, hash patch,
+collector fix, coverage-gain claim, waiver or master-readiness claim is made.
