@@ -243,3 +243,56 @@ canonical LF Q-anchored receipt; normal R-versus-Q provenance; every exact-R ful
 CI job and final integrated reviews. Failed Q has no complete backend aggregate;
 asserted-but-zero LCOV remains unresolved. No old-report reuse, hash patch,
 collector fix, coverage-gain claim, waiver or master-readiness claim is made.
+
+## Mixed-concurrency source checkpoint — REQ-137 / D72, 10 October
+
+Owner explicitly approved exactly `concurrency = ["thread", "greenlet"]` under
+`[tool.coverage.run]`, after the independent amendment plan PASS. D72 records
+the sole A1/A4/D36 instrumentation-preservation exception; the other coverage
+settings, dependencies, Python/coverage pins, checker, workflows, exclusions,
+eligibility and all floors remain unchanged. REQ-137 was the first repository
+edit, initially TODO then IN PROGRESS; architecture v1.127 records the approved
+target with fresh verification pending. No client rule or questionnaire answer
+changes. No application/test/native/API baseline or production lock is changed.
+
+Prior candidate `b0da8ae38f1b72dea04682b758daf2993d96f69e`, run 38062332068,
+completed six shards/3451 tests with CPython 3.12.14 / coverage 7.16.0. Its
+fixed-M evidence is still FAIL: 870/981 changed lines and 467/608 branches.
+The subsequent read-only diagnosis found foreign SQLAlchemy event/exit sequences
+in the 202-line driver_documents.py and 862-line notifications.py raw data,
+before export. Empty raw contexts do not establish per-test arcs. This supports
+the missing-greenlet configuration diagnosis; no corrected measurement or gain
+has yet been demonstrated. Earlier Pydantic evidence above is historical to that
+checkpoint; its unresolved measurement question now has this separate amendment.
+
+| Criterion | Source checkpoint evidence | Remaining verification |
+| --- | --- | --- |
+| M1 / A1 | PASS static: TOML parses; normalized byte comparison and complete parsed-object comparison show exactly the one approved option. Six authorized paths only; unique REQ-137/D72/v1.127, eight request columns, blank Done in; prior request/decision rows and Part 2 unchanged. | Independent source checkpoint reviews are retained externally; no final delivery claim. |
+| M2 | NOT RUN for the new configuration. Prior immutable evidence is diagnostic only. | Fresh complete Q manifests/JUnit/raw DB/report hashes and runtime provenance; actual inventory; remove both foreign sequences and out-of-file events, recover mandatory normalized statements/reachable arcs in raw and exported evidence and inspect other changed backend files. Statement 83 normalizes raw 84–86; no literal raw-83 requirement. Persistent corruption means STOP. |
+| M3 | PASS source preservation: existing response/state/isolation assertions and all app/test/contract files unchanged. | Fresh Q behavior and normal final native-contract, real-stack E2E and R59 CI evidence. No new baseline-triggered native rerun or physical-device claim. |
+| A3 | PENDING; prior 870/981 and 467/608 remain FAIL. | SAME fresh Q backend/frontend reports and again exact R, whole change versus fixed M `e6adcc4639f1fba345a3bb44059beb45ad76ea59`, at least 90% lines/80% branches without tolerance. Verify actual denominators, never trim expected 981/608 or substitute latest-push/no-change results. |
+| A4 | PASS preservation only: baseline untouched; exact trusted floors, D36 runtime binding, legacy closure and unchanged checker retained. | Only after fresh A3 and exact global/backend/frontend/named-critical floors pass, use unchanged-checker canonical LF Q-anchored receipt with the reviewed journal/restoration process. No D41 tolerance at refresh, false-positive floor waiver, old-report reuse or manual/projected hashes. |
+| A5 | NOT RUN; no Git or CI action in this assignment. | Normal exact R-versus-actual-Q provenance, every exact-R CI job green, separate R-versus-fixed-M check and authorized no-squash master integration/push with master CI confirmation. |
+| A6 | Source-only sequential Sol 6.1 high/Fast measurement/provenance/security supplement and consolidated minimal-change review required; verdicts and reviewed hashes live in external Temp. | Final integrated supplement and consolidated PASS after measurement/receipt remain mandatory; source PASS does not finish A6. |
+
+The checker does not mechanically guard concurrency. Explicit D72 authority,
+independent review and its existing POLICY_FILES binding of pyproject provide
+the accepted minimum for this amendment; no generic enforcement claim is made.
+Correct attribution can remove false positives and fail exact trusted floors.
+No baseline/owner proposal is edited or receipt eligibility asserted.
+
+Verification uses host Python with standard-library TOML/byte/hash assertions
+and `git diff --check`, with no app imports, tests, coverage, tracing or full
+suite. Of 1673 non-sensitive tracked files, all 1667 outside the six authorized paths
+retain their frozen hashes; four sensitive paths were excluded without reading them. HEAD/branch
+and empty index remain; both permitted containers stay exited. Owner untracked
+inventory is unchanged and its contents are not read. Commands, source hashes,
+matrix, prior authority and review evidence are in external Temp
+`mobility-greenlet-implementation-20261010`. This amendment is written once after
+static evidence stabilizes and contains no containing commit SHA.
+
+No staging/commit/push/merge/PR/account/provider/deployment/cleanup action occurs
+here. Parent assigns Git/CI only after accepted source PASS. Behavioral repair
+allowance remains 0 of TWO rounds after corrected instrumentation measurement;
+the earlier 37-test repair is excluded. If more than two genuine rounds are
+needed, STOP/report. REQ-126 stays NEEDS ANSWER; no request is closed here.

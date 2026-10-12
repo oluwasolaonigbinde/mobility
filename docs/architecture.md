@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.126 — 2026-10-07. Canonical source of truth: current state AND target state.**
+**Version 1.127 — 2026-10-10. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -884,6 +884,14 @@ and uses the workspace-root local composite action to verify the candidate SHA.
   before combining LCOV. The LCOV artifact includes a hash-bound
   producer sidecar recording the exact SHA, Python implementation/major-minor
   and coverage.py version.
+- **[TARGET — D72/REQ-137, fresh verification pending]** Backend collection
+  uses exactly `concurrency = ["thread", "greenlet"]` in `[tool.coverage.run]`
+  for SQLAlchemy async greenlets within TestClient threads. The owner approved
+  this sole exception to D36/A1/A4 instrumentation preservation on 10 October;
+  all other options, dependencies, runtime pins, exclusions and gates remain.
+  Static source verification does not prove corrected attribution or coverage
+  gains. Fresh complete CI must remove foreign-file raw/exported events and
+  recover mandatory normalized statements/arcs before ratios are trusted.
 - Job `quality`: exact candidate-SHA verification, `npm ci`, lint, typecheck,
   coverage-enabled Vitest, generated-client **contract-drift gate**, and build.
 - Static checks also run basedpyright against its committed basic-mode
@@ -907,7 +915,7 @@ and uses the workspace-root local composite action to verify the candidate SHA.
   D33 permits an explicit reviewed inventory/policy baseline refresh against the
   caller's trusted ancestor. The checker verifies complete eligible source
   coverage, exact global/backend/frontend ratios, unchanged D32 eligibility and
-  instrumentation, and a versioned receipt binding the prior baseline, current
+  guarded instrumentation keys, and a versioned receipt binding the prior baseline, current
   source/policy hashes and inventory additions/removals. Empty/docstring-only
   Python modules contribute zero executable lines; missing executable coverage
   fails closed. Version 3 receipts bind the producing backend runtime; a
@@ -922,7 +930,14 @@ and uses the workspace-root local composite action to verify the candidate SHA.
   Review the resulting diff; normal verification uses
   `--verify-baseline-provenance`. Changes to instrumentation or source eligibility
   require separate D32 authority, not merely a new receipt. Neither command
-  commits or contacts a remote service.
+  commits or contacts a remote service. D72 grants that separate authority only
+  for the exact thread/greenlet option above; every other instrumentation or
+  eligibility change still requires it. The unchanged checker does not compare
+  concurrency mechanically: explicit D72 authority, independent review and
+  the existing `POLICY_FILES` hash binding of pyproject cover this amendment,
+  not a general enforcement claim. Exact trusted refresh floors, D36 runtime
+  binding and the closed legacy reconciliation remain; no floor waiver is
+  granted if corrected attribution removes false-positive hits.
 - Job `e2e`: boots the **real stack** (compose `api`+`db`+`redis` from
   `.env.example` with `ALLOW_DEMO_SEED=true`, relaxed login rate-limit
   thresholds, `F7_SEED_MAX_TRIPS_PER_DAY=1`, waits for `/api/v1/health`,
@@ -3636,6 +3651,7 @@ It does not authorize deployment or close external launch gates.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.127 | 2026-10-10 | D72/REQ-137 approves only mixed thread/greenlet coverage configuration in §10.3. Source/static checkpoint recorded in [the existing receipt](../issues/testing/combined-ci-repair-2026-10-08.md); fresh attribution, unchanged 90/80 and exact floors, canonical receipt, full CI and final integrated reviews remain pending. |
 | v1.126 | 2026-10-07 | D69–D71: partial document renewals, per-document review outcomes, Abuja/Nigerian demo fixtures and touched-test verification without local coverage; REQ-125–130. |
 | v1.125 | 2026-10-07 | **W2-D polish implementation (D68, REQ-121–124).** Current-access campaign notification context, edit-bound previews, export-only v2 suppression wording preserving historical integrity, customer money/VAT and earnings/public copy. Local implementation and focused verification are recorded in [the W2-D receipt](../issues/testing/w2d-polish-2026-10-07.md), with required independent review verdicts; no external action or programme reprioritization. |
 | v1.124 | 2026-10-07 | **W2-C renewals and reverse phone verification (D66/D67, REQ-119/120).** Profile renews rejected/expired current person/bank and owned vehicle revisions through existing private scanned uploads and encrypted capture. Staff Documents reviews every current revision using audited View. Staff decisions bind the displayed submission ID. Driver issuance alone reveals phone codes; staff records received code and saved sender, with durable limits, one-use expiry, hash-only storage and live configuration/operator/wording gates. Migration 0100 replaces obsolete send evidence. Local implementation verified: 211 backend and 170 frontend cases; 95.0166% changed lines / 82.7089% branches; receipt in `issues/testing/w2c-renewals-phone-2026-10-07.md`. No deployment or merged acceptance. |

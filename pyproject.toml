@@ -50,6 +50,7 @@ testpaths = ["tests"]
 pythonpath = ["."]
 
 [tool.coverage.run]
+concurrency = ["thread", "greenlet"]
 branch = true
 source = ["app"]
 data_file = "coverage/.coverage"

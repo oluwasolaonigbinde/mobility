@@ -164,3 +164,67 @@ must naturally enter new-Q hashes; do not patch receipt hashes or reuse old
 reports. Failed Q has no complete backend aggregate. Already-asserted zero-LCOV
 paths remain unresolved; this repair makes no coverage-gain claim. No collector,
 eligibility, waiver, retry or latest-increment shortcut is authorized.
+
+## Mixed-concurrency measurement amendment — REQ-137 / D72, 10 October
+
+Owner explicitly approved the independently reviewed amendment on 10 October,
+relayed by Claude orchestrator. A1/A4 now permit ONLY adding
+`concurrency = ["thread", "greenlet"]` under `[tool.coverage.run]` and the
+necessary records in this plan, the existing testing receipt, requests,
+decisions-log and architecture. This supersedes the earlier absolute collector
+exclusion for that option only. Every other coverage setting, dependency,
+Python/coverage version, exclusion, eligibility rule, checker and workflow stays
+unchanged. No application/test/frontend/native/API baseline, production lock,
+client/Q rule or launch-progress change; coverage/baseline.json is deferred.
+
+M1 requires the new explicit REQ-137/D72 authority, exact six-path scope, unique
+record/version IDs, parsed TOML and before/after proof that only the approved
+option changes. Local static checks suffice; no local tests, coverage, tracing,
+full suite or container starts/creation for this checkpoint.
+
+M2 requires fresh normal full CI at configuration candidate Q: six complete,
+disjoint assigned/executed shards, actual new inventory (previously 3451 tests),
+CPython 3.12.14 / coverage 7.16.0, and immutable raw/JUnit/manifest/report hashes
+and producer provenance. Before trusting ratios, require disappearance of the
+foreign SQLAlchemy `1973→1983→1985→1992→-1852` and `1655→1664→-1593` sequences
+and out-of-file events in driver_documents.py (202 lines) and notifications.py
+(862 lines), check other changed backend files for the same corruption, and
+require mandatory normalized statements/reachable arcs in raw and exported
+evidence. Driver statement 83 normalizes raw 84–86; literal raw 83 is not required.
+Empty contexts do not support per-test arc claims. If corruption persists, STOP
+and report; no speculative instrumentation or test additions conceal it.
+
+M3 preserves existing response/state/security assertions; they must pass in fresh
+Q and final full CI, including ordinary native contracts, real-stack E2E and R59.
+Source preservation alone is not a fresh behavior PASS. No API baseline changes
+means no new baseline-triggered native rerun; ordinary final CI remains required.
+
+A3 remains the SAME fresh Q backend/frontend reports and again exact R reports
+against fixed M `e6adcc4639f1fba345a3bb44059beb45ad76ea59`, at least 90% changed
+lines / 80% branches with no tolerance. Previous 870/981 lines and 467/608 branches
+still FAIL; 981/608 denominators are expected, must be verified, and cannot be
+trimmed. No coverage gain is promised or latest-push/no-change shortcut accepted.
+
+A4 retains exact trusted global/backend/frontend and named-critical floors at
+refresh, without D41 tolerance, floor lowering or legacy reconciliation. Correct
+attribution may remove false positives. Preserve D36 CPython major/minor and exact
+coverage binding. The checker does not compare concurrency mechanically; explicit
+D72 authority, independent review and existing POLICY_FILES pyproject hashes bind
+this exception. Do not change the checker. Only after fresh A3 and exact floors
+pass may its unchanged canonical LF Q-anchored receipt process run, with the
+reviewed exclusive byte journal, guarded restoration and natural hashes. No old
+reports, manually projected hashes or proposal overwrite; baseline stays deferred.
+
+A5 still requires ordinary final R-versus-actual-Q provenance, every exact-R CI
+job green and separate R-versus-fixed-M whole-change evidence before authorized
+master integration (`--no-ff`, no squash), push and master CI confirmation.
+A6 still requires final integrated measurement/provenance/security supplement and
+consolidated minimal-change-review PASS with every criterion evidenced. Sequential
+Sol 6.1 high/Fast source reviews (owner override) cover only this checkpoint and
+do not finish M2, fresh M3, A3–A5 or final A6. No Git/external action is assigned
+to this source worker; parent assigns authorized Git/CI after accepted source PASS.
+
+If corrected measurement remains below gates, the owner permits at most TWO
+genuine behavioral-test repair rounds, then STOP/report if more are needed.
+Counter: 0 rounds after instrumentation measurement; the earlier 37-test repair
+does not consume this allowance. No behavioral tests are added in this checkpoint.
