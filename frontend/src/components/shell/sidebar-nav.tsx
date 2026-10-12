@@ -39,18 +39,23 @@ export function SidebarNav({
             {heading ? <p className="micro text-faint mt-3 px-3 pb-1">{heading}</p> : null}
             <Link
               href={item.href}
+              data-nav-item
               aria-current={active ? "page" : undefined}
               className={cx(
-                "micro rounded-lg px-3 py-2.5 whitespace-nowrap transition-colors",
-                active ? "bg-raised text-amber" : "text-muted hover:bg-raised/60 hover:text-ink",
-                horizontal && "px-3 py-2",
+                "flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-[0.9375rem] whitespace-nowrap transition-colors",
+                active
+                  ? "bg-raised text-ink font-semibold"
+                  : "text-muted hover:bg-raised/60 hover:text-ink font-medium",
+                horizontal && "py-2",
               )}
             >
-              {item.label}
-              {item.badge}
+              <span>
+                {item.label}
+                {item.badge}
+              </span>
               {item.count ? (
                 <span
-                  className="bg-amber/15 text-amber ml-2 rounded-full px-2 py-0.5"
+                  className="text-muted bg-edge/60 rounded-full px-2 py-0.5 text-xs font-medium tabular-nums"
                   aria-label={`${item.count} waiting`}
                 >
                   {item.count}

@@ -46,6 +46,7 @@ from app.schemas.trips import TripStartRequest
 from app.services import kyc as kyc_service
 from app.services import trips as trips_service
 from app.services import vehicle_onboarding as vehicle_onboarding_service
+from app.services.driver_applications import synthetic_driver_application_access_token
 from app.services.trips import start_driver_trip
 from app.services.vehicle_onboarding import (
     review_application_vehicle,
@@ -238,6 +239,78 @@ def _approve_vehicle(db_client, db_sessionmaker, *, application, admin, submitte
     )
     assert response.status_code == 200, response.text
     return response.json()
+
+
+def test_expired_onboarding_code_can_be_reissued_after_details_approval(
+    db_client, db_sessionmaker, settings
+) -> None:
+    token, application, admin = _approved_applicant(
+        db_client, db_sessionmaker, settings, suffix="expired-code-walkthrough"
+    )
+    files = _seed_vehicle_files(
+        db_sessionmaker, application=application, suffix="expired-code-walkthrough"
+    )
+
+    async def expire_access() -> None:
+        async with db_sessionmaker() as session:
+            access = await session.scalar(
+                select(DriverApplicationAccessToken).where(
+                    DriverApplicationAccessToken.application_id == application.id
+                )
+            )
+            assert access is not None
+            access.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+            await session.commit()
+
+    asyncio.run(expire_access())
+    expired = db_client.post(
+        "/api/v1/auth/driver-onboarding/vehicle", json=_vehicle_payload(token, files)
+    )
+    assert expired.status_code == 404
+    assert expired.json()["error"]["code"] == "ONBOARDING_ACCESS_INVALID"
+    renewed = db_client.post(
+        "/api/v1/auth/driver-onboarding-access/request", json={"email": application.email}
+    )
+    assert renewed.status_code == 202
+
+    async def latest_access() -> str:
+        async with db_sessionmaker() as session:
+            access = await session.scalar(
+                select(DriverApplicationAccessToken)
+                .where(
+                    DriverApplicationAccessToken.application_id == application.id,
+                    DriverApplicationAccessToken.id != UUID(token.split(".", 1)[0]),
+                    DriverApplicationAccessToken.invalidated_at.is_(None),
+                )
+                .order_by(DriverApplicationAccessToken.created_at.desc())
+                .limit(1)
+            )
+            assert access is not None
+            return synthetic_driver_application_access_token(
+                access, settings, synthetic_test_authority=True
+            )
+
+    new_token = asyncio.run(latest_access())
+    assert new_token != token
+    submitted = db_client.post(
+        "/api/v1/auth/driver-onboarding/vehicle", json=_vehicle_payload(new_token, files)
+    )
+    assert submitted.status_code == 201, submitted.text
+    approved = _approve_vehicle(
+        db_client,
+        db_sessionmaker,
+        application=application,
+        admin=admin,
+        submitted=submitted.json(),
+        files=files,
+    )
+    assert approved["status"] == "approved"
+    assert (
+        db_client.post(
+            "/api/v1/auth/driver-onboarding/vehicle", json=_vehicle_payload(new_token, files)
+        ).json()["error"]["code"]
+        == "ONBOARDING_ACCESS_INVALID"
+    )
 
 
 def test_complete_approval_terminalizes_application_and_revokes_access(

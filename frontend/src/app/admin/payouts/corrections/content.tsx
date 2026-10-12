@@ -7,6 +7,7 @@ import { formatDate, formatMoneyExact } from "@/lib/format";
 import { adminStatus } from "@/lib/status/admin";
 import { summarizeProjectedDelta } from "@/lib/payouts/corrections";
 import { Pagination } from "@/components/ui/pagination";
+import { FilterChips } from "@/components/ui/tabs";
 import { HubDrawer } from "../../hub-drawer";
 import { QueueUnavailable } from "../../queue-search";
 import { moneyHref, type MoneyQuery } from "../../money/navigation";
@@ -67,28 +68,29 @@ export default async function Corrections({ query }: { query: MoneyQuery }) {
   return (
     <div className="space-y-5">
       <details className="border-edge rounded border p-4">
-        <summary>Prepare a pay correction</summary>
+        <summary>Correct a driver&apos;s pay</summary>
         <p className="text-muted my-3 text-sm">
-          Choose a campaign and day to preview the change. A different staff member must approve it
-          before it can run.
+          Recalculates what drivers on one campaign earned for one day and adds or takes back the
+          difference. Choose the campaign and day to preview it; a different staff member must
+          approve it before it runs.
         </p>
         <NewOrderForm />
       </details>
-      <nav aria-label="Correction status" className="flex flex-wrap gap-3">
-        <Link
-          href={moneyHref(query, { correction_status: undefined, correction_offset: undefined })}
-        >
-          All
-        </Link>
-        {statuses.map((value) => (
-          <Link
-            key={value}
-            href={moneyHref(query, { correction_status: value, correction_offset: undefined })}
-          >
-            {adminStatus(value, "correction")}
-          </Link>
-        ))}
-      </nav>
+      <FilterChips
+        label="Correction status"
+        items={[
+          {
+            href: moneyHref(query, { correction_status: undefined, correction_offset: undefined }),
+            label: "All",
+            active: !status,
+          },
+          ...statuses.map((value) => ({
+            href: moneyHref(query, { correction_status: value, correction_offset: undefined }),
+            label: adminStatus(value, "correction"),
+            active: status === value,
+          })),
+        ]}
+      />
       {!data || namesFailed ? (
         <QueueUnavailable />
       ) : (

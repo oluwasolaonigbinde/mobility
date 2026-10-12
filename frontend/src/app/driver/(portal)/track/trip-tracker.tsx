@@ -22,12 +22,13 @@ import {
 } from "@/lib/pwa/capability-contract";
 import { DRIVER_SESSION_CHANNEL } from "@/components/driver/logout-button";
 import { Panel } from "@/components/ui/panel";
+import { readinessRows, type ReadinessRow } from "@/lib/pwa/readiness-rows";
 import { Button } from "@/components/ui/button";
 
 const REJECTION_LABELS: Record<string, string> = {
-  INVALID_SPEED: "GPS speed exceeded the limit",
-  INVALID_ACCURACY: "GPS accuracy exceeded the limit",
-  INVALID_RECORDED_AT: "GPS time was outside the permitted trip window",
+  INVALID_SPEED: "The recorded speed was too high",
+  INVALID_ACCURACY: "The location wasn't accurate enough",
+  INVALID_RECORDED_AT: "The location update was outside this trip's time",
   INVALID_ASSIGNMENT_AUTHORITY: "The job was no longer active",
 };
 
@@ -70,7 +71,7 @@ function trackingPresentation({
   if (authorityUncertain) {
     return {
       label: "Check trip status",
-      detail: "Capture is stopped while Cardvert checks the same trip with the server.",
+      detail: "Tracking is paused while Cardvert checks whether this trip is still running.",
       tone: "text-amber",
       dot: "bg-amber",
     } as const;
@@ -102,7 +103,7 @@ function trackingPresentation({
   if (bufferedCount > 0 && isSending && session === "valid") {
     return {
       label: "Sending",
-      detail: "Saved trip updates are being sent with the same trip identity.",
+      detail: "Sending the trip updates saved on this phone.",
       tone: "text-cyan",
       dot: "bg-cyan",
     } as const;
@@ -118,7 +119,7 @@ function trackingPresentation({
   if (health !== "active") {
     return {
       label: "Paused",
-      detail: "No new location is being recorded until the foreground checks recover.",
+      detail: "No new locations are being recorded until the phone is ready to track again.",
       tone: "text-amber",
       dot: "bg-amber",
     } as const;
@@ -126,7 +127,7 @@ function trackingPresentation({
   if (isSending) {
     return {
       label: "Sending",
-      detail: "Saved trip updates are being sent with the same trip identity.",
+      detail: "Sending the trip updates saved on this phone.",
       tone: "text-cyan",
       dot: "bg-cyan",
     } as const;
@@ -171,12 +172,15 @@ function passiveSnapshot(activeTrip: boolean): CapabilitySnapshot {
   };
 }
 
+const START_BLOCKED = "You can't start a trip yet. Fix this first:";
+
 export function TripTracker({
   assignment,
   initialTrip,
   driverId,
   startUnavailableMessage,
   pausedCampaignName,
+  compact = false,
 }: {
   assignment: DriverTrackerAssignment | null;
   initialTrip: DriverTrackerTrip | null;
@@ -185,9 +189,17 @@ export function TripTracker({
   startUnavailableMessage?: string;
   /** An activated campaign whose Start is currently not allowed (display only). */
   pausedCampaignName?: string;
+  compact?: boolean;
 }) {
   const router = useRouter();
   const [trip, setTrip] = useState<DriverTrackerTrip | null>(initialTrip);
+  const [clock, setClock] = useState(() => Date.now());
+  const [recordedMiles, setRecordedMiles] = useState<number | null>(null);
+  const previousFix = useRef<GeolocationPosition | null>(null);
+  useEffect(() => {
+    const timer = setInterval(() => setClock(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   const [gps, setGps] = useState<GpsState>("idle");
   const [syncedCount, setSyncedCount] = useState(0);
   const [bufferedCount, setBufferedCount] = useState(0);
@@ -197,6 +209,7 @@ export function TripTracker({
   const [rejectionCodes, setRejectionCodes] = useState<string[]>([]);
   const [lastFix, setLastFix] = useState<GeolocationPosition | null>(null);
   const [error, setError] = useState<string>();
+  const [blockers, setBlockers] = useState<ReadinessRow[]>([]);
   const [storageReady, setStorageReady] = useState<boolean | null>(null);
   const [runtime, setRuntime] = useState<CapabilitySnapshot>(() => passiveSnapshot(false));
   const [serverTripVerified, setServerTripVerified] = useState(false);
@@ -354,7 +367,7 @@ export function TripTracker({
     if (writerAcquireRef.current) return writerAcquireRef.current;
     if (!("locks" in navigator)) {
       patchRuntime({ webLocks: "unavailable" });
-      setError("This browser cannot provide the exclusive tracking lock Cardvert requires.");
+      setError("This browser can't safely track a trip in one tab at a time. Try another browser.");
       return false;
     }
     let resolveAcquisition!: (held: boolean) => void;
@@ -388,7 +401,9 @@ export function TripTracker({
       .catch(() => {
         writerAcquireRef.current = null;
         patchRuntime({ webLocks: "denied" });
-        setError("Cardvert could not acquire the exclusive tracking lock.");
+        setError(
+          "Cardvert couldn't keep this trip's tracking in one tab. Close other Cardvert tabs and try again.",
+        );
         if (!resolved) resolveAcquisition(false);
       });
     return acquisition;
@@ -416,7 +431,9 @@ export function TripTracker({
           wakeRef.current = null;
           stopWatch();
           patchRuntime({ wakeLock: "released" });
-          setError("The screen wake lock was released, so GPS capture paused.");
+          setError(
+            "Your screen could not stay on, so tracking paused. Keep Cardvert open and check your phone settings.",
+          );
         },
         { once: true },
       );
@@ -499,7 +516,9 @@ export function TripTracker({
             const authority = await getTripEvidenceAuthorityAction(tripId);
             if (!authority) {
               if (mountedRef.current)
-                setError("Cardvert could not verify the trip evidence protocol.");
+                setError(
+                  "Cardvert couldn't check how this trip's locations should be saved. Try again.",
+                );
               return;
             }
             protocolVersion = authority.protocolVersion;
@@ -529,7 +548,7 @@ export function TripTracker({
                 if (tripRef.current?.id === tripId) stopWatch();
                 if (mountedRef.current)
                   setError(
-                    "This campaign was deactivated. Captured GPS evidence is held and uploads when you end the trip.",
+                    "This job has stopped. Your saved trip updates will be sent when you end the trip.",
                   );
                 break;
               }
@@ -539,7 +558,9 @@ export function TripTracker({
                   code: result.terminalCode,
                 });
                 if (mountedRef.current)
-                  setError("Some GPS evidence was rejected and retained locally for diagnosis.");
+                  setError(
+                    "Some location updates were not accepted. They remain on this phone for support to check.",
+                  );
                 continue;
               }
               if (mountedRef.current) setError(result.error);
@@ -547,14 +568,18 @@ export function TripTracker({
             }
             if (!result.acknowledged) {
               if (mountedRef.current)
-                setError("Cardvert could not confirm the GPS batch acknowledgement.");
+                setError(
+                  "Cardvert could not confirm these location updates arrived. Keep the app open while it checks.",
+                );
               break;
             }
             if (protocolVersion === 1) {
               await queue.acknowledgeLegacyBatch(batch.key);
             } else if (!result.receipt) {
               if (mountedRef.current)
-                setError("Cardvert did not return a signed GPS evidence receipt.");
+                setError(
+                  "Cardvert could not confirm these location updates were saved. Keep the app open while it checks.",
+                );
               break;
             } else {
               await queue.acknowledgeBatch(batch, result.receipt);
@@ -566,7 +591,7 @@ export function TripTracker({
           if (mountedRef.current) {
             setStorageReady(false);
             setError(
-              "Encrypted GPS storage failed, so tracking stopped without discarding evidence.",
+              "This phone could not save new location updates, so tracking stopped. Earlier saved updates remain on the phone.",
             );
           }
           stopWatch();
@@ -629,8 +654,26 @@ export function TripTracker({
                 mountedRef.current &&
                 generation === captureGenerationRef.current &&
                 endPhaseRef.current === "capturing"
-              )
+              ) {
+                const previous = previousFix.current;
+                if (previous) {
+                  const radians = Math.PI / 180;
+                  const dLat = (position.coords.latitude - previous.coords.latitude) * radians;
+                  const dLon = (position.coords.longitude - previous.coords.longitude) * radians;
+                  const a =
+                    Math.sin(dLat / 2) ** 2 +
+                    Math.cos(previous.coords.latitude * radians) *
+                      Math.cos(position.coords.latitude * radians) *
+                      Math.sin(dLon / 2) ** 2;
+                  const miles =
+                    (6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))) / 1609.344;
+                  setRecordedMiles((value) => (value ?? 0) + miles);
+                } else {
+                  setRecordedMiles(0);
+                }
+                previousFix.current = position;
                 setLastFix(position);
+              }
               const pending = await queue.pendingCount(tripId);
               if (pending >= FLUSH_AT_COUNT) await flush(tripId);
               else await refreshCounts(tripId);
@@ -641,7 +684,9 @@ export function TripTracker({
               patchRuntime({ indexedDb: "failed", durableQueue: "failed" });
               if (!mountedRef.current) return;
               setStorageReady(false);
-              setError("This device stopped storing encrypted GPS evidence; capture is stopped.");
+              setError(
+                "This phone could not save location updates, so tracking stopped. Free up storage and ask support for help.",
+              );
             });
         },
         (positionError) => {
@@ -695,7 +740,9 @@ export function TripTracker({
         // Terminal evidence is never resent. Reconciliation below may dispose it,
         // so this wording must stay true after disposal.
         if ((await queue.deadLetterCount(leftoverTripId)) > 0 && mountedRef.current)
-          setError("Earlier GPS evidence was rejected by the server and could not be delivered.");
+          setError(
+            "Some earlier location updates were not accepted. Contact support before clearing app data.",
+          );
         if ((await queue.unsyncedCount(leftoverTripId)) === 0) {
           const authority = await getTripEvidenceAuthorityAction(leftoverTripId);
           if (authority?.protocolVersion === 2) {
@@ -705,7 +752,7 @@ export function TripTracker({
                 terminalLeftoversRef.current.add(leftoverTripId);
                 if (mountedRef.current)
                   setError(
-                    "Earlier GPS evidence could not be delivered, so Cardvert closed that trip's record as incomplete.",
+                    "Some earlier location updates could not be sent. That trip's record is incomplete.",
                   );
               } else {
                 const receipts = await queue.listReceipts(leftoverTripId);
@@ -727,14 +774,17 @@ export function TripTracker({
                         receipts.flatMap((r) =>
                           (r.sampleResults ?? []).flatMap((result) =>
                             result.rejection_code
-                              ? [REJECTION_LABELS[result.rejection_code] ?? "GPS sample rejected"]
+                              ? [
+                                  REJECTION_LABELS[result.rejection_code] ??
+                                    "Location update not accepted",
+                                ]
                               : [],
                           ),
                         ),
                       ),
                     ];
                     setError(
-                      `Earlier GPS samples need review: ${rejected} rejected, ${quarantined} awaiting review. ${reasons.join("; ")}. They remain on this device and will not be sent again.`,
+                      `Earlier location updates need checking: ${rejected} not accepted, ${quarantined} waiting for review. ${reasons.join("; ")}. They remain on this phone and will not be sent again.`,
                     );
                   }
                 } else {
@@ -748,7 +798,7 @@ export function TripTracker({
               terminalLeftoversRef.current.add(leftoverTripId);
               if (mountedRef.current)
                 setError(
-                  "Earlier GPS evidence could not be delivered, so this trip's record stays incomplete.",
+                  "Some earlier location updates could not be sent. This trip's record is still incomplete.",
                 );
             }
           } else if (authority?.protocolVersion === 1 && authority.status === "sealed") {
@@ -763,7 +813,8 @@ export function TripTracker({
   const reportRecoveryFault = useCallback(() => {
     // Recovering earlier trips is best-effort: it must never be mistaken for a
     // failed queue open, and must never block capture of the current trip.
-    if (mountedRef.current) setError("Cardvert could not finish recovering earlier trip evidence.");
+    if (mountedRef.current)
+      setError("Cardvert couldn't restore saved details from earlier trips. Try again.");
   }, []);
 
   const recoverWithWriter = useCallback(async () => {
@@ -808,8 +859,8 @@ export function TripTracker({
         patchRuntime({ indexedDb: "failed", durableQueue: "failed" });
         setError(
           (openError as { code?: string } | null)?.code === UNREADABLE_EVIDENCE_CODE
-            ? "Earlier encrypted GPS evidence on this device can no longer be read, so it cannot be recovered or resent."
-            : "Encrypted offline storage is unavailable, blocked, or could not be verified.",
+            ? "Earlier saved trip updates on this phone cannot be read or sent. Contact support for help."
+            : "Your phone couldn't save trip details securely for use offline.",
         );
       });
     return () => {
@@ -848,7 +899,7 @@ export function TripTracker({
               releaseWriter();
             } else {
               setError(
-                "Cardvert could not reconcile the current trip; the writer remains reserved.",
+                "Cardvert couldn't check your current trip. This tab is still holding it open.",
               );
             }
             return;
@@ -914,7 +965,7 @@ export function TripTracker({
       void validateSession();
     };
     const onLogout = () =>
-      invalidateIdentity("You signed out. Encrypted trip evidence was retained.");
+      invalidateIdentity("You signed out. Your saved trip details are still stored securely.");
     const channel =
       "BroadcastChannel" in window ? new BroadcastChannel(DRIVER_SESSION_CHANNEL) : null;
     if (channel)
@@ -946,6 +997,7 @@ export function TripTracker({
   function start() {
     if (!assignment || storageReady !== true || busy) return;
     setError(undefined);
+    setBlockers([]);
     setBusy(true);
     void (async () => {
       if (!(await acquireWriter())) return;
@@ -963,7 +1015,8 @@ export function TripTracker({
           stopWatch();
           await releaseWake();
           releaseWriter();
-          setError("Start is blocked until every live Cardvert capability is held.");
+          setBlockers(readinessRows(runtimeRef.current).filter((row) => !row.ok));
+          setError(START_BLOCKED);
           return;
         }
         result = await startTripAction(assignment.id);
@@ -971,7 +1024,10 @@ export function TripTracker({
       }
       if (!mountedRef.current || !identityValidRef.current || !releaseWriterRef.current) return;
       if (!result.trip) {
-        setError(result.error ?? "Cardvert could not prove whether the trip started.");
+        setError(
+          result.error ??
+            "Cardvert couldn't confirm whether your trip started. Check its status before trying again.",
+        );
         if (result.outcome === "failed") {
           startUncertainRef.current = false;
           setStartUncertain(false);
@@ -990,6 +1046,8 @@ export function TripTracker({
       protocolByTripRef.current.set(result.trip.id, result.trip.evidenceProtocolVersion);
       reconciledTripRef.current = result.trip.id;
       setServerTripVerified(true);
+      setRecordedMiles(null);
+      previousFix.current = null;
       setTrip(result.trip);
       patchRuntime({ activeTrip: true });
       setSyncedCount(0);
@@ -1044,7 +1102,7 @@ export function TripTracker({
         setAuthorityUncertain(true);
         setServerTripVerified(true);
         setError(
-          "End is awaiting confirmation. Retry the same End request; capture remains stopped.",
+          "Cardvert hasn't confirmed the trip ended. Try End again; location recording is stopped.",
         );
         return;
       }
@@ -1147,7 +1205,7 @@ export function TripTracker({
         !assessPilotPwa(runtimeRef.current).actions.end
       ) {
         if (mountedRef.current)
-          setError("End stopped because Cardvert can no longer vouch for the durable watermark.");
+          setError("Cardvert couldn't confirm all saved locations, so the trip couldn't be ended.");
         return;
       }
       const [unsynced, deadLetters, receipts] = await Promise.all([
@@ -1164,14 +1222,15 @@ export function TripTracker({
         );
       const message = complete
         ? "End this trip? Tracking stops and the trip is sent for analysis."
-        : "Some GPS evidence is unsynced or diagnostically retained. End with an incomplete client watermark?";
+        : "Some trip updates have not reached Cardvert or need checking. End this trip with an incomplete record?";
       if (!window.confirm(message)) {
         await reconcileAfterEnd(null);
         return;
       }
       const protocolVersion = protocolByTripRef.current.get(activeTrip.id);
       if (!protocolVersion) {
-        if (mountedRef.current) setError("Cardvert could not verify the trip evidence protocol.");
+        if (mountedRef.current)
+          setError("Cardvert couldn't check how this trip's locations should be saved. Try again.");
         return;
       }
       const manifest =
@@ -1206,7 +1265,7 @@ export function TripTracker({
         if (mountedRef.current) {
           setStorageReady(false);
           setError(
-            "The End request could not be saved. GPS evidence remains on this device; reload after storage is available.",
+            "This phone could not save your request to end the trip. Saved updates remain here. Free up storage, then reload Cardvert to try again.",
           );
         }
       })
@@ -1218,16 +1277,6 @@ export function TripTracker({
   if (!assignment && !trip) {
     return (
       <div className="flex flex-col gap-4">
-        <Panel className="p-5">
-          <p className="micro text-amber">Set up this phone</p>
-          <p className="text-muted mt-2 text-sm leading-6">
-            Add Cardvert Driver to your Home Screen from the browser menu. When a trip is ready,
-            keep the app open on screen and allow location after you press Start.
-          </p>
-          <Link href="/driver/capabilities" className="micro text-faint mt-3 inline-block">
-            Phone check →
-          </Link>
-        </Panel>
         <Panel className="p-6 text-center">
           <p className="text-sm font-medium">
             {pausedCampaignName ? `${pausedCampaignName} can't start yet` : "No active campaign"}
@@ -1245,47 +1294,26 @@ export function TripTracker({
     <div className="flex flex-col gap-4">
       {trip ? (
         <>
-          <Panel
-            className={presentedTracking.tone === "text-green" ? "border-green/40 p-5" : "p-5"}
-          >
-            <p
-              className={`micro flex items-center gap-1.5 ${presentedTracking.tone}`}
-              data-testid="tracking-health"
-              data-runtime-health={assessment.health}
-            >
-              <span className={`inline-block size-1.5 rounded-full ${presentedTracking.dot}`} />
-              {presentedTracking.label}
-            </p>
-            <p className="text-muted mt-2 text-sm leading-6">{presentedTracking.detail}</p>
-            <div className="mt-4 flex items-end justify-between gap-4">
-              <div>
-                <p className="micro text-faint">Location</p>
-                <p className="text-sm">
-                  {gps === "granted" && lastFix
-                    ? `±${Math.round(lastFix.coords.accuracy)}m fix`
-                    : gps === "denied"
-                      ? "Permission denied"
-                      : gps === "unavailable"
-                        ? "Unavailable"
-                        : "Waiting…"}
-                </p>
-              </div>
-              <Link href="/driver/capabilities" className="micro text-faint">
-                Phone check →
-              </Link>
+          {!compact ? (
+            <p className="text-base font-medium">{assignment?.campaignName ?? "Current trip"}</p>
+          ) : null}
+          <Panel className="grid grid-cols-3 gap-3 p-4" aria-label="Live trip">
+            <div>
+              <p className="text-muted text-xs">Time</p>
+              <p className="font-mono">
+                {trip.startedAt
+                  ? `${Math.floor(Math.max(0, clock - Date.parse(trip.startedAt)) / 60000)} min`
+                  : "—"}
+              </p>
             </div>
-            {hasEvidenceIssue ? (
-              <div className="border-coral/30 bg-coral/10 mt-4 rounded-lg border px-3.5 py-2.5">
-                <p className="text-coral text-sm">Some saved trip updates need attention.</p>
-                {rejectionCodes.length > 0 ? (
-                  <p className="text-muted mt-1 text-xs">
-                    {rejectionCodes
-                      .map((code) => REJECTION_LABELS[code] ?? "A GPS update was not accepted")
-                      .join("; ")}
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
+            <div>
+              <p className="text-muted text-xs">Miles this visit</p>
+              <p className="font-mono">{recordedMiles === null ? "—" : recordedMiles.toFixed(1)}</p>
+            </div>
+            <div>
+              <p className="text-muted text-xs">Today’s earnings</p>
+              <p className="text-sm">Being checked</p>
+            </div>
           </Panel>
           <Button
             type="button"
@@ -1302,28 +1330,68 @@ export function TripTracker({
                 : "Ending…"
               : authorityUncertain
                 ? "Check trip status"
-                : "■ End trip"}
+                : "End trip"}
           </Button>
+          {assessment.health === "active" && !error && !hasEvidenceIssue && !authorityUncertain ? (
+            <p
+              className={`text-sm ${presentedTracking.tone}`}
+              data-testid="tracking-health"
+              data-runtime-health={assessment.health}
+            >
+              {presentedTracking.label}
+            </p>
+          ) : (
+            <Panel
+              className={presentedTracking.tone === "text-green" ? "border-green/40 p-5" : "p-5"}
+            >
+              <p
+                className={`micro flex items-center gap-1.5 ${presentedTracking.tone}`}
+                data-testid="tracking-health"
+                data-runtime-health={assessment.health}
+              >
+                <span className={`inline-block size-1.5 rounded-full ${presentedTracking.dot}`} />
+                {presentedTracking.label}
+              </p>
+              <p className="text-muted mt-2 text-sm leading-6">{presentedTracking.detail}</p>
+              <div className="mt-4 flex items-end justify-between gap-4">
+                <div>
+                  <p className="micro text-faint">Location</p>
+                  <p className="text-sm">
+                    {gps === "granted" && lastFix
+                      ? `Accurate to about ${Math.round(lastFix.coords.accuracy)} m`
+                      : gps === "denied"
+                        ? "Permission denied"
+                        : gps === "unavailable"
+                          ? "Unavailable"
+                          : "Waiting…"}
+                  </p>
+                </div>
+                <Link href="/driver/capabilities" className="micro text-faint">
+                  Phone check →
+                </Link>
+              </div>
+              {hasEvidenceIssue ? (
+                <div className="border-coral/30 bg-coral/10 mt-4 rounded-lg border px-3.5 py-2.5">
+                  <p className="text-coral text-sm">Some saved trip updates need attention.</p>
+                  {rejectionCodes.length > 0 ? (
+                    <p className="text-muted mt-1 text-xs">
+                      {rejectionCodes
+                        .map((code) => REJECTION_LABELS[code] ?? "A GPS update was not accepted")
+                        .join("; ")}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </Panel>
+          )}
         </>
       ) : (
         <>
-          <Panel className="p-5">
-            <p className="micro text-amber">Set up this phone</p>
-            <p className="text-muted mt-2 text-sm leading-6">
-              Add Cardvert Driver to your Home Screen from the browser menu. Keep it open and
-              visible while driving; tracking pauses whenever Cardvert is not on screen.
+          {!compact ? (
+            <p className="text-base font-medium">
+              {assignment?.campaignName} · {assignment?.plateNumber}
             </p>
-            <Link href="/driver/capabilities" className="micro text-faint mt-3 inline-block">
-              Phone check →
-            </Link>
-          </Panel>
-          <Panel className="p-5">
-            <p className="micro text-muted">Ready to drive</p>
-            <p className="mt-2 text-base font-medium">{assignment?.campaignName}</p>
-            <p className="micro text-faint mt-1">
-              {assignment?.plateNumber} · You earn for verified campaign driving
-            </p>
-          </Panel>
+          ) : null}
           <Button
             type="button"
             onClick={start}
@@ -1338,20 +1406,37 @@ export function TripTracker({
                 ? "Preparing…"
                 : startUncertain
                   ? "Check trip status"
-                  : "▶ Start trip"}
+                  : "Start trip"}
           </Button>
-          <p className="text-faint text-center text-xs">
-            Keep Cardvert open on your screen while tracking a trip.
-          </p>
+          {!compact ? (
+            <p className="text-faint text-center text-xs">
+              Keep Cardvert open on your screen while tracking a trip.
+            </p>
+          ) : null}
         </>
       )}
       {error ? (
-        <p
+        <div
           role="alert"
           className="border-coral/40 bg-coral/10 text-coral rounded-lg border px-3.5 py-2.5 text-sm"
         >
-          {error}
-        </p>
+          <p>{error}</p>
+          {error === START_BLOCKED && blockers.length ? (
+            <ul className="text-ink mt-2 grid gap-2">
+              {blockers.map((row) => (
+                <li key={row.label}>
+                  <span className="block font-medium">{row.label}: not yet</span>
+                  <span className="text-muted block text-xs leading-5">{row.fix}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          {!trip && error.includes("Jobs") ? (
+            <Link href="/driver/assignments" className="text-ink mt-2 inline-block underline">
+              Open Jobs
+            </Link>
+          ) : null}
+        </div>
       ) : null}
     </div>
   );

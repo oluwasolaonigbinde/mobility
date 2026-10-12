@@ -8,34 +8,117 @@ import { startInvoicePayment } from "@/app/advertiser/billing/actions";
 type Invoice = components["schemas"]["InvoiceRead"];
 type Settlement = components["schemas"]["SettlementRead"];
 
+const paymentLabel: Record<string, string> = {
+  unpaid: "Not paid",
+  partially_paid: "Part paid",
+  paid: "Paid",
+};
+
+const correctionLabel: Record<string, string> = {
+  credit_note: "Credit note",
+  debit_note: "Extra charge",
+};
+
+const settlementLabel: Record<string, string> = {
+  refund_recorded: "Refund",
+  credit_settlement_recorded: "Closed without a refund",
+};
+
+function words(value: string) {
+  return value.replaceAll("_", " ");
+}
+
+/** An issued invoice that still has money owing on it. */
+export function isOutstandingInvoice(invoice: Invoice) {
+  return invoice.status === "issued" && invoice.payment_status !== "paid";
+}
+
+export function invoiceStatusLabel(invoice: Invoice) {
+  if (invoice.status === "draft") return "Draft";
+  if (invoice.status === "void") return "Cancelled";
+  return paymentLabel[invoice.payment_status] ?? words(invoice.payment_status);
+}
+
+export function invoiceStatusTone(invoice: Invoice) {
+  if (invoice.status !== "issued") return "default" as const;
+  return invoice.payment_status === "paid"
+    ? ("green" as const)
+    : invoice.payment_status === "partially_paid"
+      ? ("amber" as const)
+      : ("coral" as const);
+}
+
+/** Paystack checkout for an outstanding NGN invoice; other invoices offer no online payment. */
+export function InvoicePayForm({
+  invoice,
+  showNote = true,
+}: {
+  invoice: Invoice;
+  showNote?: boolean;
+}) {
+  if (!isOutstandingInvoice(invoice) || invoice.currency !== "NGN") return null;
+  return (
+    <form action={startInvoicePayment} className="mt-4">
+      <input type="hidden" name="invoiceId" value={invoice.id} />
+      <button
+        type="submit"
+        className="bg-amber text-ink rounded-lg px-4 py-2 text-sm font-semibold"
+      >
+        Pay invoice online
+      </button>
+      {showNote ? (
+        <p className="text-muted mt-2 text-sm">
+          Card or bank transfer through Paystack. The invoice shows as paid once Paystack confirms
+          the payment.
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
+function InvoiceAmounts({ invoice }: { invoice: Invoice }) {
+  const corrected = invoice.effective_obligation_amount !== invoice.gross_amount;
+  return (
+    <p className="micro text-muted mt-1">
+      {formatMoney(invoice.effective_obligation_amount, invoice.currency)} total
+      {corrected
+        ? ` (was ${formatMoney(invoice.gross_amount, invoice.currency)} before corrections)`
+        : ""}{" "}
+      · {formatMoney(invoice.funded_amount, invoice.currency)} paid
+    </p>
+  );
+}
+
+/**
+ * A campaign's invoices, with corrections and refunds shown as plain lines.
+ * On the billing page payment happens in "To pay", so `showPayment` is off there.
+ */
 export function CommercialHistory({
   invoices,
   settlements,
   campaign,
+  showPayment = true,
 }: {
   invoices: Invoice[];
   settlements: Settlement[];
   campaign?: { id: string; name: string };
+  showPayment?: boolean;
 }) {
   if (!invoices.length && !settlements.length) return null;
 
   return (
-    <Panel className="mt-6 overflow-hidden">
-      <div className="border-edge flex flex-wrap items-start justify-between gap-3 border-b px-6 py-5">
-        <div>
-          <h3 className="font-display text-lg font-semibold">Invoice and settlement history</h3>
-          <p className="micro text-muted mt-1">
-            Persisted invoices, corrections, funding and refund lineage
-          </p>
-        </div>
+    <Panel className={campaign ? "mt-4 overflow-hidden" : "mt-6 overflow-hidden"}>
+      <div className="border-edge flex flex-wrap items-start justify-between gap-3 border-b px-6 py-4">
         {campaign ? (
           <Link
             href={`/advertiser/campaigns/${campaign.id}`}
-            className="micro text-amber hover:underline"
+            className="hover:text-amber font-medium"
           >
-            {campaign.name} →
+            {campaign.name}
           </Link>
-        ) : null}
+        ) : (
+          <h3 className="font-display text-lg font-semibold">Invoice history</h3>
+        )}
       </div>
 
       {invoices.length ? (
@@ -47,10 +130,7 @@ export function CommercialHistory({
                   <p className="font-mono text-sm">
                     {invoice.invoice_number ?? "Draft — number assigned on issue"}
                   </p>
-                  <p className="micro text-muted mt-1">
-                    {formatMoney(invoice.gross_amount, invoice.currency)} original ·{" "}
-                    {formatMoney(invoice.effective_obligation_amount, invoice.currency)} effective
-                  </p>
+                  <InvoiceAmounts invoice={invoice} />
                   <Link
                     href={`/advertiser/campaigns/${invoice.campaign_id}/invoices/${invoice.id}`}
                     className="micro text-amber mt-1 inline-block hover:underline"
@@ -58,85 +138,39 @@ export function CommercialHistory({
                     View invoice
                   </Link>
                 </div>
-                <div className="text-right">
-                  <StatusChip
-                    tone={
-                      invoice.payment_status === "paid"
-                        ? "green"
-                        : invoice.payment_status === "partially_paid"
-                          ? "amber"
-                          : "default"
-                    }
-                  >
-                    {invoice.payment_status.replaceAll("_", " ")}
-                  </StatusChip>
-                  <p className="micro text-muted mt-1">
-                    {formatMoney(invoice.funded_amount, invoice.currency)} funded
-                  </p>
-                </div>
+                <StatusChip tone={invoiceStatusTone(invoice)}>
+                  {invoiceStatusLabel(invoice)}
+                </StatusChip>
               </div>
 
               {invoice.corrections?.length ? (
-                <ul className="border-edge mt-4 space-y-3 border-l pl-4">
+                <ul className="border-edge mt-4 space-y-2 border-l pl-4">
                   {invoice.corrections.map((correction) => (
-                    <li key={correction.id}>
-                      <p className="text-sm font-medium">
-                        {correction.correction_number} ·{" "}
-                        {correction.correction_type.replaceAll("_", " ")}
-                      </p>
-                      <p className="micro text-muted mt-1">
-                        {formatMoney(correction.net_amount, correction.currency)} net +{" "}
-                        {formatMoney(correction.tax_amount, correction.currency)} VAT ={" "}
-                        {formatMoney(correction.gross_amount, correction.currency)} ·{" "}
-                        {correction.reason} · {formatDate(correction.created_at)}
-                      </p>
+                    <li key={correction.id} className="text-sm">
+                      {correctionLabel[correction.correction_type] ??
+                        words(correction.correction_type)}{" "}
+                      {correction.correction_number}:{" "}
+                      {formatMoney(correction.gross_amount, correction.currency)} including VAT ·{" "}
+                      {correction.reason} · {formatDate(correction.created_at)}
                     </li>
                   ))}
                 </ul>
               ) : null}
-              {invoice.status === "issued" &&
-              invoice.payment_status !== "paid" &&
-              invoice.currency === "NGN" ? (
-                <form action={startInvoicePayment} className="mt-4">
-                  <input type="hidden" name="invoiceId" value={invoice.id} />
-                  <button
-                    type="submit"
-                    className="bg-amber text-ink rounded-lg px-4 py-2 text-sm font-semibold"
-                  >
-                    Pay invoice online
-                  </button>
-                  <p className="micro text-muted mt-2">
-                    Pay securely on Paystack by card or bank transfer. Cardvert applies the payment
-                    only after Paystack confirms it.
-                  </p>
-                </form>
-              ) : null}
+              {showPayment ? <InvoicePayForm invoice={invoice} /> : null}
             </li>
           ))}
         </ul>
       ) : (
-        <p className="text-muted px-6 py-5 text-sm">No invoice has been recorded.</p>
+        <p className="text-muted px-6 py-5 text-sm">No invoice yet.</p>
       )}
 
       {settlements.length ? (
         <ul className="divide-edge/60 border-edge divide-y border-t">
           {settlements.map((settlement) => (
-            <li
-              key={settlement.id}
-              className="flex flex-wrap items-start justify-between gap-3 px-6 py-4"
-            >
-              <div>
-                <p className="text-sm font-medium">{settlement.disposition.replaceAll("_", " ")}</p>
-                <p className="micro text-muted mt-1">
-                  {settlement.reason} · {formatDate(settlement.recorded_at)}
-                </p>
-                <p className="micro text-muted mt-1">
-                  {settlement.settlement_provider} · {settlement.external_reference}
-                </p>
-              </div>
-              <p className="font-mono text-sm">
-                {formatMoney(settlement.amount, settlement.currency)}
-              </p>
+            <li key={settlement.id} className="px-6 py-4 text-sm">
+              {settlementLabel[settlement.disposition] ?? words(settlement.disposition)}:{" "}
+              {formatMoney(settlement.amount, settlement.currency)} · {settlement.reason} ·{" "}
+              {formatDate(settlement.recorded_at)} · reference {settlement.external_reference}
             </li>
           ))}
         </ul>

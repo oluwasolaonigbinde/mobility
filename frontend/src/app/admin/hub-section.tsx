@@ -23,17 +23,20 @@ export function HubNav({ sections }: { sections: { id: string; title: string }[]
   return (
     <nav
       aria-label="Page sections"
-      className="border-edge bg-bg/95 sticky top-32 z-20 mb-5 flex gap-2 overflow-x-auto rounded-lg border p-2 md:top-16"
+      className="border-edge bg-bg/95 sticky top-32 z-20 mb-5 overflow-x-auto overflow-y-hidden rounded-lg border p-1.5 backdrop-blur md:top-16"
     >
-      {sections.map((s) => (
-        <Link
-          key={s.id}
-          href={`#${s.id}`}
-          className="hover:bg-raised micro rounded-lg px-3 py-2 whitespace-nowrap"
-        >
-          {s.title}
-        </Link>
-      ))}
+      <div className="flex min-w-max gap-1 lg:min-w-0">
+        {sections.map((s) => (
+          <Link
+            key={s.id}
+            href={`#${s.id}`}
+            data-tab
+            className="text-muted hover:bg-raised hover:text-ink flex-1 rounded-md px-4 py-2.5 text-center text-[0.9375rem] font-medium whitespace-nowrap transition-colors"
+          >
+            {s.title}
+          </Link>
+        ))}
+      </div>
     </nav>
   );
 }

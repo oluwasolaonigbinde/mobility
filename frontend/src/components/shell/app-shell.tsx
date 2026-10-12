@@ -15,8 +15,8 @@ const roleLabel: Record<string, string> = {
 };
 
 /**
- * Shared authenticated shell: icon-free sidebar rail (mono labels, like the
- * prototype), sticky topbar with identity context, content well.
+ * Shared authenticated shell: icon-free sidebar rail, sticky topbar with identity context,
+ * content well.
  */
 export function AppShell({
   me,
@@ -58,8 +58,8 @@ export function AppShell({
           <p className="truncate text-sm font-medium">{me.user.full_name}</p>
           <p className="micro text-faint mt-0.5">{roleLabel[me.user.role] ?? me.user.role}</p>
           <SessionLogoutButton
-            label="Sign out →"
-            className="micro text-muted hover:text-coral transition-colors"
+            label="Sign out"
+            className="text-muted hover:text-coral text-sm font-medium transition-colors"
             formClassName="mt-3"
           />
         </div>
@@ -74,7 +74,9 @@ export function AppShell({
             </Link>
           </div>
           <div
-            className={search ? "text-ink text-sm font-medium" : "micro text-muted hidden md:block"}
+            className={
+              search ? "text-ink text-sm font-medium" : "text-muted hidden text-sm md:block"
+            }
           >
             {org ? (
               <>
@@ -93,7 +95,7 @@ export function AppShell({
               {search}
             </div>
           ) : null}
-          <div className="micro text-muted flex items-center gap-2">
+          <div className="text-muted flex items-center gap-3 text-sm">
             <NotificationCenter
               canManageAdvertiserPreferences={canManageAdvertiserPreferences}
               sessionScope={me.user.id}
@@ -117,7 +119,7 @@ export function AppShell({
                 <ChangePasswordForm />
                 <SessionLogoutButton
                   label="Sign out"
-                  className="micro text-muted hover:text-coral transition-colors"
+                  className="text-muted hover:text-coral text-sm font-medium transition-colors"
                   formClassName="mt-4"
                 />
               </section>

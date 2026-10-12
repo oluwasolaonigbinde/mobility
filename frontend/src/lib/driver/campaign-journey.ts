@@ -10,6 +10,7 @@ export interface DriverTrackerAssignment {
 
 export interface DriverTrackerTrip {
   id: string;
+  startedAt?: string;
 }
 
 export interface VehicleAuthority {
@@ -377,8 +378,8 @@ export function projectDriverCampaignJourney(facts: DriverJourneyFacts): DriverC
               id: "tracking",
               label: "Ready to drive",
               state: "current",
-              title: "Ready to start",
-              detail: "Press Start on the Track page when you begin driving.",
+              title: "Set up to drive",
+              detail: "Before each shift, take a display photo on Jobs, then press Start on Track.",
               href: "/driver/track",
             }
           : {
@@ -419,7 +420,8 @@ export function projectDriverCampaignJourney(facts: DriverJourneyFacts): DriverC
   if (canStart)
     return {
       standing: "READY",
-      summary: "You're ready to drive.",
+      summary:
+        "Your setup is done. Before each shift, take a display photo on Jobs, then press Start.",
       canStart: true,
       hasCurrentTrip: false,
       steps: allSteps,

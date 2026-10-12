@@ -147,6 +147,7 @@ function assignment() {
     driver_profile_id: ids.profile,
     vehicle_id: ids.vehicle,
     status: "active",
+    activity_flags: [],
     campaign: {
       id: ids.campaign,
       name: w403bSynthetic
@@ -355,7 +356,7 @@ const server = createServer(async (request, response) => {
     });
   }
   if (request.method === "GET" && url.pathname === "/api/v1/driver/campaign-assignments/active") {
-    return send(response, 200, { assignment: assignment() });
+    return send(response, 200, { assignment: assignment(), photo_status: "ready" });
   }
   if (request.method === "GET" && url.pathname === "/api/v1/driver/campaign-assignments") {
     const status = url.searchParams.get("status");
@@ -453,6 +454,12 @@ const server = createServer(async (request, response) => {
       return send(response, 200, { id: ids.trip, status: "sealed" });
     }
     return fail(response, 409, "TRIP_EVIDENCE_INCOMPLETE", "Synthetic manifest awaits its batches");
+  }
+  if (request.method === "GET" && url.pathname === "/api/v1/driver/fraud-holds") {
+    return send(response, 200, { items: [] });
+  }
+  if (request.method === "GET" && url.pathname === "/api/v1/driver/earnings/summary") {
+    return send(response, 200, { totals_by_currency: [] });
   }
   if (request.method === "GET" && url.pathname === "/api/v1/driver/earnings/ledger") {
     return send(response, 200, { items: [], total: 0, limit: 4, offset: 0 });

@@ -141,7 +141,7 @@ function ProviderZoneMap({ zones }: { zones: GovernedZoneGeometry[] }) {
       () => fail("The map did not become ready within 3 seconds. No zone geometry is shown."),
       MAP_READY_TIMEOUT_MS,
     );
-    const onError = () => fail("The configured map style failed. No zone geometry is shown.");
+    const onError = () => fail("The map couldn't load. Campaign areas aren't shown.");
     map.on("error", onError);
     map.once("load", () => {
       if (failed) return;

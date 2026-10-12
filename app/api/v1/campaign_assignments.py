@@ -417,14 +417,34 @@ async def driver_list_campaign_assignments(
 async def driver_get_active_campaign_assignment(
     current_user: DriverUserDependency,
     session: SessionDependency,
+    settings: SettingsDependency,
 ) -> ActiveCampaignAssignmentResponse:
     await expire_due_assignment_offers(session)
     await session.commit()
     assignment = await get_current_active_driver_assignment(session, user_id=current_user.id)
     if assignment is None:
         return ActiveCampaignAssignmentResponse(assignment=None)
+    from datetime import UTC, datetime
+
+    from app.services.installation_evidence import ensure_current_display_proof
+
+    photo_status = "ready"
+    try:
+        await ensure_current_display_proof(
+            session, assignment=assignment, settings=settings, now=datetime.now(UTC), lock=False
+        )
+    except AppError as error:
+        photo_status = (
+            "display_required"
+            if error.code == "CURRENT_DISPLAY_PROOF_REQUIRED"
+            else "installation_required"
+            if error.code
+            in {"APPROVED_INSTALLATION_EVIDENCE_REQUIRED", "INSTALLATION_EVIDENCE_EXPIRED"}
+            else "unavailable"
+        )
     return ActiveCampaignAssignmentResponse(
         assignment=await assignment_response(session, assignment),
+        photo_status=photo_status,
     )
 
 

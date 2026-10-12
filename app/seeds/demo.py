@@ -50,7 +50,6 @@ from app.models.payout import (
     CampaignPayoutRule,
     CampaignPayoutRuleStatus,
     EarningsLedgerEntry,
-    EarningsLedgerEntryStatus,
     PayoutCalculation,
 )
 from app.models.trip import (
@@ -70,6 +69,7 @@ from app.schemas.trips import (
     LocationPingCreate,
     TripEvidenceManifestEntryCreate,
 )
+from app.seeds.driver_story import workday_processing_time
 from app.seeds.rich import F7_DRIVER_PASSWORDS, F7_SEED_VERSION, RichSeedResult, build_rich_seed
 from app.services.campaign_zones import geometry_expression, validate_geometry_with_postgis
 from app.services.impressions import create_traffic_density_profile, estimate_trip_impressions
@@ -86,7 +86,7 @@ from app.services.users import normalize_email, validate_password_length
 from app.services.vehicles import normalize_plate_number
 
 SEED_VERSION = "slice_12_v1"
-DEMO_BBOX = "3.35,6.43,3.47,6.56"
+DEMO_BBOX = "7.4288,8.9698,7.5488,9.0998"
 DEMO_PASSWORDS = {
     "admin@demo.mobility.local": "DemoAdmin12345!",
     "advertiser@demo.mobility.local": "DemoAdvertiser12345!",
@@ -297,16 +297,16 @@ async def upsert_driver_profile(session: AsyncSession, *, driver: User) -> Drive
         profile = DriverProfile(
             user_id=driver.id,
             onboarding_status=DriverOnboardingStatus.ACTIVE.value,
-            license_number="LAG-2024-58219",
-            service_city="Lagos",
+            license_number="ABJ-2024-58219",
+            service_city="Abuja",
             country_code="NG",
             profile_metadata=demo_metadata(persona="demo_driver"),
         )
         session.add(profile)
     else:
         profile.onboarding_status = DriverOnboardingStatus.ACTIVE.value
-        profile.license_number = "LAG-2024-58219"
-        profile.service_city = "Lagos"
+        profile.license_number = "ABJ-2024-58219"
+        profile.service_city = "Abuja"
         profile.country_code = "NG"
         profile.profile_metadata = demo_metadata(persona="demo_driver")
     await session.flush()
@@ -367,12 +367,12 @@ async def upsert_campaign(
     campaign = await session.scalar(
         select(Campaign).where(
             Campaign.organization_id == organization.id,
-            Campaign.name == "Marula Kitchens — Lagos Lunch Routes",
+            Campaign.name == "Marula Kitchens — Abuja Lunch Routes",
         )
     )
     values = {
         "created_by_user_id": advertiser.id,
-        "description": ("Deliver lunch orders around Yaba and Surulere."),
+        "description": ("Deliver lunch orders around Garki and the Central Business District."),
         "status": CampaignStatus.ACTIVE.value,
         "start_at": now - timedelta(days=14),
         "end_at": now + timedelta(days=14),
@@ -384,7 +384,7 @@ async def upsert_campaign(
     if campaign is None:
         campaign = Campaign(
             organization_id=organization.id,
-            name="Marula Kitchens — Lagos Lunch Routes",
+            name="Marula Kitchens — Abuja Lunch Routes",
             **values,
         )
         session.add(campaign)
@@ -433,49 +433,49 @@ async def upsert_creative(session: AsyncSession, *, campaign: Campaign) -> Campa
 def zone_geometries() -> list[tuple[str, str, dict[str, Any]]]:
     return [
         (
-            "Lagos Mainland",
+            "Central Business District",
             CampaignZoneType.TARGET.value,
             {
                 "type": "Polygon",
                 "coordinates": [
                     [
-                        [3.365, 6.445],
-                        [3.445, 6.445],
-                        [3.445, 6.535],
-                        [3.365, 6.535],
-                        [3.365, 6.445],
+                        [7.4438, 8.9848],
+                        [7.5238, 8.9848],
+                        [7.5238, 9.0748],
+                        [7.4438, 9.0748],
+                        [7.4438, 8.9848],
                     ]
                 ],
             },
         ),
         (
-            "Yaba offices",
+            "Ahmadu Bello Way offices",
             CampaignZoneType.BONUS.value,
             {
                 "type": "Polygon",
                 "coordinates": [
                     [
-                        [3.385, 6.465],
-                        [3.425, 6.465],
-                        [3.425, 6.515],
-                        [3.385, 6.515],
-                        [3.385, 6.465],
+                        [7.4638, 9.0048],
+                        [7.5038, 9.0048],
+                        [7.5038, 9.0548],
+                        [7.4638, 9.0548],
+                        [7.4638, 9.0048],
                     ]
                 ],
             },
         ),
         (
-            "Apapa port access",
+            "Three Arms Zone",
             CampaignZoneType.EXCLUSION.value,
             {
                 "type": "Polygon",
                 "coordinates": [
                     [
-                        [3.455, 6.540],
-                        [3.465, 6.540],
-                        [3.465, 6.550],
-                        [3.455, 6.550],
-                        [3.455, 6.540],
+                        [7.5338, 9.0798],
+                        [7.5438, 9.0798],
+                        [7.5438, 9.0898],
+                        [7.5338, 9.0898],
+                        [7.5338, 9.0798],
                     ]
                 ],
             },
@@ -503,15 +503,24 @@ async def upsert_zones(
         values = {
             "created_by_user_id": advertiser.id,
             "description": {
-                "Lagos Mainland": "Reach lunch customers along the Yaba and Surulere routes.",
-                "Yaba offices": "Deliver lunch orders to offices along Herbert Macaulay Way.",
-                "Apapa port access": "Heavy port traffic; avoid during campaigns.",
-                "Lagos Market Corridor": "Reach shops along the Mainland market routes.",
-                "Surulere shops": "Promote local deliveries around Bode Thomas Street shops.",
+                "Central Business District": (
+                    "Reach lunch customers along the Garki and Central Business District routes."
+                ),
+                "Ahmadu Bello Way offices": (
+                    "Deliver lunch orders to offices along Ahmadu Bello Way."
+                ),
+                "Three Arms Zone": "Restricted government security area; avoid during campaigns.",
+                "Wuse Market Corridor": "Reach shops along the Wuse and Utako market routes.",
+                "Wuse Market shops": (
+                    "Promote local deliveries around Wuse Market and Adetokunbo Ademola "
+                    "Crescent shops."
+                ),
                 "Wuse II offices": "Reach office workers along Aminu Kano Crescent.",
                 "Aminu Kano Crescent": "Promote lunch deliveries along Aminu Kano Crescent.",
                 "Garki offices": "Reach weekday customers around Area 11 offices.",
-                "Yaba bookshops": "Invite readers to bookshops along Herbert Macaulay Way.",
+                "Utako bookshops": (
+                    "Invite readers to bookshops along Obafemi Awolowo Way in Utako."
+                ),
                 "Wuse II shops": "Promote weekend orders around Aminu Kano Crescent shops.",
                 "Maitama homes": "Reach households along the Maitama neighbourhood routes.",
             }[name],
@@ -571,7 +580,7 @@ async def upsert_assignment(
             offered_at=campaign.start_at + timedelta(days=1),
             accepted_at=campaign.start_at + timedelta(days=1, minutes=5),
             activated_at=campaign.start_at + timedelta(days=2),
-            notes="Deliver lunch orders around Yaba and Surulere.",
+            notes="Deliver lunch orders around Garki and the Central Business District.",
             assignment_metadata=demo_metadata(),
         )
         session.add(assignment)
@@ -586,7 +595,7 @@ async def upsert_assignment(
         assignment.activated_at = assignment.activated_at or campaign.start_at + timedelta(days=2)
         assignment.cancelled_at = None
         assignment.completed_at = None
-        assignment.notes = "Deliver lunch orders around Yaba and Surulere."
+        assignment.notes = "Deliver lunch orders around Garki and the Central Business District."
         assignment.assignment_metadata = demo_metadata()
         await session.flush()
     await ensure_activation_event(
@@ -651,48 +660,48 @@ def trip_specs(now: datetime) -> list[tuple[str, datetime, list[tuple[float, flo
             "demo-trip-0",
             now.replace(hour=7, minute=40, second=0, microsecond=0) - timedelta(days=6),
             [
-                (6.4720, 3.3610),
-                (6.4800, 3.3740),
-                (6.4910, 3.3870),
-                (6.5030, 3.3990),
-                (6.5140, 3.4120),
-                (6.5260, 3.4250),
+                (9.0118, 7.4398),
+                (9.0198, 7.4528),
+                (9.0308, 7.4658),
+                (9.0428, 7.4778),
+                (9.0538, 7.4908),
+                (9.0658, 7.5038),
             ],
         ),
         (
             "demo-trip-00",
             now.replace(hour=16, minute=20, second=0, microsecond=0) - timedelta(days=4),
             [
-                (6.5310, 3.3710),
-                (6.5200, 3.3830),
-                (6.5070, 3.3950),
-                (6.4930, 3.4080),
-                (6.4790, 3.4210),
-                (6.4640, 3.4350),
+                (9.0708, 7.4498),
+                (9.0598, 7.4618),
+                (9.0468, 7.4738),
+                (9.0328, 7.4868),
+                (9.0188, 7.4998),
+                (9.0038, 7.5138),
             ],
         ),
         (
             "demo-trip-1",
-            now.replace(hour=8, minute=15, second=0, microsecond=0) - timedelta(days=2),
+            now.replace(hour=8, minute=15, second=0, microsecond=0) - timedelta(days=3),
             [
-                (6.4550, 3.3700),
-                (6.4630, 3.3820),
-                (6.4740, 3.3950),
-                (6.4880, 3.4070),
-                (6.5010, 3.4180),
-                (6.5140, 3.4320),
+                (8.9948, 7.4488),
+                (9.0028, 7.4608),
+                (9.0138, 7.4738),
+                (9.0278, 7.4858),
+                (9.0408, 7.4968),
+                (9.0538, 7.5108),
             ],
         ),
         (
             "demo-trip-2",
-            now.replace(hour=17, minute=30, second=0, microsecond=0) - timedelta(days=1),
+            now.replace(hour=7, minute=30, second=0, microsecond=0) - timedelta(days=2),
             [
-                (6.4480, 3.3720),
-                (6.4590, 3.3860),
-                (6.4710, 3.3980),
-                (6.4860, 3.4100),
-                (6.4980, 3.4210),
-                (6.5220, 3.4380),
+                (8.9878, 7.4508),
+                (8.9988, 7.4648),
+                (9.0108, 7.4768),
+                (9.0258, 7.4888),
+                (9.0378, 7.4998),
+                (9.0618, 7.5168),
             ],
         ),
     ]
@@ -747,39 +756,107 @@ def palmpay_market_trip_specs(
     return [
         (
             "demo-story-palmpay-market-1",
-            now.replace(hour=8, minute=20, second=0, microsecond=0) - timedelta(days=10),
+            now.replace(hour=8, minute=20, second=0, microsecond=0) - timedelta(days=14),
             [
-                (6.6010, 3.3510),
-                (6.5840, 3.3660),
-                (6.5670, 3.3810),
-                (6.5500, 3.3970),
-                (6.5330, 3.4130),
-                (6.5160, 3.4290),
+                (9.1408, 7.4298),
+                (9.1238, 7.4448),
+                (9.1068, 7.4598),
+                (9.0898, 7.4758),
+                (9.0728, 7.4918),
+                (9.0558, 7.5078),
             ],
         ),
         (
             "demo-story-palmpay-market-2",
-            now.replace(hour=13, minute=40, second=0, microsecond=0) - timedelta(days=6),
+            now.replace(hour=13, minute=40, second=0, microsecond=0) - timedelta(days=10),
             [
-                (6.5160, 3.4290),
-                (6.5310, 3.4160),
-                (6.5470, 3.4030),
-                (6.5630, 3.3900),
-                (6.5790, 3.3770),
-                (6.5950, 3.3640),
+                (9.0558, 7.5078),
+                (9.0708, 7.4948),
+                (9.0868, 7.4818),
+                (9.1028, 7.4688),
+                (9.1188, 7.4558),
+                (9.1348, 7.4428),
             ],
         ),
         (
             "demo-story-palmpay-market-3",
-            now.replace(hour=17, minute=15, second=0, microsecond=0) - timedelta(days=2),
+            now.replace(hour=17, minute=15, second=0, microsecond=0) - timedelta(days=8),
             [
-                (6.4720, 3.3610),
-                (6.4800, 3.3740),
-                (6.4910, 3.3870),
-                (6.5030, 3.3990),
-                (6.5140, 3.4120),
-                (6.5260, 3.4250),
+                (9.0118, 7.4398),
+                (9.0198, 7.4528),
+                (9.0308, 7.4658),
+                (9.0428, 7.4778),
+                (9.0538, 7.4908),
+                (9.0658, 7.5038),
             ],
+        ),
+    ]
+
+
+def commute_story_trip_specs(
+    now: datetime,
+) -> list[tuple[str, datetime, list[tuple[float, float]]]]:
+    return [
+        (
+            "demo-story-airtel-1",
+            now.replace(hour=9, minute=10, second=0, microsecond=0) - timedelta(days=70),
+            [
+                (9.1408, 7.4298),
+                (9.1238, 7.4448),
+                (9.1068, 7.4598),
+                (9.0898, 7.4758),
+                (9.0728, 7.4918),
+                (9.0558, 7.5078),
+            ],
+        ),
+        (
+            "demo-story-airtel-2",
+            now.replace(hour=15, minute=30, second=0, microsecond=0) - timedelta(days=58),
+            [
+                (9.0558, 7.5078),
+                (9.0708, 7.4948),
+                (9.0868, 7.4818),
+                (9.1028, 7.4688),
+                (9.1188, 7.4558),
+                (9.1348, 7.4428),
+            ],
+        ),
+    ]
+
+
+def palmpay_zone_specs() -> list[tuple[str, str, dict[str, Any]]]:
+    return [
+        (
+            "Wuse II offices",
+            CampaignZoneType.TARGET.value,
+            {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [7.44, 9.035],
+                        [7.505, 9.035],
+                        [7.505, 9.105],
+                        [7.44, 9.105],
+                        [7.44, 9.035],
+                    ]
+                ],
+            },
+        ),
+        (
+            "Aminu Kano Crescent",
+            CampaignZoneType.BONUS.value,
+            {
+                "type": "Polygon",
+                "coordinates": [
+                    [
+                        [7.455, 9.05],
+                        [7.49, 9.05],
+                        [7.49, 9.09],
+                        [7.455, 9.09],
+                        [7.455, 9.05],
+                    ]
+                ],
+            },
         ),
     ]
 
@@ -787,33 +864,33 @@ def palmpay_market_trip_specs(
 def palmpay_market_zone_specs() -> list[tuple[str, str, dict[str, Any]]]:
     return [
         (
-            "Lagos Market Corridor",
+            "Wuse Market Corridor",
             CampaignZoneType.TARGET.value,
             {
                 "type": "Polygon",
                 "coordinates": [
                     [
-                        [3.345, 6.460],
-                        [3.440, 6.460],
-                        [3.440, 6.610],
-                        [3.345, 6.610],
-                        [3.345, 6.460],
+                        [7.4238, 8.9998],
+                        [7.5188, 8.9998],
+                        [7.5188, 9.1498],
+                        [7.4238, 9.1498],
+                        [7.4238, 8.9998],
                     ]
                 ],
             },
         ),
         (
-            "Surulere shops",
+            "Wuse Market shops",
             CampaignZoneType.BONUS.value,
             {
                 "type": "Polygon",
                 "coordinates": [
                     [
-                        [3.375, 6.490],
-                        [3.420, 6.490],
-                        [3.420, 6.580],
-                        [3.375, 6.580],
-                        [3.375, 6.490],
+                        [7.4538, 9.0298],
+                        [7.4988, 9.0298],
+                        [7.4988, 9.1198],
+                        [7.4538, 9.1198],
+                        [7.4538, 9.0298],
                     ]
                 ],
             },
@@ -831,6 +908,7 @@ async def upsert_trips_and_pings(
     driver: User,
     settings: Settings,
     specs: list[tuple[str, datetime, list[tuple[float, float]]]] | None = None,
+    full_workday: bool = False,
 ) -> list[TripSession]:
     from app.seeds.demo_authority import SeedStartAuthorityGraph, ensure_demo_start_authority
 
@@ -852,7 +930,14 @@ async def upsert_trips_and_pings(
     )
     trips = []
     for trip_key, started_at, coordinates in specs or trip_specs(utc_now()):
+        workday = full_workday
+        if workday:
+            started_at = started_at.replace(hour=7, minute=0, second=0, microsecond=0)
         ended_at = started_at + timedelta(minutes=42)
+        if workday:
+            from app.seeds.driver_story import workday_route
+
+            ended_at = started_at + timedelta(minutes=len(workday_route(trip_key)) - 1)
         trip = await find_demo_trip(session, assignment_id=assignment.id, trip_key=trip_key)
         if trip is None:
             trip = TripSession(
@@ -866,7 +951,7 @@ async def upsert_trips_and_pings(
                 ended_at=ended_at,
                 end_reason="driver_finished",
                 evidence_protocol_version=2,
-                trip_metadata=demo_metadata(seed_trip_key=trip_key),
+                trip_metadata=demo_metadata(seed_trip_key=trip_key, full_workday=workday),
             )
             session.add(trip)
             await session.flush()
@@ -905,8 +990,8 @@ async def upsert_driver_story_campaigns(
     now = utc_now()
     specs = (
         {
-            "name": "Linden Harbour Clothing — Lagos Commute",
-            "description": "Visibility along Lagos Mainland commuter routes.",
+            "name": "Linden Harbour Clothing — Abuja Commute",
+            "description": "Visibility along commuter routes into the Central Business District.",
             "campaign_status": CampaignStatus.COMPLETED,
             "assignment_status": CampaignAssignmentStatus.COMPLETED,
             "start_at": now - timedelta(days=120),
@@ -915,7 +1000,7 @@ async def upsert_driver_story_campaigns(
         },
         {
             "name": "Beryl Lane Grocers — Market Routes",
-            "description": "Visibility around Lagos markets and neighbourhood shops.",
+            "description": "Visibility around Abuja markets and neighbourhood shops.",
             "campaign_status": CampaignStatus.ACTIVE,
             "assignment_status": CampaignAssignmentStatus.COMPLETED,
             "start_at": now - timedelta(days=30),
@@ -926,13 +1011,13 @@ async def upsert_driver_story_campaigns(
     specs += (
         {
             **specs[0],
-            "name": "Marula Kitchens — Island Lunch Deliveries",
-            "description": "Deliver weekday lunches around Lagos Island offices.",
+            "name": "Marula Kitchens — Central Area Lunch Deliveries",
+            "description": "Deliver weekday lunches around Central Business District offices.",
         },
         {
             **specs[1],
-            "name": "Marula Kitchens — Ikeja Office Lunch",
-            "description": "Bring weekday lunches to offices along Allen Avenue.",
+            "name": "Marula Kitchens — Utako Office Lunch",
+            "description": "Bring weekday lunches to offices around Utako and Jabi.",
             "campaign_status": CampaignStatus.PAUSED,
         },
     )
@@ -1047,32 +1132,7 @@ async def upsert_driver_story_campaigns(
         if assignment_status != CampaignAssignmentStatus.COMPLETED:
             continue
         story_trip_specs = (
-            [
-                (
-                    "demo-story-airtel-1",
-                    now.replace(hour=9, minute=10, second=0, microsecond=0) - timedelta(days=70),
-                    [
-                        (6.6010, 3.3510),
-                        (6.5840, 3.3660),
-                        (6.5670, 3.3810),
-                        (6.5500, 3.3970),
-                        (6.5330, 3.4130),
-                        (6.5160, 3.4290),
-                    ],
-                ),
-                (
-                    "demo-story-airtel-2",
-                    now.replace(hour=15, minute=30, second=0, microsecond=0) - timedelta(days=58),
-                    [
-                        (6.5160, 3.4290),
-                        (6.5310, 3.4160),
-                        (6.5470, 3.4030),
-                        (6.5630, 3.3900),
-                        (6.5790, 3.3770),
-                        (6.5950, 3.3640),
-                    ],
-                ),
-            ]
+            commute_story_trip_specs(now)
             if spec["activity"] == "airtel"
             else palmpay_market_trip_specs(now)
         )
@@ -1084,6 +1144,7 @@ async def upsert_driver_story_campaigns(
             vehicle=vehicle,
             driver=driver,
             settings=settings,
+            full_workday=True,
             specs=[
                 (
                     key,
@@ -1091,9 +1152,9 @@ async def upsert_driver_story_campaigns(
                     + timedelta(
                         days=(
                             1
-                            if spec["name"] == "Marula Kitchens — Island Lunch Deliveries"
+                            if spec["name"] == "Marula Kitchens — Central Area Lunch Deliveries"
                             else -1
-                            if spec["name"] == "Marula Kitchens — Ikeja Office Lunch"
+                            if spec["name"] == "Marula Kitchens — Utako Office Lunch"
                             else 0
                         )
                     ),
@@ -1109,6 +1170,7 @@ async def upsert_driver_story_campaigns(
                 trip_id=trip.id,
                 metadata=demo_metadata(seed_step="analytics", driver_story=True),
                 settings=settings,
+                now=workday_processing_time(trip),
             )
             await estimate_trip_impressions(
                 session,
@@ -1116,16 +1178,16 @@ async def upsert_driver_story_campaigns(
                 traffic_density_profile_id=traffic_profile.id,
                 metadata=demo_metadata(seed_step="impressions", driver_story=True),
                 settings=settings,
+                now=workday_processing_time(trip),
             )
-            _calculation, ledger_entry, _created = await calculate_trip_payout(
+            await calculate_trip_payout(
                 session,
                 trip_id=trip.id,
                 payout_rule_id=None,
                 metadata=demo_metadata(seed_step="payout", driver_story=True),
                 settings=settings,
+                now=workday_processing_time(trip),
             )
-            if ledger_entry is not None:
-                ledger_entry.status = EarningsLedgerEntryStatus.AVAILABLE.value
 
 
 async def find_demo_trip(
@@ -1154,14 +1216,19 @@ async def ensure_ping_batch(
 ) -> None:
     from app.seeds.rich import _interpolate_corridor
 
-    coordinates = _interpolate_corridor(tuple(coordinates), 36)
+    if trip.trip_metadata.get("full_workday"):
+        from app.seeds.driver_story import workday_route
+
+        coordinates = workday_route(trip_key)
+    else:
+        coordinates = _interpolate_corridor(tuple(coordinates), 36)
     pings = [
         LocationPingCreate(
             recorded_at=started_at + timedelta(minutes=index),
             lat=lat,
             lon=lon,
             accuracy_m=8.0 + index % 5,
-            speed_mps=7.5 + index / 3,
+            speed_mps=7.5 if trip.trip_metadata.get("full_workday") else 7.5 + index / 3,
             heading_degrees=65.0,
             altitude_m=35.0,
             sequence_number=index,
@@ -1275,7 +1342,7 @@ async def upsert_traffic_profile(
     session: AsyncSession,
 ) -> TrafficDensityProfile:
     profile = await session.scalar(
-        select(TrafficDensityProfile).where(TrafficDensityProfile.name == "Lagos weekday traffic")
+        select(TrafficDensityProfile).where(TrafficDensityProfile.name == "Abuja weekday traffic")
     )
     if profile is None:
         await session.execute(
@@ -1289,8 +1356,8 @@ async def upsert_traffic_profile(
         profile = await create_traffic_density_profile(
             session,
             TrafficDensityProfileCreate(
-                name="Lagos weekday traffic",
-                description="Weekday traffic around Lagos offices and markets.",
+                name="Abuja weekday traffic",
+                description="Weekday traffic around Abuja offices and markets.",
                 profile_type="urban",
                 traffic_density_per_km=Decimal("240.0"),
                 dwell_impressions_per_minute=Decimal("5.0"),
@@ -1308,7 +1375,7 @@ async def upsert_traffic_profile(
             ),
         )
     else:
-        profile.description = "Weekday traffic around Lagos offices and markets."
+        profile.description = "Weekday traffic around Abuja offices and markets."
         profile.profile_type = "urban"
         profile.traffic_density_per_km = Decimal("240.0")
         profile.dwell_impressions_per_minute = Decimal("5.0")
@@ -1514,40 +1581,7 @@ async def upsert_palmpay_graph(
         campaign=campaign,
         advertiser=advertiser,
         settings=settings,
-        zone_specs=[
-            (
-                "Wuse II offices",
-                CampaignZoneType.TARGET.value,
-                {
-                    "type": "Polygon",
-                    "coordinates": [
-                        [
-                            [7.44, 9.035],
-                            [7.505, 9.035],
-                            [7.505, 9.105],
-                            [7.44, 9.105],
-                            [7.44, 9.035],
-                        ]
-                    ],
-                },
-            ),
-            (
-                "Aminu Kano Crescent",
-                CampaignZoneType.BONUS.value,
-                {
-                    "type": "Polygon",
-                    "coordinates": [
-                        [
-                            [7.455, 9.05],
-                            [7.49, 9.05],
-                            [7.49, 9.09],
-                            [7.455, 9.09],
-                            [7.455, 9.05],
-                        ]
-                    ],
-                },
-            ),
-        ],
+        zone_specs=palmpay_zone_specs(),
     )
     assignment = await upsert_assignment(
         session,
@@ -1567,6 +1601,7 @@ async def upsert_palmpay_graph(
         driver=driver,
         settings=settings,
         specs=palmpay_trip_specs(now),
+        full_workday=True,
     )
     await upsert_payout_rule(session, campaign=campaign, admin=admin)
     await session.flush()
@@ -1678,6 +1713,7 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
         vehicle=vehicle,
         driver=driver,
         settings=settings,
+        full_workday=True,
     )
     traffic_profile = await upsert_traffic_profile(session)
     await upsert_payout_rule(session, campaign=campaign, admin=admin)
@@ -1688,6 +1724,7 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
             trip_id=trip.id,
             metadata=demo_metadata(seed_step="analytics"),
             settings=settings,
+            now=workday_processing_time(trip),
         )
         await estimate_trip_impressions(
             session,
@@ -1695,6 +1732,7 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
             traffic_density_profile_id=traffic_profile.id,
             metadata=demo_metadata(seed_step="impressions"),
             settings=settings,
+            now=workday_processing_time(trip),
         )
         existing_payout_id = await session.scalar(
             select(PayoutCalculation.id).where(PayoutCalculation.trip_session_id == trip.id)
@@ -1706,6 +1744,7 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
                 payout_rule_id=None,
                 metadata=demo_metadata(seed_step="payout"),
                 settings=settings,
+                now=workday_processing_time(trip),
             )
     await upsert_driver_story_campaigns(
         session,
@@ -1767,16 +1806,28 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
     from app.services.trip_processing import process_ended_trip
 
     for trip in graph.trips:
-        await process_ended_trip(session, trip_id=trip.id, settings=settings)
+        await process_ended_trip(
+            session, trip_id=trip.id, settings=settings, now=workday_processing_time(trip)
+        )
     await ensure_portal_campaigns(session, graph=graph, staff=staff, settings=settings)
     await ensure_offer_review_work(session, graph=graph, staff=staff, settings=settings)
     await ensure_trip_review_work(session, graph=graph, staff=staff, settings=settings)
     await ensure_completed_report_contributors(session, graph=graph, settings=settings)
     await ensure_portal_reports(session, graph=graph, settings=settings)
-    from app.seeds.rich import ensure_portal_audiences, ensure_portal_payouts
+    from app.seeds.rich import (
+        ensure_portal_audiences,
+        ensure_portal_payouts,
+        settle_seed_driver_notifications,
+    )
 
     await ensure_portal_audiences(session, graph=graph, settings=settings)
+    from app.seeds.driver_story import settle_demo_driver_history
+
+    await settle_demo_driver_history(session, graph=graph, staff=staff, settings=settings)
     await ensure_portal_payouts(session, graph=graph, staff=staff, settings=settings)
+    await settle_seed_driver_notifications(
+        session, driver_user_ids=[graph.driver.id, *(asset.user.id for asset in graph.rich.drivers)]
+    )
     return graph
 
 

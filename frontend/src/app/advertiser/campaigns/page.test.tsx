@@ -22,6 +22,18 @@ it("offers campaign creation to owners and managers", async () => {
   expect(screen.getByRole("link", { name: "+ New campaign" })).toBeInTheDocument();
 });
 
+it("filters by status with the shared chips and marks the current one", async () => {
+  mocks.role.mockResolvedValue({ advertiser_organization: { membership_role: "manager" } });
+  render(await CampaignsPage({ searchParams: Promise.resolve({ status: "active" }) }));
+  const filters = screen.getByRole("navigation", { name: "Filter by status" });
+  const current = filters.querySelectorAll('[aria-current="page"]');
+  expect(current).toHaveLength(1);
+  expect(current[0]).toHaveAttribute("href", "/advertiser/campaigns?status=active");
+  expect(filters.querySelector('a[href="/advertiser/campaigns"]')).not.toHaveAttribute(
+    "aria-current",
+  );
+});
+
 it("explains view-only access instead of a create button for viewers", async () => {
   mocks.role.mockResolvedValue({ advertiser_organization: { membership_role: "viewer" } });
   render(await CampaignsPage({ searchParams: Promise.resolve({}) }));

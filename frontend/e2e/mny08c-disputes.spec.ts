@@ -20,7 +20,12 @@ async function disputableSeedHold(page: Page): Promise<{ id: string; tripId: str
   });
   expect(response.ok(), "the deterministic rich-seed hold fixture must be readable").toBe(true);
   const payload = (await response.json()) as {
-    items: Array<{ id: string; trip_session_id: string; public_status: string; dispute: object | null }>;
+    items: Array<{
+      id: string;
+      trip_session_id: string;
+      public_status: string;
+      dispute: object | null;
+    }>;
   };
   const hold = payload.items.find(
     (item) => item.public_status !== "review_cleared" && item.dispute === null,
@@ -48,7 +53,7 @@ test("driver dispute and staff reply persist across the isolated cross-role flow
     await hold.getByLabel("Dispute message").fill(message);
     await hold.getByRole("button", { name: "Submit dispute" }).click();
     await expect(hold.getByText(message)).toBeVisible();
-    await expect(hold.getByText("Awaiting reply")).toBeVisible();
+    await expect(hold.getByText("Waiting for a reply")).toBeVisible();
     await expect(hold).not.toContainText(/Detection evidence|fingerprint|matched trip/i);
 
     await page.context().clearCookies();
@@ -67,7 +72,7 @@ test("driver dispute and staff reply persist across the isolated cross-role flow
     const reloadedHold = page.getByTestId(`driver-fraud-hold-${seedHold.id}`);
     await expect(reloadedHold.getByText(message)).toBeVisible();
     await expect(reloadedHold.getByText(reply)).toBeVisible();
-    await expect(reloadedHold.getByText("Staff replied", { exact: true })).toBeVisible();
+    await expect(reloadedHold.getByText("Replied", { exact: true })).toBeVisible();
     await expect(reloadedHold).not.toContainText(/Detection evidence|fingerprint|matched trip/i);
   } finally {
     // Release only this attempt's dispute; immutable notices and audit evidence remain.

@@ -6,6 +6,7 @@ import { adminStatus } from "@/lib/status/admin";
 import { formatDateRange, formatMoneyExact } from "@/lib/format";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pagination } from "@/components/ui/pagination";
+import { ViewTabs, FilterChips } from "@/components/ui/tabs";
 import { QueueSearch, QueueUnavailable } from "../queue-search";
 import type { components } from "@/lib/api/schema";
 
@@ -85,18 +86,14 @@ export default async function CampaignsPage({
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader title="Campaigns" />
-      <nav aria-label="Campaign status" className="mb-4 flex gap-2 overflow-x-auto">
-        {tabs.map((t) => (
-          <Link
-            key={t.id}
-            href={`/admin/campaigns?tab=${t.id}`}
-            aria-current={t.id === tab.id ? "page" : undefined}
-            className="rounded-lg px-4 py-2 text-sm whitespace-nowrap"
-          >
-            {t.title}
-          </Link>
-        ))}
-      </nav>
+      <ViewTabs
+        label="Campaign status"
+        items={tabs.map((t) => ({
+          href: `/admin/campaigns?tab=${t.id}`,
+          label: t.title,
+          active: t.id === tab.id,
+        }))}
+      />
       <div className="space-y-8">
         {lists.map(({ source, body }) => (
           <section key={source.id} aria-label={source.title}>
@@ -248,30 +245,22 @@ async function CampaignList(
       {!embedded ? (
         <>
           <PageHeader title="Campaigns" />
-          <nav aria-label="Campaign status" className="mb-4 flex gap-2 overflow-x-auto">
-            {tabs.map((t) => (
-              <Link
-                key={t.id}
-                href={`/admin/campaigns?tab=${t.id}`}
-                aria-current={t.id === tab.id ? "page" : undefined}
-                className={`rounded-lg px-4 py-2 text-sm whitespace-nowrap ${t.id === tab.id ? "bg-raised text-amber" : "text-muted"}`}
-              >
-                {t.title}
-              </Link>
-            ))}
-          </nav>
-          <nav aria-label="Campaign source" className="mb-5 flex flex-wrap gap-4 text-sm">
-            {tab.sources.map((s) => (
-              <Link
-                key={s.id}
-                href={`/admin/campaigns?tab=${tab.id}&source=${s.id}`}
-                aria-current={s.id === source.id ? "page" : undefined}
-                className={s.id === source.id ? "text-amber underline" : "text-cyan underline"}
-              >
-                {s.title}
-              </Link>
-            ))}
-          </nav>
+          <ViewTabs
+            label="Campaign status"
+            items={tabs.map((t) => ({
+              href: `/admin/campaigns?tab=${t.id}`,
+              label: t.title,
+              active: t.id === tab.id,
+            }))}
+          />
+          <FilterChips
+            label="Campaign source"
+            items={tab.sources.map((s) => ({
+              href: `/admin/campaigns?tab=${tab.id}&source=${s.id}`,
+              label: s.title,
+              active: s.id === source.id,
+            }))}
+          />
         </>
       ) : null}
       {!["artwork", "changes", "installation"].includes(source.id) ? (

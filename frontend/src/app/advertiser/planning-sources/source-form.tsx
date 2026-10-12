@@ -45,7 +45,7 @@ export function SourceForm() {
         defaultValue={operation.defaultValue}
       />
       <label className="grid gap-1 text-sm">
-        <span className="text-muted">What kind of audience is it?</span>
+        <span className="text-ink font-medium">What kind of audience is it?</span>
         <select
           name="source_type"
           value={sourceType}
@@ -61,7 +61,7 @@ export function SourceForm() {
       </label>
       {website || manual ? (
         <label className="grid gap-1 text-sm">
-          <span className="text-muted">What do they have in common?</span>
+          <span className="text-ink font-medium">What do they have in common?</span>
           <select name="category" className={selectClass}>
             <Options
               values={
@@ -75,7 +75,7 @@ export function SourceForm() {
       ) : null}
       {digital || utm ? (
         <label className="grid gap-1 text-sm">
-          <span className="text-muted">Where did they come from?</span>
+          <span className="text-ink font-medium">Where did they come from?</span>
           <select name="channel" className={selectClass}>
             <Options values={["search", "social", "display", ...(utm ? ["email"] : [])]} />
           </select>
@@ -83,7 +83,7 @@ export function SourceForm() {
       ) : null}
       {digital || utm ? (
         <label className="grid gap-1 text-sm">
-          <span className="text-muted">
+          <span className="text-ink font-medium">
             {utm ? "Which campaign stage is it for?" : "How close are they to buying?"}
           </span>
           <select name="stage" className={selectClass}>
@@ -93,7 +93,7 @@ export function SourceForm() {
       ) : null}
       {website || digital ? (
         <label className="grid gap-1 text-sm">
-          <span className="text-muted">Covering the last (days)</span>
+          <span className="text-ink font-medium">Covering the last (days)</span>
           <input
             name="window_days"
             type="number"
@@ -107,7 +107,7 @@ export function SourceForm() {
       ) : null}
       {crm ? (
         <label className="grid gap-1 text-sm">
-          <span className="text-muted">About how many people?</span>
+          <span className="text-ink font-medium">About how many people?</span>
           <select name="count_band" className={selectClass}>
             <Options values={["0-99", "100-999", "1000-plus"]} />
           </select>
@@ -115,17 +115,17 @@ export function SourceForm() {
       ) : null}
       {manual ? (
         <label className="grid gap-1 text-sm">
-          <span className="text-muted">How confident are you?</span>
+          <span className="text-ink font-medium">How confident are you?</span>
           <select name="confidence" className={selectClass}>
             <Options values={["low", "medium", "high"]} />
           </select>
         </label>
       ) : null}
       <label className="grid gap-1 text-sm">
-        <span className="text-muted">Stop using this description on</span>
+        <span className="text-ink font-medium">Stop using this description on</span>
         <input name="expires_at" type="datetime-local" required className={selectClass} />
       </label>
-      <p className="micro text-faint">
+      <p className="text-faint text-sm">
         Choose categories only. Names, emails, phone numbers, links, notes and files are not
         accepted.
       </p>

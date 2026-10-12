@@ -24,6 +24,22 @@ import {
 
 const initialState: BatchActionState = {};
 
+/** Plain words for the server's reasons an earnings record cannot join a payment run. */
+const REASONS: Record<string, string> = {
+  "A trip source is required": "Not linked to a trip, so it can't be paid in a run",
+  "Current successful assessment required": "The trip hasn't passed its latest check yet",
+  "Active review hold": "On hold while a trip review is open",
+  "Allocate carry-forward debt before selecting credits":
+    "The driver owes money from earlier pay — allocate it first",
+  "Already reserved or in flight": "Already set aside in a payment run or being sent",
+  "Use the existing failed-line recovery":
+    "An earlier payment of this failed — recover it from that payment run",
+  "Payee is missing": "No bank account on file for this driver",
+};
+export function plainReason(reason: string) {
+  return REASONS[reason] ?? reason;
+}
+
 export function AllocateDebtForm({ entry }: { entry: EligiblePayment }) {
   const [state, action, pending] = useActionState(allocateDebtAction, initialState);
   return (
@@ -186,8 +202,8 @@ export function CreateBatchForm({
   return (
     <div className="space-y-4">
       <p className="text-muted text-sm">
-        Choose whole available credits in one currency. These values are advisory; reservation
-        rechecks holds, debt and payment eligibility.
+        Choose whole earnings records in one currency. These amounts are a guide: saving the run
+        checks review holds, money owed and payment eligibility again.
       </p>
       {recovery ? (
         <div className="border-edge rounded-lg border p-4">
@@ -279,23 +295,25 @@ export function CreateBatchForm({
               </span>
             </label>
             <p className="text-muted mt-2 text-sm">
-              Payee: {entry.payee_name ?? "Not configured"} ·{" "}
-              {entry.destination_verified ? "Destination verified" : "Destination unavailable"}
+              Paid to: {entry.payee_name ?? "No bank account on file"} ·{" "}
+              {entry.destination_verified ? "Bank details checked" : "Bank details not checked"}
             </p>
             {entry.debt_deducted !== "0.00" && entry.debt_deducted !== "0" ? (
               <p className="text-sm">
-                Debt already deducted: {formatMoneyExact(entry.debt_deducted, entry.currency)}
+                Already taken off for money the driver owed:{" "}
+                {formatMoneyExact(entry.debt_deducted, entry.currency)}
               </p>
             ) : null}
             {entry.ineligibility_reasons.map((reason) => (
               <p key={reason} className="text-amber text-sm">
-                {reason}
+                {plainReason(reason)}
               </p>
             ))}
             {entry.carry_forward_debt !== "0.00" && entry.carry_forward_debt !== "0" ? (
               <>
                 <p className="text-sm">
-                  Outstanding debt: {formatMoneyExact(entry.carry_forward_debt, entry.currency)}
+                  Driver still owes from earlier pay:{" "}
+                  {formatMoneyExact(entry.carry_forward_debt, entry.currency)}
                 </p>
                 <AllocateDebtForm entry={entry} />
               </>

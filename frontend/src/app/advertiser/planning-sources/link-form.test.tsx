@@ -10,7 +10,7 @@ const campaign = { id: "c1", label: "Wuse launch" };
 const zone = { id: "z1", campaignId: "c1", label: "Wuse II core" };
 
 function connect() {
-  return screen.getByRole("button", { name: "Connect" });
+  return screen.getByRole("button", { name: "Link audience to area" });
 }
 
 describe("LinkForm prerequisites", () => {
@@ -32,7 +32,7 @@ describe("LinkForm prerequisites", () => {
     expect(connect()).toHaveAccessibleDescription(message);
   });
 
-  it("enables Connect once an audience, campaign and area exist", () => {
+  it("enables linking once an audience, campaign and area exist", () => {
     render(<LinkForm sources={[source]} campaigns={[campaign]} zones={[zone]} />);
     expect(connect()).toBeEnabled();
     expect(screen.getByRole("option", { name: "Wuse II core" })).toBeInTheDocument();

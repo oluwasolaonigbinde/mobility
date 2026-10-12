@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { describeSource, labelFor, optionLabel, sourceTypeLabel } from "./labels";
+import {
+  describeSource,
+  labelFor,
+  optionLabel,
+  sourceDisplayLabel,
+  sourceTypeLabel,
+} from "./labels";
 
 describe("retargeting labels", () => {
   it("describes a declared audience in plain words", () => {
@@ -14,10 +20,19 @@ describe("retargeting labels", () => {
       "Social media · Just becoming aware",
     );
     expect(describeSource({ record_count_band: "1000-plus" })).toBe("1,000 people or more");
+    expect(
+      sourceDisplayLabel({
+        source_type: "manual-insight",
+        snapshot: { insight_category: "time-pattern", confidence_band: "medium" },
+      }),
+    ).toBe("Time-of-day pattern · Medium");
   });
 
   it("returns nothing for a missing snapshot and falls back to readable raw values", () => {
     expect(describeSource(null)).toBe("");
+    expect(sourceDisplayLabel({ source_type: "manual-insight" })).toBe(
+      "Other insight you describe",
+    );
     expect(describeSource("not-an-object")).toBe("");
     expect(labelFor(sourceTypeLabel, "UTM-source")).toBe("Tracked link (UTM) traffic");
     expect(labelFor(optionLabel, "future_new-value")).toBe("future new value");

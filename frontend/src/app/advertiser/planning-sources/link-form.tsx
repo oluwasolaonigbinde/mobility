@@ -74,7 +74,7 @@ export function LinkForm({
         defaultValue={operation.defaultValue}
       />
       <label className="grid gap-1 text-sm">
-        <span className="text-muted">Audience</span>
+        <span className="text-ink font-medium">Audience</span>
         <select name="source_id" required className={fieldClass}>
           {sources.map((source) => (
             <option key={source.id} value={source.id}>
@@ -84,7 +84,7 @@ export function LinkForm({
         </select>
       </label>
       <label className="grid gap-1 text-sm">
-        <span className="text-muted">Campaign</span>
+        <span className="text-ink font-medium">Campaign</span>
         <select
           name="campaign_id"
           required
@@ -100,7 +100,7 @@ export function LinkForm({
         </select>
       </label>
       <label className="grid gap-1 text-sm">
-        <span className="text-muted">Campaign area</span>
+        <span className="text-ink font-medium">Campaign area</span>
         <select name="zone_id" required className={fieldClass}>
           {targetZones.map((zone) => (
             <option key={zone.id} value={zone.id}>
@@ -110,14 +110,14 @@ export function LinkForm({
         </select>
       </label>
       <label className="grid gap-1 text-sm">
-        <span className="text-muted">From</span>
+        <span className="text-ink font-medium">From</span>
         <input name="start_at" type="datetime-local" required className={fieldClass} />
       </label>
       <label className="grid gap-1 text-sm">
-        <span className="text-muted">Until</span>
+        <span className="text-ink font-medium">Until</span>
         <input name="end_at" type="datetime-local" required className={fieldClass} />
       </label>
-      <p className="micro text-faint">
+      <p className="text-faint text-sm">
         Pick dates inside the campaign&apos;s dates and before the audience description stops being
         used.
       </p>
@@ -141,7 +141,7 @@ export function LinkForm({
         aria-describedby={missing ? "link-form-missing" : undefined}
         className="bg-amber text-bg rounded-lg px-4 py-2 text-sm font-medium disabled:opacity-50"
       >
-        {pending ? "Connecting…" : "Connect"}
+        {pending ? "Linking…" : "Link audience to area"}
       </button>
     </form>
   );

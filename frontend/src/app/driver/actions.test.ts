@@ -115,6 +115,24 @@ describe("driver trip BFF actions", () => {
     await expect(startTripAction(ASSIGNMENT_ID)).resolves.toMatchObject({ outcome: "unknown" });
   });
 
+  it("turns a missing display photo into a definite refusal with the driver's next step", async () => {
+    mocks.post.mockRejectedValueOnce(
+      new ApiError(409, { code: "CURRENT_DISPLAY_PROOF_REQUIRED", message: "proof required" }),
+    );
+    await expect(startTripAction(ASSIGNMENT_ID)).resolves.toEqual({
+      error: "Take today's display photo on Jobs, then start again.",
+      outcome: "failed",
+    });
+
+    mocks.post.mockRejectedValueOnce(
+      new ApiError(409, { code: "INSTALLATION_EVIDENCE_EXPIRED", message: "expired" }),
+    );
+    await expect(startTripAction(ASSIGNMENT_ID)).resolves.toMatchObject({
+      error: "New installation photos are due. Send them from Jobs.",
+      outcome: "failed",
+    });
+  });
+
   it("uses current-trip authority to prove a missing or recovered Start", async () => {
     mocks.get.mockResolvedValueOnce({
       data: { trip: { id: TRIP_ID, evidence_protocol_version: 2 } },

@@ -66,7 +66,13 @@ function ComplaintRow({ party, item }: { party: ComplaintParty; item: Summary })
 }
 
 /** The complainant's Help page: their complaints and the form to raise one. */
-export async function ComplaintHelpPage({ party }: { party: ComplaintParty }) {
+export async function ComplaintHelpPage({
+  party,
+  driverPayText,
+}: {
+  party: ComplaintParty;
+  driverPayText?: string;
+}) {
   const api = createApiClient(await getSessionToken());
   const [list, options] = await Promise.all([
     readComplaintApi(() =>
@@ -86,17 +92,48 @@ export async function ComplaintHelpPage({ party }: { party: ComplaintParty }) {
 
   return (
     <div className="animate-rise mx-auto flex max-w-3xl flex-col gap-5">
-      <div>
-        <h1 className="font-display text-2xl font-semibold tracking-tight">Help</h1>
-        <p className="text-muted mt-1 text-sm">
-          Raise a complaint and Terrax Media Customer Service will reply here. You&apos;ll also get
-          a notification when they reply.
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-semibold tracking-tight">Help</h1>
+          {party !== "driver" ? (
+            <p className="text-muted mt-1 text-sm">
+              Tell Terrax Media Customer Service about a problem. They reply here and you get a
+              notification.
+            </p>
+          ) : null}
+        </div>
+        {list.state !== "missing" ? (
+          <a
+            href="#new-complaint"
+            className="bg-amber text-accent-ink hover:bg-amber-soft inline-flex h-11 items-center rounded-lg px-5 text-sm font-medium"
+          >
+            New complaint
+          </a>
+        ) : null}
       </div>
 
+      {party === "driver" ? (
+        <>
+          <Panel className="p-5">
+            <p className="text-sm leading-6">
+              {driverPayText ??
+                "Open Jobs to check your agreed day rate; contact support if your pay terms are unavailable."}
+            </p>
+          </Panel>
+          <details className="border-edge rounded-lg border p-4">
+            <summary className="cursor-pointer text-sm font-medium">Phone setup</summary>
+            <p className="text-muted mt-2 text-sm">
+              Add Cardvert to your Home Screen and keep it open while driving.
+            </p>
+            <Link href="/driver/capabilities" className="text-amber mt-2 inline-block text-sm">
+              Check this phone
+            </Link>
+          </details>
+        </>
+      ) : null}
       <Panel className="overflow-hidden">
         <div className="border-edge border-b px-5 py-3.5">
-          <h2 className="text-base font-semibold">Your complaints</h2>
+          <h2 className="font-display text-lg font-semibold">My complaints</h2>
           {waiting.length > 0 ? (
             <p className="text-amber mt-1 text-xs">
               Terrax Media replied to {waiting.length === 1 ? "one" : waiting.length} of your
@@ -129,8 +166,8 @@ export async function ComplaintHelpPage({ party }: { party: ComplaintParty }) {
       </Panel>
 
       {list.state !== "missing" ? (
-        <Panel className="p-5">
-          <h2 className="mb-4 text-base font-semibold">Raise a complaint</h2>
+        <Panel className="scroll-mt-24 p-5" id="new-complaint">
+          <h2 className="font-display mb-4 text-lg font-semibold">New complaint</h2>
           <RaiseComplaintForm
             party={party}
             action={
@@ -165,8 +202,8 @@ export async function ComplaintConversationPage({
   if (detail.state === "auth") redirect("/login");
 
   const back = (
-    <Link href={BASE[party]} className="micro text-amber">
-      ← All complaints
+    <Link href={BASE[party]} className="text-amber text-sm font-medium">
+      ← My complaints
     </Link>
   );
   if (detail.state === "missing") {
@@ -214,7 +251,7 @@ export async function ComplaintConversationPage({
         {complaint.messages.map((message, index) => (
           <li key={index}>
             <Panel className={`p-4 ${message.sender === "terrax_media" ? "border-amber/40" : ""}`}>
-              <p className="micro text-muted">
+              <p className="text-muted text-xs font-medium">
                 {SENDER_LABELS[message.sender]} · {formatWat(message.sent_at)}
               </p>
               <p className="mt-2 text-sm leading-6 whitespace-pre-line">{message.body}</p>

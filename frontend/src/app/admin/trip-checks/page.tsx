@@ -4,12 +4,18 @@ import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pagination } from "@/components/ui/pagination";
-import { formatDate, formatMoneyExact } from "@/lib/format";
+import { FilterChips, ViewTabs } from "@/components/ui/tabs";
+import { formatDate, formatDateTime, formatMoneyExact } from "@/lib/format";
 import { adminStatus } from "@/lib/status/admin";
 import { ReviewActions } from "../fraud/review-actions";
 import { DisputeReplyActions } from "../fraud/dispute-actions";
 import { SpotCheckQueueForm, SpotCheckResultForm } from "../fraud/spot-check-actions";
-import { readableEvidence, tripReviewReason } from "../fraud/evidence";
+import {
+  evidenceVerificationId,
+  matchedTripIds,
+  readableEvidence,
+  tripReviewReason,
+} from "../fraud/evidence";
 import { HubDrawer } from "../hub-drawer";
 import { QueueUnavailable } from "../queue-search";
 import { OperationForm } from "../operation-form";
@@ -249,63 +255,85 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
   for (const row of visibleLate ?? []) addSummary(row.trip_session_id, row);
   for (const row of visibleChecks ?? []) addSummary(row.source_trip_session_id, row);
   if (selectedTrip && selectedContext) summaries.set(selectedTrip, selectedContext);
+  // Driver, trip time and the plain reason come first; IDs stay available but secondary (D38c).
   const line = (tripId: string) => {
     const context = summaries.get(tripId);
     return context ? (
       <>
-        <p className="font-medium">
-          {context.name} · {context.plate} · {context.campaign}
+        <p className="text-ink font-semibold">{context.name}</p>
+        <p className="text-muted text-sm">
+          Trip {formatDateTime(context.date)} · {context.plate} · {context.campaign}
         </p>
-        <p className="text-muted text-sm">Trip {formatDate(context.date)}</p>
       </>
     ) : (
       <QueueUnavailable />
     );
   };
+  const ids = (...pairs: [string, string | null | undefined][]) => (
+    <p className="text-faint mt-2 text-xs break-all">
+      {pairs
+        .filter((pair): pair is [string, string] => Boolean(pair[1]))
+        .map(([label, value]) => `${label} ${value}`)
+        .join(" · ")}
+    </p>
+  );
   const total =
     tab === "suspicious" ? flags?.total : tab === "late" ? late?.total : checkPage?.total;
+  const listHref = (changes: Partial<Query>) =>
+    href({
+      offset: undefined,
+      flag: undefined,
+      late: undefined,
+      check: undefined,
+      route_offset: undefined,
+      disputes_offset: undefined,
+      ...changes,
+    });
+  const statusChips =
+    tab === "suspicious"
+      ? [
+          { href: listHref({ status: undefined }), label: "All", active: !flagStatus },
+          ...(["open", "acknowledged", "confirmed", "dismissed"] as const).map((status) => ({
+            href: listHref({ status }),
+            label: adminStatus(status),
+            active: flagStatus === status,
+          })),
+        ]
+      : tab === "late"
+        ? ["quarantined", "applied", "discarded"].map((status) => ({
+            href: listHref({ status }),
+            label: adminStatus(status),
+            active: lateStatus === status,
+          }))
+        : [];
+  const matchedTrips =
+    selectedFlag && selectedInScope && selectedFlag.flag_type === "route_replay"
+      ? await Promise.all(
+          matchedTripIds(selectedFlag.evidence).map(async (id) => ({
+            id,
+            context: await readTripContext(api, id).catch(() => undefined),
+          })),
+        )
+      : [];
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader title="Trip checks" />
-      <nav aria-label="Trip check lists" className="mb-5 flex flex-wrap gap-3">
-        {[
-          ["suspicious", "Suspicious trips"],
-          ["late", "Late uploads"],
-          ["in-person", "In-person checks"],
-        ].map(([value, label]) => (
-          <Link
-            key={value}
-            className="border-edge rounded-lg border p-2"
-            href={href({
-              tab: value,
-              offset: undefined,
-              status: undefined,
-              flag: undefined,
-              late: undefined,
-              check: undefined,
-              route_offset: undefined,
-              disputes_offset: undefined,
-            })}
-          >
-            {label}
-          </Link>
-        ))}
-      </nav>
-      {tab !== "in-person" ? (
-        <nav aria-label="Status" className="mb-5 flex flex-wrap gap-3">
-          {(tab === "suspicious"
-            ? ["open", "acknowledged", "confirmed", "dismissed"]
-            : ["quarantined", "applied", "discarded"]
-          ).map((status) => (
-            <Link
-              key={status}
-              className="text-cyan underline"
-              href={href({ status, offset: undefined, flag: undefined, late: undefined })}
-            >
-              {adminStatus(status)}
-            </Link>
-          ))}
-        </nav>
+      <ViewTabs
+        label="Trip check lists"
+        items={(
+          [
+            ["suspicious", "Suspicious trips"],
+            ["late", "Late uploads"],
+            ["in-person", "In-person checks"],
+          ] as const
+        ).map(([value, label]) => ({
+          href: listHref({ tab: value, status: undefined }),
+          label,
+          active: tab === value,
+        }))}
+      />
+      {statusChips.length ? (
+        <FilterChips label="Status" visibleLabel="Show" items={statusChips} />
       ) : null}
       {total === undefined ? (
         <QueueUnavailable />
@@ -327,10 +355,15 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
                         })}
                       >
                         {line(flag.trip_session_id)}
-                        <p>{tripReviewReason(flag.flag_type, flag.evidence)}</p>
+                        <p className="mt-2">{tripReviewReason(flag.flag_type, flag.evidence)}</p>
                         <p className="text-muted text-sm">
                           {adminStatus(flag.status)} · Pay held: {held(flag)}
                         </p>
+                        {ids(
+                          ["Trip", flag.trip_session_id],
+                          ["Review", flag.id],
+                          ["Check", evidenceVerificationId(flag.evidence)],
+                        )}
                       </Link>
                     </li>
                   ))
@@ -347,10 +380,11 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
                         })}
                       >
                         {line(batch.trip_session_id)}
-                        <p>
-                          Late upload · received {formatDate(batch.received_at)} ·{" "}
+                        <p className="mt-2">
+                          Locations uploaded late · received {formatDateTime(batch.received_at)} ·{" "}
                           {batch.ping_count} location records
                         </p>
+                        {ids(["Trip", batch.trip_session_id])}
                       </Link>
                     </li>
                   ))
@@ -367,7 +401,11 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
                         })}
                       >
                         {line(check.source_trip_session_id)}
-                        <p>In-person check · requested {formatDate(check.issued_at)}</p>
+                        <p className="mt-2">
+                          Staff to look at the car in person · requested{" "}
+                          {formatDateTime(check.issued_at)}
+                        </p>
+                        {ids(["Trip", check.source_trip_session_id])}
                       </Link>
                     </li>
                   ))
@@ -412,11 +450,34 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
               {selectedFlag.resolution_note ? (
                 <p className="mb-4">Decision: {selectedFlag.resolution_note}</p>
               ) : null}
-              <ul aria-label="Detection evidence" className="mb-4 text-sm">
+              <ul aria-label="Detection evidence" className="mb-4 list-disc pl-5 text-sm">
                 {readableEvidence(selectedFlag.evidence).map((text) => (
                   <li key={text}>{text}</li>
                 ))}
               </ul>
+              {matchedTrips.length ? (
+                <section aria-label="Matching trips" className="mb-4 text-sm">
+                  <h3 className="mb-2 font-semibold">Trips with the same route</h3>
+                  <ul className="grid gap-2">
+                    {matchedTrips.map(({ id, context }) => (
+                      <li key={id} className="border-edge rounded-lg border p-3">
+                        {context ? (
+                          <>
+                            <p className="font-medium">{context.name}</p>
+                            <p className="text-muted">
+                              Trip {formatDateTime(context.date)} · {context.plate} ·{" "}
+                              {context.campaign}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="text-muted">Trip details couldn&apos;t be loaded.</p>
+                        )}
+                        {ids(["Trip", id])}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
               <p className="mb-4">
                 {adminStatus(selectedFlag.status)} · Pay held: {held(selectedFlag)}
               </p>
@@ -444,6 +505,14 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
                 status={selectedFlag.status}
                 reversalRecommended={selectedFlag.money_effect.reversal_recommended}
                 reversalRecorded={!!selectedFlag.money_effect.reversal_entry_id}
+                reversalAmount={
+                  selectedFlag.money_effect.currency
+                    ? formatMoneyExact(
+                        selectedFlag.money_effect.available_net,
+                        selectedFlag.money_effect.currency,
+                      )
+                    : undefined
+                }
               />
               {selectedFlag.status === "open" || selectedFlag.status === "acknowledged" ? (
                 !pendingChecks ? (
@@ -490,7 +559,13 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
                   ))}
                 </section>
               ) : (
-                <p className="text-muted mt-5">No driver dispute.</p>
+                <p className="text-muted mt-5">The driver hasn&apos;t disputed this.</p>
+              )}
+              {ids(
+                ["Trip", selectedFlag.trip_session_id],
+                ["Review", selectedFlag.id],
+                ["Job", selectedFlag.assignment_id],
+                ["Check", evidenceVerificationId(selectedFlag.evidence)],
               )}
             </>
           )}
@@ -515,6 +590,7 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
               ) : (
                 <p className="mt-4">{selectedLate.resolution_note}</p>
               )}
+              {ids(["Trip", selectedLate.trip_session_id], ["Upload", selectedLate.id])}
             </>
           )}
         </HubDrawer>
@@ -531,6 +607,7 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
             <>
               {line(selectedCheck.source_trip_session_id)}
               <SpotCheckResultForm verificationId={selectedCheck.id} />
+              {ids(["Trip", selectedCheck.source_trip_session_id], ["Check", selectedCheck.id])}
             </>
           )}
         </HubDrawer>

@@ -1,128 +1,25 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
-import { createApiClient } from "@/lib/api/client";
-import { getSessionToken } from "@/lib/auth/session";
 import { requireRole } from "@/lib/auth/current-user";
-import { formatDate, formatMoneyExact } from "@/lib/format";
-import { Panel } from "@/components/ui/panel";
-import { DriverDataUnavailable } from "@/components/driver/data-unavailable";
-import { TripTracker } from "./trip-tracker";
-import { CampaignJourneyPanel } from "@/components/driver/campaign-journey-panel";
-import { readDriverApi } from "@/lib/driver/api-read";
 import { loadDriverCampaignJourney } from "@/lib/driver/load-campaign-journey";
+import { TripTracker } from "./trip-tracker";
 
 export const metadata: Metadata = { title: "Track" };
-
 export default async function DriverTrackPage() {
   const me = await requireRole("driver");
-  const api = createApiClient(await getSessionToken());
-
-  const [campaignJourney, assignments, ledger] = await Promise.all([
-    loadDriverCampaignJourney(),
-    readDriverApi(() =>
-      api.GET("/api/v1/driver/campaign-assignments", { params: { query: { limit: 50 } } }),
-    ),
-    readDriverApi(() =>
-      api.GET("/api/v1/driver/earnings/ledger", { params: { query: { limit: 4 } } }),
-    ),
-  ]);
-  if (assignments.state === "auth" || ledger.state === "auth") redirect("/login");
-
-  const assignmentItems = assignments.state === "ready" ? assignments.data.items : [];
-  const campaignNames = new Map(
-    assignmentItems.map((item) => [item.campaign_id, item.campaign?.name ?? "Campaign"]),
-  );
-  const recentEntries = ledger.state === "ready" ? ledger.data.items : null;
-
+  const work = await loadDriverCampaignJourney();
   return (
     <div className="animate-rise flex flex-col gap-4">
-      <h1 className="font-display text-2xl font-semibold tracking-tight">Trip tracking</h1>
-      <CampaignJourneyPanel journey={campaignJourney.journey} compact />
+      <h1 className="font-display text-2xl font-semibold">Track</h1>
       <TripTracker
-        assignment={campaignJourney.trackerAssignment}
-        initialTrip={campaignJourney.currentTrip}
+        assignment={work.trackerAssignment}
+        initialTrip={work.currentTrip}
         driverId={me.user.id}
-        startUnavailableMessage={campaignJourney.journey.summary}
-        pausedCampaignName={
-          campaignJourney.trackerAssignment
-            ? undefined
-            : campaignJourney.activationAssignment?.campaignName
+        startUnavailableMessage={
+          work.journey.steps.find((step) => step.state !== "complete" && step.id !== "tracking")
+            ?.title ?? "Check Jobs before starting."
         }
+        pausedCampaignName={work.activationAssignment?.campaignName}
       />
-
-      {assignments.state !== "ready" ? (
-        <DriverDataUnavailable
-          title="Campaign labels unavailable"
-          detail="Campaign names could not be loaded. You can still track your current trip."
-          retryHref="/driver/track"
-        />
-      ) : null}
-
-      <Panel className="p-5">
-        <p className="micro text-muted">How a trip becomes earnings</p>
-        <div className="mt-4 grid grid-cols-3 gap-2 text-center">
-          {[
-            ["1", "Drive", "Press Start"],
-            ["2", "Check", "Trip is checked"],
-            ["3", "Earn", "Earnings added"],
-          ].map(([step, label, detail]) => (
-            <div key={step} className="bg-raised rounded-lg px-2 py-3">
-              <span className="bg-amber/15 text-amber mx-auto flex size-6 items-center justify-center rounded-full font-mono text-xs">
-                {step}
-              </span>
-              <p className="mt-2 text-xs font-medium">{label}</p>
-              <p className="text-faint mt-0.5 text-[10px]">{detail}</p>
-            </div>
-          ))}
-        </div>
-        <p className="text-muted mt-4 text-xs leading-5">
-          Tracking only runs after you start a trip and while Cardvert Driver stays open on screen.
-        </p>
-      </Panel>
-
-      <Panel className="overflow-hidden">
-        <div className="border-edge border-b px-5 py-3.5">
-          <p className="micro text-muted">Recent verified activity</p>
-        </div>
-        {recentEntries === null ? (
-          <div className="px-5 py-5">
-            <DriverDataUnavailable
-              title="Recent activity unavailable"
-              detail="Cardvert couldn't load optional trip history. The current trip remains available above."
-              retryHref="/driver/track"
-            />
-          </div>
-        ) : recentEntries.length === 0 ? (
-          <p className="text-muted px-5 py-8 text-center text-sm">No completed trips yet.</p>
-        ) : (
-          <ul className="divide-edge/60 divide-y">
-            {recentEntries.map((entry) => (
-              <li key={entry.id} className="flex items-center justify-between gap-3 px-5 py-3.5">
-                <div className="min-w-0">
-                  <p className="truncate text-sm">
-                    {campaignNames.get(entry.campaign_id) ?? "Campaign trip"}
-                  </p>
-                  <p className="micro text-faint mt-0.5">{formatDate(entry.occurred_at)}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-mono text-sm">
-                    {formatMoneyExact(entry.amount, entry.currency)}
-                  </p>
-                  <p
-                    className={`micro mt-0.5 ${
-                      entry.status === "available" || entry.status === "paid"
-                        ? "text-green"
-                        : "text-amber"
-                    }`}
-                  >
-                    {entry.status}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Panel>
     </div>
   );
 }

@@ -109,10 +109,10 @@ test("W4-03B Abuja PWA records only synthetic screen-on GPS evidence", async ({
     }
   });
 
-  await page.goto("/driver/profile");
+  await page.goto("/driver");
   await expect(page.getByText(`Synthetic Abuja Campaign · ${correlationId}`)).toBeVisible();
   await page.goto("/driver/track");
-  await page.getByRole("button", { name: "▶ Start trip" }).click();
+  await page.getByRole("button", { name: "Start trip" }).click();
   try {
     await expect(page.getByTestId("tracking-health")).toContainText("Tracking");
   } catch (error) {
@@ -123,8 +123,8 @@ test("W4-03B Abuja PWA records only synthetic screen-on GPS evidence", async ({
     console.log(`W403B_START_CAPABILITY_ASSESSMENTS=${JSON.stringify(blockedAssessments)}`);
     throw error;
   }
-  await page.getByRole("button", { name: "■ End trip" }).click();
-  await expect(page.getByRole("button", { name: "▶ Start trip" })).toBeVisible();
+  await page.getByRole("button", { name: "End trip" }).click();
+  await expect(page.getByRole("button", { name: "Start trip" })).toBeVisible();
 
   await expect
     .poll(async () => {

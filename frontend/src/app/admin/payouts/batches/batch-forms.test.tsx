@@ -103,7 +103,7 @@ describe("payout operator forms", () => {
     expect(boxes[2]).toBeDisabled();
     await userEvent.click(boxes[0]!);
     expect(boxes[1]).toBeDisabled();
-    expect(screen.getByText("Active review hold")).toBeVisible();
+    expect(screen.getByText("On hold while a trip review is open")).toBeVisible();
   });
 
   it("does not mutate when preview or safe recovery is unavailable", async () => {

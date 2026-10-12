@@ -95,7 +95,7 @@ async function prepare(page: Page, samples = 1) {
   );
   page.on("dialog", (dialog) => dialog.accept());
   await page.goto("/driver/track");
-  await page.getByRole("button", { name: "▶ Start trip" }).click();
+  await page.getByRole("button", { name: "Start trip" }).click();
   await expect(page.getByTestId("tracking-health")).toHaveText("Tracking");
 }
 
@@ -105,8 +105,8 @@ test("lost End response drains the current deferred batch before reconciliation"
 }) => {
   await request.post("http://127.0.0.1:38100/__test__/p07", { data: { scenario: "deferred_end" } });
   await prepare(page);
-  await page.getByRole("button", { name: "■ End trip" }).click();
-  await expect(page.getByRole("button", { name: "▶ Start trip" })).toBeVisible();
+  await page.getByRole("button", { name: "End trip" }).click();
+  await expect(page.getByRole("button", { name: "Start trip" })).toBeVisible();
   const state = await (await request.get("http://127.0.0.1:38100/__test__/p07")).json();
   expect(state.status).toBe("sealed");
   expect(state.pingAttempts).toBe(2);
@@ -131,7 +131,7 @@ test("visibility completion and late GPS callbacks cannot cross the frozen End",
   await page.waitForFunction(() =>
     Boolean((window as unknown as { p07: { resume?: () => void } }).p07.resume),
   );
-  await page.getByRole("button", { name: "■ End trip" }).click();
+  await page.getByRole("button", { name: "End trip" }).click();
   await expect
     .poll(
       async () =>
@@ -151,7 +151,7 @@ test("visibility completion and late GPS callbacks cannot cross the frozen End",
     await page.evaluate(() => (window as unknown as { p07: { watches: number } }).p07.watches),
   ).toBe(1);
   await request.post("http://127.0.0.1:38100/__test__/p07", { data: { release: true } });
-  await expect(page.getByRole("button", { name: "▶ Start trip" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start trip" })).toBeVisible();
 });
 
 test("partial acknowledgement remains encrypted and settled across reload", async ({
@@ -160,12 +160,12 @@ test("partial acknowledgement remains encrypted and settled across reload", asyn
 }) => {
   await request.post("http://127.0.0.1:38100/__test__/p07", { data: { scenario: "partial_ack" } });
   await prepare(page, 3);
-  await page.getByRole("button", { name: "■ End trip" }).click();
-  await expect(page.getByRole("button", { name: "▶ Start trip" })).toBeVisible();
+  await page.getByRole("button", { name: "End trip" }).click();
+  await expect(page.getByRole("button", { name: "Start trip" })).toBeVisible();
   await page.reload();
   await expect(
-    page.getByRole("alert").filter({ hasText: "GPS samples need review" }),
-  ).toContainText("GPS samples need review");
+    page.getByRole("alert").filter({ hasText: "Earlier location updates need checking" }),
+  ).toContainText("Earlier location updates need checking");
   const state = await (await request.get("http://127.0.0.1:38100/__test__/p07")).json();
   expect(state.pingAttempts).toBe(1);
   expect(state.ends[0].evidence_manifest.complete).toBe(false);

@@ -64,20 +64,53 @@ const settlement: Settlement = {
 };
 
 describe("CommercialHistory", () => {
-  it("renders API-derived obligation, correction and settlement lineage", () => {
-    render(<CommercialHistory invoices={[invoice]} settlements={[settlement]} />);
+  it("shows invoices, corrections and refunds as plain lines", () => {
+    const { container } = render(
+      <CommercialHistory
+        invoices={[invoice]}
+        settlements={[{ ...settlement, disposition: "refund_recorded" }]}
+      />,
+    );
 
+    expect(screen.getByRole("heading", { name: "Invoice history" })).toBeInTheDocument();
     expect(screen.getByText("INV-2026-0001")).toBeInTheDocument();
-    expect(screen.getByText("partially paid")).toBeInTheDocument();
-    expect(screen.getByText(/CN-2026-0001/)).toBeInTheDocument();
-    expect(screen.getByText(/Reduced vehicle count/)).toBeInTheDocument();
-    expect(screen.getByText("refunded")).toBeInTheDocument();
-    expect(screen.getByText(/REF-100/)).toBeInTheDocument();
+    expect(screen.getByText("Part paid")).toBeInTheDocument();
+    expect(
+      screen.getByText("₦96.75 total (was ₦107.50 before corrections) · ₦50.00 paid"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /^Credit note CN-2026-0001: ₦10\.75 including VAT · Reduced vehicle count · /,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/^Refund: ₦20\.00 · Reversal settlement · .* · reference REF-100$/),
+    ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Pay invoice online" })).toBeInTheDocument();
-    expect(screen.getByText(/Cardvert applies the payment only after Paystack confirms it/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/The invoice shows as paid once Paystack confirms the payment/),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View invoice" })).toHaveAttribute(
       "href",
       "/advertiser/campaigns/00000000-0000-0000-0000-000000000002/invoices/00000000-0000-0000-0000-000000000001",
     );
+    expect(container.textContent).not.toMatch(/Persisted|lineage|_/);
+  });
+
+  it("names the campaign and leaves payment to the To pay list when asked", () => {
+    render(
+      <CommercialHistory
+        campaign={{ id: "campaign-9", name: "Lunch Routes" }}
+        invoices={[invoice]}
+        settlements={[]}
+        showPayment={false}
+      />,
+    );
+
+    expect(screen.getByRole("link", { name: "Lunch Routes" })).toHaveAttribute(
+      "href",
+      "/advertiser/campaigns/campaign-9",
+    );
+    expect(screen.queryByRole("button", { name: "Pay invoice online" })).not.toBeInTheDocument();
   });
 });

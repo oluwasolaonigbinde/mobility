@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.120 — 2026-10-06. Canonical source of truth: current state AND target state.**
+**Version 1.124 — 2026-10-10. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -3233,6 +3233,61 @@ financial decision/release authority remain unchanged.
 
 **[BUILT locally — D58 / REQ-105] Driver-application and vehicle staff review:** the person/bank and vehicle document rows use direct View submission as the acknowledgment. Every click uses the existing purpose-scoped, individually audited read: NIN/bank map to `person_payee_approval`; person files use `kyc_review` with `person_payee_approval:<submission_id>` reason; vehicle files use `kyc_review` with `vehicle_approval:<submission_id>` reason. The UI describes the respective purposes as Driver application review and Vehicle review. Keep Show NIN as its distinct reveal, at-most-60-second hiding, pagehide/hidden-visibility clearing and record-bound state resets. There is no separate need checkbox or purpose selection on these rows. Both consumers use the same direct-read lifecycle; the obsolete confirmation path is removed. Vehicle approval/expiry/rejection and eligibility rules are unchanged. No backend/API acknowledgment field or access rule is removed. Local focused verification is recorded in `issues/testing/client-polish-2026-10-04.md`; Person/bank and the owner-approved vehicle extension have passed focused verification, consolidated minimal-change review and the bounded implemented privacy/security review. Owner authorization covers the resulting local commit; it does not authorize merge or live use.
 
+### 27.7 Driver presentation (D65, REQ-127) **[TARGET — local verification]**
+
+Home embeds the existing tracker for direct Start after current journey and
+photo proof reads; one missing step replaces Start. Jobs shows frozen terms
+without the calculation rule. Help alone explains pay. Track retains durable
+capture and uncertain Start/End recovery, with elapsed time and recorded miles
+for the current visit; live payable earnings remain unclaimed until checked.
+Phone setup is a dismissible per-driver first-run prompt and Help entry.
+
+The existing driver ledger read adds persisted Lagos work-day allocations,
+successful reconciliation time and conservative scheduled-payment facts.
+Complete paginated history is required before displaying exact decimal daily
+totals; partial or unallocated history is unavailable. Paid requires succeeded
+line evidence for every contributing amount. Active holds, debt and unsupported
+paid evidence take precedence; mixed amounts remain Being checked. Paying
+tonight requires today's approved automatic run, active line, existing clean
+eligibility checks and enabled, unpaused, ready daily runtime. No payout or
+release writer changes. Local demo historical trips use frozen instructions,
+valid submission transitions and fake-provider reconciliation. D66/REQ-128–132
+replaces the active seed trip with an idle ready driver. Seed route evidence
+supports full/near-full frozen daily pay; separate work-day batches reconcile
+the following Lagos day. Historical approval provenance remains explicit;
+independent Finance payout scenarios use another demo driver. Home hides zero
+Today amounts and selects the latest payment by its persisted timestamp.
+Driver micro-labels use sans, numeric mono remains, and dated past-job status
+does not also receive a duplicate badge.
+
+### 27.6 Consolidated portal clarity (D64, REQ-120–REQ-125) **[TARGET — local verification]**
+
+Shared URL-driven tabs and filters use `nav` links with `aria-current`, readable
+sentence case, explicit focus and selected states, and scrolling/wrapping at
+phone widths. Shared steps contain their labels; named file inputs retain File
+identity, reset/removal and per-file upload states. Existing BFF and access
+boundaries remain authoritative.
+
+Driver Home prioritises current work/readiness and current money; Profile owns
+personal details and lifetime totals. Jobs show complete terms before acceptance,
+compact history and distinct installation/display photo tasks. Plain Start
+blockers identify unmet phone/evidence requirements without weakening tracking,
+offline recovery or uncertain Start/End reconciliation. Admin trip decisions
+explain hold release versus reversal of released earnings; neither implies an
+immediate bank transfer. Advertiser billing labels totals and funding separately;
+retargeting describes area/time planning without implying identified viewers or
+automatic ad delivery.
+
+Public advertiser CTAs read "Request a Quote" and sign-in says "Welcome to
+Cardvert". The enquiry retains its contact-use/no-account notice while removing
+the separate identity/bank warning (D64); fields, retention, rate limiting and
+provider authority remain. Onboarding uses plain uniform code errors and the
+same approval and upload gates. Demo seeds use Abuja geography on fresh test
+databases; credentials and existing demo/preview records are preserved.
+Focused checks, desktop/mobile and six-theme evidence, consolidated and named
+money/privacy/security review precede acceptance; D41 full CI remains required
+before an owner-authorized merge. No launch-package state changes.
+
 ## 28. Testing strategy — target
 
 Current gates (§11) stay. Additions, each landing **with** the feature that
@@ -3546,6 +3601,9 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.124 | 2026-10-10 | **Owner review corrections (D66, REQ-128–132).** §27.7 refines the idle demo, realistic daily work/payment chronology, latest-payment Home headline and sans labels. Isolated local verification; no change to production money rules or release claim. |
+| v1.123 | 2026-10-10 | **Driver presentation redesign (D65, REQ-127).** §27.7 records one next Home action, concise Jobs/live Track, exact daily earnings with successful-payment evidence, Help pay explanation and synthetic settled history. Existing money, eligibility and tracker safety authority remain; local review/verification in progress. No commit, CI or release claimed. |
+| v1.122 | 2026-10-08 | **Consolidated portal clarity (D64, REQ-120–REQ-125).** §27.6 records shared controls, distinct driver surfaces, truthful review/billing messages, public enquiry copy and Abuja test seeds. Existing money, access, tracking and provider authority remains. Local verification and independent review are in progress; no commit, CI, merge or deployment claimed. |
 | v1.121 | 2026-10-05 | **REQ-108 CI efficiency, local implementation.** §10.3 records trigger, concurrency, shared candidate guard, duration planning, selective scanner, timeout and independent E2E scheduling changes. Timing snapshot imported from six verified green-run artifacts; real after timing and D41 remain pending owner-authorized branch CI after REQ-106 green master/rebase. No image digest, product contract, coverage policy or launch-gate change. |
 | v1.120 | 2026-10-06 | **Shared campaign-change waiting labels (D63, REQ-113).** §18 records reuse of the existing staff vocabulary for advertiser pending review/funding, preserving funding and decision authority. Scoped unit and real browser checks must verify the exact request and independent reasoned approval before full CI. |
 | v1.119 | 2026-10-05 | **Canonical staff driver-login entry point (D62, REQ-112).** §27.5 records the restored existing fixed-role form beside existing-profile attachment on /admin/drivers/new, preserving self-registration, mandatory password replacement, document approval and activation boundaries. D51's removed shared account route stays deleted. Security review, focused browser verification and full CI remain required. |

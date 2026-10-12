@@ -30,7 +30,7 @@ export function CarChooser() {
       form ? (new FormData(form).get("application_access_token") ?? "") : "",
     ).trim();
     if (!code) {
-      setError("Enter your onboarding code first.");
+      setError("Enter the code from your email first.");
       return;
     }
     setLoading(true);
@@ -69,7 +69,7 @@ export function CarChooser() {
       ) : (
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-muted text-sm">
-            Sending a car for the first time? Leave this. Updating a car you already sent?
+            Adding a car for the first time? Skip this. Changing a car you already sent?
           </p>
           <Button type="button" variant="ghost" onClick={findCars} disabled={loading}>
             {loading ? "Finding your cars…" : "Find my cars"}

@@ -9,7 +9,7 @@ describe("Terrax marketing header", () => {
     render(<SiteHeader />);
     expect(screen.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
     expect(screen.getByRole("link", { name: "Apply to drive" })).toHaveAttribute("href", "/apply");
-    expect(screen.getByRole("link", { name: "Request a campaign quote" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "Request a Quote" })).toHaveAttribute(
       "href",
       "#campaign-enquiry",
     );

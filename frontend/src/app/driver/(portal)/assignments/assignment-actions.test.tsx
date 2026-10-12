@@ -87,11 +87,11 @@ describe("AssignmentActions", () => {
       />,
     );
 
-    await user.click(screen.getByRole("button", { name: "Deactivate" }));
+    await user.click(screen.getByRole("button", { name: "Stop this job" }));
 
     expect(mocks.assignmentAction).not.toHaveBeenCalled();
     expect(screen.getByRole("alertdialog")).toHaveTextContent("Abuja Airport launch");
-    await user.click(screen.getByRole("button", { name: "Keep campaign active" }));
+    await user.click(screen.getByRole("button", { name: "Keep this job" }));
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 });

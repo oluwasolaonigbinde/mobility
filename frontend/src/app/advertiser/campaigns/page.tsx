@@ -15,7 +15,7 @@ import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Pagination } from "@/components/ui/pagination";
-import { cx } from "@/lib/cx";
+import { FilterChips } from "@/components/ui/tabs";
 
 export const metadata: Metadata = { title: "Campaigns" };
 
@@ -74,30 +74,18 @@ export default async function CampaignsPage({
         }
       />
 
-      {/* Status filter */}
-      <div className="mb-4 flex gap-1 overflow-x-auto" role="group" aria-label="Filter by status">
-        <Link
-          href={listHref({})}
-          className={cx(
-            "micro rounded-lg px-3 py-2 whitespace-nowrap transition-colors",
-            !status ? "bg-raised text-amber" : "text-muted hover:text-ink",
-          )}
-        >
-          All
-        </Link>
-        {CAMPAIGN_STATUSES.map((s) => (
-          <Link
-            key={s}
-            href={listHref({ status: s })}
-            className={cx(
-              "micro rounded-lg px-3 py-2 whitespace-nowrap transition-colors",
-              status === s ? "bg-raised text-amber" : "text-muted hover:text-ink",
-            )}
-          >
-            {statusLabel[s]}
-          </Link>
-        ))}
-      </div>
+      <FilterChips
+        label="Filter by status"
+        visibleLabel="Show"
+        items={[
+          { href: listHref({}), label: "All", active: !status },
+          ...CAMPAIGN_STATUSES.map((s) => ({
+            href: listHref({ status: s }),
+            label: statusLabel[s],
+            active: status === s,
+          })),
+        ]}
+      />
 
       {items.length === 0 ? (
         <EmptyState

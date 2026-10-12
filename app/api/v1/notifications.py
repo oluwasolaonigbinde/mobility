@@ -140,47 +140,46 @@ def notification_feed_response(notice: Notification) -> NotificationFeedItemRead
             "A campaign cancellation has been recorded.",
         ),
         NotificationType.EVIDENCE_CHALLENGE_CREATED.value: (
-            "Evidence requested",
-            "Terrax Media requested new campaign evidence.",
+            "New display photo needed",
+            "Terrax Media asked for a new photo of the advert on your car. Open Jobs to send it.",
         ),
         NotificationType.EVIDENCE_VERIFIED.value: (
-            "Evidence verified",
-            "Campaign evidence was verified.",
+            "Photos approved",
+            "Terrax Media approved your photos of the advert.",
         ),
         NotificationType.PAYOUT_RELEASED.value: (
-            "Earnings released",
-            "Verified earnings are available for the next payout batch.",
+            "Pay ready",
+            "A hold on some of your pay has been lifted. "
+            "Open Earnings to check its payment status.",
         ),
         NotificationType.FRAUD_HOLD_RAISED.value: (
-            "Trip payment on hold",
-            "A trip payment is on hold while it is reviewed.",
+            "Trip pay on hold",
+            "Pay for one of your trips is on hold while Terrax Media checks it. "
+            "Open Earnings to see why.",
         ),
         NotificationType.FRAUD_REVIEW_RESOLVED.value: (
-            "Fraud review resolved",
-            "Your fraud review has been resolved.",
+            "Trip check finished",
+            "Terrax Media finished checking your trip. Open Earnings to see the result.",
         ),
         NotificationType.FRAUD_DISPUTE_REPLIED.value: (
-            "Fraud dispute update",
-            "Your fraud dispute has received a reply.",
+            "Reply about your trip",
+            "Terrax Media replied to what you said about your trip. Open Earnings to read it.",
         ),
         NotificationType.ACTIVITY_FLOOR_BREACHED.value: (
-            "Verified activity below floor",
-            "Your verified activity was below the configured weekly floor. "
-            "Terrax Media will review the assignment.",
+            "Not enough driving this week",
+            "You drove less than this job's weekly minimum. Terrax Media will look at your job.",
         ),
         NotificationType.ACTIVITY_FLOOR_RECOVERED.value: (
-            "Verified activity recovered",
-            "Your verified activity has recovered to the configured weekly floor.",
+            "Weekly driving back on track",
+            "You're back above this job's weekly minimum.",
         ),
         NotificationType.ASSIGNMENT_INACTIVE.value: (
-            "Assignment inactive",
-            "No verified activity was recorded for this assignment for seven "
-            "consecutive days. Terrax Media will review it.",
+            "No trips for 7 days",
+            "No trips were recorded on your job for 7 days. Terrax Media will look at it.",
         ),
         NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED.value: (
-            "Assignment activity resumed",
-            "Verified activity resumed for this assignment, so the activity flag "
-            "has been cleared.",
+            "Trips started again",
+            "Trips are being recorded on your job again.",
         ),
         NotificationType.PAYOUT_AUTOMATIC_ALERT.value: (
             "Automatic payout needs attention",

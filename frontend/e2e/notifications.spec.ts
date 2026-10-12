@@ -95,7 +95,7 @@ for (const account of accounts) {
     await expect(trigger).toContainText(/\d+/);
     await trigger.click();
     await expect(page.getByRole("region", { name: "Notifications" })).toContainText(
-      "Trip payment on hold",
+      "Trip pay on hold",
     );
     await expect(page.getByRole("region", { name: "Notifications" })).not.toContainText(
       "fraud_flag_id",

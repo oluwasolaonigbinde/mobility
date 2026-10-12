@@ -78,7 +78,7 @@ export function CapabilityProbe() {
               <p className="text-sm font-medium">{item.label}</p>
               <code className="text-faint text-[10px]">{item.status}</code>
             </div>
-            <p className="text-amber mt-1 font-mono text-[11px]">{item.code}</p>
+            <p className="text-amber mt-1 text-[11px]">{item.code}</p>
             <p className="text-muted mt-1 text-xs leading-5">{item.summary}</p>
           </article>
         ))}

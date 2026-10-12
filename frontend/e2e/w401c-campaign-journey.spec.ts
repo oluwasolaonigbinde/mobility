@@ -103,7 +103,7 @@ async function installForegroundPwaCapabilities(page: Page) {
 }
 
 test.describe("W4-01C governed campaign journey", () => {
-  test("Pixel 7 profile reaches READY, starts explicitly, and ends with durable evidence", async ({
+  test("Pixel 7 approved profile and Home lead to explicit Start and durable End", async ({
     context,
     page,
   }, testInfo) => {
@@ -113,21 +113,22 @@ test.describe("W4-01C governed campaign journey", () => {
     page.on("dialog", (dialog) => dialog.accept());
 
     await page.goto("/driver/profile");
-    await expect(page.getByRole("heading", { name: "Your campaign journey" })).toBeVisible();
-    await expect(page.getByText("READY", { exact: true })).toBeVisible();
-    await expect(page.getByText("Identity and bank details approved")).toBeVisible();
-    await expect(page.getByText("SYN-001 approved")).toBeVisible();
-    await expect(page.getByText("Campaign activated")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Your history" })).toBeVisible();
+    await expect(page.getByText("SYN-001", { exact: true })).toBeVisible();
+    await expect(page.getByText("Approved", { exact: true })).toBeVisible();
+    await page.goto("/driver");
+    await expect(page.getByRole("heading", { name: "Synthetic Lagos Campaign" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Start trip", exact: true })).toBeEnabled();
 
     await page.goto("/driver/track");
-    const start = page.getByRole("button", { name: "▶ Start trip" });
+    const start = page.getByRole("button", { name: "Start trip", exact: true });
     await expect(start).toBeEnabled();
     await start.click();
-    await expect(page.getByRole("button", { name: "■ End trip" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "End trip", exact: true })).toBeEnabled();
     await expect(page.getByTestId("tracking-health")).toContainText("Tracking");
 
-    await page.getByRole("button", { name: "■ End trip" }).click();
-    await expect(page.getByRole("button", { name: "▶ Start trip" })).toBeVisible();
+    await page.getByRole("button", { name: "End trip", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Start trip", exact: true })).toBeVisible();
   });
 
   test.describe("iPhone browser profile", () => {
@@ -140,18 +141,15 @@ test.describe("W4-01C governed campaign journey", () => {
       test.skip(testInfo.project.name !== "chromium", "one iOS-sized browser profile is enough");
       await installSession(context, "w401c-degraded");
 
-      await page.goto("/driver/profile");
-      await expect(page.getByText("DEGRADED", { exact: true })).toBeVisible();
+      await page.goto("/driver");
       await expect(page.getByText("Vehicle status unavailable")).toBeVisible();
       await page.goto("/driver/track");
       await expect(page.getByRole("button", { name: /Start trip/ })).toHaveCount(0);
-      await expect(page.getByText(/could not be verified/i).first()).toBeVisible();
+      await expect(page.getByText("Vehicle status unavailable")).toBeVisible();
 
       await page.goto("/apply");
       await expect(page.getByRole("navigation", { name: "Application steps" })).toBeVisible();
-      await expect(
-        page.getByText(/No password, work access, assignment, payout or document access/),
-      ).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Start an application" })).toBeVisible();
       await expect(page.getByRole("link", { name: /already invited.*sign in/i })).toBeVisible();
     });
   });

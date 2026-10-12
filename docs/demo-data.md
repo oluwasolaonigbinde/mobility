@@ -13,6 +13,27 @@ Owner Batch 2 seed review corrections (REQ-097–REQ-103) were committed in `687
 
 ## Client inputs to replace
 
+### Current portal seed (REQ-125, REQ-127–132)
+
+Fresh development seeds use Abuja service cities, place names and geometry
+(longitude 7.2–7.7, latitude 8.8–9.3). The primary driver starts ready and idle.
+Fourteen historical work days use the frozen ₦10,000/70-mile terms, with
+full or near-full qualifying mileage and separate next-day successful
+Fake-provider reconciliations. These are synthetic maker/checker payments;
+they do not establish live automatic-payment readiness. Notification cleanup
+is restricted to the exact demo graph's drivers and preserves curated notices.
+Existing credentials, immutable history and unrelated records remain intact.
+
+Golden report contributors use the same canonical full-workday routes and
+durations as the primary driver. This balances synthetic distance, time,
+impressions and cost within the existing disclosure limits; privacy thresholds
+are not reduced to display the demo report.
+
+Verification uses only isolated branch candidate and test databases. This
+change does not reseed the client demo or rehost the client preview. The dated
+preview receipts and persisted-content inventory below describe the earlier
+seed; their Lagos names are historical evidence, not the current seed design.
+
 No missing client answer is recorded as approved. These records are fictional and must be replaced before onboarding people or accepting real campaigns.
 
 | Temporary input | Current value and location | Replacing answer |
@@ -26,9 +47,9 @@ No missing client answer is recorded as approved. These records are fictional an
 | Renewal lookback | `EVIDENCE_RENEWAL_LOOKBACK_DAYS=7` in those files | REQ-039 |
 | Reply window | `EVIDENCE_CHALLENGE_RESPONSE_HOURS=24` in those files | REQ-039 |
 | Invoice bank and number prefix | OPay, non-routable all-zero account `0000000000`, prefix `TXM`, held only in the seeded issuer profile and invoice snapshots | REQ-041, REQ-042 and REQ-052 |
-| Reach estimates | Lagos weekday: 240 contacts/km, 5/minute, road factor 1.15; Abuja office: 180/km, 4/minute, road factor 1; Lagos weekend: 140/km, 4/minute, road factor 1; morning/midday/evening/night factors 1.2/1/1.3/0.7; target/bonus/exclusion factors 1.2/1.35/0 | EXT-REPORT-METHOD: calculation, labels and limitations |
+| Reach estimates | Abuja weekday: 240 contacts/km, 5/minute, road factor 1.15; Abuja office: 180/km, 4/minute, road factor 1; Abuja weekend: 140/km, 4/minute, road factor 1; morning/midday/evening/night factors 1.2/1/1.3/0.7; target/bonus/exclusion factors 1.2/1.35/0 | EXT-REPORT-METHOD: calculation, labels and limitations |
 | Report calculation inputs | Seeded traffic profiles, routes, impression estimates, exposure scores and frozen measurement snapshots; `impressions_v1` / `exposure_v1` identify the existing calculation | EXT-REPORT-METHOD; no revenue or conversion inputs are invented |
-| Commercial records | Campaign budgets and quotations, including ₦1,000,000 portal campaigns, ₦3,000,000 scopes for the three additional report contributor histories, ₦1,800,000 for Ikeja Office Lunch, partial funding of ₦500,000, 7.5% VAT, five-vehicle scopes and zero production-cost components | EXT-COMMERCIAL-VALUES: approved quotation components, production prices and commissions; each real campaign's accepted quotation replaces its seeded snapshot |
+| Commercial records | Campaign budgets and quotations, including ₦1,000,000 portal campaigns, ₦3,000,000 scopes for the three additional report contributor histories, ₦1,800,000 for Utako Office Lunch, partial funding of ₦500,000, 7.5% VAT, five-vehicle scopes and zero production-cost components | EXT-COMMERCIAL-VALUES: approved quotation components, production prices and commissions; each real campaign's accepted quotation replaces its seeded snapshot |
 | Complaint handling | Existing categories and fictional replies in the inventory below; no reply target is configured | REQ-020 and REQ-021 |
 | Staff roster and contacts | The seven fictional Terrax staff in the inventory, their departmental actors and `@terraxmedia.com` addresses | Client's actual staff names, departments and sign-in details |
 | Driver identity and payment details | Fictional people, plates, licence numbers and document cards; encrypted NIN `00000000000`, non-routable all-zero bank account `0000000000`, bank code `999` | Each applicant's actual documents, identity checks and verified exact bank-account version |

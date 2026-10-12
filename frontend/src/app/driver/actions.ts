@@ -54,9 +54,21 @@ export async function assignmentAction(
 // --- trips -------------------------------------------------------------------
 
 export interface StartTripResult extends DriverActionState {
-  trip?: { id: string; evidenceProtocolVersion: 1 | 2 };
+  trip?: { id: string; startedAt?: string; evidenceProtocolVersion: 1 | 2 };
   outcome?: "started" | "failed" | "unknown";
 }
+
+/** Start refusals that mean the driver has a photo task to do first; never an uncertain start. */
+const START_PHOTO_REFUSALS: Record<string, string> = {
+  APPROVED_INSTALLATION_EVIDENCE_REQUIRED:
+    "Your installation photos need to be approved first. Send them from Jobs.",
+  INSTALLATION_EVIDENCE_EXPIRED: "New installation photos are due. Send them from Jobs.",
+  CURRENT_DISPLAY_PROOF_REQUIRED: "Take today's display photo on Jobs, then start again.",
+  INSTALLATION_EVIDENCE_POLICY_UNAVAILABLE:
+    "Trips can't start yet because photo checks aren't set up. Contact support.",
+  DISPLAY_PROOF_POLICY_UNAVAILABLE:
+    "Trips can't start yet because photo checks aren't set up. Contact support.",
+};
 
 export async function startTripAction(assignmentId: string): Promise<StartTripResult> {
   if (!z.string().uuid().safeParse(assignmentId).success) {
@@ -70,11 +82,18 @@ export async function startTripAction(assignmentId: string): Promise<StartTripRe
     revalidateDriver();
     return {
       trip: data
-        ? { id: data.id, evidenceProtocolVersion: data.evidence_protocol_version as 1 | 2 }
+        ? {
+            id: data.id,
+            startedAt: data.started_at,
+            evidenceProtocolVersion: data.evidence_protocol_version as 1 | 2,
+          }
         : undefined,
       outcome: data ? "started" : "unknown",
     };
   } catch (error) {
+    if (error instanceof ApiError && START_PHOTO_REFUSALS[error.code]) {
+      return { error: START_PHOTO_REFUSALS[error.code], outcome: "failed" };
+    }
     if (error instanceof ApiError && [400, 403, 404, 422].includes(error.status)) {
       return { error: error.message, outcome: "failed" };
     }
@@ -90,6 +109,7 @@ export async function getCurrentTripAction(): Promise<StartTripResult> {
       trip: data?.trip
         ? {
             id: data.trip.id,
+            startedAt: data.trip.started_at,
             evidenceProtocolVersion: data.trip.evidence_protocol_version as 1 | 2,
           }
         : undefined,

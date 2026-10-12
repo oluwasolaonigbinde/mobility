@@ -31,7 +31,7 @@ test("admin can discover campaign commercial billing", async ({ page }) => {
   await page.getByRole("link", { name: "Money", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Money", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Invoices & payments", exact: true }).click();
-  await page.getByRole("link", { name: "Marula Kitchens — Lagos Lunch Routes" }).click();
+  await page.getByRole("link", { name: "Marula Kitchens — Abuja Lunch Routes" }).click();
   await page.waitForURL(/\/campaigns\/[a-f0-9-]{36}/);
   await expect(page.getByRole("heading", { name: "Quotation" })).toBeVisible();
   await expect(page.getByText("Accepted", { exact: true }).first()).toBeVisible();
@@ -41,7 +41,7 @@ test("admin can discover campaign commercial billing", async ({ page }) => {
 test("admin company update persists and is visible to the advertiser", async ({ page }) => {
   const billingContact = `Billing E2E ${Date.now()}`;
   await login(page, "admin@demo.mobility.local", "DemoAdmin12345!", "admin");
-  const campaign = await adminCampaign(page, "Marula Kitchens — Lagos Lunch Routes");
+  const campaign = await adminCampaign(page, "Marula Kitchens — Abuja Lunch Routes");
   await page.goto(`/admin/advertisers/${campaign.organization.id}#details`);
   await page.getByLabel("Billing contact").fill(billingContact);
   await page.getByRole("button", { name: "Save company profile" }).click();
@@ -62,10 +62,11 @@ test("advertiser sees canonical company, billing and accepted terms", async ({ p
   await expect(page.getByRole("heading", { name: "Company profile" })).toBeVisible();
   await expect(page.getByLabel("Legal or trading name")).toHaveValue("Marula Kitchens");
   await page.getByRole("link", { name: "Billing", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Billing history" })).toBeVisible();
-  await expect(page.getByText(/Issued NGN invoices can be paid through Paystack/i)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Invoice history" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "To pay", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Payments", exact: true })).toBeVisible();
   await page.goto("/advertiser/campaigns");
-  await page.getByRole("link", { name: "Marula Kitchens — Lagos Lunch Routes" }).click();
+  await page.getByRole("link", { name: "Marula Kitchens — Abuja Lunch Routes" }).click();
   await page.waitForURL(/\/campaigns\/[a-f0-9-]{36}/);
   await expect(page.getByRole("heading", { name: "Commercial terms" })).toBeVisible();
   await expect(page.locator("span").filter({ hasText: /^Accepted$/ })).toBeVisible();
@@ -149,7 +150,7 @@ test("quotation acceptance and invoice facts survive role changes and reloads", 
   await login(page, "advertiser@demo.mobility.local", "DemoAdvertiser12345!", "advertiser");
   await page.goto("/advertiser/billing");
   const history = page.getByRole("link", { name: campaignName }).locator("xpath=../..");
-  await expect(history.getByText("Invoice and settlement history")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Invoice history", exact: true })).toBeVisible();
   await expect(history.getByText("Draft — number assigned on issue")).toBeVisible();
   await history.getByRole("link", { name: "View invoice" }).click();
   await expect(page.getByRole("heading", { name: "Draft invoice" })).toBeVisible();

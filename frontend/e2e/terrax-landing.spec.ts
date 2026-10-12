@@ -83,7 +83,7 @@ test("the mobile menu exposes both acquisition actions", async ({ page }) => {
     "href",
     "/apply",
   );
-  await menu.getByRole("link", { name: "Request a campaign quote" }).click();
+  await menu.getByRole("link", { name: "Request a Quote" }).click();
   await expect(page.getByLabel("Company")).toBeVisible();
   await expect(menu).toHaveCount(0);
 });
@@ -154,7 +154,7 @@ test("brand and driver paths resolve to their distinct entry points", async ({ p
   await page.goto(PATH);
 
   await expect(
-    page.locator("#for-brands").getByRole("link", { name: "Request a campaign quote" }),
+    page.locator("#for-brands").getByRole("link", { name: "Request a Quote" }),
   ).toHaveAttribute("href", "#campaign-enquiry");
   await expect(
     page.locator("#for-drivers").getByRole("link", { name: "Apply to drive" }),

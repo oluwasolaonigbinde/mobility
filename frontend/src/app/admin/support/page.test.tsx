@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import { ApiError } from "@/lib/api/errors";
@@ -61,6 +61,29 @@ const page = (query: Record<string, string> = {}) =>
 describe("Support work lists", () => {
   beforeEach(() => {
     get.mockReset();
+  });
+  it("marks the default list and filters as selected", async () => {
+    get.mockResolvedValue({ data: { items: [complaint], total: 1 } });
+    render(await page());
+    expect(
+      within(screen.getByRole("navigation", { name: "Support lists" })).getByRole("link", {
+        current: "page",
+      }),
+    ).toHaveTextContent("Complaints");
+    expect(
+      within(screen.getByRole("navigation", { name: "Complaint status" })).getByRole("link", {
+        current: "page",
+      }),
+    ).toHaveTextContent("Needs a reply");
+    cleanup();
+    get.mockResolvedValue({ data: { items: [task], total: 1 } });
+    render(await page({ tab: "contact" }));
+    const history = screen.getByRole("navigation", { name: "Contact history" });
+    expect(within(history).getByRole("link", { current: "page" })).toHaveTextContent("Current");
+    expect(within(history).getByRole("link", { name: "With history" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("history=true"),
+    );
   });
   it("keeps the driver and list filters in row, page and close links", async () => {
     get.mockResolvedValue({ data: { items: [complaint], total: 30 } });

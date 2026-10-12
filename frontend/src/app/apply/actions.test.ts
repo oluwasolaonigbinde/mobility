@@ -70,7 +70,7 @@ describe("driver application actions", () => {
     form.set("full_name", "Driver Name");
 
     await expect(submitDriverApplicationAction({}, form)).resolves.toEqual({
-      error: "Application service is unavailable right now.",
+      error: "We couldn't send your application right now. Please try again later.",
     });
   });
 
@@ -103,7 +103,7 @@ describe("driver application actions", () => {
     form.set("email", " Driver@Example.com ");
 
     await expect(requestDriverOnboardingAccessAction({}, form)).resolves.toEqual({
-      done: "If the application can continue, a new onboarding code will be sent.",
+      done: "If your application is still open, we've emailed you a new code.",
       email: "driver@example.com",
     });
     expect(mocks.post).toHaveBeenCalledWith("/api/v1/auth/driver-onboarding-access/request", {
@@ -125,7 +125,7 @@ describe("driver application actions", () => {
     const result = await requestDriverOnboardingAccessAction({}, form);
 
     expect(result).toEqual({
-      error: "Onboarding access is temporarily unavailable. Try again later.",
+      error: "We couldn't send a new code right now. Try again in a few minutes.",
       email: "driver@example.com",
     });
     expect(JSON.stringify(result)).not.toContain("mailbox");

@@ -1,5 +1,5 @@
 /**
- * Tracker failure modes (review findings 5–7): storage and cross-tab locking
+ * Tracker failure modes (review findings 5Ã¢â‚¬â€œ7): storage and cross-tab locking
  * fail CLOSED, and the end watermark never claims completeness the durable
  * queue cannot vouch for.
  */
@@ -238,7 +238,7 @@ describe("assignment activation authority", () => {
     pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
     render(<TripTracker assignment={null} initialTrip={null} driverId={DRIVER_ID} />);
 
-    expect(screen.getByText("Set up this phone")).toBeInTheDocument();
+    expect(screen.queryByText("Set up this phone")).not.toBeInTheDocument();
     expect(screen.getByText(/wait for Terrax Media to start it/i)).toBeInTheDocument();
     expect(screen.queryByText(/accept and activate/i)).not.toBeInTheDocument();
   });
@@ -266,10 +266,12 @@ describe("storage fail-closed (finding 5)", () => {
     render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
 
     await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent(/offline storage is unavailable/i),
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        /couldn't save trip details securely for use offline/i,
+      ),
     );
     expect(screen.getByRole("button", { name: /Start trip/ })).toBeDisabled();
-    expect(screen.getByText(/You earn for verified campaign driving/)).toBeInTheDocument();
+    expect(screen.queryByText(/You earn for verified campaign driving/)).not.toBeInTheDocument();
   });
 
   it("disables ending when storage failed with an active trip (no false completeness)", async () => {
@@ -278,7 +280,9 @@ describe("storage fail-closed (finding 5)", () => {
     render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
 
     await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent(/offline storage is unavailable/i),
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        /couldn't save trip details securely for use offline/i,
+      ),
     );
     // Storage never became ready -> the lock is never acquired -> fail closed.
     expect(screen.getByRole("button", { name: /End trip/ })).toBeDisabled();
@@ -304,7 +308,7 @@ describe("single-writer lock fail-closed (finding 6)", () => {
     expect(actions.startTripAction).not.toHaveBeenCalled();
   });
 
-  it("calls Start only after the writer lock and every live prerequisite are held", async () => {
+  it("Home compact Start uses the writer lock and every live prerequisite", async () => {
     const order: string[] = [];
     pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
     installRuntime();
@@ -321,7 +325,7 @@ describe("single-writer lock fail-closed (finding 6)", () => {
       order.push("start");
       return { trip: TRIP, outcome: "started" };
     });
-    render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
+    render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} compact />);
 
     await userEvent.click(await screen.findByRole("button", { name: /Start trip/ }));
     await waitFor(() => expect(actions.startTripAction).toHaveBeenCalledTimes(1));
@@ -416,7 +420,9 @@ describe("single-writer lock fail-closed (finding 6)", () => {
     render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
 
     await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent(/exclusive tracking lock/),
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        /can't safely track a trip in one tab at a time/,
+      ),
     );
     expect(screen.getByTestId("tracking-health")).toHaveTextContent("Needs attention");
     expect(screen.getByTestId("tracking-health")).toHaveAttribute("data-runtime-health", "stopped");
@@ -450,7 +456,11 @@ describe("live runtime truth", () => {
     render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
     await waitFor(() => expect(screen.getByRole("button", { name: /Start trip/ })).toBeEnabled());
     await userEvent.click(screen.getByRole("button", { name: /Start trip/ }));
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("Start is blocked"));
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent("You can't start a trip yet"),
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("The screen can stay on: not yet");
+    expect(screen.getByRole("alert")).toHaveTextContent("Update your browser");
     expect(actions.startTripAction).not.toHaveBeenCalled();
     expect(warning).toHaveBeenCalledTimes(1);
     const diagnostic = JSON.parse(String(warning.mock.calls[0]?.[0]).split("=", 2)[1]!);
@@ -646,7 +656,7 @@ describe("end watermark honesty (finding 5)", () => {
       TRIP_ID,
       expect.objectContaining({ complete: false }),
     );
-    expect(window.confirm).toHaveBeenCalledWith(expect.stringMatching(/unsynced/));
+    expect(window.confirm).toHaveBeenCalledWith(expect.stringMatching(/not reached Cardvert/));
   });
 
   it("forces clientComplete false when diagnostic dead letters remain", async () => {
@@ -883,7 +893,9 @@ describe("end watermark honesty (finding 5)", () => {
 
     await userEvent.click(endButton);
 
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/durable watermark/i));
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(/couldn't confirm all saved locations/i),
+    );
     expect(actions.endTripAction).not.toHaveBeenCalled();
     expect(runtime.watchPosition).toHaveBeenCalledTimes(1);
   });
@@ -1032,12 +1044,12 @@ describe("durable-before-acknowledgement capture (OFF-003)", () => {
 
     // The write has not committed yet: the UI must not claim the fix is captured.
     expect(queue.addPing).toHaveBeenCalledTimes(1);
-    expect(screen.queryByText(/±12m fix/)).not.toBeInTheDocument();
+    expect(screen.queryByText("0.0", { exact: true })).not.toBeInTheDocument();
 
     await act(async () => {
       durable.resolve({ sequence_number: 0 });
     });
-    await waitFor(() => expect(screen.getByText(/±12m fix/)).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByText("0.0", { exact: true })).toBeInTheDocument());
   });
 
   it("never acknowledges a fix that the durable write rejected (quota or abort)", async () => {
@@ -1055,11 +1067,9 @@ describe("durable-before-acknowledgement capture (OFF-003)", () => {
     });
 
     await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent(
-        /stopped storing encrypted GPS evidence/i,
-      ),
+      expect(screen.getByRole("alert")).toHaveTextContent(/could not save location updates/i),
     );
-    expect(screen.queryByText(/±12m fix/)).not.toBeInTheDocument();
+    expect(screen.queryByText("0.0", { exact: true })).not.toBeInTheDocument();
     expect(runtime.clearWatch).toHaveBeenCalledWith(1);
   });
 });
@@ -1087,7 +1097,9 @@ describe("deadletter-only recovery (OFF-002)", () => {
     render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
 
     await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent(/Earlier GPS evidence was rejected/i),
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        /earlier location updates were not accepted/i,
+      ),
     );
     // Terminal evidence is diagnosed, never blindly resent.
     expect(actions.sendPingBatchAction).not.toHaveBeenCalled();
@@ -1105,9 +1117,9 @@ describe("unreadable retained evidence (OFF-003)", () => {
     render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
 
     await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent(/can no longer be read/i),
+      expect(screen.getByRole("alert")).toHaveTextContent(/cannot be read or sent/i),
     );
-    expect(screen.getByRole("alert")).toHaveTextContent(/cannot be recovered or resent/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/cannot be read or sent/i);
     expect(screen.getByRole("button", { name: /Start trip/ })).toBeDisabled();
   });
 });
@@ -1180,9 +1192,7 @@ describe("recovery termination and fault containment (OFF-002)", () => {
       render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
 
       await vi.waitFor(() =>
-        expect(screen.getByRole("alert")).toHaveTextContent(
-          /closed that trip's record as incomplete/i,
-        ),
+        expect(screen.getByRole("alert")).toHaveTextContent(/That trip's record is incomplete/i),
       );
       expect(queue.forgetTrip).not.toHaveBeenCalled();
       expect(actions.sendPingBatchAction).not.toHaveBeenCalled();
@@ -1225,7 +1235,7 @@ describe("recovery termination and fault containment (OFF-002)", () => {
       await act(() => vi.advanceTimersByTimeAsync(61_000));
 
       // Nothing is left to recover, so later ticks must not contend for the
-      // writer lock — that contention showed the driver a permanent alert.
+      // writer lock Ã¢â‚¬â€ that contention showed the driver a permanent alert.
       expect(requested.length).toBe(locksAfterFirstPass);
     } finally {
       vi.useRealTimers();
@@ -1242,12 +1252,16 @@ describe("recovery termination and fault containment (OFF-002)", () => {
 
     render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
 
-    // A corrupt leftover must not be mislabelled as a failed queue open…
+    // A corrupt leftover must not be mislabelled as a failed queue openÃ¢â‚¬Â¦
     await waitFor(() =>
-      expect(screen.getByRole("alert")).toHaveTextContent(/could not finish recovering/i),
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        /couldn't restore saved details from earlier trips/i,
+      ),
     );
-    expect(screen.getByRole("alert")).not.toHaveTextContent(/offline storage is unavailable/i);
-    // …and must not silently stop GPS capture.
+    expect(screen.getByRole("alert")).not.toHaveTextContent(
+      /couldn't save trip details securely for use offline/i,
+    );
+    // Ã¢â‚¬Â¦and must not silently stop GPS capture.
     await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
   });
 });
@@ -1362,7 +1376,7 @@ describe("signed partial acknowledgement display", () => {
     await waitFor(() =>
       expect(screen.getByTestId("tracking-health")).toHaveTextContent("Needs attention"),
     );
-    expect(screen.getByText("GPS speed exceeded the limit")).toBeInTheDocument();
+    expect(screen.getByText("The recorded speed was too high")).toBeInTheDocument();
     expect(screen.queryByText(/rejected samples/i)).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /End trip/ }));
     await waitFor(() => expect(queue.freezeEnd).toHaveBeenCalledWith(TRIP_ID, false));
@@ -1409,7 +1423,7 @@ it("retains settled rejected-sample receipts when recovering an earlier trip", a
   expect(queue.forgetTrip).not.toHaveBeenCalled();
   expect(actions.sendPingBatchAction).not.toHaveBeenCalled();
   await waitFor(() =>
-    expect(screen.getByRole("alert")).toHaveTextContent(/GPS samples need review/i),
+    expect(screen.getByRole("alert")).toHaveTextContent(/location updates need checking/i),
   );
 });
 
@@ -1450,7 +1464,9 @@ it("fails closed when the durable End marker cannot commit", async () => {
   await waitFor(() => expect(screen.getByRole("button", { name: /End trip/ })).toBeEnabled());
   await userEvent.click(screen.getByRole("button", { name: /End trip/ }));
   await waitFor(() =>
-    expect(screen.getByRole("alert")).toHaveTextContent(/End request could not be saved/),
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /could not save your request to end the trip/,
+    ),
   );
   expect(actions.endTripAction).not.toHaveBeenCalled();
   expect(queue.forgetTrip).not.toHaveBeenCalled();

@@ -6,13 +6,13 @@ export interface FieldProps extends InputHTMLAttributes<HTMLInputElement> {
   error?: string;
 }
 
-/** Labeled input with the Cardvert mono-label treatment and a11y wiring. */
+/** Labeled input with the sentence-case labels and a11y wiring. */
 export function Field({ label, error, className, ...props }: FieldProps) {
   const id = useId();
   const errorId = `${id}-error`;
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="micro text-muted">
+      <label htmlFor={id} className="text-ink text-sm font-medium">
         {label}
       </label>
       <input
