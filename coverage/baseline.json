@@ -650,26 +650,13 @@
   "policy_sha256": "89f9b5a3f2f978c8f96bf155227cda0bc75d2a86496381142c63819a85995098",
   "refresh": {
     "inventory_changes": {
-      "added": [
-        "app/seeds/driver_story.py",
-        "app/services/driver_earnings_presentation.py",
-        "frontend/src/app/admin/payouts/batches/earnings-search.tsx",
-        "frontend/src/app/admin/settings/settings-nav.tsx",
-        "frontend/src/app/apply/upload-states.ts",
-        "frontend/src/components/driver/phone-prompt.tsx",
-        "frontend/src/components/ui/file-picker.tsx",
-        "frontend/src/components/ui/steps.tsx",
-        "frontend/src/components/ui/tabs.tsx",
-        "frontend/src/lib/driver/daily-earnings.ts",
-        "frontend/src/lib/driver/load-daily-earnings.ts",
-        "frontend/src/lib/pwa/readiness-rows.ts"
-      ],
+      "added": [],
       "removed": []
     },
-    "previous_baseline_sha256": "ebab85f4185e2a8e93a85e363fa119913ecb0a80cc2a1257d7f39aed0d98c2e8",
-    "reason": "REQ-133 source-bound portal inventory and coverage receipt after reviewed verification fixes"
+    "previous_baseline_sha256": "285eef445a5f05b1a24ebdd63d080b9d7af3dbd1ba98a5b4758a937577776ec0",
+    "reason": "REQ-133 metadata-only receipt binding after reviewed non-squash merge; adopted coverage floors and sources unchanged"
   },
-  "source_parent_sha": "83f4b8e0c1d98e671239d3197784150ab11813cb",
+  "source_parent_sha": "bdb825842256054833fb75e37d324e0b61c5acd0",
   "source_sha256": "01306c215ca8751a7401460ea76014b0510f059fac8c626031077c33859f6e85",
   "version": 3
 }
