@@ -6,6 +6,7 @@ import { readCompanyInvoices, type CompanyInvoices } from "../advertisers/compan
 import { formatDate, formatMoneyExact } from "@/lib/format";
 import { adminStatus } from "@/lib/status/admin";
 import { Pagination } from "@/components/ui/pagination";
+import { FilterChips } from "@/components/ui/tabs";
 import { QueueUnavailable } from "../queue-search";
 import { moneyHref, type MoneyQuery } from "./navigation";
 type Invoice = components["schemas"]["InvoiceRead"];
@@ -82,18 +83,14 @@ export default async function Invoices({ query }: { query: MoneyQuery }) {
     total = rows.length;
   return (
     <div className="space-y-4">
-      <nav aria-label="Invoice filters" className="flex flex-wrap gap-3">
-        {filters.map(([key, label]) => (
-          <Link
-            key={key}
-            className="border-edge rounded border px-3 py-2"
-            aria-current={state === key ? "page" : undefined}
-            href={moneyHref(query, { invoice_status: key, invoice_offset: undefined })}
-          >
-            {label}
-          </Link>
-        ))}
-      </nav>
+      <FilterChips
+        label="Invoice filters"
+        items={filters.map(([key, label]) => ({
+          href: moneyHref(query, { invoice_status: key, invoice_offset: undefined }),
+          label,
+          active: state === key,
+        }))}
+      />
       <p>
         {total} matching {state === "refunds" ? "refunds" : "invoices"}
       </p>

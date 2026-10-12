@@ -24,23 +24,18 @@ test("W4-01D history, hold, dispute, outcome and fail-safe PWA rehearsal", async
   await installSession(context, `w401d-driver-${scope}`);
 
   await page.goto("/driver/assignments");
-  await expect(page.getByText("Lagos Release Rehearsal").first()).toBeVisible();
-  await expect(page.getByText("Completed", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Abuja Release Rehearsal").first()).toBeVisible();
+  await expect(page.getByText(/Finished.*26 Aug/).first()).toBeVisible();
 
   await page.goto("/driver/earnings");
-  await expect(page.getByText("1 trip needs review")).toBeVisible();
-  await expect(
-    page.locator("li").getByText("Waiting for review", { exact: true }).first(),
-  ).toBeVisible();
-  await page.getByText("Balance details", { exact: true }).click();
-  await expect(page.getByText("Owed, taken from your payouts", { exact: true })).toBeVisible();
-  await expect(page.getByText("Voided", { exact: true }).first()).toBeVisible();
-
-  await page
-    .getByRole("link", { name: /Lagos Release Rehearsal.*1,250\.00.*Waiting for review/s })
-    .click();
+  await expect(page.getByText("On hold – contact support", { exact: true })).toBeVisible();
+  await expect(page.getByText("₦4,250.00", { exact: true })).toBeVisible();
+  await expect(page.getByText("₦2,000.00", { exact: true })).toBeVisible();
+  await expect(page.getByText("Paid 26 Aug", { exact: true })).toBeVisible();
+  await page.getByText("Trips", { exact: true }).click();
+  await page.locator(`a[href="/driver/earnings/trips/${heldTrip}"]`).click();
   await expect(page).toHaveURL(new RegExp(`/driver/earnings/trips/${heldTrip}$`));
-  await expect(page.getByText("Hourly pay · base and premium-zone rates fixed")).toBeVisible();
+  await expect(page.getByText("₦1,250.00", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Route pattern needs review")).toBeVisible();
 
   const message = "My signal dropped near the bridge; please review this trip.";
@@ -54,14 +49,14 @@ test("W4-01D history, hold, dispute, outcome and fail-safe PWA rehearsal", async
     .toBe(1);
   await page.reload();
   await expect(page.getByText(message)).toBeVisible();
-  await expect(page.getByText("Awaiting reply")).toBeVisible();
+  await expect(page.getByText("Waiting for a reply")).toBeVisible();
 
   const resolution = await request.post("http://127.0.0.1:38101/__test__/resolve", {
     data: { scope },
   });
   expect(resolution.ok()).toBeTruthy();
   await page.reload();
-  await expect(page.getByText("Review cleared")).toBeVisible();
+  await expect(page.getByText("Cleared", { exact: true })).toBeVisible();
   await expect(
     page.getByText("We reviewed the trip and cleared the earnings review."),
   ).toBeVisible();
@@ -69,10 +64,12 @@ test("W4-01D history, hold, dispute, outcome and fail-safe PWA rehearsal", async
   await expect(page.getByText("Staff completed their review of a trip.")).toBeVisible();
 
   await page.goto("/driver/earnings");
-  await expect(page.getByText("0 trips need review")).toBeVisible();
-  await expect(page.locator("li").getByText("Ready to pay", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("On hold – contact support", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Being checked", { exact: true })).toBeVisible();
+  await expect(page.getByText("₦4,250.00", { exact: true })).toBeVisible();
+  await expect(page.getByText("Paid 26 Aug", { exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByText("0 trips need review")).toBeVisible();
+  await expect(page.getByText("Being checked", { exact: true })).toBeVisible();
 
   const manifest = await request.get("/driver/manifest.webmanifest");
   expect(manifest.ok()).toBeTruthy();
@@ -101,11 +98,12 @@ test("W4-01D history, hold, dispute, outcome and fail-safe PWA rehearsal", async
 
   if (testInfo.project.name === "chromium") {
     await context.setOffline(true);
-    await expect(page.getByText("Paid means money successfully transferred.")).toHaveCount(0);
-    await expect(page.getByText("Current earnings hidden while offline")).toBeVisible();
+    await expect(page.getByText("₦4,250.00", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Paid 26 Aug", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Reconnect to check earnings")).toBeVisible();
     await context.setOffline(false);
-    await expect(page.getByText("0 trips need review")).toBeVisible();
-    await expect(page.getByText("Current earnings hidden while offline")).toHaveCount(0);
+    await expect(page.getByText("Being checked", { exact: true })).toBeVisible();
+    await expect(page.getByText("Reconnect to check earnings")).toHaveCount(0);
 
     await context.setOffline(true);
     await page.goto("/driver/earnings");
@@ -134,10 +132,12 @@ test("W4-01D history, hold, dispute, outcome and fail-safe PWA rehearsal", async
   await page.goto("/driver/earnings");
   await expect(page).toHaveURL(/\/login/);
   await page.goBack();
-  await expect(page.getByText("Paid means money successfully transferred.")).toHaveCount(0);
+  await expect(page.getByText("₦4,250.00", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Paid 26 Aug", { exact: true })).toHaveCount(0);
 
   await installSession(context, `w401d-wrong-role-${scope}`);
   await page.goto("/driver/earnings");
   await expect(page).toHaveURL(/\/advertiser/);
-  await expect(page.getByText("Paid means money successfully transferred.")).toHaveCount(0);
+  await expect(page.getByText("₦4,250.00", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Paid 26 Aug", { exact: true })).toHaveCount(0);
 });

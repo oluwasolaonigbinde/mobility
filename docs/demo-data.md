@@ -13,6 +13,27 @@ Owner Batch 2 seed review corrections (REQ-097–REQ-103) were committed in `687
 
 ## Client inputs to replace
 
+### Current portal seed (REQ-125, REQ-127–132)
+
+Fresh development seeds use Abuja service cities, place names and geometry
+(longitude 7.2–7.7, latitude 8.8–9.3). The primary driver starts ready and idle.
+Fourteen historical work days use the frozen ₦10,000/70-mile terms, with
+full or near-full qualifying mileage and separate next-day successful
+Fake-provider reconciliations. These are synthetic maker/checker payments;
+they do not establish live automatic-payment readiness. Notification cleanup
+is restricted to the exact demo graph's drivers and preserves curated notices.
+Existing credentials, immutable history and unrelated records remain intact.
+
+Golden report contributors use the same canonical full-workday routes and
+durations as the primary driver. This balances synthetic distance, time,
+impressions and cost within the existing disclosure limits; privacy thresholds
+are not reduced to display the demo report.
+
+Verification uses only isolated branch candidate and test databases. This
+change does not reseed the client demo or rehost the client preview. The dated
+preview receipts and persisted-content inventory below describe the earlier
+seed; their Lagos names are historical evidence, not the current seed design.
+
 No missing client answer is recorded as approved. These records are fictional and must be replaced before onboarding people or accepting real campaigns.
 
 | Temporary input | Current value and location | Replacing answer |
@@ -28,7 +49,7 @@ No missing client answer is recorded as approved. These records are fictional an
 | Invoice bank and number prefix | OPay, non-routable all-zero account `0000000000`, prefix `TXM`, held only in the seeded issuer profile and invoice snapshots | REQ-041, REQ-042 and REQ-052 |
 | Reach estimates | Abuja weekday: 240 contacts/km, 5/minute, road factor 1.15; Abuja office: 180/km, 4/minute, road factor 1; Abuja weekend: 140/km, 4/minute, road factor 1; morning/midday/evening/night factors 1.2/1/1.3/0.7; target/bonus/exclusion factors 1.2/1.35/0 | EXT-REPORT-METHOD: calculation, labels and limitations |
 | Report calculation inputs | Seeded traffic profiles, routes, impression estimates, exposure scores and frozen measurement snapshots; `impressions_v1` / `exposure_v1` identify the existing calculation | EXT-REPORT-METHOD; no revenue or conversion inputs are invented |
-| Commercial records | Campaign budgets and quotations, including ₦1,000,000 portal campaigns, ₦3,000,000 scopes for the three additional report contributor histories, ₦1,800,000 for Wuse Office Lunch, partial funding of ₦500,000, 7.5% VAT, five-vehicle scopes and zero production-cost components | EXT-COMMERCIAL-VALUES: approved quotation components, production prices and commissions; each real campaign's accepted quotation replaces its seeded snapshot |
+| Commercial records | Campaign budgets and quotations, including ₦1,000,000 portal campaigns, ₦3,000,000 scopes for the three additional report contributor histories, ₦1,800,000 for Utako Office Lunch, partial funding of ₦500,000, 7.5% VAT, five-vehicle scopes and zero production-cost components | EXT-COMMERCIAL-VALUES: approved quotation components, production prices and commissions; each real campaign's accepted quotation replaces its seeded snapshot |
 | Complaint handling | Existing categories and fictional replies in the inventory below; no reply target is configured | REQ-020 and REQ-021 |
 | Staff roster and contacts | The seven fictional Terrax staff in the inventory, their departmental actors and `@terraxmedia.com` addresses | Client's actual staff names, departments and sign-in details |
 | Driver identity and payment details | Fictional people, plates, licence numbers and document cards; encrypted NIN `00000000000`, non-routable all-zero bank account `0000000000`, bank code `999` | Each applicant's actual documents, identity checks and verified exact bank-account version |
@@ -181,16 +202,25 @@ Development/preview drivers use synthetic Nigerian-format +234 numbers.
 The deliberately invalid national prefix keeps them distinct from real subscriber numbers.
 No WhatsApp/SMS is sent by the application or seed.
 
-| Login | Fictional saved phone |
-| --- | --- |
-| driver@demo.mobility.local | +2340000000100 |
-| driver01…driver09@demo.mobility.local | +2340000000101…+2340000000109, respectively |
-| abdulrahman.yusuf@mail.ng | +2340000000110 |
-| nneka.umeh@mail.ng | +2340000000111 |
-| ayodele.bakare@mail.ng | +2340000000112 |
-| suleiman.idris@mail.ng | +2340000000113 |
-| damilola.akinwale@demo.mobility.local | +2340000000114 |
-| Terrax development/preview destination | +2347068369842 |
+| Login | Driver / destination | Fictional saved phone |
+| --- | --- | --- |
+| driver@demo.mobility.local | Emeka Nwankwo | +2340000000100 |
+| driver01@demo.mobility.local | Amina Bello | +2340000000101 |
+| driver02@demo.mobility.local | Chinedu Okafor | +2340000000102 |
+| driver03@demo.mobility.local | Tunde Adebayo | +2340000000103 |
+| driver04@demo.mobility.local | Ngozi Eze | +2340000000104 |
+| driver05@demo.mobility.local | Bola Adeyemi | +2340000000105 |
+| driver06@demo.mobility.local | Ifeanyi Nwosu | +2340000000106 |
+| driver07@demo.mobility.local | Kemi Balogun | +2340000000107 |
+| driver08@demo.mobility.local | Seyi Ogunleye | +2340000000108 |
+| driver09@demo.mobility.local | Zainab Musa | +2340000000109 |
+| abdulrahman.yusuf@mail.ng | Abdulrahman Yusuf | +2340000000110 |
+| nneka.umeh@mail.ng | Nneka Umeh | +2340000000111 |
+| ayodele.bakare@mail.ng | Ayodele Bakare | +2340000000112 |
+| suleiman.idris@mail.ng | Suleiman Idris | +2340000000113 |
+| damilola.akinwale@demo.mobility.local | Damilola Akinwale | +2340000000114 |
+| driver.wuse@demo.mobility.local | Musa Abdullahi | +2340000000115 |
+| Terrax development/preview destination | Owner-authorized demo contact | +2347068369842 |
 
 Damilola Akinwale (`LagosRoutes2026!`) has an active login, a readable
 renewal example with only the driving licence rejected as unreadable, and only
@@ -212,20 +242,21 @@ Production/staging destinations remain blank; real use additionally requires
 Preview deployment is a separate owner action; this change provides configuration
 and source only.
 
-Existing Start demo drivers retain the trusted no-application/no-KYC baseline.
+Historical 7 October checkpoint (superseded for the primary driver by REQ-148
+below): existing Start demo drivers retained the trusted no-application/no-KYC baseline.
 The seed does not manufacture approved KYC or car snapshots without reviewed
 documents. Its existing synthetic payee, encrypted zero-value bank details and
 payout verification fixtures remain unchanged and are reused on rerun.
 
-### Abuja geography and temporary demo contact (REQ-125/128)
+### Abuja geography and temporary demo contact (REQ-125, REQ-145)
 
-Campaigns, routes and GPS use Abuja. The Wuse campaigns and their synthetic trip corridors occupy approximately 9.055–9.105° N, 7.43–7.51° E. Other place-specific campaigns use the named Abuja district. Brands are fictional; neighbourhood and street names are real. Disposable databases must be freshly seeded to replace old Lagos histories; immutable financial/trip history is never rewritten on rerun.
+Campaigns, routes and GPS use master's canonical Abuja geometry and named districts, including Garki, Central Business District, Wuse, Utako and Maitama. Master governs the idle primary driver, full-workday routes and separate next-day reconciliations. The wave's earlier compact Wuse-coordinate transformation is replaced. Brands are fictional; neighbourhood and street names are real. Fresh isolated development databases exercise this design; immutable financial/trip history is never rewritten on rerun.
 
-Driver numbers +2340000000100 through +2340000000114 are synthetic E.164-shaped fixtures, not Nigerian subscriber numbers (the national prefix begins with zero). They are never sent messages. Terrax’s temporary destination +2347068369842 is the owner’s own number, authorized for local/preview demonstration only; REQ-126 asks the PM for Terrax’s real preview WhatsApp number. Production/staging settings remain blank and their existing operator/wording gates remain binding.
+Driver numbers +2340000000100 through +2340000000115 are synthetic E.164-shaped fixtures, not Nigerian subscriber numbers (the national prefix begins with zero). They are never sent messages. Terrax’s temporary destination +2347068369842 is the owner’s own number, authorized for local/preview demonstration only; REQ-143 asks the PM for Terrax’s real preview WhatsApp number. Production/staging settings remain blank and their existing operator/wording gates remain binding.
 
 ## Primary demo trip documents — 8 October 2026
 
-REQ-131 restores the primary Emeka Nwankwo login's normal current-document
+REQ-148 restores the primary Emeka Nwankwo login's normal current-document
 example. Six clearly fictional PNGs belong to that driver and are privately
 stored/scanned. Existing submission and review services record person/payee and
 ABJ-482-KD approvals, exact NIN/bank/file access audits and accepted document

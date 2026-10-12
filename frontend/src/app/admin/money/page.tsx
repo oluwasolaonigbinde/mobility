@@ -1,7 +1,7 @@
 export const metadata = { title: "Money" };
-import Link from "next/link";
 import { requireRole } from "@/lib/auth/current-user";
 import { PageHeader } from "@/components/ui/page-header";
+import { ViewTabs } from "@/components/ui/tabs";
 import { HubDrawer } from "../hub-drawer";
 import Automatic from "../payouts/automatic/content";
 import PaymentRuns from "../payouts/batches/content";
@@ -57,27 +57,23 @@ export default async function MoneyPage({ searchParams }: { searchParams: Promis
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <PageHeader title="Money" />
-      <nav aria-label="Money tabs" className="flex flex-wrap gap-3">
-        {[
+      <ViewTabs
+        label="Money tabs"
+        items={[
           ["payouts", "Payouts"],
           ["invoices", "Invoices & payments"],
           ["corrections", "Corrections"],
-        ].map(([value, label]) => (
-          <Link
-            key={value}
-            aria-current={tab === value ? "page" : undefined}
-            className="border-edge rounded border px-3 py-2"
-            href={moneyHref(query, {
-              tab: value,
-              batch: undefined,
-              line: undefined,
-              correction: undefined,
-            })}
-          >
-            {label}
-          </Link>
-        ))}
-      </nav>
+        ].map(([value, label]) => ({
+          href: moneyHref(query, {
+            tab: value,
+            batch: undefined,
+            line: undefined,
+            correction: undefined,
+          }),
+          label,
+          active: tab === value,
+        }))}
+      />
       {body}
       {drawer}
     </div>

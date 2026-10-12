@@ -1,6 +1,6 @@
 # W2-D polish delivery contract
 
-Owner authority: `Cardvert_W2D_Polish_Brief_2026-10-07.md`, REQ-121–124.
+Owner authority: `Cardvert_W2D_Polish_Brief_2026-10-07.md`, REQ-139–142.
 Worktree: `mobility-w2d`, branch `w2/polish`, base `ec267529`.
 The brief approves this concrete scope, local verification and a local commit.
 No push, merge, GitHub CI, external accounts/providers, migration or deployment.
@@ -72,8 +72,8 @@ marketing driver component; driver earnings presentation and touched tests.
 All three baselines in architecture §9 are regenerated from the actual API:
 `openapi.json`, `frontend/src/lib/api/schema.d.ts`, `docs/api/openapi.snapshot.json`.
 Run existing R14-B native contract fixtures. No hand-merge of generated files.
-Update requests first (done), relevant client topics, D68 and affected Q rows,
-architecture v1.125, and QA-08/QA-14 with truthful local evidence. Requests stay
+Update requests first (done), relevant client topics, D71 and affected Q rows,
+architecture v1.128, and QA-08/QA-14 with truthful local evidence. Requests stay
 IN PROGRESS until master integration; package queue remains unchanged.
 
 ## Acceptance and verification

@@ -373,6 +373,11 @@ class PayoutLedgerEntrySummary(DecimalStringMixin):
     currency: str
 
 
+class EarningsWorkDayRead(DecimalStringMixin):
+    day: date
+    amount: Decimal
+
+
 class EarningsLedgerEntryRead(PayoutLedgerEntrySummary):
     payout_calculation_id: UUID | None
     driver_profile_id: UUID
@@ -384,6 +389,10 @@ class EarningsLedgerEntryRead(PayoutLedgerEntrySummary):
     occurred_at: datetime
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
+    work_days: list[EarningsWorkDayRead] = Field(default_factory=list)
+    paid_at: datetime | None = None
+    paying_tonight: bool = False
+    payment_on_hold: bool = False
 
 
 class PayoutCalculationRead(DecimalStringMixin):

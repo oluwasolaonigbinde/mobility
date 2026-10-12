@@ -1,6 +1,6 @@
 # Hetzner release templates
 
-Templates only (D44/D65, REQ-049/117). Nothing applied; no account, region,
+Templates only (D44/D68, REQ-049/117). Nothing applied; no account, region,
 credentials, server, bucket or DNS record is selected. Follow
 [deployment-templates](../../docs/deployment-templates.md) for gates and setup.
 
@@ -27,4 +27,4 @@ browser origin. It is bundled into the frontend image and needs a rebuild to
 change. No credential is present in the template. Residency is REQ-032's legal
 decision, never a template default.
 
-W1B identifiers renumbered at merge on 2026-10-06: Compose REQ-108 → REQ-117, wording REQ-112 → REQ-116, D62 → D65, architecture v1.117 → v1.122. Master identifiers retain their meanings.
+W1B identifiers renumbered at merge on 2026-10-06: Compose REQ-108 → REQ-117, wording REQ-112 → REQ-116, D62 → D68, architecture v1.117 → v1.125. Master identifiers retain their meanings.

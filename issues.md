@@ -13,8 +13,8 @@ owner work. The dated September table below remains historical evidence.
 
 | ID | Local status | Evidence |
 | --- | --- | --- |
-| QA-08 | Fixed locally (REQ-121 / D68) | Current-access campaign names and canonical Open links for advertiser, driver and admin; malformed, conflicting or unauthorized context remains generic. Focused scope tests plus real navigation at 375px and 1440px; [receipt](issues/testing/w2d-polish-2026-10-07.md). |
-| QA-14 | Fixed locally (REQ-122 / D68) | All form edits invalidate preview; late responses cannot restore confirmation. Five-field/delayed-response tests plus real edit/repreview/confirm at both widths; [receipt](issues/testing/w2d-polish-2026-10-07.md). |
+| QA-08 | Fixed locally (REQ-139 / D71) | Current-access campaign names and canonical Open links for advertiser, driver and admin; malformed, conflicting or unauthorized context remains generic. Focused scope tests plus real navigation at 375px and 1440px; [receipt](issues/testing/w2d-polish-2026-10-07.md). |
+| QA-14 | Fixed locally (REQ-140 / D71) | All form edits invalidate preview; late responses cannot restore confirmation. Five-field/delayed-response tests plus real edit/repreview/confirm at both widths; [receipt](issues/testing/w2d-polish-2026-10-07.md). |
 
 ## Recheck on the main checkout — 24 September 2026
 

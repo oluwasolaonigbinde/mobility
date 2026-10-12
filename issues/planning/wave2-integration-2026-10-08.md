@@ -1,6 +1,6 @@
 # Owner-authorized Wave 2 integration
 
-REQ-131. Continue in the existing mobility-w2c checkout on `w2/renewals-phone`
+REQ-148. Continue in the existing mobility-w2c checkout on `w2/renewals-phone`
 at 74cdb31. Merge `w2/polish` at 78ad558; comparison base is `w1/budget-hosting`
 at ec267529. The owner approves both lanes and authorizes this local real merge
 and a bounded demo correction. No push. Existing approved lane contracts and
@@ -14,15 +14,15 @@ reviews retain their scope.
   rejected/expired renewal examples and production work guards. Verify current
   readiness and seed idempotency, then rerun the spec.
 - **C2:** Real merge of 78ad558 into 74cdb31 with both parents retained. Resolve
-  integration conflicts preserving REQ-119–131, D66–71, architecture v1.124 and
-  v1.125, and the later correction text. Leave package progress, credentials,
+  integration conflicts preserving REQ-137, REQ-138, REQ-139, REQ-140, REQ-141, REQ-142, REQ-125, REQ-143, REQ-144, REQ-145, REQ-146, REQ-147, REQ-148, D69–74, architecture v1.127 and
+  v1.128, and the later correction text. Leave package progress, credentials,
   unrelated files, dependencies and CI untouched. The owner expressly authorizes
   this local integration; full CI/master acceptance is later owner work.
 - **C3:** Regenerate actual app OpenAPI JSON, its snapshot and openapi-typescript
   schema after the merge. Never hand-merge generated artifacts. Preserve both
   contract changes and semantic parity. Rerun existing native contract fixtures.
 - **C4:** Rerun touched backend/frontend files from both lanes without local
-  coverage (D71), scoped lint/types and proportionate existing browser flows.
+  coverage (D74), scoped lint/types and proportionate existing browser flows.
   Update stale earnings assertions to the approved polish labels. Do not weaken
   authority/assertions or change retries/timeouts. Record actual verdicts and
   limitations in a compact receipt without bulk logs, LCOV or PDF files.

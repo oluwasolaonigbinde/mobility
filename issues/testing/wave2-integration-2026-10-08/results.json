@@ -4,7 +4,7 @@
     "78ad55808e785e0b0a1ecad38185da5b09359664"
   ],
   "comparison_base": "ec267529d26688bb18d72d41ac3ced4a68221a5a",
-  "coverage": "NOT RUN locally under D71",
+  "coverage": "NOT RUN locally under D74",
   "runtime_source_hashes_match_index": 121,
   "frontend_changed": {
     "cases": 191,

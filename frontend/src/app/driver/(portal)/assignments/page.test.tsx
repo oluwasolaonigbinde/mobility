@@ -40,6 +40,8 @@ describe("DriverAssignmentsPage history availability", () => {
 
   function mockJobs(items: unknown[]) {
     mocks.get.mockImplementation(async (path?: string) => {
+      if (path === "/api/v1/driver/campaign-assignments/active")
+        return { data: { assignment: null, photo_status: "ready" } };
       if (path === "/api/v1/driver/campaign-assignments") return { data: { items } };
       if (path === "/api/v1/driver/installation-evidence/policy") {
         return { data: { configured: false, can_upload: false, required_views: [] } };
@@ -103,7 +105,25 @@ describe("DriverAssignmentsPage history availability", () => {
     expect(screen.queryByText("No jobs yet")).not.toBeInTheDocument();
   });
 
-  it("keeps the activation and Start checks in plain status explanations", async () => {
+  it("shows a retry when current photo status cannot be checked", async () => {
+    mockJobs([]);
+    const normalRead = mocks.get.getMockImplementation()!;
+    mocks.get.mockImplementation(async (path: string) => {
+      if (path === "/api/v1/driver/campaign-assignments/active") {
+        throw new ApiError(503, { code: "UNAVAILABLE", message: "Temporarily unavailable" });
+      }
+      return normalRead(path);
+    });
+    render(await DriverAssignmentsPage({}));
+    expect(screen.getByText("Photo status is unavailable")).toBeVisible();
+    expect(screen.getByRole("link", { name: /try again/i })).toHaveAttribute(
+      "href",
+      "/driver/assignments",
+    );
+    expect(screen.queryByText("No jobs yet")).not.toBeInTheDocument();
+  });
+
+  it("shows concise assignment states without operational explanations", async () => {
     mockJobs([
       {
         id: "00000000-0000-4000-8000-000000000010",
@@ -127,12 +147,9 @@ describe("DriverAssignmentsPage history availability", () => {
 
     render(await DriverAssignmentsPage({}));
 
-    expect(
-      screen.getByText("Accepted. Terrax Media still needs to start this campaign for you."),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("Activated. Cardvert checks you're still ready each time you press Start."),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Accepted")).toBeVisible();
+    expect(screen.getByText("Running")).toBeVisible();
+    expect(screen.queryByText(/checks you're still ready/)).not.toBeInTheDocument();
     expect(screen.queryByText(/authority|PWA|independent admin/i)).not.toBeInTheDocument();
   });
   it("lists the accepted terms in words without the fingerprint or raw JSON (D38c)", async () => {
@@ -145,16 +162,23 @@ describe("DriverAssignmentsPage history availability", () => {
         offer_terms_sha256: "f".repeat(64),
         offer_terms: {
           currency: "NGN",
-          payout: {
-            revision_id: "r-1",
-            hourly_rate_naira: "1500.00",
-            premium_hourly_rate_naira: "2500.75",
-          },
+          payout: { revision_id: "r-1", hourly_rate_naira: "1500.00" },
           zones: { target: [{ id: "z-1", name: "Wuse II", wkt: "MULTIPOLYGON EMPTY" }] },
         },
         campaign: { name: "Abuja offer" },
         vehicle: { plate_number: "ABC-125", vehicle_type: "sedan" },
       },
+    ]);
+
+    const { container } = render(await DriverAssignmentsPage({}));
+
+    expect(screen.getByText("₦1,500.00 / hour")).toBeVisible();
+    expect(screen.queryByText("Full job terms")).not.toBeInTheDocument();
+    expect(container.textContent).not.toMatch(/f{64}|r-1|z-1|MULTIPOLYGON|Technical reference/);
+  });
+
+  it("does not display an unset offered rate as zero", async () => {
+    mockJobs([
       {
         id: "blank-rate-job",
         campaign_id: "blank-rate-campaign",
@@ -162,22 +186,39 @@ describe("DriverAssignmentsPage history availability", () => {
         offered_at: "2026-09-01T09:00:00Z",
         offer_terms: { currency: "NGN", payout: { hourly_rate_naira: "" } },
         campaign: { name: "Rates not supplied" },
-        vehicle: { plate_number: "ABC-126", vehicle_type: "sedan" },
+        vehicle: { plate_number: "ABC-126" },
+      },
+    ]);
+    render(await DriverAssignmentsPage({}));
+    expect(screen.getByText("— / hour")).toBeInTheDocument();
+    expect(screen.queryByText("₦0.00 / hour")).not.toBeInTheDocument();
+  });
+
+  it("dates past jobs by the driver's assignment instead of the campaign window", async () => {
+    mockJobs([
+      {
+        id: "past-job",
+        campaign_id: "campaign",
+        status: "completed",
+        offered_at: "2026-10-01T09:00:00Z",
+        activated_at: "2026-10-02T09:00:00Z",
+        completed_at: "2026-10-03T09:00:00Z",
+        offer_terms: null,
+        campaign: {
+          name: "Finished early",
+          start_at: "2026-10-01T09:00:00Z",
+          end_at: "2026-12-01T09:00:00Z",
+        },
+        vehicle: { plate_number: "ABC-123" },
       },
     ]);
 
     const { container } = render(await DriverAssignmentsPage({}));
 
-    expect(screen.getAllByText("Full job terms")).toHaveLength(2);
-    expect(screen.getByText("Base: —/hr")).toBeInTheDocument();
-    expect(screen.getByText("Premium: —/hr")).toBeInTheDocument();
-    expect(screen.getByText("Base: ₦1,500.00/hr")).toBeInTheDocument();
-    expect(screen.getByText("Premium: ₦2,500.75/hr")).toBeInTheDocument();
-    expect(screen.getAllByText("₦1,500.00")).toHaveLength(1);
-    expect(screen.getAllByText("₦2,500.75")).toHaveLength(1);
-    expect(screen.getByText("Zones · Target")).toBeInTheDocument();
-    expect(screen.getByText("Wuse II")).toBeInTheDocument();
-    expect(container.textContent).not.toMatch(/f{64}|r-1|z-1|MULTIPOLYGON|Technical reference/);
+    expect(container.querySelector("summary")).toHaveTextContent("Finished 3 Oct 2026");
+    expect(screen.queryByText("Finished", { exact: true })).not.toBeInTheDocument();
+    expect(container.querySelector("summary")).not.toHaveTextContent("Dec 2026");
+    expect(screen.getByText("Started 2 Oct 2026 – Finished 3 Oct 2026.")).toBeInTheDocument();
   });
 
   it("shows daily-rate pay terms as plain sentences instead of hourly lines", async () => {
@@ -213,10 +254,16 @@ describe("DriverAssignmentsPage history availability", () => {
 
     render(await DriverAssignmentsPage({}));
 
-    expect(screen.getByText("₦10,000.00 for a full day of 70 miles.")).toBeInTheDocument();
     expect(
-      screen.getByText("Shorter days are paid in proportion to the miles covered."),
-    ).toBeInTheDocument();
+      screen.queryByText("₦10,000.00 a day for 70 miles; shorter days pay a share."),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("₦10,000.00 / day")).toBeVisible();
+    expect(screen.queryByText(/Answer by|How pay works|full day of 70/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Currency: NGN")).not.toBeInTheDocument();
+    expect(screen.queryByText(/target · \d+ exclusion/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Shorter days are paid in proportion to the miles covered."),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/\/hr/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Daily cap/)).not.toBeInTheDocument();
   });

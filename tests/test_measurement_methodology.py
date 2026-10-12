@@ -123,7 +123,7 @@ def test_frozen_disclosure_wording_is_taken_from_the_contract() -> None:
         "consistency",
     }
     assert all(value.strip() for value in rule.values())
-    # D71 approves plain wording for new v2 runs/exports; the v1 contract is historical.
+    # D74 approves plain wording for new v2 runs/exports; the v1 contract is historical.
     assert rule["omitted_label"] == "Omitted - insufficient frozen evidence"
     assert SUPPRESSED_TOTAL_LABEL == "Not enough data"
     assert SUPPRESSED_TOTAL_LABEL.isascii(), "the bounded PDF renderer is ASCII-only"

@@ -1,7 +1,7 @@
 # Wave 2 C — renewal and reverse phone verification contract
 
 Owner authority: `Cardvert_W2C_Renewals_Phone_Brief_2026-10-07.md`;
-REQ-119/120, D66/67, architecture v1.124. Work only in `mobility-w2c`,
+REQ-137, REQ-138, D69/70, architecture v1.127. Work only in `mobility-w2c`,
 branch `w2/renewals-phone`, base `ec267529`. No push, CI, deployment, provider
 calls, account-access or tmp reads. No launch-queue changes. Local commit is
 authorized by the brief; merge and Claude acceptance remain owner actions.

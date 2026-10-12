@@ -110,7 +110,7 @@ describe("multi-tab logout", () => {
       globalRevocationFailed: true,
     });
     render(<DriverLogoutButton />);
-    fireEvent.submit(screen.getByRole("button", { name: "Exit" }).closest("form")!);
+    fireEvent.submit(screen.getByRole("button", { name: "Sign out" }).closest("form")!);
     expect(
       await screen.findByText("Sign-out on every device could not be confirmed. Please try again."),
     ).toHaveAttribute("role", "alert");

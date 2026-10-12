@@ -1,241 +1,201 @@
 import { render, screen } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError } from "@/lib/api/errors";
-
-const get = vi.hoisted(() => vi.fn());
-const loadJourney = vi.hoisted(() => vi.fn());
-
-vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: get }) }));
-vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
+import { beforeEach, expect, it, vi } from "vitest";
+import { watDay } from "@/lib/driver/daily-earnings";
+const mocks = vi.hoisted(() => ({ earnings: vi.fn(), journey: vi.fn(), tracker: vi.fn() }));
+vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({}) }));
+vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
 vi.mock("@/lib/auth/current-user", () => ({
-  requireRole: vi.fn(async () => ({ user: { full_name: "Ada Driver" } })),
+  requireRole: async () => ({ user: { id: "driver", full_name: "Ada Driver" } }),
 }));
-vi.mock("@/lib/driver/load-campaign-journey", () => ({
-  loadDriverCampaignJourney: loadJourney,
-}));
-vi.mock("next/navigation", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("next/navigation")>()),
+vi.mock("@/lib/driver/load-daily-earnings", () => ({ loadDailyEarnings: mocks.earnings }));
+vi.mock("@/lib/driver/load-campaign-journey", () => ({ loadDriverCampaignJourney: mocks.journey }));
+vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn() }),
+  redirect: (url: string) => {
+    throw new Error(`redirect:${url}`);
+  },
 }));
 
-import DriverHomePage from "./page";
-
-const ledgerEntry = (status: "paid" | "pending", id: string) => ({
-  id,
-  amount: "1250.00",
-  campaign_id: "00000000-0000-4000-8000-000000000001",
-  created_at: "2026-08-23T09:00:00Z",
-  currency: "NGN",
-  description: null,
-  driver_profile_id: "00000000-0000-4000-8000-000000000002",
-  entry_type: "trip_payout" as const,
-  occurred_at: "2026-08-23T09:00:00Z",
-  payout_calculation_id: "00000000-0000-4000-8000-000000000003",
-  status,
-  trip_session_id: "00000000-0000-4000-8000-000000000004",
-  vehicle_id: "00000000-0000-4000-8000-000000000005",
+vi.mock("./track/trip-tracker", () => ({
+  TripTracker: (props: unknown) => {
+    mocks.tracker(props);
+    return <button>Start trip</button>;
+  },
+}));
+import Home from "./page";
+const assignment = {
+  id: "job",
+  campaignName: "Abuja launch",
+  plateNumber: "ABC-123",
+  vehicleId: "car",
+};
+const ready = {
+  journey: { canStart: true, steps: [] },
+  activationAssignment: assignment,
+  trackerAssignment: assignment,
+  currentTrip: null,
+  photoStatus: "ready",
+};
+beforeEach(() => {
+  vi.clearAllMocks();
+  localStorage.setItem("cardvert-phone-intro:driver", "seen");
+  mocks.earnings.mockResolvedValue({ state: "ready", data: [] });
+  mocks.journey.mockResolvedValue(ready);
 });
-
-describe("DriverHomePage ledger statuses", () => {
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
-  beforeEach(() => {
-    get.mockReset();
-    loadJourney.mockResolvedValue({
-      journey: {
-        standing: "PENDING",
-        summary: "Campaign work remains pending.",
-        canStart: false,
-        hasCurrentTrip: false,
-        steps: [],
-      },
-      activationAssignment: null,
-      currentTrip: null,
-      trackerAssignment: null,
-    });
-  });
-
-  it("renders paid entries green and pending entries amber", async () => {
-    get.mockImplementation(async (path?: string) => {
-      if (path?.endsWith("/summary")) return { data: { totals_by_currency: [] } };
-      if (path?.endsWith("/active")) return { data: { assignment: null } };
-      if (path?.endsWith("/current")) return { data: { trip: null } };
-      if (path?.endsWith("/campaign-assignments")) return { data: { items: [] } };
-      return {
-        data: {
-          items: [
-            ledgerEntry("paid", "00000000-0000-4000-8000-000000000010"),
-            ledgerEntry("pending", "00000000-0000-4000-8000-000000000011"),
-          ],
+it("places the existing safe Start control under today's job and car", async () => {
+  render(await Home());
+  expect(screen.getByText("Abuja launch")).toBeVisible();
+  expect(screen.getByText("Car ABC-123")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Start trip" })).toBeVisible();
+  expect(mocks.tracker).toHaveBeenCalledWith(
+    expect.objectContaining({ compact: true, assignment, driverId: "driver" }),
+  );
+  expect(screen.queryByText("Go to Start")).not.toBeInTheDocument();
+});
+it("opens just the photo task when proof is due", async () => {
+  mocks.journey.mockResolvedValue({ ...ready, photoStatus: "display_required" });
+  render(await Home());
+  expect(screen.getByRole("button", { name: "Take today’s photo" })).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Start trip" })).not.toBeInTheDocument();
+});
+it("keeps an active trip on Track", async () => {
+  mocks.journey.mockResolvedValue({ ...ready, currentTrip: { id: "trip" } });
+  render(await Home());
+  expect(screen.getByRole("link", { name: "View live trip" })).toHaveAttribute(
+    "href",
+    "/driver/track",
+  );
+  expect(mocks.tracker).not.toHaveBeenCalled();
+});
+it("shows only the blocking next step", async () => {
+  mocks.journey.mockResolvedValue({
+    ...ready,
+    journey: {
+      canStart: false,
+      steps: [
+        {
+          state: "current",
+          id: "person_payee",
+          title: "Check your bank details",
+          href: "/driver/profile",
         },
-      };
-    });
-
-    render(await DriverHomePage());
-
-    expect(screen.getByText("paid")).toHaveClass("text-green");
-    expect(screen.getByText("pending")).toHaveClass("text-amber");
+      ],
+    },
   });
-
-  it("shows debt-aware batch-payable earnings without hiding carried debt", async () => {
-    get.mockImplementation(async (path?: string) => {
-      if (path?.endsWith("/summary")) {
-        return {
-          data: {
-            totals_by_currency: [
-              {
-                currency: "NGN",
-                batch_payable_amount: "90.00",
-                carry_forward_debt_amount: "60.00",
-                lifetime_earned_amount: "190.00",
-                pending_amount: "0.00",
-              },
-            ],
-          },
-        };
-      }
-      if (path?.endsWith("/active")) return { data: { assignment: null } };
-      if (path?.endsWith("/current")) return { data: { trip: null } };
-      if (path?.endsWith("/campaign-assignments")) return { data: { items: [] } };
-      return { data: { items: [] } };
-    });
-
-    render(await DriverHomePage());
-
-    expect(screen.getByText("Available for payment")).toBeInTheDocument();
-    expect(screen.getAllByText(/₦90\.00/).length).toBeGreaterThan(0);
-    expect(screen.getByText(/₦60\.00 owed, taken from your payouts/)).toBeInTheDocument();
-    expect(screen.getByText("Can't start a trip yet")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "View earnings →" })).toBeInTheDocument();
-  });
-
-  it("does not claim the driver is ready when no server authority exists", async () => {
-    get.mockImplementation(async (path?: string) => {
-      if (path?.endsWith("/summary")) return { data: { totals_by_currency: [] } };
-      if (path?.endsWith("/active")) return { data: { assignment: null } };
-      if (path?.endsWith("/current")) return { data: { trip: null } };
-      return { data: { items: [], total: 0, limit: 50, offset: 0 } };
-    });
-
-    render(await DriverHomePage());
-
-    expect(screen.queryByText("READY")).not.toBeInTheDocument();
-    expect(screen.queryByText("vehicle active")).not.toBeInTheDocument();
-  });
-
-  it("uses a currency-neutral empty earnings state when the backend returns no totals", async () => {
-    get.mockImplementation(async (path?: string) => {
-      if (path?.endsWith("/summary")) return { data: { totals_by_currency: [] } };
-      if (path?.endsWith("/campaign-assignments")) return { data: { items: [] } };
-      return { data: { items: [] } };
-    });
-
-    render(await DriverHomePage());
-
-    expect(screen.getByText("No earnings balance yet")).toBeInTheDocument();
-    expect(screen.queryByText("₦0")).not.toBeInTheDocument();
-  });
-
-  it("keeps safe current-trip and earnings authority visible when optional labels and history fail", async () => {
-    loadJourney.mockResolvedValue({
-      journey: {
-        standing: "TRACKING",
-        summary: "A trip is in progress.",
-        canStart: false,
-        hasCurrentTrip: true,
-        steps: [],
+  render(await Home());
+  expect(screen.getByRole("link", { name: "Check your bank details" })).toHaveAttribute(
+    "href",
+    "/driver/profile",
+  );
+  expect(screen.queryByText("Getting ready to drive")).not.toBeInTheDocument();
+});
+it("fails closed for unavailable photo authority", async () => {
+  mocks.journey.mockResolvedValue({ ...ready, photoStatus: "unavailable" });
+  render(await Home());
+  expect(screen.getByRole("link", { name: "Check photo status" })).toBeVisible();
+  expect(mocks.tracker).not.toHaveBeenCalled();
+});
+it("shows compact pay without payment-operation copy or zero checks", async () => {
+  mocks.earnings.mockResolvedValue({
+    state: "ready",
+    data: [
+      {
+        day: "2026-09-08",
+        amount: "10000.00",
+        currency: "NGN",
+        status: "Paid 9 Sept",
+        paidAt: "2026-09-09T01:00:00Z",
+        tripIds: [],
       },
-      activationAssignment: {
-        id: "assignment-1",
-        campaignName: "Authoritative campaign",
-        plateNumber: "ABC-123",
-        vehicleId: "vehicle-1",
+    ],
+  });
+  render(await Home());
+  expect(screen.getByText(/Paid 9 Sept/)).toBeVisible();
+  expect(
+    screen.queryByText(/Ready to be paid|Still being checked|first payment|Paying tonight/i),
+  ).not.toBeInTheDocument();
+});
+it("leads with the last actual payment when today's amount is zero", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-10-10T12:00:00Z"));
+  try {
+    mocks.earnings.mockResolvedValue({
+      state: "ready",
+      data: [
+        {
+          day: "2026-10-10",
+          amount: "0.00",
+          currency: "NGN",
+          status: "Being checked",
+          tripIds: [],
+        },
+        {
+          day: "2026-10-08",
+          amount: "10000.00",
+          currency: "NGN",
+          status: "Paid 9 Oct",
+          paidAt: "2026-10-09T01:00:00Z",
+          tripIds: [],
+        },
+      ],
+    });
+    render(await Home());
+    expect(screen.getByText("Paid yesterday ₦10,000.00")).toBeVisible();
+    expect(screen.queryByText(/Today ₦|Being checked/)).not.toBeInTheDocument();
+  } finally {
+    vi.useRealTimers();
+  }
+});
+it("orders payments by payment time rather than work day", async () => {
+  mocks.earnings.mockResolvedValue({
+    state: "ready",
+    data: [
+      {
+        day: "2026-09-08",
+        amount: "7000.00",
+        currency: "NGN",
+        status: "Paid 9 Sept",
+        paidAt: "2026-09-09T01:00:00Z",
+        tripIds: [],
       },
-      currentTrip: { id: "trip-1" },
-      trackerAssignment: null,
-    });
-    get.mockImplementation(async (path?: string) => {
-      if (path?.endsWith("/summary")) {
-        return {
-          data: {
-            totals_by_currency: [
-              {
-                currency: "NGN",
-                batch_payable_amount: "90.00",
-                carry_forward_debt_amount: "0.00",
-                lifetime_earned_amount: "90.00",
-                pending_amount: "0.00",
-              },
-            ],
-          },
-        };
-      }
-      throw new ApiError(503, { code: "OPTIONAL_UNAVAILABLE", message: "private detail" });
-    });
-
-    render(await DriverHomePage());
-
-    expect(screen.getByText("Trip in progress")).toBeInTheDocument();
-    expect(screen.getAllByText(/₦90\.00/).length).toBeGreaterThan(0);
-    expect(screen.getByText("Recent activity unavailable")).toBeInTheDocument();
-    expect(
-      screen.getByText("Your recent activity could not be loaded. Try again shortly."),
-    ).toBeInTheDocument();
-    expect(screen.queryByText("private detail")).not.toBeInTheDocument();
+      {
+        day: "2026-09-06",
+        amount: "10000.00",
+        currency: "NGN",
+        status: "Paid 10 Sept",
+        paidAt: "2026-09-10T01:00:00Z",
+        tripIds: [],
+      },
+    ],
   });
-
-  it("counts campaigns and trip payouts from server totals, not limited pages", async () => {
-    get.mockImplementation(async (path?: string, options?: { params?: { query?: object } }) => {
-      const query = (options?.params?.query ?? {}) as Record<string, unknown>;
-      if (path?.endsWith("/summary")) return { data: { totals_by_currency: [] } };
-      if (path?.endsWith("/campaign-assignments")) {
-        return query.status === "completed"
-          ? { data: { items: [], total: 57, limit: 1, offset: 0 } }
-          : { data: { items: [], total: 73, limit: 50, offset: 0 } };
-      }
-      if (path?.endsWith("/earnings/ledger")) {
-        return query.entry_type === "trip_payout"
-          ? { data: { items: [], total: 312, limit: 1, offset: 0 } }
-          : {
-              data: {
-                items: [ledgerEntry("paid", "00000000-0000-4000-8000-000000000012")],
-                total: 400,
-                limit: 6,
-                offset: 0,
-              },
-            };
-      }
-      return { data: { items: [] } };
+  render(await Home());
+  expect(screen.getByText("Paid 10 Sept ₦10,000.00")).toBeVisible();
+  expect(screen.queryByText(/Today ₦/)).not.toBeInTheDocument();
+});
+it("shows an honest empty money state without a zero Today headline", async () => {
+  render(await Home());
+  expect(screen.getByText("No earnings yet")).toBeVisible();
+  expect(screen.queryByText(/Today ₦/)).not.toBeInTheDocument();
+});
+it.each(["Being checked", "On hold – contact support", "Paying tonight"])(
+  "shows a nonzero today's payment status: %s",
+  async (status) => {
+    mocks.earnings.mockResolvedValue({
+      state: "ready",
+      data: [{ day: watDay(new Date()), amount: "7143.00", currency: "NGN", status, tripIds: [] }],
     });
-
-    render(await DriverHomePage());
-
-    expect(screen.getByText("73")).toBeInTheDocument();
-    expect(screen.getByText("57 completed")).toBeInTheDocument();
-    expect(screen.getByText("Trip payouts")).toBeInTheDocument();
-    expect(screen.getByText("312")).toBeInTheDocument();
-    expect(get).toHaveBeenCalledWith("/api/v1/driver/earnings/ledger", {
-      params: { query: { entry_type: "trip_payout", limit: 1 } },
-    });
-  });
-
-  it.each([
-    [8, "Good morning"],
-    [14, "Good afternoon"],
-    [20, "Good evening"],
-  ])("renders the greeting for local hour %i", async (hour, greeting) => {
-    vi.useFakeTimers();
-    vi.setSystemTime(new Date(2026, 0, 1, hour));
-    get.mockImplementation(async (path?: string) => {
-      if (path?.endsWith("/summary")) return { data: { totals_by_currency: [] } };
-      if (path?.endsWith("/campaign-assignments")) return { data: { items: [] } };
-      return { data: { items: [] } };
-    });
-
-    render(await DriverHomePage());
-
-    expect(screen.getByText(greeting)).toBeInTheDocument();
-  });
+    render(await Home());
+    expect(screen.getByText("Today ₦7,143.00")).toBeVisible();
+    expect(screen.getByText(status)).toBeVisible();
+  },
+);
+it("withholds money when complete history is unavailable", async () => {
+  mocks.earnings.mockResolvedValue({ state: "unavailable" });
+  render(await Home());
+  expect(screen.getByRole("alert")).toHaveTextContent("Today’s earnings unavailable");
+  expect(screen.queryByText(/Today ₦/)).not.toBeInTheDocument();
+});
+it("redirects an expired earnings session", async () => {
+  mocks.earnings.mockResolvedValue({ state: "auth" });
+  await expect(Home()).rejects.toThrow("redirect:/login");
 });

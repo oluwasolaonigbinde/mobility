@@ -48,24 +48,15 @@ describe("DriverTripEarningsPage", () => {
     notFound.mockReset();
   });
 
-  it("labels payout_v3 and explains its frozen base and premium components", async () => {
+  it("shows historical hourly earnings and counted time without payment formulas", async () => {
     get.mockResolvedValue({ data: breakdown() });
 
     render(await DriverTripEarningsPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
 
-    expect(
-      screen.getByText(
-        "Hourly pay · base and premium-zone rates fixed when you accepted this campaign",
-      ),
-    ).toBeInTheDocument();
-    const panel = screen.getByRole("heading", { name: "Pay breakdown" }).parentElement;
-    if (!panel) throw new Error("expected tier breakdown panel");
-    expect(within(panel).getByText("Base tier")).toBeInTheDocument();
-    expect(within(panel).getByText("Premium tier")).toBeInTheDocument();
-    expect(within(panel).getByText(/30m.*1,000\.00\/hour/)).toBeInTheDocument();
-    expect(within(panel).getByText(/15m.*2,000\.00\/hour/)).toBeInTheDocument();
-    expect(within(panel).getByText(/500\.00/)).toBeInTheDocument();
-    expect(within(panel).getByText(/250\.00/)).toBeInTheDocument();
+    expect(screen.getByText("₦750.00")).toBeInTheDocument();
+    expect(screen.getAllByText("45m")).toHaveLength(2);
+    expect(screen.getByText("Counted")).toBeInTheDocument();
+    expect(screen.queryByText(/hourly pay|hour|base tier|premium tier/i)).not.toBeInTheDocument();
   });
 
   it("explains payout_v4 per-day miles and pay without internal codes", async () => {
@@ -91,11 +82,7 @@ describe("DriverTripEarningsPage", () => {
 
     render(await DriverTripEarningsPage({ params: Promise.resolve({ tripId: "trip-v4" }) }));
 
-    expect(
-      screen.getByText(
-        "Daily-rate pay · day rate and daily miles fixed when you accepted this campaign",
-      ),
-    ).toBeInTheDocument();
+    expect(screen.queryByText(/day rate|proportional|time only counts/i)).not.toBeInTheDocument();
     const panel = screen.getByRole("heading", { name: "Miles counted" }).parentElement;
     if (!panel) throw new Error("expected miles panel");
     expect(within(panel).getByText(/^30\.0 miles counted on this trip/)).toBeInTheDocument();
@@ -106,7 +93,7 @@ describe("DriverTripEarningsPage", () => {
     expect(screen.queryByText(/payout_v4|d39|stationary/)).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Verified time" })).not.toBeInTheDocument();
   });
-  it("preserves the payout_v2 hourly explanation without a tier panel", async () => {
+  it("shows historical payout_v2 counted time without a payment explanation", async () => {
     get.mockResolvedValue({
       data: breakdown({
         formula_version: "payout_v2",
@@ -121,18 +108,9 @@ describe("DriverTripEarningsPage", () => {
 
     render(await DriverTripEarningsPage({ params: Promise.resolve({ tripId: "trip-2" }) }));
 
-    expect(screen.getByText(/1,000\.00\/hour × 45m verified time/)).toBeInTheDocument();
+    expect(screen.getAllByText("45m")).toHaveLength(2);
+    expect(screen.queryByText(/hour|formula/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Pay breakdown" })).not.toBeInTheDocument();
-  });
-
-  it("shows premium seconds at the disclosed base-rate fallback", async () => {
-    get.mockResolvedValue({ data: breakdown({ premium_hourly_rate: null }) });
-
-    render(await DriverTripEarningsPage({ params: Promise.resolve({ tripId: "trip-3" }) }));
-
-    const panel = screen.getByRole("heading", { name: "Pay breakdown" }).parentElement;
-    if (!panel) throw new Error("expected tier breakdown panel");
-    expect(within(panel).getByText(/15m.*base rate.*1,000\.00\/hour/)).toBeInTheDocument();
   });
 
   it("explains rolling stationary exclusions in plain language", async () => {
@@ -144,9 +122,7 @@ describe("DriverTripEarningsPage", () => {
 
     render(await DriverTripEarningsPage({ params: Promise.resolve({ tripId: "trip-4" }) }));
 
-    expect(
-      screen.getByText("Stationary after two 2-minute movement checks (shared grace applied)"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Not moving for more than 4 minutes")).toBeInTheDocument();
     expect(screen.getByText("6m")).toBeInTheDocument();
   });
 
@@ -205,7 +181,7 @@ describe("DriverTripEarningsPage", () => {
 
     expect(screen.getByText("Route pattern needs review")).toBeInTheDocument();
     expect(screen.getByText("Under review")).toBeInTheDocument();
-    expect(screen.getByText("Staff replied to your dispute.")).toBeInTheDocument();
+    expect(screen.getByText("Terrax Media replied to you.")).toBeInTheDocument();
     expect(screen.getByText("My signal dropped near the bridge.")).toBeInTheDocument();
     expect(screen.getByText("We checked the route and completed the review.")).toBeInTheDocument();
     expect(container).not.toHaveTextContent(/secret_route_hash|do_not_expose|private_matched_trip/);

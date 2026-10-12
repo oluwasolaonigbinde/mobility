@@ -55,13 +55,13 @@ it("forgets the looked-up cars when the onboarding code is changed", async () =>
     }),
   );
   render(<VehicleForm />);
-  fireEvent.change(screen.getByLabelText("Onboarding access code"), {
+  fireEvent.change(screen.getByLabelText("Code from your email"), {
     target: { value: "first-code" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Find my cars" }));
   expect(await screen.findByText("ABC-123-XY")).toBeInTheDocument();
 
-  fireEvent.change(screen.getByLabelText("Onboarding access code"), {
+  fireEvent.change(screen.getByLabelText("Code from your email"), {
     target: { value: "second-code" },
   });
   expect(screen.queryByText("ABC-123-XY")).not.toBeInTheDocument();
@@ -71,11 +71,13 @@ it("forgets the looked-up cars when the onboarding code is changed", async () =>
 it("asks for the code before looking anything up", async () => {
   renderInForm();
   fireEvent.click(screen.getByRole("button", { name: "Find my cars" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Enter your onboarding code first.");
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Enter the code from your email first.",
+  );
   expect(fetchMock).not.toHaveBeenCalled();
 });
 
-it("shows the server's message when the code is not accepted", async () => {
+it("explains in plain words when the code is not accepted", async () => {
   fetchMock.mockResolvedValue(
     Response.json(
       { error: { code: "ONBOARDING_ACCESS_INVALID", message: "Onboarding access is unavailable" } },
@@ -84,6 +86,8 @@ it("shows the server's message when the code is not accepted", async () => {
   );
   renderInForm("expired-code");
   fireEvent.click(screen.getByRole("button", { name: "Find my cars" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Onboarding access is unavailable");
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "This code doesn't work. It may be mistyped, expired or replaced. Get a new code on the first step.",
+  );
   expect(screen.queryByRole("radio")).not.toBeInTheDocument();
 });

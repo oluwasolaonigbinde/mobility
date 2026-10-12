@@ -45,7 +45,9 @@ it("retains public capability submission while rejecting unsafe uploaded files",
     .mockResolvedValueOnce(Response.json({ scan_status: "infected" }));
   await expect(
     uploadOnboardingFile("private-access", file, "retry", "vehicle_evidence"),
-  ).rejects.toThrow(/security checks/);
+  ).rejects.toThrow(
+    "One of your files couldn't be accepted. Choose a different file and try again.",
+  );
   expect(JSON.parse(fetch.mock.calls[2]![1].body)).toEqual({
     application_access_token: "private-access",
   });

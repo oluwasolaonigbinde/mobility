@@ -1,7 +1,7 @@
 # W2-C local delivery — document renewals and reverse phone verification
 
 Owner brief: `Cardvert_W2C_Renewals_Phone_Brief_2026-10-07.md`.
-REQ-119/120, D66/67, architecture v1.124; branch `w2/renewals-phone`.
+REQ-137, REQ-138, D69/70, architecture v1.127; branch `w2/renewals-phone`.
 Base: `ec267529d26688bb18d72d41ac3ced4a68221a5a` (combined Wave 1).
 This is local evidence. Requests remain IN PROGRESS until owner merge and
 combined CI. No push, GitHub CI, provider call or deployment was performed.

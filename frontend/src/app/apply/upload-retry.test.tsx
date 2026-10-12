@@ -12,12 +12,12 @@ vi.mock("@/lib/files/onboarding-upload", async (original) => ({
 const cases = [
   {
     Component: PersonPayeeForm,
-    files: ["Driver licence", "Driver photo", "Signed agreement"],
+    files: ["Driver's licence", "Photo of you", "Signed agreement"],
     field: "driver_license_file_id",
   },
   {
     Component: VehicleForm,
-    files: ["Vehicle registration", "Current insurance", "Vehicle photo"],
+    files: ["Registration papers", "Insurance certificate", "Photo of the car"],
     field: "registration_file_id",
   },
 ];
@@ -41,7 +41,7 @@ describe.each(cases)("$field upload retry", ({ Component, files, field }) => {
 
   function setup() {
     render(<Component />);
-    fireEvent.change(screen.getByLabelText("Onboarding access code"), {
+    fireEvent.change(screen.getByLabelText("Code from your email"), {
       target: { value: "first-access" },
     });
     files.forEach((label) =>
@@ -49,13 +49,26 @@ describe.each(cases)("$field upload retry", ({ Component, files, field }) => {
         target: { files: [new File([label], "same.png", { type: "image/png" })] },
       }),
     );
-    return screen.getByRole("button", { name: /^Submit/ }).closest("form")!;
+    return screen.getByRole("button", { name: /^Send my/ }).closest("form")!;
   }
 
   async function fail(form: HTMLFormElement) {
     fireEvent.submit(form);
     expect(await screen.findByRole("alert")).toHaveTextContent("Submission failed");
   }
+
+  it("shows which file failed to upload and which uploaded", async () => {
+    vi.mocked(uploadOnboardingFile)
+      .mockResolvedValueOnce("first-file")
+      .mockRejectedValueOnce(new Error("A file didn't upload."))
+      .mockResolvedValueOnce("third-file");
+    const form = setup();
+    fireEvent.submit(form);
+    expect(await screen.findByRole("alert")).toHaveTextContent("A file didn't upload.");
+    await waitFor(() => expect(screen.getAllByText("Uploaded")).toHaveLength(2));
+    expect(screen.getAllByText("Upload failed")).toHaveLength(1);
+    expect(fetch).not.toHaveBeenCalled();
+  });
 
   it("reuses exact uploads and request identity on unchanged retry", async () => {
     const form = setup();
@@ -79,7 +92,7 @@ describe.each(cases)("$field upload retry", ({ Component, files, field }) => {
           target: { files: [new File(["replacement"], "same.png", { type: "image/png" })] },
         });
       else
-        fireEvent.change(screen.getByLabelText("Onboarding access code"), {
+        fireEvent.change(screen.getByLabelText("Code from your email"), {
           target: { value: "second-access" },
         });
       fireEvent.submit(form);
@@ -115,7 +128,7 @@ describe.each(cases)("$field upload retry", ({ Component, files, field }) => {
       target: { files: [new File(["new"], "same.png", { type: "image/png" })] },
     });
     release("obsolete-file");
-    await waitFor(() => expect(screen.getByRole("button", { name: /^Submit/ })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Send my/ })).toBeEnabled());
     expect(fetch).not.toHaveBeenCalled();
     fireEvent.submit(form);
     await screen.findByRole("alert");

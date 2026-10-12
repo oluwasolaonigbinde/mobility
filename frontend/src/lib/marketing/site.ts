@@ -61,7 +61,7 @@ export const ROUTES = {
 
 /** OWNER — REQ-070: labels describe the next step consistently. */
 export const CTA = {
-  campaign: "Request a campaign quote",
+  campaign: "Request a Quote",
   driver: "Apply to drive",
   signIn: "Sign in",
 } as const;

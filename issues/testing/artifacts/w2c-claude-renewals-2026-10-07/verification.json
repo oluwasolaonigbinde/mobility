@@ -1358,7 +1358,7 @@
       "run": "correction-e2e-final.xml"
     }
   },
-  "local_coverage": "NOT RUN, D71/REQ-129; CI baselines unchanged",
+  "local_coverage": "NOT RUN, D74/REQ-146; CI baselines unchanged",
   "runtime": "isolated synthetic PostgreSQL/PostGIS + test API, Windows Next dev16.3.6 WASM; tracked16.4 dependencies unchanged",
   "static": {
     "ruff": "25 owned paths check/format PASS",

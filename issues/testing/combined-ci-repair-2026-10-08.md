@@ -1,4 +1,4 @@
-# Combined CI repair — 8 October 2026 (REQ-132)
+# Combined CI repair — 8 October 2026 (REQ-149)
 
 Authority: owner integration instruction and subsequent “fix them”. Existing
 `w2/renewals-phone`, parent `25dc7ef`; approved [contract](../planning/combined-ci-repair-2026-10-08.md).
@@ -180,7 +180,7 @@ exact-SHA CI must provide matching producer/downstream runtime and complete
 coverage evidence before master integration. REQ-134 will close with its own
 implementing SHA in the original single closing documentation commit.
 
-## Pydantic CI-alignment source checkpoint — REQ-132/136, 10 October
+## Pydantic CI-alignment source checkpoint — REQ-149, REQ-136, 10 October
 
 The approved, independently plan-reviewed A1 amendment pins only pyproject's
 Pydantic requirement to 2.13.4, matching the unchanged production input/hash
@@ -244,14 +244,14 @@ CI job and final integrated reviews. Failed Q has no complete backend aggregate;
 asserted-but-zero LCOV remains unresolved. No old-report reuse, hash patch,
 collector fix, coverage-gain claim, waiver or master-readiness claim is made.
 
-## Mixed-concurrency source checkpoint — REQ-137 / D72, 10 October
+## Mixed-concurrency source checkpoint — REQ-150 / D75, 10 October
 
 Owner explicitly approved exactly `concurrency = ["thread", "greenlet"]` under
-`[tool.coverage.run]`, after the independent amendment plan PASS. D72 records
+`[tool.coverage.run]`, after the independent amendment plan PASS. D75 records
 the sole A1/A4/D36 instrumentation-preservation exception; the other coverage
 settings, dependencies, Python/coverage pins, checker, workflows, exclusions,
-eligibility and all floors remain unchanged. REQ-137 was the first repository
-edit, initially TODO then IN PROGRESS; architecture v1.127 records the approved
+eligibility and all floors remain unchanged. REQ-150 was the first repository
+edit, initially TODO then IN PROGRESS; architecture v1.130 records the approved
 target with fresh verification pending. No client rule or questionnaire answer
 changes. No application/test/native/API baseline or production lock is changed.
 
@@ -267,7 +267,7 @@ checkpoint; its unresolved measurement question now has this separate amendment.
 
 | Criterion | Source checkpoint evidence | Remaining verification |
 | --- | --- | --- |
-| M1 / A1 | PASS static: TOML parses; normalized byte comparison and complete parsed-object comparison show exactly the one approved option. Six authorized paths only; unique REQ-137/D72/v1.127, eight request columns, blank Done in; prior request/decision rows and Part 2 unchanged. | Independent source checkpoint reviews are retained externally; no final delivery claim. |
+| M1 / A1 | PASS static: TOML parses; normalized byte comparison and complete parsed-object comparison show exactly the one approved option. Six authorized paths only; unique REQ-150/D75/v1.130, eight request columns, blank Done in; prior request/decision rows and Part 2 unchanged. | Independent source checkpoint reviews are retained externally; no final delivery claim. |
 | M2 | NOT RUN for the new configuration. Prior immutable evidence is diagnostic only. | Fresh complete Q manifests/JUnit/raw DB/report hashes and runtime provenance; actual inventory; remove both foreign sequences and out-of-file events, recover mandatory normalized statements/reachable arcs in raw and exported evidence and inspect other changed backend files. Statement 83 normalizes raw 84–86; no literal raw-83 requirement. Persistent corruption means STOP. |
 | M3 | PASS source preservation: existing response/state/isolation assertions and all app/test/contract files unchanged. | Fresh Q behavior and normal final native-contract, real-stack E2E and R59 CI evidence. No new baseline-triggered native rerun or physical-device claim. |
 | A3 | PENDING; prior 870/981 and 467/608 remain FAIL. | SAME fresh Q backend/frontend reports and again exact R, whole change versus fixed M `e6adcc4639f1fba345a3bb44059beb45ad76ea59`, at least 90% lines/80% branches without tolerance. Verify actual denominators, never trim expected 981/608 or substitute latest-push/no-change results. |
@@ -275,7 +275,7 @@ checkpoint; its unresolved measurement question now has this separate amendment.
 | A5 | NOT RUN; no Git or CI action in this assignment. | Normal exact R-versus-actual-Q provenance, every exact-R CI job green, separate R-versus-fixed-M check and authorized no-squash master integration/push with master CI confirmation. |
 | A6 | Source-only sequential Sol 6.1 high/Fast measurement/provenance/security supplement and consolidated minimal-change review required; verdicts and reviewed hashes live in external Temp. | Final integrated supplement and consolidated PASS after measurement/receipt remain mandatory; source PASS does not finish A6. |
 
-The checker does not mechanically guard concurrency. Explicit D72 authority,
+The checker does not mechanically guard concurrency. Explicit D75 authority,
 independent review and its existing POLICY_FILES binding of pyproject provide
 the accepted minimum for this amendment; no generic enforcement claim is made.
 Correct attribution can remove false positives and fail exact trusted floors.
@@ -295,4 +295,4 @@ No staging/commit/push/merge/PR/account/provider/deployment/cleanup action occur
 here. Parent assigns Git/CI only after accepted source PASS. Behavioral repair
 allowance remains 0 of TWO rounds after corrected instrumentation measurement;
 the earlier 37-test repair is excluded. If more than two genuine rounds are
-needed, STOP/report. REQ-126 stays NEEDS ANSWER; no request is closed here.
+needed, STOP/report. REQ-143 stays NEEDS ANSWER; no request is closed here.

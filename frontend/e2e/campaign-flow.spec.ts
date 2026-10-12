@@ -118,12 +118,24 @@ async function loginAsAdmin(page: Page) {
   await page.waitForURL("**/admin");
 }
 
-test("advertiser can sign in and see the dashboard", async ({ page }) => {
+test("advertiser can sign in without exposing suppressed dashboard results", async ({ page }) => {
   await loginAsAdvertiser(page);
   await expect(page.getByRole("heading", { name: /Marula Kitchens/ })).toBeVisible({
     timeout: 20_000,
   });
-  await expect(page.getByText("Estimated ad exposure", { exact: true })).toBeVisible();
+  const session = (await page.context().cookies()).find(
+    (cookie) => cookie.name === (process.env.SESSION_COOKIE_NAME ?? "mobility_session"),
+  );
+  expect(session, "advertiser login must set the session cookie").toBeTruthy();
+  const apiBase = process.env.E2E_API_BASE_URL ?? "http://localhost:8000";
+  const summary = await page.request.get(`${apiBase}/api/v1/advertiser/dashboard/summary`, {
+    headers: { Authorization: `Bearer ${session!.value}` },
+  });
+  expect(summary.status()).toBe(409);
+  expect((await summary.json()).error.code).toBe("DISCLOSURE_SUPPRESSED");
+  await expect(page.getByText("Results appear after more trips are recorded.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Recent campaigns" })).toBeVisible();
+  await expect(page.getByText("Estimated ad exposure", { exact: true })).toHaveCount(0);
 });
 
 test("signed-out users are redirected to login", async ({ page }) => {

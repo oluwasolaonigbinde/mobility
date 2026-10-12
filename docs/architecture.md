@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.127 — 2026-10-10. Canonical source of truth: current state AND target state.**
+**Version 1.130 — 2026-10-10. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -884,7 +884,7 @@ and uses the workspace-root local composite action to verify the candidate SHA.
   before combining LCOV. The LCOV artifact includes a hash-bound
   producer sidecar recording the exact SHA, Python implementation/major-minor
   and coverage.py version.
-- **[TARGET — D72/REQ-137, fresh verification pending]** Backend collection
+- **[TARGET — D75/REQ-150, fresh verification pending]** Backend collection
   uses exactly `concurrency = ["thread", "greenlet"]` in `[tool.coverage.run]`
   for SQLAlchemy async greenlets within TestClient threads. The owner approved
   this sole exception to D36/A1/A4 instrumentation preservation on 10 October;
@@ -930,10 +930,10 @@ and uses the workspace-root local composite action to verify the candidate SHA.
   Review the resulting diff; normal verification uses
   `--verify-baseline-provenance`. Changes to instrumentation or source eligibility
   require separate D32 authority, not merely a new receipt. Neither command
-  commits or contacts a remote service. D72 grants that separate authority only
+  commits or contacts a remote service. D75 grants that separate authority only
   for the exact thread/greenlet option above; every other instrumentation or
   eligibility change still requires it. The unchanged checker does not compare
-  concurrency mechanically: explicit D72 authority, independent review and
+  concurrency mechanically: explicit D75 authority, independent review and
   the existing `POLICY_FILES` hash binding of pyproject cover this amendment,
   not a general enforcement claim. Exact trusted refresh floors, D36 runtime
   binding and the closed legacy reconciliation remain; no floor waiver is
@@ -1698,7 +1698,7 @@ clawback; once cash has been paid, RM11's carry-forward debt contract applies.
 
 ### 16.3 Disbursement (Q27)
 
-**D64 / REQ-053 (5 Oct 2026; renumbered at merge from D59 on 6 Oct 2026):** Terrax bears Paystack's transfer fee; the
+**D67 / REQ-053 (5 Oct 2026; renumbered at merge from D59 on 6 Oct 2026):** Terrax bears Paystack's transfer fee; the
 driver receives the exact full earnings amount frozen on the payout line.
 Cardvert has no fee calculation, storage, display (including Finance), setting
 or fee-setup submission gate. Provider statements/dashboard hold the fee
@@ -2183,7 +2183,7 @@ validity and challenge/proof validity remain empty under
 
 ### 19.3 Consumers of the same pattern
 
-**[BUILT locally — D66/REQ-119; owner merge/combined CI pending]** Active signed-in driver
+**[BUILT locally — D69/REQ-137; owner merge/combined CI pending]** Active signed-in driver
 accounts renew rejected/expired current person/bank or owned vehicle documents
 from Profile. Capture uses the same private upload, scan, encryption, immutable
 revision and audited review services. Staff review current renewals under the
@@ -2300,7 +2300,7 @@ channel adapter; its concrete provider/account remains an external parameter.
 
 ### 20.2 Rules
 
-**[BUILT locally W2-D, D68/REQ-121]** Feed and mark-read projections resolve only
+**[BUILT locally W2-D, D71/REQ-139]** Feed and mark-read projections resolve only
 allowlisted campaign-event references through current business rows. Multiple
 references must agree. Active advertiser membership/organization/campaign scope,
 own driver assignment and active admin authority govern both campaign names and
@@ -2330,7 +2330,7 @@ No payload URL/display text is trusted and persisted notices remain immutable.
 
 ### 20.3 Pilot phone verification and WhatsApp consent
 
-**[BUILT locally — D67/REQ-120; owner merge/combined CI pending]** Automated WhatsApp/SMS
+**[BUILT locally — D70/REQ-138; owner merge/combined CI pending]** Automated WhatsApp/SMS
 delivery remains post-MVP. Verification uses a reverse check:
 
 1. The signed-in driver requests a rate-limited, attempt-limited, short-lived
@@ -2702,7 +2702,7 @@ aggregates only, k-floor rules of §22.2 apply to any zone-level display.
   gets the same generic onboarding error. Access codes are not carried in URLs
   or browser storage. Staff/applicant vehicle projections prefer a submission
   awaiting review. Existing onboarding/upload/live-use gates remain in force;
-  D66 adds active-account document renewal through Profile; D67 adds reverse phone verification (§19.3, §20.3).
+  D69 adds active-account document renewal through Profile; D70 adds reverse phone verification (§19.3, §20.3).
 - **Approved-applicant activation (D28/ONB-009) [BUILT — migration `0089`]:** approval of the
   current person/payee and vehicle evidence does not itself activate the user.
   After both decisions pass, an active Cardvert admin uses the idempotent
@@ -2964,7 +2964,7 @@ client-owned cloud/domain. The actual account/domain/provider/budget/access
 remain `EXT-RELEASE-ENV`. Posture: containerised and cloud-portable — nothing
 below assumes a specific vendor.
 
-**[TEMPLATE — W1B locally verified, D44/D65/REQ-049/117, not applied]** Hetzner replaces
+**[TEMPLATE — W1B locally verified, D44/D68/REQ-049/117, not applied]** Hetzner replaces
 Render/AWS and MapTiler replaces Mapbox. `deploy/hetzner/` and
 `docs/deployment-templates.md` reuse the standalone Compose/Caddy release
 topology and existing S3 adapter, with blank secrets and no chosen region.
@@ -3144,13 +3144,13 @@ boundary (`src/lib/format.ts`).
 
 ### 27.4 Report naming and ROI gate (Q30/D20)
 
-**[BUILT locally W2-D, D68/REQ-123]** New issuance snapshots use export schema
+**[BUILT locally W2-D, D71/REQ-141]** New issuance snapshots use export schema
 `campaign-performance-export-v2` and freeze "Not enough data" for suppressed
 totals. Measurement formulas/manifests and the deterministic renderer stay
 unchanged. Existing v1 issuances replay their own frozen snapshot/version and
 retain their CSV/PDF bytes and integrity hashes. No old snapshot is rewritten.
 
-**[BUILT locally W2-D, D68/REQ-122/124]** Change-form edits invalidate the preview and
+**[BUILT locally W2-D, D71/REQ-140, REQ-142]** Change-form edits invalidate the preview and
 late responses cannot re-enable confirmation. Customer money displays use
 grouping and two decimals, with VAT as a percentage and amount; stored money
 and payout rules stay unchanged. Terminal campaigns omit new quotation requests.
@@ -3332,6 +3332,61 @@ financial decision/release authority remain unchanged.
 
 
 **[BUILT locally — D58 / REQ-105] Driver-application and vehicle staff review:** the person/bank and vehicle document rows use direct View submission as the acknowledgment. Every click uses the existing purpose-scoped, individually audited read: NIN/bank map to `person_payee_approval`; person files use `kyc_review` with `person_payee_approval:<submission_id>` reason; vehicle files use `kyc_review` with `vehicle_approval:<submission_id>` reason. The UI describes the respective purposes as Driver application review and Vehicle review. Keep Show NIN as its distinct reveal, at-most-60-second hiding, pagehide/hidden-visibility clearing and record-bound state resets. There is no separate need checkbox or purpose selection on these rows. Both consumers use the same direct-read lifecycle; the obsolete confirmation path is removed. Vehicle approval/expiry/rejection and eligibility rules are unchanged. No backend/API acknowledgment field or access rule is removed. Local focused verification is recorded in `issues/testing/client-polish-2026-10-04.md`; Person/bank and the owner-approved vehicle extension have passed focused verification, consolidated minimal-change review and the bounded implemented privacy/security review. Owner authorization covers the resulting local commit; it does not authorize merge or live use.
+
+### 27.7 Driver presentation (D65, REQ-127) **[TARGET — local verification]**
+
+Home embeds the existing tracker for direct Start after current journey and
+photo proof reads; one missing step replaces Start. Jobs shows frozen terms
+without the calculation rule. Help alone explains pay. Track retains durable
+capture and uncertain Start/End recovery, with elapsed time and recorded miles
+for the current visit; live payable earnings remain unclaimed until checked.
+Phone setup is a dismissible per-driver first-run prompt and Help entry.
+
+The existing driver ledger read adds persisted Lagos work-day allocations,
+successful reconciliation time and conservative scheduled-payment facts.
+Complete paginated history is required before displaying exact decimal daily
+totals; partial or unallocated history is unavailable. Paid requires succeeded
+line evidence for every contributing amount. Active holds, debt and unsupported
+paid evidence take precedence; mixed amounts remain Being checked. Paying
+tonight requires today's approved automatic run, active line, existing clean
+eligibility checks and enabled, unpaused, ready daily runtime. No payout or
+release writer changes. Local demo historical trips use frozen instructions,
+valid submission transitions and fake-provider reconciliation. D66/REQ-128–132
+replaces the active seed trip with an idle ready driver. Seed route evidence
+supports full/near-full frozen daily pay; separate work-day batches reconcile
+the following Lagos day. Historical approval provenance remains explicit;
+independent Finance payout scenarios use another demo driver. Home hides zero
+Today amounts and selects the latest payment by its persisted timestamp.
+Driver micro-labels use sans, numeric mono remains, and dated past-job status
+does not also receive a duplicate badge.
+
+### 27.6 Consolidated portal clarity (D64, REQ-120–REQ-125) **[TARGET — local verification]**
+
+Shared URL-driven tabs and filters use `nav` links with `aria-current`, readable
+sentence case, explicit focus and selected states, and scrolling/wrapping at
+phone widths. Shared steps contain their labels; named file inputs retain File
+identity, reset/removal and per-file upload states. Existing BFF and access
+boundaries remain authoritative.
+
+Driver Home prioritises current work/readiness and current money; Profile owns
+personal details and lifetime totals. Jobs show complete terms before acceptance,
+compact history and distinct installation/display photo tasks. Plain Start
+blockers identify unmet phone/evidence requirements without weakening tracking,
+offline recovery or uncertain Start/End reconciliation. Admin trip decisions
+explain hold release versus reversal of released earnings; neither implies an
+immediate bank transfer. Advertiser billing labels totals and funding separately;
+retargeting describes area/time planning without implying identified viewers or
+automatic ad delivery.
+
+Public advertiser CTAs read "Request a Quote" and sign-in says "Welcome to
+Cardvert". The enquiry retains its contact-use/no-account notice while removing
+the separate identity/bank warning (D64); fields, retention, rate limiting and
+provider authority remain. Onboarding uses plain uniform code errors and the
+same approval and upload gates. Demo seeds use Abuja geography on fresh test
+databases; credentials and existing demo/preview records are preserved.
+Focused checks, desktop/mobile and six-theme evidence, consolidated and named
+money/privacy/security review precede acceptance; D41 full CI remains required
+before an owner-authorized merge. No launch-package state changes.
 
 ## 28. Testing strategy — target
 
@@ -3651,12 +3706,15 @@ It does not authorize deployment or close external launch gates.
 
 | Version | Date | Change |
 |---------|------|--------|
-| v1.127 | 2026-10-10 | D72/REQ-137 approves only mixed thread/greenlet coverage configuration in §10.3. Source/static checkpoint recorded in [the existing receipt](../issues/testing/combined-ci-repair-2026-10-08.md); fresh attribution, unchanged 90/80 and exact floors, canonical receipt, full CI and final integrated reviews remain pending. |
-| v1.126 | 2026-10-07 | D69–D71: partial document renewals, per-document review outcomes, Abuja/Nigerian demo fixtures and touched-test verification without local coverage; REQ-125–130. |
-| v1.125 | 2026-10-07 | **W2-D polish implementation (D68, REQ-121–124).** Current-access campaign notification context, edit-bound previews, export-only v2 suppression wording preserving historical integrity, customer money/VAT and earnings/public copy. Local implementation and focused verification are recorded in [the W2-D receipt](../issues/testing/w2d-polish-2026-10-07.md), with required independent review verdicts; no external action or programme reprioritization. |
-| v1.124 | 2026-10-07 | **W2-C renewals and reverse phone verification (D66/D67, REQ-119/120).** Profile renews rejected/expired current person/bank and owned vehicle revisions through existing private scanned uploads and encrypted capture. Staff Documents reviews every current revision using audited View. Staff decisions bind the displayed submission ID. Driver issuance alone reveals phone codes; staff records received code and saved sender, with durable limits, one-use expiry, hash-only storage and live configuration/operator/wording gates. Migration 0100 replaces obsolete send evidence. Local implementation verified: 211 backend and 170 frontend cases; 95.0166% changed lines / 82.7089% branches; receipt in `issues/testing/w2c-renewals-phone-2026-10-07.md`. No deployment or merged acceptance. |
-| v1.123 | 2026-10-06 | **W1-P payouts (D64, REQ-036/040/053; renumbered at merge from v1.116/D59 on 6 Oct 2026).** Terrax bears fees outside Cardvert; full frozen earnings and D43 remain unchanged. §16.3 records dispute serialization, atomic sanitized alert audits, actor-only run subjects, bounded rotating candidate scans (`0099`) and original per-day cash attribution. Correction cash counts in full on every saved v4 trip day; missing/malformed allocations are held with an audited/notified Finance alert. Local evidence is in `issues/testing/w1p-payouts-2026-10-05.md`; combined Wave 1 CI and approved merge into master remain pending (REQ-053 one-time D41 exception). |
-| v1.122 | 2026-10-05 | **W1B locally verified templates and budget proof (REQ-037/049/117, D44/D65).** Verify all accepted fixed quote lines count once through the existing billing authority and retain evaluation keys. Replace Render/AWS/Mapbox templates with Hetzner S3 and MapTiler; add internal ClamAV, signature persistence/egress and health dependencies; align configurable API workers. Focused delivery evidence in `issues/testing/w1b-budget-hosting-evidence-2026-10-05.md`; templates only, no external gate changes. |
+| v1.130 | 2026-10-10 | D75/REQ-150 approves only mixed thread/greenlet coverage configuration in §10.3. Source/static checkpoint recorded in [the existing receipt](../issues/testing/combined-ci-repair-2026-10-08.md); fresh attribution, unchanged 90/80 and exact floors, canonical receipt, full CI and final integrated reviews remain pending. Renumbered at merge from v1.127. |
+| v1.129 | 2026-10-07 | D72–D74: partial document renewals, per-document review outcomes, Abuja/Nigerian demo fixtures and touched-test verification without local coverage; REQ-125, REQ-143, REQ-144, REQ-145, REQ-146, REQ-147. Renumbered at merge from v1.126. |
+| v1.128 | 2026-10-07 | **W2-D polish implementation (D71, REQ-139–142).** Current-access campaign notification context, edit-bound previews, export-only v2 suppression wording preserving historical integrity, customer money/VAT and earnings/public copy. Local implementation and focused verification are recorded in [the W2-D receipt](../issues/testing/w2d-polish-2026-10-07.md), with required independent review verdicts; no external action or programme reprioritization. Renumbered at merge from v1.125. |
+| v1.127 | 2026-10-07 | **W2-C renewals and reverse phone verification (D69/D70, REQ-137, REQ-138).** Profile renews rejected/expired current person/bank and owned vehicle revisions through existing private scanned uploads and encrypted capture. Staff Documents reviews every current revision using audited View. Staff decisions bind the displayed submission ID. Driver issuance alone reveals phone codes; staff records received code and saved sender, with durable limits, one-use expiry, hash-only storage and live configuration/operator/wording gates. Migration 0100 replaces obsolete send evidence. Local implementation verified: 211 backend and 170 frontend cases; 95.0166% changed lines / 82.7089% branches; receipt in `issues/testing/w2c-renewals-phone-2026-10-07.md`. No deployment or merged acceptance. Renumbered at merge from v1.124. |
+| v1.126 | 2026-10-06 | **W1-P payouts (D67, REQ-036/040/053; renumbered at merge from v1.116/D59 on 6 Oct 2026).** Terrax bears fees outside Cardvert; full frozen earnings and D43 remain unchanged. §16.3 records dispute serialization, atomic sanitized alert audits, actor-only run subjects, bounded rotating candidate scans (`0099`) and original per-day cash attribution. Correction cash counts in full on every saved v4 trip day; missing/malformed allocations are held with an audited/notified Finance alert. Local evidence is in `issues/testing/w1p-payouts-2026-10-05.md`; combined Wave 1 CI and approved merge into master remain pending (REQ-053 one-time D41 exception). Renumbered at merge from v1.123. |
+| v1.125 | 2026-10-05 | **W1B locally verified templates and budget proof (REQ-037/049/117, D44/D68).** Verify all accepted fixed quote lines count once through the existing billing authority and retain evaluation keys. Replace Render/AWS/Mapbox templates with Hetzner S3 and MapTiler; add internal ClamAV, signature persistence/egress and health dependencies; align configurable API workers. Focused delivery evidence in `issues/testing/w1b-budget-hosting-evidence-2026-10-05.md`; templates only, no external gate changes. Renumbered at merge from v1.122. |
+| v1.124 | 2026-10-10 | **Owner review corrections (D66, REQ-128–132).** §27.7 refines the idle demo, realistic daily work/payment chronology, latest-payment Home headline and sans labels. Isolated local verification; no change to production money rules or release claim. |
+| v1.123 | 2026-10-10 | **Driver presentation redesign (D65, REQ-127).** §27.7 records one next Home action, concise Jobs/live Track, exact daily earnings with successful-payment evidence, Help pay explanation and synthetic settled history. Existing money, eligibility and tracker safety authority remain; local review/verification in progress. No commit, CI or release claimed. |
+| v1.122 | 2026-10-08 | **Consolidated portal clarity (D64, REQ-120–REQ-125).** §27.6 records shared controls, distinct driver surfaces, truthful review/billing messages, public enquiry copy and Abuja test seeds. Existing money, access, tracking and provider authority remains. Local verification and independent review are in progress; no commit, CI, merge or deployment claimed. |
 | v1.121 | 2026-10-05 | **REQ-108 CI efficiency, local implementation.** §10.3 records trigger, concurrency, shared candidate guard, duration planning, selective scanner, timeout and independent E2E scheduling changes. Timing snapshot imported from six verified green-run artifacts; real after timing and D41 remain pending owner-authorized branch CI after REQ-106 green master/rebase. No image digest, product contract, coverage policy or launch-gate change. |
 | v1.120 | 2026-10-06 | **Shared campaign-change waiting labels (D63, REQ-113).** §18 records reuse of the existing staff vocabulary for advertiser pending review/funding, preserving funding and decision authority. Scoped unit and real browser checks must verify the exact request and independent reasoned approval before full CI. |
 | v1.119 | 2026-10-05 | **Canonical staff driver-login entry point (D62, REQ-112).** §27.5 records the restored existing fixed-role form beside existing-profile attachment on /admin/drivers/new, preserving self-registration, mandatory password replacement, document approval and activation boundaries. D51's removed shared account route stays deleted. Security review, focused browser verification and full CI remain required. |
@@ -3781,12 +3839,12 @@ It does not authorize deployment or close external launch gates.
 | v1.11 | 2026-08-04 | **Doc-system consolidation (no scope or design change).** Four-doc model adopted: proposal docx (scope) → this doc (design) → agent work → `docs/progress.md` (delivered summary), with `docs/decisions-log.md` as the decisions input. Concretely: `adopted-decisions.md` merged into `decisions-log.md` as its Part 2 (Q-status references here updated; historical changelog rows below keep the old filename); `project-reconciliation.md` replaced by `docs/progress.md` (delivered-vs-promise summary incl. proposal module A–G mapping); `fablev1-work.md` journal and the v1 questionnaire moved to `docs/archive/`; README doc map rewritten around the model. Older rows citing the pre-merge filenames describe the state at their date. |
 | v1.7 | 2026-07-27 | **D8 — questionnaire resolved by adopted defaults.** Client unresponsive; best-practice defaults adopted for Q1–Q34 where a defensible standard exists (source of truth: new `docs/adopted-decisions.md`; client-facing `docs/Mobility_Working_Decisions_and_Open_Items.docx` supersedes the questionnaire). [OPEN] tag definition and §33 preamble now defer per-question status to that file, including this doc's "Blocked-by: Q…" headers and "until answers land" prose (§15's block amended directly); the §33 table is retained as the Q→section routing map. Q23 (owner-drivers) is CONFIRM-PENDING — §16.3 payee abstraction stays mandatory. Q11/Q34/Q13 adopted directions match the doc's existing proposed defaults (anonymised segments with export gated on Q31; in-app + advertiser email + ops WhatsApp; driver self-registration narrowing D1 to advertisers/orgs — §3 D1 row annotated). No tag promotions in the body: adopted ≠ built; [TARGET] sections build in their planned phases. Pre-existing "OJ approval" SOP references corrected to the actual flow (plan → adversarial review → reconcile — no human gate; §13 intro, §10.4, §31). |
 
-W1B identifiers renumbered at merge on 2026-10-06: Compose REQ-108 → REQ-117, wording REQ-112 → REQ-116, D62 → D65, architecture v1.117 → v1.122. Master identifiers retain their meanings.
+W1B identifiers renumbered at merge on 2026-10-06: Compose REQ-108 → REQ-117, wording REQ-112 → REQ-116, D62 → D68, architecture v1.117 → v1.125. Master identifiers retain their meanings.
 
-Combined Wave 1 merge: payout architecture entry renumbered at merge from lane v1.122 to v1.123 because W1-B retains v1.122. Both original lane approvals remain historical; D64/D65 and request identifiers are unchanged.
+Combined Wave 1 merge: payout architecture entry renumbered at merge from lane v1.125 to v1.126 because W1-B retains v1.125. Both original lane approvals remain historical; D67/D68 and request identifiers are unchanged.
 
-### v1.126 — 7 October driver renewal correction (D69–D71)
+### v1.129 — 7 October driver renewal correction (D72–D74)
 
 Amends §23 onboarding/renewals and §20 contact demo configuration: per-document outcomes are immutable JSON on the exact review, included in review retry fingerprints; acceptance requires exact private-file read authority. Driver partial input is completed server-side from the retained owned revision before existing versioned submission services run. NIN stays encrypted at rest and absent from browser responses; unchanged bank versions and files are reused. Purged records require complete fresh replacement; incomplete attempts fail closed without recovering erased data. Known document dates constrain approval and work eligibility in Nigeria time. Vehicle approval expiry preserves individual document facts, including optional actual dates, and permits a new review with zero uploads. It never assigns an insurance date from an approval date. Start remains gated by current person/car approval; ending an active owned trip remains available.
 
-Demo seed source/fixtures use Abuja geography and synthetic +234 driver phones. Only +2347068369842 is authorized as the temporary local/preview Terrax destination; production/staging remain blank and existing external gates hold (REQ-126). §9 verification for this owner correction uses touched tests without local coverage (D71); CI coverage gates/baselines are unchanged. No launch-package reprioritization, provider calls, deployment or push is authorized.
+Demo seed source/fixtures use Abuja geography and synthetic +234 driver phones. Only +2347068369842 is authorized as the temporary local/preview Terrax destination; production/staging remain blank and existing external gates hold (REQ-143). §9 verification for this owner correction uses touched tests without local coverage (D74); CI coverage gates/baselines are unchanged. No launch-package reprioritization, provider calls, deployment or push is authorized.

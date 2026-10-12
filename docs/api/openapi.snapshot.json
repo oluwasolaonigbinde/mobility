@@ -20,6 +20,17 @@
                 "type": "null"
               }
             ]
+          },
+          "photo_status": {
+            "default": "unavailable",
+            "enum": [
+              "ready",
+              "display_required",
+              "installation_required",
+              "unavailable"
+            ],
+            "title": "Photo Status",
+            "type": "string"
           }
         },
         "required": [
@@ -13659,6 +13670,28 @@
             "title": "Occurred At",
             "type": "string"
           },
+          "paid_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid At"
+          },
+          "paying_tonight": {
+            "default": false,
+            "title": "Paying Tonight",
+            "type": "boolean"
+          },
+          "payment_on_hold": {
+            "default": false,
+            "title": "Payment On Hold",
+            "type": "boolean"
+          },
           "payout_calculation_id": {
             "anyOf": [
               {
@@ -13697,6 +13730,13 @@
               }
             ],
             "title": "Vehicle Id"
+          },
+          "work_days": {
+            "items": {
+              "$ref": "#/components/schemas/EarningsWorkDayRead"
+            },
+            "title": "Work Days",
+            "type": "array"
           }
         },
         "required": [
@@ -13737,6 +13777,32 @@
         ],
         "title": "EarningsLedgerEntryType",
         "type": "string"
+      },
+      "EarningsWorkDayRead": {
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          }
+        },
+        "required": [
+          "day",
+          "amount"
+        ],
+        "title": "EarningsWorkDayRead",
+        "type": "object"
       },
       "EligiblePaymentListRead": {
         "properties": {

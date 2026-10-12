@@ -76,7 +76,7 @@ describe("GovernedZoneMap failure boundary", () => {
     });
     render(<GovernedZoneMap zones={[zone]} />);
     act(() => handlers.get("error")?.());
-    expect(screen.getByRole("alert")).toHaveTextContent(/configured map style failed/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/map couldn't load/i);
   });
 
   it("fails closed when governed geometry cannot be installed after style load", () => {
@@ -100,7 +100,7 @@ describe("GovernedZoneMap failure boundary", () => {
     act(() => handlers.get("load")?.());
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     act(() => handlers.get("error")?.());
-    expect(screen.getByRole("alert")).toHaveTextContent(/configured map style failed/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/map couldn't load/i);
   });
 
   it("uses the configured style and attribution, then fits and outlines the areas", () => {

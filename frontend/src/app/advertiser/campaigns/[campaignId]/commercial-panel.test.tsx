@@ -91,6 +91,21 @@ describe("CommercialPanel copy", () => {
     expect(screen.getAllByText("₦100,000.00").length).toBeGreaterThan(0);
     expect(screen.getByText("₦107,500.00")).toBeInTheDocument();
   });
+  it("renders a stored decimal VAT rate without a floating-point tail", () => {
+    render(
+      <CommercialPanel
+        campaignId={CAMPAIGN_ID}
+        commercial={commercial({
+          revisions: [
+            revision({ tax_rate: "0.070000", tax_amount: "7000.00", gross_amount: "107000.00" }),
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText("VAT 7% · ₦7,000.00")).toBeInTheDocument();
+    expect(screen.getByText("₦107,000.00")).toBeInTheDocument();
+  });
+
   it("keeps visible request success through the authoritative commercial refresh", async () => {
     const user = userEvent.setup();
     vi.mocked(requestQuoteAction).mockResolvedValueOnce({

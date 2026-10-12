@@ -383,25 +383,23 @@ def test_driver_context_resolves_trip_and_denies_another_drivers_assignment(
     [
         (
             NotificationType.ACTIVITY_FLOOR_BREACHED,
-            "Verified activity below floor",
-            "Your verified activity was below the configured weekly floor. "
-            "Terrax Media will review the assignment.",
+            "Not enough driving this week",
+            "You drove less than this job's weekly minimum. Terrax Media will look at your job.",
         ),
         (
             NotificationType.ACTIVITY_FLOOR_RECOVERED,
-            "Verified activity recovered",
-            "Your verified activity has recovered to the configured weekly floor.",
+            "Weekly driving back on track",
+            "You're back above this job's weekly minimum.",
         ),
         (
             NotificationType.ASSIGNMENT_INACTIVE,
-            "Assignment inactive",
-            "No verified activity was recorded for this assignment for seven "
-            "consecutive days. Terrax Media will review it.",
+            "No trips for 7 days",
+            "No trips were recorded on your job for 7 days. Terrax Media will look at it.",
         ),
         (
             NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED,
-            "Assignment activity resumed",
-            "Verified activity resumed for this assignment, so the activity flag has been cleared.",
+            "Trips started again",
+            "Trips are being recorded on your job again.",
         ),
         (
             NotificationType.BUDGET_URGENT_ALERT,

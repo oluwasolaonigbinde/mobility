@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { readableEvidence, tripReviewReason } from "./evidence";
+import {
+  evidenceVerificationId,
+  matchedTripIds,
+  readableEvidence,
+  tripReviewReason,
+} from "./evidence";
 
 describe("readableEvidence", () => {
   it("reads each detector's evidence as a sentence", () => {
@@ -49,10 +54,26 @@ describe("readableEvidence", () => {
         seed_version: "f7_rich_v1",
         verification_id: "check-1",
         result: { observed: "no wrap" },
+        gps_claim: "none",
+        staff_context: "Car parked outside",
       }),
-    ).toEqual(["Verification id: check-1", 'Result: {"observed":"no wrap"}']);
+    ).toEqual(["no wrap", "Staff context: Car parked outside"]);
+    expect(evidenceVerificationId({ verification_id: "check-1" })).toBe("check-1");
     expect(readableEvidence(null)).toEqual([]);
     expect(readableEvidence({ demo: true })).toEqual([]);
+    expect(
+      tripReviewReason("physical_spot_check_failed", {
+        result: {},
+        gps_claim: "none",
+        verification_id: "check-1",
+      }),
+    ).toBe("An in-person check found a problem");
+    expect(
+      tripReviewReason("physical_spot_check_failed", {
+        result: { observed: "The display was missing" },
+        verification_id: "check-1",
+      }),
+    ).toBe("An in-person check found a problem · The display was missing");
   });
 
   it("keeps a partial reading when a limit is missing and falls back when a value is", () => {
@@ -74,6 +95,24 @@ describe("readableEvidence", () => {
     ]);
     expect(readableEvidence({ exclusion_zone_distance_m: 2400 })).toEqual([
       "2.4 km inside an excluded area",
+    ]);
+  });
+
+  it("reads a route match and lists matched trips separately", () => {
+    const evidence = {
+      detector_version: "route_replay_v1",
+      match_kind: "time_shifted",
+      total_match_count: 2,
+      cross_account_match_count: 1,
+      sampled_matched_trip_ids: ["trip-a", "trip-b", "trip-c", "trip-d"],
+    };
+    expect(readableEvidence(evidence)).toEqual([
+      "Same route as 2 other trips (1 by another driver); same path at different times",
+    ]);
+    expect(matchedTripIds(evidence)).toEqual(["trip-a", "trip-b", "trip-c"]);
+    expect(matchedTripIds({ sampled_matched_trip_ids: "trip-a" })).toEqual([]);
+    expect(readableEvidence({ total_match_count: 1, match_kind: "identical" })).toEqual([
+      "Same route as 1 other trip; identical times",
     ]);
   });
 
@@ -114,11 +153,10 @@ describe("readableEvidence", () => {
   });
 });
 
-
 it.each([
- ["exclusion_zone_presence","Driving recorded in an excluded area"],
- ["route_replay","Route matches an earlier trip"],
- ["missed_display_challenge","Driver missed the display check"],
- ["concurrent_session_day","Overlapping trips recorded on the same day"],
- ["physical_spot_check_failed","In-person check found a problem"],
-])("explains %s in plain words",(kind,label)=>expect(tripReviewReason(kind)).toBe(label));
+  ["exclusion_zone_presence", "Driving recorded in an excluded area"],
+  ["route_replay", "Route matches an earlier trip"],
+  ["missed_display_challenge", "Driver missed the display check"],
+  ["concurrent_session_day", "Overlapping trips recorded on the same day"],
+  ["physical_spot_check_failed", "An in-person check found a problem"],
+])("explains %s in plain words", (kind, label) => expect(tripReviewReason(kind)).toBe(label));

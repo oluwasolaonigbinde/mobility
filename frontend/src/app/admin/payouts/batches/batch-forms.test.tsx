@@ -57,7 +57,9 @@ describe("payout operator forms", () => {
     await user.click(screen.getByRole("button", { name: "Review selected credits" }));
     expect(calls.preview).toHaveBeenCalledWith("NGN", [entry.ledger_entry_id]);
     expect(await screen.findByText(/Advisory selected total/)).toHaveTextContent("100.07");
-    await user.click(screen.getByRole("button", { name: "Create and reserve selected credits" }));
+    await user.click(
+      await screen.findByRole("button", { name: "Create and reserve selected credits" }),
+    );
     await screen.findByRole("alert");
     const request = calls.reserve.mock.calls[0]![1] as FormData;
     const saved = JSON.parse(localStorage.getItem("cardvert-payout-draft:maker")!);
@@ -103,7 +105,7 @@ describe("payout operator forms", () => {
     expect(boxes[2]).toBeDisabled();
     await userEvent.click(boxes[0]!);
     expect(boxes[1]).toBeDisabled();
-    expect(screen.getByText("Active review hold")).toBeVisible();
+    expect(screen.getByText("On hold while a trip review is open")).toBeVisible();
   });
 
   it("does not mutate when preview or safe recovery is unavailable", async () => {

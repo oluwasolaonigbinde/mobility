@@ -1,4 +1,4 @@
-# Combined Wave 1 / Wave 2 CI repair — REQ-132
+# Combined Wave 1 / Wave 2 CI repair — REQ-149
 
 Owner authority: 8 October integration instruction and subsequent “fix them”.
 Work only in the existing mobility-w2c checkout on w2/renewals-phone, starting
@@ -11,7 +11,7 @@ push, branch/worktree deletion, account-access.md or tmp/ reads.
 
 Repair run 37756230483 without weakening tests, adding retries or baseline
 entries, disabling gates or restoring obsolete development interfaces. Preserve
-approved D64–D71 behavior, financial invariants, tenant isolation, current
+approved D67–D74 behavior, financial invariants, tenant isolation, current
 document and audited review authority, historical issued report bytes and the
 paused launch programme. Only touched test files run locally, without coverage.
 
@@ -102,11 +102,11 @@ No new product rule, API schema, migration, coverage/type policy, compatibility
 path or launch-gate status change is planned. Any necessary material product or
 authority change requires a new owner decision; it cannot be disguised as a
 test update. The original request closure list remains authoritative; REQ-115,
-REQ-126 and unlisted requests are not silently closed.
+REQ-143 and unlisted requests are not silently closed.
 
 ## Remaining coverage continuation — REQ-136, 10 October
 
-The reviewed continuation retains REQ-132/D33 authority: eligible coverage
+The reviewed continuation retains REQ-149/D33 authority: eligible coverage
 inventory additions use the existing reviewed refresh, while new type/complexity
 diagnostic waivers remain prohibited. Checkpoint 0 selects only genuinely missing,
 reachable renewal, phone-attempt and current-access assertions in the three
@@ -131,7 +131,7 @@ remain pending after this source checkpoint. Write the stable testing receipt on
 after verification settles; baseline, production rules and launch queue stay
 outside this checkpoint.
 
-## Pydantic CI-alignment checkpoint — REQ-132/136, 10 October
+## Pydantic CI-alignment checkpoint — REQ-149, REQ-136, 10 October
 
 The reviewed A1 amendment permits exactly `pydantic==2.13.4` in pyproject,
 aligning CI/development selection with the existing production input/hash lock.
@@ -165,7 +165,7 @@ reports. Failed Q has no complete backend aggregate. Already-asserted zero-LCOV
 paths remain unresolved; this repair makes no coverage-gain claim. No collector,
 eligibility, waiver, retry or latest-increment shortcut is authorized.
 
-## Mixed-concurrency measurement amendment — REQ-137 / D72, 10 October
+## Mixed-concurrency measurement amendment — REQ-150 / D75, 10 October
 
 Owner explicitly approved the independently reviewed amendment on 10 October,
 relayed by Claude orchestrator. A1/A4 now permit ONLY adding
@@ -177,7 +177,7 @@ Python/coverage version, exclusion, eligibility rule, checker and workflow stays
 unchanged. No application/test/frontend/native/API baseline, production lock,
 client/Q rule or launch-progress change; coverage/baseline.json is deferred.
 
-M1 requires the new explicit REQ-137/D72 authority, exact six-path scope, unique
+M1 requires the new explicit REQ-150/D75 authority, exact six-path scope, unique
 record/version IDs, parsed TOML and before/after proof that only the approved
 option changes. Local static checks suffice; no local tests, coverage, tracing,
 full suite or container starts/creation for this checkpoint.
@@ -209,7 +209,7 @@ A4 retains exact trusted global/backend/frontend and named-critical floors at
 refresh, without D41 tolerance, floor lowering or legacy reconciliation. Correct
 attribution may remove false positives. Preserve D36 CPython major/minor and exact
 coverage binding. The checker does not compare concurrency mechanically; explicit
-D72 authority, independent review and existing POLICY_FILES pyproject hashes bind
+D75 authority, independent review and existing POLICY_FILES pyproject hashes bind
 this exception. Do not change the checker. Only after fresh A3 and exact floors
 pass may its unchanged canonical LF Q-anchored receipt process run, with the
 reviewed exclusive byte journal, guarded restoration and natural hashes. No old

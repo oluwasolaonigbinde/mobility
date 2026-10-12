@@ -20,6 +20,7 @@ type AssignmentList = components["schemas"]["CampaignAssignmentListResponse"];
 
 export interface LoadedDriverCampaignJourney {
   journey: DriverCampaignJourney;
+  photoStatus: "ready" | "display_required" | "installation_required" | "unavailable";
   activationAssignment: DriverTrackerAssignment | null;
   currentTrip: DriverTrackerTrip | null;
   trackerAssignment: DriverTrackerAssignment | null;
@@ -68,7 +69,9 @@ function tripSummary(
   if (source.state === "absent") return { state: "available", value: null };
   return {
     state: "available",
-    value: source.value.trip ? { id: source.value.trip.id } : null,
+    value: source.value.trip
+      ? { id: source.value.trip.id, startedAt: source.value.trip.started_at }
+      : null,
   };
 }
 
@@ -234,6 +237,8 @@ export async function loadDriverCampaignJourney(): Promise<LoadedDriverCampaignJ
 
   return {
     journey,
+    photoStatus:
+      activeAssignment.state === "available" ? activeAssignment.value.photo_status : "unavailable",
     activationAssignment,
     currentTrip: currentTripSummary,
     trackerAssignment: journey.canStart ? activationAssignment : null,

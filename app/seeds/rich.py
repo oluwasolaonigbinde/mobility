@@ -12,10 +12,11 @@ import random
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
-from typing import Any, Literal
-from uuid import NAMESPACE_URL, uuid5
+from typing import Any, Literal, cast
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from sqlalchemy import func, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
@@ -56,7 +57,6 @@ from app.schemas.trips import (
     LocationPingCreate,
     TripEvidenceManifestEntryCreate,
 )
-from app.seeds.abuja import district_polygon
 from app.services.campaign_zones import geometry_expression, validate_geometry_with_postgis
 from app.services.impressions import estimate_trip_impressions
 from app.services.payouts import calculate_trip_payout
@@ -90,14 +90,14 @@ DRIVER_NAMES = (
 )
 DRIVER_AREAS = (
     "Wuse",
-    "Wuse II",
     "Garki",
-    "Jabi",
-    "Asokoro",
     "Utako",
-    "Gwarinpa",
-    "Kubwa",
+    "Lugbe",
     "Maitama",
+    "Jabi",
+    "Kubwa",
+    "Gwarinpa",
+    "Asokoro",
 )
 VEHICLE_DETAILS = (
     ("Toyota", "Corolla", "White", VehicleType.CAR),
@@ -112,21 +112,36 @@ VEHICLE_DETAILS = (
 )
 
 CAMPAIGN_SPECS = (
-    ("Aster Vale Foods — Wuse Deliveries", CampaignStatus.ACTIVE, "rolling"),
-    ("Cedar Bay Furnishings — Wuse Showroom", CampaignStatus.PAUSED, "paused"),
-    ("Oriole Books — Wuse Reading Week", CampaignStatus.COMPLETED, "completed"),
-    ("Sable Ridge Travel — Jabi Travel Enquiries", CampaignStatus.DRAFT, "draft"),
+    ("Aster Vale Foods — Garki Deliveries", CampaignStatus.ACTIVE, "rolling"),
+    ("Cedar Bay Furnishings — Jabi Showroom", CampaignStatus.PAUSED, "paused"),
+    ("Oriole Books — Maitama Reading Week", CampaignStatus.COMPLETED, "completed"),
+    ("Sable Ridge Travel — Airport Arrivals", CampaignStatus.DRAFT, "draft"),
 )
 
 # (latitude, longitude); the final corridor is reserved for the exclusion anomaly.
 CORRIDORS = (
-    ((9.100450, 7.457875), (9.097000, 7.461250), (9.093250, 7.465250), (9.089500, 7.469250)),
-    ((9.081100, 7.464800), (9.077500, 7.467250), (9.073750, 7.470250), (9.069750, 7.473500)),
-    ((9.076475, 7.455775), (9.073250, 7.459000), (9.070000, 7.462250), (9.066500, 7.465500)),
-    ((9.063525, 7.468675), (9.061250, 7.472000), (9.059250, 7.475750), (9.057250, 7.480000)),
-    ((9.067450, 7.480300), (9.064000, 7.476500), (9.060750, 7.472250), (9.058000, 7.468000)),
-    ((9.087000, 7.465000), (9.087250, 7.465750), (9.087750, 7.466750), (9.088250, 7.467750)),
+    ((9.1416, 7.4303), (9.1278, 7.4438), (9.1128, 7.4598), (9.0978, 7.4758)),
+    ((9.0642, 7.4580), (9.0498, 7.4678), (9.0348, 7.4798), (9.0188, 7.4928)),
+    ((9.0457, 7.4219), (9.0328, 7.4348), (9.0198, 7.4478), (9.0058, 7.4608)),
+    ((8.9939, 7.4735), (8.9848, 7.4868), (8.9768, 7.5018), (8.9688, 7.5188)),
+    ((9.0096, 7.6640), (8.9958, 7.6488), (8.9828, 7.6318), (8.9718, 7.6148)),
+    ((9.0878, 7.5348), (9.0888, 7.5378), (9.0908, 7.5418), (9.0928, 7.5458)),
 )
+# Fixed anomaly and late-upload points, (latitude, longitude), on the same Abuja routes.
+STATIONARY_POINT = (9.0642, 7.4580)
+TELEPORT_POINT = (9.2398, 7.2788)
+LOOP_ROUTE = (
+    (9.0498, 7.4488),
+    (9.0598, 7.4588),
+    (9.0698, 7.4688),
+    (9.0598, 7.4788),
+    (9.0498, 7.4888),
+    (9.0398, 7.4788),
+    (9.0298, 7.4688),
+    (9.0398, 7.4588),
+    (9.0498, 7.4488),
+)
+LATE_UPLOAD_POINT = (9.0498, 7.4678)
 
 
 @dataclass(frozen=True)
@@ -340,15 +355,41 @@ def _zone_geometry(campaign_index: int, zone_type: CampaignZoneType) -> dict[str
             "type": "Polygon",
             "coordinates": [
                 [
-                    [7.464500, 9.086500],
-                    [7.468250, 9.086500],
-                    [7.468250, 9.089000],
-                    [7.464500, 9.089000],
-                    [7.464500, 9.086500],
+                    [7.5328, 9.0858],
+                    [7.5478, 9.0858],
+                    [7.5478, 9.0958],
+                    [7.5328, 9.0958],
+                    [7.5328, 9.0858],
                 ]
             ],
         }
-    return district_polygon("Jabi" if campaign_index == 4 else "Wuse")
+    west = 7.3988 + campaign_index * 0.025
+    south = 8.9398 + campaign_index * 0.02
+    return {
+        "type": "Polygon",
+        "coordinates": [
+            [
+                [west, south],
+                [west + 0.20, south],
+                [west + 0.20, south + 0.20],
+                [west, south + 0.20],
+                [west, south],
+            ]
+        ],
+    }
+
+
+def portal_zone_geometry(state: str) -> dict[str, Any]:
+    """Target area for a portal campaign: Utako for a draft, central Wuse otherwise."""
+    west, south, east, north = (
+        (7.4388, 9.0198, 7.4788, 9.0698) if state == "draft" else (7.43, 9.02, 7.51, 9.11)
+    )
+    return {
+        "type": "Polygon",
+        "coordinates": [
+            [[west, south], [east, south], [east, north], [west, north], [west, south]]
+        ],
+    }
 
 
 async def _ensure_zones(
@@ -364,11 +405,9 @@ async def _ensure_zones(
         zone_types.append(CampaignZoneType.EXCLUSION)
     for zone_type in zone_types:
         name = (
-            "Aminu Kano Crescent junction"
+            "Three Arms Zone"
             if zone_type == CampaignZoneType.EXCLUSION
-            else ("Wuse district", "Wuse offices", "Wuse bookshops", "Jabi Lake Road")[
-                campaign_index - 1
-            ]
+            else ("Garki", "Jabi and Utako", "Maitama", "Airport Road")[campaign_index - 1]
         )
         existing = await session.scalar(
             select(CampaignZone).where(
@@ -386,13 +425,13 @@ async def _ensure_zones(
                 created_by_user_id=advertiser.id,
                 name=name,
                 description=(
-                    "Busy junction; avoid during campaigns."
+                    "Security checkpoints and restricted roads; avoid during campaigns."
                     if zone_type == CampaignZoneType.EXCLUSION
                     else (
-                        "Reach shops and offices along the Wuse II and Wuse routes.",
-                        "Reach furniture shoppers along Adetokunbo Ademola Crescent.",
-                        "Promote the reading week around Wuse bookshops.",
-                        "Reach travellers along Jabi Lake Road in Jabi.",
+                        "Reach shops and offices along the Garki and Area 11 routes.",
+                        "Reach furniture shoppers along Obafemi Awolowo Way and Jabi Lake.",
+                        "Promote the reading week around Maitama bookshops.",
+                        "Reach travellers along Airport Road to Nnamdi Azikiwe Airport.",
                     )[campaign_index - 1]
                 ),
                 zone_type=zone_type.value,
@@ -565,23 +604,13 @@ def _ping_specs(
     intervals = [60 + rng.randrange(0, 31) for _ in range(count - 1)]
     accuracy = [8.0 + rng.random() * 8.0 for _ in range(count)]
     if anomaly == "stationary":
-        coordinates = [(9.081100, 7.464800)] * count
+        coordinates = [STATIONARY_POINT] * count
     elif anomaly == "teleport":
-        coordinates[count // 2] = (9.160000, 7.340000)
+        coordinates[count // 2] = TELEPORT_POINT
     elif anomaly == "gap":
         intervals[count // 2] = 1200
     elif anomaly == "loop":
-        coordinates = [
-            (9.077500, 7.462500),
-            (9.080000, 7.465000),
-            (9.082500, 7.467500),
-            (9.080000, 7.470000),
-            (9.077500, 7.472500),
-            (9.075000, 7.470000),
-            (9.072500, 7.467500),
-            (9.075000, 7.465000),
-            (9.077500, 7.462500),
-        ]
+        coordinates = list(LOOP_ROUTE)
         intervals = [90] * (len(coordinates) - 1)
         accuracy = [10.0] * len(coordinates)
     elif anomaly == "poor_accuracy":
@@ -1028,7 +1057,7 @@ COMPLAINT_TEXT = (
         "driver",
         "pay_or_payout",
         "open",
-        "My Tuesday trip ended near Wuse II but the earnings are still pending.",
+        "My Tuesday trip ended near Garki but the earnings are still pending.",
         None,
     ),
     (
@@ -1185,7 +1214,7 @@ async def ensure_portal_people(session, *, graph, settings):
                 )
             )
     await session.flush()
-    await _ensure_contact_work(session, graph=graph, staff=staff, settings=settings)
+    await _ensure_contact_work(session, graph=graph, staff=staff)
     await _ensure_reach_profiles(session)
     return staff
 
@@ -1262,9 +1291,8 @@ async def business_owner(session, campaign_name):
     return organization, person
 
 
-async def _ensure_contact_work(session, *, graph, staff, settings):
+async def _ensure_contact_work(session, *, graph, staff):
     from app.models.contact import DriverPhoneVersion, ManualDriverContactTask, WhatsappConsent
-    from app.services.contacts import mask_phone, phone_fingerprint
 
     people = [graph.driver_profile, graph.rich.drivers[0].profile, graph.rich.drivers[1].profile]
     notes = (
@@ -1277,14 +1305,11 @@ async def _ensure_contact_work(session, *, graph, staff, settings):
         if await session.get(ManualDriverContactTask, key):
             continue
         now = utc_now() - timedelta(days=3 - index)
-        user = await session.get(User, profile.user_id)
-        if user is None or user.phone is None:
-            raise ValueError("Demo driver has no fictional saved phone")
         phone = DriverPhoneVersion(
             driver_profile_id=profile.id,
             version=1,
-            phone_fingerprint=phone_fingerprint(user.phone, settings),
-            masked_phone=mask_phone(user.phone),
+            phone_fingerprint=hashlib.sha256(key.bytes).hexdigest(),
+            masked_phone="000••••0000",
             recorded_by_user_id=profile.user_id,
             recorded_at=now,
             verified_at=now,
@@ -1329,7 +1354,7 @@ async def _ensure_reach_profiles(session):
         ("Abuja office traffic", "Weekday traffic around Wuse and Garki offices.", "active", "180"),
         (
             "Abuja weekend traffic",
-            "Weekend traffic around Abuja shopping streets.",
+            "Weekend traffic around Wuse and Jabi shopping streets.",
             "inactive",
             "140",
         ),
@@ -1431,6 +1456,9 @@ async def ensure_golden_contributors(session, *, graph, settings):
             vehicle=vehicle,
             driver=driver,
             settings=settings,
+            # Match the primary driver's full workdays so frozen report and
+            # map contributions satisfy the existing disclosure share limit.
+            full_workday=True,
             specs=[
                 (
                     key,
@@ -1524,9 +1552,9 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
 
     names = (
         (
-            "Oriole Books — Wuse II Book Fair",
+            "Oriole Books — Utako Book Fair",
             "draft",
-            "Invite readers to the weekend book fair around Wuse II.",
+            "Invite readers to the weekend book fair around Utako.",
         ),
         (
             "Juniper Court Pharmacy — Garki Opening",
@@ -1551,7 +1579,7 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
         (
             "Dove Crescent Laundry — Home Collection",
             "cancelled",
-            "Reach households along the Jabi collection route.",
+            "Reach households along the Lugbe collection route.",
         ),
         (
             "Dove Crescent Laundry — Asokoro Collection",
@@ -1561,9 +1589,9 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
     )
     names += (
         (
-            "Marula Kitchens — Wuse II Weekend Lunch",
+            "Marula Kitchens — Gwarinpa Weekend Lunch",
             "draft",
-            "Offer weekend lunch deliveries around Wuse II homes.",
+            "Offer weekend lunch deliveries around Gwarinpa homes.",
         ),
         (
             "Marula Kitchens — Maitama Office Lunch",
@@ -1576,9 +1604,9 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
             "Promote weekend catering orders around Wuse II.",
         ),
         (
-            "Marula Kitchens — Jabi Lunch Collection",
+            "Marula Kitchens — Lugbe Lunch Collection",
             "cancelled",
-            "Introduce a lunch collection point for Jabi residents.",
+            "Introduce a lunch collection point for Lugbe residents.",
         ),
     )
     now = utc_now()
@@ -1656,9 +1684,9 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
                     campaign_id=campaign.id,
                     source=QuoteRequestSource.IN_PLATFORM,
                     request_details={
-                        "notes": "Please quote for weekend lunch deliveries around Wuse II."
+                        "notes": "Please quote for weekend lunch deliveries around Gwarinpa."
                         if "Marula" in name
-                        else "Please quote for the Wuse II book fair weekend."
+                        else "Please quote for the Utako book fair weekend."
                     },
                 )
             else:
@@ -1691,17 +1719,15 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
                 zone_specs=[
                     (
                         "Garki offices"
-                        if "Garki" in name
+                        if "Garki Office Lunch" in name
                         else {
-                            "draft": "Wuse II bookshops",
-                            "pending_review": "Maitama offices"
-                            if "Maitama" in name
-                            else "Garki offices",
+                            "draft": "Utako bookshops",
+                            "pending_review": "Garki offices",
                             "approved": "Wuse II shops",
                             "rejected": "Maitama homes",
                         }[state],
                         "target",
-                        district_polygon(name),
+                        portal_zone_geometry(state),
                     )
                 ]
                 if state != "cancelled"
@@ -1761,7 +1787,7 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
                         "reason": (
                             "Please hold lunch deliveries while the Wuse kitchen is renovated."
                             if paused.name.startswith("Marula Kitchens")
-                            else "Please hold deliveries while the Wuse showroom is repainted."
+                            else "Please hold deliveries while the Jabi showroom is repainted."
                         ),
                         "pause_reason_kind": "operational",
                         "status_after": "paused",
@@ -2189,7 +2215,7 @@ async def ensure_portal_audiences(session, *, graph, settings):
             segment = await materialize_exposure_segment(
                 session, settings=settings, source_link_id=link.id, measurement_run_id=run.id
             )
-            if category == "area-demand":
+            if category == "area-demand" and segment.releasable_cell_count > 0:
                 await export_exposure_segment(
                     session,
                     settings=settings,
@@ -2231,12 +2257,22 @@ async def ensure_portal_audiences(session, *, graph, settings):
 
 async def _prepare_portal_earnings(session, entries, settings):
     from app.services.earnings_release import release_pending_earnings_for_trip
+    from app.services.trip_processing import process_ended_trip
 
+    payable = []
     for entry in entries:
-        await release_pending_earnings_for_trip(
+        await process_ended_trip(session, trip_id=entry.trip_session_id, settings=settings)
+        released = await release_pending_earnings_for_trip(
             session, trip_id=entry.trip_session_id, settings=settings
         )
+        if (
+            released.assessment_current
+            and not released.hold_active
+            and entry.status in ("available", "paid")
+        ):
+            payable.append(entry)
     await session.flush()
+    return payable
 
 
 async def _review_seed_fraud_flags(session, *, campaign_id, actor_user_id):
@@ -2318,7 +2354,7 @@ async def ensure_trip_review_work(session, *, graph, staff, settings):
             ("pending", "pending", "passed", "failed"),
             (
                 "Please check the rear panel at the Wuse office.",
-                "Meet the driver near Wuse II market after the morning route.",
+                "Meet the driver near Wuse Market after the morning route.",
                 "All panels are secure and the phone number is readable.",
                 "The rear panel is peeling; arrange a replacement before the next route.",
             ),
@@ -2351,8 +2387,8 @@ async def ensure_trip_review_work(session, *, graph, staff, settings):
             pings=[
                 LocationPingCreate(
                     recorded_at=trip.started_at + timedelta(minutes=1),
-                    lat=9.077500,
-                    lon=7.467250,
+                    lat=LATE_UPLOAD_POINT[0],
+                    lon=LATE_UPLOAD_POINT[1],
                     accuracy_m=10.0,
                     sequence_number=0,
                 )
@@ -2404,29 +2440,36 @@ async def ensure_portal_payouts(session, *, graph, staff, settings):
     from app.models.payout import EarningsLedgerEntry
     from app.services.disbursements import build_frozen_payout_line, freeze_batch_instruction_set
 
+    # Keep Finance's reserved/blocked examples off the settled driver walkthrough.
+    payout_profile = graph.rich.drivers[0].profile
+    payout_campaign = graph.rich.campaigns[0]
     entries = list(
         (
             await session.scalars(
                 select(EarningsLedgerEntry)
                 .where(
-                    EarningsLedgerEntry.driver_profile_id == graph.driver_profile.id,
-                    EarningsLedgerEntry.campaign_id == graph.campaign.id,
+                    EarningsLedgerEntry.driver_profile_id == payout_profile.id,
+                    EarningsLedgerEntry.campaign_id == payout_campaign.id,
                     EarningsLedgerEntry.amount > 0,
                 )
                 .order_by(EarningsLedgerEntry.occurred_at)
             )
         ).all()
     )
+    if not entries and max_trips_per_day() == 0:
+        # A zero-density fixture deliberately omits this driver's work history.
+        await _ensure_payout_review_history(session, graph=graph, staff=staff, settings=settings)
+        return
+    entries = await _prepare_portal_earnings(session, entries, settings)
     if len(entries) < 3:
-        raise ValueError("The lunch-route driver needs three payable trips")
-    payee = await session.scalar(select(Payee).where(Payee.subject_id == graph.driver_profile.id))
+        raise ValueError("The Finance demo driver needs three released trips")
+    payee = await session.scalar(select(Payee).where(Payee.subject_id == payout_profile.id))
     version = await session.scalar(select(PayeeVersion).where(PayeeVersion.payee_id == payee.id))
     account = await session.scalar(
         select(PayeeBankAccountVersion)
         .join(PayeeBankAccount)
         .where(PayeeBankAccount.payee_id == payee.id)
     )
-    await _prepare_portal_earnings(session, entries, settings)
     now = datetime.now(UTC)
     for index, state in ((0, "completed"), (2, "reserved")):
         key = uuid5(NAMESPACE_URL, f"cardvert-preview:payout:{index}")
@@ -2499,7 +2542,7 @@ async def ensure_portal_payouts(session, *, graph, staff, settings):
                 id=alert_key,
                 kind="submission_blocked",
                 dedupe_key=hashlib.sha256(alert_key.bytes).hexdigest(),
-                driver_profile_id=graph.driver_profile.id,
+                driver_profile_id=payout_profile.id,
                 batch_id=uuid5(NAMESPACE_URL, "cardvert-preview:payout:2"),
                 detail={"reason": "provider_unavailable"},
             )
@@ -2535,8 +2578,8 @@ async def _ensure_payout_review_history(session, *, graph, staff, settings):
         graph.trips,
         ("draft", "pending_approval", "approved", "rejected"),
         (
-            "Please check the Wuse II distance after the route was corrected.",
-            "The Wuse return leg needs a second review.",
+            "Please check the Garki distance after the route was corrected.",
+            "The Central Area return leg needs a second review.",
             "The route review is complete; please confirm the earnings.",
             "Please recheck the distance recorded near the fuel station.",
         ),
@@ -2634,3 +2677,36 @@ async def _prepare_automatic_batch(session, *, settings):
     assert not adapter.calls
     if result["outcome"] != "completed" or not result.get("batch_count"):
         raise ValueError(f"The lunch-route automatic payout did not prepare: {result['outcome']}")
+
+
+SEED_UNREAD_NOTICE_PREFIX = "cardvert-preview:notice:"
+
+
+async def settle_seed_driver_notifications(
+    session: AsyncSession, *, driver_user_ids: list[UUID]
+) -> int:
+    """Mark generated driver notices read, keeping the curated recent notices unread.
+
+    Seeding replays weeks of trips, payouts and reviews in one run, and each event
+    leaves an in-app notice. A real driver would have read most of them, so only the
+    curated preview notices stay unread. Nothing is deleted.
+    """
+    from sqlalchemy import or_, update
+
+    from app.models.notification import Notification, NotificationChannel
+
+    result = await session.execute(
+        update(Notification)
+        .where(
+            Notification.recipient_user_id.in_(driver_user_ids),
+            Notification.channel == NotificationChannel.IN_APP.value,
+            Notification.read_at.is_(None),
+            or_(
+                Notification.dedupe_key.is_(None),
+                ~Notification.dedupe_key.startswith(SEED_UNREAD_NOTICE_PREFIX),
+            ),
+        )
+        .values(read_at=func.statement_timestamp())
+        .execution_options(synchronize_session=False)
+    )
+    return int(cast(CursorResult[Any], result).rowcount or 0)

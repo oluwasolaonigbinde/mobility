@@ -1,103 +1,42 @@
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { ApiError } from "@/lib/api/errors";
-
-const get = vi.hoisted(() => vi.fn());
-const loadJourney = vi.hoisted(() => vi.fn());
-
-vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: get }) }));
-vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
-vi.mock("./trip-tracker", () => ({ TripTracker: () => <div>Trip tracker</div> }));
+import { expect, it, vi } from "vitest";
+const mocks = vi.hoisted(() => ({ earnings: vi.fn(), journey: vi.fn(), tracker: vi.fn() }));
+vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({}) }));
+vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
 vi.mock("@/lib/auth/current-user", () => ({
-  requireRole: vi.fn(async () => ({ user: { id: "driver-id", role: "driver" } })),
+  requireRole: async () => ({ user: { id: "driver", full_name: "Ada Driver" } }),
 }));
-vi.mock("@/lib/driver/load-campaign-journey", () => ({
-  loadDriverCampaignJourney: loadJourney,
+vi.mock("@/lib/driver/load-daily-earnings", () => ({ loadDailyEarnings: mocks.earnings }));
+vi.mock("@/lib/driver/load-campaign-journey", () => ({ loadDriverCampaignJourney: mocks.journey }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn() }),
+  redirect: (url: string) => {
+    throw new Error(`redirect:${url}`);
+  },
 }));
 
-import DriverTrackPage from "./page";
-
-const ledgerEntry = (status: "paid" | "pending", id: string) => ({
-  id,
-  amount: "1250.00",
-  campaign_id: "00000000-0000-4000-8000-000000000001",
-  created_at: "2026-08-23T09:00:00Z",
-  currency: "NGN",
-  description: null,
-  driver_profile_id: "00000000-0000-4000-8000-000000000002",
-  entry_type: "trip_payout" as const,
-  occurred_at: "2026-08-23T09:00:00Z",
-  payout_calculation_id: "00000000-0000-4000-8000-000000000003",
-  status,
-  trip_session_id: "00000000-0000-4000-8000-000000000004",
-  vehicle_id: "00000000-0000-4000-8000-000000000005",
-});
-
-describe("DriverTrackPage ledger statuses", () => {
-  beforeEach(() => {
-    get.mockReset();
-    loadJourney.mockResolvedValue({
-      journey: {
-        standing: "PENDING",
-        summary: "Campaign work remains pending.",
-        canStart: false,
-        hasCurrentTrip: false,
-        steps: [],
-      },
-      activationAssignment: null,
-      currentTrip: null,
-      trackerAssignment: null,
-    });
+vi.mock("./trip-tracker", () => ({
+  TripTracker: (props: unknown) => {
+    mocks.tracker(props);
+    return <div>Trip tracker</div>;
+  },
+}));
+import Track from "./page";
+it("keeps only the tracker and passes current authority for recovery", async () => {
+  const assignment = { id: "job", campaignName: "Abuja launch" };
+  const trip = { id: "trip" };
+  mocks.journey.mockResolvedValue({
+    journey: { steps: [], canStart: false },
+    trackerAssignment: null,
+    activationAssignment: assignment,
+    currentTrip: trip,
   });
-
-  it("renders paid entries green and pending entries amber", async () => {
-    get.mockImplementation(async (path?: string) => {
-      if (path?.endsWith("/active")) return { data: { assignment: null } };
-      if (path?.endsWith("/current")) return { data: { trip: null } };
-      if (path?.endsWith("/campaign-assignments")) return { data: { items: [] } };
-      return {
-        data: {
-          items: [
-            ledgerEntry("paid", "00000000-0000-4000-8000-000000000010"),
-            ledgerEntry("pending", "00000000-0000-4000-8000-000000000011"),
-          ],
-        },
-      };
-    });
-
-    render(await DriverTrackPage());
-
-    expect(screen.getAllByText("₦1,250.00")).toHaveLength(2);
-    expect(screen.getByText("paid")).toHaveClass("text-green");
-    expect(screen.getByText("pending")).toHaveClass("text-amber");
-  });
-
-  it("keeps the authority-bearing tracker when optional labels and history are unavailable", async () => {
-    loadJourney.mockResolvedValue({
-      journey: {
-        standing: "TRACKING",
-        summary: "A trip is in progress.",
-        canStart: false,
-        hasCurrentTrip: true,
-        steps: [],
-      },
-      activationAssignment: null,
-      currentTrip: { id: "trip-1" },
-      trackerAssignment: null,
-    });
-    get.mockRejectedValue(
-      new ApiError(503, { code: "OPTIONAL_UNAVAILABLE", message: "private detail" }),
-    );
-
-    render(await DriverTrackPage());
-
-    expect(screen.getByText("Trip tracker")).toBeInTheDocument();
-    expect(screen.getByText("Recent activity unavailable")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Campaign names could not be loaded. You can still track your current trip.",
-      ),
-    ).toBeInTheDocument();
-    expect(screen.queryByText("private detail")).not.toBeInTheDocument();
-  });
+  render(await Track());
+  expect(mocks.tracker).toHaveBeenCalledWith(
+    expect.objectContaining({ initialTrip: trip, assignment: null, driverId: "driver" }),
+  );
+  expect(screen.getByText("Trip tracker")).toBeVisible();
+  expect(
+    screen.queryByText(/How a trip|Recent verified|Set up this phone/),
+  ).not.toBeInTheDocument();
 });

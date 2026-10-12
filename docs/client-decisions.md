@@ -77,12 +77,30 @@ acceptances unless a D-row says otherwise (D14, D21).
 run IDs or fingerprints; staff screens and downloads may (D38c). Four visual
 directions remain, with Ivory Ledger as the default (D37); two new candidates,
 Directions 5 and 6, are offered for the client's review (REQ-071).
-The public website uses **Request a campaign quote** for its on-site advertiser
+The public website uses **Request a Quote** for its on-site advertiser
 enquiry, **Apply to drive** for `/apply`, and **Sign in** for `/login` (D52,
 REQ-070). Advertiser account setup remains operator-led; the enquiry creates
 neither an account nor a campaign. `/` is the only public landing route.
+The enquiry keeps the notice explaining use of contact details and that no
+account or campaign is created; the separate ID/bank warning is removed under
+the owner's 8 October review brief (D64, REQ-122). Sign-in welcomes people with
+"Welcome to Cardvert". Shared portal controls use readable sentence case and
+visible selected states (REQ-120–REQ-124); the driver Home shows current work
+and pay, while Profile contains personal details and lifetime totals.
+REQ-127/D65 supersedes the earlier driver presentation: Home has one next
+action, Jobs shows frozen rate/car/dates and actionable photos, Track owns
+the live trip, Earnings lists days with one evidence-based payment status,
+and Help alone explains daily pay. The header keeps the bell and Help;
+Sign out stays in Profile. Driver headings and labels use sentence case.
+D66/REQ-128–132 refines the review preview: the driver opens ready and idle,
+Home leads with the latest payment when today's earnings are zero, badges and
+small labels use sans, and past jobs do not repeat their dated status. Demo
+work days use realistic qualifying mileage and separate next-day payments.
 
 **History:**
+- **2026-10-10** — Owner review replaces D65's seeded live trip with idle Start and the zero Today headline with latest payment; requires realistic daily amounts and next-day reconciliations, sans labels and nonrepeated job status (REQ-128–132, D66). Earlier D65 demo history had small trips paid together. Built in `b807d341`, with API projections in `affa641c`; final verification in `8f64cdb8` and full branch CI passed on 2026-10-12.
+- **2026-10-10** — Owner replaced the text-heavy driver screens with one job per screen (REQ-127, D65), direct safe Start, honest daily payment labels and settled demo history. D39/D40/D43 money and eligibility rules remain. Built in `b807d341`, with API projections in `affa641c`; final verification in `8f64cdb8` and full branch CI passed on 2026-10-12.
+- **2026-10-08** — Owner approved one consolidated portal clarity pass (REQ-120–REQ-125), including "Request a Quote", the contact-use notice without the separate ID/bank warning, and simpler sign-in/onboarding copy (D64). Built in `b807d341`, with API projections in `affa641c`; final verification in `8f64cdb8` and full branch CI passed on 2026-10-12.
 - **2026-10-06** — Reviewed client-facing report/map/copy polish is integrated (REQ-104). Built in `6eb5ab9`; full CI passed before closure.
 - **2026-08-14** — Client confirmed the names (Q29, D18).
 - **2026-09-24** — Client rejected seven of eleven visual directions (D37). Built in `d583829`.
@@ -149,7 +167,7 @@ details: Terrax Media Company Ltd, 73 Lome Crescent, Wuse Zone 7, FCT Abuja,
 (D43g); fields include serial number, RC number, client and CEO signature
 lines, campaign duration, quantity (the number of advert campaigns) and bank
 details (client answers item 6). Advertiser and driver amounts use grouping and two decimal places; VAT shows
-its percentage and amount (D68, REQ-124). The invoice leads with the VAT-inclusive
+its percentage and amount (D71, REQ-142). The invoice leads with the VAT-inclusive
 total; staff still enter prices before VAT. Real invoice bank details stay
 unset until Terrax supplies them, and a real invoice cannot be issued without
 them or without the accountant's sign-off (D42). Demo/staging sample invoices
@@ -160,7 +178,7 @@ become verified issuer facts or real payment instructions.
 [REQ-042](requests.md) accountant's confirmation and [REQ-052](requests.md) someone to check the sample invoice.
 
 **History:**
-- **2026-10-07** — Owner W2-D brief requires advertiser/driver money grouped with two decimal places and VAT shown as "VAT 7.5% · ₦…"; stored values and issued invoices remain unchanged (D68, REQ-124). Earlier display precision varied by amount.
+- **2026-10-07** — Owner W2-D brief requires advertiser/driver money grouped with two decimal places and VAT shown as "VAT 7.5% · ₦…"; stored values and issued invoices remain unchanged (D71, REQ-142). Earlier display precision varied by amount.
 - **2026-08-14** — Client confirmed in-platform invoices and VAT-inclusive display (Q14, Q28, D18).
 - **2026-09-24** — Client supplied company details and invoice fields (client answers item 6).
 - **2026-09-29** — Owner approved the invoice layout: bank slots left blank until the real OPay details arrive, prices still entered before VAT (D42, REQ-009). Built in `0b53eab`.
@@ -199,11 +217,11 @@ reason (Q9). Campaign changes waiting for approval show "Needs staff review";
 changes waiting for funding show "Waiting for funding", reusing the existing
 staff status labels without changing their authority (D63, REQ-113).
 Editing any change-form field clears its preview; confirmation requires a fresh
-preview of those inputs (D68, REQ-122). Completed and cancelled campaigns no
-longer offer a new custom-quotation request (D68, REQ-124).
+preview of those inputs (D71, REQ-140). Completed and cancelled campaigns no
+longer offer a new custom-quotation request (D71, REQ-142).
 
 **History:**
-- **2026-10-07** — Owner W2-D brief replaces retained previews after edits with fresh-preview confirmation, and removes terminal-campaign quotation requests (D68, REQ-122/124); existing funding and approval rules remain.
+- **2026-10-07** — Owner W2-D brief replaces retained previews after edits with fresh-preview confirmation, and removes terminal-campaign quotation requests (D71, REQ-140, REQ-142); existing funding and approval rules remain.
 - **2026-08-14** — Client confirmed the lifecycle (Q6, Q9, Q15, D18).
 - **2026-09-24** — Owner added the submission requirements (D38d). Built in `7a9ceb0` (REQ-001).
 - **2026-10-06** — Owner approved the existing staff labels for advertiser campaign-change states that previously showed "Status unavailable". Reuse the shared labels; funding and reasoned independent staff approval remain unchanged (D63, REQ-113). Built in `1f91b8a`; browser typing alignment in `097382c`.
@@ -241,7 +259,7 @@ flagged after seven inactive days (Q20).
 
 ### Drivers and vehicles
 
-**7 Oct owner correction (D69, REQ-127):** Renewals show each document’s own result and ask only for replacements; retained NIN/bank details and accepted documents are reused. Bank choice uses names, uploads match the app, and copy describes the actual new-trip pause while existing trips may finish.
+**7 Oct owner correction (D72, REQ-144):** Renewals show each document’s own result and ask only for replacements; retained NIN/bank details and accepted documents are reused. Bank choice uses names, uploads match the app, and copy describes the actual new-trip pause while existing trips may finish.
 
 
 
@@ -260,10 +278,10 @@ approval ends on an admin-entered date (D31). Pilot vehicles: roadworthy cars
 Signed-in active driver accounts can renew rejected or expired identity, bank
 and vehicle documents in Profile, with the same scanned uploads and audited
 staff review. Work remains blocked until the current reviews pass. Unknown
-renewal periods stay unset (D66, REQ-119).
+renewal periods stay unset (D69, REQ-137).
 
 **History:**
-- **2026-10-07** — Owner's Wave 2 C brief opens signed-in renewal for rejected/expired current documents (D66, REQ-119), replacing the later-stage deferral recorded on 1 Oct. Approval and activation remain separate; unknown renewal periods remain unset. Local implementation/verification: `issues/testing/w2c-renewals-phone-2026-10-07.md`; owner merge/combined acceptance pending.
+- **2026-10-07** — Owner's Wave 2 C brief opens signed-in renewal for rejected/expired current documents (D69, REQ-137), replacing the later-stage deferral recorded on 1 Oct. Approval and activation remain separate; unknown renewal periods remain unset. Local implementation/verification: `issues/testing/w2c-renewals-phone-2026-10-07.md`; owner merge/combined acceptance pending.
 - **2026-08-14** — Client confirmed self-registration, requirements, owner-drivers and cars (Q13, Q19, Q23, Q26, D18).
 - **2026-10-05** — Owner restored staff-created driver logins beside the existing-profile form on `/admin/drivers/new`; self-registration remains `/apply`, and password, document approval and activation rules remain unchanged (D62, REQ-112). D51 removed the obsolete shared `/admin/users/new` page; it is not restored. Built in `1f91b8a`.
 - **2026-09-02** — Owner decisions on activation and vehicle approval dates (D28, D31).
@@ -336,14 +354,14 @@ Admins can pause automatic payouts, get the alerts in the Finance section of
 person doing this the Finance Officer; in Cardvert it is any admin. Switching
 automatic payouts on: [REQ-048](requests.md).
 
-**Terrax pays Paystack's transfer fee** (D64, [REQ-053](requests.md)). Drivers
+**Terrax pays Paystack's transfer fee** (D67, [REQ-053](requests.md)). Drivers
 receive their full earnings. Cardvert neither computes nor stores nor displays
 fees, and has no fee setting or fee-setup submission gate. Paystack's own
 dashboard and statements show fees. Accepted work and the short-day calculation
 remain unchanged. Requested hardening: [REQ-036](requests.md), [REQ-040](requests.md).
 
 **History:**
-- **2026-10-05** — Client reversed the 1 Oct driver-deduction rule: Terrax bears the transfer fee and the driver receives full earnings, with no fee calculation, storage, display or setting in Cardvert (D64; REQ-053; owner W1-P brief; renumbered at merge from D59 on 6 Oct 2026). Locally verified on `w1/payouts`; evidence: `issues/testing/w1p-payouts-2026-10-05.md`. Combined Wave 1 CI and approved merge into master pending under the owner's one-time D41 exception recorded in REQ-053.
+- **2026-10-05** — Client reversed the 1 Oct driver-deduction rule: Terrax bears the transfer fee and the driver receives full earnings, with no fee calculation, storage, display or setting in Cardvert (D67; REQ-053; owner W1-P brief; renumbered at merge from D59 on 6 Oct 2026). Locally verified on `w1/payouts`; evidence: `issues/testing/w1p-payouts-2026-10-05.md`. Combined Wave 1 CI and approved merge into master pending under the owner's one-time D41 exception recorded in REQ-053.
 - **2026-08-14** — Automated bank transfers confirmed (Q27, D18). Every batch was prepared by one person and approved by a different person (maker-checker, architecture §16.3 / RM10).
 - **2026-09-25** — Client chose automatic approval with no person approving each batch; Finance monitors and follows up (D39c). Built in `3b6b396` (REQ-003).
 - **2026-09-28** — Owner added: the first payment to any new bank account goes to a person (D40b, security review). Built in `3b6b396`.
@@ -360,7 +378,7 @@ seven-day review target and are never released automatically; unresolved cases
 escalate after day seven (Q22).
 
 **History:**
-- **2026-10-07** — Owner Claude polish review clarifies the earnings presentation: Ready to pay, Waiting for review and Paid consistently, no repeated page-count summary and one short explanation (REQ-124); amount and payment authority are unchanged.
+- **2026-10-07** — Owner Claude polish review clarifies the earnings presentation: Ready to pay, Waiting for review and Paid consistently, no repeated page-count summary and one short explanation (REQ-142); amount and payment authority are unchanged. Superseded by the later D65/D66 driver design: Paid with its date, Paying tonight, Being checked and On hold – contact support; the pay explanation lives only in Help.
 - **2026-07** — Hold-and-review adopted (D5); client confirmed 2026-08-14 (Q21, Q22, D18).
 
 ### Complaints and support
@@ -383,7 +401,7 @@ company-wide visibility, [REQ-024](requests.md) erasure.
 
 ### Notifications and contact
 
-**7 Oct demo correction (D70, REQ-128):** Nigerian-format synthetic driver phones; the owner’s +2347068369842 is the temporary local/preview Terrax destination. The PM’s real preview WhatsApp number is [REQ-126](requests.md). Live operator/wording gates remain.
+**7 Oct demo correction (D73, REQ-145):** Nigerian-format synthetic driver phones; the owner’s +2347068369842 is the temporary local/preview Terrax destination. The PM’s real preview WhatsApp number is [REQ-143](requests.md). Live operator/wording gates remain.
 
 
 
@@ -397,22 +415,22 @@ Mark all read clears current unread items, including older pages. Read records
 remain stored; notifications arriving afterward appear normally (D54, REQ-075).
 Campaign notices name the campaign and offer Open only when the recipient can
 currently access its campaign or driver assignment; inaccessible context stays
-generic without a name or link (D68, REQ-121).
+generic without a name or link (D71, REQ-139).
 
 For phone verification, only the signed-in driver sees a one-time code and
 sends it by WhatsApp or SMS to the configured Terrax number. Customer Service
 records the received code and sender number; Cardvert verifies the current
 phone once, limits attempts and logs the staff action. No configured number
 means no driver button. Live use waits for approved wording (REQ-032) and a
-named operator (D67, REQ-120).
+named operator (D70, REQ-138).
 
 **History:**
-- **2026-10-07** — Owner Claude polish review requires sentence-case notification titles/body in the body font, retaining capitals for small labels (REQ-121); notification content and access checks are unchanged.
-- **2026-10-07** — Owner W2-D brief replaces generic campaign notices with currently authorized campaign names and Open links (D68, REQ-121); immutable notification payloads and delivery channels remain.
+- **2026-10-07** — Owner Claude polish review requires sentence-case notification titles/body in the body font, retaining capitals for small labels (REQ-139); notification content and access checks are unchanged.
+- **2026-10-07** — Owner W2-D brief replaces generic campaign notices with currently authorized campaign names and Open links (D71, REQ-139); immutable notification payloads and delivery channels remain.
 - **2026-10-06** — The earlier Mark read investigation, accessible panel close/focus and simpler company-preference wording are integrated (REQ-073/074/076). Built in `c2ab2d9`; full CI, including the real preference-change browser case, passed. REQ-075 retains its separate unread-inbox walkthrough obligation.
 - **2026-08-14** — Client confirmed channels (Q34, D18); **2026-08-24** owner decision on email preferences (D24).
 - **2026-09-24** — Client supplied the support number (client answers items 14–15).
-- **2026-10-07** — D67 replaces the earlier operator-send/driver-enter verification with driver-send/staff-record. The code is visible only to its driver; live wording and operator gates remain open. Local implementation/verification: `issues/testing/w2c-renewals-phone-2026-10-07.md`; owner merge/combined acceptance pending.
+- **2026-10-07** — D70 replaces the earlier operator-send/driver-enter verification with driver-send/staff-record. The code is visible only to its driver; live wording and operator gates remain open. Local implementation/verification: `issues/testing/w2c-renewals-phone-2026-10-07.md`; owner merge/combined acceptance pending.
 - **2026-10-02** — Owner clarified that read notifications must disappear from the panel (D54, REQ-075), replacing its earlier history-list presentation. Built in `c2ab2d9`; the separate unread-inbox browser walkthrough remains open under REQ-075.
 
 ### Advertiser reporting and privacy
@@ -424,12 +442,12 @@ revenue data and an approved method exists (Q12, Q30, D20c). Advertisers do not
 see driver names or profiles.
 New CSV/PDF issuances say "Not enough data" for unavailable totals. Existing
 issued reports, stored snapshots, bytes and integrity hashes retain their original
-wording; the export snapshot version changes for new issuances (D68, REQ-123).
+wording; the export snapshot version changes for new issuances (D71, REQ-141).
 
 **Still open:** [REQ-018](requests.md) — confirm no driver identity in reports.
 
 **History:**
-- **2026-10-07** — Owner W2-D brief replaces "Omitted - insufficient frozen evidence" in new export snapshots only; old issuance content and verification remain unchanged (D68, REQ-123).
+- **2026-10-07** — Owner W2-D brief replaces "Omitted - insufficient frozen evidence" in new export snapshots only; old issuance content and verification remain unchanged (D71, REQ-141).
 - **2026-08-14** — Client confirmed the report shape and ROI rule (Q12, Q30, D18, D20).
 - **2026-09-24** — Client's answer mentioned "admin officer & driver profile and the car", which conflicts with the privacy boundary; asked to clarify (client answers item 5).
 
@@ -447,7 +465,7 @@ item 18).
 
 ### Pilot shape, permits and launch
 
-**7 Oct demo correction (D70, REQ-125):** Seeded campaigns, routes, zones and GPS use real Abuja areas and consistent geometry.
+**7 Oct demo correction (D73, REQ-125):** Seeded campaigns, routes, zones and GPS use real Abuja areas and consistent geometry.
 
 
 
@@ -614,10 +632,10 @@ list, completed check or zero balance.
 
 - **2026-10-02** — Core admin source Built in `39eb49c` (L2-1a expedited checkpoint); A-only build, 283 tests and source review passed. Full design acceptance and CI/D33 remain open; B source is delivered separately.
 
-W1B identifiers renumbered at merge on 2026-10-06: Compose REQ-108 → REQ-117, wording REQ-112 → REQ-116, D62 → D65, architecture v1.117 → v1.122. Master identifiers retain their meanings.
+W1B identifiers renumbered at merge on 2026-10-06: Compose REQ-108 → REQ-117, wording REQ-112 → REQ-116, D62 → D68, architecture v1.117 → v1.125. Master identifiers retain their meanings.
 
-Combined Wave 1 merge: payout architecture entry renumbered at merge from lane v1.122 to v1.123 because W1-B retains v1.122. Both original lane approvals remain historical; D64/D65 and request identifiers are unchanged.
+Combined Wave 1 merge: payout architecture entry renumbered at merge from lane v1.125 to v1.126 because W1-B retains v1.125. Both original lane approvals remain historical; D67/D68 and request identifiers are unchanged.
 
 ### 7 October renewal correction history
 
-Before D69, renewal required the complete identity/bank or vehicle capture and displayed filenames (D66). The owner replaced that presentation and complete-input requirement with partial renewal in REQ-127. D70 replaces UK demonstration phone fixtures and Lagos seed geography with Nigerian-format fixtures and Abuja geography. Built locally on `w2/renewals-phone`; [correction verification](../issues/testing/w2c-claude-renewals-correction-2026-10-07.md); merge/CI closure remains pending.
+Before D72, renewal required the complete identity/bank or vehicle capture and displayed filenames (D69). The owner replaced that presentation and complete-input requirement with partial renewal in REQ-144. D73 replaces UK demonstration phone fixtures and Lagos seed geography with Nigerian-format fixtures and Abuja geography. Built locally on `w2/renewals-phone`; [correction verification](../issues/testing/w2c-claude-renewals-correction-2026-10-07.md); merge/CI closure remains pending.

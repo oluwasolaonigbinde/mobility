@@ -42,31 +42,38 @@ describe("PersonPayeeForm", () => {
     );
   });
 
-  it("uploads three private files, waits for clean scans and shows only masked identity", async () => {
+  it("uploads three private files, waits for clean scans and never echoes identity", async () => {
     const user = userEvent.setup();
     render(<PersonPayeeForm />);
-    await user.type(screen.getByLabelText("Onboarding access code"), ACCESS_TOKEN);
-    await user.type(screen.getByLabelText("NIN"), "12345678901");
-    await user.type(screen.getByLabelText("Verified account name"), "Test Driver");
-    await user.type(screen.getByLabelText("Bank account number"), "0123456789");
-    await user.type(screen.getByLabelText("Bank code"), "058");
+    expect(screen.getByLabelText("Signed agreement")).toHaveAccessibleDescription(
+      "The driver agreement Terrax Media sent you, signed.",
+    );
+    expect(screen.getByLabelText("Bank code (3 digits)")).toHaveAccessibleDescription(
+      "Ask your bank if you're not sure.",
+    );
+    await user.type(screen.getByLabelText("Code from your email"), ACCESS_TOKEN);
+    await user.type(screen.getByLabelText("NIN (11 digits)"), "12345678901");
+    await user.type(screen.getByLabelText("Name on bank account"), "Test Driver");
+    await user.type(screen.getByLabelText("Account number (10 digits)"), "0123456789");
+    await user.type(screen.getByLabelText("Bank code (3 digits)"), "058");
     await user.upload(
-      screen.getByLabelText("Driver licence"),
+      screen.getByLabelText("Driver's licence"),
       new File(["licence"], "licence.png", { type: "image/png" }),
     );
     await user.upload(
-      screen.getByLabelText("Driver photo"),
+      screen.getByLabelText("Photo of you"),
       new File(["photo"], "photo.png", { type: "image/png" }),
     );
     await user.upload(
       screen.getByLabelText("Signed agreement"),
       new File(["agreement"], "agreement.pdf", { type: "application/pdf" }),
     );
-    await user.click(screen.getByRole("button", { name: "Submit person & payee evidence" }));
+    await user.click(screen.getByRole("button", { name: "Send my details" }));
 
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "Person/payee evidence version 1 was sent for administrator review. NIN projection: *******8901.",
+      "Sent. We'll check your details. Check your status with your application reference.",
     );
+    expect(screen.queryByText(/\*{7}8901/)).not.toBeInTheDocument();
     expect(screen.queryByText("12345678901")).not.toBeInTheDocument();
     expect(screen.queryByText("0123456789")).not.toBeInTheDocument();
     const calls = vi.mocked(fetch).mock.calls;

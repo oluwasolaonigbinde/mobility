@@ -12,6 +12,8 @@ from app.models.driver_application import DriverApplication
 from app.models.notification import Notification
 from app.models.organization import AdvertiserOrganization
 from app.models.payee import PayeeBankAccountVersion
+from app.models.payout import EarningsLedgerEntry, PayoutCalculation
+from app.models.trip import TripSession
 from app.models.user import User
 from app.models.vehicle import Vehicle
 
@@ -44,7 +46,16 @@ def _entity_dates(session, row, now):
 
 
 def _dependent_dates(session, row, now):
-    if isinstance(row, Notification) and (row.dedupe_key or "").startswith(
+    if isinstance(row, (PayoutCalculation, EarningsLedgerEntry)) and row.trip_session_id:
+        trip = session.get(TripSession, row.trip_session_id)
+        if trip and trip.trip_metadata.get("full_workday"):
+            moment = trip.ended_at + timedelta(minutes=5)
+            if hasattr(type(row), "created_at"):
+                row.created_at = moment
+            for name in ("calculated_at", "occurred_at"):
+                if hasattr(type(row), name):
+                    setattr(row, name, moment)
+    elif isinstance(row, Notification) and (row.dedupe_key or "").startswith(
         "cardvert-preview:notice:"
     ):
         key = row.dedupe_key or row.dedupe_fingerprint

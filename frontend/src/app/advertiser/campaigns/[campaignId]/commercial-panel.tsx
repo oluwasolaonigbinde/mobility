@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { CommercialHistory } from "@/lib/billing/commercial-history";
+import { formatVatRate } from "@/lib/billing/invoice-document";
 import {
   acceptExpeditedWaiverAction,
   acceptQuoteAction,
@@ -137,7 +138,7 @@ function QuotationFacts({ quotation, accepted }: { quotation: Quotation; accepte
         <div>
           <dt className="micro text-muted">Included VAT</dt>
           <dd className="mt-1 font-mono text-xs">
-            VAT {Number(quotation.tax_rate) * 100}% ·{" "}
+            VAT {formatVatRate(quotation.tax_rate)} ·{" "}
             {exactMoney(quotation.currency, quotation.tax_amount)}
           </dd>
         </div>

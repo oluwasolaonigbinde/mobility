@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+/* Driver controls stay sentence case in every product direction. */
+html[data-theme] .driver-portal .micro {
+  font-family: var(--font-sans) !important;
+}
+
+html .driver-portal :is(.micro, h1, h2, h3, h4, button, a, label, summary, span, p) {
+  text-transform: none !important;
+  letter-spacing: normal;
+}
+
 /* Cardvert design tokens. Ivory Ledger is the default visual direction. */
 @theme {
   /* surfaces */
@@ -43,7 +53,9 @@
   --font-terrax-display: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
 
   /* elevation & glow */
-  --shadow-panel: 0 1px 0 0 rgb(255 255 255 / 0.75) inset, 0 1px 2px rgb(70 52 30 / 0.06), 0 12px 32px -16px rgb(70 52 30 / 0.18);
+  --shadow-panel:
+    0 1px 0 0 rgb(255 255 255 / 0.75) inset, 0 1px 2px rgb(70 52 30 / 0.06),
+    0 12px 32px -16px rgb(70 52 30 / 0.18);
   --shadow-glow-amber: 0 1px 2px rgb(166 61 23 / 0.2), 0 8px 20px -8px rgb(166 61 23 / 0.35);
   --shadow-glow-cyan: 0 1px 2px rgb(30 95 90 / 0.18), 0 8px 20px -8px rgb(30 95 90 / 0.3);
   --shadow-glow-coral: 0 1px 2px rgb(163 39 28 / 0.18), 0 6px 16px -6px rgb(163 39 28 / 0.3);
@@ -84,8 +96,7 @@
     --grid-line: rgb(31 27 22 / 0.05);
     --atmosphere:
       radial-gradient(60% 50% at 72% 0%, rgb(166 61 23 / 0.07), transparent 70%),
-      radial-gradient(50% 40% at 10% 100%, rgb(30 95 90 / 0.05), transparent 70%),
-      var(--color-bg);
+      radial-gradient(50% 40% at 10% 100%, rgb(30 95 90 / 0.05), transparent 70%), var(--color-bg);
     --chart-grid: rgb(31 27 22 / 0.1);
     --chart-tick: var(--color-muted);
     --chart-area-alpha: 0.14;
@@ -120,8 +131,7 @@
     --grid-line: rgb(31 27 22 / 0.05);
     --atmosphere:
       radial-gradient(60% 50% at 72% 0%, rgb(166 61 23 / 0.07), transparent 70%),
-      radial-gradient(50% 40% at 10% 100%, rgb(30 95 90 / 0.05), transparent 70%),
-      var(--color-bg);
+      radial-gradient(50% 40% at 10% 100%, rgb(30 95 90 / 0.05), transparent 70%), var(--color-bg);
     --shadow-panel:
       0 1px 0 0 rgb(255 255 255 / 0.75) inset, 0 1px 2px rgb(70 52 30 / 0.06),
       0 12px 32px -16px rgb(70 52 30 / 0.18);
@@ -349,13 +359,9 @@
  * ─────────────────────────────────────────────────────────────────────────
  */
 
-/* Shell navigation labels are read, not glanced at: one size step above the
- * other micro labels in every direction. Directions with a condensed face set
- * their own size in their nav block below. */
-:is(aside, nav).bg-panel a.micro {
-  font-size: 0.8125rem;
-  letter-spacing: 0.05em;
-}
+/* Shell navigation items carry their own sentence-case size (SidebarNav).
+ * Group headings stay small labels, one step above other micro labels.
+ * Directions with a condensed face set their own size in their nav block below. */
 aside.bg-panel nav p.micro {
   font-size: 0.8125rem;
 }
@@ -435,13 +441,13 @@ html[data-theme="broadside"] p.micro {
 }
 /* The clay dash marks the canonical page eyebrow. Screens that compose their
  * own header (campaign detail) keep the letterspaced voice without it. */
-html[data-theme="broadside"] h1.font-display + p.micro {
+html[data-theme="broadside"] h1.font-display + p[data-eyebrow] {
   color: var(--color-amber);
   display: flex;
   align-items: center;
   gap: 10px;
 }
-html[data-theme="broadside"] h1.font-display + p.micro::before {
+html[data-theme="broadside"] h1.font-display + p[data-eyebrow]::before {
   content: "";
   width: 26px;
   height: 2px;
@@ -450,7 +456,8 @@ html[data-theme="broadside"] h1.font-display + p.micro::before {
 }
 
 /* (2) PILLS */
-html[data-theme="broadside"] :is(button, a).rounded-lg {
+html[data-theme="broadside"]
+  :is(button, a).rounded-lg:not([data-nav-item], [data-tab], [data-chip]) {
   border-radius: 100px;
   border: 1.5px solid var(--color-ink);
   font-family: var(--font-display);
@@ -468,14 +475,16 @@ html[data-theme="broadside"] :is(button, a).bg-amber:hover:not(:disabled) {
   border-color: var(--color-amber);
 }
 @media (prefers-reduced-motion: no-preference) {
-  html[data-theme="broadside"] :is(button, a).rounded-lg {
+  html[data-theme="broadside"]
+    :is(button, a).rounded-lg:not([data-nav-item], [data-tab], [data-chip]) {
     transition:
       transform 0.2s ease,
       background-color 0.2s ease,
       color 0.2s ease,
       box-shadow 0.2s ease;
   }
-  html[data-theme="broadside"] :is(button, a).rounded-lg:hover:not(:disabled) {
+  html[data-theme="broadside"]
+    :is(button, a).rounded-lg:not([data-nav-item], [data-tab], [data-chip]):hover:not(:disabled) {
     transform: translateY(-2px);
     box-shadow: 0 8px 20px rgb(11 31 7 / 0.25);
   }
@@ -505,7 +514,7 @@ html[data-theme="broadside"] nav.bg-panel {
 }
 
 /* (3) GRADIENT RULE under nav items */
-html[data-theme="broadside"] :is(aside, nav) a.micro {
+html[data-theme="broadside"] :is(aside, nav) a[data-nav-item] {
   position: relative;
   /* nav items are underlined, not pilled — undo the pill rule above */
   border: none;
@@ -515,7 +524,7 @@ html[data-theme="broadside"] :is(aside, nav) a.micro {
   font-size: 1rem;
   letter-spacing: 0.05em;
 }
-html[data-theme="broadside"] :is(aside, nav) a.micro::after {
+html[data-theme="broadside"] :is(aside, nav) a[data-nav-item]::after {
   content: "";
   position: absolute;
   left: 12px;
@@ -526,12 +535,12 @@ html[data-theme="broadside"] :is(aside, nav) a.micro::after {
   transform: scaleX(0);
   transform-origin: left;
 }
-html[data-theme="broadside"] :is(aside, nav) a.micro[aria-current="page"]::after,
-html[data-theme="broadside"] :is(aside, nav) a.micro:hover::after {
+html[data-theme="broadside"] :is(aside, nav) a[data-nav-item][aria-current="page"]::after,
+html[data-theme="broadside"] :is(aside, nav) a[data-nav-item]:hover::after {
   transform: scaleX(1);
 }
 @media (prefers-reduced-motion: no-preference) {
-  html[data-theme="broadside"] :is(aside, nav) a.micro::after {
+  html[data-theme="broadside"] :is(aside, nav) a[data-nav-item]::after {
     transition: transform 0.25s ease;
   }
 }
@@ -571,11 +580,11 @@ html[data-theme="dispatch"] nav.bg-panel {
   border-color: #1b4a25;
   color: #f3f6f0;
 }
-html[data-theme="dispatch"] :is(aside, nav) a.micro[aria-current="page"] {
+html[data-theme="dispatch"] :is(aside, nav) a[data-nav-item][aria-current="page"] {
   position: relative;
   color: #f2c94c;
 }
-html[data-theme="dispatch"] aside a.micro[aria-current="page"]::before {
+html[data-theme="dispatch"] aside a[data-nav-item][aria-current="page"]::before {
   position: absolute;
   top: 50%;
   left: -10px;
@@ -586,13 +595,13 @@ html[data-theme="dispatch"] aside a.micro[aria-current="page"]::before {
   border-radius: 2px;
   translate: 0 -50%;
 }
-html[data-theme="dispatch"] h1.font-display + p.micro {
+html[data-theme="dispatch"] h1.font-display + p[data-eyebrow] {
   display: flex;
   gap: 10px;
   align-items: center;
   color: var(--color-amber);
 }
-html[data-theme="dispatch"] h1.font-display + p.micro::before {
+html[data-theme="dispatch"] h1.font-display + p[data-eyebrow]::before {
   width: 22px;
   height: 1px;
   content: "";
@@ -623,23 +632,23 @@ html[data-theme="ledger"] nav.bg-panel {
   background-color: var(--color-bg);
   border-color: var(--color-edge-strong);
 }
-html[data-theme="ledger"] :is(aside, nav) a.micro[aria-current="page"] {
+html[data-theme="ledger"] :is(aside, nav) a[data-nav-item][aria-current="page"] {
   position: relative;
   color: var(--color-amber);
   font-weight: 600;
 }
-html[data-theme="ledger"] div:has(> div > h1.font-display + p.micro) {
+html[data-theme="ledger"] div:has(> div > h1.font-display + p[data-eyebrow]) {
   padding-bottom: 0.9rem;
   border-bottom: 1px solid var(--color-edge-strong);
 }
-html[data-theme="ledger"] h1.font-display + p.micro {
+html[data-theme="ledger"] h1.font-display + p[data-eyebrow] {
   color: var(--color-muted);
-  letter-spacing: 0.14em;
+  letter-spacing: normal;
 }
 html[data-theme="ledger"] .rounded-panel table thead tr {
   border-bottom: 1px solid var(--color-edge-strong);
 }
-html[data-theme="ledger"] aside a.micro[aria-current="page"]::before {
+html[data-theme="ledger"] aside a[data-nav-item][aria-current="page"]::before {
   position: absolute;
   top: 50%;
   left: -10px;
@@ -680,7 +689,7 @@ html[data-theme="route"] .micro {
   font-weight: 600;
   letter-spacing: 0.1em;
 }
-html[data-theme="route"] h1.font-display + p.micro {
+html[data-theme="route"] h1.font-display + p[data-eyebrow] {
   display: inline-flex;
   gap: 8px;
   align-items: center;
@@ -691,7 +700,7 @@ html[data-theme="route"] h1.font-display + p.micro {
   border: 1px solid rgb(10 28 9 / 0.15);
   border-radius: 999px;
 }
-html[data-theme="route"] h1.font-display + p.micro::before {
+html[data-theme="route"] h1.font-display + p[data-eyebrow]::before {
   flex: none;
   width: 6px;
   height: 6px;
@@ -703,10 +712,11 @@ html[data-theme="route"] h1.font-display + p.micro::before {
  * contains the title never draw the line at the foot of the page. */
 html[data-theme="route"] div.mb-8.flex:has(> div > h1.font-display) {
   padding-bottom: 1.25rem;
-  background: repeating-linear-gradient(90deg, #c99a1e 0 12px, transparent 12px 20px) left
-    bottom / 100% 2px no-repeat;
+  background: repeating-linear-gradient(90deg, #c99a1e 0 12px, transparent 12px 20px) left bottom /
+    100% 2px no-repeat;
 }
-html[data-theme="route"] :is(button, a).rounded-lg:not([role="option"]) {
+html[data-theme="route"]
+  :is(button, a).rounded-lg:not([role="option"], [data-nav-item], [data-tab], [data-chip]) {
   font-family: var(--font-display);
   font-weight: 700;
   border-radius: 999px;
@@ -722,11 +732,11 @@ html[data-theme="route"] aside.bg-panel,
 html[data-theme="route"] nav.bg-panel {
   background-color: var(--color-bg);
 }
-html[data-theme="route"] :is(aside, nav).bg-panel a.micro[aria-current="page"] {
+html[data-theme="route"] :is(aside, nav).bg-panel a[data-nav-item][aria-current="page"] {
   color: var(--color-panel);
   background-color: var(--color-ink);
 }
-html[data-theme="route"] :is(aside, nav).bg-panel a.micro[aria-current="page"]::before {
+html[data-theme="route"] :is(aside, nav).bg-panel a[data-nav-item][aria-current="page"]::before {
   display: inline-block;
   width: 6px;
   height: 6px;
@@ -737,10 +747,10 @@ html[data-theme="route"] :is(aside, nav).bg-panel a.micro[aria-current="page"]::
   border-radius: 50%;
 }
 /* Count badges: ink on the light shell, gold on the ink pill. */
-html[data-theme="route"] :is(aside, nav).bg-panel a.micro > span {
+html[data-theme="route"] :is(aside, nav).bg-panel a[data-nav-item] > span {
   color: var(--color-ink);
 }
-html[data-theme="route"] :is(aside, nav).bg-panel a.micro[aria-current="page"] > span {
+html[data-theme="route"] :is(aside, nav).bg-panel a[data-nav-item][aria-current="page"] > span {
   background-color: #f2c94c;
 }
 html[data-theme="route"] :focus-visible {
@@ -770,7 +780,7 @@ html[data-theme="wrap"] p.font-display {
   letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
-html[data-theme="wrap"] h1.font-display + p.micro {
+html[data-theme="wrap"] h1.font-display + p[data-eyebrow] {
   display: inline-block;
   margin-top: 0.6rem;
   padding: 0.2rem 0.55rem;
@@ -783,7 +793,7 @@ html[data-theme="wrap"] .rounded-panel.border-edge {
 html[data-theme="wrap"] .rounded-panel table thead tr {
   border-bottom: 2px solid var(--color-ink);
 }
-html[data-theme="wrap"] :is(button, a).rounded-lg:not([role="option"], .micro) {
+html[data-theme="wrap"] :is(button, a).rounded-lg:not([role="option"], .micro, [data-nav-item]) {
   font-family: var(--font-display);
   font-weight: 700;
   letter-spacing: 0.04em;
@@ -793,17 +803,19 @@ html[data-theme="wrap"] :is(button, a).rounded-lg:not([role="option"], .micro) {
   box-shadow: 3px 3px 0 0 var(--color-ink);
 }
 @media (prefers-reduced-motion: no-preference) {
-  html[data-theme="wrap"] :is(button, a).rounded-lg:not([role="option"], .micro) {
+  html[data-theme="wrap"] :is(button, a).rounded-lg:not([role="option"], .micro, [data-nav-item]) {
     transition:
       transform 0.12s ease,
       box-shadow 0.12s ease,
       background-color 0.12s ease;
   }
-  html[data-theme="wrap"] :is(button, a).rounded-lg:not([role="option"], .micro):hover:not(:disabled) {
+  html[data-theme="wrap"]
+    :is(button, a).rounded-lg:not([role="option"], .micro, [data-nav-item]):hover:not(:disabled) {
     transform: translate(-1px, -1px);
     box-shadow: 4px 4px 0 0 var(--color-ink);
   }
-  html[data-theme="wrap"] :is(button, a).rounded-lg:not([role="option"], .micro):active:not(:disabled) {
+  html[data-theme="wrap"]
+    :is(button, a).rounded-lg:not([role="option"], .micro, [data-nav-item]):active:not(:disabled) {
     transform: translate(2px, 2px);
     box-shadow: 1px 1px 0 0 var(--color-ink);
   }
@@ -831,7 +843,7 @@ html[data-theme="wrap"] nav.bg-panel {
   border-bottom-width: 2px;
 }
 /* Nav items are square blocks in the heading face, not outlined buttons. */
-html[data-theme="wrap"] :is(aside, nav).bg-panel a.micro {
+html[data-theme="wrap"] :is(aside, nav).bg-panel a[data-nav-item] {
   font-family: var(--font-display);
   font-size: 0.875rem;
   font-weight: 700;
@@ -841,7 +853,7 @@ html[data-theme="wrap"] :is(aside, nav).bg-panel a.micro {
 html[data-theme="wrap"] span.micro.rounded-full {
   border-radius: 0;
 }
-html[data-theme="wrap"] :is(aside, nav).bg-panel a.micro > span {
+html[data-theme="wrap"] :is(aside, nav).bg-panel a[data-nav-item] > span {
   color: #ffffff;
   background-color: #1b1712;
 }

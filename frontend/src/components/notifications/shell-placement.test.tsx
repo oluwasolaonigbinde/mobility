@@ -9,11 +9,14 @@ const mocks = vi.hoisted(() => ({ requireRole: vi.fn() }));
 vi.mock("@/components/notifications/notification-center", () => ({
   NotificationCenter: ({
     canManageAdvertiserPreferences,
+    compact,
   }: {
     canManageAdvertiserPreferences?: boolean;
+    compact?: boolean;
   }) => (
     <div
       data-testid="notification-centre"
+      data-compact={String(Boolean(compact))}
       data-can-manage-preferences={String(Boolean(canManageAdvertiserPreferences))}
     />
   ),
@@ -44,6 +47,7 @@ describe("notification shell placement", () => {
       "data-can-manage-preferences",
       "false",
     );
+    expect(screen.getByTestId("notification-centre")).toHaveAttribute("data-compact", "false");
 
     rerender(
       <AppShell me={me("advertiser", "owner")} nav={[]}>
@@ -59,6 +63,8 @@ describe("notification shell placement", () => {
   it("mounts the same centre in the driver portal without advertiser preferences", async () => {
     mocks.requireRole.mockResolvedValue(me("driver"));
     render(await DriverPortalLayout({ children: <p>Driver content</p> }));
+    expect(screen.getByTestId("notification-centre")).toHaveAttribute("data-compact", "true");
+    expect(screen.queryByRole("button", { name: "Sign out" })).not.toBeInTheDocument();
     expect(screen.getByTestId("notification-centre")).toHaveAttribute(
       "data-can-manage-preferences",
       "false",

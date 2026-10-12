@@ -314,10 +314,16 @@ describe("frozen measurement authority", () => {
     const missing = reportFixture();
     missing.measurement_run = null;
     expect(validateMeasurementAuthority(missing).ok).toBe(false);
+    expect(validateMeasurementAuthority(missing)).toMatchObject({
+      reason: "The campaign analysis isn't available yet.",
+    });
 
     const proofMismatch = reportFixture();
     proofMismatch.measurement_result!.proof_manifest_sha256 = "e".repeat(64);
     expect(validateMeasurementAuthority(proofMismatch).ok).toBe(false);
+    expect(validateMeasurementAuthority(proofMismatch)).toMatchObject({
+      reason: "The saved campaign results don't match this report.",
+    });
 
     const contradictoryRoi = reportFixture({ roi: true });
     contradictoryRoi.measurement_run!.roi_method_revision = "different-method";
@@ -340,6 +346,9 @@ describe("frozen measurement authority", () => {
       64,
     );
     expect(validateMeasurementAuthority(zoneMismatch).ok).toBe(false);
+    expect(validateMeasurementAuthority(zoneMismatch)).toMatchObject({
+      reason: "The campaign area data doesn't match this report.",
+    });
 
     const brokenRanking = readyZoneReport();
     brokenRanking.high_exposure_zone_insights!.items[0]!.rank = 2;

@@ -12,7 +12,7 @@ C3. Renewal UI uses styled accessible upload controls, loading/error/pending/ret
 
 C4. All seeded cities, campaign/zone/route/address/place names and geometry/GPS use real Abuja areas. Preserve brands except Lagos-specific names, synthetic financial history and seed idempotency. Update seed assertions/e2e fixtures and docs/demo-data.md together. Use coordinated Abuja corridors/polygons, not a name-only replacement.
 
-C5. Demo driver phones use documented synthetic +234 numbers. Temporary Terrax destination is owner-approved +2347068369842 only for local/preview; production/staging remain blank and existing live-use gates remain. REQ-126 remains NEEDS ANSWER for the PMâ€™s real preview WhatsApp number. No messages or provider calls.
+C5. Demo driver phones use documented synthetic +234 numbers. Temporary Terrax destination is owner-approved +2347068369842 only for local/preview; production/staging remain blank and existing live-use gates remain. REQ-143 remains NEEDS ANSWER for the PMâ€™s real preview WhatsApp number. No messages or provider calls.
 
 C6. Capture and visually inspect real browser screenshots at 375 px: rejected licence, expired vehicle insurance, seeded Abuja campaign/map. Verify partial replacement through authenticated API/browser flow.
 

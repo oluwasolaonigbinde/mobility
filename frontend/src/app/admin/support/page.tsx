@@ -4,6 +4,7 @@ import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pagination } from "@/components/ui/pagination";
+import { FilterChips, ViewTabs } from "@/components/ui/tabs";
 import { ComplaintMessageForm, ComplaintUpdateForm } from "@/components/complaints/forms";
 import { replyToComplaintAction, updateComplaintAction } from "@/lib/complaints/actions";
 import { CATEGORY_LABELS, STAFF_STATUS, formatWat } from "@/lib/complaints/labels";
@@ -160,38 +161,38 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
   return (
     <div className="mx-auto max-w-6xl">
       <PageHeader title="Support" />
-      <nav aria-label="Support lists" className="mb-5 flex flex-wrap gap-3">
-        <Link
-          className="border-edge rounded-lg border p-2"
-          href={href({ tab: "complaints", offset: undefined, task: undefined })}
-        >
-          Complaints
-        </Link>
-        <Link
-          className="border-edge rounded-lg border p-2"
-          href={href({ tab: "contact", offset: undefined, complaint: undefined })}
-        >
-          Driver contact
-        </Link>
-      </nav>
+      <ViewTabs
+        label="Support lists"
+        items={[
+          {
+            href: href({ tab: "complaints", offset: undefined, task: undefined }),
+            label: "Complaints",
+            active: tab === "complaints",
+          },
+          {
+            href: href({ tab: "contact", offset: undefined, complaint: undefined }),
+            label: "Driver contact",
+            active: tab === "contact",
+          },
+        ]}
+      />
       {tab === "complaints" ? (
         <>
-          <nav aria-label="Complaint status" className="mb-5 flex flex-wrap gap-3">
-            {[
-              ["open", "Needs a reply"],
-              ["answered", "Waiting on them"],
-              ["resolved", "Resolved"],
-              ["all", "All"],
-            ].map(([value, label]) => (
-              <Link
-                key={value}
-                className="text-cyan underline"
-                href={href({ status: value, offset: undefined, complaint: undefined })}
-              >
-                {label}
-              </Link>
-            ))}
-          </nav>
+          <FilterChips
+            label="Complaint status"
+            items={(
+              [
+                ["open", "Needs a reply"],
+                ["answered", "Waiting on them"],
+                ["resolved", "Resolved"],
+                ["all", "All"],
+              ] as const
+            ).map(([value, label]) => ({
+              href: href({ status: value, offset: undefined, complaint: undefined }),
+              label,
+              active: (status ?? "all") === value,
+            }))}
+          />
           {!complaints || complaints.items.some((item) => !item.party_name) ? (
             <QueueUnavailable />
           ) : (
@@ -266,16 +267,21 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
               </>
             )}
           </section>
-          <Link
-            className="text-cyan mb-4 inline-block underline"
-            href={href({
-              history: p.history === "true" ? undefined : "true",
-              offset: undefined,
-              task: undefined,
-            })}
-          >
-            {p.history === "true" ? "Current work" : "Include recorded history"}
-          </Link>
+          <FilterChips
+            label="Contact history"
+            items={[
+              {
+                href: href({ history: undefined, offset: undefined, task: undefined }),
+                label: "Current",
+                active: p.history !== "true",
+              },
+              {
+                href: href({ history: "true", offset: undefined, task: undefined }),
+                label: "With history",
+                active: p.history === "true",
+              },
+            ]}
+          />
           {!contact || contact.items.some((task) => !task.driver_name) ? (
             <QueueUnavailable />
           ) : (

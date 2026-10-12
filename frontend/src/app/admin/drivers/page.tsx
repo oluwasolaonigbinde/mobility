@@ -5,6 +5,7 @@ import { getSessionToken } from "@/lib/auth/session";
 import { adminStatus } from "@/lib/status/admin";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pagination } from "@/components/ui/pagination";
+import { ViewTabs } from "@/components/ui/tabs";
 import { QueueSearch, QueueUnavailable } from "../queue-search";
 export const metadata: Metadata = { title: "Drivers" };
 const tabs = [
@@ -93,18 +94,14 @@ export default async function DriversPage({
           </Link>
         }
       />
-      <nav aria-label="Driver status" className="mb-5 flex gap-2 overflow-x-auto">
-        {tabs.map((t) => (
-          <Link
-            key={t.id}
-            href={`/admin/drivers?tab=${t.id}`}
-            aria-current={t.id === tab.id ? "page" : undefined}
-            className="rounded-lg px-4 py-2 text-sm whitespace-nowrap"
-          >
-            {t.title}
-          </Link>
-        ))}
-      </nav>
+      <ViewTabs
+        label="Driver status"
+        items={tabs.map((t) => ({
+          href: `/admin/drivers?tab=${t.id}`,
+          label: t.title,
+          active: t.id === tab.id,
+        }))}
+      />
       <QueueSearch q={p.q} label={cars ? "Search driver names or car plates" : "Search drivers"}>
         <input type="hidden" name="tab" value={tab.id} />
         {cars ? <input type="hidden" name="source" value="cars" /> : null}

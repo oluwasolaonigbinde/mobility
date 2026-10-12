@@ -4892,6 +4892,12 @@ export interface components {
         /** ActiveCampaignAssignmentResponse */
         ActiveCampaignAssignmentResponse: {
             assignment: components["schemas"]["CampaignAssignmentRead"] | null;
+            /**
+             * Photo Status
+             * @default unavailable
+             * @enum {string}
+             */
+            photo_status: "ready" | "display_required" | "installation_required" | "unavailable";
         };
         /** AdminApplicantRead */
         AdminApplicantRead: {
@@ -9839,6 +9845,18 @@ export interface components {
              * Format: date-time
              */
             occurred_at: string;
+            /** Paid At */
+            paid_at?: string | null;
+            /**
+             * Paying Tonight
+             * @default false
+             */
+            paying_tonight: boolean;
+            /**
+             * Payment On Hold
+             * @default false
+             */
+            payment_on_hold: boolean;
             /** Payout Calculation Id */
             payout_calculation_id: string | null;
             status: components["schemas"]["EarningsLedgerEntryStatus"];
@@ -9846,6 +9864,8 @@ export interface components {
             trip_session_id: string | null;
             /** Vehicle Id */
             vehicle_id: string | null;
+            /** Work Days */
+            work_days?: components["schemas"]["EarningsWorkDayRead"][];
         };
         /**
          * EarningsLedgerEntryStatus
@@ -9857,6 +9877,16 @@ export interface components {
          * @enum {string}
          */
         EarningsLedgerEntryType: "trip_payout" | "adjustment" | "reversal" | "debt_remainder";
+        /** EarningsWorkDayRead */
+        EarningsWorkDayRead: {
+            /** Amount */
+            amount: string | null;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+        };
         /** EligiblePaymentListRead */
         EligiblePaymentListRead: {
             /** Items */

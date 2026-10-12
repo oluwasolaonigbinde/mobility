@@ -655,6 +655,7 @@ async def driver_get_earnings_summary(
 async def driver_list_earnings_ledger(
     current_user: DriverUserDependency,
     session: SessionDependency,
+    settings: SettingsDependency,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     status: EarningsLedgerEntryStatus | None = None,
@@ -670,8 +671,12 @@ async def driver_list_earnings_ledger(
         entry_type=entry_type,
         currency=currency,
     )
+    from app.services.driver_earnings_presentation import enrich_driver_ledger
+
     return EarningsLedgerEntryListResponse(
-        items=[ledger_entry_response(entry) for entry in entries],
+        items=await enrich_driver_ledger(
+            session, entries, [ledger_entry_response(entry) for entry in entries], settings
+        ),
         total=total,
         limit=limit,
         offset=offset,
