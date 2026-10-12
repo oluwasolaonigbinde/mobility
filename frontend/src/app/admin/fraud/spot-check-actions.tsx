@@ -24,6 +24,10 @@ export function SpotCheckQueueForm({
   const [state, action, pending] = useActionState(queueSpotCheckAction, initialState);
   return (
     <form action={action} className="grid gap-3 md:grid-cols-2">
+      <p className="text-muted text-sm md:col-span-2">
+        Adds a task for staff to look at the car in person. It doesn&apos;t change this review or
+        the driver&apos;s pay; record the result once staff have seen the car.
+      </p>
       <input type="hidden" name="assignment_id" value={trip.assignmentId} />
       <input type="hidden" name="trip_session_id" value={trip.tripSessionId} />
       <label className="text-xs md:col-span-2">
@@ -49,6 +53,11 @@ export function SpotCheckResultForm({ verificationId }: { verificationId: string
   const [state, action, pending] = useActionState(resolveSpotCheckAction, initialState);
   return (
     <form action={action} className="mt-3 flex flex-col gap-2">
+      <p className="text-muted text-sm">
+        Staff who looked at the car record what they saw. Pass closes this check only; any open trip
+        review still needs its own decision. Fail opens a trip review that holds this trip&apos;s
+        pay.
+      </p>
       <input type="hidden" name="verification_id" value={verificationId} />
       <textarea
         name="note"

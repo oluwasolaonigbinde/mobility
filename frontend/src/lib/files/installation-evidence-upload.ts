@@ -14,7 +14,7 @@ type StoredFile = {
 
 async function responseJson<T>(response: Response): Promise<T> {
   const body = (await response.json()) as T & { error?: { message?: string } };
-  if (!response.ok) throw new Error(body.error?.message ?? "The evidence request failed.");
+  if (!response.ok) throw new Error(body.error?.message ?? "Something went wrong. Try again.");
   return body;
 }
 
@@ -49,7 +49,7 @@ export async function uploadInstallationImage(
   for (const [name, value] of Object.entries(intent.upload.fields)) form.append(name, value);
   form.append("file", file);
   const uploaded = await fetch(intent.upload.url, { method: "POST", body: form });
-  if (!uploaded.ok) throw new Error("The private evidence upload failed. Retry the upload.");
+  if (!uploaded.ok) throw new Error("The photo didn't upload. Try again.");
 
   let stored = await responseJson<StoredFile>(
     await fetch(`/api/driver/files/uploads/${intent.upload_id}/confirm`, { method: "POST" }),
@@ -62,9 +62,10 @@ export async function uploadInstallationImage(
       await fetch(`/api/driver/files/${stored.id}`, { cache: "no-store" }),
     );
   }
-  if (stored.scan_status === "infected") throw new Error("Malware was detected in this image.");
+  if (stored.scan_status === "infected")
+    throw new Error("This photo couldn't be accepted. Take a new photo.");
   if (stored.scan_status !== "clean") {
-    throw new Error("The evidence image did not pass its security scan. Retry with another image.");
+    throw new Error("This photo couldn't be checked. Try another photo.");
   }
   return stored.id;
 }

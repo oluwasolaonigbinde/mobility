@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireRole } from "@/lib/auth/current-user";
 import { Panel } from "@/components/ui/panel";
 import { Pagination } from "@/components/ui/pagination";
+import { FilterChips, ViewTabs } from "@/components/ui/tabs";
 import { QueueUnavailable } from "./queue-search";
 import { departments, readWorkQueue, readQueueSource, sources } from "./work-queue";
 export const metadata: Metadata = { title: "Work queue" };
@@ -57,38 +58,42 @@ export default async function AdminWorkQueuePage({
       }
     }),
   );
+  const departmentHref = (department: string) =>
+    `/admin?department=${encodeURIComponent(department)}`;
   return (
     <div className="animate-rise mx-auto max-w-6xl">
       <h1 className="font-display text-3xl font-semibold tracking-tight">Work queue</h1>
-      <p className="text-muted mt-1 mb-8 text-sm">
+      <p className="text-muted mt-1 mb-6 text-sm">
         Work for each Terrax Media department. Open an item to deal with it.
       </p>
+      <ViewTabs
+        label="Departments"
+        items={[
+          { href: "/admin", label: "All departments", active: !selected },
+          ...departments.map((department) => ({
+            href: departmentHref(department),
+            label: department,
+            active: selected === department,
+          })),
+        ]}
+      />
       {selected ? (
-        <>
-          <Link href="/admin" className="text-cyan mb-4 inline-block underline">
-            All departments
-          </Link>
-          <nav aria-label="Work lists" className="mb-4 flex flex-wrap gap-3">
-            {sources
-              .filter((s) => s.department === selected)
-              .map((s) => (
-                <Link
-                  key={s.id}
-                  href={`/admin?department=${encodeURIComponent(selected)}&source=${s.id}`}
-                  aria-current={source?.id === s.id ? "page" : undefined}
-                  className="text-cyan text-sm underline"
-                >
-                  {s.title}
-                </Link>
-              ))}
-          </nav>
-        </>
+        <FilterChips
+          label="Work lists"
+          items={sources
+            .filter((s) => s.department === selected)
+            .map((s) => ({
+              href: `${departmentHref(selected)}&source=${s.id}`,
+              label: s.title,
+              active: source?.id === s.id,
+            }))}
+        />
       ) : null}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-5">
         {cards.map((card) => (
-          <Panel key={card.department} className="p-5">
+          <Panel key={card.department} className="w-full p-5 md:p-6">
             <section aria-label={card.department}>
-              <h2 className="font-medium">
+              <h2 className="font-display text-xl font-semibold">
                 {card.department}
                 {selected && source ? ` · ${source.title}` : ""}
               </h2>
@@ -101,10 +106,13 @@ export default async function AdminWorkQueuePage({
                   {!card.total ? (
                     <p className="text-muted mt-3 text-sm">Nothing waiting</p>
                   ) : (
-                    <ul className="divide-edge/60 mt-3 divide-y">
+                    <ul className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                       {card.rows.map((row) => (
-                        <li key={row.key}>
-                          <Link href={row.href} className="hover:text-amber block py-3 text-sm">
+                        <li key={row.key} className="min-w-0">
+                          <Link
+                            href={row.href}
+                            className="border-edge hover:border-edge-strong hover:bg-raised block h-full rounded-lg border p-3 text-sm transition-colors"
+                          >
                             <p className="font-medium">
                               {row.name} — {row.reason}
                             </p>
@@ -122,12 +130,12 @@ export default async function AdminWorkQueuePage({
                       limit={25}
                       offset={offset}
                       hrefFor={(n) =>
-                        `/admin?department=${encodeURIComponent(card.department)}&source=${source.id}&offset=${n}`
+                        `${departmentHref(card.department)}&source=${source.id}&offset=${n}`
                       }
                     />
                   ) : (
                     <Link
-                      href={`/admin?department=${encodeURIComponent(card.department)}`}
+                      href={departmentHref(card.department)}
                       className="text-cyan mt-4 inline-block text-sm underline"
                     >
                       See all ({card.total})

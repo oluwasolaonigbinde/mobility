@@ -5,13 +5,49 @@ type UploadResponse = {
 
 type StoredFileResponse = { id: string; scan_status: string };
 
+const CODE_NOT_WORKING =
+  "This code doesn't work. It may be mistyped, expired or replaced. Get a new code on the first step. Already have sign-in details? Sign in.";
+const CHOOSE_FILES_AGAIN = "Please choose your files again, then send.";
+const CHECK_DETAILS = "Some details aren't right. Check what you typed, then send again.";
+
+/**
+ * Plain words for the onboarding errors an applicant can meet. Every way a code can fail
+ * shares one message, as the server does, so the text never reveals which check failed.
+ */
+const APPLICANT_MESSAGES: Record<string, string> = {
+  ONBOARDING_ACCESS_INVALID: CODE_NOT_WORKING,
+  PERSON_PAYEE_AUTHORITY_INVALID: CODE_NOT_WORKING,
+  VEHICLE_ONBOARDING_AUTHORITY_INVALID: CODE_NOT_WORKING,
+  FILE_SCOPE_NOT_FOUND: CODE_NOT_WORKING,
+  APPLICATION_UNAVAILABLE: "Applications are closed right now. Please try again later.",
+  PERSON_PAYEE_APPROVAL_REQUIRED:
+    "Wait until your ID and bank details are approved, then add your car. Check with your application reference on the first step.",
+  PERSON_PAYEE_RESUBMISSION_NOT_ALLOWED:
+    "We already have your ID and bank details. You can send them again only if we ask for changes.",
+  PERSON_PAYEE_RETRY_CONFLICT: CHECK_DETAILS,
+  KYC_RETRY_CONFLICT: CHECK_DETAILS,
+  VEHICLE_SUBMISSION_RETRY_CONFLICT: CHECK_DETAILS,
+  VALIDATION_ERROR: CHECK_DETAILS,
+  INVALID_PLATE_NUMBER: "Enter your plate number as it appears on the car.",
+  DUPLICATE_VEHICLE_PLATE:
+    "A car with this plate number is already registered. Check the plate number.",
+  VEHICLE_NOT_FOUND: "We couldn't find that car. Tap Find my cars and choose again.",
+  VEHICLE_REVIEW_PENDING: "We're still checking this car. You can send it again after we finish.",
+  FILE_UPLOAD_RETRY_CONFLICT: CHOOSE_FILES_AGAIN,
+  FILE_UPLOAD_ALREADY_CLOSED: CHOOSE_FILES_AGAIN,
+  FILE_UPLOAD_EXPIRED: CHOOSE_FILES_AGAIN,
+};
+
 export async function onboardingResponseJson<T>(response: Response): Promise<T> {
   const body = (await response.json().catch(() => null)) as
-    T | { error?: { message?: string } } | null;
+    T | { error?: { code?: string; message?: string } } | null;
   if (!response.ok) {
-    const message =
-      body && typeof body === "object" && "error" in body ? body.error?.message : undefined;
-    throw new Error(message || "The onboarding request could not be completed.");
+    const error = body && typeof body === "object" && "error" in body ? body.error : undefined;
+    throw new Error(
+      (error?.code ? APPLICANT_MESSAGES[error.code] : undefined) ||
+        error?.message ||
+        "Something went wrong. Please try again.",
+    );
   }
   return body as T;
 }
@@ -31,11 +67,13 @@ async function waitForClean(accessToken: string, fileId: string): Promise<void> 
     const file = await onboardingResponseJson<StoredFileResponse>(response);
     if (file.scan_status === "clean") return;
     if (["infected", "rejected"].includes(file.scan_status)) {
-      throw new Error("A document did not pass the required security checks.");
+      throw new Error(
+        "One of your files couldn't be accepted. Choose a different file and try again.",
+      );
     }
     await new Promise((resolve) => window.setTimeout(resolve, 1500));
   }
-  throw new Error("Document security checks are still pending. Try again shortly.");
+  throw new Error("We're still checking your files. Please try again in a minute.");
 }
 
 // Mirrors the server's per-purpose upload policy (client answer #12).
@@ -76,7 +114,8 @@ export async function uploadOnboardingFile(
   for (const [name, value] of Object.entries(intent.upload.fields)) form.append(name, value);
   form.append("file", file);
   const uploaded = await fetch(intent.upload.url, { method: "POST", body: form });
-  if (!uploaded.ok) throw new Error("A private document upload failed. Please try again.");
+  if (!uploaded.ok)
+    throw new Error("A file didn't upload. Check your internet connection and try again.");
   const confirmed = await onboardingResponseJson<StoredFileResponse>(
     await fetch(`/api/apply/onboarding/uploads/${intent.upload_id}/confirm`, {
       method: "POST",

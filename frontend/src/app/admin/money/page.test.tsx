@@ -95,5 +95,6 @@ describe("Money canonical tabs and drawers", () => {
     expect(mocks.run).not.toHaveBeenCalled();
     expect(mocks.payment).not.toHaveBeenCalled();
     expect(screen.getByText("Payment list")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Payouts" })).toHaveAttribute("aria-current", "page");
   });
 });

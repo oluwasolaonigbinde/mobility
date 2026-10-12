@@ -28,10 +28,8 @@ export default async function LoginPage({
 
       <div className="animate-rise relative w-full max-w-sm">
         <p className="micro text-amber mb-3">Cardvert by Terrax Media</p>
-        <h1 className="font-display text-4xl font-semibold tracking-tight">Sign in to Cardvert</h1>
-        <p className="text-muted mt-3 mb-8 text-sm">
-          Campaigns, trips and driver earnings for the Abuja pilot.
-        </p>
+        <h1 className="font-display text-4xl font-semibold tracking-tight">Sign in</h1>
+        <p className="text-muted mt-3 mb-8 text-sm">Welcome to Cardvert</p>
 
         <Panel className="p-6">
           <LoginForm demoLoginRole={demoLoginRole} />

@@ -33,10 +33,13 @@ function setVisibility(value: "visible" | "hidden") {
   document.dispatchEvent(new Event("visibilitychange"));
 }
 
-function renderCentre(canManageAdvertiserPreferences = false) {
+function renderCentre(canManageAdvertiserPreferences = false, compact = false) {
   return render(
     <Providers>
-      <NotificationCenter canManageAdvertiserPreferences={canManageAdvertiserPreferences} />
+      <NotificationCenter
+        canManageAdvertiserPreferences={canManageAdvertiserPreferences}
+        compact={compact}
+      />
     </Providers>,
   );
 }
@@ -52,6 +55,25 @@ afterEach(() => {
 });
 
 describe("NotificationCenter", () => {
+  it("offers a compact bell with an accessible name and the unread count", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: string) =>
+        input === "/api/notifications/unread-count"
+          ? response({ unread_count: 3 })
+          : response({ items: [], total: 0, limit: 20, offset: 0 }),
+      ),
+    );
+    renderCentre(false, true);
+
+    const trigger = await screen.findByRole("button", { name: "Notifications, 3 unread" });
+    expect(trigger.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    expect(trigger).toHaveTextContent("3");
+    expect(trigger).not.toHaveTextContent("Notifications");
+    fireEvent.click(trigger);
+    expect(screen.getByRole("region", { name: "Notifications" })).toBeInTheDocument();
+  });
+
   it("hides saved read notices and closes the panel without changing notifications", async () => {
     const fetchMock = vi.fn<(input: string, init?: RequestInit) => Promise<Response>>((input) => {
       if (input === "/api/notifications/unread-count") return response({ unread_count: 0 });

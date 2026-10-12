@@ -86,9 +86,11 @@ describe("payout form states", () => {
         actorId="maker"
       />,
     );
-    expect(screen.getByText(/Payee: Not configured · Destination unavailable/)).toBeTruthy();
-    expect(screen.getByText(/Debt already deducted: .*10\.02/)).toBeTruthy();
-    expect(screen.getByText(/Outstanding debt: .*5\.00/)).toBeTruthy();
+    expect(
+      screen.getByText(/Paid to: No bank account on file · Bank details not checked/),
+    ).toBeTruthy();
+    expect(screen.getByText(/Already taken off for money the driver owed: .*10\.02/)).toBeTruthy();
+    expect(screen.getByText(/Driver still owes from earlier pay: .*5\.00/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Allocate debt" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Show bank details (logged)" })).toBeTruthy();
   });

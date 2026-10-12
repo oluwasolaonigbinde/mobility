@@ -37,8 +37,8 @@ export const sourceStatusLabel: Record<string, string> = {
 };
 
 export const linkStatusLabel: Record<string, string> = {
-  active: "Connected",
-  removed: "Disconnected",
+  active: "Linked",
+  removed: "Unlinked",
 };
 
 export function labelFor(map: Record<string, string>, value: string): string {
@@ -54,6 +54,11 @@ const DESCRIBING_FIELDS = [
   "record_count_band",
   "confidence_band",
 ] as const;
+
+/** A source's own category description leads; the source type is the fallback. */
+export function sourceDisplayLabel(source: { source_type: string; snapshot?: unknown }): string {
+  return describeSource(source.snapshot) || labelFor(sourceTypeLabel, source.source_type);
+}
 
 /** One readable line describing what the advertiser declared for a source. */
 export function describeSource(snapshot: unknown): string {

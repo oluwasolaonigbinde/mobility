@@ -20,7 +20,7 @@ const nextStep: Partial<
   >
 > = {
   offered: { action: "accept", label: "Accept job", variant: "primary" },
-  active: { action: "deactivate", label: "Deactivate", variant: "danger" },
+  active: { action: "deactivate", label: "Stop this job", variant: "ghost" },
 };
 
 export function AssignmentActions({
@@ -72,7 +72,7 @@ export function AssignmentActions({
           variant={step.variant}
           disabled={pending}
           onClick={() => run()}
-          className="h-12 w-full"
+          className={step.action === "deactivate" ? "text-coral h-10 w-full" : "h-12 w-full"}
         >
           {pending ? "Working…" : step.label}
         </Button>
@@ -106,10 +106,10 @@ export function AssignmentActions({
       <ConfirmationDialog
         open={confirming}
         onOpenChange={setConfirming}
-        title={`Deactivate ${campaignName}?`}
-        description="Tracking stops for this campaign and you will stop earning from it."
-        cancelLabel="Keep campaign active"
-        confirmLabel="Confirm deactivation"
+        title={`Stop ${campaignName}?`}
+        description="You stop earning from this job and can't record trips for it. Ask Terrax Media if you want it back."
+        cancelLabel="Keep this job"
+        confirmLabel="Stop job"
         onConfirm={() => run(true)}
         returnFocusRef={triggerRef}
         pending={pending}

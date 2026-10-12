@@ -178,7 +178,7 @@ export async function createSourceLinkAction(
   revalidatePath("/advertiser/planning-sources");
   revalidatePath("/admin/settings/audiences");
   return {
-    success: "Audience connected to the campaign area.",
+    success: "Audience linked to the campaign area.",
     operationKey: idempotencyKey,
   };
 }
@@ -208,5 +208,5 @@ export async function removeSourceLinkAction(
   }
   revalidatePath("/advertiser/planning-sources");
   revalidatePath("/admin/settings/audiences");
-  return { success: "Audience disconnected from the campaign area.", operationKey: idempotencyKey };
+  return { success: "Audience unlinked from the campaign area.", operationKey: idempotencyKey };
 }

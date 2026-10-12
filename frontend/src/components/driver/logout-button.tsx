@@ -90,8 +90,8 @@ export function SessionLogoutButton({
 export function DriverLogoutButton() {
   return (
     <SessionLogoutButton
-      label="Exit"
-      className="micro text-faint hover:text-coral transition-colors"
+      label="Sign out"
+      className="text-muted hover:text-coral text-sm font-medium transition-colors"
     />
   );
 }

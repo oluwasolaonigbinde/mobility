@@ -4,39 +4,36 @@ import { TabBar } from "@/components/driver/tab-bar";
 import { ServiceWorkerRegister } from "@/components/driver/sw-register";
 import { requireRole } from "@/lib/auth/current-user";
 import { NotificationCenter } from "@/components/notifications/notification-center";
-import { DriverLogoutButton } from "@/components/driver/logout-button";
 
 export default async function DriverPortalLayout({ children }: { children: ReactNode }) {
   const me = await requireRole("driver");
 
   return (
-    <div className="mx-auto flex min-h-dvh w-full max-w-lg flex-col">
+    <div className="driver-portal mx-auto flex min-h-dvh w-full max-w-2xl flex-col">
       <ServiceWorkerRegister />
       <header
-        className="border-edge bg-bg/90 sticky top-0 z-40 flex items-center justify-between border-b px-4 py-3 backdrop-blur"
+        className="border-edge bg-bg/90 sticky top-0 z-40 flex items-center justify-between gap-3 border-b px-4 py-3 backdrop-blur"
         style={{ paddingTop: "max(env(safe-area-inset-top), 0.75rem)" }}
       >
-        <p className="font-display text-base font-semibold tracking-tight">
+        <Link href="/driver" className="font-display shrink-0 text-lg font-semibold tracking-tight">
           Cardvert<span className="text-amber">.</span>{" "}
-          <span className="micro text-faint align-middle">DRIVER</span>
-        </p>
-        <div className="flex items-center gap-3">
-          <Link href="/driver/help" className="micro text-muted hover:text-amber">
+          <span className="text-muted font-sans text-sm font-medium">Driver</span>
+        </Link>
+        <div className="flex shrink-0 items-center gap-1 whitespace-nowrap sm:gap-3">
+          <Link
+            href="/driver/help"
+            className="text-muted hover:text-ink rounded px-2 py-1 text-sm font-medium transition-colors"
+          >
             Help
           </Link>
-          <NotificationCenter sessionScope={me.user.id} />
-          <span className="micro text-muted flex items-center gap-1.5">
-            <span
-              className="animate-pulse-dot bg-green inline-block size-1.5 rounded-full"
-              aria-hidden
-            />
+          <NotificationCenter sessionScope={me.user.id} compact />
+          <span className="text-ink hidden px-2 text-sm font-medium sm:inline">
             {me.user.full_name.split(" ")[0]}
           </span>
-          <DriverLogoutButton />
         </div>
       </header>
 
-      <main className="flex-1 px-4 pt-4 pb-24">{children}</main>
+      <main className="flex-1 px-4 pt-5 pb-24">{children}</main>
 
       <TabBar />
     </div>

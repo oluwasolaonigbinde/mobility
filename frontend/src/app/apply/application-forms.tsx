@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Panel } from "@/components/ui/panel";
+import { cx } from "@/lib/cx";
 import {
   checkDriverApplicationStatusAction,
   requestDriverOnboardingAccessAction,
@@ -18,6 +19,9 @@ const initialApplicationState: DriverApplicationState = {};
 const initialStatusState: DriverApplicationStatusState = {};
 const initialOnboardingAccessState: DriverOnboardingAccessState = {};
 
+const alertClass = "border-coral/40 bg-coral/10 text-coral rounded-lg border px-3.5 py-2.5 text-sm";
+const doneClass = "border-green/40 bg-green/10 text-green rounded-lg border px-3.5 py-2.5 text-sm";
+
 export function DriverApplicationForms() {
   const [applicationState, submitAction, submitting] = useActionState(
     submitDriverApplicationAction,
@@ -27,19 +31,15 @@ export function DriverApplicationForms() {
     checkDriverApplicationStatusAction,
     initialStatusState,
   );
-  const [onboardingAccessState, requestOnboardingAccessAction, requestingOnboardingAccess] =
-    useActionState(requestDriverOnboardingAccessAction, initialOnboardingAccessState);
   const personPayee = presentApplicationStage(statusState.personPayeeStatus);
   const vehicle = presentApplicationStage(statusState.vehicleStatus);
   return (
     <div>
       <div className="grid gap-5 lg:grid-cols-[1.2fr_0.8fr]">
         <Panel className="p-6">
-          <p className="micro text-amber mb-2">Driver network</p>
-          <h2 className="font-display text-2xl font-semibold">Start an application</h2>
+          <h2 className="font-display text-2xl font-semibold">Your contact details</h2>
           <p className="text-muted mt-2 mb-6 text-sm">
-            Share the minimum contact details. An operations reviewer will contact you if the cohort
-            is accepting applications.
+            Tell us who you are. We&apos;ll email you a code for the next step.
           </p>
           <form action={submitAction} className="flex flex-col gap-4" noValidate>
             <Field
@@ -59,88 +59,85 @@ export function DriverApplicationForms() {
             />
             <div className="grid gap-4 sm:grid-cols-2">
               <Field
-                label="Phone"
+                label="Phone (optional)"
                 name="phone"
                 type="tel"
                 autoComplete="tel"
                 error={applicationState.fieldErrors?.phone}
               />
               <Field
-                label="Service city"
+                label="City you drive in (optional)"
                 name="service_city"
                 autoComplete="address-level2"
                 error={applicationState.fieldErrors?.service_city}
               />
             </div>
             <Field
-              label="Country code"
+              label="Country code (optional)"
               name="country_code"
               placeholder="NG"
               maxLength={2}
               error={applicationState.fieldErrors?.country_code}
             />
             {applicationState.error ? (
-              <p
-                role="alert"
-                className="border-coral/40 bg-coral/10 text-coral rounded-lg border px-3.5 py-2.5 text-sm"
-              >
+              <p role="alert" className={alertClass}>
                 {applicationState.error}
               </p>
             ) : null}
             {applicationState.submitted ? (
-              <div
-                role="status"
-                className="border-green/40 bg-green/10 text-green rounded-lg border px-3.5 py-2.5 text-sm"
-              >
-                <p>Application received for review.</p>
-                <p className="text-ink mt-2">
-                  Check the application email for an expiring onboarding access code.
+              <div role="status" className={doneClass}>
+                <p>
+                  Thanks — we&apos;ve got your application. We&apos;ve emailed you a code for the
+                  next step.
                 </p>
                 {applicationState.reference ? (
                   <p className="text-ink mt-2">
-                    Save this status reference:{" "}
-                    <code className="font-mono">{applicationState.reference}</code>
+                    Keep this reference to check your status:{" "}
+                    <code className="font-mono break-all">{applicationState.reference}</code>
                   </p>
                 ) : null}
               </div>
             ) : null}
             <Button type="submit" disabled={submitting}>
-              {submitting ? "Sending…" : "Submit application"}
+              {submitting ? "Sending…" : "Send application"}
             </Button>
           </form>
         </Panel>
 
         <Panel className="p-6">
-          <p className="micro text-cyan mb-2">Application status</p>
-          <h2 className="font-display text-2xl font-semibold">Check your reference</h2>
-          <p className="text-muted mt-2 mb-6 text-sm">
-            Your private reference shows progress without granting document, account or work access.
-          </p>
-          <form action={checkStatusAction} className="flex flex-col gap-4">
-            <Field label="Application reference" name="reference" required />
+          <h2 className="font-display text-2xl font-semibold">Check application status</h2>
+          <form action={checkStatusAction} className="mt-6 flex flex-col gap-4">
+            <Field
+              label="Application reference"
+              name="reference"
+              required
+              aria-describedby="application-reference-hint"
+            />
+            <p id="application-reference-hint" className="text-muted -mt-2 text-xs">
+              Use the reference you got when you applied.
+            </p>
             {statusState.error ? (
-              <p
-                role="alert"
-                className="border-coral/40 bg-coral/10 text-coral rounded-lg border px-3.5 py-2.5 text-sm"
-              >
+              <p role="alert" className={alertClass}>
                 {statusState.error}
               </p>
             ) : null}
             {statusState.pending ? (
               <div
                 role="status"
-                className="border-amber/40 bg-amber/10 text-amber rounded-lg border px-3.5 py-2.5 text-sm"
+                className="border-amber/40 bg-amber/10 rounded-lg border px-3.5 py-2.5 text-sm"
               >
-                <p className="font-medium">Application in progress</p>
+                <p className="text-ink font-medium">Your application</p>
                 <dl className="text-ink mt-3 grid gap-3">
                   <div>
-                    <dt className="micro text-faint">Person and payee</dt>
-                    <dd className={`mt-1 font-medium ${personPayee.tone}`}>{personPayee.label}</dd>
+                    <dt className="text-muted text-xs font-medium">ID and bank details</dt>
+                    <dd className={cx("mt-1 font-medium", personPayee.tone)}>
+                      {personPayee.label}
+                    </dd>
                     <dd className="text-muted mt-1 text-xs leading-5">{personPayee.detail}</dd>
                   </div>
                   <div>
-                    <dt className="micro text-faint">Vehicle documents</dt>
-                    <dd className={`mt-1 font-medium ${vehicle.tone}`}>{vehicle.label}</dd>
+                    <dt className="text-muted text-xs font-medium">Car</dt>
+                    <dd className={cx("mt-1 font-medium", vehicle.tone)}>{vehicle.label}</dd>
                     <dd className="text-muted mt-1 text-xs leading-5">{vehicle.detail}</dd>
                   </div>
                 </dl>
@@ -152,48 +149,51 @@ export function DriverApplicationForms() {
           </form>
         </Panel>
       </div>
-      <Panel className="mt-5 p-6">
-        <p className="micro text-cyan mb-2">Application access</p>
-        <h2 className="font-display text-2xl font-semibold">Request a new onboarding code</h2>
-        <p className="text-muted mt-2 mb-6 max-w-3xl text-sm">
-          If your expiring onboarding code no longer works, enter the same email used for the
-          application. This request does not reveal whether an application or recipient exists and
-          does not grant document, account, session, or work access.
-        </p>
-        <form
-          action={requestOnboardingAccessAction}
-          className="grid items-end gap-4 sm:grid-cols-[minmax(0,1fr)_auto]"
-          noValidate
-        >
-          <Field
-            label="Application email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            defaultValue={onboardingAccessState.email}
-            required
-          />
-          <Button type="submit" variant="ghost" disabled={requestingOnboardingAccess}>
-            {requestingOnboardingAccess ? "Requesting…" : "Request new code"}
-          </Button>
-          {onboardingAccessState.error ? (
-            <p
-              role="alert"
-              className="border-coral/40 bg-coral/10 text-coral rounded-lg border px-3.5 py-2.5 text-sm sm:col-span-2"
-            >
-              {onboardingAccessState.error}
-            </p>
-          ) : null}
-          {onboardingAccessState.done ? (
-            <p
-              role="status"
-              className="border-green/40 bg-green/10 text-green rounded-lg border px-3.5 py-2.5 text-sm sm:col-span-2"
-            >
-              {onboardingAccessState.done}
-            </p>
-          ) : null}
-        </form>
-      </Panel>
+      <NewCodePanel />
     </div>
+  );
+}
+
+/** Lets an applicant whose emailed code has stopped working ask for a new one. */
+export function NewCodePanel() {
+  const [state, action, requesting] = useActionState(
+    requestDriverOnboardingAccessAction,
+    initialOnboardingAccessState,
+  );
+  return (
+    <Panel className="mt-5 p-6">
+      <h2 className="font-display text-2xl font-semibold">Code not working? Get a new one</h2>
+      <p className="text-muted mt-2 mb-6 max-w-3xl text-sm">
+        Enter the email you applied with and we&apos;ll send a new code if your application is still
+        open.
+      </p>
+      <form
+        action={action}
+        className="grid items-end gap-4 sm:grid-cols-[minmax(0,1fr)_auto]"
+        noValidate
+      >
+        <Field
+          label="Email you applied with"
+          name="email"
+          type="email"
+          autoComplete="email"
+          defaultValue={state.email}
+          required
+        />
+        <Button type="submit" variant="ghost" disabled={requesting}>
+          {requesting ? "Sending…" : "Send me a new code"}
+        </Button>
+        {state.error ? (
+          <p role="alert" className={cx(alertClass, "sm:col-span-2")}>
+            {state.error}
+          </p>
+        ) : null}
+        {state.done ? (
+          <p role="status" className={cx(doneClass, "sm:col-span-2")}>
+            {state.done}
+          </p>
+        ) : null}
+      </form>
+    </Panel>
   );
 }

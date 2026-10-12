@@ -3,8 +3,10 @@
 import { useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
+import { FilePicker } from "@/components/ui/file-picker";
 import { Panel } from "@/components/ui/panel";
 import { onboardingResponseJson, uploadOnboardingFile } from "@/lib/files/onboarding-upload";
+import { useUploadStates } from "./upload-states";
 
 type StageResponse = {
   status: string;
@@ -12,10 +14,13 @@ type StageResponse = {
   version?: number | null;
 };
 
+const FILES = ["license", "photo", "agreement"] as const;
+
 export function PersonPayeeForm() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const [result, setResult] = useState<StageResponse>();
+  const uploads = useUploadStates(FILES);
   const submissionRequestId = useRef(crypto.randomUUID());
   const uploadRequestIds = useRef({
     license: crypto.randomUUID(),
@@ -26,10 +31,18 @@ export function PersonPayeeForm() {
   const uploadContext = useRef<{ token: string; files: File[] } | null>(null);
   const generation = useRef(0);
 
-  function changed() {
+  function changed(event?: FormEvent<HTMLFormElement>) {
+    if ((event?.target as HTMLInputElement | undefined)?.name === "application_access_token") {
+      uploads.reset();
+    }
     generation.current += 1;
     submissionRequestId.current = crypto.randomUUID();
     setResult(undefined);
+  }
+
+  function fileChanged(key: (typeof FILES)[number]) {
+    uploads.set(key, "idle");
+    changed();
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -41,6 +54,7 @@ export function PersonPayeeForm() {
     setError(undefined);
     setResult(undefined);
     const form = new FormData(formElement);
+    const track = uploads.tracker(() => selectedGeneration === generation.current);
     try {
       const accessToken = String(form.get("application_access_token") ?? "").trim();
       const license = (formElement.elements.namedItem("driver_license") as HTMLInputElement)
@@ -49,7 +63,9 @@ export function PersonPayeeForm() {
       const agreement = (formElement.elements.namedItem("signed_agreement") as HTMLInputElement)
         .files?.[0];
       if (!(license instanceof File) || !(photo instanceof File) || !(agreement instanceof File)) {
-        throw new Error("Licence, driver photo and signed agreement files are required.");
+        throw new Error(
+          "Add all three files: your driver's licence, a photo of you and the signed agreement.",
+        );
       }
       const files = [license, photo, agreement];
       if (
@@ -67,18 +83,27 @@ export function PersonPayeeForm() {
       const [licenseId, photoId, agreementId] =
         uploadedFileIds.current ??
         (await Promise.all([
-          uploadOnboardingFile(
-            accessToken,
-            license,
-            uploadRequestIds.current.license,
-            "driver_kyc",
+          track(
+            "license",
+            uploadOnboardingFile(
+              accessToken,
+              license,
+              uploadRequestIds.current.license,
+              "driver_kyc",
+            ),
           ),
-          uploadOnboardingFile(accessToken, photo, uploadRequestIds.current.photo, "driver_kyc"),
-          uploadOnboardingFile(
-            accessToken,
-            agreement,
-            uploadRequestIds.current.agreement,
-            "driver_kyc",
+          track(
+            "photo",
+            uploadOnboardingFile(accessToken, photo, uploadRequestIds.current.photo, "driver_kyc"),
+          ),
+          track(
+            "agreement",
+            uploadOnboardingFile(
+              accessToken,
+              agreement,
+              uploadRequestIds.current.agreement,
+              "driver_kyc",
+            ),
           ),
         ]));
       if (selectedGeneration !== generation.current) return;
@@ -102,6 +127,7 @@ export function PersonPayeeForm() {
       if (selectedGeneration !== generation.current) return;
       setResult(nextResult);
       formElement.reset();
+      uploads.reset();
       submissionRequestId.current = crypto.randomUUID();
       uploadRequestIds.current = {
         license: crypto.randomUUID(),
@@ -111,38 +137,36 @@ export function PersonPayeeForm() {
       uploadedFileIds.current = null;
     } catch (caught) {
       if (selectedGeneration !== generation.current) return;
-      setError(caught instanceof Error ? caught.message : "The onboarding request failed.");
+      setError(
+        caught instanceof Error ? caught.message : "Something went wrong. Please try again.",
+      );
     } finally {
+      if (selectedGeneration !== generation.current) uploads.clearUploading();
       setPending(false);
     }
   }
 
   return (
     <Panel className="mt-5 p-6">
-      <p className="micro text-cyan mb-2">Person &amp; payee stage</p>
-      <h2 className="font-display text-2xl font-semibold">
-        Submit or renew person and payee evidence
-      </h2>
+      <h2 className="font-display text-2xl font-semibold">Your ID and bank details</h2>
       <p className="text-muted mt-2 mb-6 max-w-3xl text-sm">
-        Documents are privately uploaded and malware-scanned. Identity and account values are
-        encrypted; reviewers receive only masked details unless an authorized, audited review
-        requires a sensitive read.
+        Fill in every box and add the three files. We keep your details private.
       </p>
       <form onSubmit={submit} onChange={changed} className="grid gap-4" noValidate>
         <Field
-          label="Onboarding access code"
+          label="Code from your email"
           name="application_access_token"
           type="password"
           autoComplete="one-time-code"
+          aria-describedby="person-payee-code-hint"
           required
         />
-        <p className="text-faint -mt-2 text-xs">
-          Use the expiring access code sent to the application email. The status reference cannot
-          change an application.
+        <p id="person-payee-code-hint" className="text-muted -mt-2 text-xs">
+          Check your email for the code we sent you.
         </p>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
-            label="NIN"
+            label="NIN (11 digits)"
             name="nin"
             type="password"
             inputMode="numeric"
@@ -150,9 +174,9 @@ export function PersonPayeeForm() {
             maxLength={11}
             required
           />
-          <Field label="Verified account name" name="account_name" autoComplete="name" required />
+          <Field label="Name on bank account" name="account_name" autoComplete="name" required />
           <Field
-            label="Bank account number"
+            label="Account number (10 digits)"
             name="account_number"
             type="password"
             inputMode="numeric"
@@ -160,41 +184,48 @@ export function PersonPayeeForm() {
             maxLength={10}
             required
           />
-          <Field
-            label="Bank code"
-            name="bank_code"
-            inputMode="numeric"
-            minLength={3}
-            maxLength={3}
-            required
-          />
+          <div className="flex flex-col gap-1.5">
+            <Field
+              label="Bank code (3 digits)"
+              name="bank_code"
+              inputMode="numeric"
+              minLength={3}
+              maxLength={3}
+              aria-describedby="person-payee-bank-code-hint"
+              required
+            />
+            <p id="person-payee-bank-code-hint" className="text-muted text-xs">
+              Ask your bank if you&apos;re not sure.
+            </p>
+          </div>
         </div>
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field
-            label="Driver licence"
+          <FilePicker
+            label="Driver's licence"
             name="driver_license"
-            type="file"
             accept="application/pdf,image/jpeg,image/png,image/webp"
             required
+            state={uploads.states.license}
+            onFile={() => fileChanged("license")}
           />
-          <Field
-            label="Driver photo"
+          <FilePicker
+            label="Photo of you"
             name="driver_photo"
-            type="file"
             accept="image/jpeg,image/png,image/webp"
             required
+            state={uploads.states.photo}
+            onFile={() => fileChanged("photo")}
           />
-          <Field
+          <FilePicker
             label="Signed agreement"
+            hint="The driver agreement Terrax Media sent you, signed."
             name="signed_agreement"
-            type="file"
             accept="application/pdf,image/jpeg,image/png"
             required
+            state={uploads.states.agreement}
+            onFile={() => fileChanged("agreement")}
           />
         </div>
-        <p className="text-faint text-xs">
-          Document upload opens once Terrax Media switches on driver onboarding.
-        </p>
         {error ? (
           <p role="alert" className="text-coral text-sm">
             {error}
@@ -202,12 +233,11 @@ export function PersonPayeeForm() {
         ) : null}
         {result ? (
           <p role="status" className="text-green text-sm">
-            Person/payee evidence version {result.version} was sent for administrator review. NIN
-            projection: {result.masked_nin}.
+            Sent. We&apos;ll check your details. Check your status with your application reference.
           </p>
         ) : null}
         <Button type="submit" disabled={pending}>
-          {pending ? "Protecting and submitting…" : "Submit person & payee evidence"}
+          {pending ? "Sending…" : "Send my details"}
         </Button>
       </form>
     </Panel>

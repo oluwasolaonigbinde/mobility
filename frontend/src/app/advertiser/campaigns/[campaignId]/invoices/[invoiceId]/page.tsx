@@ -37,7 +37,7 @@ export default async function AdvertiserInvoicePage({
   return (
     <div className="animate-rise mx-auto max-w-5xl">
       <nav className="micro text-muted mb-4">
-        <Link href="/advertiser/billing">Billing history</Link> /{" "}
+        <Link href="/advertiser/billing">Billing</Link> /{" "}
         <Link href={`/advertiser/campaigns/${campaignId}`}>{campaign.name}</Link> / Invoice
       </nav>
       <InvoiceDocument

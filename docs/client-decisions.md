@@ -77,12 +77,30 @@ acceptances unless a D-row says otherwise (D14, D21).
 run IDs or fingerprints; staff screens and downloads may (D38c). Four visual
 directions remain, with Ivory Ledger as the default (D37); two new candidates,
 Directions 5 and 6, are offered for the client's review (REQ-071).
-The public website uses **Request a campaign quote** for its on-site advertiser
+The public website uses **Request a Quote** for its on-site advertiser
 enquiry, **Apply to drive** for `/apply`, and **Sign in** for `/login` (D52,
 REQ-070). Advertiser account setup remains operator-led; the enquiry creates
 neither an account nor a campaign. `/` is the only public landing route.
+The enquiry keeps the notice explaining use of contact details and that no
+account or campaign is created; the separate ID/bank warning is removed under
+the owner's 8 October review brief (D64, REQ-122). Sign-in welcomes people with
+"Welcome to Cardvert". Shared portal controls use readable sentence case and
+visible selected states (REQ-120–REQ-124); the driver Home shows current work
+and pay, while Profile contains personal details and lifetime totals.
+REQ-127/D65 supersedes the earlier driver presentation: Home has one next
+action, Jobs shows frozen rate/car/dates and actionable photos, Track owns
+the live trip, Earnings lists days with one evidence-based payment status,
+and Help alone explains daily pay. The header keeps the bell and Help;
+Sign out stays in Profile. Driver headings and labels use sentence case.
+D66/REQ-128–132 refines the review preview: the driver opens ready and idle,
+Home leads with the latest payment when today's earnings are zero, badges and
+small labels use sans, and past jobs do not repeat their dated status. Demo
+work days use realistic qualifying mileage and separate next-day payments.
 
 **History:**
+- **2026-10-10** — Owner review replaces D65's seeded live trip with idle Start and the zero Today headline with latest payment; requires realistic daily amounts and next-day reconciliations, sans labels and nonrepeated job status (REQ-128–132, D66). Earlier D65 demo history had small trips paid together. Local corrections and verification in progress; no commit or release.
+- **2026-10-10** — Owner replaced the text-heavy driver screens with one job per screen (REQ-127, D65), direct safe Start, honest daily payment labels and settled demo history. D39/D40/D43 money and eligibility rules remain. Local implementation under review; no commit or release claimed.
+- **2026-10-08** — Owner approved one consolidated portal clarity pass (REQ-120–REQ-125), including "Request a Quote", the contact-use notice without the separate ID/bank warning, and simpler sign-in/onboarding copy (D64). Implementation and verification in progress; no commit or release claimed.
 - **2026-10-06** — Reviewed client-facing report/map/copy polish is integrated (REQ-104). Built in `6eb5ab9`; full CI passed before closure.
 - **2026-08-14** — Client confirmed the names (Q29, D18).
 - **2026-09-24** — Client rejected seven of eleven visual directions (D37). Built in `d583829`.

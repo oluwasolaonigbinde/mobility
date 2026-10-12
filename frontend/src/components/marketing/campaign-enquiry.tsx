@@ -6,7 +6,7 @@ import {
   type CampaignEnquiryState,
   type EnquiryField,
 } from "@/app/campaign-enquiry-actions";
-import { CONTACT } from "@/lib/marketing/site";
+import { CONTACT, CTA } from "@/lib/marketing/site";
 
 // OWNER — REQ-070: enquire on-site; Terrax still provisions advertiser accounts.
 const fields: {
@@ -32,7 +32,7 @@ export function CampaignEnquiry() {
     <section id="campaign-enquiry" aria-labelledby="campaign-enquiry-title">
       <div className="mx-auto max-w-3xl px-5 py-16 md:px-8">
         <h2 id="campaign-enquiry-title" className="font-terrax-display text-3xl font-extrabold">
-          Request a campaign quote
+          {CTA.campaign}
         </h2>
         <p className="text-terrax-ink-soft mt-4">
           Tell Terrax Media what you have in mind, including your target areas and preferred dates.
@@ -83,8 +83,7 @@ export function CampaignEnquiry() {
             })}
             <p className="text-terrax-ink-soft text-sm">
               Terrax Media uses these details to respond to your enquiry. This does not create an
-              account or launch a campaign. Please do not include identity documents or bank
-              details.
+              account or launch a campaign.
             </p>
             {state.error ? (
               <p role="alert" className="text-terrax-crimson-ink">

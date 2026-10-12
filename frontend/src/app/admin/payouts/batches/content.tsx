@@ -4,9 +4,11 @@ import { requireRole } from "@/lib/auth/current-user";
 import { formatDateTime, formatMoneyExact } from "@/lib/format";
 import { adminStatus } from "@/lib/status/admin";
 import { QueueUnavailable } from "../../queue-search";
-import { moneyHref, moneyPage, MoneyQueryFields, type MoneyQuery } from "../../money/navigation";
+import { FilterChips } from "@/components/ui/tabs";
+import { moneyHref, moneyPage, type MoneyQuery } from "../../money/navigation";
 import { batchApi } from "./batch-api";
 import { CreateBatchForm } from "./batch-forms";
+import { EarningsSearch } from "./earnings-search";
 import {
   outcomeLabel,
   type BatchSummary,
@@ -24,7 +26,8 @@ export default async function PaymentRuns({ searchParams }: { searchParams: Prom
     filters.set("currency", query.currency.toUpperCase());
   const runFilters = new URLSearchParams({ limit: "25", offset: String(runs * 25) });
   const statuses = ["draft", "reserved", "submitted", "reconciled", "completed", "failed", "void"];
-  if (query.status && statuses.includes(query.status)) runFilters.set("batch_status", query.status);
+  const runStatus = query.status && statuses.includes(query.status) ? query.status : undefined;
+  if (runStatus) runFilters.set("batch_status", runStatus);
   const [entries, summary] = await Promise.all([
     batchApi<Page<EligiblePayment>>(`/eligible?${filters}`).catch(() => null),
     batchApi<Page<BatchSummary>>(`/summaries?${runFilters}`).catch(() => null),
@@ -33,26 +36,7 @@ export default async function PaymentRuns({ searchParams }: { searchParams: Prom
     <div className="space-y-6">
       <Panel className="space-y-4 p-4 sm:p-6">
         <h2 className="font-display text-xl">Available earnings</h2>
-        <form className="flex flex-wrap gap-3">
-          <MoneyQueryFields query={query} omit={["q", "currency", "credits"]} />
-          <input
-            aria-label="Search driver or campaign"
-            name="q"
-            defaultValue={query.q}
-            placeholder="Driver or campaign name"
-            maxLength={100}
-            className="border-edge bg-raised min-w-0 flex-1 rounded-lg border px-3 py-2"
-          />
-          <input
-            aria-label="Filter currency"
-            name="currency"
-            defaultValue={query.currency}
-            placeholder="Currency"
-            maxLength={3}
-            className="border-edge bg-raised w-24 rounded-lg border px-3 py-2 uppercase"
-          />
-          <button className="border-edge rounded-lg border px-4 py-2">Search earnings</button>
-        </form>
+        <EarningsSearch query={query} />
         {!entries ? (
           <QueueUnavailable />
         ) : (
@@ -85,23 +69,21 @@ export default async function PaymentRuns({ searchParams }: { searchParams: Prom
           Waiting payments have not been submitted. A payment is recorded only after verified
           provider success.
         </p>
-        <form className="flex flex-wrap gap-3">
-          <MoneyQueryFields query={query} omit={["status", "runs"]} />
-          <select
-            name="status"
-            aria-label="Payment run status"
-            defaultValue={query.status ?? ""}
-            className="border-edge bg-raised rounded-lg border px-3 py-2"
-          >
-            <option value="">All statuses</option>
-            {statuses.map((status) => (
-              <option key={status} value={status}>
-                {adminStatus(status, "payment_run")}
-              </option>
-            ))}
-          </select>
-          <button className="border-edge rounded-lg border px-4 py-2">Filter runs</button>
-        </form>
+        <FilterChips
+          label="Payment run status"
+          items={[
+            {
+              href: moneyHref(query, { status: undefined, runs: undefined }),
+              label: "All statuses",
+              active: !runStatus,
+            },
+            ...statuses.map((status) => ({
+              href: moneyHref(query, { status, runs: undefined }),
+              label: adminStatus(status, "payment_run"),
+              active: runStatus === status,
+            })),
+          ]}
+        />
         {!summary ? (
           <QueueUnavailable />
         ) : (

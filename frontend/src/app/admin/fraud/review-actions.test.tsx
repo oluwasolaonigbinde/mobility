@@ -42,11 +42,42 @@ describe("ReviewActions", () => {
   });
 
   it("makes the post-release reversal consequence explicit", () => {
-    render(<ReviewActions flagId={FLAG_ID} status="acknowledged" reversalRecommended={true} />);
+    render(
+      <ReviewActions
+        flagId={FLAG_ID}
+        status="acknowledged"
+        reversalRecommended={true}
+        reversalAmount="₦3,263.51"
+      />,
+    );
 
-    expect(
-      screen.getByRole("button", { name: "Confirm problem & reverse released earnings" }),
-    ).toBeEnabled();
+    const confirm = screen.getByRole("button", {
+      name: "Confirm problem & reverse released earnings",
+    });
+    expect(confirm).toBeEnabled();
+    expect(confirm).toHaveAccessibleDescription(
+      "Reverses ₦3,263.51 of this trip's released earnings. This is final.",
+    );
+    expect(screen.getByRole("button", { name: "Clear" })).toHaveAccessibleDescription(
+      "Removes this hold. Held pay is released only when a fresh check finds it is still owed.",
+    );
+  });
+
+  it("says confirming keeps held pay held when nothing was released yet", () => {
+    render(<ReviewActions flagId={FLAG_ID} status="acknowledged" />);
+
+    expect(screen.getByRole("button", { name: "Confirm problem" })).toHaveAccessibleDescription(
+      "Keeps this trip's held pay held. This is final.",
+    );
+    expect(screen.queryByText(/Takes back/)).not.toBeInTheDocument();
+  });
+
+  it("says starting a review keeps held pay held", () => {
+    render(<ReviewActions flagId={FLAG_ID} status="open" />);
+
+    expect(screen.getByRole("button", { name: "Start review" })).toHaveAccessibleDescription(
+      "Marks this trip as being reviewed. Any held pay stays held.",
+    );
   });
 
   it.each(["confirmed", "dismissed"] as const)("renders %s as terminal", (status) => {

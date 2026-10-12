@@ -80,7 +80,8 @@ export async function submitDriverApplicationAction(
     const { data } = await createApiClient().POST("/api/v1/auth/register-driver", {
       body: parsed.data,
     });
-    if (!data) return { error: "Application service is unavailable right now." };
+    if (!data)
+      return { error: "We couldn't send your application right now. Please try again later." };
     return {
       submitted: true,
       reference: data.application_reference ?? undefined,
@@ -89,8 +90,8 @@ export async function submitDriverApplicationAction(
     return {
       error:
         error instanceof ApiError
-          ? "Application service is unavailable right now."
-          : "Could not reach the application service.",
+          ? "We couldn't send your application right now. Please try again later."
+          : "We couldn't connect. Check your internet connection and try again.",
     };
   }
 }
@@ -114,13 +115,13 @@ export async function checkDriverApplicationStatusAction(
           personPayeeStatus: data.person_payee?.status ?? "not_submitted",
           vehicleStatus: data.vehicle?.status ?? "not_submitted",
         }
-      : { error: "Application status is unavailable right now." };
+      : { error: "We couldn't check that reference. Check it and try again." };
   } catch (error) {
     return {
       error:
         error instanceof ApiError
-          ? "Application status is unavailable right now."
-          : "Could not reach the application service.",
+          ? "We couldn't check that reference. Check it and try again."
+          : "We couldn't connect. Check your internet connection and try again.",
     };
   }
 }
@@ -148,13 +149,13 @@ export async function requestDriverOnboardingAccessAction(
     });
   } catch {
     return {
-      error: "Onboarding access is temporarily unavailable. Try again later.",
+      error: "We couldn't send a new code right now. Try again in a few minutes.",
       email: parsed.data.email,
     };
   }
 
   return {
-    done: "If the application can continue, a new onboarding code will be sent.",
+    done: "If your application is still open, we've emailed you a new code.",
     email: parsed.data.email,
   };
 }

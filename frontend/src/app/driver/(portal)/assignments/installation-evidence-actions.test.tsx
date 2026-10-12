@@ -50,7 +50,7 @@ describe("InstallationEvidenceActions", () => {
     const inputs = container.querySelectorAll<HTMLInputElement>('input[type="file"]');
     await user.upload(inputs[0]!, new File(["front"], "front.png", { type: "image/png" }));
     await user.upload(inputs[1]!, new File(["close"], "close.png", { type: "image/png" }));
-    await user.click(screen.getByRole("button", { name: "Submit installation photos" }));
+    await user.click(screen.getByRole("button", { name: "Send installation photos" }));
 
     await waitFor(() => expect(mocks.postJson).toHaveBeenCalledTimes(1));
     expect(mocks.upload).toHaveBeenCalledTimes(2);
@@ -65,6 +65,21 @@ describe("InstallationEvidenceActions", () => {
       }),
     );
     expect(await screen.findByText("✓ Photos sent to Terrax Media for review.")).toBeVisible();
+  });
+
+  it("asks for new photos when the approved ones have expired", () => {
+    render(
+      <InstallationEvidenceActions
+        assignmentId={ASSIGNMENT_ID}
+        status="active"
+        requiredViews={["front"]}
+        latestEvidenceStatus="expired"
+      />,
+    );
+
+    expect(screen.getByText(/New photos are due/)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Send installation photos" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Send display photo" })).not.toBeInTheDocument();
   });
 
   it("gets a nonce before uploading and consuming a start-of-shift proof", async () => {
@@ -84,7 +99,7 @@ describe("InstallationEvidenceActions", () => {
     const inputs = container.querySelectorAll<HTMLInputElement>('input[type="file"]');
     const proofInput = inputs[inputs.length - 1]!;
     await user.upload(proofInput, new File(["proof"], "proof.png", { type: "image/png" }));
-    await user.click(screen.getByRole("button", { name: "Verify display for this shift" }));
+    await user.click(screen.getByRole("button", { name: "Send display photo" }));
 
     await waitFor(() => expect(mocks.postJson).toHaveBeenCalledTimes(2));
     expect(mocks.postJson).toHaveBeenNthCalledWith(
@@ -103,7 +118,7 @@ describe("InstallationEvidenceActions", () => {
     );
   });
 
-  it("surfaces a recurring challenge without making a GPS proof claim", () => {
+  it("surfaces a requested display photo in plain words", () => {
     render(
       <InstallationEvidenceActions
         assignmentId={ASSIGNMENT_ID}
@@ -114,14 +129,12 @@ describe("InstallationEvidenceActions", () => {
       />,
     );
 
-    expect(screen.getByText("Fresh display proof required")).toBeVisible();
-    expect(screen.getByText(/phone GPS is not treated as proof/i)).toBeVisible();
-    expect(
-      screen.getByRole("button", { name: "Complete required display challenge" }),
-    ).toBeVisible();
+    expect(screen.getByText(/Terrax Media asked for a new photo/)).toBeVisible();
+    expect(screen.queryByText(/GPS/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Send display photo" })).toBeVisible();
   });
 
-  it("names the client's photo views and hides display proof until its windows are set", () => {
+  it("names the client's photo views and hides display proof until its windows are set", async () => {
     render(
       <InstallationEvidenceActions
         assignmentId={ASSIGNMENT_ID}
@@ -132,11 +145,10 @@ describe("InstallationEvidenceActions", () => {
       />,
     );
 
-    for (const label of ["Front", "Back", "Left side", "Right side", "Close-up of the branding"]) {
-      expect(screen.getByText(label)).toBeVisible();
-    }
     expect(
-      screen.queryByRole("button", { name: "Verify display for this shift" }),
+      screen.queryByRole("button", { name: "Send installation photos" }),
     ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send new photos" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send display photo" })).not.toBeInTheDocument();
   });
 });

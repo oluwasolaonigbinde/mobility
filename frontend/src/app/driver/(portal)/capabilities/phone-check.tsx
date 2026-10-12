@@ -2,41 +2,8 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import type { CapabilitySnapshot } from "@/lib/pwa/capability-contract";
+import { readinessRows } from "@/lib/pwa/readiness-rows";
 import { useCapabilityProbes } from "./use-capability-probes";
-
-type Row = { label: string; ok: boolean; fix: string; passive?: boolean };
-
-function rows(s: CapabilitySnapshot): Row[] {
-  return [
-    {
-      label: "Cardvert is on your home screen",
-      ok: s.secureContext && s.manifestLinked && s.displayMode === "standalone",
-      fix: "Open your browser menu, choose Add to Home Screen, then open Cardvert from that icon.",
-      passive: true,
-    },
-    {
-      label: "Location is allowed",
-      ok: s.location === "granted",
-      fix: "Allow location for Cardvert in your phone settings, then check again.",
-    },
-    {
-      label: "The screen can stay on",
-      ok: s.wakeLock === "pass",
-      fix: "Update your browser, or use Chrome on Android or Safari on iPhone.",
-    },
-    {
-      label: "Trips can be saved on this phone",
-      ok: s.indexedDb === "pass" && s.durableQueue === "pass" && s.webLocks === "pass",
-      fix: "Close other Cardvert tabs, make sure the phone has free storage and isn't in private browsing.",
-    },
-    {
-      label: "You're signed in",
-      ok: s.session === "valid",
-      fix: "Check your internet connection, then sign in again.",
-    },
-  ];
-}
 
 /** D38(b): the driver's plain Phone check; codes and the raw report stay on the support view. */
 export function PhoneCheck() {
@@ -79,7 +46,7 @@ export function PhoneCheck() {
       </Button>
 
       <ul aria-label="Phone check results" className="flex flex-col gap-2">
-        {rows(snapshot).map((row) => {
+        {readinessRows(snapshot).map((row) => {
           const known = checked || (row.passive && passiveReady);
           return (
             <li key={row.label} className="rounded border p-3">

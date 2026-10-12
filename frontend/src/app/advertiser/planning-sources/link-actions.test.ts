@@ -36,7 +36,7 @@ describe("createSourceLinkAction", () => {
     const data = linkData();
 
     await expect(createSourceLinkAction({}, data)).resolves.toEqual({
-      success: "Audience connected to the campaign area.",
+      success: "Audience linked to the campaign area.",
       operationKey: OPERATION_KEY,
     });
     expect(mocks.post).toHaveBeenCalledWith(
@@ -66,7 +66,7 @@ describe("createSourceLinkAction", () => {
       operationKey: OPERATION_KEY,
     });
     await expect(createSourceLinkAction({}, data)).resolves.toEqual({
-      success: "Audience connected to the campaign area.",
+      success: "Audience linked to the campaign area.",
       operationKey: OPERATION_KEY,
     });
 
@@ -141,7 +141,7 @@ describe("createSourceLinkAction", () => {
       operationKey: "00000000-0000-4000-8000-000000000046",
     });
     await expect(removeSourceLinkAction("link-1", {}, linkData)).resolves.toEqual({
-      success: "Audience disconnected from the campaign area.",
+      success: "Audience unlinked from the campaign area.",
       operationKey: "00000000-0000-4000-8000-000000000046",
     });
     expect(mocks.post.mock.calls.map((call) => call[1].params.header)).toEqual([

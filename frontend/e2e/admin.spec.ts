@@ -88,8 +88,8 @@ test("driver and vehicle hubs show the seeded fleet with safe suspension", async
 
 test("assignments section lists the seeded pairing", async ({ page }) => {
   await loginAsAdmin(page);
-  await openCampaign(page, "Marula Kitchens — Lagos Lunch Routes");
-  await expect(page.getByText("Marula Kitchens — Lagos Lunch Routes").first()).toBeVisible();
+  await openCampaign(page, "Marula Kitchens — Abuja Lunch Routes");
+  await expect(page.getByText("Marula Kitchens — Abuja Lunch Routes").first()).toBeVisible();
   await expect(page.getByText("Offer a job · Find drivers")).toBeVisible();
   const row = page.locator('#drivers div[id^="job-"]').filter({ hasText: "Emeka Nwankwo" }).first();
   const trigger = row.getByRole("button", { name: "Cancel" });
@@ -171,7 +171,7 @@ test("audit trail shows login activity and supports filtering", async ({ page })
 
 test("daily-rate terms show the frozen version and publishing controls", async ({ page }) => {
   await loginAsAdmin(page);
-  await openCampaign(page, "Marula Kitchens — Lagos Lunch Routes");
+  await openCampaign(page, "Marula Kitchens — Abuja Lunch Routes");
   await page.locator("#pay-terms summary").click();
   await expect(page.locator("#pay-terms").getByText("Version history")).toBeVisible();
   await expect(page.locator("#pay-terms").getByText("Version 1", { exact: true })).toBeVisible();
@@ -194,7 +194,7 @@ test("corrections screen offers projection, draft creation and the order queue",
   await page.getByRole("link", { name: "Corrections", exact: true }).click();
   await page.waitForURL("**tab=corrections*");
   await expect(page.locator('main a[href*="correction="]').first()).toBeVisible();
-  await page.getByText("Prepare a pay correction").click();
+  await page.getByText("Correct a driver's pay").click();
   await expect(page.getByRole("button", { name: "Create pay correction" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Correction status" })).toBeVisible();
 });

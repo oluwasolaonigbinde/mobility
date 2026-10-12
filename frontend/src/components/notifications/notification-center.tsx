@@ -85,13 +85,13 @@ function NotificationItemRow({
         <div>
           <p className="text-sm font-medium">{notification.title}</p>
           <p className="text-muted mt-1 text-sm">{notification.body}</p>
-          <p className="micro text-faint mt-1.5">{formatDateTime(notification.created_at)}</p>
+          <p className="text-faint mt-1.5 text-xs">{formatDateTime(notification.created_at)}</p>
         </div>
         {notification.read_at ? null : (
           <button
             type="button"
             onClick={() => onRead(notification.id)}
-            className="micro text-amber hover:text-amber/80 shrink-0"
+            className="text-amber hover:text-amber/80 shrink-0 text-sm font-medium"
           >
             Mark read
           </button>
@@ -104,9 +104,11 @@ function NotificationItemRow({
 export function NotificationCenter({
   canManageAdvertiserPreferences = false,
   sessionScope = "anonymous",
+  compact = false,
 }: {
   canManageAdvertiserPreferences?: boolean;
   sessionScope?: string;
+  compact?: boolean;
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -223,9 +225,30 @@ export function NotificationCenter({
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
         aria-controls="notification-centre"
-        className="micro text-muted hover:text-fg relative rounded px-2 py-1 transition-colors"
+        aria-label={compact ? `Notifications${unread > 0 ? `, ${unread} unread` : ""}` : undefined}
+        className={
+          compact
+            ? "text-muted hover:text-ink relative inline-flex min-h-9 items-center rounded px-2 py-1 text-sm font-medium whitespace-nowrap transition-colors"
+            : "text-muted hover:text-ink relative rounded px-2 py-1 text-sm font-medium transition-colors"
+        }
       >
-        Notifications
+        {compact ? (
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.75"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="size-5"
+          >
+            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+            <path d="M10 21h4" />
+          </svg>
+        ) : (
+          "Notifications"
+        )}
         {unread > 0 ? (
           <span className="bg-amber text-bg ml-1.5 inline-flex min-w-4 justify-center rounded-full px-1 text-[10px] font-bold">
             {unread > 99 ? "99+" : unread}
@@ -245,7 +268,7 @@ export function NotificationCenter({
                 type="button"
                 onClick={() => markAllRead.mutate()}
                 disabled={!isOnline || unread === 0 || markAllRead.isPending}
-                className="micro text-amber disabled:text-faint hover:text-amber/80"
+                className="text-amber disabled:text-faint hover:text-amber/80 text-sm font-medium"
               >
                 Mark all read
               </button>
@@ -329,7 +352,7 @@ export function NotificationCenter({
                 ))}
               </ul>
               <div className="border-edge mt-2 flex items-center justify-between gap-3 border-t pt-2">
-                <p className="micro text-faint">
+                <p className="text-faint text-xs">
                   Showing {shownItems.length} of {totalNotifications}
                   {notifications.hasNextPage ? " · Mark all read includes older ones" : ""}
                 </p>
@@ -338,7 +361,7 @@ export function NotificationCenter({
                     type="button"
                     onClick={() => void notifications.fetchNextPage()}
                     disabled={!isOnline || notifications.isFetchingNextPage}
-                    className="micro text-amber disabled:text-faint hover:text-amber/80 shrink-0"
+                    className="text-amber disabled:text-faint hover:text-amber/80 shrink-0 text-sm font-medium"
                   >
                     {notifications.isFetchingNextPage ? "Loading…" : "Show older"}
                   </button>
@@ -348,7 +371,7 @@ export function NotificationCenter({
           ) : null}
           {canManageAdvertiserPreferences ? (
             <div className="border-edge mt-3 border-t pt-3">
-              <p className="micro text-faint mb-2">Company notification settings</p>
+              <p className="text-ink mb-2 text-sm font-medium">Company notification settings</p>
               <p className="text-muted text-sm">Updates always appear here.</p>
               <label className="mt-3 flex items-center justify-between gap-3 text-sm">
                 Also send updates by email

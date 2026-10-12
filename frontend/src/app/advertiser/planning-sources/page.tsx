@@ -8,13 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
-import {
-  describeSource,
-  labelFor,
-  linkStatusLabel,
-  sourceStatusLabel,
-  sourceTypeLabel,
-} from "./labels";
+import { labelFor, linkStatusLabel, sourceDisplayLabel, sourceStatusLabel } from "./labels";
 import { LinkForm } from "./link-form";
 import { TerminalPlanningActionForm } from "./operation-form";
 import { SourceForm } from "./source-form";
@@ -40,25 +34,10 @@ export default async function PlanningSourcesPage() {
   ]);
 
   const header = (
-    <>
-      <PageHeader title="Retargeting" eyebrow="Follow up online where your campaign drove" />
-      <Panel className="mb-5 p-5">
-        <ol className="text-muted grid gap-3 text-sm sm:grid-cols-3">
-          <li>
-            <span className="text-ink font-medium">1. Describe an audience you already have.</span>{" "}
-            Choose what they have in common, such as visiting your website.
-          </li>
-          <li>
-            <span className="text-ink font-medium">2. Connect it to a campaign area.</span> Choose
-            the campaign, one of its areas and the dates you care about.
-          </li>
-          <li>
-            <span className="text-ink font-medium">3. Get area-and-time suggestions.</span> Once the
-            campaign has run there, explore places and times for your online follow-up ads.
-          </li>
-        </ol>
-      </Panel>
-    </>
+    <PageHeader
+      title="Retargeting"
+      eyebrow="Plan online follow-up around the areas and times your campaign covered. Ads are not sent automatically."
+    />
   );
 
   const unavailable = [sourcesResult, linksResult, campaignsResult].find(
@@ -134,9 +113,7 @@ export default async function PlanningSourcesPage() {
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <div className="flex items-center gap-2">
-                          <h3 className="font-medium">
-                            {labelFor(sourceTypeLabel, source.source_type)}
-                          </h3>
+                          <h3 className="font-medium">{sourceDisplayLabel(source)}</h3>
                           <StatusChip
                             tone={
                               source.status === "active"
@@ -149,12 +126,7 @@ export default async function PlanningSourcesPage() {
                             {labelFor(sourceStatusLabel, source.status)}
                           </StatusChip>
                         </div>
-                        {describeSource(source.snapshot) ? (
-                          <p className="text-muted mt-1 text-sm">
-                            {describeSource(source.snapshot)}
-                          </p>
-                        ) : null}
-                        <p className="micro text-faint mt-2">
+                        <p className="text-faint mt-2 text-sm">
                           {source.status === "active" ? "Used until" : "Ended"}{" "}
                           {formatDate(source.deactivated_at ?? source.expires_at)}
                         </p>
@@ -173,13 +145,17 @@ export default async function PlanningSourcesPage() {
             </Panel>
           )}
           <section className="mt-5" aria-labelledby="source-links-heading">
-            <h2 id="source-links-heading" className="mb-3 font-medium">
-              Connected campaign areas
+            <h2 id="source-links-heading" className="font-medium">
+              Audiences linked to campaign areas
             </h2>
+            <p className="text-muted mt-1 mb-3 text-sm">
+              Each link pairs one audience with one area of a campaign for a date range. Suggested
+              areas and times for that pair show here.
+            </p>
             {links.length === 0 ? (
               <EmptyState
-                title="Nothing connected yet"
-                body="Connect an audience to a campaign area to get suggestions for that area."
+                title="Nothing linked yet"
+                body="Link an audience to a campaign area to see suggestions for that area."
               />
             ) : (
               <Panel className="divide-edge divide-y overflow-hidden">
@@ -196,7 +172,7 @@ export default async function PlanningSourcesPage() {
                               {labelFor(linkStatusLabel, link.status)}
                             </StatusChip>
                             {link.stale ? (
-                              <StatusChip tone="coral">Changed since connected</StatusChip>
+                              <StatusChip tone="coral">Changed since linked</StatusChip>
                             ) : null}
                           </div>
                           <p className="mt-2 text-sm">
@@ -205,29 +181,35 @@ export default async function PlanningSourcesPage() {
                           <p className="text-muted mt-1 text-sm">
                             Area: {zoneNames.get(link.zone_id) ?? "name unavailable"}
                           </p>
-                          <p className="micro text-faint mt-1">
+                          <p className="text-faint mt-1 text-sm">
                             {formatDate(link.start_at)} → {formatDate(link.end_at)}
                           </p>
                         </div>
                         {link.status === "active" ? (
-                          <TerminalPlanningActionForm
-                            kind="remove-link"
-                            resourceId={link.id}
-                            label="Disconnect"
-                          />
+                          <div className="max-w-56 text-right">
+                            <TerminalPlanningActionForm
+                              kind="remove-link"
+                              resourceId={link.id}
+                              label="Unlink"
+                            />
+                            <p className="text-faint mt-2 text-sm">
+                              Stops suggestions for this pair. The campaign and audience stay as
+                              they are; you can link them again while both are in use.
+                            </p>
+                          </div>
                         ) : null}
                       </div>
                       <div className="border-edge mt-4 border-t pt-4">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
                             <p className="text-sm font-medium">Suggested areas and times</p>
-                            <p className="micro text-faint mt-1">
+                            <p className="text-faint mt-1 text-sm">
                               {!loaded?.available
                                 ? "Suggestions couldn't be loaded right now."
                                 : ready
                                   ? `${recommendation.recommendations.length} suggestion${recommendation.recommendations.length === 1 ? "" : "s"}`
                                   : (suggestionState[recommendation?.state ?? ""] ??
-                                    "No suggestions yet. They appear once the campaign has run in this area.")}
+                                    "No suggestions for this area yet.")}
                             </p>
                           </div>
                           {ready && recommendation.segment_id ? (
@@ -245,16 +227,15 @@ export default async function PlanningSourcesPage() {
                           ? recommendation.recommendations.slice(0, 3).map((item) => (
                               <p
                                 key={`${item.coverage_cell}-${item.window_start_at}`}
-                                className="micro mt-2"
+                                className="mt-2 text-sm"
                               >
-                                {item.rank}. Area {item.coverage_cell} ·{" "}
-                                {formatDate(item.window_start_at)} →{" "}
+                                Suggestion {item.rank} · {formatDate(item.window_start_at)} →{" "}
                                 {formatDate(item.window_end_at)}
                               </p>
                             ))
                           : null}
                         {ready ? (
-                          <p className="micro text-faint mt-3">
+                          <p className="text-faint mt-3 text-sm">
                             Estimates help compare areas. They aren&apos;t counts of people who saw
                             your advert.
                           </p>
@@ -273,18 +254,17 @@ export default async function PlanningSourcesPage() {
             <SourceForm />
           </Panel>
           <Panel className="p-5">
-            <h2 className="mb-4 font-medium">Connect it to a campaign area</h2>
+            <h2 className="font-medium">Link an audience to a campaign area</h2>
+            <p className="text-muted mt-1 mb-4 text-sm">
+              Linking doesn&apos;t change the campaign or send ads. It lets Cardvert suggest areas
+              and times from that campaign&apos;s routes for your own online follow-up.
+            </p>
             <LinkForm
               sources={items
                 .filter((source) => source.status === "active")
                 .map((source) => ({
                   id: source.id,
-                  label: [
-                    labelFor(sourceTypeLabel, source.source_type),
-                    describeSource(source.snapshot),
-                  ]
-                    .filter(Boolean)
-                    .join(" — "),
+                  label: sourceDisplayLabel(source),
                 }))}
               campaigns={campaigns.map((campaign) => ({ id: campaign.id, label: campaign.name }))}
               zones={zoneOptions}

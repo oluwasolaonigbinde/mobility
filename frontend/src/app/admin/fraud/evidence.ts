@@ -18,7 +18,7 @@ const reasons: Record<string, string> = {
   route_replay: "Route matches an earlier trip",
   missed_display_challenge: "Driver missed the display check",
   concurrent_session_day: "Overlapping trips recorded on the same day",
-  physical_spot_check_failed: "In-person check found a problem",
+  physical_spot_check_failed: "An in-person check found a problem",
 };
 export function tripReviewReason(flagType: string, evidence?: Evidence | null) {
   const title = reasons[flagType] ?? flagType.replaceAll("_", " ");
@@ -26,7 +26,41 @@ export function tripReviewReason(flagType: string, evidence?: Evidence | null) {
   return [title, ...numbers].join(" · ");
 }
 
-const HIDDEN_KEYS = new Set(["demo", "seed_version"]);
+// Matched trips are listed on their own (see matchedTripIds); the detector version is internal.
+const HIDDEN_KEYS = new Set([
+  "demo",
+  "seed_version",
+  "detector_version",
+  "sampled_matched_trip_ids",
+  "verification_id",
+  "gps_claim",
+]);
+
+/** Keep the check's identity on staff's secondary reference line. */
+export function evidenceVerificationId(evidence: Evidence | null | undefined): string | undefined {
+  return typeof evidence?.verification_id === "string" ? evidence.verification_id : undefined;
+}
+
+function checkResult(result: unknown): string[] {
+  if (typeof result === "string") return result.trim() ? [result.trim()] : [];
+  if (!result || typeof result !== "object" || Array.isArray(result)) return [];
+  const details = result as Evidence;
+  return [
+    ...new Set(
+      [details.observed, details.note, details.description]
+        .filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+        .map((value) => value.trim()),
+    ),
+  ];
+}
+
+/** Up to `limit` trips a route-replay review says share this trip's route. */
+export function matchedTripIds(evidence: Evidence | null | undefined, limit = 3): string[] {
+  const ids = evidence?.sampled_matched_trip_ids;
+  return Array.isArray(ids)
+    ? ids.filter((id): id is string => typeof id === "string" && id.length > 0).slice(0, limit)
+    : [];
+}
 
 const whole = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 0 });
 const oneDecimal = new Intl.NumberFormat("en-GB", { maximumFractionDigits: 1 });
@@ -149,6 +183,22 @@ const RULES: Rule[] = [
       return `${parts.join(", ")} inside an excluded area`;
     },
   },
+  {
+    keys: ["total_match_count", "cross_account_match_count", "match_kind"],
+    render: (e) => {
+      const total = num(e.total_match_count);
+      const others = num(e.cross_account_match_count);
+      if (total === null) return null;
+      const kind =
+        e.match_kind === "identical"
+          ? "; identical times"
+          : e.match_kind === "time_shifted"
+            ? "; same path at different times"
+            : "";
+      const byOthers = others ? ` (${whole.format(others)} by another driver)` : "";
+      return `Same route as ${counted(total, "other trip", "other trips")}${byOthers}${kind}`;
+    },
+  },
 ];
 
 function fallbackValue(value: unknown): string {
@@ -169,7 +219,8 @@ export function readableEvidence(evidence: Evidence | null | undefined): string[
   const remaining = Object.fromEntries(
     Object.entries(evidence ?? {}).filter(([key]) => !HIDDEN_KEYS.has(key)),
   );
-  const lines: string[] = [];
+  const lines = checkResult(remaining.result);
+  delete remaining.result;
   for (const rule of RULES) {
     if (!rule.keys.some((key) => key in remaining)) continue;
     const line = rule.render(remaining);

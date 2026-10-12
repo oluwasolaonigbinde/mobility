@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { components } from "@/lib/api/schema";
-import { receiptsAllocatedToTerms } from "./history";
+import { paidTowards, receiptsAllocatedToTerms } from "./history";
 
 type BillingHistoryEntry = components["schemas"]["BillingHistoryEntry"];
 
@@ -41,5 +41,28 @@ describe("receiptsAllocatedToTerms", () => {
       ["receipt-target"],
     );
     expect(receiptsAllocatedToTerms(history, undefined)).toEqual([]);
+  });
+});
+
+describe("paidTowards", () => {
+  it("names the campaign for every allocation of a split payment", () => {
+    const lunch = "00000000-0000-0000-0000-000000000010";
+    const unknown = "00000000-0000-0000-0000-000000000020";
+    const names = new Map([[lunch, "Lunch Routes"]]);
+
+    expect(paidTowards(entry("receipt-split", [lunch, unknown]), names)).toEqual([
+      {
+        id: "00000000-0000-0000-0000-000000000002",
+        campaign: "Lunch Routes",
+        amount: "100.00",
+        currency: "NGN",
+      },
+      {
+        id: "00000000-0000-0000-0000-000000000003",
+        campaign: undefined,
+        amount: "100.00",
+        currency: "NGN",
+      },
+    ]);
   });
 });

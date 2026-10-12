@@ -63,6 +63,60 @@ from app.services.trip_evidence import (
 )
 
 
+def test_seed_notification_cleanup_preserves_unrelated_drivers(postgis_db_sessionmaker):
+    from app.models.notification import Notification
+
+    async def scenario():
+        async with postgis_db_sessionmaker() as session:
+            seeded = User(
+                email="seed-notices@example.test",
+                password_hash="synthetic",
+                full_name="Seed Driver",
+                role="driver",
+                status="active",
+            )
+            unrelated = User(
+                email="other-notices@example.test",
+                password_hash="synthetic",
+                full_name="Other Driver",
+                role="driver",
+                status="active",
+            )
+            session.add_all([seeded, unrelated])
+            await session.flush()
+            generated = Notification(
+                recipient_user_id=seeded.id,
+                type_key="trip_verified",
+                channel="in_app",
+                dedupe_key="seed-generated",
+                dedupe_fingerprint="a" * 64,
+            )
+            curated = Notification(
+                recipient_user_id=seeded.id,
+                type_key="trip_verified",
+                channel="in_app",
+                dedupe_key="cardvert-preview:notice:recent",
+                dedupe_fingerprint="b" * 64,
+            )
+            other = Notification(
+                recipient_user_id=unrelated.id,
+                type_key="trip_verified",
+                channel="in_app",
+                dedupe_key="unrelated-generated",
+                dedupe_fingerprint="c" * 64,
+            )
+            session.add_all([generated, curated, other])
+            await session.flush()
+            await rich.settle_seed_driver_notifications(session, driver_user_ids=[seeded.id])
+            for row in [generated, curated, other]:
+                await session.refresh(row)
+            assert generated.read_at is not None
+            assert curated.read_at is None
+            assert other.read_at is None
+
+    asyncio.run(scenario())
+
+
 @pytest.fixture(autouse=True)
 def seed_private_storage(monkeypatch):
     from test_stored_files import FakeStorageProvider
@@ -175,9 +229,13 @@ def test_seed_missing_assignment_dates_stop_before_authority_writes(settings, mo
     monkeypatch.setattr(demo_authority, "ensure_daily_terms", terms)
     monkeypatch.setattr(demo_authority, "seed_campaign_financials", financials)
     with pytest.raises(ValueError, match="assignment .* date is missing"):
-        asyncio.run(demo_authority.ensure_demo_start_authority(
-            session, graph=SimpleNamespace(assignment=assignment), settings=settings,
-        ))
+        asyncio.run(
+            demo_authority.ensure_demo_start_authority(
+                session,
+                graph=SimpleNamespace(assignment=assignment),
+                settings=settings,
+            )
+        )
     session.scalar.assert_not_awaited()
     terms.assert_not_awaited()
     financials.assert_not_awaited()
@@ -204,10 +262,17 @@ def test_seed_missing_applicant_authority_stops_dependent_calls(settings, monkey
     monkeypatch.setattr("app.services.payees.verify_bank_account_version_for_payout", verify)
     monkeypatch.setattr(demo_authority, "managed_seed_image", managed)
     with pytest.raises(ValueError, match="Expected demo .* is missing"):
-        asyncio.run(demo_authority._ensure_applicant_review(
-            session, application=application, person=person, stage="approved",
-            staff=[], settings=settings, clock=[datetime.now(UTC)],
-        ))
+        asyncio.run(
+            demo_authority._ensure_applicant_review(
+                session,
+                application=application,
+                person=person,
+                stage="approved",
+                staff=[],
+                settings=settings,
+                clock=[datetime.now(UTC)],
+            )
+        )
     review.assert_not_awaited()
     verify.assert_not_awaited()
     if missing == "access":
@@ -231,13 +296,21 @@ def test_seed_missing_vehicle_submission_stops_document_reads_and_review(setting
     monkeypatch.setattr("app.services.stored_files.issue_admin_file_download", read)
     monkeypatch.setattr("app.services.driver_account_setup.initiate_driver_account_setup", setup)
     with pytest.raises(ValueError, match="vehicle submission is missing"):
-        asyncio.run(demo_authority._ensure_applicant_vehicle(
-            object(), application=SimpleNamespace(id=UUID(int=1)), person=object(),
-            token="seed-token", staff=[], settings=settings, clock=[datetime.now(UTC)],
-        ))
+        asyncio.run(
+            demo_authority._ensure_applicant_vehicle(
+                object(),
+                application=SimpleNamespace(id=UUID(int=1)),
+                person=object(),
+                token="seed-token",
+                staff=[],
+                settings=settings,
+                clock=[datetime.now(UTC)],
+            )
+        )
     read.assert_not_awaited()
     review.assert_not_awaited()
     setup.assert_not_awaited()
+
 
 def test_demo_seed_requires_the_current_migration_head(monkeypatch: pytest.MonkeyPatch) -> None:
     session = SimpleNamespace(
@@ -310,7 +383,7 @@ def test_demo_seed_refuses_conflicting_existing_trip_evidence(settings: Settings
         evidence_scope="manifest",
     )
     session = SimpleNamespace(scalar=AsyncMock(side_effect=[existing, 1]))
-    trip = SimpleNamespace(id=UUID("44444444-4444-4444-8444-444444444444"))
+    trip = SimpleNamespace(id=UUID("44444444-4444-4444-8444-444444444444"), trip_metadata={})
 
     with pytest.raises(AppError) as exc:
         asyncio.run(
@@ -349,6 +422,56 @@ def test_rich_demo_seed_handles_empty_and_unknown_campaign_windows() -> None:
 
     assert rich._date_range(today.date(), (today - timedelta(days=1)).date()) == []
     assert rich._candidate_dates(campaign, "unknown", today) == []
+
+
+def test_seed_geometry_stays_inside_abuja() -> None:
+    from app.models.campaign_zone import CampaignZoneType
+
+    now = datetime(2026, 9, 16, 12, tzinfo=UTC)
+    points: list[tuple[float, float]] = []  # (longitude, latitude)
+
+    def add_zone(geometry: dict) -> None:
+        points.extend((lon, lat) for lon, lat in geometry["coordinates"][0])
+
+    def add_route(route) -> None:
+        points.extend((lon, lat) for lat, lon in route)
+
+    for specs in (demo.zone_geometries, demo.palmpay_zone_specs, demo.palmpay_market_zone_specs):
+        for _name, _zone_type, geometry in specs():
+            add_zone(geometry)
+    for trips in (
+        demo.trip_specs,
+        demo.palmpay_trip_specs,
+        demo.palmpay_market_trip_specs,
+        demo.commute_story_trip_specs,
+    ):
+        for _key, _started_at, route in trips(now):
+            add_route(route)
+    for corridor in rich.CORRIDORS:
+        add_route(corridor)
+    add_route([rich.STATIONARY_POINT, rich.TELEPORT_POINT, rich.LATE_UPLOAD_POINT])
+    add_route(rich.LOOP_ROUTE)
+    for campaign_index in range(1, len(rich.CAMPAIGN_SPECS) + 1):
+        add_zone(rich._zone_geometry(campaign_index, CampaignZoneType.TARGET))
+    add_zone(rich._zone_geometry(1, CampaignZoneType.EXCLUSION))
+    for state in ("draft", "pending_review", "approved", "rejected"):
+        add_zone(rich.portal_zone_geometry(state))
+    for driver_index in range(1, 10):
+        for day_offset in range(4):
+            for trip_index in range(2):
+                route, *_ = rich._ping_specs(
+                    trip_key=f"bounds:{driver_index}:{day_offset}:{trip_index}",
+                    driver_index=driver_index,
+                    day_offset=day_offset,
+                    trip_index=trip_index,
+                )
+                add_route(route)
+    min_lon, min_lat, max_lon, max_lat = (float(part) for part in DEMO_BBOX.split(","))
+    points.extend([(min_lon, min_lat), (max_lon, max_lat)])
+
+    outside = [(lon, lat) for lon, lat in points if not (7.2 <= lon <= 7.7 and 8.8 <= lat <= 9.3)]
+    assert len(points) > 300
+    assert outside == []
 
 
 @pytest.mark.parametrize(
@@ -616,7 +739,7 @@ def fetch_seed_counts(sessionmaker: async_sessionmaker[AsyncSession]) -> dict[st
     async def fetch() -> dict[str, int]:
         async with sessionmaker() as session:
             campaign = await session.scalar(
-                select(Campaign).where(Campaign.name == "Marula Kitchens — Lagos Lunch Routes")
+                select(Campaign).where(Campaign.name == "Marula Kitchens — Abuja Lunch Routes")
             )
             assert campaign is not None
             profile_id = await session.scalar(
@@ -668,7 +791,7 @@ def fetch_seed_counts(sessionmaker: async_sessionmaker[AsyncSession]) -> dict[st
                 "campaigns": int(
                     await session.scalar(
                         select(func.count(Campaign.id)).where(
-                            Campaign.name == "Marula Kitchens — Lagos Lunch Routes"
+                            Campaign.name == "Marula Kitchens — Abuja Lunch Routes"
                         )
                     )
                     or 0
@@ -1712,6 +1835,21 @@ def test_seed_business_ownership_and_applicant_financial_separation(
             assert max(row.created_at for row in notifications) - min(
                 row.created_at for row in notifications
             ) > timedelta(days=1)
+            driver_ids = set(await session.scalars(select(User.id).where(User.role == "driver")))
+            driver_notices = [
+                row
+                for row in notifications
+                if row.recipient_user_id in driver_ids and row.channel == "in_app"
+            ]
+            unread_by_driver: dict[UUID, int] = {}
+            for row in driver_notices:
+                if row.read_at is None:
+                    unread_by_driver[row.recipient_user_id] = (
+                        unread_by_driver.get(row.recipient_user_id, 0) + 1
+                    )
+            assert unread_by_driver.get(graph.driver.id) == 3
+            assert max(unread_by_driver.values()) < 10
+            assert sum(row.read_at is not None for row in driver_notices) > 10
             for zone in await session.scalars(select(CampaignZone)):
                 assert "bonus" not in zone.name.lower()
                 assert zone.description != f"Visibility around {zone.name}."
@@ -1802,7 +1940,7 @@ def test_demo_seed_is_idempotent_with_postgis(
         "legacy_driver_f7_assignments": 0,
         "trips": 4,
         "batches": 4,
-        "pings": 144,
+        "pings": 1144,
         "analytics": 4,
         "estimates": 4,
         "payouts": 4,
@@ -1818,7 +1956,7 @@ def test_demo_seed_is_idempotent_with_postgis(
     assert second_palmpay_market["trips"] == 15
     assert len(second_palmpay_market["trip_keys"]) == len(set(second_palmpay_market["trip_keys"]))
     assert second_palmpay_market["batches"] == 15
-    assert second_palmpay_market["pings"] == 540
+    assert second_palmpay_market["pings"] == 1335
     assert second_palmpay_market["analytics"] == 15
     assert second_palmpay_market["distance_m"] > 0
     assert second_palmpay_market["target_zone_distance_m"] > 0
@@ -2063,7 +2201,7 @@ def test_rich_seed_later_rerun_only_appends_valid_rolling_trips(
                 await session.scalar(
                     select(func.count(TripSession.id))
                     .join(Campaign, Campaign.id == TripSession.campaign_id)
-                    .where(Campaign.name == "Oriole Books — Island Reading Week")
+                    .where(Campaign.name == "Oriole Books — Maitama Reading Week")
                 )
                 or 0
             )
@@ -2098,6 +2236,9 @@ def test_ordinary_demo_driver_can_start_and_end_using_production_authority(
     headers = auth_headers(
         postgis_db_client, graph.driver.email, DEMO_PASSWORDS[graph.driver.email]
     )
+    current = postgis_db_client.get("/api/v1/driver/trips/current", headers=headers)
+    assert current.status_code == 200
+    assert current.json()["trip"] is None
     response = postgis_db_client.post(
         "/api/v1/driver/trips/start",
         headers=headers,
@@ -2124,13 +2265,6 @@ def test_ordinary_demo_driver_can_start_and_end_using_production_authority(
     )
     assert ended.status_code == 200, ended.text
     seed_demo_graph(postgis_db_sessionmaker, settings)
-    response = postgis_db_client.post(
-        "/api/v1/driver/trips/start",
-        headers=headers,
-        json={
-            "assignment_id": str(graph.assignment.id),
-            "evidence_protocol_version": 2,
-            "metadata": {},
-        },
-    )
-    assert response.status_code == 201, response.text
+    response = postgis_db_client.get("/api/v1/driver/trips/current", headers=headers)
+    assert response.status_code == 200, response.text
+    assert response.json()["trip"] is None

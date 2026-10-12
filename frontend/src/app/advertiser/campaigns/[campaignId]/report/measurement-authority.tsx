@@ -94,7 +94,7 @@ export function validateMeasurementAuthority(report: Report): MeasurementAuthori
   const run = report.measurement_run;
   const result = report.measurement_result;
   if (!run || !result) {
-    return { ok: false, reason: "A frozen measurement run and result are required." };
+    return { ok: false, reason: "The campaign analysis isn't available yet." };
   }
   if (
     result.title !== "Campaign Performance Analysis" ||
@@ -106,7 +106,7 @@ export function validateMeasurementAuthority(report: Report): MeasurementAuthori
     !sameInstant(result.period.start_at, run.period_start_at) ||
     !sameInstant(result.period.end_at, run.period_end_at)
   ) {
-    return { ok: false, reason: "The frozen run and result provenance do not agree." };
+    return { ok: false, reason: "The saved campaign results don't match this report." };
   }
   const metricIds = result.metrics.map((metric) => metric.id);
   if (
@@ -116,7 +116,7 @@ export function validateMeasurementAuthority(report: Report): MeasurementAuthori
     !metricIds.includes("modelled_potential_contacts") ||
     !metricIds.includes("driver_campaign_cost")
   ) {
-    return { ok: false, reason: "The frozen performance result is incomplete." };
+    return { ok: false, reason: "Some campaign results are missing from this report." };
   }
 
   const includesRoi = result.roi_gate.decision === "INCLUDE";
@@ -128,7 +128,7 @@ export function validateMeasurementAuthority(report: Report): MeasurementAuthori
         result.roi?.method_revision !== run.roi_method_revision)) ||
     (!includesRoi && (run.mode !== "performance_only" || run.roi_method_revision !== null))
   ) {
-    return { ok: false, reason: "The frozen financial-result gate is inconsistent." };
+    return { ok: false, reason: "The financial results don't match the checks for this report." };
   }
 
   const score = report.exposure_score;
@@ -147,7 +147,7 @@ export function validateMeasurementAuthority(report: Report): MeasurementAuthori
       !score.reproducible ||
       score.stale)
   ) {
-    return { ok: false, reason: "The exposure score belongs to a different measurement run." };
+    return { ok: false, reason: "The ad exposure score doesn't match this report." };
   }
   const zoneInsight = report.high_exposure_zone_insights;
   const readyZoneIds =
@@ -169,7 +169,7 @@ export function validateMeasurementAuthority(report: Report): MeasurementAuthori
       zoneInsight.provenance.exposure_input_fingerprint !== score.input_fingerprint ||
       zoneInsight.campaign_exposure_score !== score.result.score)
   ) {
-    return { ok: false, reason: "The zone projection belongs to a different measurement run." };
+    return { ok: false, reason: "The campaign area data doesn't match this report." };
   }
 
   return {

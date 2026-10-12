@@ -1,6 +1,62 @@
+import asyncio
+from datetime import datetime, timedelta
+from decimal import Decimal
+from zoneinfo import ZoneInfo
+
+from sqlalchemy import select
+
+from app.models.measurement import MeasurementRun
 from app.seeds.demo import DEMO_BBOX
 from tests.conftest import auth_headers
 from tests.test_seed_demo import seed_demo_graph, seed_private_storage  # noqa: F401
+
+
+def test_golden_seed_reports_and_map_meet_default_privacy(
+    postgis_db_sessionmaker, postgis_db_client, settings
+) -> None:
+    settings.privacy_min_vehicles_per_cell = 3
+    settings.privacy_min_trips_per_cell = 5
+    settings.privacy_min_days_per_cell = 2
+    settings.privacy_max_contributor_share = 0.5
+    settings.privacy_min_resolution_m = 500
+    graph = seed_demo_graph(postgis_db_sessionmaker, settings)
+
+    async def inspect():
+        async with postgis_db_sessionmaker() as session:
+            run = await session.scalar(
+                select(MeasurementRun).where(MeasurementRun.campaign_id == graph.campaign.id)
+            )
+            assert run is not None
+            authority = run.input_manifest["disclosure_authority"]
+            assert authority["passed"]
+            contributions = authority["contributions"]
+            assert "measurement:analytics:active_tracking_seconds" in contributions
+            assert "measurement:analytics:distance_m" in contributions
+            assert "measurement:estimated_impressions" in contributions
+            assert "measurement:final_payout:NGN" in contributions
+            for metric, by_vehicle in contributions.items():
+                values = [Decimal(value) for value in by_vehicle.values()]
+                total = sum(values, Decimal(0))
+                if total > 0:
+                    assert max(values) / total <= Decimal("0.5"), metric
+
+    asyncio.run(inspect())
+    headers = auth_headers(
+        postgis_db_client, "advertiser@demo.mobility.local", "DemoAdvertiser12345!"
+    )
+    root = f"/api/v1/advertiser/campaigns/{graph.campaign.id}"
+    report = postgis_db_client.get(f"{root}/report", headers=headers)
+    assert report.status_code == 200
+    assert report.json()["daily_metrics"]
+    daily = postgis_db_client.get(f"{root}/daily-metrics", headers=headers)
+    assert daily.status_code == 200
+    assert daily.json()["items"]
+    heatmap = postgis_db_client.get(
+        f"{root}/heatmap?bbox={DEMO_BBOX}&resolution_m=500&metric=estimated_impressions",
+        headers=headers,
+    )
+    assert heatmap.status_code == 200
+    assert heatmap.json()["features"]
 
 
 def test_demo_seed_frontend_smoke_paths(
@@ -33,8 +89,8 @@ def test_demo_seed_frontend_smoke_paths(
     assert campaigns_response.status_code == 200
     assert campaigns_response.json()["total"] >= 1
     campaign_items = {item["name"]: item for item in campaigns_response.json()["items"]}
-    assert campaign_items["Marula Kitchens — Lagos Lunch Routes"]["description"] == (
-        "Deliver lunch orders around Yaba and Surulere."
+    assert campaign_items["Marula Kitchens — Abuja Lunch Routes"]["description"] == (
+        "Deliver lunch orders around Garki and the Central Business District."
     )
     assert campaign_items["Marula Kitchens — Wuse Lunch Rush"]["description"] == (
         "Lunchtime visibility around Wuse II offices."
@@ -63,7 +119,7 @@ def test_demo_seed_frontend_smoke_paths(
     assert palmpay_heatmap_response.status_code == 200
     assert palmpay_heatmap_response.json()["features"]
 
-    market_routes_id = campaign_items["Marula Kitchens — Ikeja Office Lunch"]["id"]
+    market_routes_id = campaign_items["Marula Kitchens — Utako Office Lunch"]["id"]
     market_routes_summary_response = postgis_db_client.get(
         f"/api/v1/advertiser/campaigns/{market_routes_id}/summary",
         headers=advertiser_headers,
@@ -170,7 +226,7 @@ def test_demo_seed_frontend_smoke_paths(
     assert earnings_response.status_code == 200
     earnings_totals = earnings_response.json()["totals_by_currency"][0]
     assert float(earnings_totals["paid_amount"]) > 0
-    assert float(earnings_totals["available_amount"]) > 0
+    assert float(earnings_totals["available_amount"]) == 0
 
     ledger_response = postgis_db_client.get(
         "/api/v1/driver/earnings/ledger",
@@ -178,6 +234,25 @@ def test_demo_seed_frontend_smoke_paths(
     )
     assert ledger_response.status_code == 200
     assert ledger_response.json()["total"] == 14
+    assert all(
+        entry["status"] == "paid" and entry["paid_at"] for entry in ledger_response.json()["items"]
+    )
+    days = {}
+    for entry in ledger_response.json()["items"]:
+        assert len(entry["work_days"]) == 1
+        allocation = entry["work_days"][0]
+        work_day = datetime.fromisoformat(allocation["day"]).date()
+        paid_day = (
+            datetime.fromisoformat(entry["paid_at"]).astimezone(ZoneInfo("Africa/Lagos")).date()
+        )
+        assert paid_day == work_day + timedelta(days=1)
+        days[work_day] = days.get(work_day, Decimal(0)) + Decimal(allocation["amount"])
+    assert len(days) == 14
+    assert all(Decimal("7000") <= amount <= Decimal("10000") for amount in days.values())
+    assert sum(amount == Decimal("10000") for amount in days.values()) >= 10
+    current = postgis_db_client.get("/api/v1/driver/trips/current", headers=driver_headers)
+    assert current.status_code == 200
+    assert current.json()["trip"] is None
 
     assignments_response = postgis_db_client.get(
         "/api/v1/driver/campaign-assignments",

@@ -3,11 +3,11 @@ import { presentApplicationStage } from "./application-status";
 
 describe("presentApplicationStage", () => {
   it.each([
-    ["not_submitted", "Not submitted"],
-    ["pending_review", "Under review"],
+    ["not_submitted", "Not sent yet"],
+    ["pending_review", "Being checked"],
     ["approved", "Approved"],
     ["rejected", "Changes needed"],
-    ["expired", "Renewal needed"],
+    ["expired", "Send again"],
   ])("presents %s as a human progress state", (status, label) => {
     expect(presentApplicationStage(status).label).toBe(label);
   });

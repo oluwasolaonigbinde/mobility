@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 const { get } = vi.hoisted(() => ({ get: vi.fn() }));
@@ -115,9 +115,77 @@ describe("Trip check work lists", () => {
     expect(screen.queryByText(/Released pay/)).toBeNull();
     expect(get.mock.calls.some(([path]) => path.endsWith("/route"))).toBe(false);
   });
+  it("marks the default list and status as selected and shows only that list's statuses", async () => {
+    render(await page());
+    const lists = screen.getByRole("navigation", { name: "Trip check lists" });
+    expect(within(lists).getByRole("link", { current: "page" })).toHaveTextContent(
+      "Suspicious trips",
+    );
+    const statuses = screen.getByRole("navigation", { name: "Status" });
+    expect(within(statuses).getByRole("link", { current: "page" })).toHaveTextContent("All");
+    expect(within(statuses).queryByRole("link", { name: /Quarantined/i })).toBeNull();
+    cleanup();
+    render(await page({ tab: "late" }));
+    const lateStatuses = screen.getByRole("navigation", { name: "Status" });
+    expect(within(lateStatuses).getAllByRole("link")).toHaveLength(3);
+    expect(within(lateStatuses).getByRole("link", { current: "page" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("status=quarantined"),
+    );
+    cleanup();
+    render(await page({ tab: "in-person" }));
+    expect(screen.queryByRole("navigation", { name: "Status" })).toBeNull();
+  });
+  it("leads each trip with the driver and reason and keeps IDs secondary", async () => {
+    render(await page());
+    const card = screen.getByRole("link", { name: /Ada Driver/ });
+    expect(card.textContent!.indexOf("Ada Driver")).toBeLessThan(
+      card.textContent!.indexOf("Speed higher than the review limit"),
+    );
+    expect(card.textContent!.trim().endsWith("Trip trip · Review flag")).toBe(true);
+  });
+  it("keeps an in-person check reason plain and its check ID secondary", async () => {
+    const checked = {
+      ...flag,
+      flag_type: "physical_spot_check_failed",
+      evidence: { verification_id: "check-reference", result: {}, gps_claim: "none" },
+    };
+    get.mockImplementation(async (path, options) =>
+      path.endsWith("/fraud-flags")
+        ? { data: { items: [checked], total: 1 } }
+        : defaultRead(path, options),
+    );
+
+    render(await page());
+
+    const reason = screen.getByText("An in-person check found a problem");
+    expect(reason).not.toHaveTextContent(/Result|Gps|check-reference|\{\}/);
+    expect(screen.getByText(/Trip trip .* Check check-reference/)).toHaveClass("text-faint");
+  });
+
+  it("lists trips with the same route for a route-match review", async () => {
+    const replay = {
+      ...flag,
+      flag_type: "route_replay",
+      evidence: { total_match_count: 1, sampled_matched_trip_ids: ["earlier"] },
+    };
+    get.mockImplementation(async (path, options) =>
+      path.endsWith("/fraud-flags")
+        ? { data: { items: [replay], total: 1 } }
+        : defaultRead(path, options),
+    );
+    render(await page({ flag: "flag" }));
+    const matches = screen.getByRole("region", { name: "Matching trips" });
+    expect(within(matches).getByText("Ada Driver")).toBeVisible();
+    expect(within(matches).getByText(/Trip earlier/)).toBeVisible();
+    expect(screen.getByText("Same route as 1 other trip")).toBeVisible();
+    expect(screen.getByText("The driver hasn't disputed this.")).toBeVisible();
+  });
   it("opens the selected trip map and keeps list filters when closing", async () => {
     render(await page({ flag: "flag", driver_profile_id: "driver", offset: "25" }));
-    expect(screen.getByRole("img", { name: /Map of recorded trip locations/ })).toBeVisible();
+    expect(
+      screen.getByRole("img", { name: /Route sketch of recorded trip locations/ }),
+    ).toBeVisible();
     expect(screen.getByRole("button", { name: "Clear" })).toBeVisible();
     expect(screen.getByRole("link", { name: "Close" })).toHaveAttribute(
       "href",

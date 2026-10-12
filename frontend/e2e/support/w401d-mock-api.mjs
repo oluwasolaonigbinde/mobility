@@ -68,12 +68,13 @@ function assignment() {
     notes: null,
     offer_terms: null,
     offer_terms_sha256: null,
+    activity_flags: [],
     metadata: {},
     created_at: "2026-08-01T08:00:00Z",
     updated_at: "2026-08-26T18:00:00Z",
     campaign: {
       id: ids.campaign,
-      name: "Lagos Release Rehearsal",
+      name: "Abuja Release Rehearsal",
       status: "completed",
       start_at: "2026-08-01T00:00:00Z",
       end_at: "2026-08-26T23:00:00Z",
@@ -144,6 +145,10 @@ function ledgerEntry(id, tripId, entryType, status, amount, description) {
     metadata: {},
     occurred_at: "2026-08-26T18:00:00Z",
     created_at: "2026-08-26T18:00:00Z",
+    work_days: [{ day: entryType === "adjustment" ? "2026-08-25" : "2026-08-26", amount }],
+    paid_at: status === "paid" ? "2026-08-26T12:00:00Z" : null,
+    paying_tonight: false,
+    payment_on_hold: false,
   };
 }
 
@@ -354,7 +359,7 @@ const server = createServer(async (request, response) => {
     });
   }
   if (request.method === "GET" && url.pathname === "/api/v1/driver/campaign-assignments/active") {
-    return send(response, 200, { assignment: null });
+    return send(response, 200, { assignment: null, photo_status: "unavailable" });
   }
   if (request.method === "GET" && url.pathname === "/api/v1/driver/trips/current") {
     return send(response, 200, { trip: null });
@@ -366,7 +371,7 @@ const server = createServer(async (request, response) => {
       full_name: "Synthetic Driver",
       email: "synthetic-driver@example.invalid",
       license_number: "SYNTHETIC",
-      service_city: "Lagos",
+      service_city: "Abuja",
       country_code: "NG",
       onboarding_status: "active",
     });

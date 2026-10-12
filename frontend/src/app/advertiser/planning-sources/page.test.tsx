@@ -28,6 +28,7 @@ function mockReadyRecommendation() {
               status: "active",
               expires_at: "2026-10-01T00:00:00Z",
               snapshot_sha256: "a".repeat(64),
+              snapshot: { insight_category: "area-demand", confidence_band: "high" },
             },
           ],
         },
@@ -100,7 +101,7 @@ describe("PlanningSourcesPage", () => {
 
     const { container } = render(await PlanningSourcesPage());
 
-    expect(screen.getByRole("heading", { name: "Other insight you describe" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Demand in an area · High" })).toBeInTheDocument();
     expect(screen.getByText("In use")).toBeInTheDocument();
     expect(container.textContent).not.toMatch(/a{64}|c{64}|fingerprint|Technical reference/i);
   });
@@ -184,6 +185,36 @@ describe("PlanningSourcesPage", () => {
 
     expect(screen.getByRole("button", { name: "Download suggestions (CSV)" })).toBeInTheDocument();
     expect(container.querySelector('input[name="approval_id"]')).toBeNull();
+  });
+
+  it("says plainly what the page does and what linking changes", async () => {
+    mockReadyRecommendation();
+
+    render(await PlanningSourcesPage());
+
+    expect(screen.getByRole("heading", { level: 1, name: "Retargeting" })).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Plan online follow-up around the areas and times your campaign covered. Ads are not sent automatically.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Follow up online where your campaign drove/),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Describe an audience you already have\./)).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Audiences linked to campaign areas" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Linked")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Unlink" })).toBeInTheDocument();
+    expect(screen.getByText(/Stops suggestions for this pair\./)).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Link an audience to a campaign area" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Linking doesn't change the campaign or send ads\./),
+    ).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/GPS|delivered to|identif(y|ies) viewers/i);
   });
 
   it("names linked campaigns and zones without exposing their internal identifiers", async () => {

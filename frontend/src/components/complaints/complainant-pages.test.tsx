@@ -130,7 +130,7 @@ describe("complainant conversation page", () => {
     expect(screen.getByText(/^Trip on 3 Sep 2026/)).toBeInTheDocument();
     expect(screen.getByText(/reply below and it will reopen/)).toBeInTheDocument();
     expect(screen.queryByText(ID)).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "← All complaints" })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: "← My complaints" })).toHaveAttribute(
       "href",
       "/advertiser/help",
     );

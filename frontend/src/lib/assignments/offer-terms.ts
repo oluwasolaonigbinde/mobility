@@ -61,6 +61,19 @@ export function dailyRateSentences(terms: Record<string, unknown>): string[] {
   return sentences;
 }
 
+/** One-line daily-rate pay for job cards; the full rules stay in dailyRateSentences. */
+export function dailyRateSummary(terms: Record<string, unknown>): string | null {
+  const payout = terms.payout as Record<string, unknown> | null | undefined;
+  if (!payout || payout.formula_version !== "payout_v4") return null;
+  const weight = Number(payout.outside_area_weight);
+  const where = weight <= 0 ? " inside the campaign area" : "";
+  const shortDays =
+    payout.shortfall_strategy === "per_mile_deduction"
+      ? `each mile short takes ${naira(payout.deduction_per_mile_naira)} off`
+      : "shorter days pay a share";
+  return `${naira(payout.daily_rate_naira)} a day for ${number(payout.daily_target_miles)} miles${where}; ${shortDays}.`;
+}
+
 export type OfferTermLine = { label: string; value: string };
 
 function humanise(key: string): string {

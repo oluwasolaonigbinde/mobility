@@ -6,6 +6,7 @@ const loadJourney = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: get }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
+vi.mock("@/lib/auth/actions", () => ({ signOutAction: vi.fn() }));
 vi.mock("@/lib/driver/load-campaign-journey", () => ({
   loadDriverCampaignJourney: loadJourney,
 }));
@@ -109,15 +110,17 @@ describe("DriverProfilePage campaign authority", () => {
     expect(screen.getByText("64")).toBeInTheDocument();
     expect(screen.getByText("205")).toBeInTheDocument();
     expect(screen.getByText("23")).toBeInTheDocument();
-    expect(screen.getByText("My vehicles · 23 (showing 1)")).toBeInTheDocument();
+    expect(screen.getByText("Your cars · showing 1 of 23")).toBeInTheDocument();
   });
 
-  it("does not publish a second readiness claim when canonical evidence is degraded", async () => {
+  it("keeps readiness on Home and shows plain account and car statuses", async () => {
     render(await DriverProfilePage());
 
-    expect(screen.getByText("DEGRADED")).toBeInTheDocument();
-    expect(screen.getByText("Vehicle status unavailable")).toBeInTheDocument();
-    expect(screen.queryByText("Ready to track and earn")).not.toBeInTheDocument();
-    expect(screen.queryByText("Driver readiness")).not.toBeInTheDocument();
+    expect(screen.queryByText("Getting ready to drive")).not.toBeInTheDocument();
+    expect(screen.queryByText("Vehicle status unavailable")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Sign out" })).toBeInTheDocument();
+    expect(screen.getByText("Active")).toBeInTheDocument();
+    expect(screen.getByText("Approved")).toBeInTheDocument();
+    expect(loadJourney).not.toHaveBeenCalled();
   });
 });

@@ -21,7 +21,7 @@ export function TabBar() {
       className="border-edge bg-panel/95 fixed inset-x-0 bottom-0 z-50 border-t backdrop-blur"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <div className="mx-auto flex max-w-md">
+      <div className="mx-auto flex max-w-2xl">
         {TABS.map((tab) => {
           const exact = "exact" in tab && tab.exact;
           const active = exact
@@ -34,13 +34,13 @@ export function TabBar() {
               aria-current={active ? "page" : undefined}
               className={cx(
                 "flex flex-1 flex-col items-center gap-0.5 py-2.5 transition-colors",
-                active ? "text-amber" : "text-faint hover:text-muted",
+                active ? "text-amber" : "text-muted hover:text-ink",
               )}
             >
               <span aria-hidden className="text-lg leading-none">
                 {tab.icon}
               </span>
-              <span className="micro">{tab.label}</span>
+              <span className="text-xs font-medium">{tab.label}</span>
             </Link>
           );
         })}
