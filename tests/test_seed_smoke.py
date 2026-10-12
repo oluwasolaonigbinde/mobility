@@ -5,6 +5,8 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 
+from app.models.audience_delivery import AudienceDelivery
+from app.models.exposure_segment import ExposureSegment
 from app.models.measurement import MeasurementRun
 from app.seeds.demo import DEMO_BBOX
 from tests.conftest import auth_headers
@@ -12,8 +14,9 @@ from tests.test_seed_demo import seed_demo_graph, seed_private_storage  # noqa: 
 
 
 def test_golden_seed_reports_and_map_meet_default_privacy(
-    postgis_db_sessionmaker, postgis_db_client, settings
+    postgis_db_sessionmaker, postgis_db_client, settings, monkeypatch
 ) -> None:
+    monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
     settings.privacy_min_vehicles_per_cell = 3
     settings.privacy_min_trips_per_cell = 5
     settings.privacy_min_days_per_cell = 2
@@ -23,6 +26,20 @@ def test_golden_seed_reports_and_map_meet_default_privacy(
 
     async def inspect():
         async with postgis_db_sessionmaker() as session:
+            suppressed_segments = list(
+                (
+                    await session.scalars(
+                        select(ExposureSegment).where(ExposureSegment.releasable_cell_count == 0)
+                    )
+                ).all()
+            )
+            assert suppressed_segments
+            deliveries = await session.scalar(
+                select(AudienceDelivery.id).where(
+                    AudienceDelivery.segment_id.in_([segment.id for segment in suppressed_segments])
+                )
+            )
+            assert deliveries is None
             run = await session.scalar(
                 select(MeasurementRun).where(MeasurementRun.campaign_id == graph.campaign.id)
             )

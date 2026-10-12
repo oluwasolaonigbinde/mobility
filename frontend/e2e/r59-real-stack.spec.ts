@@ -80,10 +80,10 @@ test("R59 real-stack release journey survives outages and converges exactly once
       secureContext: true,
     });
 
-  const start = page.getByRole("button", { name: "▶ Start trip" });
+  const start = page.getByRole("button", { name: "Start trip" });
   await expect(start).toBeEnabled({ timeout: 30_000 });
   await start.click();
-  await expect(page.getByRole("button", { name: "■ End trip" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "End trip" })).toBeEnabled();
 
   const started = latestR59Trip();
   expect(started.status).toBe("active");
@@ -99,14 +99,14 @@ test("R59 real-stack release journey survives outages and converges exactly once
   }
 
   await page.reload();
-  await expect(page.getByRole("button", { name: "■ End trip" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "End trip" })).toBeEnabled();
   expect(latestR59Trip().tripId).toBe(tripId);
 
   stopService("worker");
   await waitForService("worker", "stopped");
   stopService("api");
   await waitForService("api", "stopped");
-  await page.getByRole("button", { name: "■ End trip" }).click();
+  await page.getByRole("button", { name: "End trip" }).click();
   await expect(page.getByRole("button", { name: "Check trip status" })).toBeVisible({
     timeout: 30_000,
   });
@@ -135,7 +135,7 @@ test("R59 real-stack release journey survives outages and converges exactly once
   expect(sealed.counts.analytics).toBe(0);
   expect(sealed.counts.payout).toBe(0);
   await page.reload();
-  await expect(page.getByRole("button", { name: "■ End trip" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "End trip" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Check trip status" })).toHaveCount(0);
 
   if (process.env.R59_WITHHOLD_WORKER !== "1") {

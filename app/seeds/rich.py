@@ -12,10 +12,11 @@ import random
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from sqlalchemy import func, select
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
@@ -2211,7 +2212,7 @@ async def ensure_portal_audiences(session, *, graph, settings):
             segment = await materialize_exposure_segment(
                 session, settings=settings, source_link_id=link.id, measurement_run_id=run.id
             )
-            if category == "area-demand":
+            if category == "area-demand" and segment.releasable_cell_count > 0:
                 await export_exposure_segment(
                     session,
                     settings=settings,
@@ -2705,4 +2706,4 @@ async def settle_seed_driver_notifications(
         .values(read_at=func.statement_timestamp())
         .execution_options(synchronize_session=False)
     )
-    return int(result.rowcount or 0)
+    return int(cast(CursorResult[Any], result).rowcount or 0)
