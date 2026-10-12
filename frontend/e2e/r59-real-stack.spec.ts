@@ -16,7 +16,7 @@ const test = base.extend<{ context: BrowserContext; page: Page }>({
     const context = await chromium.launchPersistentContext(testInfo.outputPath("profile"), {
       headless: false,
       args: [`--app=${baseURL}/driver/track`],
-      geolocation: { latitude: 6.5244, longitude: 3.3792, accuracy: 8 },
+      geolocation: { latitude: 9.03, longitude: 7.48, accuracy: 8 },
       permissions: ["geolocation"],
     });
     await provide(context);
@@ -38,7 +38,9 @@ test("R59 real-stack release journey survives outages and converges exactly once
   if (process.env.R59_REAL_STACK !== "1") throw new Error("R59_REAL_STACK=1 is required");
 
   await context.grantPermissions(["geolocation"], { origin: process.env.PLAYWRIGHT_BASE_URL });
-  await context.setGeolocation({ latitude: 6.5244, longitude: 3.3792, accuracy: 8 });
+  // Drive within the demo assignment's frozen Abuja target area; its daily
+  // rate credits no distance outside that area.
+  await context.setGeolocation({ latitude: 9.03, longitude: 7.48, accuracy: 8 });
   await context.addInitScript(() => {
     Object.defineProperty(navigator, "wakeLock", {
       configurable: true,
@@ -91,8 +93,8 @@ test("R59 real-stack release journey survives outages and converges exactly once
 
   for (let index = 1; index <= 12; index += 1) {
     await context.setGeolocation({
-      latitude: 6.5244 + index * 0.00001,
-      longitude: 3.3792 + index * 0.00001,
+      latitude: 9.03 + index * 0.00001,
+      longitude: 7.48 + index * 0.00001,
       accuracy: 8,
     });
     await page.waitForTimeout(500);
@@ -163,6 +165,7 @@ test("R59 real-stack release journey survives outages and converges exactly once
 
   const complete = tripSnapshot(tripId);
   expect(complete.amount).not.toBeNull();
+  expect(Number(complete.amount)).toBeGreaterThan(0);
   expect(complete.currency).not.toBeNull();
   await page.goto(`/driver/earnings/trips/${tripId}`);
   await expect(page.getByRole("heading", { name: "Trip earnings" })).toBeVisible();
