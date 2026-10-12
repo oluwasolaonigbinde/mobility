@@ -29,26 +29,23 @@ PASSWORD = "long-secure-password"
     [
         (
             NotificationType.ACTIVITY_FLOOR_BREACHED,
-            "Verified activity below floor",
-            "Your verified activity was below the configured weekly floor. "
-            "Terrax Media will review the assignment.",
+            "Not enough driving this week",
+            "You drove less than this job's weekly minimum. Terrax Media will look at your job.",
         ),
         (
             NotificationType.ACTIVITY_FLOOR_RECOVERED,
-            "Verified activity recovered",
-            "Your verified activity has recovered to the configured weekly floor.",
+            "Weekly driving back on track",
+            "You're back above this job's weekly minimum.",
         ),
         (
             NotificationType.ASSIGNMENT_INACTIVE,
-            "Assignment inactive",
-            "No verified activity was recorded for this assignment for seven "
-            "consecutive days. Terrax Media will review it.",
+            "No trips for 7 days",
+            "No trips were recorded on your job for 7 days. Terrax Media will look at it.",
         ),
         (
             NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED,
-            "Assignment activity resumed",
-            "Verified activity resumed for this assignment, so the activity flag "
-            "has been cleared.",
+            "Trips started again",
+            "Trips are being recorded on your job again.",
         ),
         (
             NotificationType.BUDGET_URGENT_ALERT,
@@ -382,9 +379,7 @@ def test_advertiser_notification_preference_is_shared_audited_and_cross_org_hidd
 
     asyncio.run(add_colleague())
     owner_headers = auth_headers(db_client, "owner@example.com", PASSWORD)
-    preference = db_client.get(
-        "/api/v1/advertiser/notification-preferences", headers=owner_headers
-    )
+    preference = db_client.get("/api/v1/advertiser/notification-preferences", headers=owner_headers)
     assert preference.json() == {
         "transactional_email_enabled": True,
         "in_app_enabled": True,
@@ -396,10 +391,13 @@ def test_advertiser_notification_preference_is_shared_audited_and_cross_org_hidd
     )
     assert changed.status_code == http_status.HTTP_200_OK
     assert changed.json()["transactional_email_enabled"] is False
-    assert db_client.get(
-        "/api/v1/advertiser/notification-preferences",
-        headers=auth_headers(db_client, "colleague@example.com", PASSWORD),
-    ).json()["transactional_email_enabled"] is False
+    assert (
+        db_client.get(
+            "/api/v1/advertiser/notification-preferences",
+            headers=auth_headers(db_client, "colleague@example.com", PASSWORD),
+        ).json()["transactional_email_enabled"]
+        is False
+    )
     events = fetch_audit_events(db_sessionmaker)
     assert events[-1].action == "advertiser_notification_preferences.updated"
     assert events[-1].event_metadata["before"] == {"transactional_email_enabled": True}
