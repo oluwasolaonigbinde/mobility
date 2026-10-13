@@ -178,7 +178,7 @@ become verified issuer facts or real payment instructions.
 [REQ-042](requests.md) accountant's confirmation and [REQ-052](requests.md) someone to check the sample invoice.
 
 **History:**
-- **2026-10-07** — Owner W2-D brief requires advertiser/driver money grouped with two decimal places and VAT shown as "VAT 7.5% · ₦…"; stored values and issued invoices remain unchanged (D71, REQ-142). Earlier display precision varied by amount.
+- **2026-10-07** — Owner W2-D brief requires advertiser/driver money grouped with two decimal places and VAT shown as "VAT 7.5% · ₦…"; stored values and issued invoices remain unchanged (D71, REQ-142). Earlier display precision varied by amount. Built in `78ad5580` and real integration `21239a6d`.
 - **2026-08-14** — Client confirmed in-platform invoices and VAT-inclusive display (Q14, Q28, D18).
 - **2026-09-24** — Client supplied company details and invoice fields (client answers item 6).
 - **2026-09-29** — Owner approved the invoice layout: bank slots left blank until the real OPay details arrive, prices still entered before VAT (D42, REQ-009). Built in `0b53eab`.
@@ -198,11 +198,11 @@ quoted fixed line) to count towards the budget together with media, for the
 80 %, 95 % and 100 % levels (REQ-037). This already worked; W1-B added tests
 that prove it. Accepted prices never change.
 
-**Still open:** [REQ-037](requests.md) — the fixed-cost tests await integration and full branch CI.
+
 
 **History:**
 - **Before 2026-09-24** — One alert level (`budget_alert_ratio`) before the pause.
-- **2026-10-05** — W1-B added tests proving that printing, installation, permits, design and any other quoted fixed line already count towards the budget together with media, for the 80 %, 95 % and 100 % levels. Accepted prices never change (REQ-037). Owner review requested this plain wording (REQ-116 (renumbered at merge from wording REQ-112)).
+- **2026-10-05** — W1-B added tests proving that printing, installation, permits, design and any other quoted fixed line already count towards the budget together with media, for the 80 %, 95 % and 100 % levels. Accepted prices never change (REQ-037). Owner review requested this plain wording (REQ-116 (renumbered at merge from wording REQ-112)). Built in `308f04a8`, with wording in `81de2f54`.
 - **2026-09-24** — Client asked for 80 % and 95 % warnings and a pause at 100 %; recipients "everybody" (read as all company members plus Terrax admins); fixed costs to count. The three levels and admin recipients were built in `7a9ceb0` (REQ-001); fixed costs were deferred to a money batch.
 
 ### Campaign lifecycle and changes
@@ -221,7 +221,7 @@ preview of those inputs (D71, REQ-140). Completed and cancelled campaigns no
 longer offer a new custom-quotation request (D71, REQ-142).
 
 **History:**
-- **2026-10-07** — Owner W2-D brief replaces retained previews after edits with fresh-preview confirmation, and removes terminal-campaign quotation requests (D71, REQ-140, REQ-142); existing funding and approval rules remain.
+- **2026-10-07** — Owner W2-D brief replaces retained previews after edits with fresh-preview confirmation, and removes terminal-campaign quotation requests (D71, REQ-140, REQ-142); existing funding and approval rules remain. Built in `78ad5580` and real integration `21239a6d`.
 - **2026-08-14** — Client confirmed the lifecycle (Q6, Q9, Q15, D18).
 - **2026-09-24** — Owner added the submission requirements (D38d). Built in `7a9ceb0` (REQ-001).
 - **2026-10-06** — Owner approved the existing staff labels for advertiser campaign-change states that previously showed "Status unavailable". Reuse the shared labels; funding and reasoned independent staff approval remain unchanged (D63, REQ-113). Built in `1f91b8a`; browser typing alignment in `097382c`.
@@ -281,9 +281,9 @@ staff review. Work remains blocked until the current reviews pass. Unknown
 renewal periods stay unset (D69, REQ-137). Mark expired retains the recorded outcomes, dates and review history. Actually expired driver or vehicle documents require new clean uploads and audited current approval before work resumes; accepted retained documents remain reusable (D76, REQ-152).
 
 **History:**
-- **2026-10-12** — Owner-delegated orchestrator requires correction of the wave staff-expiry bug: retain original document facts/history and append the expiry event, refuse reuse of an actually expired file, and restore eligibility only after new upload approval (D76, REQ-152). This implements the existing rule; prior staff expiry incorrectly replaced document facts with empty values. Verification and master closure pending.
+- **2026-10-12** — Owner-delegated orchestrator requires correction of the wave staff-expiry bug: retain original document facts/history and append the expiry event, refuse reuse of an actually expired file, and restore eligibility only after new upload approval (D76, REQ-152). This implements the existing rule; prior staff expiry incorrectly replaced document facts with empty values. Built in `7f374c39`; integrated verification and accepted master CI [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034) pass.
 
-- **2026-10-07** — Owner's Wave 2 C brief opens signed-in renewal for rejected/expired current documents (D69, REQ-137), replacing the later-stage deferral recorded on 1 Oct. Approval and activation remain separate; unknown renewal periods remain unset. Local implementation/verification: `issues/testing/w2c-renewals-phone-2026-10-07.md`; owner merge/combined acceptance pending.
+- **2026-10-07** — Owner's Wave 2 C brief opens signed-in renewal for rejected/expired current documents (D69, REQ-137), replacing the later-stage deferral recorded on 1 Oct. Approval and activation remain separate; unknown renewal periods remain unset. Built in `2e29b096` and `74cdb314`; integrated verification and accepted master CI [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034) pass. Earlier local evidence: `issues/testing/w2c-renewals-phone-2026-10-07.md`.
 - **2026-08-14** — Client confirmed self-registration, requirements, owner-drivers and cars (Q13, Q19, Q23, Q26, D18).
 - **2026-10-05** — Owner restored staff-created driver logins beside the existing-profile form on `/admin/drivers/new`; self-registration remains `/apply`, and password, document approval and activation rules remain unchanged (D62, REQ-112). D51 removed the obsolete shared `/admin/users/new` page; it is not restored. Built in `1f91b8a`.
 - **2026-09-02** — Owner decisions on activation and vehicle approval dates (D28, D31).
@@ -363,7 +363,7 @@ dashboard and statements show fees. Accepted work and the short-day calculation
 remain unchanged. Requested hardening: [REQ-036](requests.md), [REQ-040](requests.md).
 
 **History:**
-- **2026-10-05** — Client reversed the 1 Oct driver-deduction rule: Terrax bears the transfer fee and the driver receives full earnings, with no fee calculation, storage, display or setting in Cardvert (D67; REQ-053; owner W1-P brief; renumbered at merge from D59 on 6 Oct 2026). Locally verified on `w1/payouts`; evidence: `issues/testing/w1p-payouts-2026-10-05.md`. Combined Wave 1 CI and approved merge into master pending under the owner's one-time D41 exception recorded in REQ-053.
+- **2026-10-05** — Client reversed the 1 Oct driver-deduction rule: Terrax bears the transfer fee and the driver receives full earnings, with no fee calculation, storage, display or setting in Cardvert (D67; REQ-053; owner W1-P brief; renumbered at merge from D59 on 6 Oct 2026). Locally verified on `w1/payouts`; evidence: `issues/testing/w1p-payouts-2026-10-05.md`. Built in `54662367`, with CI corrections in `f4261af4`; combined exact R branch CI and accepted master CI [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034) pass. The owner's one-time Wave 1 D41 exception remains historical in REQ-053.
 - **2026-08-14** — Automated bank transfers confirmed (Q27, D18). Every batch was prepared by one person and approved by a different person (maker-checker, architecture §16.3 / RM10).
 - **2026-09-25** — Client chose automatic approval with no person approving each batch; Finance monitors and follows up (D39c). Built in `3b6b396` (REQ-003).
 - **2026-09-28** — Owner added: the first payment to any new bank account goes to a person (D40b, security review). Built in `3b6b396`.
@@ -380,7 +380,7 @@ seven-day review target and are never released automatically; unresolved cases
 escalate after day seven (Q22).
 
 **History:**
-- **2026-10-07** — Owner Claude polish review clarifies the earnings presentation: Ready to pay, Waiting for review and Paid consistently, no repeated page-count summary and one short explanation (REQ-142); amount and payment authority are unchanged. Superseded by the later D65/D66 driver design: Paid with its date, Paying tonight, Being checked and On hold – contact support; the pay explanation lives only in Help.
+- **2026-10-07** — Owner Claude polish review clarifies the earnings presentation: Ready to pay, Waiting for review and Paid consistently, no repeated page-count summary and one short explanation (REQ-142); amount and payment authority are unchanged. Superseded by the later D65/D66 driver design: Paid with its date, Paying tonight, Being checked and On hold – contact support; the pay explanation lives only in Help. Built in `78ad5580`; the superseding master design is retained by `21239a6d`.
 - **2026-07** — Hold-and-review adopted (D5); client confirmed 2026-08-14 (Q21, Q22, D18).
 
 ### Complaints and support
@@ -427,12 +427,12 @@ means no driver button. Live use waits for approved wording (REQ-032) and a
 named operator (D70, REQ-138).
 
 **History:**
-- **2026-10-07** — Owner Claude polish review requires sentence-case notification titles/body in the body font, retaining capitals for small labels (REQ-139); notification content and access checks are unchanged.
-- **2026-10-07** — Owner W2-D brief replaces generic campaign notices with currently authorized campaign names and Open links (D71, REQ-139); immutable notification payloads and delivery channels remain.
+- **2026-10-07** — Owner Claude polish review requires sentence-case notification titles/body in the body font, retaining capitals for small labels (REQ-139); notification content and access checks are unchanged. Built in `78ad5580` and real integration `21239a6d`.
+- **2026-10-07** — Owner W2-D brief replaces generic campaign notices with currently authorized campaign names and Open links (D71, REQ-139); immutable notification payloads and delivery channels remain. Built in `78ad5580` and real integration `21239a6d`.
 - **2026-10-06** — The earlier Mark read investigation, accessible panel close/focus and simpler company-preference wording are integrated (REQ-073/074/076). Built in `c2ab2d9`; full CI, including the real preference-change browser case, passed. REQ-075 retains its separate unread-inbox walkthrough obligation.
 - **2026-08-14** — Client confirmed channels (Q34, D18); **2026-08-24** owner decision on email preferences (D24).
 - **2026-09-24** — Client supplied the support number (client answers items 14–15).
-- **2026-10-07** — D70 replaces the earlier operator-send/driver-enter verification with driver-send/staff-record. The code is visible only to its driver; live wording and operator gates remain open. Local implementation/verification: `issues/testing/w2c-renewals-phone-2026-10-07.md`; owner merge/combined acceptance pending.
+- **2026-10-07** — D70 replaces the earlier operator-send/driver-enter verification with driver-send/staff-record. The code is visible only to its driver; live wording and operator gates remain open. Built in `2e29b096` and `74cdb314`; integrated verification and accepted master CI [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034) pass. Earlier local evidence: `issues/testing/w2c-renewals-phone-2026-10-07.md`.
 - **2026-10-02** — Owner clarified that read notifications must disappear from the panel (D54, REQ-075), replacing its earlier history-list presentation. Built in `c2ab2d9`; the separate unread-inbox browser walkthrough remains open under REQ-075.
 
 ### Advertiser reporting and privacy
@@ -449,7 +449,7 @@ wording; the export snapshot version changes for new issuances (D71, REQ-141).
 **Still open:** [REQ-018](requests.md) — confirm no driver identity in reports.
 
 **History:**
-- **2026-10-07** — Owner W2-D brief replaces "Omitted - insufficient frozen evidence" in new export snapshots only; old issuance content and verification remain unchanged (D71, REQ-141).
+- **2026-10-07** — Owner W2-D brief replaces "Omitted - insufficient frozen evidence" in new export snapshots only; old issuance content and verification remain unchanged (D71, REQ-141). Built in `78ad5580` and real integration `21239a6d`.
 - **2026-08-14** — Client confirmed the report shape and ROI rule (Q12, Q30, D18, D20).
 - **2026-09-24** — Client's answer mentioned "admin officer & driver profile and the car", which conflicts with the privacy boundary; asked to clarify (client answers item 5).
 
@@ -493,15 +493,14 @@ NIN encryption keys stay in Cardvert's own key ring, because Hetzner has no
 key-management service (D44).
 
 **Still open:** [REQ-050](requests.md) Hetzner, Postmark and MapTiler accounts;
-[REQ-043](requests.md) domain connection; [REQ-033](requests.md) which address (for example app.terraxmedia.com). Templates for the new providers:
-[REQ-049](requests.md).
+[REQ-043](requests.md) domain connection; [REQ-033](requests.md) which address (for example app.terraxmedia.com); [REQ-032](requests.md) residency and legal prerequisites.
 
 **History:**
 - **2026-08-14** — Client confirmed ownership (Q32, D18).
 - **2026-09-24** — Client approved ClamAV, Postmark, Mapbox ("short run", Google Maps later) and terraxmedia.com, and left hosting, storage and region to the developer's recommendation (client answers items 9–16). The recommendation was Render with AWS storage and encryption.
 - **2026-09-29** — Deployment templates for Render, AWS and Mapbox written, with every secret blank and nothing applied (REQ-010). Built in `0b53eab`.
 - **2026-09-30** — Owner chose Hetzner instead of Render and AWS, and MapTiler instead of Mapbox (D44). The Render, AWS and Mapbox templates are superseded (REQ-049).
-- **2026-10-05** — Owner authorized W1B replacement templates using the existing Compose/Caddy release, Hetzner Object Storage and MapTiler, plus private ClamAV and configurable API workers (REQ-049/117). Templates only; secrets and regions remain unset, with residency under REQ-032. Local verification and specialist reviews passed; consolidated review/integration tracked in the W1B receipt.
+- **2026-10-05** — Owner authorized W1B replacement templates using the existing Compose/Caddy release, Hetzner Object Storage and MapTiler, plus private ClamAV and configurable API workers (REQ-049/117). Templates only; secrets and regions remain unset, with residency under REQ-032. Built in `308f04a8` and `81de2f54`, with MapTiler preflight correction in `7f374c39`; consolidated integration review and accepted master CI [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034) pass. Templates only; no provider action or deployment is claimed.
 
 ### Legal, privacy and retention
 
@@ -555,7 +554,7 @@ aggregate runtime provenance and all coverage gates remain unchanged.
 - **2026-10-08** — Owner required the exact 3.12.14 pin after the combined run
   produced Python 3.12.14 and 3.12.15 shard manifests. Previously selectors used
   floating 3.12; the existing mismatch refusal correctly blocked aggregation.
-  REQ-134 records this delivery-only correction; no production runtime change.
+  REQ-134 records this delivery-only correction; no production runtime change. Built in `526acddd`; exact runtime provenance and full CI pass.
 - **Before 2026-10-05** — The frontend audit rejected every high or critical advisory without exceptions.
 - **2026-10-05** — Owner approved this one expiring advisory exception while finishing REQ-106, preserving all other high/critical checks and prohibiting npm's forced lint-package downgrade (D59, REQ-107). Built in `69655e2`.
 
@@ -640,4 +639,6 @@ Combined Wave 1 merge: payout architecture entry renumbered at merge from lane v
 
 ### 7 October renewal correction history
 
-Before D72, renewal required the complete identity/bank or vehicle capture and displayed filenames (D69). The owner replaced that presentation and complete-input requirement with partial renewal in REQ-144. D73 replaces UK demonstration phone fixtures and Lagos seed geography with Nigerian-format fixtures and Abuja geography. Built locally on `w2/renewals-phone`; [correction verification](../issues/testing/w2c-claude-renewals-correction-2026-10-07.md); merge/CI closure remains pending.
+Before D72, renewal required the complete identity/bank or vehicle capture and displayed filenames (D69). The owner replaced that presentation and complete-input requirement with partial renewal in REQ-144. D73 replaces UK demonstration phone fixtures and Lagos seed geography with Nigerian-format fixtures and Abuja geography. Built in `74cdb314`; [historical correction verification](../issues/testing/w2c-claude-renewals-correction-2026-10-07.md), final integrated review and accepted master CI [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034) pass. Screenshots are historical; live operator, wording and preview-destination gates remain separate.
+
+- **2026-10-13** — Reviewed Wave 1 and 2 integration Built in `21239a6d`, with renewal/expiry and MapTiler corrections in `7f374c39`; canonical receipt in `3a9f8b64` and one-time parent correction in `e1716154`, deterministic privacy-test fixture in `1217e4a1`, and payout recovery lock repair in `31997a67`. Exact R branch CI 38334710143, final repair branch CI [38369572447](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38369572447) and accepted master CI [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034) pass. Delivery requests close in the register; external launch prerequisites remain open.
