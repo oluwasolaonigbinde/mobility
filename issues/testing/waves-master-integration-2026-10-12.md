@@ -3,9 +3,10 @@
 ## Current source checkpoint — 13 October 2026
 
 REQ-151–154 remain IN PROGRESS. The real merge is committed locally as
-`21239a6d`; the expiry and MapTiler corrections are verified working changes.
-No corrective commit, new push, master advancement or request closure is claimed
-at this checkpoint. The owner asked this chat to take over the stalled worker.
+`21239a6d`; the verified expiry and MapTiler corrections are committed and pushed
+as Q `7f374c39b2130f354338ad23b939515f54a93d51`. Fresh Q behavior and measurement
+pass as detailed below; final R/full policy CI, master advancement and request
+closure remain pending. The owner asked this chat to take over the stalled worker.
 Its original T3 run was interrupted through the supported orchestration RPC
 and its queue held before any takeover edit. Existing checkout/branch and all
 review, CI, D33 and conditional master-push gates remain binding.
@@ -27,8 +28,78 @@ containing-commit SHA or coverage receipt.
 | I6 | PASS bounded runtime: 17 seed/API/architecture/document-outcome checks pass. The primary driver starts/ends via production API authority; seed rerun preserves exact scanned file/review/document facts and returns to idle. Damilola renewal seed is scanned, fictional and idempotent. Master reconciled history/source remains equal. |
 | I7 | PASS: runtime OpenAPI snapshot check and all OpenAPI/architecture tests pass; both JSONs match and generated TypeScript is LF-normalized byte-equal (`ab7062e910cfd85d3620ce538d52ab0793ed722b1ba7beb7cc43fa8f8415736b`). Current locked-runtime TypeScript check, 132 preserved PWA/queue/tracker/capability fixtures and shared Python golden vector pass. No baseline/API redesign or physical-device claim. |
 | I8 | PASS bounded pre-push source checkpoint: Ruff all 121 touched Python paths and scoped changed-file formatting pass; basedpyright three corrected services returns zero errors/warnings. Scoped frontend ESLint/Prettier pass. Plan reviews, privacy/security, hosting reassessment and money source reviews PASS. Consolidated independent minimal-change reassessment PASS for I1–I8/F1–F4; final CI/provenance reassessment remains pending. Hosting positive red reproduction is retained; release-environment subset 122 passes. Broader Linux runtime rerun has 531 passes, three explicit environment failures and one excluded live-Caddy case, as detailed below. Deterministic/live API and current browser simulation evidence is proportional to the corrections; full Linux/build/E2E acceptance remains in I9. |
-| I9 / A3–A6 | PENDING: no new exact-candidate full CI or Q/R coverage evidence yet. Require both whole-change bases, six-shard producer evidence, corrected raw/export attribution, exact trusted floors and unchanged-checker canonical Q-anchored receipt. Historical failed run 38062332068 does not establish corrected measurement. Final integrated review must reassess actual CI/provenance evidence. |
-| I10 | PENDING: remote master still `b644025d`; remote integration branch still `b0da8ae3`. No fast-forward, push to master or closure. Recheck ancestors before any conditional integration. |
+| I9 / A3–A6 | PASS at Q: all behavior/static/build/contract/E2E/R59 jobs, six-shard completeness, both complete-change 90/80 comparisons, corrected mandatory raw/export attribution, exact trusted floors, independently reviewed canonical Q preview, unchanged-checker generation and normal Q provenance. Fresh exact R reports/full CI and final integrated A6 reassessment remain PENDING. Q's old-receipt policy failure is recorded below. |
+| I10 | PENDING: remote master remains `b644025d`; remote integration branch is Q `7f374c39`. No master fast-forward/push or closure. Recheck ancestors before conditional integration; green master CI remains required before the one closing-docs commit. |
+
+### Fresh Q measurement and canonical receipt — 13 October 2026
+
+[Run 38331361701](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38331361701)
+is exactly Q. All six backend groups, backend static/aggregate, frontend,
+ordinary real-stack E2E and R59 release jobs succeed. Frontend CI uses Node
+26.3.0 and Next.js 16.4.0: 221 files / 1,554 tests pass, contract drift and
+production build pass. The full backend inventory is 3,490 passing tests in
+278 files; the unchanged shard verifier proves complete disjoint assignments,
+successful exact JUnit identities and manifest/raw/JUnit hashes. All producers
+use CPython 3.12.14 and coverage 7.16.0. Eight GitHub archive digests and every
+extracted member were independently verified against the immutable downloads.
+
+The sole failed job is the unchanged coverage-policy check against push base
+`b0da8ae3`: `invalid adopted coverage metrics: global.line` from the inherited
+old receipt. This is a failed Q pipeline, with passing fresh behavioral and
+measurement evidence; final R must make every job green.
+
+| Fresh report scope | Covered / total lines | Covered / total branches |
+| --- | --- | --- |
+| Whole Q versus current master `b644025d1f964f5efff7733106b4af4c4a56b968` | 954 / 987 (96.6565%) | 529 / 610 (86.7213%) |
+| Whole Q versus fixed M `e6adcc4639f1fba345a3bb44059beb45ad76ea59` | 1,568 / 1,663 (94.2874%) | 1,171 / 1,395 (83.9427%) |
+| Global current inventory | 38,653 / 42,051 (91.9193%) | 13,708 / 17,438 (78.6099%) |
+| Current backend group | 32,034 / 34,247 (93.5381%) | 6,787 / 8,374 (81.0485%) |
+| Current frontend group | 6,619 / 7,804 (84.8155%) | 6,921 / 9,064 (76.3570%) |
+
+Both whole-change comparisons meet 90/80 without tolerance. The current
+groups and each base's exact trusted named-path groups meet their existing
+global/backend/frontend floors without tolerance or floor reduction. The
+expanded fixed-M comparison includes later master portal/read/earnings/seed/
+billing changes: 140 changed source files versus 63 against current master;
+77 master-only source files contribute 569 statement lines and 639 branches,
+with additional differences in shared-file hunks. Old 981/608 denominators
+belong to the earlier source candidate; the unchanged checker selects the
+complete current diff. No latest-increment substitution or denominator trimming.
+
+Read-only immutable SQLite inspection finds no foreign SQLAlchemy sequences
+or out-of-file events across all 39 changed backend sources. All required
+normalized statements and 17 reachable arcs in driver_documents/notifications
+are present in raw unions and their exact coverage-7.16 LCOV export records.
+Driver statement 83 correctly normalizes raw 84–86. Raw contexts are empty;
+this evidence makes no per-test arc claim. Measurement/provenance specialist
+independently recomputed the complete report and returned PASS at Q.
+
+The unchanged checker evaluated both whole-change bases and Q inside the
+reviewed exclusive LF byte window. The Q preview was independently approved;
+the generation window reproduced it exactly, generated coverage/baseline.json
+through the unchanged CLI, and passed normal provenance verification against Q.
+Every source/policy original byte was restored with no conflicts. The receipt
+adds 13 eligible paths, removes none, and adopts the verified measured ratios.
+Baseline source parent is Q; hashes arise naturally from Git LF source bytes:
+source `d508ce634222089f4e8e2ed872fd9bdb6442cac47e6fe1c06ce701d52b6deb22`,
+policy `3e71886a0b80c9919cdfac82314c6e35214f607732f7a72247c90e676d64e8e7`,
+inventory `873f54e77427dc52bb2cd773ff983def3bac44159aa7e9010cef04a3952b9e1b`.
+Backend LCOV SHA256 is
+`000f72420a9df9fa5f36170c4ddc79ced3d361abf45c55e2c239c8f6cf4289cc`;
+frontend LCOV is
+`4ece2b4c3f9434e2958c60a2f652cca791c9ae66e657fe5bc372ba4610fa82b4`.
+Immutable archives, Q-run/policy logs, Q-shards-verified.json, Q-measurement.json,
+and both canonical-window journals/restore receipts remain in the named
+external Temp directory. The prior provisional proposal remains untouched.
+
+Read-only plan reassessment confirmed the first master push uses a different
+explicit parent than branch R. If actual master CI confirms that receipt
+mismatch after fully green/reviewed R, one bounded CI repair may rebind from
+accepted fresh R evidence through the unchanged checker, with independent
+receipt review, full branch CI/final review, then full master CI. This consumes
+one of the three authorized small CI-repair rounds. Adopted floors, sources,
+policy, runtime and original Q→R evidence must be preserved; closure still
+waits for green master CI. No such repair or master action has occurred yet.
 
 ### Browser and runtime boundaries
 
@@ -50,7 +121,7 @@ It and its old cache were preserved outside the frontend tree in the named Temp
 directory. A separate exact-lock installation now uses Next 16.4.0; no manifest,
 lock or main-checkout dependency change. Frontend checks were rerun on that
 installation: 277 touched/caller cases, 132 preserved fixtures and typecheck pass.
-Host Node is 24.19.0; exact CI Node 26.3.0 and production build remain required.
+Host Node is 24.19.0; Q's exact CI Node 26.3.0 and production build now pass.
 The one heading change in frontend/AGENTS.md is generated by the locked Next
 runtime; the instruction text and repository policy are unchanged.
 
@@ -59,7 +130,8 @@ Only `/integration-source/scripts/*.sh` copies were normalized to LF/executable,
 not repository files. The resulting hosting receipt records 531 passes and
 three failures caused by missing Docker socket or jq. Live Caddy/CSP tests
 require additional containers outside the owner’s two-test-container cap;
-they remain unverified locally and retain their unchanged exact full-CI gates.
+they remain unverified locally. Q's complete Linux backend, build and browser
+jobs now pass their unchanged gates; exact final R repeats them.
 Do not describe the entire hosting suite as locally passing.
 
 All heavy checks ran sequentially; existing cv-w2c-db/cv-w2c-tests each retain

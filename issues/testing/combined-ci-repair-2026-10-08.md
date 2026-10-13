@@ -296,3 +296,26 @@ here. Parent assigns Git/CI only after accepted source PASS. Behavioral repair
 allowance remains 0 of TWO rounds after corrected instrumentation measurement;
 the earlier 37-test repair is excluded. If more than two genuine rounds are
 needed, STOP/report. REQ-143 stays NEEDS ANSWER; no request is closed here.
+
+## Fresh integrated Q measurement — 13 October 2026
+
+The integration's [current receipt](waves-master-integration-2026-10-12.md#fresh-q-measurement-and-canonical-receipt--13-october-2026)
+supersedes earlier pending measurement claims above for Q
+`7f374c39b2130f354338ad23b939515f54a93d51`, CI 38331361701. M2/M3-at-Q/A3-at-Q
+and A4 generation/normal-Q verification pass: all six disjoint shards,
+3,490 successful tests / 278 files, exact CPython 3.12.14 / coverage 7.16.0,
+eight immutable archive digests, raw/manifest/JUnit/report provenance, recovered
+mandatory normalized raw/export statements/arcs and no foreign/out-of-file
+events across 39 changed backend sources. Empty contexts support no per-test
+arc claims. Both complete-change bases meet 90/80: current master 954/987 lines
+and 529/610 branches; fixed M 1,568/1,663 and 1,171/1,395. Expanded denominators
+include later master changes and current correction hunks, selected by the
+unchanged checker. Exact global/backend/frontend and trusted named-path floors
+pass without tolerance or reduction. Independent measurement/preview PASS
+precedes unchanged-checker canonical LF Q-anchored generation; normal provenance
+passes and every original source byte is restored. Earlier proposals/reports
+remain historical and unchanged. The sole Q policy job fails on the inherited
+old receipt (`invalid adopted coverage metrics: global.line`); all behavior,
+static, frontend/build/contract, ordinary E2E and R59 jobs succeed. Exact R full
+CI, repeated both-base evidence and final A6/master/closure gates remain pending.
+Behavioral-test repair rounds after corrected measurement: 0.
