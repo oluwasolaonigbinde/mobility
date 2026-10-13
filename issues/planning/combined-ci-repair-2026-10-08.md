@@ -255,3 +255,57 @@ branch CI, both whole-change comparisons and final integrated review still gate
 the master fast-forward; green master CI gates the one closure-docs commit and
 its CI. Conservatively this is CI repair round 2 of 3; behavioral repair rounds
 remain 0 of 2. Earlier first-master failure remains part of the evidence.
+
+## Final bounded test-clock fixture repair — REQ-156, 13 October
+
+The original third small CI-repair allowance covers the distinct master-S
+frontend failure after the approved metadata correction. Independent scope/plan
+review PASS confirms that REQ-155's narrow parent-provenance conditions remain
+unchanged; they do not revoke the existing test/fixture repair allowance.
+Master run 38358196722's original privacy assertion matches `6.5` only inside
+`observedAt` value `2026-10-13T06:43:26.507Z`, not a disclosed GPS coordinate.
+The exact original assertion is reproduced failing with that fixed bad date.
+
+Only the affected privacy test freezes Date at `2026-10-13T00:00:00.000Z`;
+afterEach restores it and the existing mocks. Every assertion and coordinate
+fixture remains unchanged; real asynchronous timers, test timeouts and retries
+stay unchanged. All three touched cases and scoped lint/format checks pass;
+privacy/security supplement PASS. No application, baseline, checker, workflow,
+coverage setting, adopted floor or standing tolerance change.
+
+REQ-156 is recorded before the fixture edit. Consolidated review, fresh exact
+branch CI and its integrated measurement/review, then ancestor recheck and green
+master CI still gate the one closure-docs commit and its CI. This consumes CI
+repair round 3 of 3; no fourth repair is implicitly authorized. Behavioral-test
+repairs for corrected coverage measurement remain 0 of 2: this fixes only a
+clock-dependent assertion fixture, with no coverage-gain claim or CI resampling.
+
+## Explicit fourth bounded round — REQ-157 (2026-10-13)
+
+After X branch run 38360665163 exposed a production payout recovery deadlock,
+the owner approved the independently reviewed concrete proposal with "go ahewad".
+This authorizes one additional financial-source repair, not a standing extension
+of the exhausted three-round allowance. REQ-157 was registered before edits.
+
+The contract is local to resolution: read the durable requester, acquire User
+FOR KEY SHARE before payout batch/line/intent locks, then revalidate requester
+association before mutation. Keep the global active-admin helper, all new-effect
+authority gates, disabled automatic actor, lease/generation/token guards,
+immutable instructions/amounts and audits, and provider idempotency unchanged.
+No schema, dependency, checker, workflow or product/client-value change.
+
+Acceptance: deterministic real-PG old-source deadlock and fixed-source success;
+original concurrent resolved/skipped/stale/one-submit/query assertions retained;
+exact single submitted audit and actor; missing/changed requester refuses all
+mutation; disabled/demoted staff and automatic actor recover earlier effects;
+inactive authority still refuses new effects. Run affected tests sequentially,
+without local coverage, sleeps, retries or increased existing test timeouts.
+
+Independent money/security and same consolidated minimal-change review gate the
+source commit. Fresh full exact-candidate branch CI, immutable six-shard/backend/
+frontend coverage, both whole-change 90/80 comparisons and ORIGINAL exact
+adopted floors gate master. Any canonical receipt refresh uses the unchanged
+checker and strict original floors; REQ-155's one-time tolerance is exhausted.
+Final reviews, non-force master fast-forward, green master CI, reviewed single
+closing-docs commit and its CI remain required. No additional repair, deployment,
+provider call, account change or branch/worktree is authorized by this round.

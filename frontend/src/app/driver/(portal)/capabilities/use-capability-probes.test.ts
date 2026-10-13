@@ -55,10 +55,16 @@ beforeEach(() => {
   );
 });
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+});
 
 describe("useCapabilityProbes", () => {
   it("observes passively without asking for location, then checks everything on one press", async () => {
+    // Real timestamps can contain the coordinate substrings checked by the report assertion.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-13T00:00:00.000Z"));
     const { result } = renderHook(() => useCapabilityProbes());
     await waitFor(() => expect(result.current.passiveReady).toBe(true));
     expect(result.current.snapshot.serviceWorker).toBe("registered");

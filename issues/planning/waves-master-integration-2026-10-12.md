@@ -125,3 +125,20 @@ Add a failing actual release-environment regression plus focused hostile cases
 before fixing this mismatch; run the touched release test and obtain the same
 hosting specialist's reassessment. This corrects approved templates, without
 provider access, deployment or expanded release authority. All I8/I9 gates remain.
+
+## Owner-approved payout recovery lock repair — REQ-157
+
+The owner approved one additional bounded financial repair after X branch
+38360665163 exposed the user-before-batch claim / batch-before-user audit-FK
+deadlock. The independently reviewed contract and unchanged verification/merge
+gates are recorded in the combined CI repair plan's REQ-157 addendum. Resolution
+takes status-independent User KEY SHARE before payout rows and revalidates the
+durable requester. Existing submission authority, stale guards, frozen money,
+idempotency and exact audit attribution remain binding. Missing/changed intent
+and inactive/automatic actors require meaningful PostgreSQL checks. This is a
+technical lock-order amendment to architecture §16.3, not a new client rule.
+
+I9 remains pending until fresh exact-candidate full CI, strict original coverage
+floors and financial/security/consolidated PASS. I10 remains pending until green
+master CI and the single reviewed closure commit's CI. The earlier REQ-155
+exception cannot authorize tolerance for this new source or future refreshes.

@@ -341,3 +341,68 @@ provenance and the explicit one-time reason change, with full original-byte
 restoration. No standing exception, ratio adoption, resampling or source/test/
 checker/workflow change. Corrected full branch/master CI, final review and
 truthful closure remain required. CI repair rounds 2 of 3; behavioral rounds 0.
+
+## Final test-clock fixture correction — REQ-156, 13 October
+
+S `e1716154` full branch CI 38353782539 and final measurement/consolidated
+reviews PASS, with unchanged adopted floors and successful parent provenance.
+Master-S run 38358196722's frontend privacy test fails because coordinate
+substring `6.5` matches only timestamp `06:43:26.507Z`. External Date-only
+setup reproduces the original assertion failing; no coordinate disclosure is
+demonstrated. This is the remaining owner-approved third small CI repair,
+distinct from REQ-155's one-time metadata refresh, with scope/plan review PASS.
+
+Only the first affected test fixes Date, restoring it after each test; every
+assertion, coordinate, real asynchronous timer, timeout and retry is preserved.
+All three existing touched tests, scoped lint/format and privacy/security review
+PASS. No application/baseline/checker/workflow/floor/standing-rule change. Fresh
+full branch/master CI and final consolidated review still gate closure; no
+fourth repair is implicitly authorized. Behavioral coverage repair rounds 0.
+
+## Explicit payout recovery repair — REQ-157, 13 October
+
+X branch CI 38360665163 passes frontend/build/browser/static/R59 and five backend
+shards, but shard 0 fails the original simultaneous lost-response recovery test.
+PostgreSQL shows a real user/batch/audit-FK lock cycle: claim locks active-admin
+users before batch; resolution previously locked batch before its audit actor FK.
+The owner approved the reviewed concrete proposal with "go ahewad", authorizing
+one additional bounded financial-source round. REQ-157 was registered first.
+
+Resolution now pre-reads the durable requester, takes User FOR KEY SHARE before
+payout rows, then revalidates the locked requester before mutation. Global admin
+authorization, frozen money/instructions, generation/token/action/lease guards,
+provider idempotency and immutable audit metadata remain unchanged. Architecture
+§16.3/v1.132 records only this technical lock contract; no client values changed.
+
+The controlled real-PostgreSQL test pauses resolution after its actual batch
+lock, starts the competing claim and observes a real pg_blocking_pids wait before
+release. Old source fails with DeadlockDetectedError; corrected source passes,
+without sleeps/retries or changed timeouts. Every original assertion remains:
+resolved/skipped workers, stale prior result, exactly one fake-provider submit,
+submit/query attempts and one found observation. Added active/disabled/demoted
+variants preserve one exact submitted audit with original actor and line_count.
+Missing intent and post-prelock changed requester return stale with no durable
+observation/audit or requester change.
+
+External immutable local receipts: payout-lock-red.xml (one expected deadlock),
+payout-lock-green.xml (one pass), payout-lock-guards.xml (39 passes; only the
+unrelated migration rehearsal deselected), and payout-lock-final.xml (seven
+passes against final edited tests, including paused/invalid automatic actor
+lookup/new-effect boundaries). Existing R21 final-authority/stale/lookup gates,
+worker idempotency and automatic race/denial checks pass. Scoped Ruff and test
+format pass; scoped Basedpyright reports zero errors/warnings. Two pre-existing
+unrelated source-format differences are retained. No local coverage or full
+backend suite, provider calls or database rehearsal ran. Only the two owned
+1-CPU test containers ran sequential tests, then stopped with data preserved.
+payout-verification.json binds final source/test and XML hashes outside Git.
+
+Final money criteria 1–3 and security supplements PASS on final source/test/XML
+hashes, with no findings. Same consolidated minimal-change review PASS covers
+the stable eight-path precommit source checkpoint and criteria 1–5.
+Fresh exact-candidate full branch CI, immutable complete coverage, both whole-
+change 90/80 comparisons and ORIGINAL adopted exact floors gate master. The
+baseline is unchanged; no ratios or tolerance are adopted. REQ-155's one-time
+exception cannot apply to this new source. Green master CI, reviewed request
+closure in one docs commit and its own CI remain pending. No further repair
+round is implicitly authorized; this explicit round is financial correctness,
+not a coverage-gain or CI resampling claim.

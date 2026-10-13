@@ -1,11 +1,12 @@
 import asyncio
+from dataclasses import replace
 from datetime import timedelta
 from uuid import uuid4
 
 import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select, text, update
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
@@ -13,6 +14,7 @@ from sqlalchemy.pool import NullPool
 import app.services.disbursements as disbursement_service
 from app.adapters.disbursement import FakeDisbursementAdapter
 from app.db.base import Base
+from app.models.audit import AuditEvent
 from app.models.disbursement import (
     PayoutBatchLine,
     PayoutSubmissionAttempt,
@@ -20,6 +22,7 @@ from app.models.disbursement import (
     PayoutSubmissionObservation,
     PayoutSubmissionObservationOutcome,
 )
+from app.models.user import User
 from app.services.disbursements import (
     DISBURSEMENT_CLAIM_LEASE,
     DisbursementClaimObservation,
@@ -175,9 +178,11 @@ def test_crash_before_provider_call_queries_not_found_before_same_key_resend(
     assert outcomes == ("not_found", "submitted")
 
 
+@pytest.mark.parametrize("actor_change", ({}, {"status": "disabled"}, {"role": "driver"}))
 def test_provider_response_lost_before_db_commit_recovers_by_query_without_resubmit(
     postgis_db_sessionmaker,
     monkeypatch,
+    actor_change,
 ) -> None:
     graph = build_graph(postgis_db_sessionmaker, f"r20-post-call-{uuid4().hex[:8]}")
     adapter = FakeDisbursementAdapter()
@@ -191,6 +196,7 @@ def test_provider_response_lost_before_db_commit_recovers_by_query_without_resub
         abandoned_claim = await claim_payout_submission_intent(
             postgis_db_sessionmaker, intent_id=intent_id, adapter=adapter
         )
+        assert abandoned_claim is not None
         receipt = await adapter.submit_batch(
             batch_id=str(abandoned_claim.batch_id),
             instructions=(
@@ -205,14 +211,80 @@ def test_provider_response_lost_before_db_commit_recovers_by_query_without_resub
         monkeypatch.setattr(
             disbursement_service, "DISBURSEMENT_CLAIM_LEASE", DISBURSEMENT_CLAIM_LEASE
         )
-        recoveries = await asyncio.gather(
-            *(
-                process_payout_submission_intent(
-                    postgis_db_sessionmaker, intent_id=intent_id, adapter=adapter
+        if actor_change:
+            async with postgis_db_sessionmaker() as session:
+                await session.execute(
+                    update(User).where(User.id == graph.admin.id).values(**actor_change)
                 )
-                for _ in range(2)
-            )
+                await session.commit()
+        resolver_holds_batch = asyncio.Event()
+        release_resolver = asyncio.Event()
+        contender_pid_ready = asyncio.Event()
+        contender_pid: list[int] = []
+        first_batch_locks = 0
+        original_lock_batch = disbursement_service._locked_batch_with_lines
+        original_require_admin = disbursement_service.require_active_admin
+
+        async def controlled_batch_lock(session, batch_id):
+            nonlocal first_batch_locks
+            result = await original_lock_batch(session, batch_id)
+            task = asyncio.current_task()
+            if task is not None and task.get_name() == "r20-first-recovery":
+                first_batch_locks += 1
+                if first_batch_locks == 2:
+                    # The query claim committed; resolution now holds the batch.
+                    resolver_holds_batch.set()
+                    await release_resolver.wait()
+            return result
+
+        async def capture_contender_pid(session, actor_user_id):
+            task = asyncio.current_task()
+            if (
+                task is not None
+                and task.get_name() == "r20-contending-recovery"
+                and not contender_pid
+            ):
+                contender_pid.append(await session.scalar(select(func.pg_backend_pid())))
+                contender_pid_ready.set()
+            return await original_require_admin(session, actor_user_id)
+
+        async def observe_contender_lock_wait():
+            await contender_pid_ready.wait()
+            async with postgis_db_sessionmaker() as probe:
+                while not await probe.scalar(
+                    select(func.cardinality(func.pg_blocking_pids(contender_pid[0])))
+                ):
+                    # Each real catalog query yields to the competing transaction.
+                    pass
+
+        monkeypatch.setattr(disbursement_service, "_locked_batch_with_lines", controlled_batch_lock)
+        monkeypatch.setattr(disbursement_service, "require_active_admin", capture_contender_pid)
+        first = asyncio.create_task(
+            process_payout_submission_intent(
+                postgis_db_sessionmaker, intent_id=intent_id, adapter=adapter
+            ),
+            name="r20-first-recovery",
         )
+        workers = [first]
+        try:
+            await asyncio.wait_for(resolver_holds_batch.wait(), timeout=10)
+            workers.append(
+                asyncio.create_task(
+                    process_payout_submission_intent(
+                        postgis_db_sessionmaker, intent_id=intent_id, adapter=adapter
+                    ),
+                    name="r20-contending-recovery",
+                )
+            )
+            await asyncio.wait_for(observe_contender_lock_wait(), timeout=10)
+            release_resolver.set()
+            recoveries = await asyncio.wait_for(asyncio.gather(*workers), timeout=10)
+        finally:
+            release_resolver.set()
+            for worker in workers:
+                if not worker.done():
+                    worker.cancel()
+            await asyncio.gather(*workers, return_exceptions=True)
         stale_result = await _resolve_payout_submission_claim(
             postgis_db_sessionmaker,
             claim=abandoned_claim,
@@ -238,6 +310,18 @@ def test_provider_response_lost_before_db_commit_recovers_by_query_without_resub
                     .order_by(PayoutSubmissionObservation.generation)
                 )
             )
+            audits = tuple(
+                await session.scalars(
+                    select(AuditEvent).where(
+                        AuditEvent.action == "admin.payout_batch.submitted",
+                        AuditEvent.entity_id == str(abandoned_claim.batch_id),
+                    )
+                )
+            )
+            assert len(audits) == 1
+            assert audits[0].actor_user_id == graph.admin.id
+            assert audits[0].entity_type == "payout_batch"
+            assert audits[0].event_metadata == {"line_count": 1}
             return recoveries, stale_result, intent, actions, outcomes
 
     recoveries, stale_result, intent, actions, outcomes = asyncio.run(exercise())
@@ -247,6 +331,69 @@ def test_provider_response_lost_before_db_commit_recovers_by_query_without_resub
     assert intent.state == "resolved"
     assert actions == ("submit", "query")
     assert outcomes == ("found",)
+
+
+@pytest.mark.parametrize("change", ("missing_intent", "requester_changed"))
+def test_resolution_revalidates_prelocked_requester_before_mutation(
+    postgis_db_sessionmaker, monkeypatch, change
+) -> None:
+    graph = build_graph(postgis_db_sessionmaker, f"r20-actor-guard-{uuid4().hex[:8]}")
+    adapter = FakeDisbursementAdapter()
+
+    async def exercise():
+        batch_id, _, intent_ids = await _prepare_batch(postgis_db_sessionmaker, graph, adapter)
+        claim = await claim_payout_submission_intent(
+            postgis_db_sessionmaker, intent_id=intent_ids[0], adapter=adapter
+        )
+        assert claim is not None
+        original_lock_batch = disbursement_service._locked_batch_with_lines
+
+        async def change_requester_after_prelock(session, locked_batch_id):
+            await session.execute(
+                update(PayoutSubmissionIntent)
+                .where(PayoutSubmissionIntent.id == intent_ids[0])
+                .values(requested_by_user_id=graph.driver.id)
+            )
+            return await original_lock_batch(session, locked_batch_id)
+
+        if change == "missing_intent":
+            claim = replace(claim, intent_id=uuid4())
+        else:
+            monkeypatch.setattr(
+                disbursement_service, "_locked_batch_with_lines", change_requester_after_prelock
+            )
+        result = await _resolve_payout_submission_claim(
+            postgis_db_sessionmaker,
+            claim=claim,
+            observation=DisbursementClaimObservation(
+                outcome=PayoutSubmissionObservationOutcome.UNKNOWN,
+            ),
+        )
+        async with postgis_db_sessionmaker() as session:
+            intent = await session.get(PayoutSubmissionIntent, intent_ids[0])
+            assert intent.state == "claimed"
+            assert intent.requested_by_user_id == graph.admin.id
+            assert (
+                await session.scalar(
+                    select(func.count(PayoutSubmissionObservation.id)).where(
+                        PayoutSubmissionObservation.intent_id == intent.id
+                    )
+                )
+                == 0
+            )
+            assert (
+                await session.scalar(
+                    select(func.count(AuditEvent.id)).where(
+                        AuditEvent.action == "admin.payout_batch.submitted",
+                        AuditEvent.entity_id == str(batch_id),
+                    )
+                )
+                == 0
+            )
+        return result
+
+    assert asyncio.run(exercise()) == "stale"
+    assert adapter.calls == []
 
 
 def test_0083_database_guards_and_model_have_no_owned_drift(monkeypatch) -> None:
