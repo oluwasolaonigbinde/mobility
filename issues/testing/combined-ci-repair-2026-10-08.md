@@ -341,3 +341,20 @@ provenance and the explicit one-time reason change, with full original-byte
 restoration. No standing exception, ratio adoption, resampling or source/test/
 checker/workflow change. Corrected full branch/master CI, final review and
 truthful closure remain required. CI repair rounds 2 of 3; behavioral rounds 0.
+
+## Final test-clock fixture correction — REQ-156, 13 October
+
+S `e1716154` full branch CI 38353782539 and final measurement/consolidated
+reviews PASS, with unchanged adopted floors and successful parent provenance.
+Master-S run 38358196722's frontend privacy test fails because coordinate
+substring `6.5` matches only timestamp `06:43:26.507Z`. External Date-only
+setup reproduces the original assertion failing; no coordinate disclosure is
+demonstrated. This is the remaining owner-approved third small CI repair,
+distinct from REQ-155's one-time metadata refresh, with scope/plan review PASS.
+
+Only the first affected test fixes Date, restoring it after each test; every
+assertion, coordinate, real asynchronous timer, timeout and retry is preserved.
+All three existing touched tests, scoped lint/format and privacy/security review
+PASS. No application/baseline/checker/workflow/floor/standing-rule change. Fresh
+full branch/master CI and final consolidated review still gate closure; no
+fourth repair is implicitly authorized. Behavioral coverage repair rounds 0.

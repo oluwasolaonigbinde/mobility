@@ -255,3 +255,27 @@ branch CI, both whole-change comparisons and final integrated review still gate
 the master fast-forward; green master CI gates the one closure-docs commit and
 its CI. Conservatively this is CI repair round 2 of 3; behavioral repair rounds
 remain 0 of 2. Earlier first-master failure remains part of the evidence.
+
+## Final bounded test-clock fixture repair — REQ-156, 13 October
+
+The original third small CI-repair allowance covers the distinct master-S
+frontend failure after the approved metadata correction. Independent scope/plan
+review PASS confirms that REQ-155's narrow parent-provenance conditions remain
+unchanged; they do not revoke the existing test/fixture repair allowance.
+Master run 38358196722's original privacy assertion matches `6.5` only inside
+`observedAt` value `2026-10-13T06:43:26.507Z`, not a disclosed GPS coordinate.
+The exact original assertion is reproduced failing with that fixed bad date.
+
+Only the affected privacy test freezes Date at `2026-10-13T00:00:00.000Z`;
+afterEach restores it and the existing mocks. Every assertion and coordinate
+fixture remains unchanged; real asynchronous timers, test timeouts and retries
+stay unchanged. All three touched cases and scoped lint/format checks pass;
+privacy/security supplement PASS. No application, baseline, checker, workflow,
+coverage setting, adopted floor or standing tolerance change.
+
+REQ-156 is recorded before the fixture edit. Consolidated review, fresh exact
+branch CI and its integrated measurement/review, then ancestor recheck and green
+master CI still gate the one closure-docs commit and its CI. This consumes CI
+repair round 3 of 3; no fourth repair is implicitly authorized. Behavioral-test
+repairs for corrected coverage measurement remain 0 of 2: this fixes only a
+clock-dependent assertion fixture, with no coverage-gain claim or CI resampling.
