@@ -2169,8 +2169,8 @@ Migration `0055` extends this same authority rather than creating a KYC upload
 silo. Creative files remain organization-scoped; driver-KYC and vehicle-
 evidence files are subject-user-scoped under mutually exclusive database
 checks and purpose-specific API authorization. The versioned driver-KYC record
-links the required clean licence/photo/agreement files, a same-driver verified
-bank-account version and D17-encrypted NIN. Vehicle evidence links the required
+links the required clean licence/photo files, versioned agreement acceptance,
+a same-driver verified bank-account version and D17-encrypted NIN. Vehicle evidence links the required
 clean registration/insurance/photo files to a driver-owned vehicle. Driver
 reads mask NIN; active-admin reveal and at-most-60-second KYC document reads
 require a declared purpose and append redacted audit evidence. These records
@@ -2665,7 +2665,7 @@ aggregates only, k-floor rules of §22.2 apply to any zone-level display.
 ## 23. Identity evolution & production-PWA readiness
 
 - **Agreement and bank capture (D77/D78, REQ-158/159) [TARGET - implementation under verification]:** Apply presents plain version-1 agreement points and the immutable full text at `/apply/agreement/1`; required acceptance records server time/version on immutable KYC evidence and its locked application. Signed agreement file fields/document kinds are retired by `0102`; staff-created drivers supply missing consent in signed-in renewal and fresh approval requires it. Existing consent follows renewal, exact committed retries compare immutable evidence before current-version/provider/receipt checks. Legal text is internally draft until REQ-032 and current live-use gates remain.
-  Apply and Profile share `components/driver/bank-picker.tsx` and the read-only backend bank catalog. `adapters/banks.py` reuses the Paystack JSON client for cursor-paginated Nigerian banks and account resolution; public catalog responses are cached, provider credentials remain server-only. Longer provider bank codes are preserved. Applicant account checks are capability-scoped and rate-limited, with signed 15-minute receipts bound to driver, bank/account digests, outcome and resolved-name digest. Resolved names require explicit confirmation. Only unconfigured/transport/5xx/provider-429 unavailability permits typed-name capture; invalid input/response, capability/local limiter failures refuse it. Capture retains encrypted bank versions and audited staff verification; name checks never create payout verification, recipients or transfer authority. D40b is unchanged. Fake transport is the delivery provider; no live provider call.
+  Apply and Profile share `components/driver/bank-picker.tsx` and the read-only backend bank catalog. `adapters/banks.py` reuses the Paystack JSON client for cursor-paginated Nigerian banks and account resolution; public catalog responses are cached, provider credentials remain server-only. Longer provider bank codes are preserved. Applicant account checks are capability-scoped and rate-limited, with signed 15-minute receipts bound to driver, bank/account digests, outcome and resolved-name digest. Resolved names require explicit confirmation. Only unconfigured/transport/5xx/provider-429 unavailability permits typed-name capture; invalid input/response, capability/local limiter failures refuse it. The POST-shaped lookup keeps private details in the request body, mutates no database authority and is registered as audit-exempt; capture and staff review supply the durable audit evidence. Capture retains encrypted bank versions and audited staff verification; name checks never create payout verification, recipients or transfer authority. D40b is unchanged. Fake transport is the delivery provider; no live provider call.
 
 
 - **Owner correction C29–C33 [BUILT]:** onboarding upload retries bind exact
