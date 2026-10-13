@@ -319,3 +319,25 @@ old receipt (`invalid adopted coverage metrics: global.line`); all behavior,
 static, frontend/build/contract, ordinary E2E and R59 jobs succeed. Exact R full
 CI, repeated both-base evidence and final A6/master/closure gates remain pending.
 Behavioral-test repair rounds after corrected measurement: 0.
+
+## R verification and one-time parent reanchor — REQ-155, 13 October
+
+Exact R `3a9f8b64` full branch CI 38334710143 and final integrated specialist/
+consolidated A6 reviews PASS. Mandatory first-master run 38338124582 repeats
+passing behavior/build/browser/runtime and complete measurement evidence, but
+the sole policy job fails because its actual base `b644025d` differs from the
+Q-anchored branch receipt. Fresh master archives, all six disjoint 3,490 tests /
+278 files, raw/export attribution, both whole-change 90/80 comparisons and old
+exact trusted floors are independently accepted. This is a failed master run.
+
+The [current integration evidence](waves-master-integration-2026-10-12.md#final-r-and-one-time-parent-provenance-correction--13-october-2026)
+records the observed variation at `app/services/disbursements.py:557` and arc
+`556→557` (Q one hit; branch-R/master-R zero), for Wave 3 determinism work.
+The owner approved normal D41 tolerance for this R-anchored metadata-only
+refresh ONLY. Independent procedure/preview review and unchanged-checker
+generation/normal verification PASS; every adopted count/ratio/path and source,
+policy, actual inventory and runtime identity is unchanged. Only natural parent
+provenance and the explicit one-time reason change, with full original-byte
+restoration. No standing exception, ratio adoption, resampling or source/test/
+checker/workflow change. Corrected full branch/master CI, final review and
+truthful closure remain required. CI repair rounds 2 of 3; behavioral rounds 0.

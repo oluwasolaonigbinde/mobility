@@ -663,27 +663,13 @@
   "policy_sha256": "3e71886a0b80c9919cdfac82314c6e35214f607732f7a72247c90e676d64e8e7",
   "refresh": {
     "inventory_changes": {
-      "added": [
-        "app/api/v1/driver_documents.py",
-        "app/seeds/renewals.py",
-        "app/services/document_reviews.py",
-        "frontend/src/app/admin/drivers/phone-verification-actions.ts",
-        "frontend/src/app/admin/drivers/record-phone-verification.tsx",
-        "frontend/src/app/api/driver/contact/phone-verification/route.ts",
-        "frontend/src/app/api/driver/contact/phone/route.ts",
-        "frontend/src/app/api/driver/contact/route.ts",
-        "frontend/src/app/api/driver/documents/person-payee/route.ts",
-        "frontend/src/app/api/driver/documents/route.ts",
-        "frontend/src/app/api/driver/vehicles/[vehicleId]/documents/route.ts",
-        "frontend/src/app/driver/(portal)/profile/document-renewals.tsx",
-        "frontend/src/app/driver/(portal)/profile/phone-verification.tsx"
-      ],
+      "added": [],
       "removed": []
     },
-    "previous_baseline_sha256": "4ccba64779a76503757db855587747f3d36c8e1583b06a8b511a4831d98e1546",
-    "reason": "REQ-150/151/153 reviewed integrated Q receipt; mixed-concurrency attribution corrected; exact trusted floors retained"
+    "previous_baseline_sha256": "eaf4aa0dcafcc322bd6d568c7ce1e30a656188e385b4c609f882910eafc7c2d6",
+    "reason": "REQ-155 owner-approved one-time metadata-only R reanchor; normal D41 tolerance for THIS refresh ONLY; app/services/disbursements.py:557 and arc 556->557 hits Q1 to R0; 90/80 and every adopted floor unchanged; no standing exception"
   },
-  "source_parent_sha": "7f374c39b2130f354338ad23b939515f54a93d51",
+  "source_parent_sha": "3a9f8b64cb6d78c371ecb147955123a4c8a80d11",
   "source_sha256": "d508ce634222089f4e8e2ed872fd9bdb6442cac47e6fe1c06ce701d52b6deb22",
   "version": 3
 }

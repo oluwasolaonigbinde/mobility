@@ -2,11 +2,14 @@
 
 ## Current source checkpoint — 13 October 2026
 
-REQ-151–154 remain IN PROGRESS. The real merge is committed locally as
+REQ-151–155 remain IN PROGRESS. The real merge is committed locally as
 `21239a6d`; the verified expiry and MapTiler corrections are committed and pushed
 as Q `7f374c39b2130f354338ad23b939515f54a93d51`. Fresh Q behavior and measurement
-pass as detailed below; final R/full policy CI, master advancement and request
-closure remain pending. The owner asked this chat to take over the stalled worker.
+pass as detailed below; exact R `3a9f8b64` full branch CI and final integrated
+reviews pass. Authorized remote master advancement to R is complete. Its sole
+CI failure is the parent-provenance mismatch; the owner-approved REQ-155
+metadata correction is generated and verified, with corrected branch/master CI
+and request closure pending. The owner asked this chat to take over the stalled worker.
 Its original T3 run was interrupted through the supported orchestration RPC
 and its queue held before any takeover edit. Existing checkout/branch and all
 review, CI, D33 and conditional master-push gates remain binding.
@@ -21,15 +24,62 @@ containing-commit SHA or coverage receipt.
 | Criterion | Current verdict and concrete evidence |
 | --- | --- |
 | I1 | PASS: parsed TOML for `1b951cc9` versus its parent differs only by the approved thread/greenlet concurrency option; its six paths match the reviewed amendment. Floors/checker remain unchanged. |
-| I2 | PASS source/graph: `21239a6d` has parents `4e696b9c` and master `b644025d`; all 154 request and 76 decision IDs are unique. The garbled greenlet mapping is corrected to source REQ-137 → REQ-150. Architecture inventory and single-head checks pass in the fresh contract run. Shared migrations/decisions retain the earlier byte-equality evidence. |
+| I2 | PASS source/graph: `21239a6d` has parents `4e696b9c` and master `b644025d`; all 155 request and 76 decision IDs are unique. The garbled greenlet mapping is corrected to source REQ-137 → REQ-150. Architecture inventory and single-head checks pass in the fresh contract run. Shared migrations/decisions retain the earlier byte-equality evidence. |
 | I3 | PASS bounded integration: all 12 protected master controls/projections/history paths compare equal to `b644025d`; 277 current locked-runtime frontend tests in 30 touched/caller files pass. Real current staff hub and expiry flow pass at 1280 and 375 px. Full ordinary browser/build acceptance remains in I9. |
 | I4 / F1–F4 | PASS: public applicant red matrix reproduced both same-expired-file bypasses (201 rather than 422), with both undated aggregate-only controls passing. Final complete renewal run: 34 passed, one fixture failure; corrected staff-created clean replacement fixture then passed in isolation. All 35 cases now have passing evidence, including both staff expiry/forged-facts cases and all four public cases. Fresh 14-case affected-review/money batch covers exact reads, historical retry, eligibility/expiry, terminal-application locking, payout cursor/dispute races and the shared trip golden vector. Privacy/security source and corrected-fixture reassessment PASS. |
 | I5 | PASS source/bounded UI: integrated money specialist PASS; 277 frontend tests include current notification/preview/report/grouped-money callers. Frozen amounts, VAT helper reuse, historical report paths and master daily-payment projections are preserved. Exact full browser/report CI remains pending under I9. |
 | I6 | PASS bounded runtime: 17 seed/API/architecture/document-outcome checks pass. The primary driver starts/ends via production API authority; seed rerun preserves exact scanned file/review/document facts and returns to idle. Damilola renewal seed is scanned, fictional and idempotent. Master reconciled history/source remains equal. |
 | I7 | PASS: runtime OpenAPI snapshot check and all OpenAPI/architecture tests pass; both JSONs match and generated TypeScript is LF-normalized byte-equal (`ab7062e910cfd85d3620ce538d52ab0793ed722b1ba7beb7cc43fa8f8415736b`). Current locked-runtime TypeScript check, 132 preserved PWA/queue/tracker/capability fixtures and shared Python golden vector pass. No baseline/API redesign or physical-device claim. |
 | I8 | PASS bounded pre-push source checkpoint: Ruff all 121 touched Python paths and scoped changed-file formatting pass; basedpyright three corrected services returns zero errors/warnings. Scoped frontend ESLint/Prettier pass. Plan reviews, privacy/security, hosting reassessment and money source reviews PASS. Consolidated independent minimal-change reassessment PASS for I1–I8/F1–F4; final CI/provenance reassessment remains pending. Hosting positive red reproduction is retained; release-environment subset 122 passes. Broader Linux runtime rerun has 531 passes, three explicit environment failures and one excluded live-Caddy case, as detailed below. Deterministic/live API and current browser simulation evidence is proportional to the corrections; full Linux/build/E2E acceptance remains in I9. |
-| I9 / A3–A6 | PASS at Q: all behavior/static/build/contract/E2E/R59 jobs, six-shard completeness, both complete-change 90/80 comparisons, corrected mandatory raw/export attribution, exact trusted floors, independently reviewed canonical Q preview, unchanged-checker generation and normal Q provenance. Fresh exact R reports/full CI and final integrated A6 reassessment remain PENDING. Q's old-receipt policy failure is recorded below. |
-| I10 | PENDING: remote master remains `b644025d`; remote integration branch is Q `7f374c39`. No master fast-forward/push or closure. Recheck ancestors before conditional integration; green master CI remains required before the one closing-docs commit. |
+| I9 / A3–A6 | PASS at R: full exact branch CI 38334710143, complete six-shard/runtime/raw/export evidence, both whole-change 90/80 comparisons, original trusted floors, normal Q→R provenance and final specialist/consolidated A6 PASS. First-master R repeats passing behavior/measurement but fails parent provenance as documented below. REQ-155 canonical preview/generation/normal verification PASS, preserving every adopted value; corrected candidate's full branch CI and final reassessment remain pending. |
+| I10 | PARTIAL: fresh ancestor recheck confirmed `b644025d` remained an ancestor of R; authorized non-force push advanced remote master to R. Master run 38338124582 has all 11 application/static/build/browser/shard/aggregate jobs green and only parent-provenance policy failure. REQ-155 correction, green corrected master CI and the one closure-docs commit/CI remain required. Main checkout is untouched; no requests are closed yet. |
+
+### Final R and one-time parent-provenance correction — 13 October 2026
+
+Exact R `3a9f8b64cb6d78c371ecb147955123a4c8a80d11`
+[branch CI 38334710143](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38334710143)
+passes all 12 jobs. Independent measurement/provenance supplement and final
+consolidated A6/minimal-change review PASS before the authorized master push.
+Fresh fetch confirmed master `b644025d` remained an ancestor; non-force push
+advanced origin/master to R without changing the main checkout.
+[First-master CI 38338124582](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38338124582)
+passes its other 11 jobs but fails `baseline refresh receipt differs from
+trusted/current evidence`: actual push base is `b644025d`, while the branch
+receipt points to Q. This failed pipeline is not a green-master claim.
+
+Fresh R branch and master reports independently verify eight archive digests,
+all extracted bytes, six complete disjoint shards, 3,490 successful tests / 278
+files, CPython 3.12.14 / coverage 7.16.0, mandatory normalized raw/export
+statements and 17 arcs, and no corruption across 39 changed backend files.
+Both whole-change gates remain exactly 954/987 lines and 529/610 branches
+versus integration master, and 1,568/1,663 and 1,171/1,395 versus fixed M.
+Original exact trusted floors pass; normal Q→R verification passes.
+
+The sole Q-to-R hit variation is `app/services/disbursements.py:557`, the
+`PAYOUT_BATCH_NOT_RESERVED` refusal in `submit_payout_batch`, and arc
+`556→557`: Q has one hit; branch-R and master-R have zero. This unchanged
+line is outside changed hunks. Global measured counts are 38,652/42,051 lines
+and 13,707/17,438 branches; backend 32,033/34,247 and 6,786/8,374; frontend
+6,619/7,804 and 6,921/9,064. Exact adopted-Q refresh floors therefore fail,
+while ordinary D41 run tolerance passes. Empty contexts establish no per-test
+attribution or causal explanation. Wave 3 should make coverage of this refusal
+deterministic; no application/test change or coverage resampling is made here.
+
+The owner explicitly approved REQ-155: normal tolerance for this metadata-only
+refresh ONLY, keeping 90/80 and every adopted floor unchanged, recording the
+exact variation, and finishing master CI/closure. Independent plan/procedure
+and preview review PASS. The unchanged checker generates the R-anchored receipt
+from accepted fresh master-R reports; normal verification against R passes.
+Every adopted global/critical count, ratio and path list, and source/policy/
+inventory/runtime identity, equals R exactly. Only natural parent provenance
+changes: `source_parent_sha`, previous-receipt hash, inventory delta relative to
+R (empty, with actual inventory unchanged), and the REQ-155 reason. No standing
+exception, lowered floor or checker/workflow change. The external
+`S-canonical-preview` and `S-canonical-generation` journals in the named Temp
+directory record complete original-source restoration without conflicts and
+preserve the first-edited request registration. Corrected branch/master CI,
+final reassessment and closure remain pending. CI repair rounds: 2 of 3;
+behavioral repair rounds after corrected attribution: 0 of 2.
 
 ### Fresh Q measurement and canonical receipt — 13 October 2026
 

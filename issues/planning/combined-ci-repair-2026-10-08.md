@@ -228,3 +228,30 @@ If corrected measurement remains below gates, the owner permits at most TWO
 genuine behavioral-test repair rounds, then STOP/report if more are needed.
 Counter: 0 rounds after instrumentation measurement; the earlier 37-test repair
 does not consume this allowance. No behavioral tests are added in this checkpoint.
+
+## One-time parent-provenance correction — REQ-155, 13 October
+
+The owner explicitly approved the reviewed metadata-only correction with normal
+D41 tolerance for this refresh only. This supersedes literal A4 exact-floor
+eligibility solely for the same-source R-anchored refresh using accepted fresh
+master-R reports from run 38338124582. The observed variation is
+`app/services/disbursements.py:557`, the `PAYOUT_BATCH_NOT_RESERVED` refusal,
+and arc `556→557`: Q hit count 1, branch-R and master-R hit count 0. Wave 3
+should investigate deterministic coverage of this refusal; no causal diagnosis,
+per-test attribution or behavioral repair is claimed here.
+
+Every 90/80 threshold and adopted global/backend/frontend/named-critical count,
+ratio and path list remains unchanged, as do source, policy, actual inventory
+and runtime identities. Only the unchanged checker's natural parent-provenance
+fields and one-time explanation change: parent R, previous-receipt hash, and the
+inventory delta relative to R (empty, without actual inventory changes). No
+manual receipt values, checker/workflow/test/source edits or standing exception.
+Future ratio-adopting refreshes retain the exact-floor requirement.
+
+REQ-155 is recorded before implementation. Independent plan/procedure and
+canonical-preview reviews PASS; the guarded canonical generation and normal
+verification against R pass with complete source-byte restoration. Full corrected
+branch CI, both whole-change comparisons and final integrated review still gate
+the master fast-forward; green master CI gates the one closure-docs commit and
+its CI. Conservatively this is CI repair round 2 of 3; behavioral repair rounds
+remain 0 of 2. Earlier first-master failure remains part of the evidence.
