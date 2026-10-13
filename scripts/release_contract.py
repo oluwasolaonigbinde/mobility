@@ -564,9 +564,27 @@ def _validate_live_adapters(environment: Mapping[str, str]) -> None:
     if not 1 <= email_port <= 65535:
         raise ContractError("EMAIL_SMTP_PORT is outside its accepted range")
 
-    _validate_https_authority(
-        "NEXT_PUBLIC_MAP_STYLE_URL", _require(environment, "NEXT_PUBLIC_MAP_STYLE_URL")
-    )
+    map_style = _require(environment, "NEXT_PUBLIC_MAP_STYLE_URL")
+    parsed_style = urlparse(map_style)
+    if parsed_style.query:
+        try:
+            style_port = parsed_style.port
+        except ValueError as exc:
+            raise ContractError("NEXT_PUBLIC_MAP_STYLE_URL contains an invalid port") from exc
+        query = parse_qsl(parsed_style.query, keep_blank_values=True)
+        if (
+            parsed_style.hostname != "api.maptiler.com"
+            or style_port not in (None, 443)
+            or not re.fullmatch(r"/maps/[A-Za-z0-9_-]+/style\.json", parsed_style.path)
+            or len(query) != 1
+            or query[0][0] != "key"
+            or not query[0][1].strip()
+        ):
+            raise ContractError(
+                "NEXT_PUBLIC_MAP_STYLE_URL must use the approved public style query"
+            )
+        map_style = parsed_style._replace(query="").geturl()
+    _validate_https_authority("NEXT_PUBLIC_MAP_STYLE_URL", map_style)
     for name in (
         "FILE_KYC_RETENTION_DAYS",
         "INSTALLATION_EVIDENCE_UPLOADER_ROLES",

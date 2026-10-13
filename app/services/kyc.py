@@ -578,7 +578,12 @@ async def submit_vehicle_evidence(
         required_replacements = {
             kind for kind, item in outcomes.items() if item["status"] in {"rejected", "expired"}
         }
-        if not required_replacements.issubset(replacements):
+        previous_documents = await _vehicle_documents(session, current.id)
+        reuses_expired_file = any(
+            item["status"] == "expired" and replacements.get(kind) == previous_documents.get(kind)
+            for kind, item in outcomes.items()
+        )
+        if not required_replacements.issubset(replacements) or reuses_expired_file:
             raise _error(
                 "VEHICLE_REPLACEMENTS_REQUIRED",
                 "Replace the documents marked rejected or expired",

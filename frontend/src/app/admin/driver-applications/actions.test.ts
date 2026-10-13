@@ -214,6 +214,24 @@ describe("reviewPersonPayeeAction", () => {
         body: expect.objectContaining({ decision: "expired" }),
       }),
     );
+    expect(mocks.post.mock.calls.at(-1)?.[1].body).not.toHaveProperty("document_reviews");
+  });
+
+  it("retains explicit document outcomes when expiring a fresh review", async () => {
+    const car = form("expire", false);
+    car.set("vehicle_id", VEHICLE_ID);
+    car.set("outcome_registration", "accepted");
+    car.set("outcome_insurance", "replace");
+    car.set("expires_insurance", "2026-10-03");
+    await reviewVehicleAction({}, car);
+    expect(mocks.post.mock.calls.at(-1)?.[1].body.document_reviews).toMatchObject({
+      registration: { status: "accepted", expires_on: null },
+      insurance: {
+        status: "expired",
+        reason_code: "expired_evidence",
+        expires_on: "2026-10-03",
+      },
+    });
   });
 
   it("audits exact vehicle evidence and requires every approval fact", async () => {

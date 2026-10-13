@@ -297,6 +297,18 @@ async def submit_application_person_payee(
             "Only rejected or expired evidence can be resubmitted",
             status.HTTP_409_CONFLICT,
         )
+    if current is not None:
+        from app.services.document_reviews import document_outcomes
+        from app.services.payout_rule_serialization import database_clock
+
+        previous_documents = await _documents(session, current.id)
+        decision = await session.scalar(
+            select(DriverKycReviewDecision).where(
+                DriverKycReviewDecision.submission_id == current.id
+            )
+        )
+        outcomes = document_outcomes(decision, previous_documents, await database_clock(session))
+        documents = _renewal_person_documents(current, payload, previous_documents, outcomes)
     payee, _ = await create_applicant_payee(
         session,
         driver_profile_id=profile.id,
@@ -432,7 +444,13 @@ def _renewal_person_documents(
     )
     if original.purged_at is not None:
         required.update({"driver_license", "driver_photo", "signed_agreement"})
-    if not required.issubset(supplied_documents):
+    reuses_expired_file = any(
+        not exact_retry
+        and item["status"] == "expired"
+        and supplied_documents.get(kind) == previous_documents.get(kind)
+        for kind, item in outcomes.items()
+    )
+    if not required.issubset(supplied_documents) or reuses_expired_file:
         raise _error(
             "PERSON_PAYEE_REPLACEMENTS_REQUIRED",
             "Replace the documents marked rejected or expired",

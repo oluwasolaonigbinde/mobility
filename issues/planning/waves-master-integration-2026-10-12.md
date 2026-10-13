@@ -70,3 +70,58 @@ At most two test containers. No current task benchmark or performance claim.
 The controller alone owns records/backend/artifacts; the bounded frontend
 worker owns frontend except the generated schema and onboarding-upload file.
 Reviews are sequential after that worker finishes; no concurrent file writes.
+
+## Authorized corrective continuation - REQ-152
+
+The owner-delegated orchestrator authorized repair after the privacy/security
+FIX, explicitly treating it as correctness of the approved renewal feature.
+The staged resolution was committed first as real merge `21239a6d`; no push.
+Independent GPT-6.1-Sol high plan review of this addendum returned PASS after
+adding forged-input, retry and obsolete-fixture checks. The owner already
+approved this concrete behavior; no new product answer is needed.
+
+F1: approved-to-expired appends an expiry decision under current locks, retaining
+server-authoritative document outcomes/dates and prior valid_until. Original
+history/audits stay immutable. A different admin need not manufacture a fresh
+document acceptance/read to expire an existing approval. Forged client outcomes
+cannot replace the prior facts. Audit validity uses the retained server value.
+Fresh document review still applies the existing exact actor/file-read gates.
+The field-free expiry form omits fabricated document_reviews; actual outcome
+fields on a new review still produce the existing typed payload.
+
+F2: actually expired vehicle/person documents need a different owned clean file
+ID before a new revision, and current approval before eligibility returns.
+Accepted documents/NIN/bank remain reusable. Exact successful renewal retries
+remain historical receipts, including after retained documents expire later;
+changed-body reuse conflicts and never reopens eligibility. Aggregate car
+approval expiry does not invent dates for otherwise undated documents.
+These checks cover both signed-in renewal and token-authorized applicant
+resubmission under their existing locks, after exact-retry handling.
+
+F3: write/run failing PostgreSQL API lifecycle/history/eligibility regressions
+first, including ordinary and forged expiry bodies, a different admin, exact
+and conflicting retries, absent/same-file replacement denial, pending new upload
+and approved replacement restoration. Exercise person same-file rejection and
+retain the overnight-retry and undated aggregate-only assertions. Convert the
+two obsolete same-expired-file success fixtures to genuine replacements.
+
+F4: make the smallest service/action changes, no schema or migration expected.
+Run touched PostgreSQL/renewal/review/concurrency and frontend action tests,
+then the same privacy/security specialist to PASS. Remaining original native,
+seed, typecheck, VAT, build/E2E, consolidated review, full CI, D33 provenance,
+master fast-forward and closure gates still apply, sequentially with one worker.
+The prior stop receipt is historical; it is not a final completion claim.
+
+## Hosting preflight correction — REQ-154
+
+The integrated hosting specialist found that generic HTTPS authority validation
+rejects the approved MapTiler style URL because it carries a restricted public
+key. Keep the generic validator unchanged. At the map-style call only, validate
+the exact `https://api.maptiler.com/maps/<map>/style.json` authority/path and one
+nonempty `key` query, then apply the generic validator to the query-free URL.
+Reject alternate ports, userinfo, fragments, duplicate/extra/empty query values
+and hostile hosts. Existing query-free style URLs retain their existing rules.
+Add a failing actual release-environment regression plus focused hostile cases
+before fixing this mismatch; run the touched release test and obtain the same
+hosting specialist's reassessment. This corrects approved templates, without
+provider access, deployment or expanded release authority. All I8/I9 gates remain.

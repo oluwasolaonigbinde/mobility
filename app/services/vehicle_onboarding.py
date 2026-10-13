@@ -445,6 +445,23 @@ async def submit_application_vehicle(
                 "The current vehicle revision is already pending review",
                 status.HTTP_409_CONFLICT,
             )
+        if current is not None:
+            from app.services.document_reviews import document_outcomes
+
+            previous_documents = await _documents(session, current.id)
+            decision = await _latest_decision(session, current.id, lock=True)
+            outcomes = document_outcomes(
+                decision, previous_documents, await database_clock(session)
+            )
+            if any(
+                item["status"] == "expired" and documents.get(kind) == previous_documents.get(kind)
+                for kind, item in outcomes.items()
+            ):
+                raise _error(
+                    "VEHICLE_REPLACEMENTS_REQUIRED",
+                    "Replace the documents marked rejected or expired",
+                    422,
+                )
         await ensure_unique_plate(
             session,
             plate_country_code=country_code,
@@ -838,24 +855,32 @@ async def review_application_vehicle(
             actor_user_id=actor_user_id,
             document_file_ids=documents,
         )
-    from app.services.document_reviews import validate_document_reviews
+    from app.services.document_reviews import document_outcomes, validate_document_reviews
 
-    await validate_document_reviews(
-        session,
-        payload=payload,
-        documents=documents,
-        submission_id=submission.id,
-        actor_user_id=actor_user_id,
-        vehicle=True,
-    )
+    if previous is not None:
+        # The only subsequent decision allowed above expires an approval.
+        # Preserve its facts; this actor is not accepting the documents again.
+        document_reviews = document_outcomes(previous, documents)
+        valid_until = previous.valid_until
+    else:
+        await validate_document_reviews(
+            session,
+            payload=payload,
+            documents=documents,
+            submission_id=submission.id,
+            actor_user_id=actor_user_id,
+            vehicle=True,
+        )
+        document_reviews = {
+            key: item.model_dump(mode="json") for key, item in payload.document_reviews.items()
+        }
+        valid_until = payload.valid_until
     decision = VehicleEvidenceReviewDecision(
         submission_id=submission.id,
         sequence=sequence,
         client_request_id=payload.client_request_id,
         request_fingerprint=fingerprint,
-        document_reviews={
-            key: item.model_dump(mode="json") for key, item in payload.document_reviews.items()
-        },
+        document_reviews=document_reviews,
         decision=payload.decision.value,
         reason_code=payload.reason_code.value,
         owner_match_confirmed=payload.owner_match_confirmed,
@@ -863,7 +888,7 @@ async def review_application_vehicle(
         roadworthy_confirmed=payload.roadworthy_confirmed,
         pilot_car_confirmed=payload.pilot_car_confirmed,
         documents_readable_confirmed=payload.documents_readable_confirmed,
-        valid_until=payload.valid_until,
+        valid_until=valid_until,
         decided_by_user_id=actor_user_id,
     )
     session.add(decision)
@@ -889,7 +914,7 @@ async def review_application_vehicle(
             "version": submission.version,
             "sequence": sequence,
             "reason_code": payload.reason_code.value,
-            "valid_until": payload.valid_until.isoformat() if payload.valid_until else None,
+            "valid_until": decision.valid_until.isoformat() if decision.valid_until else None,
         },
     )
     return VehicleStageView(vehicle, submission, decision, documents)
