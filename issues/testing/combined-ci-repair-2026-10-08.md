@@ -406,3 +406,42 @@ exception cannot apply to this new source. Green master CI, reviewed request
 closure in one docs commit and its own CI remain pending. No further repair
 round is implicitly authorized; this explicit round is financial correctness,
 not a coverage-gain or CI resampling claim.
+
+## Accepted Y integration — 13 October 2026
+
+Exact Y `31997a673fa7f63d50c7a6659f504c6035314d99`: full branch CI [38369572447](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38369572447) and full master CI [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034) PASS,
+all 12 jobs green. Immutable archive/member hashes, six disjoint complete
+shards (3494 tests / 278
+files), CPython 3.12.14 / coverage 7.16.0, mandatory normalized statements and
+17 arcs, no foreign/out-of-file corruption, original exact floors and final
+measurement/consolidated reviews PASS on the complete branch and master reports.
+
+| Complete-change base | Covered/total lines | Covered/total branches |
+| --- | --- | --- |
+| `b644025d1f964f5efff7733106b4af4c4a56b968` | 960/993 | 533/614 |
+| `e6adcc4639f1fba345a3bb44059beb45ad76ea59` | 1574/1669 | 1175/1399 |
+
+The adopted baseline remains byte-identical to X/S. No measured ratios or
+new tolerance are adopted; 90/80, all Q-adopted counts/ratios/path floors, checker
+and workflows remain intact. REQ-155's exception covered only its earlier
+master-R metadata refresh. X→Y actual Git-tree comparison preserves 1,408 of
+1,410 source paths; only payout resolution and its PostgreSQL regression differ.
+All eight tracked repair paths match the reviewed scope. Local financial and
+security reviews and same consolidated precommit criteria 1–5 PASS, backed by
+39 guard and seven final-source cases with exact audit/idempotency assertions.
+Original three repair rounds are historical; owner explicitly approved one
+additional REQ-157 financial round. No further repair allowance is implied.
+
+Wave 3 observed unchanged-source variation: `app/services/disbursements.py:557`
+and arc `556→557` (Q one hit, branch/master R zero, branch S one), plus
+`app/services/trips.py:1198` and arc `1197→1198` (Q/R zero, branch S one).
+The User import in Y shifts the payout pointer to current
+`app/services/disbursements.py:558` / arc `557→558`; the condition is unchanged.
+No causal/per-test coverage-gain claim is made; raw contexts are empty.
+
+Only after fresh ancestor check, non-force master push and accepted master CI
+do the 28 reviewed requests/client build histories close. REQ-143 stays NEEDS
+ANSWER, REQ-115/108 and unlisted rows and all external launch prerequisites are
+preserved. REQ-142 is superseded by retained master design; REQ-147 screenshots
+are historical. The single closing-docs commit's CI and final review will be
+verified separately before delivery; no containing SHA is embedded here.

@@ -1,21 +1,16 @@
-# Waves/master integration — verification checkpoint
+# Waves/master integration — integration and closure
 
-## Current source checkpoint — 13 October 2026
+## Accepted integration and request closure — 13 October 2026
 
-REQ-151–157 remain IN PROGRESS. The real merge is committed locally as
-`21239a6d`; the verified expiry and MapTiler corrections are committed and pushed
-as Q `7f374c39b2130f354338ad23b939515f54a93d51`. Fresh Q behavior and measurement
-pass as detailed below; exact R `3a9f8b64` full branch CI and final integrated
-reviews pass. Authorized remote master advancement to R is complete. Its sole
-CI failure is the parent-provenance mismatch; the owner-approved REQ-155
-metadata correction is generated and verified. Corrected S `e1716154` branch CI
-and final reviews pass; master S contains the corrected receipt but its frontend
-privacy test fails on a clock substring, as documented below. The bounded
-REQ-156 test-clock fixture repair passes touched verification and privacy review;
-its X branch run 38360665163 then exposes a production payout recovery deadlock.
-The owner explicitly approved one additional bounded financial repair, REQ-157;
-its deterministic PostgreSQL correction passes local verification. Fresh full
-branch/master CI, final reviews and request closure remain pending.
+The 28 approved delivery requests, including REQ-151–157, close with their
+implementing SHAs after exact Y `31997a673fa7f63d50c7a6659f504c6035314d99` branch CI [38369572447](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38369572447), master CI [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034)
+and final integrated financial/security/consolidated reviews PASS. Real merge
+`21239a6d`, expiry/MapTiler Q `7f374c39`, canonical receipt R `3a9f8b64`,
+one-time parent correction S `e1716154`, deterministic test-clock X `1217e4a1`
+and payout recovery Y `31997a67` are on remote master. Earlier failures and
+pending statements below are historical. This documentation change records
+closure; its own CI and final review will be verified and reported separately
+before final delivery. No containing commit SHA is embedded here.
 The owner asked this chat to take over the stalled worker.
 Its original T3 run was interrupted through the supported orchestration RPC
 and its queue held before any takeover edit. Existing checkout/branch and all
@@ -46,21 +41,21 @@ section and external `payout-verification.json`.
 | 3: inactive/automatic recovery and new-effect denials | PASS: 39 affected guards and seven final-source cases pass, including disabled/demoted staff, R21 authority/lookup checks and paused/tampered automatic actor boundaries. Security supplement PASS on final hashes/XML. |
 | 4: first-recorded request and bounded design/docs | PASS: REQ-157 registered before implementation; architecture §16.3/v1.132 and both existing plans record the local lock contract. No schema, dependency, checker, workflow, product values or launch queue change. |
 | 5: independent reviews and local checks | PASS precommit criteria 1–5: scoped Ruff/test format/Basedpyright zero errors; sequential owned 1-CPU containers stopped with data preserved. Independent plan, final money criteria 1–3, security and same consolidated minimal-change review PASS; full-CI reassessment remains required. |
-| 6: exact full branch CI, complete coverage and master advancement | PENDING: require fresh full CI, immutable six-shard/backend/frontend evidence, both whole-change 90/80 comparisons, original exact floors and final reviews. Baseline unchanged; no REQ-155 exception reuse. |
-| 7: master CI and truthful single closure commit | PENDING: green master CI, reviewed 28-row closure and closing-docs CI must precede final SHA/link report. |
+| 6: exact full branch CI, complete coverage and master advancement | PASS: exact Y branch [38369572447](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38369572447), immutable complete shard/backend/frontend reports, both whole-change 90/80 comparisons, original exact floors and final reviews pass; fresh ancestor check and non-force master advancement complete. Baseline unchanged, no REQ-155 exception reuse. |
+| 7: master CI and truthful single closure commit | PARTIAL at this commit: exact Y master [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034) PASS and reviewed 28-row closure recorded. This closing-docs commit's own CI and final review will be verified separately before final SHA/link report. |
 
 | Criterion | Current verdict and concrete evidence |
 | --- | --- |
 | I1 | PASS: parsed TOML for `1b951cc9` versus its parent differs only by the approved thread/greenlet concurrency option; its six paths match the reviewed amendment. Floors/checker remain unchanged. |
-| I2 | PASS source/graph: `21239a6d` has parents `4e696b9c` and master `b644025d`; all 156 request and 76 decision IDs are unique. The garbled greenlet mapping is corrected to source REQ-137 → REQ-150. Architecture inventory and single-head checks pass in the fresh contract run. Shared migrations/decisions retain the earlier byte-equality evidence. |
-| I3 | PASS bounded integration: all 12 protected master controls/projections/history paths compare equal to `b644025d`; 277 current locked-runtime frontend tests in 30 touched/caller files pass. Real current staff hub and expiry flow pass at 1280 and 375 px. Full ordinary browser/build acceptance remains in I9. |
+| I2 | PASS source/graph: `21239a6d` has parents `4e696b9c` and master `b644025d`; all 157 request and 76 decision IDs are unique. The garbled greenlet mapping is corrected to source REQ-137 → REQ-150. Architecture inventory and single-head checks pass in the fresh contract run. Shared migrations/decisions retain the earlier byte-equality evidence. |
+| I3 | PASS bounded integration: all 12 protected master controls/projections/history paths compare equal to `b644025d`; 277 current locked-runtime frontend tests in 30 touched/caller files pass. Real current staff hub and expiry flow pass at 1280 and 375 px. Full ordinary browser/build branch and master CI PASS under I9. |
 | I4 / F1–F4 | PASS: public applicant red matrix reproduced both same-expired-file bypasses (201 rather than 422), with both undated aggregate-only controls passing. Final complete renewal run: 34 passed, one fixture failure; corrected staff-created clean replacement fixture then passed in isolation. All 35 cases now have passing evidence, including both staff expiry/forged-facts cases and all four public cases. Fresh 14-case affected-review/money batch covers exact reads, historical retry, eligibility/expiry, terminal-application locking, payout cursor/dispute races and the shared trip golden vector. Privacy/security source and corrected-fixture reassessment PASS. |
-| I5 | PASS source/bounded UI: integrated money specialist PASS; 277 frontend tests include current notification/preview/report/grouped-money callers. Frozen amounts, VAT helper reuse, historical report paths and master daily-payment projections are preserved. Exact full browser/report CI remains pending under I9. |
+| I5 | PASS source/bounded UI: integrated money specialist PASS; 277 frontend tests include current notification/preview/report/grouped-money callers. Frozen amounts, VAT helper reuse, historical report paths and master daily-payment projections are preserved. Exact full browser/report branch and master CI PASS under I9. |
 | I6 | PASS bounded runtime: 17 seed/API/architecture/document-outcome checks pass. The primary driver starts/ends via production API authority; seed rerun preserves exact scanned file/review/document facts and returns to idle. Damilola renewal seed is scanned, fictional and idempotent. Master reconciled history/source remains equal. |
 | I7 | PASS: runtime OpenAPI snapshot check and all OpenAPI/architecture tests pass; both JSONs match and generated TypeScript is LF-normalized byte-equal (`ab7062e910cfd85d3620ce538d52ab0793ed722b1ba7beb7cc43fa8f8415736b`). Current locked-runtime TypeScript check, 132 preserved PWA/queue/tracker/capability fixtures and shared Python golden vector pass. No baseline/API redesign or physical-device claim. |
-| I8 | PASS bounded pre-push source checkpoint: Ruff all 121 touched Python paths and scoped changed-file formatting pass; basedpyright three corrected services returns zero errors/warnings. Scoped frontend ESLint/Prettier pass. Plan reviews, privacy/security, hosting reassessment and money source reviews PASS. Consolidated independent minimal-change reassessment PASS for I1–I8/F1–F4; final CI/provenance reassessment remains pending. Hosting positive red reproduction is retained; release-environment subset 122 passes. Broader Linux runtime rerun has 531 passes, three explicit environment failures and one excluded live-Caddy case, as detailed below. Deterministic/live API and current browser simulation evidence is proportional to the corrections; full Linux/build/E2E acceptance remains in I9. |
-| I9 / A3–A6 | PASS at S: all 12 jobs in exact branch CI 38353782539, complete six-shard/runtime/raw/export evidence, both whole-change 90/80 comparisons, original trusted floors, normal R→S provenance and final specialist/consolidated A6 PASS. REQ-155 retains every adopted value. REQ-156's clock fixture passes touched tests and privacy review; its new exact full branch CI and final reassessment remain pending. |
-| I10 | PARTIAL: fresh ancestor recheck and authorized non-force push advance remote master to S `e1716154`. Master-S run 38358196722 has a confirmed frontend privacy-test timestamp false positive; it is not green. REQ-156 repair, green exact master CI and the one closure-docs commit/CI remain required. Earlier failed Q/master-R evidence is historical. Main checkout is untouched; no requests are closed yet. |
+| I8 | PASS integrated source/full CI: Ruff all 121 touched Python paths and scoped changed-file formatting pass; basedpyright three corrected services returns zero errors/warnings. Scoped frontend ESLint/Prettier pass. Plan reviews, privacy/security, hosting reassessment and money source reviews PASS. Consolidated independent minimal-change reassessment PASS for I1–I8/F1–F4; final Y CI/provenance and consolidated reassessment PASS. Hosting positive red reproduction is retained; release-environment subset 122 passes. Broader Linux runtime rerun has 531 passes, three explicit environment failures and one excluded live-Caddy case, as detailed below. Deterministic/live API and current browser simulation evidence is proportional to the corrections; full Linux/build/E2E branch and master CI PASS under I9. |
+| I9 / A3–A6 | PASS: exact Y branch [38369572447](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38369572447) and master [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034), all 12 jobs green. Complete immutable shard/raw/export/runtime evidence, both whole-change 90/80 comparisons, original exact floors and final measurement/consolidated reassessments pass. Adopted baseline unchanged. |
+| I10 | PARTIAL at closing commit: non-force master advancement and exact Y master [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034) PASS; 28 approved requests close here with implementing SHAs. Unanswered/external gates remain. Closing-docs CI/final review remain to be verified separately. |
 
 ### S branch PASS and master test-clock fixture repair — 13 October 2026
 
@@ -332,3 +327,42 @@ source-verification.json and backend-focused.xml. The isolated venv is there.
 Owner .w2c/ and root node_modules/ remain untracked and untouched. No reads of
 docs/account-access.md or repository tmp/ occurred. No deployment, provider
 call, force push or preview rehost occurred. Final acceptance is unresolved.
+
+## Accepted Y integration — 13 October 2026
+
+Exact Y `31997a673fa7f63d50c7a6659f504c6035314d99`: full branch CI [38369572447](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38369572447) and full master CI [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034) PASS,
+all 12 jobs green. Immutable archive/member hashes, six disjoint complete
+shards (3494 tests / 278
+files), CPython 3.12.14 / coverage 7.16.0, mandatory normalized statements and
+17 arcs, no foreign/out-of-file corruption, original exact floors and final
+measurement/consolidated reviews PASS on the complete branch and master reports.
+
+| Complete-change base | Covered/total lines | Covered/total branches |
+| --- | --- | --- |
+| `b644025d1f964f5efff7733106b4af4c4a56b968` | 960/993 | 533/614 |
+| `e6adcc4639f1fba345a3bb44059beb45ad76ea59` | 1574/1669 | 1175/1399 |
+
+The adopted baseline remains byte-identical to X/S. No measured ratios or
+new tolerance are adopted; 90/80, all Q-adopted counts/ratios/path floors, checker
+and workflows remain intact. REQ-155's exception covered only its earlier
+master-R metadata refresh. X→Y actual Git-tree comparison preserves 1,408 of
+1,410 source paths; only payout resolution and its PostgreSQL regression differ.
+All eight tracked repair paths match the reviewed scope. Local financial and
+security reviews and same consolidated precommit criteria 1–5 PASS, backed by
+39 guard and seven final-source cases with exact audit/idempotency assertions.
+Original three repair rounds are historical; owner explicitly approved one
+additional REQ-157 financial round. No further repair allowance is implied.
+
+Wave 3 observed unchanged-source variation: `app/services/disbursements.py:557`
+and arc `556→557` (Q one hit, branch/master R zero, branch S one), plus
+`app/services/trips.py:1198` and arc `1197→1198` (Q/R zero, branch S one).
+The User import in Y shifts the payout pointer to current
+`app/services/disbursements.py:558` / arc `557→558`; the condition is unchanged.
+No causal/per-test coverage-gain claim is made; raw contexts are empty.
+
+Only after fresh ancestor check, non-force master push and accepted master CI
+do the 28 reviewed requests/client build histories close. REQ-143 stays NEEDS
+ANSWER, REQ-115/108 and unlisted rows and all external launch prerequisites are
+preserved. REQ-142 is superseded by retained master design; REQ-147 screenshots
+are historical. The single closing-docs commit's CI and final review will be
+verified separately before delivery; no containing SHA is embedded here.
