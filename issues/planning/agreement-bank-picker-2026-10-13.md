@@ -1,6 +1,6 @@
 # Driver agreement and bank picker delivery contract
 
-Owner approval: 12 October decisions A/B, implementation and normal commit/push/full-CI/non-squash master integration explicitly authorized in the 13 October task. REQ-158/157; proposed D77/78, architecture v1.133, migration 0102. Initial base e1716154. Numbers are rechecked against latest master before integration.
+Owner approval: 12 October decisions A/B, implementation and normal commit/push/full-CI/non-squash master integration explicitly authorized in the 13 October task. REQ-158/159; proposed D77/78, architecture v1.133, migration 0102. Initial base e1716154. Numbers are rechecked against latest master before integration.
 
 ## Outcome and boundaries
 

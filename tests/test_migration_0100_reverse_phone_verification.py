@@ -78,7 +78,7 @@ def test_0100_expires_obsolete_challenges_and_matches_models(monkeypatch):
         ):
             downgrade_to(url, "0099_automatic_payout_scan_cursor", monkeypatch)
         assert asyncio.run(fetch_all(url, "SELECT version_num FROM alembic_version")) == [
-            ("0101_document_review_outcomes",)
+            ("0102_driver_agreement_acceptance",)
         ]
         assert (
             asyncio.run(fetch_all(url, "SELECT to_jsonb(c) FROM phone_verification_challenges c"))
