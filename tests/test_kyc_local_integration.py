@@ -50,7 +50,7 @@ def test_real_private_upload_scan_and_protected_kyc_binding(
         headers = auth_headers(db_client, driver.email, PASSWORD)
         file_ids: dict[str, str] = {}
         for index, document_type in enumerate(
-            ("driver_license", "driver_photo", "signed_agreement"), start=1
+            ("driver_license", "driver_photo"), start=1
         ):
             content = b"\x89PNG\r\n\x1a\n" + f"local-kyc-{index}".encode() * 8
             checksum = hashlib.sha256(content).hexdigest()
@@ -92,7 +92,8 @@ def test_real_private_upload_scan_and_protected_kyc_binding(
                 "bank_account_version_id": str(bank_id),
                 "driver_license_file_id": file_ids["driver_license"],
                 "driver_photo_file_id": file_ids["driver_photo"],
-                "signed_agreement_file_id": file_ids["signed_agreement"],
+                "agreement_version": "1",
+                "agreement_accepted": True,
             },
         )
         assert submitted.status_code == 201

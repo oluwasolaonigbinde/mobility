@@ -79,7 +79,7 @@ def _approved_applicant(db_client, db_sessionmaker, settings, *, suffix: str):
     files = _seed_clean_kyc_files(db_sessionmaker, email=email)
     submitted = db_client.post(
         "/api/v1/auth/driver-onboarding/person-payee",
-        json=_person_payee_payload(token, files),
+        json=_person_payee_payload(token, files, db_client),
     )
     assert submitted.status_code == 201
     admin = create_test_user(

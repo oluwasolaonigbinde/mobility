@@ -1,5 +1,7 @@
 "use client";
 
+import { DriverAgreement } from "@/components/driver/driver-agreement";
+import { ApplicationBankDetails } from "@/components/driver/application-bank-details";
 import { useRef, useState, type FormEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -14,9 +16,11 @@ type StageResponse = {
   version?: number | null;
 };
 
-const FILES = ["license", "photo", "agreement"] as const;
+const FILES = ["license", "photo"] as const;
 
 export function PersonPayeeForm() {
+  const [accessToken, setAccessToken] = useState("");
+  const [bankReset, setBankReset] = useState(0);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const [result, setResult] = useState<StageResponse>();
@@ -25,15 +29,16 @@ export function PersonPayeeForm() {
   const uploadRequestIds = useRef({
     license: crypto.randomUUID(),
     photo: crypto.randomUUID(),
-    agreement: crypto.randomUUID(),
   });
-  const uploadedFileIds = useRef<[string, string, string] | null>(null);
+  const uploadedFileIds = useRef<[string, string] | null>(null);
   const uploadContext = useRef<{ token: string; files: File[] } | null>(null);
   const generation = useRef(0);
 
   function changed(event?: FormEvent<HTMLFormElement>) {
+    if ((event?.target as HTMLInputElement | undefined)?.name === "bank_search") return;
     if ((event?.target as HTMLInputElement | undefined)?.name === "application_access_token") {
       uploads.reset();
+      setAccessToken((event?.target as HTMLInputElement).value);
     }
     generation.current += 1;
     submissionRequestId.current = crypto.randomUUID();
@@ -60,14 +65,16 @@ export function PersonPayeeForm() {
       const license = (formElement.elements.namedItem("driver_license") as HTMLInputElement)
         .files?.[0];
       const photo = (formElement.elements.namedItem("driver_photo") as HTMLInputElement).files?.[0];
-      const agreement = (formElement.elements.namedItem("signed_agreement") as HTMLInputElement)
-        .files?.[0];
-      if (!(license instanceof File) || !(photo instanceof File) || !(agreement instanceof File)) {
-        throw new Error(
-          "Add all three files: your driver's licence, a photo of you and the signed agreement.",
-        );
+      if (!(license instanceof File) || !(photo instanceof File)) {
+        throw new Error("Add your driver's licence and a photo of you.");
       }
-      const files = [license, photo, agreement];
+      if (form.get("agreement_accepted") !== "on")
+        throw new Error("Read and agree to the driver agreement.");
+      if (!form.get("bank_check_receipt") || !form.get("account_name"))
+        throw new Error("Check your bank account name first.");
+      if (form.get("bank_check_outcome") === "resolved" && form.get("account_name_confirmed") !== "true")
+        throw new Error("Confirm that the account name is yours.");
+      const files = [license, photo];
       if (
         uploadContext.current?.token !== accessToken ||
         files.some((file, index) => file !== uploadContext.current?.files[index])
@@ -76,11 +83,10 @@ export function PersonPayeeForm() {
         uploadRequestIds.current = {
           license: crypto.randomUUID(),
           photo: crypto.randomUUID(),
-          agreement: crypto.randomUUID(),
         };
         uploadContext.current = { token: accessToken, files };
       }
-      const [licenseId, photoId, agreementId] =
+      const [licenseId, photoId] =
         uploadedFileIds.current ??
         (await Promise.all([
           track(
@@ -96,18 +102,9 @@ export function PersonPayeeForm() {
             "photo",
             uploadOnboardingFile(accessToken, photo, uploadRequestIds.current.photo, "driver_kyc"),
           ),
-          track(
-            "agreement",
-            uploadOnboardingFile(
-              accessToken,
-              agreement,
-              uploadRequestIds.current.agreement,
-              "driver_kyc",
-            ),
-          ),
         ]));
       if (selectedGeneration !== generation.current) return;
-      uploadedFileIds.current = [licenseId, photoId, agreementId];
+      uploadedFileIds.current = [licenseId, photoId];
       const response = await fetch("/api/apply/onboarding/person-payee", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -120,19 +117,23 @@ export function PersonPayeeForm() {
           bank_code: String(form.get("bank_code") ?? ""),
           driver_license_file_id: licenseId,
           driver_photo_file_id: photoId,
-          signed_agreement_file_id: agreementId,
+          agreement_version: String(form.get("agreement_version")),
+          agreement_accepted: form.get("agreement_accepted") === "on",
+          bank_check_receipt: String(form.get("bank_check_receipt")),
+          account_name_confirmed: form.get("account_name_confirmed") === "true",
         }),
       });
       const nextResult = await onboardingResponseJson<StageResponse>(response);
       if (selectedGeneration !== generation.current) return;
       setResult(nextResult);
       formElement.reset();
+      setAccessToken("");
+      setBankReset((value) => value + 1);
       uploads.reset();
       submissionRequestId.current = crypto.randomUUID();
       uploadRequestIds.current = {
         license: crypto.randomUUID(),
         photo: crypto.randomUUID(),
-        agreement: crypto.randomUUID(),
       };
       uploadedFileIds.current = null;
     } catch (caught) {
@@ -150,7 +151,8 @@ export function PersonPayeeForm() {
     <Panel className="mt-5 p-6">
       <h2 className="font-display text-2xl font-semibold">Your ID and bank details</h2>
       <p className="text-muted mt-2 mb-6 max-w-3xl text-sm">
-        Fill in every box and add the three files. We keep your details private.
+        Add your ID, bank details and two files. Read the agreement below. We keep your details
+        private.
       </p>
       <form onSubmit={submit} onChange={changed} className="grid gap-4" noValidate>
         <Field
@@ -174,32 +176,9 @@ export function PersonPayeeForm() {
             maxLength={11}
             required
           />
-          <Field label="Name on bank account" name="account_name" autoComplete="name" required />
-          <Field
-            label="Account number (10 digits)"
-            name="account_number"
-            type="password"
-            inputMode="numeric"
-            minLength={10}
-            maxLength={10}
-            required
-          />
-          <div className="flex flex-col gap-1.5">
-            <Field
-              label="Bank code (3 digits)"
-              name="bank_code"
-              inputMode="numeric"
-              minLength={3}
-              maxLength={3}
-              aria-describedby="person-payee-bank-code-hint"
-              required
-            />
-            <p id="person-payee-bank-code-hint" className="text-muted text-xs">
-              Ask your bank if you&apos;re not sure.
-            </p>
-          </div>
         </div>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <ApplicationBankDetails key={bankReset} accessToken={accessToken} />
+        <div className="grid gap-4 sm:grid-cols-2">
           <FilePicker
             label="Driver's licence"
             name="driver_license"
@@ -216,16 +195,8 @@ export function PersonPayeeForm() {
             state={uploads.states.photo}
             onFile={() => fileChanged("photo")}
           />
-          <FilePicker
-            label="Signed agreement"
-            hint="The driver agreement Terrax Media sent you, signed."
-            name="signed_agreement"
-            accept="application/pdf,image/jpeg,image/png"
-            required
-            state={uploads.states.agreement}
-            onFile={() => fileChanged("agreement")}
-          />
         </div>
+        <DriverAgreement />
         {error ? (
           <p role="alert" className="text-coral text-sm">
             {error}

@@ -44,7 +44,7 @@ def _renew_person(client, *, admin, profile, driver_headers, first, files):
             "nin": NIN,
             **{
                 f"{kind}_file_id": str(files[kind])
-                for kind in ("driver_license", "driver_photo", "signed_agreement")
+                for kind in ("driver_license", "driver_photo")
             },
         },
     )

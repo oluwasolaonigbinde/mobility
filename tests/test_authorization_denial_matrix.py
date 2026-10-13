@@ -489,6 +489,11 @@ def test_applicant_capability_routes_reject_invalid_capability_without_audit_eff
     settings.driver_registration_enabled = True
     route = next(route for route in authorization_inventory() if route.key == route_key)
     payloads = {
+        "/api/v1/auth/driver-onboarding/account-name": {
+            "application_access_token": "invalid-capability",
+            "bank_code": "058",
+            "account_number": "0123456789",
+        },
         "/api/v1/auth/driver-onboarding/files/uploads": {
             "application_access_token": "invalid-capability",
             "upload": {
@@ -515,7 +520,8 @@ def test_applicant_capability_routes_reject_invalid_capability_without_audit_eff
             "bank_code": "999",
             "driver_license_file_id": str(uuid4()),
             "driver_photo_file_id": str(uuid4()),
-            "signed_agreement_file_id": str(uuid4()),
+            "agreement_version": "1",
+            "agreement_accepted": True,
         },
         "/api/v1/auth/driver-onboarding/vehicle": {
             "application_access_token": "invalid-capability",

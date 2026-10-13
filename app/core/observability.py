@@ -223,7 +223,8 @@ def _has_sensitive_key_family(normalized: str) -> bool:
     tokens = _normalized_tokens(normalized)
     token_set = set(tokens)
     return bool(
-        token_set & _CREDENTIAL_KEY_PARTS
+        normalized in {"bank_check_receipt", "account_number", "account_name", "bank_code"}
+        or token_set & _CREDENTIAL_KEY_PARTS
         or token_set & _IDENTITY_KEY_PARTS
         or {"api", "key"} <= token_set
         or (

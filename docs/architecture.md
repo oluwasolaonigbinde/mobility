@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.131 — 2026-10-12. Canonical source of truth: current state AND target state.**
+**Version 1.132 — 2026-10-13. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -2201,7 +2201,7 @@ Local verification: `issues/testing/w2c-renewals-phone-2026-10-07.md`.
 | Installation evidence photos (Q17) | `campaign_assignments` | Admin activation gate (§18) |
 | Driver identity/KYC documents (Q26 — licence, NIN, driver photo) | versioned driver-KYC record linked to `driver_profiles` | Admin person/payee approval; does not by itself grant work eligibility |
 | Vehicle onboarding evidence (Q26 — registration, insurance, vehicle photos) | versioned vehicle-evidence record linked to `vehicles` | Admin vehicle approval; active driver KYC/payee + one approved vehicle grant work eligibility |
-| Signed driver agreement (Q26) | `driver_profiles` | Acceptance recorded, doc stored |
+| Driver agreement/privacy consent (Q26/D77) | immutable `driver_kyc_submissions` version/time, mirrored onto `driver_applications` (`0102`) | In-app I agree required; staff review displays version/date; signed-file path removed |
 
 One `stored_files` table + per-domain link columns/tables; one adapter; one
 upload flow. Do not build per-feature upload paths.
@@ -2654,6 +2654,10 @@ in dashboards and reports). Both read `trip_analytics`/`impression_estimates`
 aggregates only, k-floor rules of §22.2 apply to any zone-level display.
 
 ## 23. Identity evolution & production-PWA readiness
+
+- **Agreement and bank capture (D77/D78, REQ-156/157) [TARGET - implementation under verification]:** Apply presents plain version-1 agreement points and the immutable full text at `/apply/agreement/1`; required acceptance records server time/version on immutable KYC evidence and its locked application. Signed agreement file fields/document kinds are retired by `0102`; staff-created drivers supply missing consent in signed-in renewal and fresh approval requires it. Existing consent follows renewal, exact committed retries compare immutable evidence before current-version/provider/receipt checks. Legal text is internally draft until REQ-032 and current live-use gates remain.
+  Apply and Profile share `components/driver/bank-picker.tsx` and the read-only backend bank catalog. `adapters/banks.py` reuses the Paystack JSON client for cursor-paginated Nigerian banks and account resolution; public catalog responses are cached, provider credentials remain server-only. Longer provider bank codes are preserved. Applicant account checks are capability-scoped and rate-limited, with signed 15-minute receipts bound to driver, bank/account digests, outcome and resolved-name digest. Resolved names require explicit confirmation. Only unconfigured/transport/5xx/provider-429 unavailability permits typed-name capture; invalid input/response, capability/local limiter failures refuse it. Capture retains encrypted bank versions and audited staff verification; name checks never create payout verification, recipients or transfer authority. D40b is unchanged. Fake transport is the delivery provider; no live provider call.
+
 
 - **Owner correction C29–C33 [BUILT]:** onboarding upload retries bind exact
   file/access identity and reject stale async completion. Current approval
@@ -3706,6 +3710,7 @@ It does not authorize deployment or close external launch gates.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.132 | 2026-10-13 | D77/D78 replaces signed agreement files with versioned in-app acceptance (`0102`) and reuses one searchable Apply/renewal bank catalog/picker with server-authoritative account-name confirmation and unavailable fallback. Legal text remains internally draft (REQ-032); D40b unchanged. Reviewed contract: agreement-bank-picker-2026-10-13; focused verification, specialist/consolidated review and full branch CI remain pending. |
 | v1.131 | 2026-10-12 | **D76/REQ-152 expiry correctness.** Approved-to-expired staff decisions preserve prior server document outcomes, dates and validity in append-only history rather than fabricating a new review. Actual expired-file renewal requires a distinct owned clean upload, retaining exact retries and current approval/trip gates. No schema or migration; regression-first verification and privacy/security/consolidated review pending. |
 | v1.130 | 2026-10-10 | D75/REQ-150 approves only mixed thread/greenlet coverage configuration in §10.3. Source/static checkpoint recorded in [the existing receipt](../issues/testing/combined-ci-repair-2026-10-08.md); fresh attribution, unchanged 90/80 and exact floors, canonical receipt, full CI and final integrated reviews remain pending. Renumbered at merge from v1.127. |
 | v1.129 | 2026-10-07 | D72–D74: partial document renewals, per-document review outcomes, Abuja/Nigerian demo fixtures and touched-test verification without local coverage; REQ-125, REQ-143, REQ-144, REQ-145, REQ-146, REQ-147. Renumbered at merge from v1.126. |

@@ -69,11 +69,13 @@ def _admin_person_payee_response(view, now=None) -> AdminPersonPayeeStageRead:
     if submission is None:
         return AdminPersonPayeeStageRead(status="not_submitted")
     return AdminPersonPayeeStageRead(
+        agreement_version=submission.agreement_version,
+        agreement_accepted_at=submission.agreement_accepted_at,
         status=submission.status,
         documents=retained_document_outcomes(
             decision,
             view.document_file_ids,
-            ("driver_license", "driver_photo", "signed_agreement"),
+            ("driver_license", "driver_photo"),
             now,
         ),
         replace_nin=submission.purged_at is not None

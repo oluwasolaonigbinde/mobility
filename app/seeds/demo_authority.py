@@ -16,6 +16,7 @@ from pydantic import SecretStr
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.adapters.banks import BankAdapter
 from app.adapters.crypto import AssociatedData, EnvelopeCryptoProvider
 from app.adapters.scanner import MalwareScanVerdict, build_malware_scanner
 from app.adapters.storage import build_storage_provider
@@ -51,6 +52,7 @@ from app.models.stored_file import (
 )
 from app.models.user import User
 from app.models.vehicle import Vehicle, VehicleType
+from app.services.bank_capture import check_account_name
 from app.services.billing import (
     reserve_assignment_liability,
 )
@@ -589,7 +591,7 @@ async def _ensure_applicant_review(session, *, application, person, stage, staff
     )
     clock[0] += timedelta(hours=1)
     files = {}
-    for kind in ("driver_license", "driver_photo", "signed_agreement"):
+    for kind in ("driver_license", "driver_photo"):
         stored = await managed_seed_image(
             session,
             settings=settings,
@@ -601,6 +603,13 @@ async def _ensure_applicant_review(session, *, application, person, stage, staff
         )
         files[kind] = stored.id
     clock[0] += timedelta(hours=1)
+    bank_check = await check_account_name(
+        user_id=application.user_id,
+        bank_code="058",
+        account_number="0000000000",
+        adapter=BankAdapter(),
+        settings=settings,
+    )
     view = await submit_application_person_payee(
         session,
         settings=settings,
@@ -611,10 +620,12 @@ async def _ensure_applicant_review(session, *, application, person, stage, staff
             nin=SecretStr("00000000000"),
             account_name=SecretStr(person.full_name),
             account_number=SecretStr("0000000000"),
-            bank_code=SecretStr("999"),
+            bank_code=SecretStr("058"),
             driver_license_file_id=files["driver_license"],
             driver_photo_file_id=files["driver_photo"],
-            signed_agreement_file_id=files["signed_agreement"],
+            agreement_version="1",
+            agreement_accepted=True,
+            bank_check_receipt=SecretStr(bank_check.bank_check_receipt),
         ),
     )
     if view.submission is None:
@@ -835,9 +846,7 @@ async def ensure_primary_demo_documents(session, *, driver, profile, vehicle, re
             .limit(1)
         )
         bank = require_seed_value(bank, "primary driver bank account")
-        files = await documents(
-            ("driver_license", "driver_photo", "signed_agreement"), FilePurpose.DRIVER_KYC.value
-        )
+        files = await documents(("driver_license", "driver_photo"), FilePurpose.DRIVER_KYC.value)
         view = await submit_driver_kyc(
             session,
             actor_user_id=driver.id,
@@ -847,6 +856,8 @@ async def ensure_primary_demo_documents(session, *, driver, profile, vehicle, re
             document_file_ids=files,
             crypto=crypto,
             settings=settings,
+            agreement_version="1",
+            agreement_accepted=True,
         )
         await reveal_driver_nin(
             session,

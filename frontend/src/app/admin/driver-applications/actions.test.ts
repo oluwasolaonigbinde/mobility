@@ -160,7 +160,7 @@ describe("reviewPersonPayeeAction", () => {
           decision: "approved",
           reason_code: "complete_current_evidence",
           document_reviews: Object.fromEntries(
-            ["driver_license", "driver_photo", "signed_agreement"].map((kind) => [
+            ["driver_license", "driver_photo"].map((kind) => [
               kind,
               { status: "accepted", reason_code: null, expires_on: null },
             ]),

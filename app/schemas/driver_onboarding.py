@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from enum import StrEnum
 from typing import Literal
 from uuid import UUID
@@ -52,7 +52,10 @@ class PersonPayeeCaptureCreate(BaseModel):
     bank_code: SecretStr = Field(repr=False)
     driver_license_file_id: UUID
     driver_photo_file_id: UUID
-    signed_agreement_file_id: UUID
+    agreement_version: str = Field(max_length=32)
+    agreement_accepted: bool
+    account_name_confirmed: bool = False
+    bank_check_receipt: SecretStr | None = Field(default=None, repr=False)
 
     @field_validator("nin")
     @classmethod
@@ -78,7 +81,8 @@ class PersonPayeeRenewalCreate(BaseModel):
     bank_code: SecretStr | None = Field(default=None, repr=False)
     driver_license_file_id: UUID | None = None
     driver_photo_file_id: UUID | None = None
-    signed_agreement_file_id: UUID | None = None
+    agreement_version: str | None = Field(default=None, max_length=32)
+    agreement_accepted: bool = False
 
     @field_validator("nin")
     @classmethod
@@ -95,6 +99,8 @@ class DocumentReviewRead(BaseModel):
 
 
 class PersonPayeeStageRead(BaseModel):
+    agreement_version: str | None = None
+    agreement_accepted_at: datetime | None = None
     documents: dict[str, DocumentReviewRead] = Field(default_factory=dict)
     replace_nin: bool = False
     replace_bank: bool = False
@@ -107,6 +113,11 @@ class PersonPayeeStageRead(BaseModel):
     reason_code: KycReviewReason | None = None
     created_at: datetime | None = None
     decided_at: datetime | None = None
+
+    @field_validator("agreement_accepted_at")
+    @classmethod
+    def utc_acceptance_time(cls, value: datetime | None) -> datetime | None:
+        return value.replace(tzinfo=UTC) if value is not None and value.tzinfo is None else value
 
 
 class PersonPayeeReviewDecisionCreate(BaseModel):

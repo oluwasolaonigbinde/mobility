@@ -18,18 +18,11 @@ it("uses clear identity document labels with direct audited reads", () => {
       bankAccountVerified
       documentFileIds={{
         driver_license: "licence",
-        signed_agreement: "agreement",
         driver_photo: "photo",
       }}
     />,
   );
-  for (const name of [
-    "Identity (NIN)",
-    "Driver’s licence",
-    "Driver photo",
-    "Signed agreement",
-    "Bank account",
-  ]) {
+  for (const name of ["Identity (NIN)", "Driver’s licence", "Driver photo", "Bank account"]) {
     const row = within(screen.getByRole("region", { name }));
     expect(
       row.getByRole("button", { name: name === "Identity (NIN)" ? "Show NIN" : "View" }),

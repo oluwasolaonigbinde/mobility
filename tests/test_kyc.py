@@ -68,13 +68,12 @@ def _seed_driver_authority(db_sessionmaker, *, suffix: str):
                 (
                     "driver_license",
                     "driver_photo",
-                    "signed_agreement",
                     "registration",
                     "insurance",
                     "vehicle_photo",
                 )
             ):
-                purpose = "driver_kyc" if index < 3 else "vehicle_evidence"
+                purpose = "driver_kyc" if index < 2 else "vehicle_evidence"
                 intent = FileUploadIntent(
                     organization_id=None,
                     subject_user_id=driver.id,
@@ -122,7 +121,8 @@ def _payload(bank_id: UUID, files: dict[str, UUID], **changes):
         "bank_account_version_id": str(bank_id),
         "driver_license_file_id": str(files["driver_license"]),
         "driver_photo_file_id": str(files["driver_photo"]),
-        "signed_agreement_file_id": str(files["signed_agreement"]),
+        "agreement_version": "1",
+        "agreement_accepted": True,
     }
     payload.update(changes)
     return payload
@@ -315,10 +315,12 @@ def test_nin_rewrap_appends_once_and_preserves_ciphertext(db_sessionmaker, setti
                 bank_account_version_id=bank_id,
                 document_file_ids={
                     name: files[name]
-                    for name in ("driver_license", "driver_photo", "signed_agreement")
+                    for name in ("driver_license", "driver_photo")
                 },
                 crypto=first_crypto,
                 settings=settings,
+                agreement_version="1",
+                agreement_accepted=True,
             )
             await session.commit()
             original_mapping = dict(original.submission.encrypted_nin)
@@ -373,7 +375,7 @@ def test_rewrap_cannot_resurrect_a_superseded_nin_chain(db_sessionmaker, setting
         keys={1: bytes(range(32)), 2: b"z" * 32}, active_key_version=2
     )
     document_file_ids = {
-        name: files[name] for name in ("driver_license", "driver_photo", "signed_agreement")
+        name: files[name] for name in ("driver_license", "driver_photo")
     }
 
     async def exercise() -> None:
@@ -387,6 +389,8 @@ def test_rewrap_cannot_resurrect_a_superseded_nin_chain(db_sessionmaker, setting
                 document_file_ids=document_file_ids,
                 crypto=first_crypto,
                 settings=settings,
+                agreement_version="1",
+                agreement_accepted=True,
             )
             first.submission.status = "rejected"
             await submit_driver_kyc(
@@ -399,6 +403,8 @@ def test_rewrap_cannot_resurrect_a_superseded_nin_chain(db_sessionmaker, setting
                 document_file_ids=document_file_ids,
                 crypto=first_crypto,
                 settings=settings,
+                agreement_version="1",
+                agreement_accepted=True,
             )
             await session.commit()
             with pytest.raises(AppError) as raised:
@@ -422,7 +428,7 @@ def test_postgres_concurrent_kyc_retry_and_versions_serialize(
     )
     crypto = EnvelopeCryptoProvider(keys={1: bytes(range(32))}, active_key_version=1)
     document_file_ids = {
-        name: files[name] for name in ("driver_license", "driver_photo", "signed_agreement")
+        name: files[name] for name in ("driver_license", "driver_photo")
     }
     shared_request = uuid4()
 
@@ -438,6 +444,8 @@ def test_postgres_concurrent_kyc_retry_and_versions_serialize(
                     document_file_ids=document_file_ids,
                     crypto=crypto,
                     settings=settings,
+                    agreement_version="1",
+                    agreement_accepted=True,
                 )
                 await session.commit()
                 return view.submission.id, view.submission.version

@@ -67,6 +67,10 @@ class PaystackNotFoundError(PaystackError):
     """Paystack answered 404 for the requested object."""
 
 
+class PaystackMalformedResponseError(PaystackOutcomeUnknownError):
+    """Response cannot authorize bank-name fallback, even if payment outcome is unknown."""
+
+
 class PaystackRejectedError(PaystackError):
     """Paystack definitively refused the request, or its answer failed our checks."""
 
@@ -179,6 +183,7 @@ class PaystackClient:
         *,
         json_body: dict[str, Any] | None = None,
         params: dict[str, str] | None = None,
+        include_meta: bool = False,
     ) -> Any:
         try:
             async with httpx.AsyncClient(
@@ -203,12 +208,12 @@ class PaystackClient:
         try:
             body = response.json()
         except ValueError as exc:
-            raise PaystackOutcomeUnknownError("Paystack response is not JSON") from exc
-        if not isinstance(body, dict) or body.get("status") not in {True, False}:
-            raise PaystackOutcomeUnknownError("Paystack response envelope is malformed")
+            raise PaystackMalformedResponseError("Paystack response is not JSON") from exc
+        if not isinstance(body, dict) or not isinstance(body.get("status"), bool):
+            raise PaystackMalformedResponseError("Paystack response envelope is malformed")
         if body["status"] is False:
             raise PaystackRejectedError("Paystack rejected the request")
-        return body.get("data")
+        return body if include_meta else body.get("data")
 
 
 @dataclass(frozen=True, slots=True)

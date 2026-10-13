@@ -10,13 +10,14 @@ vi.mock("@/lib/files/onboarding-upload", async (importOriginal) => ({
 const fetchMock = vi.fn();
 const documents = {
   person_payee: {
+    agreement_version: "1",
+    agreement_accepted_at: "2026-10-12T12:00:00Z",
     status: "rejected",
     submission_id: "person",
     reason_code: "unreadable_evidence",
     documents: {
       driver_license: { status: "rejected", reason_code: "unreadable_evidence" },
       driver_photo: { status: "accepted" },
-      signed_agreement: { status: "accepted" },
     },
   },
   vehicles: [
@@ -49,7 +50,7 @@ it("shows each recorded outcome, only failed uploads, no filenames or saved iden
   expect(screen.getByRole("status")).toHaveTextContent("Loading");
   await screen.findByText("hard to read, upload a clearer photo");
   expect(screen.getByText("expired 3 Oct, upload a current document")).toBeTruthy();
-  expect(screen.getAllByText("accepted")).toHaveLength(4);
+  expect(screen.getAllByText("accepted")).toHaveLength(3);
   expect(screen.getByLabelText("Replace Driving licence")).toBeTruthy();
   expect(screen.getByLabelText("Replace Insurance")).toBeTruthy();
   expect(screen.queryByLabelText("NIN")).toBeNull();
@@ -71,9 +72,22 @@ it("offers a named bank list only for rejected bank details", async () => {
       vehicles: [],
     }),
   );
+  fetchMock.mockImplementation(async (url: string) =>
+    url.includes("/banks")
+      ? Response.json([{ code: "058", name: "GTBank" }])
+      : Response.json({
+          ...documents,
+          person_payee: {
+            ...documents.person_payee,
+            replace_bank: true,
+            documents: { driver_license: { status: "accepted" } },
+          },
+          vehicles: [],
+        }),
+  );
   render(<DocumentRenewals />);
-  await screen.findByLabelText("Bank");
-  expect(screen.getByRole("option", { name: "Guaranty Trust Bank" })).toHaveValue("058");
+  await screen.findByRole("option", { name: "GTBank" });
+  expect(screen.getByRole("option", { name: "GTBank" })).toHaveValue("058");
   expect(screen.queryByLabelText("Bank code")).toBeNull();
   expect(screen.queryByLabelText("NIN")).toBeNull();
   expect(screen.queryByLabelText(/Replace/)).toBeNull();

@@ -18,7 +18,6 @@ const props = {
   documentFileIds: {
     driver_license: "licence-file-id",
     driver_photo: "photo-file-id",
-    signed_agreement: "agreement-file-id",
   },
 };
 
@@ -37,13 +36,7 @@ it("keeps all five rows without allowing reads or decisions when nothing is subm
       status="not_submitted"
     />,
   );
-  for (const name of [
-    "Identity (NIN)",
-    "Driver’s licence",
-    "Driver photo",
-    "Signed agreement",
-    "Bank account",
-  ]) {
+  for (const name of ["Identity (NIN)", "Driver’s licence", "Driver photo", "Bank account"]) {
     const row = within(screen.getByRole("region", { name }));
     expect(row.getByText("Not submitted")).toBeInTheDocument();
     expect(
@@ -61,7 +54,6 @@ it.each([
   ["Bank account", "account", "bank_account_version_id", "bank-version-id"],
   ["Driver’s licence", "document", "file_id", "licence-file-id"],
   ["Driver photo", "document", "file_id", "photo-file-id"],
-  ["Signed agreement", "document", "file_id", "agreement-file-id"],
 ])(
   "directly acknowledges and performs each existing logged read of %s",
   async (name, kind, idKey, id) => {
@@ -142,7 +134,7 @@ it("discards revealed evidence and bank reference when current record IDs change
 
 it("keeps unavailable document rows and the exact bank reference requirements", () => {
   render(<PersonPayeeDecisionActions {...props} documentFileIds={{}} />);
-  for (const name of ["Driver’s licence", "Driver photo", "Signed agreement"]) {
+  for (const name of ["Driver’s licence", "Driver photo"]) {
     const row = within(screen.getByRole("region", { name }));
     expect(row.getByText("Not submitted")).toBeInTheDocument();
     expect(row.getByRole("button", { name: "View" })).toBeDisabled();
@@ -229,4 +221,11 @@ it("requires a chosen reason only for Reject and posts the selected reason", asy
   const payload = mocks.decide.mock.calls[0]![1] as FormData;
   expect(payload.get("intent")).toBe("reject");
   expect(payload.get("reason_code")).toBe("identity_mismatch");
+});
+
+it("shows the accepted agreement version and date without a document read", () => {
+  render(<PersonPayeeDecisionActions {...props} agreementVersion="1" agreementAcceptedAt="2026-10-12T12:00:00Z" />);
+  const agreement = within(screen.getByRole("region", { name: "Driver agreement" }));
+  expect(agreement.getByText("Agreed to version 1 on 12 Oct 2026")).toBeVisible();
+  expect(agreement.queryByRole("button")).toBeNull();
 });

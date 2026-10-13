@@ -43,11 +43,11 @@ async def _create_terminal_submission(
         client_request_id=uuid4(),
         nin=NIN,
         bank_account_version_id=bank_id,
-        document_file_ids={
-            name: files[name] for name in ("driver_license", "driver_photo", "signed_agreement")
-        },
+        document_file_ids={name: files[name] for name in ("driver_license", "driver_photo")},
         crypto=EnvelopeCryptoProvider(keys={1: bytes(range(32))}, active_key_version=1),
         settings=settings,
+        agreement_version="1",
+        agreement_accepted=True,
     )
     view.submission.status = KycSubmissionStatus.REJECTED
     view.submission.created_at = now - timedelta(days=31)
@@ -115,10 +115,10 @@ def test_file_kyc_retention_is_dry_run_first_audited_and_removes_terminal_object
     assert planned.eligible_submissions == 1
     assert planned.purged_submissions == planned.purged_files == 0
     assert executed.purged_submissions == 1
-    assert executed.purged_files == 3
+    assert executed.purged_files == 2
     assert submission_count == 1
     assert document_count == 0
-    assert len(storage.deleted) == 3
+    assert len(storage.deleted) == 2
     assert "file_kyc.retention_dry_run" in actions
     assert "file_kyc.retention_executed" in actions
 
@@ -142,11 +142,12 @@ def test_shared_files_survive_old_rejected_version_and_missing_policy_fails_clos
                 nin=NIN,
                 bank_account_version_id=bank_id,
                 document_file_ids={
-                    name: files[name]
-                    for name in ("driver_license", "driver_photo", "signed_agreement")
+                    name: files[name] for name in ("driver_license", "driver_photo")
                 },
                 crypto=EnvelopeCryptoProvider(keys={1: bytes(range(32))}, active_key_version=1),
                 settings=settings,
+                agreement_version="1",
+                agreement_accepted=True,
             )
             previous = pending.submission
             previous.created_at = now - timedelta(days=31)
@@ -171,7 +172,7 @@ def test_shared_files_survive_old_rejected_version_and_missing_policy_fails_clos
                     nin="10987654321",
                     **{
                         f"{name}_file_id": files[name]
-                        for name in ("driver_license", "driver_photo", "signed_agreement")
+                        for name in ("driver_license", "driver_photo")
                     },
                 ),
                 crypto=EnvelopeCryptoProvider(keys={1: bytes(range(32))}, active_key_version=1),
@@ -181,7 +182,7 @@ def test_shared_files_survive_old_rejected_version_and_missing_policy_fails_clos
             assert current.submission.version == previous.version + 1
             assert current.submission.bank_account_version_id == bank_id
             assert current.document_file_ids == {
-                name: files[name] for name in ("driver_license", "driver_photo", "signed_agreement")
+                name: files[name] for name in ("driver_license", "driver_photo")
             }
             assert previous.created_at == now - timedelta(days=31)
             await session.commit()
@@ -233,7 +234,7 @@ def test_shared_files_survive_old_rejected_version_and_missing_policy_fails_clos
     assert unavailable.policy_configured is False
     assert executed.purged_submissions == 1
     assert executed.purged_files == 0
-    assert remaining_files == 6
+    assert remaining_files == 5
     assert remaining_submissions == 2
     assert storage.deleted == []
 
@@ -276,7 +277,7 @@ def test_storage_outage_preserves_retired_identity_and_durable_cleanup(db_sessio
             assert retained.purged_at is not None
             assert retained.encrypted_nin is None
             pending = list(await session.scalars(select(StoredObjectDeletion)))
-            assert len(pending) == 3
+            assert len(pending) == 2
             assert {row.state for row in pending} == {"pending"}
             assert sum(row.last_error_code == "storage_unavailable" for row in pending) == 1
             submissions = int(await session.scalar(select(func.count(DriverKycSubmission.id))) or 0)
@@ -354,7 +355,7 @@ def test_mid_batch_storage_outage_is_idempotently_recoverable(db_sessionmaker, s
         return retried.purged_submissions, retried.purged_files
 
     assert asyncio.run(exercise()) == (0, 0)
-    assert len(set(storage.deleted)) == 3
+    assert len(set(storage.deleted)) == 2
 
 
 def test_kill_after_external_delete_recovers_from_durable_intent(
@@ -410,7 +411,7 @@ def test_kill_after_external_delete_recovers_from_durable_intent(
             retained = await session.scalar(select(DriverKycSubmission))
             assert retained.purged_at is not None and retained.encrypted_nin is None
             pending = list(await session.scalars(select(StoredObjectDeletion)))
-            assert len(pending) == 3
+            assert len(pending) == 2
             assert {row.state for row in pending} == {"pending"}
             owned_upload_intent_ids = {
                 row.upload_intent_id for row in pending if row.upload_intent_id is not None
@@ -418,7 +419,6 @@ def test_kill_after_external_delete_recovers_from_durable_intent(
             assert {row.object_checksum_sha256 for row in pending} == {
                 "1" * 64,
                 "2" * 64,
-                "3" * 64,
             }
 
         storage.delete = original_delete  # type: ignore[method-assign]
@@ -452,7 +452,7 @@ def test_kill_after_external_delete_recovers_from_durable_intent(
             )
         return remaining_submissions, remaining_documents, remaining_owned_upload_intents, states
 
-    assert asyncio.run(exercise()) == (1, 0, 0, ["completed", "completed", "completed"])
+    assert asyncio.run(exercise()) == (1, 0, 0, ["completed", "completed"])
 
 
 def test_admin_retention_endpoint_is_dry_run_first_and_policy_gated(
@@ -586,7 +586,7 @@ def test_postgres_retention_lock_prevents_concurrent_double_purge(
     assert second.purged_submissions == 0
     assert remaining == 1
     assert executions == 1
-    assert len(storage.deleted) == 3
+    assert len(storage.deleted) == 2
 
 
 def test_postgres_deletion_intent_fences_concurrent_new_file_reference(
@@ -739,7 +739,7 @@ def test_postgres_deletion_waits_for_prior_reference_then_skips_that_file(
             await link_session.commit()
             result = await task
         assert result.purged_submissions == 1
-        assert result.purged_files == 2
+        assert result.purged_files == 1
         async with sessionmaker() as session:
             assert await session.get(StoredFile, target_file_id) is not None
 
@@ -789,7 +789,7 @@ def test_kyc_retirement_keeps_deletion_pending_when_provider_versions_remain(
             shell = await session.get(DriverKycSubmission, identity)
             assert shell.purged_at is not None and shell.encrypted_nin is None
             receipts = list(await session.scalars(select(StoredObjectDeletion)))
-            assert len(receipts) == 3
+            assert len(receipts) == 2
             assert {row.state for row in receipts} == {"pending"}
             failed = [row for row in receipts if row.attempts]
             assert len(failed) == 1

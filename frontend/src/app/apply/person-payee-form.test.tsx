@@ -1,5 +1,4 @@
-import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PersonPayeeForm } from "./person-payee-form";
@@ -17,11 +16,21 @@ describe("PersonPayeeForm", () => {
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input);
+        if (url === "/api/apply/onboarding/banks")
+          return Response.json([{ code: "058", name: "GTBank" }]);
+        if (url === "/api/apply/onboarding/account-name")
+          return Response.json({
+            outcome: "unavailable",
+            bank_check_receipt: "fallback-receipt",
+          });
         if (url === "/api/apply/onboarding/uploads") {
           upload += 1;
           return Response.json({
             upload_id: `00000000-0000-4000-8000-00000000000${upload}`,
-            upload: { url: `https://storage.test/${upload}`, fields: { key: `private-${upload}` } },
+            upload: {
+              url: `https://storage.test/${upload}`,
+              fields: { key: `private-${upload}` },
+            },
           });
         }
         if (url.startsWith("https://storage.test/")) return new Response(null, { status: 204 });
@@ -35,40 +44,52 @@ describe("PersonPayeeForm", () => {
           return Response.json({ id: "safe-file", scan_status: "clean" });
         }
         if (url === "/api/apply/onboarding/person-payee") {
-          return Response.json({ status: "pending_review", version: 1, masked_nin: "*******8901" });
+          return Response.json({
+            status: "pending_review",
+            version: 1,
+            masked_nin: "*******8901",
+          });
         }
         throw new Error(`Unexpected request: ${url}`);
       }),
     );
   });
 
-  it("uploads three private files, waits for clean scans and never echoes identity", async () => {
-    const user = userEvent.setup();
+  it("uploads two private files and records consent, waits for clean scans and never echoes identity", async () => {
     render(<PersonPayeeForm />);
-    expect(screen.getByLabelText("Signed agreement")).toHaveAccessibleDescription(
-      "The driver agreement Terrax Media sent you, signed.",
+    expect(screen.queryByLabelText("Signed agreement")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Read the full agreement" })).toHaveAttribute(
+      "href",
+      "/apply/agreement/1",
     );
-    expect(screen.getByLabelText("Bank code (3 digits)")).toHaveAccessibleDescription(
-      "Ask your bank if you're not sure.",
-    );
-    await user.type(screen.getByLabelText("Code from your email"), ACCESS_TOKEN);
-    await user.type(screen.getByLabelText("NIN (11 digits)"), "12345678901");
-    await user.type(screen.getByLabelText("Name on bank account"), "Test Driver");
-    await user.type(screen.getByLabelText("Account number (10 digits)"), "0123456789");
-    await user.type(screen.getByLabelText("Bank code (3 digits)"), "058");
-    await user.upload(
-      screen.getByLabelText("Driver's licence"),
-      new File(["licence"], "licence.png", { type: "image/png" }),
-    );
-    await user.upload(
-      screen.getByLabelText("Photo of you"),
-      new File(["photo"], "photo.png", { type: "image/png" }),
-    );
-    await user.upload(
-      screen.getByLabelText("Signed agreement"),
-      new File(["agreement"], "agreement.pdf", { type: "application/pdf" }),
-    );
-    await user.click(screen.getByRole("button", { name: "Send my details" }));
+    fireEvent.change(screen.getByLabelText("Code from your email"), {
+      target: { value: ACCESS_TOKEN },
+    });
+    fireEvent.change(screen.getByLabelText("NIN (11 digits)"), {
+      target: { value: "12345678901" },
+    });
+    fireEvent.change(screen.getByLabelText("Account number (10 digits)"), {
+      target: { value: "0123456789" },
+    });
+    await screen.findByRole("option", { name: "GTBank" });
+    fireEvent.change(screen.getByLabelText("Bank"), {
+      target: { value: "058" },
+    });
+    fireEvent.change(await screen.findByLabelText("Name on bank account"), {
+      target: { value: "Test Driver" },
+    });
+    fireEvent.click(screen.getByLabelText("I agree"));
+    fireEvent.change(screen.getByLabelText("Driver's licence"), {
+      target: {
+        files: [new File(["licence"], "licence.png", { type: "image/png" })],
+      },
+    });
+    fireEvent.change(screen.getByLabelText("Photo of you"), {
+      target: {
+        files: [new File(["photo"], "photo.png", { type: "image/png" })],
+      },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send my details" }));
 
     expect(await screen.findByRole("status")).toHaveTextContent(
       "Sent. We'll check your details. Check your status with your application reference.",
@@ -81,7 +102,14 @@ describe("PersonPayeeForm", () => {
       .map(([, init]) => (typeof init?.body === "string" ? JSON.parse(init.body) : null))
       .filter(Boolean);
     expect(mutationBodies).toEqual(
-      expect.arrayContaining([expect.objectContaining({ application_access_token: ACCESS_TOKEN })]),
+      expect.arrayContaining([
+        expect.objectContaining({
+          application_access_token: ACCESS_TOKEN,
+          agreement_version: "1",
+          agreement_accepted: true,
+          bank_check_receipt: "fallback-receipt",
+        }),
+      ]),
     );
     expect(mutationBodies.some((body) => "application_reference" in body)).toBe(false);
   });

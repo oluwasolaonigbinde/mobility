@@ -40,7 +40,6 @@ class KycReviewReason(StrEnum):
 class DriverKycDocumentType(StrEnum):
     DRIVER_LICENSE = "driver_license"
     DRIVER_PHOTO = "driver_photo"
-    SIGNED_AGREEMENT = "signed_agreement"
 
 
 class VehicleEvidenceDocumentType(StrEnum):
@@ -123,6 +122,11 @@ class DriverKycSubmission(Base):
     created_by_user_id: Mapped[UUID] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False
     )
+    agreement_version: Mapped[str | None] = mapped_column(String(32))
+    agreement_accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    agreement_acceptance_requested: Mapped[bool | None] = mapped_column()
+    bank_check_receipt_sha256: Mapped[str | None] = mapped_column(String(64))
+    bank_name_confirmed: Mapped[bool | None] = mapped_column()
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -132,7 +136,7 @@ class DriverKycDocument(Base):
     __tablename__ = "driver_kyc_documents"
     __table_args__ = (
         CheckConstraint(
-            "document_type IN ('driver_license', 'driver_photo', 'signed_agreement')",
+            "document_type IN ('driver_license', 'driver_photo')",
             name="ck_driver_kyc_documents_type",
         ),
         UniqueConstraint(

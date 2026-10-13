@@ -63,7 +63,7 @@ def test_approval_requires_actual_exact_current_review_reads(
     assert (
         db_client.post(
             "/api/v1/auth/driver-onboarding/person-payee",
-            json=_person_payee_payload(reference, files),
+            json=_person_payee_payload(reference, files, db_client),
         ).status_code
         == 201
     )
@@ -118,7 +118,11 @@ def test_approval_requires_actual_exact_current_review_reads(
         f"/api/v1/admin/payees/bank-account-versions/"
         f"{submission.bank_account_version_id}/payout-verification",
         headers=headers,
-        json={"verification_reference": f"admin-provider-review-{submission.id.hex}"},
+        json={
+            "verification_reference": (
+                f"admin-provider-review-{submission.bank_account_version_id.hex}"
+            )
+        },
     )
     assert verified.status_code == 200
 
@@ -160,7 +164,7 @@ def test_person_payee_approval_rejects_evidence_with_wrong_entity_type(
     assert (
         db_client.post(
             "/api/v1/auth/driver-onboarding/person-payee",
-            json=_person_payee_payload(reference, files),
+            json=_person_payee_payload(reference, files, db_client),
         ).status_code
         == 201
     )
@@ -226,7 +230,7 @@ def test_person_payee_approval_rejects_each_other_near_match_evidence(
     assert (
         db_client.post(
             "/api/v1/auth/driver-onboarding/person-payee",
-            json=_person_payee_payload(reference, files),
+            json=_person_payee_payload(reference, files, db_client),
         ).status_code
         == 201
     )
@@ -329,7 +333,7 @@ def test_applicant_capture_is_not_payout_authority(db_client, db_sessionmaker, s
     assert (
         db_client.post(
             "/api/v1/auth/driver-onboarding/person-payee",
-            json=_person_payee_payload(reference, files),
+            json=_person_payee_payload(reference, files, db_client),
         ).status_code
         == 201
     )
@@ -415,7 +419,7 @@ def test_historical_decision_retry_resolves_original_submission(
     )
     first = db_client.post(
         "/api/v1/auth/driver-onboarding/person-payee",
-        json=_person_payee_payload(reference, files),
+        json=_person_payee_payload(reference, files, db_client),
     )
     admin = create_test_user(
         db_sessionmaker,
@@ -437,7 +441,7 @@ def test_historical_decision_retry_resolves_original_submission(
     )
     second = db_client.post(
         "/api/v1/auth/driver-onboarding/person-payee",
-        json=_person_payee_payload(reference, files),
+        json=_person_payee_payload(reference, files, db_client),
     )
     replay = db_client.post(
         path,
@@ -459,7 +463,7 @@ def test_resubmission_invalidates_every_stale_exact_review_read(
     files = _seed_clean_kyc_files(db_sessionmaker, email="person-payee-stale-review@example.com")
     first = db_client.post(
         "/api/v1/auth/driver-onboarding/person-payee",
-        json=_person_payee_payload(access_token, files),
+        json=_person_payee_payload(access_token, files, db_client),
     )
     admin = create_test_user(
         db_sessionmaker,
@@ -486,7 +490,7 @@ def test_resubmission_invalidates_every_stale_exact_review_read(
     )
     second = db_client.post(
         "/api/v1/auth/driver-onboarding/person-payee",
-        json=_person_payee_payload(access_token, files),
+        json=_person_payee_payload(access_token, files, db_client),
     )
     assert first.status_code == 201
     assert rejected.status_code == 200
@@ -581,7 +585,6 @@ def test_status_references_are_indistinguishable_across_every_mutation_probe(
     files = {
         "driver_license": uuid4(),
         "driver_photo": uuid4(),
-        "signed_agreement": uuid4(),
     }
 
     probes = (
@@ -609,7 +612,7 @@ def test_status_references_are_indistinguishable_across_every_mutation_probe(
         ),
         (
             "/api/v1/auth/driver-onboarding/person-payee",
-            lambda reference: _person_payee_payload(reference, files),
+            lambda reference: _person_payee_payload(reference, files, db_client),
         ),
     )
     for path, payload in probes:

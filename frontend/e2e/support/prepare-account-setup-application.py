@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
+from app.adapters.banks import BankAdapter
 from app.adapters.crypto import EnvelopeCryptoProvider
 from app.core.config import Settings, get_settings
 from app.models.driver import DriverOnboardingStatus, DriverProfile
@@ -30,6 +31,7 @@ from app.schemas.driver_onboarding import (
     ApplicantVehicleSubmissionCreate,
     PersonPayeeSubmissionCreate,
 )
+from app.services.bank_capture import check_account_name
 from app.services.driver_applications import (
     issue_driver_application_access,
     submit_driver_application,
@@ -158,7 +160,14 @@ async def create_fixture(sessionmaker, settings) -> DriverApplication:
             session,
             user_id=application.user_id,
             purpose="driver_kyc",
-            names=("driver_license", "driver_photo", "signed_agreement"),
+            names=("driver_license", "driver_photo"),
+        )
+        bank_check = await check_account_name(
+            user_id=application.user_id,
+            bank_code="058",
+            account_number="0123456789",
+            adapter=BankAdapter(),
+            settings=settings,
         )
         person = await submit_application_person_payee(
             session,
@@ -171,7 +180,9 @@ async def create_fixture(sessionmaker, settings) -> DriverApplication:
                 bank_code="058",
                 driver_license_file_id=person_files["driver_license"],
                 driver_photo_file_id=person_files["driver_photo"],
-                signed_agreement_file_id=person_files["signed_agreement"],
+                agreement_version="1",
+                agreement_accepted=True,
+                bank_check_receipt=bank_check.bank_check_receipt,
             ),
             crypto=EnvelopeCryptoProvider(keys={1: b"e" * 32}, active_key_version=1),
             settings=settings,

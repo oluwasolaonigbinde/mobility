@@ -100,10 +100,11 @@ async def create_driver_kyc_submission(
         document_file_ids={
             "driver_license": payload.driver_license_file_id,
             "driver_photo": payload.driver_photo_file_id,
-            "signed_agreement": payload.signed_agreement_file_id,
         },
         crypto=_crypto(settings),
         settings=settings,
+        agreement_version=payload.agreement_version,
+        agreement_accepted=payload.agreement_accepted,
     )
     await session.commit()
     return _driver_response(view)

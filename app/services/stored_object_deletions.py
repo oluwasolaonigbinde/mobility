@@ -126,10 +126,21 @@ async def delete_stored_object(
             "KYC payload retirement must commit before object deletion",
             status_code=status.HTTP_409_CONFLICT,
         )
+    retired_agreement = intent.owner_type == "retired_driver_agreement"
+    if retired_agreement:
+        await session.scalar(
+            select(StoredFile.id).where(StoredFile.id == intent.owner_id).with_for_update()
+        )
+    if retired_agreement and await _file_is_referenced(session, intent.owner_id):
+        raise AppError(
+            "FILE_RETIREMENT_REFERENCED",
+            "The file is still needed by another record",
+            status_code=409,
+        )
     intent.attempts += 1
     intent.last_error_code = None
     try:
-        if owner_model is not None:
+        if owner_model is not None or retired_agreement:
             await storage.delete_all_versions(intent.storage_key)
         else:
             await storage.delete(intent.storage_key)

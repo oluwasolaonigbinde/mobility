@@ -32,6 +32,8 @@ from app.schemas.driver_onboarding import (
 )
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
+from app.services.bank_capture import digest, require_bank_check
+from app.services.driver_agreement import require_agreement, require_recorded_agreement
 from app.services.driver_applications import application_from_access_token, status_reference_hash
 from app.services.kyc import (
     require_submission_payload,
@@ -231,7 +233,6 @@ async def submit_application_person_payee(
     documents = {
         "driver_license": payload.driver_license_file_id,
         "driver_photo": payload.driver_photo_file_id,
-        "signed_agreement": payload.signed_agreement_file_id,
     }
     existing = await session.scalar(
         select(DriverKycSubmission).where(
@@ -240,13 +241,25 @@ async def submit_application_person_payee(
         )
     )
     details = VerifiedBankAccountDetails(
-        account_name=payload.account_name.get_secret_value(),
+        account_name=payload.account_name.get_secret_value().strip(),
         account_number=payload.account_number.get_secret_value(),
         bank_code=payload.bank_code.get_secret_value(),
     )
     applicant_capture_reference = f"driver-application-capture-v1:{payload.client_request_id}"
     if existing is not None:
         require_submission_payload(existing)
+        if (
+            not payload.agreement_accepted
+            or payload.agreement_version != existing.agreement_version
+            or existing.bank_check_receipt_sha256
+            != (
+                digest(payload.bank_check_receipt.get_secret_value())
+                if payload.bank_check_receipt
+                else None
+            )
+            or payload.account_name_confirmed != existing.bank_name_confirmed
+        ):
+            raise _error("PERSON_PAYEE_RETRY_CONFLICT", "The retry does not match", 409)
         stored_details = await read_applicant_verified_bank_account(
             session,
             bank_account_version_id=existing.bank_account_version_id,
@@ -279,9 +292,13 @@ async def submit_application_person_payee(
             settings=settings,
             allow_invited_actor=True,
             allow_document_renewal=True,
+            agreement_version=payload.agreement_version,
+            agreement_accepted=payload.agreement_accepted,
         )
         return PersonPayeeView(view.submission, None, view.document_file_ids)
 
+    require_agreement(payload.agreement_version, payload.agreement_accepted)
+    receipt_sha256 = require_bank_check(payload, user_id=user_id, settings=settings)
     current = await session.scalar(
         select(DriverKycSubmission)
         .where(DriverKycSubmission.driver_profile_id == profile.id)
@@ -333,7 +350,17 @@ async def submit_application_person_payee(
         settings=settings,
         allow_invited_actor=True,
         allow_document_renewal=True,
+        agreement_version=payload.agreement_version,
+        agreement_accepted=payload.agreement_accepted,
     )
+    kyc_view.submission.bank_check_receipt_sha256 = receipt_sha256
+    kyc_view.submission.bank_name_confirmed = payload.account_name_confirmed
+    application = await session.scalar(
+        select(DriverApplication).where(DriverApplication.driver_profile_id == profile.id)
+    )
+    if application is not None and application.agreement_accepted_at is None:
+        application.agreement_version = kyc_view.submission.agreement_version
+        application.agreement_accepted_at = kyc_view.submission.agreement_accepted_at
     return PersonPayeeView(kyc_view.submission, None, kyc_view.document_file_ids)
 
 
@@ -395,6 +422,8 @@ async def _submit_partial_person_renewal(session, *, profile, payload, crypto, s
         existing is None
         and original.status == KycSubmissionStatus.APPROVED
         and not any(item["status"] == "expired" for item in outcomes.values())
+        and original.agreement_version == "1"
+        and original.agreement_accepted_at is not None
     ):
         raise _error(
             "PERSON_PAYEE_RESUBMISSION_NOT_ALLOWED",
@@ -419,6 +448,8 @@ async def _submit_partial_person_renewal(session, *, profile, payload, crypto, s
         settings=settings,
         allow_invited_actor=True,
         allow_document_renewal=True,
+        agreement_version=payload.agreement_version,
+        agreement_accepted=payload.agreement_accepted,
     )
     from app.services.vehicle_onboarding import reconcile_driver_work_eligibility
 
@@ -431,7 +462,7 @@ def _renewal_person_documents(
 ):
     supplied_documents = {
         kind: value
-        for kind in ("driver_license", "driver_photo", "signed_agreement")
+        for kind in ("driver_license", "driver_photo")
         if (value := getattr(payload, f"{kind}_file_id")) is not None
     }
     required = {
@@ -439,11 +470,9 @@ def _renewal_person_documents(
         for kind, item in outcomes.items()
         if not exact_retry and item["status"] in {"rejected", "expired"}
     }
-    required.update(
-        {"driver_license", "driver_photo", "signed_agreement"} - set(previous_documents)
-    )
+    required.update({"driver_license", "driver_photo"} - set(previous_documents))
     if original.purged_at is not None:
-        required.update({"driver_license", "driver_photo", "signed_agreement"})
+        required.update({"driver_license", "driver_photo"})
     reuses_expired_file = any(
         not exact_retry
         and item["status"] == "expired"
@@ -510,7 +539,7 @@ async def _renewal_bank_version(session, profile, original, decision, existing, 
     bank_id = original.bank_account_version_id
     if all(bank_values):
         details = VerifiedBankAccountDetails(
-            account_name=payload.account_name.get_secret_value(),
+            account_name=payload.account_name.get_secret_value().strip(),
             account_number=payload.account_number.get_secret_value(),
             bank_code=payload.bank_code.get_secret_value(),
         )
@@ -583,6 +612,7 @@ async def _require_exact_review_evidence(
     document_file_ids: dict[str, UUID],
     actor_user_id: UUID,
 ) -> None:
+    require_recorded_agreement(submission.agreement_version, submission.agreement_accepted_at)
     account_version = await session.get(PayeeBankAccountVersion, submission.bank_account_version_id)
     payout_verification = await session.scalar(
         select(PayeeBankAccountPayoutVerification.id).where(

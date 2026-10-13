@@ -3703,6 +3703,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/driver-onboarding/account-name": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Onboarding Account Name */
+        post: operations["onboarding_account_name_api_v1_auth_driver_onboarding_account_name_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/auth/driver-onboarding/banks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Onboarding Banks */
+        get: operations["onboarding_banks_api_v1_auth_driver_onboarding_banks_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/driver-onboarding/files/uploads": {
         parameters: {
             query?: never;
@@ -4889,6 +4923,36 @@ export interface components {
          * @enum {string}
          */
         AcceptanceMethod: "in_platform" | "external_recorded";
+        /** AccountNameCheckCreate */
+        AccountNameCheckCreate: {
+            /**
+             * Account Number
+             * Format: password
+             */
+            account_number: string;
+            /**
+             * Application Access Token
+             * Format: password
+             */
+            application_access_token: string;
+            /**
+             * Bank Code
+             * Format: password
+             */
+            bank_code: string;
+        };
+        /** AccountNameCheckRead */
+        AccountNameCheckRead: {
+            /** Account Name */
+            account_name?: string | null;
+            /** Bank Check Receipt */
+            bank_check_receipt: string;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "resolved" | "unavailable";
+        };
         /** ActiveCampaignAssignmentResponse */
         ActiveCampaignAssignmentResponse: {
             assignment: components["schemas"]["CampaignAssignmentRead"] | null;
@@ -5600,6 +5664,10 @@ export interface components {
         };
         /** AdminPersonPayeeStageRead */
         AdminPersonPayeeStageRead: {
+            /** Agreement Accepted At */
+            agreement_accepted_at?: string | null;
+            /** Agreement Version */
+            agreement_version?: string | null;
             /**
              * Bank Account Verified
              * @default false
@@ -6759,6 +6827,13 @@ export interface components {
             verified_at: string;
             /** Version */
             version: number;
+        };
+        /** BankRead */
+        BankRead: {
+            /** Code */
+            code: string;
+            /** Name */
+            name: string;
         };
         /** BillingHistoryEntry */
         BillingHistoryEntry: {
@@ -9421,6 +9496,10 @@ export interface components {
         };
         /** DriverKycSubmissionCreate */
         DriverKycSubmissionCreate: {
+            /** Agreement Accepted */
+            agreement_accepted: boolean;
+            /** Agreement Version */
+            agreement_version: string;
             /**
              * Bank Account Version Id
              * Format: uuid
@@ -9446,11 +9525,6 @@ export interface components {
              * Format: password
              */
             nin: string;
-            /**
-             * Signed Agreement File Id
-             * Format: uuid
-             */
-            signed_agreement_file_id: string;
         };
         /** DriverKycSubmissionRead */
         DriverKycSubmissionRead: {
@@ -12616,6 +12690,13 @@ export interface components {
             account_name?: string | null;
             /** Account Number */
             account_number?: string | null;
+            /**
+             * Agreement Accepted
+             * @default false
+             */
+            agreement_accepted: boolean;
+            /** Agreement Version */
+            agreement_version?: string | null;
             /** Bank Code */
             bank_code?: string | null;
             /**
@@ -12634,8 +12715,6 @@ export interface components {
             expected_submission_id: string;
             /** Nin */
             nin?: string | null;
-            /** Signed Agreement File Id */
-            signed_agreement_file_id?: string | null;
         };
         /** PersonPayeeReviewDecisionCreate */
         PersonPayeeReviewDecisionCreate: {
@@ -12673,6 +12752,10 @@ export interface components {
         };
         /** PersonPayeeStageRead */
         PersonPayeeStageRead: {
+            /** Agreement Accepted At */
+            agreement_accepted_at?: string | null;
+            /** Agreement Version */
+            agreement_version?: string | null;
             /**
              * Bank Account Verified
              * @default false
@@ -12720,15 +12803,26 @@ export interface components {
              */
             account_name: string;
             /**
+             * Account Name Confirmed
+             * @default false
+             */
+            account_name_confirmed: boolean;
+            /**
              * Account Number
              * Format: password
              */
             account_number: string;
+            /** Agreement Accepted */
+            agreement_accepted: boolean;
+            /** Agreement Version */
+            agreement_version: string;
             /**
              * Application Access Token
              * Format: password
              */
             application_access_token: string;
+            /** Bank Check Receipt */
+            bank_check_receipt?: string | null;
             /**
              * Bank Code
              * Format: password
@@ -12754,11 +12848,6 @@ export interface components {
              * Format: password
              */
             nin: string;
-            /**
-             * Signed Agreement File Id
-             * Format: uuid
-             */
-            signed_agreement_file_id: string;
         };
         /** PhoneChallengeRead */
         PhoneChallengeRead: {
@@ -23349,6 +23438,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DriverPublicCommandResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    onboarding_account_name_api_v1_auth_driver_onboarding_account_name_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountNameCheckCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountNameCheckRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    onboarding_banks_api_v1_auth_driver_onboarding_banks_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BankRead"][];
                 };
             };
             /** @description Request validation failed */

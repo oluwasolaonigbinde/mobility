@@ -270,7 +270,7 @@ creating a login does not approve documents or activate driving. Drivers upload 
 approved by an admin before working (Q13); approved accounts are activated by
 the driver after admin authorisation (D28). Required: licence, vehicle
 registration, insurance, NIN, vehicle photos, a verified bank account and a
-legally approved driver agreement and consent (Q26). In the pilot the vehicle
+legally approved driver agreement and consent (Q26). The driver reads the agreement and gives one required in-app acceptance, replacing the signed-file upload (D77, REQ-156). The application records its version and acceptance time; staff see the version/date. The displayed version-1 wording is internally a draft awaiting Terrax's lawyer under REQ-032; screens use normal agreement wording. Apply and renewals share one searchable bank picker, with popular banks first and provider bank codes or a built-in fallback (D78, REQ-157). Apply checks the account name through the adapter and asks the driver to confirm it; an unavailable provider permits a typed name. Staff bank verification and the first-payout-to-a-new-account rule (D40b) remain. In the pilot the vehicle
 is registered to its driver, who is the payee; no fleet owners (Q23). Vehicle
 approval ends on an admin-entered date (D31). Pilot vehicles: roadworthy cars
 (Q19) **and motorcycles** (D43h).
@@ -281,6 +281,8 @@ staff review. Work remains blocked until the current reviews pass. Unknown
 renewal periods stay unset (D69, REQ-137). Mark expired retains the recorded outcomes, dates and review history. Actually expired driver or vehicle documents require new clean uploads and audited current approval before work resumes; accepted retained documents remain reusable (D76, REQ-152).
 
 **History:**
+- **2026-10-12** - Owner chose in-app versioned agreement/privacy acceptance in place of a signed-file upload, plus the shared searchable bank picker and confirmed adapter account-name check with unavailable-provider typed-name fallback (D77/D78, REQ-156/157). The previous signed agreement was a required KYC file and Apply asked for a typed 3-digit bank code and account name. Legal wording remains a draft internally (REQ-032); existing payout authority remains.
+
 - **2026-10-12** — Owner-delegated orchestrator requires correction of the wave staff-expiry bug: retain original document facts/history and append the expiry event, refuse reuse of an actually expired file, and restore eligibility only after new upload approval (D76, REQ-152). This implements the existing rule; prior staff expiry incorrectly replaced document facts with empty values. Verification and master closure pending.
 
 - **2026-10-07** — Owner's Wave 2 C brief opens signed-in renewal for rejected/expired current documents (D69, REQ-137), replacing the later-stage deferral recorded on 1 Oct. Approval and activation remain separate; unknown renewal periods remain unset. Local implementation/verification: `issues/testing/w2c-renewals-phone-2026-10-07.md`; owner merge/combined acceptance pending.
