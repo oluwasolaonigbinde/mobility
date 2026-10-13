@@ -27,6 +27,42 @@ from app.services.stored_object_deletions import (
 )
 
 
+def test_agreement_migration_is_reachable_from_the_real_alembic_chain(monkeypatch):
+    from test_migration_0014_partitioning import (
+        configured_postgres_url,
+        create_database_from_url,
+        drop_database,
+        fetch_all,
+        upgrade_to,
+    )
+
+    url = asyncio.run(create_database_from_url(configured_postgres_url()))
+    try:
+        upgrade_to(url, "head", monkeypatch)
+        columns = {
+            row[0]
+            for row in asyncio.run(
+                fetch_all(
+                    url,
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name='driver_kyc_submissions'",
+                )
+            )
+        }
+        assert {
+            "agreement_version",
+            "agreement_accepted_at",
+            "agreement_acceptance_requested",
+            "bank_check_receipt_sha256",
+            "bank_name_confirmed",
+        } <= columns
+        assert asyncio.run(fetch_all(url, "SELECT version_num FROM alembic_version")) == [
+            ("0102_driver_agreement_acceptance",)
+        ]
+    finally:
+        asyncio.run(drop_database(url))
+
+
 def migration():
     path = Path(__file__).parents[1] / "alembic/versions/0102_driver_agreement_acceptance.py"
     spec = importlib.util.spec_from_file_location("agreement_migration", path)

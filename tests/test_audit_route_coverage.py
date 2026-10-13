@@ -444,6 +444,12 @@ AUDITED = {
 }
 
 EXEMPT = {
+    ("POST", "/api/v1/auth/driver-onboarding/account-name"): (
+        "D78, architecture section 23: capability-scoped account-name lookup keeps "
+        "bank details in the body, performs no database mutation and returns a short-lived "
+        "signed capture receipt. It cannot approve a bank account or authorize payment; "
+        "the separately submitted person/payee capture and staff review are audited."
+    ),
     ("POST", "/api/v1/campaign-enquiries"): (
         "D52/REQ-070, architecture §27.3: bounded public campaign enquiries send only to the "
         "official inbox, with expiring Redis rate-limit counters and an SMTP side effect. "

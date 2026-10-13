@@ -4,8 +4,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision = "0102"
-down_revision = "0101"
+revision = "0102_driver_agreement_acceptance"
+down_revision = "0101_document_review_outcomes"
 branch_labels = None
 depends_on = None
 

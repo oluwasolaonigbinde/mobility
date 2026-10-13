@@ -138,7 +138,7 @@ def test_real_private_upload_scan_and_protected_kyc_binding(
         assert planned.json()["eligible_submissions"] == 1
         assert executed.status_code == 200
         assert executed.json()["purged_submissions"] == 1
-        assert executed.json()["purged_files"] == 3
+        assert executed.json()["purged_files"] == 2
         for storage_key in storage_keys:
             with pytest.raises(StorageObjectNotFound):
                 asyncio.run(storage.stat(storage_key))

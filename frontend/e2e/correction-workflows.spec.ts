@@ -10,7 +10,7 @@ async function uploads(page: Page, prefix: string) {
     await route.fulfill({
       json: {
         upload_id: id,
-        upload: { url: "http://localhost:3000/__synthetic-upload", fields: {} },
+        upload: { url: new URL("/__synthetic-upload", page.url()).toString(), fields: {} },
       },
     });
   });
@@ -27,8 +27,8 @@ for (const stage of [
   {
     endpoint: "person-payee",
     step: "details",
-    button: "Submit person & payee evidence",
-    fields: ["Driver licence", "Driver photo", "Signed agreement"],
+    button: "Send my details",
+    fields: ["Driver's licence", "Photo of you"],
     fileId: "driver_license_file_id",
   },
   {
@@ -44,6 +44,20 @@ for (const stage of [
   }) => {
     const intents = await uploads(page, "/api/apply/onboarding");
     const bodies: Record<string, unknown>[] = [];
+    const person = stage.endpoint === "person-payee";
+    if (person) {
+      await page.route("**/api/apply/onboarding/banks", (route) =>
+        route.fulfill({ json: [{ code: "058", name: "GTBank" }] }),
+      );
+      await page.route("**/api/apply/onboarding/account-name", (route) =>
+        route.fulfill({
+          json: {
+            outcome: "unavailable",
+            bank_check_receipt: `synthetic-${route.request().postDataJSON().application_access_token}`,
+          },
+        }),
+      );
+    }
     await page.route(`**/api/apply/onboarding/${stage.endpoint}`, async (route) => {
       bodies.push(route.request().postDataJSON());
       await route.fulfill(
@@ -56,29 +70,52 @@ for (const stage of [
     const form = page
       .locator("form")
       .filter({ has: page.getByRole("button", { name: stage.button, exact: true }) });
-    await form.getByLabel("Onboarding access code").fill("first-access");
+    const codeLabel = person ? "Code from your email" : "Onboarding access code";
+    await form.getByLabel(codeLabel).fill("first-access");
+    if (person) {
+      await form.getByLabel("NIN (11 digits)").fill("12345678901");
+      await form.getByRole("combobox", { name: "Bank", exact: true }).selectOption("058");
+      await form.getByLabel("Account number (10 digits)").fill("0123456789");
+      await form.getByLabel("Name on bank account").fill("Synthetic Driver");
+      await form.getByLabel("I agree", { exact: true }).check();
+    }
     for (const label of stage.fields)
       await form
         .getByLabel(label, { exact: true })
         .setInputFiles({ name: "same.png", mimeType: "image/png", buffer: Buffer.from("first") });
     await form.locator("button[type=submit]").click();
     await expect(form.getByRole("alert")).toContainText("Synthetic submission failure");
-    expect(intents).toHaveLength(3);
+    expect(intents).toHaveLength(stage.fields.length);
+    if (person) {
+      expect(bodies[0]).toMatchObject({
+        agreement_version: "1",
+        agreement_accepted: true,
+        bank_check_receipt: "synthetic-first-access",
+      });
+      expect(bodies[0]).not.toHaveProperty("signed_agreement_file_id");
+    }
     await form.locator("button[type=submit]").click();
     await expect.poll(() => bodies.length).toBe(2);
-    expect(intents).toHaveLength(3);
+    expect(intents).toHaveLength(stage.fields.length);
     expect(bodies[1]).toEqual(bodies[0]);
     await form.getByLabel(stage.fields[0]!, { exact: true }).setInputFiles({
       name: "same.png",
       mimeType: "image/png",
       buffer: Buffer.from("replacement"),
     });
-    await form.getByLabel("Onboarding access code").fill("second-access");
+    await form.getByLabel(codeLabel).fill("second-access");
+    if (person) {
+      await expect(form.locator('input[name="bank_check_receipt"]')).toHaveValue(
+        "synthetic-second-access",
+      );
+      await form.getByLabel("Name on bank account").fill("Synthetic Driver");
+    }
     await form.locator("button[type=submit]").click();
-    await expect(form.getByRole("status")).toContainText("version 1");
-    expect(intents).toHaveLength(6);
+    await expect(form.getByRole("status")).toContainText(person ? "Sent." : "version 1");
+    expect(intents).toHaveLength(stage.fields.length * 2);
     expect(bodies[2]![stage.fileId]).not.toBe(bodies[0]![stage.fileId]);
     expect(bodies[2]!.application_access_token).toBe("second-access");
+    if (person) expect(bodies[2]!.bank_check_receipt).toBe("synthetic-second-access");
   });
 }
 

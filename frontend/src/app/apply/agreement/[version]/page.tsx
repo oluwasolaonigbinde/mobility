@@ -4,8 +4,10 @@ import { DRIVER_AGREEMENTS } from "@/lib/driver-agreement";
 
 export default async function AgreementPage({ params }: { params: Promise<{ version: string }> }) {
   const { version } = await params;
-  if (!Object.hasOwn(DRIVER_AGREEMENTS, version)) notFound();
-  const sections = DRIVER_AGREEMENTS[version];
+  const sections = Object.hasOwn(DRIVER_AGREEMENTS, version)
+    ? DRIVER_AGREEMENTS[version]
+    : undefined;
+  if (!sections) notFound();
   return (
     <main className="mx-auto max-w-2xl px-5 py-10">
       <Link href="/apply" className="text-cyan text-sm underline">
