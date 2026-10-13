@@ -135,7 +135,6 @@ export function adminStatus(value: string | null | undefined, context = "record"
 const documents: Record<string, string> = {
   driver_license: "driving licence",
   driver_photo: "driver photo",
-  signed_agreement: "signed agreement",
   registration: "car registration",
   insurance: "car insurance",
   vehicle_photo: "car photo",

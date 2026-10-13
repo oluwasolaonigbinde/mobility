@@ -71,7 +71,7 @@ def test_applicant_expired_document_requires_new_file_before_review(
         application = _application(maker, email=f"person-payee-{suffix}@example.com")
         admin = create_test_user(maker, email=f"admin-{suffix}@example.com")
         files = _seed_clean_kyc_files(maker, email=application.email)
-        payload = _person_payee_payload(token, files)
+        payload = _person_payee_payload(token, files, postgis_db_client)
         route = "/api/v1/auth/driver-onboarding/person-payee"
         kind = "driver_license"
     original_payload = dict(payload)
@@ -252,10 +252,7 @@ def prepare(client, maker, *, state="rejected", reason=None):
         "account_name": "KYC Driver",
         "account_number": "0123456789",
         "bank_code": "058",
-        **{
-            f"{kind}_file_id": str(files[kind])
-            for kind in ("driver_license", "driver_photo", "signed_agreement")
-        },
+        **{f"{kind}_file_id": str(files[kind]) for kind in ("driver_license", "driver_photo")},
     }
     return admin, driver, profile, files, dh, ah, payload
 
@@ -344,6 +341,14 @@ def test_active_account_without_application_renews_and_staff_reviews_current_rev
     assert new.status_code == retry.status_code == 201, new.text
     assert new.json()["submission_id"] == retry.json()["submission_id"]
     assert new.json()["version"] == 2 and new.json()["status"] == "pending_review"
+    assert new.json()["agreement_version"] == old["person_payee"]["agreement_version"] == "1"
+    assert new.json()["agreement_accepted_at"] == old["person_payee"]["agreement_accepted_at"]
+    altered_consent = db_client.post(
+        "/api/v1/driver/documents/person-payee",
+        headers=dh,
+        json={**payload, "agreement_version": "1", "agreement_accepted": True},
+    )
+    assert altered_consent.status_code == 409
     assert "12345678901" not in new.text and "0123456789" not in new.text
     path = f"/api/v1/admin/drivers/{profile.id}/documents/person-payee-decision"
     stale = db_client.post(
@@ -376,7 +381,7 @@ def test_active_account_without_application_renews_and_staff_reviews_current_rev
         db_sessionmaker,
         admin=admin,
         application=SimpleNamespace(driver_profile_id=profile.id),
-        files={k: v for k, v in files.items() if k.startswith("driver") or k == "signed_agreement"},
+        files={k: v for k, v in files.items() if k.startswith("driver")},
     )
     approved = db_client.post(
         path,
@@ -637,7 +642,7 @@ def test_staff_document_status_is_current_secret_free_and_role_scoped(db_client,
     assert person["submission_id"] == payload["expected_submission_id"]
     assert person["status"] == "rejected"
     assert person["document_file_ids"] == {
-        kind: str(files[kind]) for kind in ("driver_license", "driver_photo", "signed_agreement")
+        kind: str(files[kind]) for kind in ("driver_license", "driver_photo")
     }
     assert read.json()["vehicles"][0]["vehicle_id"] == str(vehicle.id)
     assert read.json()["vehicles"][0]["status"] == "not_submitted"
@@ -676,12 +681,9 @@ def test_partial_person_renewal_reuses_accepted_files_and_saved_details(
         db_sessionmaker,
         admin=admin,
         submission_id=initial["id"],
-        files={k: files[k] for k in ("driver_license", "driver_photo", "signed_agreement")},
+        files={k: files[k] for k in ("driver_license", "driver_photo")},
     )
-    reviews = {
-        kind: {"status": "accepted"}
-        for kind in ("driver_license", "driver_photo", "signed_agreement")
-    }
+    reviews = {kind: {"status": "accepted"} for kind in ("driver_license", "driver_photo")}
     if field:
         reviews["driver_license"] = {"status": "rejected", "reason_code": reason}
     decision = db_client.post(
@@ -743,15 +745,14 @@ def test_nonapproved_review_cannot_fabricate_accepted_document_without_read(
             "decision": "rejected",
             "reason_code": "bank_account_mismatch",
             "document_reviews": {
-                kind: {"status": "accepted"}
-                for kind in ("driver_license", "driver_photo", "signed_agreement")
+                kind: {"status": "accepted"} for kind in ("driver_license", "driver_photo")
             },
         },
     )
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "DOCUMENT_REVIEW_READ_REQUIRED"
     other_admin = create_test_user(db_sessionmaker, email="other-reader@example.com")
-    document_files = {k: files[k] for k in ("driver_license", "driver_photo", "signed_agreement")}
+    document_files = {k: files[k] for k in ("driver_license", "driver_photo")}
     review_document_files(
         db_client,
         db_sessionmaker,
@@ -778,7 +779,7 @@ def test_nonapproved_review_cannot_fabricate_accepted_document_without_read(
             ).status == "pending_review"
 
     # Another actor's reads cannot authorize this actor; nor can reading only two files.
-    for own_reads in ({}, {k: files[k] for k in ("driver_license", "driver_photo")}):
+    for own_reads in ({}, {"driver_license": files["driver_license"]}):
         review_document_files(
             db_client, db_sessionmaker, admin=admin, submission_id=first["id"], files=own_reads
         )
@@ -799,7 +800,7 @@ def test_nonapproved_review_cannot_fabricate_accepted_document_without_read(
         db_sessionmaker,
         admin=admin,
         submission_id=first["id"],
-        files={"signed_agreement": files["signed_agreement"]},
+        files={"driver_photo": files["driver_photo"]},
     )
     accepted = db_client.post(path, headers=ah, json=payload)
     assert accepted.status_code == 200, accepted.text
@@ -963,7 +964,7 @@ def test_vehicle_approval_expires_at_exact_boundary_without_inventing_document_e
         maker,
         admin=admin,
         application=SimpleNamespace(driver_profile_id=profile.id),
-        files={k: files[k] for k in ("driver_license", "driver_photo", "signed_agreement")},
+        files={k: files[k] for k in ("driver_license", "driver_photo")},
     )
     approved_person = client.post(
         f"/api/v1/admin/drivers/{profile.id}/documents/person-payee-decision",
@@ -1089,7 +1090,7 @@ def test_staff_expiry_preserves_history_and_requires_approved_new_insurance(
         maker,
         admin=admin,
         application=SimpleNamespace(driver_profile_id=profile.id),
-        files={k: files[k] for k in ("driver_license", "driver_photo", "signed_agreement")},
+        files={k: files[k] for k in ("driver_license", "driver_photo")},
     )
     approved_person = client.post(
         f"/api/v1/admin/drivers/{profile.id}/documents/person-payee-decision",
@@ -1466,7 +1467,6 @@ def test_recorded_person_document_expiry_blocks_work_and_allows_partial_renewal(
                     document_reviews={
                         "driver_license": {"status": "accepted", "expires_on": expires.isoformat()},
                         "driver_photo": {"status": "accepted"},
-                        "signed_agreement": {"status": "accepted"},
                     },
                 )
             )
@@ -1573,8 +1573,7 @@ def test_exact_person_renewal_retry_survives_retained_document_expiring_overnigh
             )
             review.document_reviews = {
                 "driver_license": {"status": "rejected", "reason_code": "unreadable_evidence"},
-                "driver_photo": {"status": "accepted"},
-                "signed_agreement": {"status": "accepted", "expires_on": today.isoformat()},
+                "driver_photo": {"status": "accepted", "expires_on": today.isoformat()},
             }
             await session.commit()
 

@@ -308,7 +308,9 @@ def test_seed_missing_applicant_authority_stops_dependent_calls(settings, monkey
     from app.seeds import demo_authority
 
     session = SimpleNamespace(scalar=AsyncMock(return_value=None))
-    application = SimpleNamespace(id=UUID(int=1), driver_profile_id=UUID(int=2))
+    application = SimpleNamespace(
+        id=UUID(int=1), driver_profile_id=UUID(int=2), user_id=UUID(int=3)
+    )
     person = SimpleNamespace(full_name="Seed applicant")
     access = AsyncMock(return_value=None if missing == "access" else object())
     submit = AsyncMock(return_value=SimpleNamespace(submission=None))
@@ -1599,8 +1601,8 @@ def test_demo_seed_runs_with_immutable_guards_from_alembic_head(
                     )
                 )
                 assert person_review.decision == car_review.decision == "approved"
-                for review in (person_review, car_review):
-                    assert len(review.document_reviews) == 3
+                for review, count in ((person_review, 2), (car_review, 3)):
+                    assert len(review.document_reviews) == count
                     assert all(
                         item["status"] == "accepted" for item in review.document_reviews.values()
                     )
@@ -1850,6 +1852,13 @@ def test_seed_business_ownership_and_applicant_financial_separation(
                 keys=settings.payout_crypto_keys,
                 active_key_version=settings.payout_crypto_key_version,
             )
+            application_bank_ids = set(
+                await session.scalars(
+                    select(DriverKycSubmission.bank_account_version_id).where(
+                        DriverKycSubmission.bank_check_receipt_sha256.is_not(None)
+                    )
+                )
+            )
             for version in await session.scalars(select(PayeeBankAccountVersion)):
                 account = await session.get(PayeeBankAccount, version.bank_account_id)
                 payee = await session.get(Payee, account.payee_id)
@@ -1864,7 +1873,9 @@ def test_seed_business_ownership_and_applicant_financial_separation(
                     )
                 )
                 assert details["account_number"] == "0000000000"
-                assert details["bank_code"] == "999"
+                assert details["bank_code"] == (
+                    "058" if version.id in application_bank_ids else "999"
+                )
             users = list(await session.scalars(select(User)))
             assert {row.email: row.phone for row in users if row.phone is not None} == (
                 DEMO_DRIVER_PHONE_NUMBERS
@@ -2362,8 +2373,8 @@ def test_ordinary_demo_driver_can_start_and_end_using_production_authority(
             f"/api/v1/driver/vehicles/{graph.vehicle.id}/evidence-current", headers=headers
         )
         assert evidence.status_code == 200 and evidence.json()["snapshot_trusted"]
-        for stage in (person, car):
-            assert len(stage["documents"]) == 3
+        for stage, count in ((person, 2), (car, 3)):
+            assert len(stage["documents"]) == count
             assert all(item["status"] == "accepted" for item in stage["documents"].values())
         assert (
             person["documents"]["driver_license"]["expires_on"]
@@ -2386,7 +2397,7 @@ def test_ordinary_demo_driver_can_start_and_end_using_production_authority(
                     .order_by(StoredFile.id)
                 )
             )
-            assert len(files) == 6
+            assert len(files) == 5
             for stored in files:
                 assert stored.scan_status == "clean"
                 assert seed_private_storage.contents[stored.storage_key].startswith(b"\x89PNG")

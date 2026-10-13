@@ -14,7 +14,8 @@ class DriverKycSubmissionCreate(BaseModel):
     bank_account_version_id: UUID
     driver_license_file_id: UUID
     driver_photo_file_id: UUID
-    signed_agreement_file_id: UUID
+    agreement_version: str = Field(max_length=32)
+    agreement_accepted: bool
 
     @field_validator("nin")
     @classmethod

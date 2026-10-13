@@ -15,6 +15,21 @@ from app.core.observability import (
 from app.main import create_app
 
 
+def test_bank_check_receipt_is_redacted_in_logs_and_structured_observability():
+    receipt = "synthetic.signed.account-check"
+    assert receipt not in redact_log_message(f"bank_check_receipt={receipt}")
+    scrubbed = scrub_observability_value({"bank_check_receipt": receipt})
+    assert scrubbed == {"bank_check_receipt": "[REDACTED]"}
+    fields = {
+        "account_number": "0123456789",
+        "account_name": "PRIVATE DRIVER",
+        "bank_code": "058",
+        "application_access_token": "private-capability",
+        "bank_check_receipt": receipt,
+    }
+    assert set(scrub_observability_value(fields).values()) == {"[REDACTED]"}
+
+
 def test_app_error_uses_standard_envelope() -> None:
     app = create_app()
 

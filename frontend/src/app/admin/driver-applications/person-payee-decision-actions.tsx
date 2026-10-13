@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { formatDate } from "@/lib/format";
 import { SensitiveReview } from "./sensitive-review";
 import {
   reviewPersonPayeeAction,
@@ -95,6 +96,8 @@ export function PersonPayeeDecisionActions({
   bankAccountVersionId,
   bankAccountVerified,
   documentFileIds,
+  agreementVersion,
+  agreementAcceptedAt,
   status = "pending_review",
 }: {
   applicationId: string;
@@ -103,6 +106,8 @@ export function PersonPayeeDecisionActions({
   bankAccountVersionId?: string | null;
   bankAccountVerified: boolean;
   documentFileIds: Record<string, string>;
+  agreementVersion?: string | null;
+  agreementAcceptedAt?: string | null;
   status?: string;
 }) {
   const [state, action, pending] = useActionState(reviewPersonPayeeAction, initialState);
@@ -116,15 +121,18 @@ export function PersonPayeeDecisionActions({
         Identity documents are reviewed together. Bank details are checked separately before the
         combined decision.
       </p>
+      <section aria-label="Driver agreement" className="border-edge border-b py-3">
+        <h3 className="font-medium">Driver agreement</h3>
+        <p className="text-muted mt-1 text-sm">
+          {agreementVersion && agreementAcceptedAt
+            ? `Agreed to version ${agreementVersion} on ${formatDate(agreementAcceptedAt)}`
+            : "Not agreed yet"}
+        </p>
+      </section>
       {[
         { name: "Identity (NIN)", kind: "nin" as const, id: submissionId },
         { name: "Driver’s licence", kind: "document" as const, id: documentFileIds.driver_license },
         { name: "Driver photo", kind: "document" as const, id: documentFileIds.driver_photo },
-        {
-          name: "Signed agreement",
-          kind: "document" as const,
-          id: documentFileIds.signed_agreement,
-        },
         { name: "Bank account", kind: "account" as const, id: bankAccountVersionId },
       ].map((row) => (
         <section
@@ -248,29 +256,6 @@ export function PersonPayeeDecisionActions({
                 <input
                   type="date"
                   name="expires_driver_photo"
-                  className="border-edge bg-raised rounded border p-2"
-                />
-              </label>
-            </div>
-            <div className="my-3">
-              <p className="font-medium">Signed agreement</p>
-              <label className="flex flex-col gap-1">
-                Outcome
-                <select
-                  name="outcome_signed_agreement"
-                  defaultValue="on_file"
-                  className="border-edge bg-raised rounded border p-2"
-                >
-                  <option value="on_file">On file, review incomplete</option>
-                  <option value="replace">Needs replacement</option>
-                  <option value="accepted">Accepted (view first)</option>
-                </select>
-              </label>
-              <label className="mt-2 flex flex-col gap-1">
-                Signed agreement expiry (if recorded)
-                <input
-                  type="date"
-                  name="expires_signed_agreement"
                   className="border-edge bg-raised rounded border p-2"
                 />
               </label>

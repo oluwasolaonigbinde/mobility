@@ -738,7 +738,7 @@ def _validate_details(details: VerifiedBankAccountDetails) -> VerifiedBankAccoun
         _invalid_details()
     if not details.account_number.isdigit():
         _invalid_details()
-    if len(details.bank_code) != 3 or not details.bank_code.isascii():
+    if not 3 <= len(details.bank_code) <= 10 or not details.bank_code.isascii():
         _invalid_details()
     if not details.bank_code.isdigit():
         _invalid_details()

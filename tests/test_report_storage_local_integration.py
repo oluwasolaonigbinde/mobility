@@ -110,9 +110,9 @@ def test_minio_kyc_delete_reply_loss_recovers_without_restoring_payload(
         assert await process_stored_object_deletions(factory, storage=provider, limit=10) == 1
         async with factory() as session:
             receipts = list(await session.scalars(select(StoredObjectDeletion)))
-            assert len(receipts) == 3
+            assert len(receipts) == 2
             assert {row.state for row in receipts} == {"completed"}
-            assert sorted(row.attempts for row in receipts) == [1, 1, 2]
+            assert sorted(row.attempts for row in receipts) == [1, 2]
             for row in receipts:
                 assert provider._exact_versions(row.storage_key) == []
                 with pytest.raises(StorageObjectNotFound):

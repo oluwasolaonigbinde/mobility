@@ -6,6 +6,7 @@ from starlette import status
 
 from app.adapters.crypto import EnvelopeCryptoProvider
 from app.api.v1.dependencies import (
+    BankAdapterDependency,
     CurrentUserDependency,
     RateLimiterDependency,
     RegistrationRateLimiterDependency,
@@ -26,6 +27,7 @@ from app.schemas.auth import (
     PasswordResetRequest,
     PasswordResetResponse,
 )
+from app.schemas.banks import AccountNameCheckCreate, AccountNameCheckRead, BankRead
 from app.schemas.driver_applications import (
     DriverAccountSetupComplete,
     DriverApplicationCreate,
@@ -61,6 +63,7 @@ from app.services.auth import (
     refresh_user_session,
     revoke_user_sessions,
 )
+from app.services.bank_capture import check_account_name
 from app.services.driver_account_setup import complete_driver_account_setup
 from app.services.driver_applications import (
     PUBLIC_APPLICATION_MESSAGE,
@@ -91,6 +94,47 @@ from app.services.vehicle_onboarding import (
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
+@router.get("/driver-onboarding/banks", response_model=list[BankRead])
+async def onboarding_banks(adapter: BankAdapterDependency) -> list[BankRead]:
+    return [BankRead(code=bank.code, name=bank.name) for bank in await adapter.banks()]
+
+
+@router.post("/driver-onboarding/account-name", response_model=AccountNameCheckRead)
+async def onboarding_account_name(
+    payload: AccountNameCheckCreate,
+    session: SessionDependency,
+    settings: SettingsDependency,
+    adapter: BankAdapterDependency,
+    limiter: RegistrationRateLimiterDependency,
+    request: Request,
+) -> AccountNameCheckRead:
+    # Capability and local limiter failures never grant manual fallback.
+    application = await application_from_access_token(
+        session,
+        token=payload.application_access_token.get_secret_value(),
+        settings=settings,
+        lock=False,
+    )
+    decision = await limiter.reserve(
+        registration_client_ip(request, settings), f"bank-check:{application.id}"
+    )
+    if not decision.storage_available or not decision.allowed:
+        raise AppError(
+            "BANK_CHECK_LIMITED",
+            "Try checking your account again in a few minutes",
+            status_code=429 if decision.storage_available else 503,
+            headers={"Retry-After": str(max(decision.retry_after_seconds, 1))},
+        )
+    result = await check_account_name(
+        user_id=application.user_id,
+        bank_code=payload.bank_code.get_secret_value(),
+        account_number=payload.account_number.get_secret_value(),
+        adapter=adapter,
+        settings=settings,
+    )
+    return result
+
+
 def _onboarding_crypto(settings: Settings) -> EnvelopeCryptoProvider:
     return EnvelopeCryptoProvider(
         keys=settings.payout_crypto_keys,
@@ -107,6 +151,8 @@ def _person_payee_response(view) -> PersonPayeeStageRead:
         status=submission.status,
         submission_id=submission.id,
         version=submission.version,
+        agreement_version=submission.agreement_version,
+        agreement_accepted_at=submission.agreement_accepted_at,
         masked_nin=f"*******{submission.nin_last_four}" if submission.purged_at is None else None,
         purged_at=submission.purged_at,
         bank_account_verified=view.bank_account_verified,

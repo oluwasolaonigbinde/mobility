@@ -354,6 +354,8 @@ export default async function DriverHub({
         <HubSection id="documents" title="Documents">
           {p ? (
             <PersonPayeeDecisionActions
+              agreementVersion={p?.agreement_version}
+              agreementAcceptedAt={p?.agreement_accepted_at}
               applicationId={application?.id ?? id!}
               driverProfileId={id}
               submissionId={p.submission_id}

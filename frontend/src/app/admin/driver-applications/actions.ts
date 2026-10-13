@@ -196,7 +196,7 @@ export async function reviewPersonPayeeAction(
     const api = createApiClient(await getSessionToken());
     const body: components["schemas"]["PersonPayeeReviewDecisionCreate"] = {
       document_reviews: Object.fromEntries(
-        ["driver_license", "driver_photo", "signed_agreement"].map((kind) => [
+        ["driver_license", "driver_photo"].map((kind) => [
           kind,
           {
             status:

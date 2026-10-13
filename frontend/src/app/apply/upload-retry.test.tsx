@@ -9,10 +9,18 @@ vi.mock("@/lib/files/onboarding-upload", async (original) => ({
   uploadOnboardingFile: vi.fn(),
 }));
 
+vi.mock("@/components/driver/application-bank-details", () => ({
+  ApplicationBankDetails: () => (
+    <>
+      <input name="bank_check_receipt" value="receipt" readOnly />
+      <input name="account_name" value="Test Driver" readOnly />
+    </>
+  ),
+}));
 const cases = [
   {
     Component: PersonPayeeForm,
-    files: ["Driver's licence", "Photo of you", "Signed agreement"],
+    files: ["Driver's licence", "Photo of you"],
     field: "driver_license_file_id",
   },
   {
@@ -49,6 +57,8 @@ describe.each(cases)("$field upload retry", ({ Component, files, field }) => {
         target: { files: [new File([label], "same.png", { type: "image/png" })] },
       }),
     );
+    const agreement = screen.queryByLabelText("I agree");
+    if (agreement) fireEvent.click(agreement);
     return screen.getByRole("button", { name: /^Send my/ }).closest("form")!;
   }
 
@@ -65,7 +75,7 @@ describe.each(cases)("$field upload retry", ({ Component, files, field }) => {
     const form = setup();
     fireEvent.submit(form);
     expect(await screen.findByRole("alert")).toHaveTextContent("A file didn't upload.");
-    await waitFor(() => expect(screen.getAllByText("Uploaded")).toHaveLength(2));
+    await waitFor(() => expect(screen.getAllByText("Uploaded")).toHaveLength(files.length - 1));
     expect(screen.getAllByText("Upload failed")).toHaveLength(1);
     expect(fetch).not.toHaveBeenCalled();
   });
@@ -75,7 +85,7 @@ describe.each(cases)("$field upload retry", ({ Component, files, field }) => {
     await fail(form);
     fireEvent.submit(form);
     await screen.findByRole("status");
-    expect(uploadOnboardingFile).toHaveBeenCalledTimes(3);
+    expect(uploadOnboardingFile).toHaveBeenCalledTimes(files.length);
     expect(vi.mocked(fetch).mock.calls[1]![1]!.body).toEqual(
       vi.mocked(fetch).mock.calls[0]![1]!.body,
     );
@@ -97,7 +107,7 @@ describe.each(cases)("$field upload retry", ({ Component, files, field }) => {
         });
       fireEvent.submit(form);
       await screen.findByRole("status");
-      expect(uploadOnboardingFile).toHaveBeenCalledTimes(6);
+      expect(uploadOnboardingFile).toHaveBeenCalledTimes(files.length * 2);
       const bodies = vi
         .mocked(fetch)
         .mock.calls.map(([, init]) => JSON.parse(init!.body as string));
@@ -107,7 +117,7 @@ describe.each(cases)("$field upload retry", ({ Component, files, field }) => {
         expect(
           vi
             .mocked(uploadOnboardingFile)
-            .mock.calls.slice(3)
+            .mock.calls.slice(files.length)
             .every(([token]) => token === "second-access"),
         ).toBe(true);
     },
@@ -123,7 +133,7 @@ describe.each(cases)("$field upload retry", ({ Component, files, field }) => {
     );
     const form = setup();
     fireEvent.submit(form);
-    await waitFor(() => expect(uploadOnboardingFile).toHaveBeenCalledTimes(3));
+    await waitFor(() => expect(uploadOnboardingFile).toHaveBeenCalledTimes(files.length));
     fireEvent.change(screen.getByLabelText(files[0]!), {
       target: { files: [new File(["new"], "same.png", { type: "image/png" })] },
     });
@@ -132,7 +142,7 @@ describe.each(cases)("$field upload retry", ({ Component, files, field }) => {
     expect(fetch).not.toHaveBeenCalled();
     fireEvent.submit(form);
     await screen.findByRole("alert");
-    expect(uploadOnboardingFile).toHaveBeenCalledTimes(6);
+    expect(uploadOnboardingFile).toHaveBeenCalledTimes(files.length * 2);
     expect(JSON.parse(vi.mocked(fetch).mock.calls[0]![1]!.body as string)[field]).not.toBe(
       "obsolete-file",
     );

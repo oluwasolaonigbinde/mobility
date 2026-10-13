@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from app.adapters.ad_platforms import AdPlatformAdapter, build_ad_platform_adapter
+from app.adapters.banks import BankAdapter, build_bank_adapter
 from app.adapters.storage import StorageProvider, build_storage_provider
 from app.core import clock
 from app.core.config import Settings, get_settings
@@ -29,6 +30,13 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=F
 
 SessionDependency = Annotated[AsyncSession, Depends(get_session)]
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
+
+
+def get_bank_adapter(settings: SettingsDependency) -> BankAdapter:
+    return build_bank_adapter(settings)
+
+
+BankAdapterDependency = Annotated[BankAdapter, Depends(get_bank_adapter)]
 
 
 def get_ad_platform_adapter() -> AdPlatformAdapter:

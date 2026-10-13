@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { BankPicker } from "@/components/driver/bank-picker";
+import { DriverAgreement } from "@/components/driver/driver-agreement";
 import { Panel } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -13,40 +15,10 @@ type Documents = components["schemas"]["DriverDocumentsRead"];
 const labels: Record<string, string> = {
   driver_license: "Driving licence",
   driver_photo: "Your photo",
-  signed_agreement: "Signed driver agreement",
   registration: "Vehicle registration",
   insurance: "Insurance",
   vehicle_photo: "Vehicle photo",
 };
-// Provider codes stay inside the form; drivers choose bank names.
-// Sources: paystack.com/docs/payments/direct-debit/ and globusbank.com/Files/List-of-Nigerian-Banks.pdf.
-const banks = [
-  ["044", "Access Bank"],
-  ["023", "Citibank Nigeria"],
-  ["050", "Ecobank Nigeria"],
-  ["070", "Fidelity Bank"],
-  ["011", "First Bank of Nigeria"],
-  ["214", "First City Monument Bank"],
-  ["00103", "Globus Bank"],
-  ["058", "Guaranty Trust Bank"],
-  ["301", "Jaiz Bank"],
-  ["082", "Keystone Bank"],
-  ["50211", "Kuda Bank"],
-  ["100004", "OPay"],
-  ["076", "Polaris Bank"],
-  ["105", "PremiumTrust Bank"],
-  ["101", "Providus Bank"],
-  ["221", "Stanbic IBTC Bank"],
-  ["068", "Standard Chartered Bank"],
-  ["232", "Sterling Bank"],
-  ["100", "Suntrust Bank"],
-  ["102", "Titan Bank"],
-  ["032", "Union Bank"],
-  ["033", "United Bank for Africa"],
-  ["215", "Unity Bank"],
-  ["035", "Wema Bank"],
-  ["057", "Zenith Bank"],
-];
 const reasons: Record<string, string> = {
   missing_evidence: "missing, upload this document",
   rejected_evidence: "not approved, upload a replacement",
@@ -67,6 +39,7 @@ function RenewalForm({
   kinds,
   replaceNin = false,
   replaceBank = false,
+  needsAgreement = false,
 }: {
   submissionId: string;
   vehicleId?: string;
@@ -74,6 +47,7 @@ function RenewalForm({
   kinds: string[];
   replaceNin?: boolean;
   replaceBank?: boolean;
+  needsAgreement?: boolean;
 }) {
   const requestId = useRef(crypto.randomUUID());
   const uploads = useRef(new Map<string, { requestId: string; fileId?: string }>());
@@ -83,10 +57,16 @@ function RenewalForm({
     setBusy(true);
     setError("");
     try {
-      const body: Record<string, string> = {
+      const body: Record<string, string | boolean> = {
         client_request_id: requestId.current,
         expected_submission_id: submissionId,
       };
+      if (needsAgreement) {
+        if (form.get("agreement_accepted") !== "on")
+          throw new Error("Read and agree to the driver agreement.");
+        body.agreement_version = String(form.get("agreement_version"));
+        body.agreement_accepted = true;
+      }
       for (const field of [
         ...(replaceNin ? ["nin"] : []),
         ...(replaceBank ? ["account_name", "account_number", "bank_code"] : []),
@@ -156,28 +136,14 @@ function RenewalForm({
             required
             autoComplete="off"
           />
-          <label className="micro text-muted flex flex-col gap-2">
-            Bank
-            <select
-              name="bank_code"
-              required
-              disabled={busy}
-              className="border-edge bg-raised text-ink h-11 rounded-lg border px-3 text-sm"
-            >
-              <option value="">Choose your bank</option>
-              {banks.map(([code, name]) => (
-                <option key={code} value={code}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </label>
+          <BankPicker disabled={busy} />
           <p className="text-muted text-sm">If your bank is missing, contact Terrax to add it.</p>
         </>
       ) : null}
       {kinds.map((kind) => (
         <UploadControl key={kind} kind={kind} disabled={busy} />
       ))}
+      {needsAgreement ? <DriverAgreement /> : null}
       {kinds.length ? (
         <p className="text-muted text-sm">
           Choose a PDF, JPEG, PNG or WebP.{" "}
@@ -338,17 +304,21 @@ export function DocumentRenewals() {
             review. You can still sign in and finish a trip already in progress.
           </p>
         ) : null}
-        {person.submission_id && ["rejected", "expired"].includes(person.status) ? (
+        {person.submission_id &&
+        (["rejected", "expired"].includes(person.status) ||
+          (person.status === "approved" &&
+            (!person.agreement_accepted_at || person.agreement_version !== "1"))) ? (
           <RenewalForm
             key={person.submission_id}
             submissionId={person.submission_id}
             kinds={
               person.purged_at
-                ? ["driver_license", "driver_photo", "signed_agreement"]
+                ? ["driver_license", "driver_photo"]
                 : replacements(person.documents ?? {})
             }
             replaceNin={person.replace_nin}
             replaceBank={person.replace_bank}
+            needsAgreement={!person.agreement_accepted_at || person.agreement_version !== "1"}
             onSent={sent}
           />
         ) : null}

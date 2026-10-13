@@ -54,7 +54,7 @@ def prepare(client, maker, settings):
     person_files = _seed_clean_kyc_files(maker, email="person-payee-convergence@example.com")
     response = client.post(
         "/api/v1/auth/driver-onboarding/person-payee",
-        json=_person_payee_payload(token, person_files),
+        json=_person_payee_payload(token, person_files, client),
     )
     assert response.status_code == 201, response.text
     _complete_admin_review(client, maker, admin=admin, application=application, files=person_files)

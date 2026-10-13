@@ -67,7 +67,6 @@ async def ensure_demo_renewals(session, *, settings, reviewer):
     for kind in (
         "driver_license",
         "driver_photo",
-        "signed_agreement",
         "registration",
         "insurance",
         "vehicle_photo",
@@ -78,9 +77,7 @@ async def ensure_demo_renewals(session, *, settings, reviewer):
                 settings=settings,
                 subject=driver,
                 label=f"damilola-akinwale-{kind.replace('_', '-')}",
-                purpose="driver_kyc"
-                if kind.startswith("driver") or kind == "signed_agreement"
-                else "vehicle_evidence",
+                purpose="driver_kyc" if kind.startswith("driver") else "vehicle_evidence",
                 identity="renewals",
             )
         ).id
@@ -111,11 +108,11 @@ async def ensure_demo_renewals(session, *, settings, reviewer):
             bank_account_version_id=bank.id,
             crypto=crypto,
             settings=settings,
-            document_file_ids={
-                k: files[k] for k in ("driver_license", "driver_photo", "signed_agreement")
-            },
+            document_file_ids={k: files[k] for k in ("driver_license", "driver_photo")},
+            agreement_version="1",
+            agreement_accepted=True,
         )
-        for kind in ("driver_photo", "signed_agreement"):
+        for kind in ("driver_photo",):
             await issue_admin_file_download(
                 session,
                 actor_user_id=reviewer.id,
@@ -139,7 +136,6 @@ async def ensure_demo_renewals(session, *, settings, reviewer):
                         status="rejected", reason_code=KycReviewReason.UNREADABLE_EVIDENCE
                     ),
                     "driver_photo": DocumentReviewRead(status="accepted"),
-                    "signed_agreement": DocumentReviewRead(status="accepted"),
                 },
             ),
         )

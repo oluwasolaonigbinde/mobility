@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -11,7 +12,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 from test_file_kyc_lifecycle import _create_terminal_submission
-from test_kyc import _seed_driver_authority
+from test_kyc import NIN, _seed_driver_authority
 from test_migration_0014_partitioning import (
     configured_postgres_url,
     create_database_from_url,
@@ -21,7 +22,7 @@ from test_migration_0014_partitioning import (
 )
 from test_stored_files import FakeStorageProvider
 
-from app.adapters.crypto import EnvelopeCryptoProvider
+from app.adapters.crypto import AssociatedData, EnvelopeCryptoProvider
 from app.api.v1.kyc import _driver_response, _vehicle_response
 from app.core.errors import AppError
 from app.db.base import Base
@@ -34,6 +35,7 @@ from app.models.kyc import (
     VehicleEvidenceSubmission,
 )
 from app.models.stored_file import StoredFile, StoredObjectDeletion
+from app.services.audit import create_audit_event
 from app.services.file_kyc_lifecycle import purge_terminal_file_kyc
 from app.services.kyc import (
     DriverKycView,
@@ -196,8 +198,9 @@ def test_kyc_review_identity_and_durable_payload_purge_precede_every_provider_de
                 and retained.status == "rejected"
             )
             assert result.purged_submissions == 1
-            assert result.purged_files == 3
-            assert len(storage.deleted) == 3
+            expected_files = 2 if kind == "driver" else 3
+            assert result.purged_files == expected_files
+            assert len(storage.deleted) == expected_files
             assert await session.get(decisions, decision_id) is not None
             rendered = (
                 _driver_response(DriverKycView(retained, {}))
@@ -298,7 +301,7 @@ def test_failed_retirement_commit_cannot_delete_and_legacy_intent_waits_for_auth
         async with factory() as session:
             retained = await session.get(DriverKycSubmission, identity)
             assert retained.purged_at is None and retained.encrypted_nin is not None
-            assert await session.scalar(select(func.count()).select_from(DriverKycDocument)) == 3
+            assert await session.scalar(select(func.count()).select_from(DriverKycDocument)) == 2
             assert await session.scalar(select(func.count()).select_from(StoredObjectDeletion)) == 1
             await purge_terminal_file_kyc(
                 session,
@@ -311,7 +314,7 @@ def test_failed_retirement_commit_cannot_delete_and_legacy_intent_waits_for_auth
                 now=now,
             )
             await session.commit()
-        assert len(storage.deleted) == 3
+        assert len(storage.deleted) == 2
 
         crypto = EnvelopeCryptoProvider(keys={1: bytes(range(32))}, active_key_version=1)
         for operation in (reveal_driver_nin, rewrap_driver_nin):
@@ -415,23 +418,52 @@ def test_kyc_retention_migration_preserves_live_payload_and_serializes_downgrade
     # Empty guarded downgrade and re-upgrade remain available.
     downgrade_to(url, "0086_audit_subjects", monkeypatch)
     upgrade_to(url, "0087_kyc_payload_retention", monkeypatch)
-    admin, driver, _, bank_id, files = _seed_driver_authority(factory, suffix="purge-migration")
+    admin, driver, profile, bank_id, files = _seed_driver_authority(
+        factory, suffix="purge-migration"
+    )
+    identity = uuid4()
+    nin_identity = uuid4()
+    envelope = EnvelopeCryptoProvider(keys={1: bytes(range(32))}, active_key_version=1).encrypt(
+        NIN.encode("ascii"),
+        AssociatedData(tenant_id=driver.id, record_id=nin_identity, field_name="driver_kyc.nin"),
+    )
 
     async def seed_and_race():
         async with factory() as session:
-            submission = await _create_terminal_submission(
-                session,
-                driver_id=driver.id,
-                bank_id=bank_id,
-                files=files,
-                now=datetime.now(UTC),
-                settings=settings,
+            # This frozen revision predates 0102; current capture/ORM fields cannot
+            # be used to manufacture its historical payload.
+            await session.execute(
+                text("""
+                    INSERT INTO driver_kyc_submissions
+                    (id, driver_profile_id, nin_record_id, version, client_request_id,
+                     status, encrypted_nin, encryption_algorithm, encryption_key_version,
+                     nin_last_four, bank_account_version_id, created_by_user_id, created_at)
+                    VALUES (:id, :profile, :nin_id, 1, :request, 'rejected',
+                     CAST(:payload AS json), 'AES-256-GCM', 1,
+                     '8901', :bank, :driver, now() - interval '31 days')
+                """),
+                {
+                    "id": identity,
+                    "profile": profile.id,
+                    "nin_id": nin_identity,
+                    "payload": json.dumps(envelope.to_mapping()),
+                    "request": uuid4(),
+                    "bank": bank_id,
+                    "driver": driver.id,
+                },
             )
+            for document_type in ("driver_license", "driver_photo"):
+                session.add(
+                    DriverKycDocument(
+                        submission_id=identity,
+                        stored_file_id=files[document_type],
+                        document_type=document_type,
+                    )
+                )
             await session.commit()
-            await session.scalar(
-                select(DriverKycSubmission)
-                .where(DriverKycSubmission.id == submission.id)
-                .with_for_update()
+            await session.execute(
+                text("SELECT id FROM driver_kyc_submissions WHERE id=:id FOR UPDATE"),
+                {"id": identity},
             )
             with pytest.raises(DBAPIError, match="could not obtain lock"):
                 await asyncio.to_thread(downgrade_to, url, "0086_audit_subjects", monkeypatch)
@@ -443,21 +475,45 @@ def test_kyc_retention_migration_preserves_live_payload_and_serializes_downgrade
                     text("SELECT to_jsonb(s)-'purged_at' FROM driver_kyc_submissions s")
                 )
             ).all()
+            bindings = (
+                await session.execute(
+                    text(
+                        "SELECT document_type, stored_file_id FROM driver_kyc_documents "
+                        "WHERE submission_id=:id ORDER BY document_type"
+                    ),
+                    {"id": identity},
+                )
+            ).all()
+            assert bindings == [(name, files[name]) for name in ("driver_license", "driver_photo")]
             connection = await session.connection()
             changes = await connection.run_sync(
                 lambda sync: compare_metadata(
                     MigrationContext.configure(sync, opts={"compare_type": True}), Base.metadata
                 )
             )
-            assert [
+            owned_changes = [
                 change
                 for change in changes
                 if any(
                     name in repr(change)
                     for name in ("driver_kyc_submissions", "vehicle_evidence_submissions")
                 )
-            ] == []
-            return before
+            ]
+            # The only intentional difference from today's model is 0102's
+            # five additive capture fields. Every other owned drift still fails.
+            assert len(owned_changes) == 5
+            assert all(
+                change[0] == "add_column" and change[2] == "driver_kyc_submissions"
+                for change in owned_changes
+            )
+            assert {change[3].name for change in owned_changes} == {
+                "agreement_version",
+                "agreement_accepted_at",
+                "agreement_acceptance_requested",
+                "bank_check_receipt_sha256",
+                "bank_name_confirmed",
+            }
+            return before, bindings
 
     asyncio.run(seed_and_race())
     before = asyncio.run(snapshot_and_schema())
@@ -467,18 +523,34 @@ def test_kyc_retention_migration_preserves_live_payload_and_serializes_downgrade
 
     async def retire_historical_payload():
         async with factory() as session:
-            result = await purge_terminal_file_kyc(
+            await session.execute(
+                text("DELETE FROM driver_kyc_documents WHERE submission_id=:id"),
+                {"id": identity},
+            )
+            await create_audit_event(
                 session,
-                storage=FakeStorageProvider(),
-                retention_days=30,
-                limit=10,
-                dry_run=False,
                 actor_user_id=admin.id,
-                reason="synthetic_migration_guard",
-                now=datetime.now(UTC),
+                action="driver_kyc_submission.payload_purge_authorized",
+                entity_type="driver_kyc_submission",
+                entity_id=str(identity),
+                metadata={"reason": "synthetic_migration_guard"},
+            )
+            await session.execute(
+                text("""
+                    UPDATE driver_kyc_submissions SET purged_at=now(), encrypted_nin=NULL,
+                    encryption_algorithm=NULL, encryption_key_version=NULL, nin_last_four=NULL
+                    WHERE id=:id
+                """),
+                {"id": identity},
             )
             await session.commit()
-            assert result.purged_submissions == 1
+            assert (
+                await session.scalar(
+                    text("SELECT purged_at IS NOT NULL FROM driver_kyc_submissions WHERE id=:id"),
+                    {"id": identity},
+                )
+                is True
+            )
 
     asyncio.run(retire_historical_payload())
     with pytest.raises(RuntimeError, match="0087 downgrade blocked"):

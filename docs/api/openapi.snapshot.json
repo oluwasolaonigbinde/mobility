@@ -9,6 +9,69 @@
         "title": "AcceptanceMethod",
         "type": "string"
       },
+      "AccountNameCheckCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "account_number": {
+            "format": "password",
+            "title": "Account Number",
+            "type": "string",
+            "writeOnly": true
+          },
+          "application_access_token": {
+            "format": "password",
+            "title": "Application Access Token",
+            "type": "string",
+            "writeOnly": true
+          },
+          "bank_code": {
+            "format": "password",
+            "title": "Bank Code",
+            "type": "string",
+            "writeOnly": true
+          }
+        },
+        "required": [
+          "application_access_token",
+          "bank_code",
+          "account_number"
+        ],
+        "title": "AccountNameCheckCreate",
+        "type": "object"
+      },
+      "AccountNameCheckRead": {
+        "properties": {
+          "account_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Name"
+          },
+          "bank_check_receipt": {
+            "title": "Bank Check Receipt",
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "resolved",
+              "unavailable"
+            ],
+            "title": "Outcome",
+            "type": "string"
+          }
+        },
+        "required": [
+          "outcome",
+          "bank_check_receipt"
+        ],
+        "title": "AccountNameCheckRead",
+        "type": "object"
+      },
       "ActiveCampaignAssignmentResponse": {
         "properties": {
           "assignment": {
@@ -1878,6 +1941,29 @@
       },
       "AdminPersonPayeeStageRead": {
         "properties": {
+          "agreement_accepted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agreement Accepted At"
+          },
+          "agreement_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agreement Version"
+          },
           "bank_account_verified": {
             "default": false,
             "title": "Bank Account Verified",
@@ -4787,6 +4873,24 @@
           "created_at"
         ],
         "title": "BankAccountVersionRead",
+        "type": "object"
+      },
+      "BankRead": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name"
+        ],
+        "title": "BankRead",
         "type": "object"
       },
       "BillingHistoryEntry": {
@@ -12500,6 +12604,15 @@
       "DriverKycSubmissionCreate": {
         "additionalProperties": false,
         "properties": {
+          "agreement_accepted": {
+            "title": "Agreement Accepted",
+            "type": "boolean"
+          },
+          "agreement_version": {
+            "maxLength": 32,
+            "title": "Agreement Version",
+            "type": "string"
+          },
           "bank_account_version_id": {
             "format": "uuid",
             "title": "Bank Account Version Id",
@@ -12525,11 +12638,6 @@
             "title": "Nin",
             "type": "string",
             "writeOnly": true
-          },
-          "signed_agreement_file_id": {
-            "format": "uuid",
-            "title": "Signed Agreement File Id",
-            "type": "string"
           }
         },
         "required": [
@@ -12538,7 +12646,8 @@
           "bank_account_version_id",
           "driver_license_file_id",
           "driver_photo_file_id",
-          "signed_agreement_file_id"
+          "agreement_version",
+          "agreement_accepted"
         ],
         "title": "DriverKycSubmissionCreate",
         "type": "object"
@@ -20576,6 +20685,23 @@
             ],
             "title": "Account Number"
           },
+          "agreement_accepted": {
+            "default": false,
+            "title": "Agreement Accepted",
+            "type": "boolean"
+          },
+          "agreement_version": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agreement Version"
+          },
           "bank_code": {
             "anyOf": [
               {
@@ -20635,18 +20761,6 @@
               }
             ],
             "title": "Nin"
-          },
-          "signed_agreement_file_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Signed Agreement File Id"
           }
         },
         "required": [
@@ -20709,6 +20823,29 @@
       },
       "PersonPayeeStageRead": {
         "properties": {
+          "agreement_accepted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agreement Accepted At"
+          },
+          "agreement_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Agreement Version"
+          },
           "bank_account_verified": {
             "default": false,
             "title": "Bank Account Verified",
@@ -20841,17 +20978,44 @@
             "type": "string",
             "writeOnly": true
           },
+          "account_name_confirmed": {
+            "default": false,
+            "title": "Account Name Confirmed",
+            "type": "boolean"
+          },
           "account_number": {
             "format": "password",
             "title": "Account Number",
             "type": "string",
             "writeOnly": true
           },
+          "agreement_accepted": {
+            "title": "Agreement Accepted",
+            "type": "boolean"
+          },
+          "agreement_version": {
+            "maxLength": 32,
+            "title": "Agreement Version",
+            "type": "string"
+          },
           "application_access_token": {
             "format": "password",
             "title": "Application Access Token",
             "type": "string",
             "writeOnly": true
+          },
+          "bank_check_receipt": {
+            "anyOf": [
+              {
+                "format": "password",
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bank Check Receipt"
           },
           "bank_code": {
             "format": "password",
@@ -20879,11 +21043,6 @@
             "title": "Nin",
             "type": "string",
             "writeOnly": true
-          },
-          "signed_agreement_file_id": {
-            "format": "uuid",
-            "title": "Signed Agreement File Id",
-            "type": "string"
           }
         },
         "required": [
@@ -20894,7 +21053,8 @@
           "bank_code",
           "driver_license_file_id",
           "driver_photo_file_id",
-          "signed_agreement_file_id",
+          "agreement_version",
+          "agreement_accepted",
           "application_access_token"
         ],
         "title": "PersonPayeeSubmissionCreate",
@@ -42781,6 +42941,82 @@
           }
         },
         "summary": "Request renewed driver-onboarding access",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/driver-onboarding/account-name": {
+      "post": {
+        "operationId": "onboarding_account_name_api_v1_auth_driver_onboarding_account_name_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountNameCheckCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountNameCheckRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "summary": "Onboarding Account Name",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/v1/auth/driver-onboarding/banks": {
+      "get": {
+        "operationId": "onboarding_banks_api_v1_auth_driver_onboarding_banks_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BankRead"
+                  },
+                  "title": "Response Onboarding Banks Api V1 Auth Driver Onboarding Banks Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "summary": "Onboarding Banks",
         "tags": [
           "Auth"
         ]

@@ -27,7 +27,7 @@ from app.models.kyc import (
     VehicleEvidenceSubmission,
 )
 from app.models.payee import Payee, PayeeBankAccount, PayeeBankAccountVersion, PayeeType
-from app.models.stored_file import FilePurpose, FileScanStatus, StoredFile
+from app.models.stored_file import FilePurpose, FileScanStatus, StoredFile, StoredObjectDeletion
 from app.models.user import User, UserRole, UserStatus
 from app.models.vehicle import Vehicle
 from app.services.admin_authorization import require_active_admin
@@ -132,12 +132,24 @@ async def _require_files(
             )
         ).all()
     )
-    if len(files) != len(file_ids) or any(
-        stored_file.subject_user_id != actor_user_id
-        or stored_file.organization_id is not None
-        or stored_file.purpose != purpose
-        or stored_file.scan_status != FileScanStatus.CLEAN
-        for stored_file in files
+    retired = await session.scalar(
+        select(StoredObjectDeletion.id)
+        .where(
+            StoredObjectDeletion.owner_type == "retired_driver_agreement",
+            StoredObjectDeletion.owner_id.in_(file_ids.values()),
+        )
+        .limit(1)
+    )
+    if (
+        retired is not None
+        or len(files) != len(file_ids)
+        or any(
+            stored_file.subject_user_id != actor_user_id
+            or stored_file.organization_id is not None
+            or stored_file.purpose != purpose
+            or stored_file.scan_status != FileScanStatus.CLEAN
+            for stored_file in files
+        )
     ):
         raise _error(
             "KYC_DOCUMENT_NOT_CLEARED",
@@ -225,6 +237,8 @@ async def submit_driver_kyc(
     settings: Settings,
     allow_invited_actor: bool = False,
     allow_document_renewal: bool = False,
+    agreement_version: str | None = None,
+    agreement_accepted: bool = False,
 ) -> DriverKycView:
     from app.services.users import _lock_users
 
@@ -253,6 +267,13 @@ async def submit_driver_kyc(
     )
     if existing is not None:
         require_submission_payload(existing)
+        from app.services.driver_agreement import require_agreement_retry
+
+        require_agreement_retry(
+            existing,
+            version=agreement_version,
+            accepted=agreement_accepted,
+        )
         existing_docs = await _driver_documents(session, existing.id)
         try:
             existing_nin = crypto.decrypt(
@@ -328,9 +349,21 @@ async def submit_driver_kyc(
             ).values()
         )
     )
-    if not (allow_document_renewal and naturally_expired):
+    consent_missing = bool(
+        current and (current.agreement_version != "1" or current.agreement_accepted_at is None)
+    )
+    if not (allow_document_renewal and (naturally_expired or consent_missing)):
         _require_person_capture_state(current, allow_document_renewal)
     current_version = current.version if current else None
+    from app.services.driver_agreement import submission_agreement
+
+    agreement_version, accepted_at = await submission_agreement(
+        session,
+        current=current,
+        version=agreement_version,
+        accepted=agreement_accepted,
+        renewal=allow_document_renewal,
+    )
     nin_record_id = uuid4()
     try:
         envelope = crypto.encrypt(
@@ -360,6 +393,9 @@ async def submit_driver_kyc(
         nin_last_four=nin[-4:],
         bank_account_version_id=bank_account_version_id,
         created_by_user_id=actor_user_id,
+        agreement_version=agreement_version,
+        agreement_accepted_at=accepted_at,
+        agreement_acceptance_requested=agreement_accepted,
     )
     session.add(submission)
     await session.flush()
@@ -809,6 +845,11 @@ async def rewrap_driver_nin(
         nin_last_four=current.nin_last_four,
         bank_account_version_id=current.bank_account_version_id,
         created_by_user_id=actor_user_id,
+        agreement_version=current.agreement_version,
+        agreement_accepted_at=current.agreement_accepted_at,
+        agreement_acceptance_requested=current.agreement_acceptance_requested,
+        bank_check_receipt_sha256=current.bank_check_receipt_sha256,
+        bank_name_confirmed=current.bank_name_confirmed,
     )
     session.add(new_submission)
     await session.flush()

@@ -8,6 +8,7 @@ from httpx import Response
 from sqlalchemy import func, select
 from test_stored_files import FakeStorageProvider
 
+from app.adapters.banks import BankAdapter
 from app.adapters.crypto import EnvelopeCryptoProvider
 from app.adapters.storage import ObjectMetadata
 from app.api.v1.dependencies import get_registration_rate_limiter, get_storage_provider
@@ -26,6 +27,7 @@ from app.schemas.driver_onboarding import (
     PersonPayeeReviewDecisionCreate,
     PersonPayeeSubmissionCreate,
 )
+from app.services.bank_capture import check_account_name
 from app.services.campaign_assignments import ensure_active_driver_profile
 from app.services.driver_applications import (
     issue_driver_application_access,
@@ -52,7 +54,9 @@ def test_postgres_access_renewal_and_public_capture_do_not_deadlock(
         postgis_db_sessionmaker, email="person-payee-access-overlap@example.com"
     )
     files = _seed_clean_kyc_files(postgis_db_sessionmaker, email=application.email)
-    payload = PersonPayeeSubmissionCreate.model_validate(_person_payee_payload(token, files))
+    payload = PersonPayeeSubmissionCreate.model_validate(
+        _person_payee_payload(token, files, postgis_db_client)
+    )
     barrier = asyncio.Barrier(2)
 
     async def capture():
@@ -161,9 +165,7 @@ def _seed_clean_kyc_files(db_sessionmaker, *, email: str) -> dict[str, UUID]:
             )
             assert application is not None
             result: dict[str, UUID] = {}
-            for index, name in enumerate(
-                ("driver_license", "driver_photo", "signed_agreement"), start=1
-            ):
+            for index, name in enumerate(("driver_license", "driver_photo"), start=1):
                 intent = FileUploadIntent(
                     organization_id=None,
                     subject_user_id=application.user_id,
@@ -203,9 +205,24 @@ def _seed_clean_kyc_files(db_sessionmaker, *, email: str) -> dict[str, UUID]:
     return asyncio.run(seed())
 
 
-def _person_payee_payload(access_token: str, files: dict[str, UUID], *, request_id=None):
+def _person_payee_payload(
+    access_token: str, files: dict[str, UUID], client=None, *, request_id=None
+):
+    receipt = None
+    if client is not None:
+        checked = client.post(
+            "/api/v1/auth/driver-onboarding/account-name",
+            json={
+                "application_access_token": access_token,
+                "bank_code": "058",
+                "account_number": "0123456789",
+            },
+        )
+        if checked.status_code == 200:
+            receipt = checked.json()["bank_check_receipt"]
     return {
         "application_access_token": access_token,
+        "bank_check_receipt": receipt,
         "client_request_id": str(request_id or uuid4()),
         "nin": NIN,
         "account_name": "Person Payee Driver",
@@ -213,7 +230,8 @@ def _person_payee_payload(access_token: str, files: dict[str, UUID], *, request_
         "bank_code": "058",
         "driver_license_file_id": str(files["driver_license"]),
         "driver_photo_file_id": str(files["driver_photo"]),
-        "signed_agreement_file_id": str(files["signed_agreement"]),
+        "agreement_version": "1",
+        "agreement_accepted": True,
     }
 
 
@@ -224,6 +242,7 @@ def _complete_admin_review(
     admin,
     application: DriverApplication,
     files: dict[str, UUID],
+    verification_reference: str | None = None,
 ) -> None:
     storage = FakeStorageProvider()
     db_client.app.dependency_overrides[get_storage_provider] = lambda: storage
@@ -258,7 +277,10 @@ def _complete_admin_review(
         f"/api/v1/admin/payees/bank-account-versions/"
         f"{current.bank_account_version_id}/payout-verification",
         headers=headers,
-        json={"verification_reference": f"admin-provider-review-{current.id.hex}"},
+        json={
+            "verification_reference": verification_reference
+            or f"admin-provider-review-{current.bank_account_version_id.hex}"
+        },
     )
     assert verified.status_code == 200
     assert verified.json()["payout_verified"] is True
@@ -295,7 +317,7 @@ def test_public_applicant_can_submit_person_payee_without_plaintext_projection(
 
     response = db_client.post(
         "/api/v1/auth/driver-onboarding/person-payee",
-        json=_person_payee_payload(reference, files),
+        json=_person_payee_payload(reference, files, db_client),
     )
 
     assert response.status_code == 201
@@ -374,7 +396,7 @@ def test_exact_submission_retry_converges_and_changed_retry_fails(
     reference, _ = _register(db_client, db_sessionmaker, settings, suffix="retry")
     files = _seed_clean_kyc_files(db_sessionmaker, email="person-payee-retry@example.com")
     request_id = uuid4()
-    payload = _person_payee_payload(reference, files, request_id=request_id)
+    payload = _person_payee_payload(reference, files, db_client, request_id=request_id)
     first = db_client.post("/api/v1/auth/driver-onboarding/person-payee", json=payload)
     retry = db_client.post("/api/v1/auth/driver-onboarding/person-payee", json=payload)
     conflict = db_client.post(
@@ -457,7 +479,7 @@ def test_admin_approval_is_idempotent_audited_safe_and_non_work_eligible(
     files = _seed_clean_kyc_files(db_sessionmaker, email="person-payee-approval@example.com")
     submitted = db_client.post(
         "/api/v1/auth/driver-onboarding/person-payee",
-        json=_person_payee_payload(reference, files),
+        json=_person_payee_payload(reference, files, db_client),
     )
     assert submitted.status_code == 201
     admin = create_test_user(
@@ -589,6 +611,11 @@ def test_admin_approval_is_idempotent_audited_safe_and_non_work_eligible(
             decisions = int(
                 await session.scalar(select(func.count(DriverKycReviewDecision.id))) or 0
             )
+            original = await session.get(DriverKycSubmission, UUID(first.json()["submission_id"]))
+            assert view.submission.agreement_version == original.agreement_version
+            assert view.submission.agreement_accepted_at == original.agreement_accepted_at
+            assert view.submission.bank_check_receipt_sha256 == original.bank_check_receipt_sha256
+            assert view.submission.bank_name_confirmed == original.bank_name_confirmed
             return view.submission.status, view.submission.version, decisions
 
     assert asyncio.run(rotate_approved_identity()) == ("pending_review", 2, 1)
@@ -610,6 +637,40 @@ def test_admin_approval_is_idempotent_audited_safe_and_non_work_eligible(
     )
     assert reopened_review.status_code == 409
     assert reopened_review.json()["error"]["code"] == "PERSON_PAYEE_REVIEW_EVIDENCE_INCOMPLETE"
+    from base64 import b64encode
+
+    from pydantic import SecretStr
+
+    rotated_settings = settings.model_copy(
+        update={
+            "driver_registration_enabled": True,
+            "payout_crypto_keyring_b64": SecretStr(
+                json.dumps(
+                    {
+                        "1": b64encode(bytes(range(32))).decode(),
+                        "2": b64encode(b"z" * 32).decode(),
+                    }
+                )
+            ),
+            "payout_crypto_key_version": 2,
+        }
+    )
+    db_client.app.dependency_overrides[get_settings] = lambda: rotated_settings
+    _complete_admin_review(
+        db_client, db_sessionmaker, admin=admin, application=application, files=files
+    )
+    fresh = db_client.post(
+        path,
+        headers=auth_headers(db_client, admin.email, PASSWORD),
+        json={
+            **decision,
+            "submission_id": _current_submission_id(db_sessionmaker, application.driver_profile_id),
+            "client_request_id": str(uuid4()),
+        },
+    )
+    assert fresh.status_code == 200, fresh.text
+    assert fresh.json()["status"] == "approved"
+    assert fresh.json()["agreement_version"] == "1"
 
 
 def test_approval_fails_closed_for_unsafe_evidence_and_unavailable_key(
@@ -620,7 +681,7 @@ def test_approval_fails_closed_for_unsafe_evidence_and_unavailable_key(
     files = _seed_clean_kyc_files(db_sessionmaker, email="person-payee-fail-closed@example.com")
     submitted = db_client.post(
         "/api/v1/auth/driver-onboarding/person-payee",
-        json=_person_payee_payload(reference, files),
+        json=_person_payee_payload(reference, files, db_client),
     )
     assert submitted.status_code == 201
     admin = create_test_user(
@@ -706,7 +767,7 @@ def test_person_payee_decision_requires_an_active_admin(
     assert (
         db_client.post(
             "/api/v1/auth/driver-onboarding/person-payee",
-            json=_person_payee_payload(reference, files),
+            json=_person_payee_payload(reference, files, db_client),
         ).status_code
         == 201
     )
@@ -747,7 +808,7 @@ def test_rejected_or_expired_submission_resubmits_as_new_truthful_version(
     first_request = uuid4()
     first = db_client.post(
         "/api/v1/auth/driver-onboarding/person-payee",
-        json=_person_payee_payload(reference, files, request_id=first_request),
+        json=_person_payee_payload(reference, files, db_client, request_id=first_request),
     )
     admin = create_test_user(
         db_sessionmaker,
@@ -766,7 +827,7 @@ def test_rejected_or_expired_submission_resubmits_as_new_truthful_version(
     )
     second = db_client.post(
         "/api/v1/auth/driver-onboarding/person-payee",
-        json=_person_payee_payload(reference, files),
+        json=_person_payee_payload(reference, files, db_client),
     )
 
     assert first.status_code == second.status_code == 201
@@ -861,11 +922,21 @@ def test_postgres_concurrent_conflicting_decisions_serialize_once(
     crypto = EnvelopeCryptoProvider(keys={1: bytes(range(32))}, active_key_version=1)
 
     async def submit_stage() -> None:
+        receipt = await check_account_name(
+            user_id=application.user_id,
+            bank_code="058",
+            account_number="0123456789",
+            adapter=BankAdapter(),
+            settings=settings,
+        )
         async with postgis_db_sessionmaker() as session:
             await submit_application_person_payee(
                 session,
                 payload=PersonPayeeSubmissionCreate.model_validate(
-                    _person_payee_payload(reference, files)
+                    {
+                        **_person_payee_payload(reference, files),
+                        "bank_check_receipt": receipt.bank_check_receipt,
+                    }
                 ),
                 crypto=crypto,
                 settings=settings,
