@@ -279,3 +279,33 @@ master CI still gate the one closure-docs commit and its CI. This consumes CI
 repair round 3 of 3; no fourth repair is implicitly authorized. Behavioral-test
 repairs for corrected coverage measurement remain 0 of 2: this fixes only a
 clock-dependent assertion fixture, with no coverage-gain claim or CI resampling.
+
+## Explicit fourth bounded round — REQ-157 (2026-10-13)
+
+After X branch run 38360665163 exposed a production payout recovery deadlock,
+the owner approved the independently reviewed concrete proposal with "go ahewad".
+This authorizes one additional financial-source repair, not a standing extension
+of the exhausted three-round allowance. REQ-157 was registered before edits.
+
+The contract is local to resolution: read the durable requester, acquire User
+FOR KEY SHARE before payout batch/line/intent locks, then revalidate requester
+association before mutation. Keep the global active-admin helper, all new-effect
+authority gates, disabled automatic actor, lease/generation/token guards,
+immutable instructions/amounts and audits, and provider idempotency unchanged.
+No schema, dependency, checker, workflow or product/client-value change.
+
+Acceptance: deterministic real-PG old-source deadlock and fixed-source success;
+original concurrent resolved/skipped/stale/one-submit/query assertions retained;
+exact single submitted audit and actor; missing/changed requester refuses all
+mutation; disabled/demoted staff and automatic actor recover earlier effects;
+inactive authority still refuses new effects. Run affected tests sequentially,
+without local coverage, sleeps, retries or increased existing test timeouts.
+
+Independent money/security and same consolidated minimal-change review gate the
+source commit. Fresh full exact-candidate branch CI, immutable six-shard/backend/
+frontend coverage, both whole-change 90/80 comparisons and ORIGINAL exact
+adopted floors gate master. Any canonical receipt refresh uses the unchanged
+checker and strict original floors; REQ-155's one-time tolerance is exhausted.
+Final reviews, non-force master fast-forward, green master CI, reviewed single
+closing-docs commit and its CI remain required. No additional repair, deployment,
+provider call, account change or branch/worktree is authorized by this round.

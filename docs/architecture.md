@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.131 — 2026-10-12. Canonical source of truth: current state AND target state.**
+**Version 1.132 — 2026-10-13. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -1788,6 +1788,15 @@ terms, pay calculation or D43's proportional short-day rule. W1-P hardening
   payouts are blocked, the due-intent query leaves out pending automatic
   intents, so they cannot take every sweep place from manual payments; their
   lookups stay due.
+- **Recovery resolution lock order (REQ-157):** pre-read the durable intent's
+  requester and take that user's `FOR KEY SHARE` lock before batch, line and
+  intent locks. Revalidate the requester association on the locked intent
+  before recording any observation. This matches claim's user-before-batch
+  order and prevents the audit actor foreign key from creating a reverse lock
+  cycle. This lock does not reauthorize a prior provider result: inactive staff
+  and the disabled automatic actor retain lookup-only recovery, while new
+  submissions retain every current-authority gate. Generation, token, lease,
+  frozen instruction, idempotency and immutable audit rules are unchanged.
 - **[BUILT — Batch C, D39(c)/D40] Automatic payout approval:**
   `services/automatic_payouts.py` and the `sweep_automatic_payouts` worker cron
   batch clean `payout_v4` trip earnings without a person. Migration `0093` adds
@@ -3706,6 +3715,7 @@ It does not authorize deployment or close external launch gates.
 
 | Version | Date | Change |
 |---------|------|--------|
+| v1.132 | 2026-10-13 | **REQ-157 payout recovery locking.** Resolution locks the durable requester before payout rows and revalidates the association, removing the user/batch/audit-FK deadlock without changing payment values or submission/recovery authority. Deterministic PostgreSQL regression and financial/security/consolidated review required; full branch/master CI still gates closure. |
 | v1.131 | 2026-10-12 | **D76/REQ-152 expiry correctness.** Approved-to-expired staff decisions preserve prior server document outcomes, dates and validity in append-only history rather than fabricating a new review. Actual expired-file renewal requires a distinct owned clean upload, retaining exact retries and current approval/trip gates. No schema or migration; regression-first verification and privacy/security/consolidated review pending. |
 | v1.130 | 2026-10-10 | D75/REQ-150 approves only mixed thread/greenlet coverage configuration in §10.3. Source/static checkpoint recorded in [the existing receipt](../issues/testing/combined-ci-repair-2026-10-08.md); fresh attribution, unchanged 90/80 and exact floors, canonical receipt, full CI and final integrated reviews remain pending. Renumbered at merge from v1.127. |
 | v1.129 | 2026-10-07 | D72–D74: partial document renewals, per-document review outcomes, Abuja/Nigerian demo fixtures and touched-test verification without local coverage; REQ-125, REQ-143, REQ-144, REQ-145, REQ-146, REQ-147. Renumbered at merge from v1.126. |

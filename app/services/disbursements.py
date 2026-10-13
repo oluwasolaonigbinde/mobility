@@ -57,6 +57,7 @@ from app.models.payout import (
     EarningsLedgerEntryType,
 )
 from app.models.trip_analytics import FraudFlag
+from app.models.user import User
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.fraud_assessments import load_current_successful_assessment
@@ -1249,6 +1250,19 @@ async def _resolve_payout_submission_claim(
     observation: DisbursementClaimObservation,
 ) -> str:
     async with sessionmaker() as session:
+        requester_id = await session.scalar(
+            select(PayoutSubmissionIntent.requested_by_user_id).where(
+                PayoutSubmissionIntent.id == claim.intent_id
+            )
+        )
+        if requester_id is None:
+            return "stale"
+        # Match claim's user-before-batch order without reauthorizing recovery.
+        await session.execute(
+            select(User.id)
+            .where(User.id == requester_id)
+            .with_for_update(read=True, key_share=True)
+        )
         batch, lines = await _locked_batch_with_lines(session, claim.batch_id)
         intent = await session.scalar(
             select(PayoutSubmissionIntent)
@@ -1256,7 +1270,7 @@ async def _resolve_payout_submission_claim(
             .with_for_update()
             .execution_options(populate_existing=True)
         )
-        if intent is None:
+        if intent is None or intent.requested_by_user_id != requester_id:
             return "stale"
         now = _aware_utc(await session.scalar(select(func.now())))
         if (

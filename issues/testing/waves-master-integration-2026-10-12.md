@@ -2,7 +2,7 @@
 
 ## Current source checkpoint — 13 October 2026
 
-REQ-151–156 remain IN PROGRESS. The real merge is committed locally as
+REQ-151–157 remain IN PROGRESS. The real merge is committed locally as
 `21239a6d`; the verified expiry and MapTiler corrections are committed and pushed
 as Q `7f374c39b2130f354338ad23b939515f54a93d51`. Fresh Q behavior and measurement
 pass as detailed below; exact R `3a9f8b64` full branch CI and final integrated
@@ -12,7 +12,10 @@ metadata correction is generated and verified. Corrected S `e1716154` branch CI
 and final reviews pass; master S contains the corrected receipt but its frontend
 privacy test fails on a clock substring, as documented below. The bounded
 REQ-156 test-clock fixture repair passes touched verification and privacy review;
-its full branch/master CI, final review and request closure remain pending.
+its X branch run 38360665163 then exposes a production payout recovery deadlock.
+The owner explicitly approved one additional bounded financial repair, REQ-157;
+its deterministic PostgreSQL correction passes local verification. Fresh full
+branch/master CI, final reviews and request closure remain pending.
 The owner asked this chat to take over the stalled worker.
 Its original T3 run was interrupted through the supported orchestration RPC
 and its queue held before any takeover edit. Existing checkout/branch and all
@@ -20,12 +23,31 @@ review, CI, D33 and conditional master-push gates remain binding.
 
 Before REQ-156, the verified application/test/deployment source set has 1,410 tracked paths:
 SHA256 `99ea5bf9313f27cfcd4667f72e1c12806cef75bbcf1be19b362a7d58cace5d6c`
-over sorted path-to-Git-blob hashes. The repeatable manifest and named XML/JSON
+over the earlier normalized path-to-Git-object manifest. The repeatable manifest and named XML/JSON
 receipts are outside Git in Windows Temp `mobility-integration-20261012`.
 This fingerprint excludes this receipt and tracking documents; it is not a
 containing-commit SHA or coverage receipt. REQ-156 changes only the named
 capability privacy-test clock fixture; production sources, coverage/policy
-identities, runtime and every adopted floor remain unchanged.
+identities, runtime and every adopted floor remained unchanged through X.
+REQ-157 now changes only the payout resolution lock order and its PostgreSQL
+regression tests, plus required tracking/design/evidence records. The adopted
+baseline, checker, workflows, runtime and coverage thresholds remain unchanged.
+
+### REQ-157 criterion verification (owner-approved additional round)
+
+Detailed source, red/green schedule, authority checks and immutable external
+receipt hashes are recorded in `combined-ci-repair-2026-10-08.md`'s REQ-157
+section and external `payout-verification.json`.
+
+| Approved repair criterion | Current evidence/verdict |
+| --- | --- |
+| 1: deterministic old-source PostgreSQL reproduction | PASS: real user/batch lock wait observed before release; original source fails with the expected two-transaction deadlock, corrected source passes. No sleeps or retries. |
+| 2: lock order, exact recovery/audit, actor revalidation | PASS: local requester KEY SHARE precedes payout locks; original one-submit/resolved-skipped/stale/query assertions retained. Exact audit and missing/changed requester rollback checks pass. |
+| 3: inactive/automatic recovery and new-effect denials | PASS: 39 affected guards and seven final-source cases pass, including disabled/demoted staff, R21 authority/lookup checks and paused/tampered automatic actor boundaries. Security supplement PASS on final hashes/XML. |
+| 4: first-recorded request and bounded design/docs | PASS: REQ-157 registered before implementation; architecture §16.3/v1.132 and both existing plans record the local lock contract. No schema, dependency, checker, workflow, product values or launch queue change. |
+| 5: independent reviews and local checks | PASS precommit criteria 1–5: scoped Ruff/test format/Basedpyright zero errors; sequential owned 1-CPU containers stopped with data preserved. Independent plan, final money criteria 1–3, security and same consolidated minimal-change review PASS; full-CI reassessment remains required. |
+| 6: exact full branch CI, complete coverage and master advancement | PENDING: require fresh full CI, immutable six-shard/backend/frontend evidence, both whole-change 90/80 comparisons, original exact floors and final reviews. Baseline unchanged; no REQ-155 exception reuse. |
+| 7: master CI and truthful single closure commit | PENDING: green master CI, reviewed 28-row closure and closing-docs CI must precede final SHA/link report. |
 
 | Criterion | Current verdict and concrete evidence |
 | --- | --- |
