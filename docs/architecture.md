@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.133 — 2026-10-13. Canonical source of truth: current state AND target state.**
+**Version 1.134 — 2026-10-13. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -908,6 +908,14 @@ and uses the workspace-root local composite action to verify the candidate SHA.
   Ordinary `e2e` and `r59_real_stack` start independently of `quality`, accepting
   wasted runs on lint failure. Full branch CI still must pass before merge.
 - D49 records a one-off owner-directed local L2-1a target of at least 70% changed lines and branches. Remaining criteria are reported explicitly. This does not change the CI checker, trusted baselines, D33 refresh prerequisites or ordinary D32 thresholds.
+- **D79/REQ-160 is a one-off delivery exception for the agreement/bank change:**
+  run 38383211511 on a84eff23 failed five stale test/schema cases. After affected
+  local tests and independent reassessment PASS, merge without another full
+  pre-merge CI wait. Full CI and source-bound coverage evaluation are deferred
+  until after Waves 3/4; skipped coverage is not a PASS. The D33 receipt, checker,
+  instrumentation and every floor remain unchanged. Report automatically
+  triggered CI without waiting; a real app, migration or money defect stops
+  the exception. The cancelled 41439890 run is not accepted as green evidence.
 - Job `coverage` (R17/TST-007): consumes both LCOV artifacts, resolves an
   explicit ancestor base, rejects global or named-critical baseline regression,
   and enforces at least 90% line / 80% branch coverage on changed executable
@@ -2664,7 +2672,7 @@ aggregates only, k-floor rules of §22.2 apply to any zone-level display.
 
 ## 23. Identity evolution & production-PWA readiness
 
-- **Agreement and bank capture (D77/D78, REQ-158/159) [TARGET - implementation under verification]:** Apply presents plain version-1 agreement points and the immutable full text at `/apply/agreement/1`; required acceptance records server time/version on immutable KYC evidence and its locked application. Signed agreement file fields/document kinds are retired by `0102`; staff-created drivers supply missing consent in signed-in renewal and fresh approval requires it. Existing consent follows renewal, exact committed retries compare immutable evidence before current-version/provider/receipt checks. Legal text is internally draft until REQ-032 and current live-use gates remain.
+- **Agreement and bank capture (D77/D78, REQ-158/159) [BUILT - locally verified; delivery exception D79]:** Apply presents plain version-1 agreement points and the immutable full text at `/apply/agreement/1`; required acceptance records server time/version on immutable KYC evidence and its locked application. Signed agreement file fields/document kinds are retired by `0102`; staff-created drivers supply missing consent in signed-in renewal and fresh approval requires it. Existing consent follows renewal, exact committed retries compare immutable evidence before current-version/provider/receipt checks. Legal text is internally draft until REQ-032 and current live-use gates remain.
   Apply and Profile share `components/driver/bank-picker.tsx` and the read-only backend bank catalog. `adapters/banks.py` reuses the Paystack JSON client for cursor-paginated Nigerian banks and account resolution; public catalog responses are cached, provider credentials remain server-only. Longer provider bank codes are preserved. Applicant account checks are capability-scoped and rate-limited, with signed 15-minute receipts bound to driver, bank/account digests, outcome and resolved-name digest. Resolved names require explicit confirmation. Only unconfigured/transport/5xx/provider-429 unavailability permits typed-name capture; invalid input/response, capability/local limiter failures refuse it. The POST-shaped lookup keeps private details in the request body, mutates no database authority and is registered as audit-exempt; capture and staff review supply the durable audit evidence. Capture retains encrypted bank versions and audited staff verification; name checks never create payout verification, recipients or transfer authority. D40b is unchanged. Fake transport is the delivery provider; no live provider call.
 
 
@@ -3719,7 +3727,8 @@ It does not authorize deployment or close external launch gates.
 
 | Version | Date | Change |
 |---------|------|--------|
-| v1.133 | 2026-10-13 | D77/D78 replaces signed agreement files with versioned in-app acceptance (`0102`) and reuses one searchable Apply/renewal bank catalog/picker with server-authoritative account-name confirmation and unavailable fallback. Legal text remains internally draft (REQ-032); D40b unchanged. Reviewed contract: agreement-bank-picker-2026-10-13; focused verification, specialist/consolidated review and full branch CI remain pending. |
+| v1.134 | 2026-10-13 | **D79/REQ-160 one-off delivery exception.** Agreement/bank integration may merge after the accepted failed CI's five stale test/schema cases are corrected, affected local tests pass and independent reassessment PASS. No additional full pre-merge CI wait; full evaluation is deferred until after Waves 3/4. D33 checker, receipt and every floor remain unchanged; coverage policy was skipped, not passed. Automatically triggered CI is reported without waiting. Any real app, migration or money defect stops the merge. Evidence: [agreement/bank receipt](../issues/testing/agreement-bank-picker-2026-10-13.md). |
+| v1.133 | 2026-10-13 | D77/D78 replaces signed agreement files with versioned in-app acceptance (`0102`) and reuses one searchable Apply/renewal bank catalog/picker with server-authoritative account-name confirmation and unavailable fallback. Legal text remains internally draft (REQ-032); D40b unchanged. Reviewed contract: agreement-bank-picker-2026-10-13; focused verification and specialist/source reviews PASS. Integrated CI failed five stale test/schema cases, corrected under D79/REQ-160; final affected tests (69 executions with overlap, zero skips) and independent correction reassessment PASS under D79. Full CI/source-bound coverage evaluation is deferred until after Waves 3/4; no green coverage claim. |
 | v1.132 | 2026-10-13 | **REQ-157 payout recovery locking.** Resolution locks the durable requester before payout rows and revalidates the association, removing the user/batch/audit-FK deadlock without changing payment values or submission/recovery authority. Deterministic PostgreSQL regression and financial/security/consolidated reviews PASS; Built in `31997a67`, with accepted source branch/master CI [38369572447](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38369572447) / [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034). |
 | v1.131 | 2026-10-12 | **D76/REQ-152 expiry correctness.** Approved-to-expired staff decisions preserve prior server document outcomes, dates and validity in append-only history rather than fabricating a new review. Actual expired-file renewal requires a distinct owned clean upload, retaining exact retries and current approval/trip gates. No schema or migration; regression-first verification and privacy/security/consolidated review PASS. Built in `7f374c39`; accepted integrated master CI [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034). |
 | v1.130 | 2026-10-10 | D75/REQ-150 approves only mixed thread/greenlet coverage configuration in §10.3. Built in `1b951cc9`; fresh normalized attribution, unchanged 90/80 and exact floors, canonical receipts `3a9f8b64` / `e1716154`, full branch/master CI and final integrated reviews PASS in [the integration receipt](../issues/testing/waves-master-integration-2026-10-12.md). Renumbered at merge from v1.127. |

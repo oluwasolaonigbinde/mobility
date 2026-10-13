@@ -1573,7 +1573,7 @@ def test_exact_person_renewal_retry_survives_retained_document_expiring_overnigh
             )
             review.document_reviews = {
                 "driver_license": {"status": "rejected", "reason_code": "unreadable_evidence"},
-                "driver_photo": {"status": "accepted"},
+                "driver_photo": {"status": "accepted", "expires_on": today.isoformat()},
             }
             await session.commit()
 
