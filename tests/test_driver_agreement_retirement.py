@@ -47,7 +47,7 @@ def test_agreement_migration_is_reachable_from_the_real_alembic_chain(monkeypatc
             "bank_name_confirmed",
         } <= columns
         assert asyncio.run(fetch_all(url, "SELECT version_num FROM alembic_version")) == [
-            ("0106_development_baseline",)
+            ("0107_audience_sweep_cursor",)
         ]
     finally:
         asyncio.run(drop_database(url))

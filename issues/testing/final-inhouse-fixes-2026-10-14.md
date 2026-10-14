@@ -1,6 +1,6 @@
 # Final in-house batch verification
 
-REQ-171–178; approved contract in
+REQ-171–179; approved contract in
 `issues/planning/final-inhouse-fixes-2026-10-14.md`. Source starts at fetched
 master `966abd3a97873ed741f2cd714e5a8a928c5c2905`. No local coverage measurement,
 provider calls, deployment, account-access/tmp reads or client-demo changes.
@@ -8,6 +8,7 @@ provider calls, deployment, account-access/tmp reads or client-demo changes.
 Ordered implementing commits: `2428011f` (A09), `01dd46ca` (A01), `faa4bb19`
 (A02), `9bd21ecb` (A03/A10/A11), `13171ea6` (A04), `e2655df1` (request tidy-up).
 Specialist correction: `dfa5f1c3` (A10 disclosure transaction boundary).
+Later owner-approved docs-only A06 decision: `e2fdef5b` (REQ-179/D88/v1.143).
 
 ## Criterion evidence
 
@@ -21,6 +22,7 @@ Specialist correction: `dfa5f1c3` (A10 disclosure transaction boundary).
 | A11 / REQ-176 | Africa/Lagos instant formatters construct under UTC and America/Los_Angeles and cross Nigerian midnight correctly; date-only values retain dates. Two meaningful regressions fail baseline. Final formatter/planning files: 24 passed. | PASS |
 | A04 / REQ-177 | Exact-File/context/purpose/request identity independently retains intent, uploaded stage, confirmed ID and scan stage. Scan-poll retry skips completed work, one-of-two failure reuses its successful sibling, continuing siblings coalesce, and edits/access/logout/unmount fence stale responses. Apply person/vehicle and renewal callers covered. Full helper/Apply/renewal files: 17 + 22 + 20 = 59 passed. Profile supplies driver identity; integrated frontend typecheck passes. | PASS |
 | REQ-178 | Thirteen specified historical rows close DONE using ancestry-verified triage commits; REQ-044/055 explicitly SUPERSEDED with replacements. Row comparison verifies every other existing row unchanged, including NEEDS ANSWER and external dependencies. No new coverage/design acceptance claim for REQ-063. | PASS |
+| A06 / REQ-179 | Owner's later 14 October decision records a car-only pilot and deferred motorcycles in the new request, client-rule history, D88/Q19, architecture amendment/tags and v1.143. Exactly four requested docs change; existing Apply sends car and matching filters CAR. No code or vehicle_type plumbing changes. Published tidy-up predates this instruction, so the separate decision commit follows it without rewriting history. Direct docs-only path; package/checklist validation and whitespace checks pass. | PASS |
 
 Audience backend first pass: 70 passed / 3 failed (obsolete current-v2 assertions
 and synthetic fixture); corrected. Focused follow-up: 75 passed / one existing
@@ -40,6 +42,18 @@ Ordinary zone-insight/recommendation readers still commit their served history.
 An unnecessary full-file repeat was stopped after 12 passes; no full-file result
 is claimed for that interrupted repeat. Scoped Ruff, whitespace and three-file
 basedpyright pass on the correction.
+
+Initial full CI candidate `2ee9c585`,
+[38554699015](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38554699015):
+backend static, complete frontend checks/build, R59 and desktop/mobile browser
+jobs passed. Backend shard 4 reported one stale expectation in
+`test_driver_agreement_retirement.py`: expected 0106 after upgrading to head,
+actual 0107. This is an A03 migration-head caller correction, not an agreement
+behavior change. Only that assertion changes; both tests in the touched file
+pass (20.83s), with Ruff/whitespace PASS. The failing shard cannot supply a
+qualifying complete backend receipt. All other five backend shards passed;
+aggregation refused the failed backend prerequisite and coverage policy was
+skipped. The corrected candidate's full CI remains pending.
 
 ## Repeatable focused checks
 
@@ -73,10 +87,13 @@ Package/checklist validation and the runtime OpenAPI snapshot drift check pass.
 - Consolidated minimal-change review: round 1 PASS on `966abd3a..dfa5f1c3`
   and this criterion receipt; all changed files have an approved scope or
   correctness reason and no actionable finding remains.
+  Round 2 PASS also covers the later four-doc A06 decision and one-line current-
+  head expectation correction; application code is unchanged since round 1.
 - Full branch CI, possible controlled D33 receipt, non-squash master merge and
   new request closure: pending. This receipt does not assert those gates passed.
 
 All delegates use owner-selected `codex-fresh-20261012`, `gpt-6.1-sol`, high,
 priority. No actual provider context or handoff error occurred. Batch containers
-must be removed before final handoff. A06, G04, external accounts/keys and client
-answers remain outside this batch; no package-queue promotion is authorized.
+must be removed before final handoff. Motorcycle code, G04, external accounts/keys
+and client answers remain outside this batch; A06 records only the later car-only
+decision. No package-queue promotion is authorized.

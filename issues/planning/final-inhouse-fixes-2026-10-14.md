@@ -5,7 +5,7 @@ end-of-batch full CI (D33 measurement/receipt/verification if required), and
 non-squash master merge only after green branch CI. Work stays in the clean
 `final/inhouse-fixes` checkout, initially identical to fetched master
 `966abd3a`. The outside-repository triage report is read-only context.
-Requests are REQ-171–178. This is owner work, not package-queue promotion.
+Requests are REQ-171–179. This is owner work, not package-queue promotion.
 
 ## Contract and sequence
 
@@ -66,11 +66,19 @@ Requests are REQ-171–178. This is owner work, not package-queue promotion.
    071/075/118 using integrated evidence from the triage; REQ-044/055 become
    SUPERSEDED with their replacement reason per the owner's explicit convention.
    Preserve all other rows, including unanswered and external dependencies.
+7. **A06 / REQ-179, later owner decision, docs only:** the pilot is car-only;
+   motorcycles are deferred until the owner or client raises them again. Record
+   D88/Q19 and architecture v1.143, move the previous motorcycle-permitted rule
+   into dated history, and retain all vehicle_type plumbing and code unchanged.
+   This unambiguous record aligns docs with existing car-only Apply/matching
+   behavior and follows the delivery skill's direct path. The tidy-up had already
+   been committed and pushed before this decision arrived, so A06 is a separate
+   later commit preserving published history and the no-force-push boundary.
 
 ## Boundaries, records and gates
 
 Reverify every defect against current master before fixing and skip already-fixed
-items. No legacy payout/evidence/SQLite/migration restoration, A06, G04, coverage
+items. No legacy payout/evidence/SQLite/migration restoration, A06 code, G04, coverage
 padding, new commercial/legal/eligibility values, account-access or tmp reads,
 provider calls, deployment, client demo (3100), main checkout changes or force push.
 Allocate D84+, architecture v1.139+ and migration 0107+ only for genuine changes.
@@ -166,3 +174,12 @@ product choice or provider context/handoff failure occurred. Full branch CI,
 any required reviewed D33 receipt, green non-squash merge and new-request closure
 remain pending. The owner-approved historical request tidy-up is committed;
 REQ-171–178 remain IN PROGRESS until delivery reaches master.
+
+The later docs-only A06 decision is `e2fdef5b` (REQ-179/D88/v1.143). Initial
+full CI on `2ee9c585` surfaced one missed current-head assertion in the existing
+agreement-retirement test: it expected baseline 0106 after upgrading to head,
+while A03 adds 0107. The narrow expectation correction passes both tests in that
+touched file and preserves their agreement/retirement checks. Consolidated
+reassessment PASS covers the docs-only A06 decision and this expectation fix.
+Successful complete CI remains required; failed-run artifacts cannot
+qualify a D33 receipt.
