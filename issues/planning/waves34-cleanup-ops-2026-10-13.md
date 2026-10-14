@@ -596,3 +596,30 @@ gates remain pending; this is not merge clearance.
 | Process trim, validator state and proven obsolete hosting scope | PASS; deletion inventory above, validator passes, archive links corrected; no unproven unused operational script removed. |
 | Squash schema/bootstrap/head/reference/seed safety | PASS: byte-identical complete dumps, version-only data difference, single root/head, seed completion and current protection cases. Security/privacy confirm no lost protection. |
 | Integrated agreement/bank and final delivery | Local targeted checks PASS; full candidate measurement, full-range qualification, receipt review, final full verification and non-squash merge PENDING. |
+
+
+### First full measurement and bounded frontend correction
+
+Full run [38517311734](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38517311734)
+on `5e5b9f2730d576070544c044fccd7c130db2f146` passed backend static checks and
+both real-stack browser jobs. The frontend job passed lint/types, then failed
+one stale offer-terms assertion (1,540 passed): its fixture had already become
+v4 but it still expected the hourly label. The corrected test verifies the
+same frozen 1,500-naira/10-mile daily sentence and hides raw fields.
+
+The follow-up legacy-reader search found one remaining hourly fallback in the
+Jobs summary. It now accepts only v4's frozen daily rate; unsupported/missing
+versions show unavailable, and unset current rates remain an em dash, never
+zero. The two new unsupported-format cases failed before correction (10 other
+cases passed); both touched files then passed all 17 cases. Scoped ESLint and
+Prettier pass. Money reassessment `w34-money-review-20261014-r2` returned PASS,
+including preservation of the earlier backend/schema money acceptance.
+Recomputed complete-source jscpd: 829 sources, 147,782 lines, 319 clones,
+3,718 duplicated lines (2.52%), 37,439 duplicated tokens (2.77%). Radon is
+unchanged because no Python application source changed.
+
+The failed frontend job did not upload LCOV. The measurement phase must repeat
+on the corrected complete candidate before a valid source-bound D33 receipt
+can be reviewed. This is an end-of-batch failure repair, not a per-wave run;
+no gate, policy or floor is weakened. Backend results, full-range qualification,
+receipt review and final green verification are not inferred from partial CI.

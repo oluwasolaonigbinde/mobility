@@ -4,7 +4,7 @@ import { dailyRateSentences, offerTermLines } from "./offer-terms";
 
 describe("offerTermLines", () => {
   it("lists every accepted term in words without IDs, hashes, geometry or versions", () => {
-    const lines = offerTermLines({
+    const terms = {
       offer_terms_version: "offer_terms_v3",
       currency: "NGN",
       campaign_window_start_at: "2026-10-01T08:00:00+00:00",
@@ -18,7 +18,6 @@ describe("offerTermLines", () => {
         shortfall_strategy: "proportional",
         minimum_miles: "0",
         outside_area_weight: "1",
-        missing_rate_naira: null,
         eligibility_params: { stationary_window_min: 5 },
       },
       zones: {
@@ -29,13 +28,15 @@ describe("offerTermLines", () => {
       eligibility: { stationary_policy_marker: "stationary-rd-v1", teleport_kmh: 180 },
       accepted: true,
       shifts: ["morning", "evening"],
-    });
+    };
+    const lines = offerTermLines(terms);
 
     const text = lines.map((line) => `${line.label}: ${line.value}`).join("\n");
     expect(text).toContain("Currency: NGN");
     expect(text).toContain("Service area · City: Abuja");
     expect(text).toContain("Branding · Campaign name: Wuse Blitz");
-    expect(text).toContain("Payout · Hourly rate naira: ₦1,500.00");
+    expect(dailyRateSentences(terms)).toContain("₦1,500.00 for a full day of 10 miles.");
+    expect(text).not.toMatch(/Hourly rate|Daily rate naira|Daily target miles/);
     expect(text).toContain("Payout · Eligibility params · Stationary window min: 5");
     expect(text).toContain("Zones · Target: Wuse II");
     expect(text).toContain("Eligibility · Teleport kmh: 180");
