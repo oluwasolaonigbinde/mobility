@@ -1306,7 +1306,7 @@ accepted terms and campaign currency must thereafter match exactly.
 
 ### 15.3 Provider adapter (P5)
 
-**[BUILT locally — D85 / REQ-173]:** Unknown checkout recovery verifies the
+**[BUILT — D85 / REQ-173]:** Unknown checkout recovery verifies the
 saved reference and audits the outcome. Not-found permits only redispatch of
 that identical reference; ambiguous/duplicate/malformed recovery keeps UNKNOWN
 and never allows replacement. Initialization and explicit verification share a
@@ -1368,7 +1368,7 @@ delivery/replay, transfer evidence and production approval remain
 
 ### 15.4 Webhooks — new endpoint namespace
 
-**[BUILT locally — D84 / REQ-171]:** Caddy caps public webhook bodies at
+**[BUILT — D84 / REQ-171]:** Caddy caps public webhook bodies at
 1,048,576 bytes. Both app payment callback routes check declared length and
 count streamed bytes before appending, authentication or persistence; absent
 or false length cannot bypass the cap. Adapters authenticate the original bytes.
@@ -2016,7 +2016,7 @@ remains the production-adoption gate.
 
 ### 19.2 Upload flow (one pattern for all file kinds)
 
-**[BUILT locally — D87 / REQ-177]:** Apply person/vehicle and driver renewal
+**[BUILT — D87 / REQ-177]:** Apply person/vehicle and driver renewal
 forms retain independent in-memory progress for each exact File/access/purpose/
 request identity: intent, successful storage upload, confirmed ID and scan stage.
 Retry resumes unfinished work and reuses clean siblings; an already-running
@@ -2547,7 +2547,7 @@ coordinates. Export ships disabled until Q31 legal sign-off.
 
 ### 22.4 Retargeting sources & follow-up insights (D11) [PARTIAL — W3-01A/B BUILT]
 
-**[BUILT locally — D86 / REQ-174–176]:** A monitored bounded sweep discovers
+**[BUILT — D86 / REQ-174–176]:** A monitored bounded sweep discovers
 committed current measurement/link pairs in either creation order and invokes
 the existing governed materializer. Migration `0107_audience_sweep_cursor`
 adds a durable UUID-pair scan position; it advances before per-item transactions
@@ -3690,15 +3690,15 @@ failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
 
-- **v1.143 — 14 October 2026 (D88/REQ-179):** Owner confirms the pilot is car-only and defers motorcycles until the owner or client raises them again. Supersedes D43(h)'s eligibility permission and reconciles Q19 with current car-only behavior. Docs-only record; vehicle_type plumbing and code are unchanged.
+- **v1.143 — 14 October 2026 (D88/REQ-179):** Owner confirms the pilot is car-only and defers motorcycles until the owner or client raises them again. Supersedes D43(h)'s eligibility permission and reconciles Q19 with current car-only behavior. Docs-only record; vehicle_type plumbing and code are unchanged. Built in `e2fdef5b`; full batch CI 38571889225 PASS.
 
-- **v1.142 — 14 October 2026 (D87/REQ-177):** Independent resumable upload progress for Apply person/vehicle and signed-in renewals, coalesced siblings, exact context/generation fencing and scan-only recovery. Focused 59 tests and integrated driver identity typecheck pass; privacy/security/consolidated review and full batch CI pending.
+- **v1.142 — 14 October 2026 (D87/REQ-177):** Independent resumable upload progress for Apply person/vehicle and signed-in renewals, coalesced siblings, exact context/generation fencing and scan-only recovery. Focused 59 tests and integrated driver identity typecheck pass; privacy/security/consolidated reviews and full batch CI 38571889225 PASS. Built in `13171ea6`.
 
-- **v1.141 — 14 October 2026 (D86/REQ-174–176):** Governed materialization producer and fair durable catch-up (0107), worker/reader supersession checks, recognizable Lagos-time planning, exact-run linked-source recommendations in frozen export v3 and deterministic CSV/PDF. Unseeded and fake-storage journeys pass; privacy/consolidated review and full batch CI pending.
+- **v1.141 — 14 October 2026 (D86/REQ-174–176):** Governed materialization producer and fair durable catch-up (0107), worker/reader supersession checks, recognizable Lagos-time planning, exact-run linked-source recommendations in frozen export v3 and deterministic CSV/PDF. Unseeded and fake-storage journeys pass; privacy/consolidated reviews and full batch CI 38571889225 PASS. Built in `9bd21ecb` and `dfa5f1c3`; current-head test correction `7e9f18d8`.
 
-- **v1.140 — 14 October 2026 (D85/REQ-173):** Audited same-reference uncertain checkout recovery, connection-owned serialization across commits, explicit verification and intervening webhook protection. Fake-I/O and separate-session tests pass; money review and full batch CI pending.
+- **v1.140 — 14 October 2026 (D85/REQ-173):** Audited same-reference uncertain checkout recovery, connection-owned serialization across commits, explicit verification and intervening webhook protection. Fake-I/O and separate-session tests pass; money/consolidated reviews and full batch CI 38571889225 PASS. Built in `faa4bb19`.
 
-- **v1.139 — 14 October 2026 (D84/REQ-171):** Bounds both public payment webhook readers and Caddy to 1 MiB before authentication. Declared/chunked oversize and exact original-byte regressions pass; Caddy 2.8.4 configuration validation passes. Full batch CI and security review remain pending.
+- **v1.139 — 14 October 2026 (D84/REQ-171):** Bounds both public payment webhook readers and Caddy to 1 MiB before authentication. Declared/chunked oversize and exact original-byte regressions pass; Caddy 2.8.4 configuration validation passes. Security/consolidated reviews and full batch CI 38571889225 PASS. Built in `2428011f`.
 
 - **v1.138 ? 14 October 2026 (D83/REQ-169):** Owner-approved single development database baseline; full PostgreSQL schema parity established, remaining integrated gates pending.
 - **v1.137 ? 14 October 2026 (D82/REQ-164):** Scheduled-job check-ins and read-only Finance business-health alerts; verification pending.

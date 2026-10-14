@@ -167,8 +167,8 @@ access, [REQ-025](requests.md) password and two-step verification,
 
 **History:**
 - **2026-08-14** — Client confirmed payment timing and methods (Q2, Q3, D18).
-- **2026-10-14** — Owner approved bounded public callback buffering (D84/REQ-171); earlier callbacks authenticated only after an unbounded body read. Local declared/chunked/exact-byte regressions pass; batch delivery gates remain pending.
-- **2026-10-14** — D85/REQ-173 recovers saved uncertain checkouts; the earlier implementation refused all initialization retries even after a pre-dispatch interruption. Recovery reuses the exact reference and canonical verification, retaining uncertainty after ambiguous/duplicate responses. Fake-I/O and separate-session checks pass; money review and full batch CI remain pending.
+- **2026-10-14** — Owner approved bounded public callback buffering (D84/REQ-171); earlier callbacks authenticated only after an unbounded body read. Local declared/chunked/exact-byte regressions pass; security review and full batch CI passed. Built in `2428011f`.
+- **2026-10-14** — D85/REQ-173 recovers saved uncertain checkouts; the earlier implementation refused all initialization retries even after a pre-dispatch interruption. Recovery reuses the exact reference and canonical verification, retaining uncertainty after ambiguous/duplicate responses. Fake-I/O and separate-session checks pass; money review and full batch CI passed. Built in `faa4bb19`.
 - **2026-09-24** — Client chose Paystack with OPay settlement (client answers item 7).
 - **2026-09-28** — Paystack adapters built from the public docs, disabled without keys. Built in `dbd41e1` (REQ-004).
 - **2026-09-29** — Existing test-key access was established and one real ₦101 Test Mode checkout completed, verified and applied once by Cardvert; public webhook, transfer and production approval gates remain open (REQ-027, REQ-035).
@@ -300,7 +300,7 @@ renewal periods stay unset (D69, REQ-137). Mark expired retains the recorded out
 **History:**
 - **2026-10-12** - Owner chose in-app versioned agreement/privacy acceptance in place of a signed-file upload, plus the shared searchable bank picker and confirmed adapter account-name check with unavailable-provider typed-name fallback (D77/D78, REQ-158/159). The previous signed agreement was a required KYC file and Apply asked for a typed 3-digit bank code and account name. Legal wording remains a draft internally (REQ-032); existing payout authority remains. Built in `a349c2e5`, with final repairs/evidence in `9e7f6147`; non-squash master merge `f77870fd`. Final local verification and independent reviews PASS. Under the one-off REQ-160/D79 exception, full CI/source-bound coverage evaluation is deferred until after Waves 3/4; the accepted integrated run failed, not green.
 
-- **2026-10-14** — Owner chose a car-only pilot; motorcycles are deferred until the owner or client raises them again (D88, REQ-179). The previous current rule permitted roadworthy cars and motorcycles under D43(h)/REQ-034. This supersedes that motorcycle permission for the pilot; current car-only code and vehicle_type plumbing are unchanged.
+- **2026-10-14** — Owner chose a car-only pilot; motorcycles are deferred until the owner or client raises them again (D88, REQ-179). The previous current rule permitted roadworthy cars and motorcycles under D43(h)/REQ-034. This supersedes that motorcycle permission for the pilot; current car-only code and vehicle_type plumbing are unchanged. Built in `e2fdef5b`.
 
 - **2026-10-12** — Owner-delegated orchestrator requires correction of the wave staff-expiry bug: retain original document facts/history and append the expiry event, refuse reuse of an actually expired file, and restore eligibility only after new upload approval (D76, REQ-152). This implements the existing rule; prior staff expiry incorrectly replaced document facts with empty values. Built in `7f374c39`; integrated verification and accepted master CI [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034) pass.
 
@@ -338,7 +338,7 @@ continuous stop adds no distance (D39b, D43d).
 
 **History:**
 - **2026-08-14** — Client confirmed screen-on tracking with driver Start/End (Q10, D18).
-- **2026-10-14** — REQ-172 corrects browser-to-server transport failures being mistaken for durable-storage failure. Healthy Flush capture retains current session/offline authority and exact v2 batches; End uncertainty retains its frozen manifest and pauses capture until server reconciliation. Existing genuine queue, identity, visibility and writer-lock failures remain closed. Local tracker tests pass; independent money/consolidated review and batch CI remain pending.
+- **2026-10-14** — REQ-172 corrects browser-to-server transport failures being mistaken for durable-storage failure. Healthy Flush capture retains current session/offline authority and exact v2 batches; End uncertainty retains its frozen manifest and pauses capture until server reconciliation. Existing genuine queue, identity, visibility and writer-lock failures remain closed. Local tracker tests pass; money and consolidated reviews passed; full batch CI passed. Built in `01dd46ca`.
 - **2026-08-20** — Owner chose a parked-time detector for hourly pay (120-second windows, 25-metre threshold; D22).
 - **2026-09-25** — Client set the 5-minute stop rule (D39b). Built for daily-rate pay in `e14149d` (REQ-002). Hourly (v1–v3) work keeps D22.
 - **2026-09-30** — Client confirmed the 5 minutes apply to **each** stop, not the whole trip or day (D43d).
@@ -475,7 +475,7 @@ Unavailable/stale/suppressed recommendations release no targets (D86, REQ-175).
 
 **History:**
 - **2026-10-07** — Owner W2-D brief replaces "Omitted - insufficient frozen evidence" in new export snapshots only; old issuance content and verification remain unchanged (D71, REQ-141). Built in `78ad5580` and real integration `21239a6d`.
-- **2026-10-14** — D86/REQ-175 completes linked-source context in newly frozen CSV/PDF reports; earlier exports contained exposure score/ranked zones alone. Exact-run fake-storage publication/download, denial/tamper and historical-byte checks pass; privacy review and full batch CI remain pending.
+- **2026-10-14** — D86/REQ-175 completes linked-source context in newly frozen CSV/PDF reports; earlier exports contained exposure score/ranked zones alone. Exact-run fake-storage publication/download, denial/tamper and historical-byte checks pass; privacy review and full batch CI passed. Built in `9bd21ecb` and `dfa5f1c3`.
 - **2026-08-14** — Client confirmed the report shape and ROI rule (Q12, Q30, D18, D20).
 - **2026-09-24** — Client's answer mentioned "admin officer & driver profile and the car", which conflicts with the privacy boundary; asked to clarify (client answers item 5).
 
@@ -494,7 +494,7 @@ REQ-174–176). Live activation remains off under the existing account/legal gat
 
 **History:**
 - **2026-07** — Retargeting entered the MVP (D6); shape confirmed 2026-08-14 (Q11, D18, D20).
-- **2026-10-14** — D86/REQ-174/176 fixes the missing normal segment producer and host-timezone-dependent planning instants. The earlier ready screen showed ranks/dates without usable area/time context. Unseeded worker, fairness/reissue and midnight tests pass; privacy review and full batch CI remain pending.
+- **2026-10-14** — D86/REQ-174/176 fixes the missing normal segment producer and host-timezone-dependent planning instants. The earlier ready screen showed ranks/dates without usable area/time context. Unseeded worker, fairness/reissue and midnight tests pass; privacy review and full batch CI passed. Built in `9bd21ecb` (current-head test correction `7e9f18d8`).
 - **2026-09-24** — Client: off for the pilot (client answers item 18).
 
 ### Pilot shape, permits and launch
@@ -563,7 +563,7 @@ REQ-177).
 
 **History:**
 - **Before 2026-09-26** — One shared 25 MB limit.
-- **2026-10-14** — D87/REQ-177 replaces all-or-nothing browser upload retries with per-file resumable intent/confirmation/scan progress for Apply and renewals. The earlier flow recreated intents after a late failure and discarded successful siblings. Focused retry/fencing checks pass; privacy/security review and full batch CI remain pending.
+- **2026-10-14** — D87/REQ-177 replaces all-or-nothing browser upload retries with per-file resumable intent/confirmation/scan progress for Apply and renewals. The earlier flow recreated intents after a late failure and discarded successful siblings. Focused retry/fencing checks pass; privacy/security review and full batch CI passed. Built in `13171ea6`.
 - **2026-09-24** — Client accepted the developer's recommendation; limits set per purpose and told to the client for information. Built in `7a9ceb0` (REQ-001).
 
 ### Sign-in security and availability
@@ -605,6 +605,8 @@ measurement run, receipt commit and final green verification run before merge
 
 **History:**
 - **2026-10-13, completed 14 October** - Owner approved Waves 3/4 and the two-run D33/D41 sequence. The earlier policy had no separate 85% money/privacy floor. Built in `115fc505`, with independently reviewed receipt `40e39f4c` and full green verification [38539599622](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38539599622). Whole-range qualification includes REQ-158/159; shared bank picker retained. Non-squash merge `4bbb689d`. Structural refinement Built in `30eadf27`; progress archive/process trim and hosting-scope verification Built in `0b0be762`.
+
+- **2026-10-14** — Final in-house behavior verification Built in `4f41e895` (REQ-171–177), with independently reviewed D33 receipt Built in `8e509f7f` and full green verification [38571889225](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38571889225). All implementing commits reached GitHub master without squashing at `8e509f7f`. Historical request tidy-up Built in `e2655df1` (REQ-178). R3 PASS (gpt-6.1-sol high, review thread mcp:9ccfc0c9), no findings; the owner supplied the verdict covering `4f41e895` and `8e509f7f`. Closure remains on local master only; the owner prohibits further pushes until more work is ready.
 
 ### Demo and staging external-input placeholders
 
