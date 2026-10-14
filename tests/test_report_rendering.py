@@ -20,6 +20,57 @@ MOVEMENT_CAVEAT = (
 )
 
 
+def test_v3_planning_projection_keeps_names_context_and_lagos_midnight():
+    snapshot = export_snapshot()
+    snapshot["schema_version"] = "campaign-performance-export-v3"
+    snapshot["linked_source_recommendations"] = [
+        {
+            "source_label": "Website traffic",
+            "zone_label": "Wuse II",
+            "measurement_run_id": snapshot["measurement"]["run_id"],
+            "state": "ready",
+            "recommendations": [
+                {
+                    "rank": 1,
+                    "coverage_cell": "grid-500m:10:20",
+                    "window_start_at": "2026-10-14T23:30:00Z",
+                    "window_end_at": "2026-10-15T00:30:00Z",
+                    "rationale": "Strongest governed modelled contact signal.",
+                }
+            ],
+            "provenance": {"segment_snapshot_sha256": "a" * 64},
+            "provenance_statement": "Governed vehicle movement from issued measurement.",
+            "uncertainty": "Not a statistical confidence interval.",
+            "disclaimer": "Not observed people or guaranteed outcomes.",
+        }
+    ]
+    csv_bytes = render_report_csv(snapshot)
+    assert csv_bytes == render_report_csv(snapshot)
+    assert render_report_pdf(snapshot) == render_report_pdf(snapshot)
+    pdf_lines = " ".join(_pdf_report_lines(snapshot))
+    for text in (
+        "Website traffic / Wuse II",
+        "grid-500m:10:20",
+        "15 Oct 2026 00:30",
+        "Nigeria time (WAT)",
+        "Africa/Lagos",
+        "Strongest governed",
+        "Not a statistical confidence interval",
+        "Not observed people",
+        "Governed vehicle movement",
+    ):
+        assert text.encode() in csv_bytes
+        assert text in pdf_lines
+    for state in ("suppressed", "stale", "unavailable"):
+        item = snapshot["linked_source_recommendations"][0]
+        item.update(state=state, recommendations=[], uncertainty=None, provenance=None)
+        assert state.encode() in render_report_csv(snapshot)
+        assert b"grid-500m" not in render_report_csv(snapshot)
+    item["measurement_run_id"] = "other-run"
+    with pytest.raises(ReportRenderLimitError, match="run mismatch"):
+        render_report_csv(snapshot)
+
+
 def completeness(*, covered: int, insufficient: int = 0, excluded: int = 0) -> dict:
     return {
         "cohort_trip_count": 3,
@@ -170,10 +221,11 @@ def test_new_export_snapshot_freezes_plain_suppression_text_in_csv_and_pdf() -> 
     )
     snapshot["schema_version"] = REPORT_SCHEMA_VERSION
     snapshot["issuance"]["schema_version"] = REPORT_SCHEMA_VERSION
+    snapshot["linked_source_recommendations"] = []
     snapshot["metrics"] = _metric_snapshot(SimpleNamespace(metrics=[metric]))
     csv_bytes = render_report_csv(snapshot)
     pdf_lines = " ".join(_pdf_report_lines(snapshot))
-    assert REPORT_SCHEMA_VERSION == "campaign-performance-export-v2"
+    assert REPORT_SCHEMA_VERSION == "campaign-performance-export-v3"
     assert b"Not enough data" in csv_bytes
     assert "Not enough data" in pdf_lines
     assert b"insufficient frozen evidence" not in csv_bytes

@@ -33,6 +33,60 @@ from app.services.audience_delivery import (
 )
 
 
+def test_reissue_immediately_stales_reader_and_delayed_old_job(
+    db_client, db_sessionmaker, settings
+):
+    from test_measurement_runs import issue_payload
+
+    from app.jobs.exposure_segments import materialize_exposure_segment_job, sweep_exposure_segments
+
+    advertiser, _, admin, link_id, old_run_id, _ = _issued_segment(
+        db_client, db_sessionmaker, settings
+    )
+
+    async def campaign_id():
+        async with db_sessionmaker() as session:
+            return (await session.get(MeasurementRun, old_run_id)).campaign_id
+
+    response = db_client.post(
+        "/api/v1/admin/measurement-runs",
+        headers=auth_headers(db_client, admin.email, PASSWORD),
+        json=issue_payload(asyncio.run(campaign_id())),
+    )
+    assert response.status_code == 201, response.text
+    new_run_id = UUID(response.json()["id"])
+    assert new_run_id != old_run_id
+    stale = db_client.get(
+        f"/api/v1/advertiser/retargeting-source-links/{link_id}/recommendations",
+        headers=auth_headers(db_client, advertiser.email, PASSWORD),
+    )
+    assert stale.json()["state"] == "stale"
+    assert stale.json()["recommendations"] == []
+
+    async def scenario():
+        ctx = {"sessionmaker": db_sessionmaker, "settings": settings}
+        with pytest.raises(AppError) as obsolete:
+            await materialize_exposure_segment_job(ctx, str(old_run_id), str(link_id))
+        assert obsolete.value.code == "EXPOSURE_SEGMENT_MEASUREMENT_RUN_SUPERSEDED"
+        assert await sweep_exposure_segments(ctx) == 1
+        async with db_sessionmaker() as session:
+            ready = await recommendations_for_link(
+                session, settings=settings, actor_user_id=advertiser.id, source_link_id=link_id
+            )
+            assert ready.state == "ready"
+            assert ready.provenance.measurement_run_id == new_run_id
+        with pytest.raises(AppError):
+            await materialize_exposure_segment_job(ctx, str(old_run_id), str(link_id))
+        async with db_sessionmaker() as session:
+            assert (
+                await recommendations_for_link(
+                    session, settings=settings, actor_user_id=advertiser.id, source_link_id=link_id
+                )
+            ).state == "ready"
+
+    asyncio.run(scenario())
+
+
 def _issued_segment(db_client, db_sessionmaker, settings):
     advertiser, other, link_id, run_id = _create_link_and_run(db_client, db_sessionmaker)
 

@@ -40,6 +40,7 @@ function mockReadyRecommendation() {
           items: [
             {
               id: LINK_ID,
+              source_id: SOURCE_ID,
               campaign_id: CAMPAIGN_ID,
               zone_id: ZONE_ID,
               status: "active",
@@ -62,7 +63,16 @@ function mockReadyRecommendation() {
         state: "ready",
         segment_id: SEGMENT_ID,
         campaign_id: CAMPAIGN_ID,
-        recommendations: [],
+        recommendations: [
+          {
+            rank: 1,
+            coverage_cell: "grid-500m:10:20",
+            window_start_at: "2026-10-14T23:30:00Z",
+            window_end_at: "2026-10-15T00:30:00Z",
+            campaign_context: "vehicle_transit",
+            rationale: "This area has the strongest governed modelled contact signal.",
+          },
+        ],
         provenance: { segment_version: 3, segment_snapshot_sha256: "c".repeat(64) },
         disclaimer: "Aggregate disclaimer",
         uncertainty: "Model uncertainty",
@@ -106,6 +116,23 @@ describe("PlanningSourcesPage", () => {
     expect(container.textContent).not.toMatch(/a{64}|c{64}|fingerprint|Technical reference/i);
   });
 
+  it("shows governed geography, Nigeria-time hours and frozen recommendation context", async () => {
+    mockReadyRecommendation();
+    const { container } = render(await PlanningSourcesPage());
+    expect(screen.getByText("Suggestion 1 · Wuse II core")).toBeInTheDocument();
+    expect(screen.getByText("Coarse cell: grid-500m:10:20")).toBeInTheDocument();
+    expect(container.textContent).toContain("15 Oct 2026, 00:30");
+    expect(container.textContent).toContain("Nigeria time (WAT)");
+    expect(
+      screen.getByText("This area has the strongest governed modelled contact signal."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Model uncertainty")).toBeInTheDocument();
+    expect(screen.getByText("Aggregate disclaimer")).toBeInTheDocument();
+    expect(screen.getByText(/Based on governed aggregate vehicle movement/)).toBeInTheDocument();
+    expect(container.textContent).not.toContain("c".repeat(64));
+    expect(container.textContent).not.toContain(SEGMENT_ID);
+  });
+
   it("does not render stale targeting cells or governed provenance", async () => {
     get.mockImplementation(async (path: string) => {
       if (path === "/api/v1/advertiser/retargeting-sources") {
@@ -129,6 +156,7 @@ describe("PlanningSourcesPage", () => {
             items: [
               {
                 id: LINK_ID,
+                source_id: SOURCE_ID,
                 campaign_id: CAMPAIGN_ID,
                 zone_id: ZONE_ID,
                 status: "active",
@@ -187,6 +215,34 @@ describe("PlanningSourcesPage", () => {
     expect(container.querySelector('input[name="approval_id"]')).toBeNull();
   });
 
+  it.each(["suppressed", "unavailable"])(
+    "keeps targets and downloads hidden when %s",
+    async (state) => {
+      mockReadyRecommendation();
+      const readyLoader = get.getMockImplementation()!;
+      get.mockImplementation(async (path: string) => {
+        if (!path.endsWith("/recommendations")) return readyLoader(path);
+        if (state === "unavailable")
+          throw new ApiError(503, {
+            code: "SERVICE_UNAVAILABLE",
+            message: "Unavailable",
+            details: {},
+          });
+        return { data: { state, recommendations: [{ coverage_cell: "grid-500m:10:20" }] } };
+      });
+      const { container } = render(await PlanningSourcesPage());
+      expect(container.textContent).toContain(
+        state === "suppressed"
+          ? "Not enough campaign activity"
+          : "Suggestions couldn't be loaded right now.",
+      );
+      expect(container.textContent).not.toContain("grid-500m:10:20");
+      expect(
+        screen.queryByRole("button", { name: "Download suggestions (CSV)" }),
+      ).not.toBeInTheDocument();
+    },
+  );
+
   it("says plainly what the page does and what linking changes", async () => {
     mockReadyRecommendation();
 
@@ -223,6 +279,7 @@ describe("PlanningSourcesPage", () => {
     render(await PlanningSourcesPage());
 
     expect(screen.getByText("Campaign: Campaign")).toBeInTheDocument();
+    expect(screen.getByText("Audience: Demand in an area · High")).toBeInTheDocument();
     expect(screen.getByText("Area: Wuse II core")).toBeInTheDocument();
     expect(document.body).not.toHaveTextContent(CAMPAIGN_ID);
     expect(document.body).not.toHaveTextContent(ZONE_ID);

@@ -464,11 +464,15 @@ see driver names or profiles.
 New CSV/PDF issuances say "Not enough data" for unavailable totals. Existing
 issued reports, stored snapshots, bytes and integrity hashes retain their original
 wording; the export snapshot version changes for new issuances (D71, REQ-141).
+New export v3 freezes governed linked-source follow-up recommendations from the
+same issued measurement, with area/time context, uncertainty and disclosure.
+Unavailable/stale/suppressed recommendations release no targets (D86, REQ-175).
 
 **Still open:** [REQ-018](requests.md) — confirm no driver identity in reports.
 
 **History:**
 - **2026-10-07** — Owner W2-D brief replaces "Omitted - insufficient frozen evidence" in new export snapshots only; old issuance content and verification remain unchanged (D71, REQ-141). Built in `78ad5580` and real integration `21239a6d`.
+- **2026-10-14** — D86/REQ-175 completes linked-source context in newly frozen CSV/PDF reports; earlier exports contained exposure score/ranked zones alone. Exact-run fake-storage publication/download, denial/tamper and historical-byte checks pass; privacy review and full batch CI remain pending.
 - **2026-08-14** — Client confirmed the report shape and ROI rule (Q12, Q30, D18, D20).
 - **2026-09-24** — Client's answer mentioned "admin officer & driver profile and the car", which conflicts with the privacy boundary; asked to clarify (client answers item 5).
 
@@ -479,9 +483,15 @@ export and optional Meta/Google targeting by area, time and context — never
 person-level audiences (Q11, D20a). **Off for the pilot**; Meta Business and
 Google Ads accounts are to be created in Terrax's name later (client answers
 item 18).
+Development planning materializes current issued measurements and active links
+through a retry-safe monitored sweep with durable fair catch-up. Screens show
+governed area/cell, Nigeria-time hours, rationale, uncertainty, provenance and
+disclosure without fingerprints; superseded/stale authority is withheld (D86,
+REQ-174–176). Live activation remains off under the existing account/legal gates.
 
 **History:**
 - **2026-07** — Retargeting entered the MVP (D6); shape confirmed 2026-08-14 (Q11, D18, D20).
+- **2026-10-14** — D86/REQ-174/176 fixes the missing normal segment producer and host-timezone-dependent planning instants. The earlier ready screen showed ranks/dates without usable area/time context. Unseeded worker, fairness/reissue and midnight tests pass; privacy review and full batch CI remain pending.
 - **2026-09-24** — Client: off for the pilot (client answers item 18).
 
 ### Pilot shape, permits and launch

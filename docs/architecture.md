@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.140 — 2026-10-14. Canonical source of truth: current state AND target state.**
+**Version 1.141 — 2026-10-14. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -263,7 +263,7 @@ to conflict, the earlier-numbered principle wins.
    ┌────────────▼─────────┐   ┌─▼──────────────────────────┐
    │ PostgreSQL 16 +      │   │ Redis 7                    │
    │ PostGIS 3.4          │   │ [BUILT] login rate-limit   │
-   │ 131 mapped tables,   │   │ counters (F7) + arq queue  │
+   │ 132 mapped tables,   │   │ counters (F7) + arq queue  │
    │ (Point/MultiPolygon) │   │ (§6.5); disposable queue,  │
    └──────────────────────┘   │ fail-closed auth buckets   │
                               └────────────────────────────┘
@@ -291,8 +291,8 @@ Current OpenAPI: **314 operations across 284 paths**; **313 operations under `/a
 | `/api/v1/webhooks/*` | 2 | 2 |
 | `/health` | 1 | 1 |
 
-SQLAlchemy metadata contains **131 mapped tables**.
-Alembic contains **1 linear revision**, from base `0106_development_baseline` to the single head `0106_development_baseline`.
+SQLAlchemy metadata contains **132 mapped tables**.
+Alembic contains **2 linear revisions**, from base `0106_development_baseline` to the single head `0107_audience_sweep_cursor`.
 
 Required public driver-onboarding paths:
 
@@ -324,7 +324,7 @@ app/
 ├── core/              # config.py (pydantic-settings), security.py (JWT/argon2),
 │                      # errors.py (AppError + envelope), middleware.py (request-ID)
 ├── db/                # base.py (DeclarativeBase), session.py (async engine/session)
-├── models/            # SQLAlchemy models — 131 mapped tables (see §7)
+├── models/            # SQLAlchemy models — 132 mapped tables (see §7)
 ├── schemas/           # Pydantic request/response models, incl. pagination + decimal mixins
 ├── services/          # all business logic; routers stay thin
 └── seeds/demo.py      # demo seed CLI (python -m app.seeds.demo) — NOT an endpoint
@@ -556,7 +556,7 @@ queues/realtime ad hoc — §14 remains the one sanctioned design.
 
 ## 7. Data model
 
-### 7.1 Entities **[BUILT]** — 131 mapped tables
+### 7.1 Entities **[BUILT]** — 132 mapped tables
 
 The groups below describe selected load-bearing entities rather than an
 exhaustive table catalogue. SQLAlchemy metadata and the generated sentinel
@@ -636,7 +636,7 @@ Notes:
 
 ### 7.2 Migration policy **[BUILT]**
 
-- Alembic has **1 linear revision**, from base `0106_development_baseline` to the single head `0106_development_baseline`.
+- Alembic has **2 linear revisions**, from base `0106_development_baseline` to the single head `0107_audience_sweep_cursor`.
   <!-- verified by scripts/update_architecture_inventory.py from Alembic's ScriptDirectory -->
 - The baseline enables `pgcrypto` + `postgis`.
 - D83 authorizes the one-time development squash because there is no live data.
@@ -2528,6 +2528,24 @@ coordinates. Export ships disabled until Q31 legal sign-off.
 
 ### 22.4 Retargeting sources & follow-up insights (D11) [PARTIAL — W3-01A/B BUILT]
 
+**[BUILT locally — D86 / REQ-174–176]:** A monitored bounded sweep discovers
+committed current measurement/link pairs in either creation order and invokes
+the existing governed materializer. Migration `0107_audience_sweep_cursor`
+adds a durable UUID-pair scan position; it advances before per-item transactions
+and wraps so stale/incompatible prefixes and lost dispatch cannot starve later
+work. Empty aggregates materialize suppressed segments and exact retries
+converge. Worker and read checks reject superseded runs and stale source,
+campaign, zone, link or score authority; no new raw-ping reader is introduced.
+Planning displays the governed area/cell, Africa/Lagos windows with hours,
+rationale, uncertainty, human provenance and disclosure without fingerprints.
+New internal report export v3 freezes linked-source recommendations from its
+exact measurement run, with deterministic ordering/labels/state and the same
+disclosure authority; CSV/PDF share that frozen projection. Source→actor→
+campaign→zone→link composition locks keep parent authority stable and avoid
+opposing source/audit lock order. Existing issued snapshots and bytes stay
+immutable. Public API shapes and the external live privacy/platform gates are
+unchanged; specialist review and final full CI remain pending.
+
 The inbound half of Module G: a `retargeting_sources` table (advertiser-scoped;
 type ∈ website-traffic / digital-campaign-audience / CRM-upload-reference /
 UTM-source / manual-insight; typed allowlisted aggregate planning fields with
@@ -3652,6 +3670,8 @@ within one hour. Simultaneous Redis/database failure can only emit the fixed
 failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
+
+- **v1.141 — 14 October 2026 (D86/REQ-174–176):** Governed materialization producer and fair durable catch-up (0107), worker/reader supersession checks, recognizable Lagos-time planning, exact-run linked-source recommendations in frozen export v3 and deterministic CSV/PDF. Unseeded and fake-storage journeys pass; privacy/consolidated review and full batch CI pending.
 
 - **v1.140 — 14 October 2026 (D85/REQ-173):** Audited same-reference uncertain checkout recovery, connection-owned serialization across commits, explicit verification and intervening webhook protection. Fake-I/O and separate-session tests pass; money review and full batch CI pending.
 

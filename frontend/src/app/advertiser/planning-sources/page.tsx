@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { createApiClient } from "@/lib/api/client";
 import { loadAdvertiserPageData } from "@/lib/advertiser/page-data";
 import { getSessionToken } from "@/lib/auth/session";
-import { formatDate } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import { DataUnavailable } from "@/components/ui/data-unavailable";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
@@ -94,6 +94,7 @@ export default async function PlanningSourcesPage() {
   const zoneOptions = zoneResults.flatMap((zones) => zones ?? []);
   const campaignNames = new Map(campaigns.map((campaign) => [campaign.id, campaign.name]));
   const zoneNames = new Map(zoneOptions.map((zone) => [zone.id, zone.label]));
+  const sourceNames = new Map(items.map((source) => [source.id, sourceDisplayLabel(source)]));
   return (
     <div className="animate-rise mx-auto max-w-6xl min-w-0">
       {header}
@@ -128,7 +129,8 @@ export default async function PlanningSourcesPage() {
                         </div>
                         <p className="text-faint mt-2 text-sm">
                           {source.status === "active" ? "Used until" : "Ended"}{" "}
-                          {formatDate(source.deactivated_at ?? source.expires_at)}
+                          {formatDateTime(source.deactivated_at ?? source.expires_at)} · Nigeria
+                          time (WAT)
                         </p>
                       </div>
                       {source.status === "active" ? (
@@ -176,13 +178,17 @@ export default async function PlanningSourcesPage() {
                             ) : null}
                           </div>
                           <p className="mt-2 text-sm">
+                            Audience: {sourceNames.get(link.source_id) ?? "name unavailable"}
+                          </p>
+                          <p className="mt-2 text-sm">
                             Campaign: {campaignNames.get(link.campaign_id) ?? "name unavailable"}
                           </p>
                           <p className="text-muted mt-1 text-sm">
                             Area: {zoneNames.get(link.zone_id) ?? "name unavailable"}
                           </p>
                           <p className="text-faint mt-1 text-sm">
-                            {formatDate(link.start_at)} → {formatDate(link.end_at)}
+                            {formatDateTime(link.start_at)} → {formatDateTime(link.end_at)} ·
+                            Nigeria time (WAT)
                           </p>
                         </div>
                         {link.status === "active" ? (
@@ -225,20 +231,34 @@ export default async function PlanningSourcesPage() {
                         </div>
                         {ready
                           ? recommendation.recommendations.slice(0, 3).map((item) => (
-                              <p
+                              <div
                                 key={`${item.coverage_cell}-${item.window_start_at}`}
                                 className="mt-2 text-sm"
                               >
-                                Suggestion {item.rank} · {formatDate(item.window_start_at)} →{" "}
-                                {formatDate(item.window_end_at)}
-                              </p>
+                                <p>
+                                  Suggestion {item.rank} ·{" "}
+                                  {zoneNames.get(link.zone_id) ?? "Area name unavailable"}
+                                </p>
+                                <p className="text-muted">Coarse cell: {item.coverage_cell}</p>
+                                <p>
+                                  {formatDateTime(item.window_start_at)} →{" "}
+                                  {formatDateTime(item.window_end_at)} · Nigeria time (WAT)
+                                </p>
+                                <p className="text-muted mt-1">{item.rationale}</p>
+                              </div>
                             ))
                           : null}
                         {ready ? (
-                          <p className="text-faint mt-3 text-sm">
-                            Estimates help compare areas. They aren&apos;t counts of people who saw
-                            your advert.
-                          </p>
+                          <div className="text-faint mt-3 space-y-2 text-sm">
+                            <p>
+                              Based on governed aggregate vehicle movement from this campaign,
+                              matched to the linked audience and area.
+                            </p>
+                            {recommendation.uncertainty ? (
+                              <p>{recommendation.uncertainty}</p>
+                            ) : null}
+                            <p>{recommendation.disclaimer}</p>
+                          </div>
                         ) : null}
                       </div>
                     </article>

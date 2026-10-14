@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   formatCount,
   formatDuration,
@@ -77,6 +77,24 @@ describe("formatMoneyExact", () => {
 });
 
 describe("formatDateTime", () => {
+  it.each(["UTC", "America/Los_Angeles"])(
+    "uses Nigeria time at midnight under %s",
+    async (host) => {
+      const previous = process.env.TZ;
+      process.env.TZ = host;
+      try {
+        vi.resetModules();
+        const { formatDate, formatDateTime } = await import("./format");
+        expect(formatDate("2026-10-14T23:30:00Z")).toBe("15 Oct 2026");
+        expect(formatDateTime("2026-10-14T23:30:00Z")).toContain("00:30");
+        expect(formatDate("2026-10-14")).toBe("14 Oct 2026");
+        expect(formatDateTime("2026-10-14")).toBe("14 Oct 2026");
+      } finally {
+        if (previous === undefined) delete process.env.TZ;
+        else process.env.TZ = previous;
+      }
+    },
+  );
   it("shows the wall-clock time for rate-flip instants", () => {
     const out = formatDateTime("2026-08-15T09:30:00Z");
     expect(out).toMatch(/2026/);

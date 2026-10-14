@@ -105,7 +105,18 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert payout_event.coroutine is disbursement_jobs.process_payout_provider_event_job
     assert payout_event.keep_result_s == 0
 
-    assert len(WorkerSettings.cron_jobs) == 23
+    assert len(WorkerSettings.cron_jobs) == 24
+    audience_crons = [
+        job
+        for job in WorkerSettings.cron_jobs
+        if inspect.unwrap(job.coroutine) is exposure_segment_jobs.sweep_exposure_segments
+    ]
+    assert len(audience_crons) == 1
+    assert audience_crons[0].coroutine is not exposure_segment_jobs.sweep_exposure_segments
+    assert audience_crons[0].unique is True
+    assert audience_crons[0].minute == sweep_cron_minutes(
+        get_settings().worker_sweep_interval_minutes
+    )
     health_crons = [
         job
         for job in WorkerSettings.cron_jobs
@@ -114,7 +125,9 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert len(health_crons) == 1
     assert health_crons[0].minute == set(range(0, 60, 5))
     assert health_crons[0].unique is True
-    existing_crons = [job for job in WorkerSettings.cron_jobs if job not in health_crons]
+    existing_crons = [
+        job for job in WorkerSettings.cron_jobs if job not in health_crons + audience_crons
+    ]
     assert len(existing_crons) == 22
     cron_job = existing_crons[0]
     assert isinstance(cron_job, CronJob)

@@ -904,7 +904,8 @@ async def link_is_stale(session: AsyncSession, link: RetargetingSourceLink) -> b
     zone = await session.get(CampaignZone, link.zone_id)
     now = await database_clock(session)
     return (
-        source is None
+        link.status != "active"
+        or source is None
         or campaign is None
         or zone is None
         or _source_status(source, now) != "active"
@@ -923,6 +924,31 @@ async def _exposure_materialization_lock(session: AsyncSession, source_link_id: 
 
 
 AUDIENCE_EXPOSURE_FORMULA_VERSION = AUTHORITATIVE_AUDIENCE_CELL_FORMULA_VERSION
+
+
+async def measurement_is_superseded(session: AsyncSession, run_id: UUID) -> bool:
+    return (
+        await session.scalar(
+            select(MeasurementRun.id).where(MeasurementRun.reissue_of_run_id == run_id).limit(1)
+        )
+        is not None
+    )
+
+
+async def lock_audience_parents(session: AsyncSession, link: RetargetingSourceLink) -> None:
+    # Match link writers and delivery receipts: never hold Link while waiting on Source.
+    for model, identity in (
+        (RetargetingSource, link.source_id),
+        (Campaign, link.campaign_id),
+        (CampaignZone, link.zone_id),
+        (RetargetingSourceLink, link.id),
+    ):
+        await session.scalar(
+            select(model)
+            .where(model.id == identity)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
 
 
 def _cell_snapshot(cell: AuthoritativeExposureCell) -> dict:
@@ -1109,12 +1135,6 @@ async def _derive_authoritative_cells(
         window_end_at=end_at,
         synthetic=synthetic,
     )
-    if not cells:
-        raise AppError(
-            "EXPOSURE_SEGMENT_CELLS_REQUIRED",
-            "The measurement authority produced no aggregate cells in the linked zone",
-            status_code=status.HTTP_409_CONFLICT,
-        )
     return cells
 
 
@@ -1126,11 +1146,7 @@ async def materialize_exposure_segment(  # noqa: C901
     measurement_run_id: UUID,
 ) -> ExposureSegment:
     await _exposure_materialization_lock(session, source_link_id)
-    link = await session.scalar(
-        select(RetargetingSourceLink)
-        .where(RetargetingSourceLink.id == source_link_id)
-        .with_for_update()
-    )
+    link = await session.get(RetargetingSourceLink, source_link_id)
     run = await session.get(MeasurementRun, measurement_run_id)
     if link is None:
         raise AppError(
@@ -1144,6 +1160,7 @@ async def materialize_exposure_segment(  # noqa: C901
             "Measurement run was not found",
             status_code=status.HTTP_404_NOT_FOUND,
         )
+    await lock_audience_parents(session, link)
     if (
         link.status != "active"
         or await link_is_stale(session, link)
@@ -1154,6 +1171,12 @@ async def materialize_exposure_segment(  # noqa: C901
             "EXPOSURE_SEGMENT_SCOPE_MISMATCH",
             "An active current link and measurement run in the same tenant and campaign "
             "are required",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    if await measurement_is_superseded(session, run.id):
+        raise AppError(
+            "EXPOSURE_SEGMENT_MEASUREMENT_RUN_SUPERSEDED",
+            "The measurement run has been superseded by a reissue",
             status_code=status.HTTP_409_CONFLICT,
         )
     if not measurement_run_reproducible(run):
@@ -1227,6 +1250,12 @@ async def materialize_exposure_segment(  # noqa: C901
     link_end = _as_utc(link.end_at)
     run_start = _as_utc(run.period_start_at)
     run_end = _as_utc(run.period_end_at)
+    if run_start < link_start or run_end > link_end:
+        raise AppError(
+            "EXPOSURE_SEGMENT_WINDOW_INVALID",
+            "The measurement period must be inside the link window",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     for cell in cells:
         start_at = _as_utc(cell.window_start_at)
         end_at = _as_utc(cell.window_end_at)
@@ -1304,7 +1333,7 @@ async def materialize_exposure_segment(  # noqa: C901
         "aggregate_formula_version": AUDIENCE_EXPOSURE_FORMULA_VERSION,
         "aggregate_authority_sha256": aggregate_authority_sha256,
         "disclosure_policy_sha256": disclosure_policy_sha256,
-        "synthetic": all(item["synthetic"] for item in normalized),
+        "synthetic": run.test_only,
         "authoritative_cells": normalized,
         "cells": releasable,
     }
@@ -1397,7 +1426,7 @@ async def list_exposure_segments(
 async def exposure_segment_is_stale(session: AsyncSession, segment: ExposureSegment) -> bool:
     link = await session.get(RetargetingSourceLink, segment.source_link_id)
     run = await session.get(MeasurementRun, segment.measurement_run_id)
-    return (
+    if (
         link is None
         or run is None
         or link.snapshot_sha256 != segment.source_link_snapshot_sha256
@@ -1406,6 +1435,25 @@ async def exposure_segment_is_stale(session: AsyncSession, segment: ExposureSegm
         or run.result_manifest_sha256 != segment.measurement_result_sha256
         or run.proof_manifest_sha256 != segment.measurement_proof_sha256
         or not measurement_run_reproducible(run)
+        or await measurement_is_superseded(session, run.id)
+    ):
+        return True
+    from app.services.exposure_scores import exposure_score_is_stale
+
+    authority = segment.snapshot.get("zone_insight_authority", {})
+    if not isinstance(authority, dict):
+        return True
+    score = await session.scalar(
+        select(ExposureScore)
+        .where(ExposureScore.measurement_run_id == run.id)
+        .order_by(ExposureScore.created_at.desc(), ExposureScore.id.desc())
+        .limit(1)
+    )
+    return (
+        score is None
+        or str(score.id) != authority.get("exposure_score_id")
+        or score.result_fingerprint != authority.get("exposure_result_fingerprint")
+        or await exposure_score_is_stale(session, score)
     )
 
 

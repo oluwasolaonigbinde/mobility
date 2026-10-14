@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 MAX_INPUT_BYTES = 512 * 1024
 MAX_OUTPUT_BYTES = 1024 * 1024
@@ -91,6 +92,92 @@ def _utc_instant(value: object) -> str:
     if instant.tzinfo is None:
         raise ReportRenderLimitError("report timestamp must include a timezone")
     return instant.astimezone(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _planning_instant(value: object) -> str:
+    instant = datetime.fromisoformat(_utc_instant(value).replace("Z", "+00:00"))
+    return instant.astimezone(ZoneInfo("Africa/Lagos")).strftime("%d %b %Y %H:%M")
+
+
+def _planning_rows(snapshot: dict) -> list[FrozenReportRow]:
+    items = snapshot.get("linked_source_recommendations")
+    if not isinstance(items, list):
+        raise ReportRenderLimitError("linked-source snapshot is missing")
+    rows = []
+    for item in items:
+        if item["measurement_run_id"] != snapshot["measurement"]["run_id"]:
+            raise ReportRenderLimitError("linked-source measurement run mismatch")
+        state = item["state"]
+        if state not in {"ready", "suppressed", "stale", "unavailable"}:
+            raise ReportRenderLimitError("linked-source state is invalid")
+        if state != "ready" and item["recommendations"]:
+            raise ReportRenderLimitError("unreleased linked-source targets")
+        label = f"{item['source_label']} / {item['zone_label']}"
+        provenance = item["provenance_statement"]
+        if item["provenance"] is not None:
+            provenance += ";" + json.dumps(
+                item["provenance"], sort_keys=True, separators=(",", ":")
+            )
+        rows.append(
+            FrozenReportRow("follow_up", "state", label, "privacy_control", state, "", provenance)
+        )
+        for recommendation in item["recommendations"]:
+            rows.extend(
+                [
+                    FrozenReportRow(
+                        "follow_up",
+                        "target",
+                        label,
+                        "aggregate_contextual_planning",
+                        recommendation["coverage_cell"],
+                        "coarse cell",
+                        f"{provenance};rank={recommendation['rank']}",
+                    ),
+                    FrozenReportRow(
+                        "follow_up",
+                        "window",
+                        label,
+                        "aggregate_contextual_planning",
+                        f"{_planning_instant(recommendation['window_start_at'])} to "
+                        f"{_planning_instant(recommendation['window_end_at'])}",
+                        "Nigeria time (WAT); Africa/Lagos",
+                        provenance,
+                    ),
+                    FrozenReportRow(
+                        "follow_up",
+                        "rationale",
+                        label,
+                        "aggregate_contextual_planning",
+                        recommendation["rationale"],
+                        "",
+                        provenance,
+                    ),
+                ]
+            )
+        if item["uncertainty"]:
+            rows.append(
+                FrozenReportRow(
+                    "follow_up",
+                    "uncertainty",
+                    label,
+                    "model_uncertainty",
+                    item["uncertainty"],
+                    "",
+                    provenance,
+                )
+            )
+        rows.append(
+            FrozenReportRow(
+                "follow_up",
+                "disclaimer",
+                label,
+                "privacy_control",
+                item["disclaimer"],
+                "",
+                provenance,
+            )
+        )
+    return rows
 
 
 def build_frozen_report_projection(snapshot: dict) -> FrozenReportProjection:  # noqa: C901
@@ -294,6 +381,8 @@ def build_frozen_report_projection(snapshot: dict) -> FrozenReportProjection:  #
             exposure_provenance,
         )
     )
+    if snapshot["schema_version"] == "campaign-performance-export-v3":
+        rows.extend(_planning_rows(snapshot))
     financial_result = snapshot.get("financial_result")
     if financial_result is not None:
         financial_provenance = f"{provenance};method={financial_result['method_revision']}"

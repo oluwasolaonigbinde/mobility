@@ -677,8 +677,10 @@ async def recommendations_for_link(
         .limit(1)
     )
     if segment is None:
+        from app.services.audience import link_is_stale
+
         return RecommendationsRead(
-            state="empty",
+            state="stale" if await link_is_stale(session, link) else "empty",
             segment_id=None,
             campaign_id=link.campaign_id,
             recommendations=[],
@@ -694,6 +696,93 @@ async def recommendations_for_link(
         actor_user_id=actor_user_id,
         admin=admin,
     )
+
+
+async def frozen_recommendations_for_run(
+    session: AsyncSession,
+    *,
+    settings: Settings,
+    actor_user_id: UUID,
+    run: MeasurementRun,
+    admin: bool,
+) -> list[dict]:
+    """Compose only exact-run recommendations under the caller's stable parent locks."""
+    items = []
+    links = await session.scalars(
+        select(RetargetingSourceLink)
+        .where(
+            RetargetingSourceLink.campaign_id == run.campaign_id,
+            RetargetingSourceLink.organization_id == run.organization_id,
+        )
+        .order_by(
+            RetargetingSourceLink.source_id, RetargetingSourceLink.zone_id, RetargetingSourceLink.id
+        )
+    )
+    for link in links:
+        source = await session.get(RetargetingSource, link.source_id)
+        zone = await session.get(CampaignZone, link.zone_id)
+        segment = await session.scalar(
+            select(ExposureSegment)
+            .where(
+                ExposureSegment.source_link_id == link.id,
+                ExposureSegment.measurement_run_id == run.id,
+            )
+            .order_by(ExposureSegment.version.desc())
+            .limit(1)
+        )
+        from app.services.audience import link_is_stale, measurement_is_superseded
+
+        state = "unavailable"
+        result = None
+        if await link_is_stale(session, link) or await measurement_is_superseded(session, run.id):
+            state = "stale"
+        elif segment is not None:
+            try:
+                result = await _recommendations_for_segment(
+                    session,
+                    segment=segment,
+                    link=link,
+                    settings=settings,
+                    actor_user_id=actor_user_id,
+                    admin=admin,
+                )
+                state = result.state
+            except AppError as exc:
+                if exc.code == "AUDIENCE_AGGREGATE_SUPPRESSED":
+                    state = "suppressed"
+                elif exc.code == "EXPOSURE_SEGMENT_GOVERNANCE_STALE":
+                    state = "unavailable"
+                else:
+                    raise
+        source_label = (
+            source.source_type.replace("-", " ").capitalize() if source else "Source unavailable"
+        )
+        if source and source.snapshot.get("insight_category"):
+            source_label += " · " + source.snapshot["insight_category"].replace("-", " ")
+        items.append(
+            {
+                "source_link_id": str(link.id),
+                "source_label": source_label,
+                "zone_label": zone.name if zone else "Area unavailable",
+                "measurement_run_id": str(run.id),
+                "state": state,
+                "recommendations": [item.model_dump(mode="json") for item in result.recommendations]
+                if result is not None and state == "ready"
+                else [],
+                "provenance": result.provenance.model_dump(mode="json")
+                if result is not None and state == "ready" and result.provenance
+                else None,
+                "provenance_statement": (
+                    "Governed aggregate vehicle movement from the issued campaign measurement, "
+                    "matched to this linked source and target area."
+                ),
+                "uncertainty": result.uncertainty
+                if result is not None and state == "ready"
+                else None,
+                "disclaimer": RECOMMENDATION_DISCLAIMER,
+            }
+        )
+    return items
 
 
 async def _outbound_payload(

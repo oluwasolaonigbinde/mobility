@@ -28,7 +28,7 @@ from app.jobs.disclosure_retention import purge_expired_disclosure_query_history
 from app.jobs.earnings_release import sweep_earnings_release_reviews
 from app.jobs.email_delivery import sweep_email_notifications
 from app.jobs.evidence_verification import sweep_evidence_verifications
-from app.jobs.exposure_segments import materialize_exposure_segment_job
+from app.jobs.exposure_segments import materialize_exposure_segment_job, sweep_exposure_segments
 from app.jobs.file_lifecycle import (
     purge_expired_file_kyc,
     purge_orphaned_file_uploads,
@@ -124,6 +124,11 @@ class WorkerSettings:
         ),
     ]
     cron_jobs: list = [
+        cron(
+            sweep_exposure_segments,
+            minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
+            unique=True,
+        ),
         cron(sweep_business_health, minute=sweep_cron_minutes(5), unique=True),
         cron(
             process_unprocessed_trips,

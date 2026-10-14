@@ -102,7 +102,48 @@ def test_materialization_boundary_does_not_accept_claimed_cells() -> None:
     assert "cells" not in inspect.signature(materialize_exposure_segment).parameters
 
 
-def _create_link_and_run(db_client, db_sessionmaker, *, points=None):
+def test_cursor_migration_installs_durable_pair_constraint(db_sessionmaker):
+    import importlib.util
+    from pathlib import Path
+
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    from sqlalchemy import text
+    from sqlalchemy.exc import IntegrityError
+
+    from app.models.audience_work import AudienceSweepCursor
+
+    spec = importlib.util.spec_from_file_location(
+        "audience_cursor_migration",
+        Path(__file__).parents[1] / "alembic/versions/0107_audience_sweep_cursor.py",
+    )
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    assert migration.down_revision == "0106_development_baseline"
+
+    async def scenario():
+        async with db_sessionmaker() as session:
+            connection = await session.connection()
+
+            def install(sync_connection):
+                AudienceSweepCursor.__table__.drop(sync_connection)
+                with Operations.context(MigrationContext.configure(sync_connection)):
+                    migration.upgrade()
+
+            await connection.run_sync(install)
+            await session.execute(text("INSERT INTO audience_sweep_cursors(name) VALUES ('test')"))
+            await session.commit()
+            cursor = await session.get(AudienceSweepCursor, "test")
+            assert cursor.measurement_run_id is None and cursor.source_link_id is None
+            cursor.measurement_run_id = uuid4()
+            with pytest.raises(IntegrityError):
+                await session.flush()
+            await session.rollback()
+
+    asyncio.run(scenario())
+
+
+def _create_link_and_run(db_client, db_sessionmaker, *, points=None, measurement_first=False):
     admin, advertiser, campaign = create_measurement_graph(db_sessionmaker)
     other = create_test_user(
         db_sessionmaker,
@@ -153,6 +194,14 @@ def _create_link_and_run(db_client, db_sessionmaker, *, points=None):
         json=source_payload(datetime.now(UTC) + timedelta(days=365)),
     )
     assert source.status_code == 201, source.text
+    run = None
+    if measurement_first:
+        run = db_client.post(
+            "/api/v1/admin/measurement-runs",
+            headers=auth_headers(db_client, admin.email, PASSWORD),
+            json=issue_payload(campaign.id),
+        )
+        assert run.status_code == 201, run.text
     link = db_client.post(
         "/api/v1/advertiser/retargeting-source-links",
         headers=advertiser_headers | {"Idempotency-Key": f"segment-link-{uuid4()}"},
@@ -166,13 +215,131 @@ def _create_link_and_run(db_client, db_sessionmaker, *, points=None):
     )
     assert link.status_code == 201, link.text
 
-    run = db_client.post(
-        "/api/v1/admin/measurement-runs",
-        headers=auth_headers(db_client, admin.email, PASSWORD),
-        json=issue_payload(campaign.id),
-    )
+    if run is None:
+        run = db_client.post(
+            "/api/v1/admin/measurement-runs",
+            headers=auth_headers(db_client, admin.email, PASSWORD),
+            json=issue_payload(campaign.id),
+        )
     assert run.status_code == 201, run.text
     return advertiser, other, UUID(link.json()["id"]), UUID(run.json()["id"])
+
+
+@pytest.mark.parametrize("measurement_first", [False, True])
+@pytest.mark.parametrize("empty_cells", [False, True])
+def test_committed_authority_reaches_ready_or_suppressed_through_worker(
+    db_client, db_sessionmaker, settings, measurement_first, empty_cells
+):
+    from app.jobs.exposure_segments import sweep_exposure_segments
+    from app.services.audience_delivery import recommendations_for_link
+
+    advertiser, _, link_id, run_id = _create_link_and_run(
+        db_client,
+        db_sessionmaker,
+        measurement_first=measurement_first,
+        points=[] if empty_cells else None,
+    )
+
+    async def scenario():
+        ctx = {"sessionmaker": db_sessionmaker, "settings": settings}
+        async with db_sessionmaker() as session:
+            assert await session.scalar(select(func.count()).select_from(ExposureSegment)) == 0
+        assert await sweep_exposure_segments(ctx) == 1
+        assert await sweep_exposure_segments(ctx) == 0
+        assert await sweep_exposure_segments(ctx) == 0
+        async with db_sessionmaker() as session:
+            result = await recommendations_for_link(
+                session,
+                settings=settings,
+                actor_user_id=advertiser.id,
+                source_link_id=link_id,
+            )
+            assert result.state == ("suppressed" if empty_cells else "ready")
+            assert bool(result.recommendations) is not empty_cells
+            assert await session.scalar(select(func.count()).select_from(ExposureSegment)) == 1
+            segment = await session.scalar(select(ExposureSegment))
+            assert segment.measurement_run_id == run_id
+            assert segment.synthetic is True
+
+    asyncio.run(scenario())
+
+
+def test_catchup_advances_beyond_invalid_prefix_and_retries_missed_work(
+    db_client, db_sessionmaker, settings, monkeypatch
+):
+    from app.jobs import exposure_segments as jobs
+    from app.models.retargeting_source import RetargetingSource
+    from app.models.retargeting_source_link import RetargetingSourceLink
+
+    advertiser, _, link_id, run_id = _create_link_and_run(db_client, db_sessionmaker)
+
+    async def prepare():
+        async with db_sessionmaker() as session:
+            template = await session.get(RetargetingSourceLink, link_id)
+            for index in range(3):
+                source = await create_retargeting_source(
+                    session,
+                    settings=settings,
+                    actor_user_id=advertiser.id,
+                    payload=TypeAdapter(RetargetingSourceCreate).validate_python(
+                        source_payload(datetime.now(UTC) + timedelta(days=365))
+                    ),
+                    idempotency_key=f"fair-source-{index}",
+                )
+                await create_retargeting_source_link(
+                    session,
+                    settings=settings,
+                    actor_user_id=advertiser.id,
+                    payload=RetargetingSourceLinkCreate(
+                        source_id=source.id,
+                        campaign_id=template.campaign_id,
+                        zone_id=template.zone_id,
+                        start_at=DAY_1,
+                        end_at=DAY_1 + timedelta(days=1),
+                    ),
+                    idempotency_key=f"fair-link-{index}",
+                )
+            links = list(
+                await session.scalars(
+                    select(RetargetingSourceLink).order_by(RetargetingSourceLink.id)
+                )
+            )
+            for link in links[:-1]:
+                source = await session.get(RetargetingSource, link.source_id)
+                source.status = "deactivated"
+            await session.commit()
+            return links[-1].id
+
+    valid_link_id = asyncio.run(prepare())
+    original = jobs.materialize_exposure_segment_job
+    missed = False
+
+    async def lost_dispatch(ctx, measurement_run_id, source_link_id):
+        nonlocal missed
+        if source_link_id == str(valid_link_id) and not missed:
+            missed = True
+            raise RuntimeError("simulated lost dispatch")
+        return await original(ctx, measurement_run_id, source_link_id)
+
+    monkeypatch.setattr(jobs, "materialize_exposure_segment_job", lost_dispatch)
+
+    async def scenario():
+        ctx = {
+            "sessionmaker": db_sessionmaker,
+            "settings": settings.model_copy(update={"worker_sweep_batch_size": 2}),
+        }
+        assert await jobs.sweep_exposure_segments(ctx) == 0
+        assert await jobs.sweep_exposure_segments(ctx) == 0
+        assert missed
+        assert await jobs.sweep_exposure_segments(ctx) == 0  # wraps the durable cursor
+        assert await jobs.sweep_exposure_segments(ctx) == 0  # stale prefix again
+        assert await jobs.sweep_exposure_segments(ctx) == 1
+        async with db_sessionmaker() as session:
+            segment = await session.scalar(select(ExposureSegment))
+            assert segment.source_link_id == valid_link_id
+            assert segment.measurement_run_id == run_id
+
+    asyncio.run(scenario())
 
 
 def test_postgis_materialization_uses_measurement_frozen_ping_authority(

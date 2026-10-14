@@ -37,6 +37,7 @@ export function formatScore(value: string | number | null | undefined): string {
 }
 
 const dateFmt = new Intl.DateTimeFormat("en-NG", {
+  timeZone: "Africa/Lagos",
   day: "numeric",
   month: "short",
   year: "numeric",
@@ -49,6 +50,8 @@ export function formatDate(iso: string | null | undefined): string {
 }
 
 const dateTimeFmt = new Intl.DateTimeFormat("en-NG", {
+  timeZone: "Africa/Lagos",
+  hourCycle: "h23",
   day: "numeric",
   month: "short",
   year: "numeric",
@@ -59,6 +62,7 @@ const dateTimeFmt = new Intl.DateTimeFormat("en-NG", {
 /** Date + wall-clock time — for instants where the hour matters (rate flips). */
 export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return "—";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return formatDate(iso);
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "—" : dateTimeFmt.format(d);
 }

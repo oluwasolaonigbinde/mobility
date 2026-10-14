@@ -200,6 +200,131 @@ def run_worker(db_sessionmaker, settings, storage) -> int:
     )
 
 
+def test_linked_source_snapshot_publication_download_and_historical_integrity(
+    db_client, db_sessionmaker, settings, report_storage
+):
+    from test_exposure_segments import _create_link_and_run
+
+    from app.jobs.exposure_segments import sweep_exposure_segments
+    from app.models.campaign_zone import CampaignZone
+    from app.models.measurement import MeasurementRun
+    from app.models.retargeting_source_link import RetargetingSourceLink
+
+    advertiser, other, link_id, run_id = _create_link_and_run(db_client, db_sessionmaker)
+
+    async def prepare():
+        assert (
+            await sweep_exposure_segments({"sessionmaker": db_sessionmaker, "settings": settings})
+            == 1
+        )
+        async with db_sessionmaker() as session:
+            run = await session.get(MeasurementRun, run_id)
+            return run.created_by_user_id, run.campaign_id
+
+    admin_id, campaign_id = asyncio.run(prepare())
+    first = request_issuance(db_client, advertiser, run_id)
+    assert first.status_code == 202, first.text
+    issuance_id = UUID(first.json()["id"])
+
+    async def inspect(identity):
+        async with db_sessionmaker() as session:
+            issuance = await session.get(ReportIssuance, identity)
+            return issuance.snapshot, report_issuance_service._rendered_pair(issuance)
+
+    snapshot, pair = asyncio.run(inspect(issuance_id))
+    item = snapshot["linked_source_recommendations"][0]
+    assert item["measurement_run_id"] == str(run_id)
+    assert item["provenance"]["measurement_run_id"] == str(run_id)
+    assert item["state"] == "ready"
+    assert item["source_label"] == "Manual insight · area demand"
+    assert item["zone_label"] == "Segment target"
+    assert item["recommendations"] and item["uncertainty"] and item["disclaimer"]
+    assert run_worker(db_sessionmaker, settings, report_storage) == 1
+    headers = auth_headers(db_client, advertiser.email, PASSWORD)
+    for artifact in pair:
+        content = (
+            artifact.content if artifact.format == "csv" else rendered_pdf_bytes(artifact.content)
+        )
+        for text in (
+            "Manual insight",
+            "Segment target",
+            "Nigeria time (WAT)",
+            "Africa/Lagos",
+            "governed modelled contact signal",
+            "not observed people",
+        ):
+            assert text.encode() in content
+        downloaded = db_client.post(
+            f"/api/v1/advertiser/report-issuances/{issuance_id}/artifacts/{artifact.format}/download",
+            json={"reason": "Verify contextual recommendation report"},
+            headers=headers,
+        )
+        assert downloaded.status_code == 200, downloaded.text
+        assert artifact.checksum_sha256 == hashlib.sha256(artifact.content).hexdigest()
+    denied = db_client.post(
+        f"/api/v1/advertiser/report-issuances/{issuance_id}/artifacts/csv/download",
+        json={"reason": "Cross tenant download"},
+        headers=auth_headers(db_client, other.email, PASSWORD),
+    )
+    assert denied.status_code == 404
+
+    async def reissue_measurement():
+        async with db_sessionmaker() as session:
+            run = await issue_measurement_run(
+                session,
+                actor_user_id=admin_id,
+                payload=MeasurementRunCreate.model_validate(issue_payload(campaign_id)),
+                settings=settings,
+            )
+            await session.commit()
+            return run.id
+
+    newer_run_id = asyncio.run(reissue_measurement())
+    newer = request_issuance(db_client, advertiser, newer_run_id)
+    assert newer.status_code == 202, newer.text
+    newer_snapshot, _ = asyncio.run(inspect(UUID(newer.json()["id"])))
+    assert newer_snapshot["linked_source_recommendations"][0]["state"] == "unavailable"
+    assert newer_snapshot["linked_source_recommendations"][0]["recommendations"] == []
+
+    async def rename_parent():
+        async with db_sessionmaker() as session:
+            link = await session.get(RetargetingSourceLink, link_id)
+            zone = await session.get(CampaignZone, link.zone_id)
+            zone.name = "Edited area"
+            await session.commit()
+
+    asyncio.run(rename_parent())
+    historical_snapshot, historical_pair = asyncio.run(inspect(issuance_id))
+    assert historical_snapshot == snapshot
+    assert [row.content for row in historical_pair] == [row.content for row in pair]
+    for artifact in historical_pair:
+        historical_download = db_client.post(
+            f"/api/v1/advertiser/report-issuances/{issuance_id}/artifacts/{artifact.format}/download",
+            json={"reason": "Verify unchanged historical report after area edit"},
+            headers=headers,
+        )
+        assert historical_download.status_code == 200, historical_download.text
+    stale_reissue = request_issuance(db_client, advertiser, run_id, reissue_of_id=issuance_id)
+    assert stale_reissue.status_code == 202, stale_reissue.text
+    stale_snapshot, _ = asyncio.run(inspect(UUID(stale_reissue.json()["id"])))
+    assert stale_snapshot["linked_source_recommendations"][0]["state"] == "stale"
+    assert stale_snapshot["linked_source_recommendations"][0]["recommendations"] == []
+    csv_key = next(key for key in report_storage.objects if key.endswith(".csv"))
+    metadata = report_storage.objects[csv_key]
+    report_storage.objects[csv_key] = metadata.__class__(
+        object_key=csv_key,
+        size_bytes=metadata.size_bytes,
+        content_type=metadata.content_type,
+        checksum_sha256="f" * 64,
+    )
+    refused = db_client.post(
+        f"/api/v1/advertiser/report-issuances/{issuance_id}/artifacts/csv/download",
+        json={"reason": "Verify tampered artifact refusal"},
+        headers=headers,
+    )
+    assert refused.status_code == 409
+
+
 def run_publication_cleanup(db_sessionmaker, settings, storage) -> int:
     return asyncio.run(
         sweep_report_publications(db_sessionmaker, storage=storage, settings=settings)
@@ -281,7 +406,7 @@ def test_v1_request_replay_keeps_snapshot_bytes_and_new_reissue_uses_v2_wording(
     newer = request_issuance(db_client, advertiser, run["id"], reissue_of_id=old_id)
     assert newer.status_code == 202, newer.text
     new_snapshot, _, new_pair = asyncio.run(inspect(UUID(newer.json()["id"])))
-    assert new_snapshot["schema_version"] == "campaign-performance-export-v2"
+    assert new_snapshot["schema_version"] == "campaign-performance-export-v3"
     assert old_snapshot["schema_version"] == "campaign-performance-export-v1"
     assert [item.content for item in asyncio.run(inspect(old_id))[2]] == [
         item.content for item in old_pair
@@ -322,7 +447,7 @@ def test_performance_issuance_replay_worker_download_and_tamper_fail_closed(
     assert b"roi" not in rendered_pdf_bytes(pdf_content).lower()
     assert first.json()["id"].encode() in csv_content
     assert first.json()["id"].encode() in rendered_pdf_bytes(pdf_content)
-    assert b"campaign-performance-export-v2" in csv_content
+    assert b"campaign-performance-export-v3" in csv_content
     assert b"campaign-report-renderer-v1" in rendered_pdf_bytes(pdf_content)
     from app.services.measurement import (
         DENSITY_PARAMETER_CALIBRATION,

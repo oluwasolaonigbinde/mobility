@@ -22,6 +22,7 @@ from app.adapters.storage import (
 from app.core.config import LOCAL_ENVIRONMENTS, Settings
 from app.core.errors import AppError
 from app.models.campaign import Campaign
+from app.models.campaign_zone import CampaignZone
 from app.models.exposure_score import ExposureScore
 from app.models.measurement import MeasurementRun
 from app.models.organization import (
@@ -40,6 +41,8 @@ from app.models.report_issuance import (
     ReportPublicationState,
     ReportPublicationWrite,
 )
+from app.models.retargeting_source import RetargetingSource
+from app.models.retargeting_source_link import RetargetingSourceLink
 from app.models.stored_file import FilePurpose, FileScanStatus, StoredFile
 from app.models.user import User, UserRole, UserStatus
 from app.schemas.measurement import MeasurementResultRead
@@ -64,7 +67,7 @@ from app.services.report_rendering import (
 )
 from app.services.stored_files import _issue_download
 
-REPORT_SCHEMA_VERSION = "campaign-performance-export-v2"
+REPORT_SCHEMA_VERSION = "campaign-performance-export-v3"
 REPORT_RENDERER_VERSION = "campaign-report-renderer-v1"
 REPORT_LEASE_SECONDS = 120
 REPORT_MAX_ATTEMPTS = 3
@@ -192,7 +195,22 @@ async def _authorize_scope(
     organization_id: UUID,
     campaign_id: UUID,
     write: bool,
+    lock_audience: bool = False,
 ) -> User:
+    # Source writers take Source before Campaign and then insert actor-bound audit
+    # evidence. Acquire Source before User as well, so their audit FK cannot wait
+    # on a User lock held by a report which is itself waiting on Source.
+    sources = []
+    if lock_audience:
+        sources = list(
+            await session.scalars(
+                select(RetargetingSource)
+                .where(RetargetingSource.organization_id == organization_id)
+                .order_by(RetargetingSource.id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+        )
     user = await session.scalar(
         select(User)
         .where(User.id == actor_user_id)
@@ -219,6 +237,29 @@ async def _authorize_scope(
         or campaign is None
     ):
         raise _not_found()
+    if lock_audience:
+        await session.scalars(
+            select(CampaignZone)
+            .where(CampaignZone.campaign_id == campaign_id)
+            .order_by(CampaignZone.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        links = list(
+            await session.scalars(
+                select(RetargetingSourceLink)
+                .where(RetargetingSourceLink.campaign_id == campaign_id)
+                .order_by(RetargetingSourceLink.id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+        )
+        if any(link.source_id not in {source.id for source in sources} for link in links):
+            raise _error(
+                "REPORT_AUDIENCE_CHANGED",
+                "Linked-source authority changed; retry report issuance",
+                status.HTTP_409_CONFLICT,
+            )
     if user.role == UserRole.ADMIN:
         return user
     if user.role != UserRole.ADVERTISER:
@@ -374,7 +415,7 @@ async def _compose_snapshot(
         measurement_run_id=run.id,
         admin=admin,
     )
-    if insights.state in {"stale", "unavailable"}:
+    if insights.state == "unavailable":
         raise _error(
             "REPORT_DISCLOSURE_AUTHORITY_UNAVAILABLE",
             "The governed disclosure projection is unavailable",
@@ -426,6 +467,16 @@ async def _compose_snapshot(
         "metrics": _metric_snapshot(result),
         "exposure": exposure,
     }
+    if REPORT_SCHEMA_VERSION == "campaign-performance-export-v3":
+        from app.services.audience_delivery import frozen_recommendations_for_run
+
+        snapshot["linked_source_recommendations"] = await frozen_recommendations_for_run(
+            session,
+            settings=settings,
+            actor_user_id=actor_user_id,
+            run=run,
+            admin=admin,
+        )
     if result.roi_gate.decision == "INCLUDE" and result.roi is not None:
         snapshot["financial_result"] = {
             "label": result.roi.label,
@@ -459,6 +510,7 @@ async def request_report_issuance(
         organization_id=run.organization_id,
         campaign_id=run.campaign_id,
         write=True,
+        lock_audience=True,
     )
     await _lock_key(session, f"report-request:{actor_user_id}:{payload.client_request_id}")
     replay = await session.scalar(
