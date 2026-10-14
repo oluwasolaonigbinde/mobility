@@ -18156,7 +18156,8 @@
           "daily_limit",
           "batch_limit",
           "run_failed",
-          "submission_blocked"
+          "submission_blocked",
+          "business_health"
         ],
         "title": "PayoutAutomaticAlertKind",
         "type": "string"

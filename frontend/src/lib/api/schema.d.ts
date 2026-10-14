@@ -11949,7 +11949,7 @@ export interface components {
          * PayoutAutomaticAlertKind
          * @enum {string}
          */
-        PayoutAutomaticAlertKind: "failed_payment" | "duplicate_payment" | "daily_limit" | "batch_limit" | "run_failed" | "submission_blocked";
+        PayoutAutomaticAlertKind: "failed_payment" | "duplicate_payment" | "daily_limit" | "batch_limit" | "run_failed" | "submission_blocked" | "business_health";
         /**
          * PayoutBatchApprovalMode
          * @enum {string}

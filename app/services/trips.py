@@ -12,6 +12,7 @@ from starlette import status
 from app.core import clock
 from app.core.config import Settings
 from app.core.errors import AppError
+from app.core.gps_health import GPS_REJECTIONS, GPSAttempt
 from app.db.integrity import integrity_constraint_name
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.campaign_assignment import (
@@ -63,6 +64,7 @@ from app.services.trip_evidence import (
     batch_payload_hash,
     manifest_completeness,
     manifest_root,
+    manifest_sample_results,
     rejection_manifest_digest,
     rejection_manifest_document,
     sign_adjudication_receipt,
@@ -868,6 +870,7 @@ async def ingest_location_ping_batch(  # noqa: C901
     trip_id: UUID,
     payload: LocationPingBatchCreate,
     settings: Settings,
+    telemetry: GPSAttempt | None = None,
 ) -> PingBatchResult:
     trip = await get_driver_trip(session, user_id=user_id, trip_id=trip_id)
     # Readers share campaign authority; cancellation and terms writers remain
@@ -932,6 +935,11 @@ async def ingest_location_ping_batch(  # noqa: C901
                 "Idempotency key was already used with a different payload",
                 status_code=status.HTTP_409_CONFLICT,
             )
+        if telemetry is not None:
+            telemetry.rejected = any(
+                entry.get("rejection_code") in GPS_REJECTIONS
+                for entry in manifest_sample_results(existing_batch.rejection_manifest)
+            )
         return PingBatchResult(batch=existing_batch, duplicate=True)
 
     ensure_ping_batch_size(payload, settings)
@@ -987,6 +995,8 @@ async def ingest_location_ping_batch(  # noqa: C901
         )
         for ping in payload.pings
     ]
+    if telemetry is not None:
+        telemetry.rejected = any(r is not None and r.code in GPS_REJECTIONS for r in rejections)
     accepted_pings = [
         ping for ping, rejection in zip(payload.pings, rejections, strict=True) if rejection is None
     ]

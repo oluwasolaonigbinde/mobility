@@ -5,8 +5,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 REGISTER_PATH = ROOT / "docs" / "privacy-register.json"
-MODEL_PATH = ROOT / "docs" / "privacy-operating-model.md"
-TABLETOP_PATH = ROOT / "docs" / "privacy-tabletop-w3-00a.md"
 
 
 def load_register() -> dict:
@@ -60,14 +58,10 @@ def test_privacy_register_is_fail_closed_and_complete() -> None:
     retention = {row["id"]: row for row in register["retention_schedule"]}
     assert {purpose["retention_class"] for purpose in purposes} == set(retention)
     registered_classes = {
-        data_class
-        for purpose in purposes
-        for data_class in purpose["data_classes"]
+        data_class for purpose in purposes for data_class in purpose["data_classes"]
     }
     retained_classes = {
-        data_class
-        for row in retention.values()
-        for data_class in row["data_classes"]
+        data_class for row in retention.values() for data_class in row["data_classes"]
     }
     assert registered_classes == retained_classes
     assert all(row["approval"] == "MISSING" for row in retention.values())
@@ -95,28 +89,3 @@ def test_provider_notice_breach_and_dpia_registers_do_not_claim_approval() -> No
     risks = register["dpia_risks"]
     assert len(risks) >= 7
     assert all(risk["residual"].startswith("OPEN") for risk in risks)
-
-
-def test_operating_model_and_tabletop_preserve_external_gates() -> None:
-    model = MODEL_PATH.read_text()
-    tabletop = TABLETOP_PATH.read_text()
-
-    for required in (
-        "EXT-LEGAL-PRIVACY",
-        "live_use_authorized=false",
-        "not legal approval",
-        "Controller and processor allocation",
-        "ROPA and purpose rules",
-        "Retention and DSR posture",
-        "Notice, consent, and withdrawal",
-        "Breach register and escalation",
-        "DPIA treatment",
-    ):
-        assert required in model
-
-    assert "No real person" in tabletop
-    assert "DSR-W3A-001" in tabletop
-    assert "BREACH-W3A-001" in tabletop
-    assert tabletop.count("BLOCKED") >= 4
-    assert "W3-00B" in tabletop
-    assert "W2-02E" in tabletop

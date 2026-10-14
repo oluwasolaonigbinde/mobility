@@ -656,3 +656,16 @@ Combined Wave 1 merge: payout architecture entry renumbered at merge from lane v
 Before D72, renewal required the complete identity/bank or vehicle capture and displayed filenames (D69). The owner replaced that presentation and complete-input requirement with partial renewal in REQ-144. D73 replaces UK demonstration phone fixtures and Lagos seed geography with Nigerian-format fixtures and Abuja geography. Built in `74cdb314`; [historical correction verification](../issues/testing/w2c-claude-renewals-correction-2026-10-07.md), final integrated review and accepted master CI [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034) pass. Screenshots are historical; live operator, wording and preview-destination gates remain separate.
 
 - **2026-10-13** — Reviewed Wave 1 and 2 integration Built in `21239a6d`, with renewal/expiry and MapTiler corrections in `7f374c39`; canonical receipt in `3a9f8b64` and one-time parent correction in `e1716154`, deterministic privacy-test fixture in `1217e4a1`, and payout recovery lock repair in `31997a67`. Exact R branch CI 38334710143, final repair branch CI [38369572447](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38369572447) and accepted master CI [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034) pass. Delivery requests close in the register; external launch prerequisites remain open.
+
+## Scheduled operational monitoring
+
+**Current rule (D82 / REQ-164):** Scheduled jobs publish Cron status, and a
+five-minute health sweep notifies Finance through the existing active-admin
+alert surface. Money/evidence authority is unchanged. Alerts are deduplicated
+per check and UTC date; Finance resolves them manually. GPS monitoring keeps
+only one-hour aggregate minute counters. The runbook defines the thresholds.
+
+**History:**
+- **2026-10-14:** Implements the owner's approved Waves 3/4 operational scope;
+  integrated verification and specialist review remain pending. Earlier jobs
+  exposed logs/errors and partition alarms without a consolidated health sweep.

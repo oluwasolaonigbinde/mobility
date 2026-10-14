@@ -406,6 +406,7 @@ async def record_email_delivery_receipt(  # noqa: C901
             if payload["outcome"] == NotificationStatus.DELIVERED.value:
                 notice.delivered_at = receipt.occurred_at
             else:
+                notice.failed_at = receipt.occurred_at
                 notice.last_error_code = "provider_delivery_failed"
             await session.flush()
     except IntegrityError:

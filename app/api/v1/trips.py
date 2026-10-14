@@ -9,6 +9,7 @@ from app.api.v1.dependencies import (
     SettingsDependency,
     TripEnqueuerDependency,
 )
+from app.core.gps_health import GPSAttempt, record_gps_attempt
 from app.schemas.trips import (
     CurrentTripResponse,
     LocationPingBatchCreate,
@@ -129,13 +130,18 @@ async def driver_ingest_location_pings(
     settings: SettingsDependency,
     enqueuer: TripEnqueuerDependency,
 ) -> LocationPingBatchResponse:
-    result = await ingest_location_ping_batch(
-        session,
-        user_id=current_user.id,
-        trip_id=trip_id,
-        payload=payload,
-        settings=settings,
-    )
+    telemetry = GPSAttempt()
+    try:
+        result = await ingest_location_ping_batch(
+            session,
+            user_id=current_user.id,
+            trip_id=trip_id,
+            payload=payload,
+            settings=settings,
+            telemetry=telemetry,
+        )
+    finally:
+        await record_gps_attempt(settings, telemetry)
     if result.quarantine is not None and not result.duplicate:
         await create_audit_event(
             session,

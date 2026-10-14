@@ -111,6 +111,7 @@ class PayoutAutomaticAlertKind(StrEnum):
     BATCH_LIMIT = "batch_limit"
     RUN_FAILED = "run_failed"
     SUBMISSION_BLOCKED = "submission_blocked"
+    BUSINESS_HEALTH = "business_health"
 
 
 class PayoutBatch(Base):
@@ -175,6 +176,7 @@ class PayoutBatch(Base):
 class PayoutBatchLine(Base):
     __tablename__ = "payout_batch_lines"
     __table_args__ = (
+        Index("ix_health_payout_line_progress", "status", "created_at"),
         CheckConstraint("amount > 0", name="ck_payout_batch_lines_amount_positive"),
         CheckConstraint("length(currency) = 3", name="ck_payout_batch_lines_currency"),
         CheckConstraint(
@@ -601,6 +603,7 @@ class PayoutProviderEvent(Base):
 
     __tablename__ = "payout_provider_events"
     __table_args__ = (
+        Index("ix_health_payout_event_received", "received_at"),
         CheckConstraint(
             "outcome IN ('succeeded', 'failed')",
             name="ck_payout_provider_events_outcome",
@@ -1031,7 +1034,7 @@ class PayoutAutomaticAlert(Base):
     __table_args__ = (
         CheckConstraint(
             "kind IN ('failed_payment', 'duplicate_payment', 'daily_limit', "
-            "'batch_limit', 'run_failed', 'submission_blocked')",
+            "'batch_limit', 'run_failed', 'submission_blocked', 'business_health')",
             name="ck_payout_automatic_alerts_kind",
         ),
         CheckConstraint(

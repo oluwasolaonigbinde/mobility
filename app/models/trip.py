@@ -40,6 +40,7 @@ class TripSealReason(StrEnum):
 class TripSession(Base):
     __tablename__ = "trip_sessions"
     __table_args__ = (
+        Index("ix_health_trip_status_activity", "status", "started_at", "ended_at"),
         CheckConstraint("status IN ('active', 'ended', 'sealed')", name="ck_trip_sessions_status"),
         CheckConstraint(
             "(status = 'sealed') = (sealed_at IS NOT NULL AND seal_reason IS NOT NULL)",

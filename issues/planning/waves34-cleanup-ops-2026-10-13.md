@@ -199,3 +199,27 @@ Alembic reports no model differences. Ruff and formatting pass. Final integrated
 CI and reviews remain required. The evidence-v1 follow-up removes driver legacy
 end/ACK branches and unused trip watermark columns; signed v2 recovery and
 encrypted queue ownership protection remain.
+
+W4 deletion inventory before editing: the prose-only
+`tests/test_privacy_operating_model.py::test_operating_model_and_tabletop_preserve_external_gates`
+and its two unused Markdown path constants. Machine-readable privacy-register
+validation is retained. In `tests/test_r59_real_stack_contract.py`, remove only
+README/rehearsal prose assertions; retain executable workflow/config assertions.
+Render/AWS/Mapbox tracked deployment assets are already absent following
+REQ-049 (`308f04a8`); no container or S3-compatible integration is removed.
+
+W4 script inventory: every operational script has a tracked caller, workflow or
+runbook reference. `check_frontend_audit.test.mjs` is a discovered Node test, not
+an unused operational script; retain it. No unused script was proven, so none
+was deleted. Validator-required progress cards/rows remain intact; completed
+owner history moved to `docs/archive/progress-history-2026-10.md`.
+
+W4 checkpoint: all 16 new business-health tests pass across the initial and
+focused corrective runs. The 13-test API/prose-trim follow-up passed; terminal
+email timestamp verification passed. Finance copy passed 5 UI tests. Ruff,
+formatting and the progress validator pass. Migration 0105 upgraded successfully
+and `alembic check` reports no new operations. D82 / architecture v1.137 record
+monitoring and Finance escalation. No external monitoring/provider call ran.
+The next step is the separately approved squash, starting with a fresh complete
+chain upgrade and full schema dump; parity and specialist acceptance are not
+yet claimed.

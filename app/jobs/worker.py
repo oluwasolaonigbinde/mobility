@@ -1,7 +1,6 @@
 from typing import Any
 
 from arq.connections import RedisSettings
-from arq.cron import cron
 from arq.worker import func
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
@@ -12,6 +11,7 @@ from app.core.observability import configure_logging, init_error_tracking
 from app.jobs.assignment_activity import sweep_assignment_activity_flags
 from app.jobs.automatic_payouts import sweep_automatic_payouts
 from app.jobs.budget_enforcement import sweep_campaign_budget_enforcement
+from app.jobs.business_health import sweep_business_health
 from app.jobs.campaign_assignments import sweep_campaign_assignment_expiries
 from app.jobs.data_lifecycle import (
     check_ping_partition_coverage,
@@ -35,6 +35,7 @@ from app.jobs.file_lifecycle import (
     recover_stored_object_deletions,
 )
 from app.jobs.file_scanning import scan_pending_files
+from app.jobs.monitoring import monitored_cron as cron
 from app.jobs.payment_gateway import (
     process_payment_gateway_event_job,
     sweep_payment_gateway_events,
@@ -80,9 +81,7 @@ async def on_startup(ctx: dict[str, Any]) -> None:
     ctx["sessionmaker"] = async_sessionmaker(engine, expire_on_commit=False)
     ctx["disbursement_adapter"] = build_disbursement_adapter(
         settings,
-        destination_resolver=build_paystack_destination_resolver(
-            settings, ctx["sessionmaker"]
-        ),
+        destination_resolver=build_paystack_destination_resolver(settings, ctx["sessionmaker"]),
     )
     ctx["storage"] = build_storage_provider(settings)
     init_error_tracking(settings)
@@ -125,6 +124,7 @@ class WorkerSettings:
         ),
     ]
     cron_jobs: list = [
+        cron(sweep_business_health, minute=sweep_cron_minutes(5), unique=True),
         cron(
             process_unprocessed_trips,
             minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),

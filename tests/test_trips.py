@@ -811,7 +811,17 @@ def test_ping_schema_validation_rejects_invalid_batches(
     assert len(fetch_location_pings(db_sessionmaker)) == 0
 
 
-def test_ping_service_validation_and_all_or_nothing_behavior(db_client, db_sessionmaker) -> None:
+def test_ping_service_validation_and_all_or_nothing_behavior(
+    db_client, db_sessionmaker, monkeypatch
+) -> None:
+    from app.api.v1 import trips as trip_api
+
+    recorded = []
+
+    async def record(_settings, attempt):
+        recorded.append(attempt.rejected)
+
+    monkeypatch.setattr(trip_api, "record_gps_attempt", record)
     _, _, _, _, _, assignment = create_trip_ready_graph(db_sessionmaker)
     trip_id = start_trip(db_client, assignment.id).json()["id"]
     headers = driver_headers(db_client)
@@ -839,6 +849,7 @@ def test_ping_service_validation_and_all_or_nothing_behavior(db_client, db_sessi
         )
         assert response.status_code == http_status.HTTP_400_BAD_REQUEST
         assert response.json()["error"]["code"] == expected_code
+        assert recorded[-1] is True
         assert len(fetch_location_pings(db_sessionmaker)) == 0
 
     many_pings = [ping_payload()["pings"][0] | {"sequence_number": number} for number in range(501)]

@@ -138,6 +138,7 @@ async def _claim(
         allowed, recipient_or_error = await _preference_allows_delivery(session, notice)
         if not allowed:
             notice.status = NotificationStatus.FAILED.value
+            notice.failed_at = now
             notice.last_error_code = recipient_or_error
             notice.delivery_claim_token = None
             notice.delivery_claim_expires_at = None
@@ -317,6 +318,7 @@ async def process_email_notification(  # noqa: C901
                 result = "retry_scheduled"
             else:
                 locked.status = NotificationStatus.FAILED.value
+                locked.failed_at = now
                 locked.next_attempt_at = None
                 result = "failed"
         await session.commit()

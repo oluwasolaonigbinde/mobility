@@ -87,18 +87,11 @@ PKG-08 and PKG-09 await the external release, provider, physical-device and pilo
 
 ## Direct owner requests outside the package queue
 
-**Progress-document reorganization (29 Sep 2026):** The owner approved this shorter present-day control page. Dated receipts are in [the September delivery history](archive/progress-history-2026-09.md); detailed package and checklist criteria remain live in [delivery-contracts.md](delivery-contracts.md). The package queue, checklist statuses, dependencies, external gates and controller pointer retain their authority and values.
-
-**Owner and client work (from 29 Sep 2026):** Every ask from the client, PM or
-owner is recorded and tracked in [requests.md](requests.md), and client rules
-by topic in [client-decisions.md](client-decisions.md); root `AGENTS.md` sets
-the flow. Batches A–E of the Cardvert next build pass (D38–D41) are merged and
-recorded there as REQ-001 to REQ-006; Batch F is REQ-009 to REQ-012. Their
-contracts and evidence are in [the delivery history](archive/progress-history-2026-09.md).
-This work does not promote or reorder the paused package queue. Open client
-parameters stay fail-closed; `payout_v1`–`v3` history is never repriced.
-Commit, push, deployment, provider calls and external-account action require
-separate owner approval.
+Completed reorganization and early owner-batch history is archived in
+[October history](archive/progress-history-2026-10.md). Current owner asks remain
+in [requests.md](requests.md) and [client-decisions.md](client-decisions.md).
+The package queue remains paused; this cleanup does not promote it. D80 applies
+accepted-work preservation to live data; there is no live data yet.
 
 **Branch acceptance (D41, 29 Sep 2026):** Each future batch or feature branch must pass its full GitHub CI run before merging into `master`; local runs cover touched test files. The adopted coverage floors and D32 thresholds remain unchanged. See [D41](decisions-log.md) for the exact tolerance policy.
 

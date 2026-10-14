@@ -3595,7 +3595,21 @@ The explicit dependencies in `docs/progress.md` still control build order.
 | **G-moduleG** | Any live retargeting ingestion, display, or export | RM15, RM16 |
 | **G-pilot** | Production pilot | all of the above + RM17 + the D18 production-PWA acceptance replacing RM14's former native gate |
 
+### Scheduled business health (D82 / REQ-164) [TARGET ? verification pending]
+
+The worker scheduler wraps every Cron entry with stable-slug Sentry check-ins
+and schedules `sweep_business_health` every five minutes. Service predicates
+read durable operational state and aggregate Redis GPS telemetry. Existing
+Finance alert uniqueness and active-admin notices provide transactional daily
+deduplication; recovery never resolves an operator-owned alert. Trip evidence
+adjudication remains terminal and does not generate stale alerts. Email terminal
+failure timestamps support the 24-hour window. Redis keys contain only minute
+buckets and attempt/rejection counts, expire after one hour, and are written
+independently of the evidence transaction; telemetry failure cannot reject GPS.
+
 ## 34. Doc changelog
+
+- **v1.137 ? 14 October 2026 (D82/REQ-164):** Scheduled-job check-ins and read-only Finance business-health alerts; verification pending.
 
 - **v1.136 - 14 October 2026 (D81/REQ-162/163):** Domain service packages, localized complexity exceptions, shared campaign ingestion locks and separate money/privacy 85% branch floors. Integrated verification and reviews remain pending.
 - **v1.135 ? 13 October 2026 (D80/REQ-161):** Owner-approved development removal of payout v1?v3, evidence v1 and SQLite paths; current v4/v2 and PostgreSQL protection contracts retained. Implementation verification is pending.
