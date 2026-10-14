@@ -46,10 +46,9 @@ from app.services.payees import (
     add_verified_bank_account_version,
 )
 from app.services.payout_debt import driver_money_balance
-from tests.test_migration_0014_partitioning import (
+from tests.database_helpers import (
     configured_postgres_url,
     create_database_from_url,
-    downgrade_to,
     drop_database,
     upgrade_to,
 )
@@ -1098,7 +1097,7 @@ def test_confirmed_fraud_recovery_failure_rolls_back_every_money_state(
     assert incidents == debts == reversals == 0
 
 
-def test_0084_migration_guards_round_trip_and_owned_drift(monkeypatch) -> None:
+def test_current_database_guards_and_owned_drift(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
 
     async def inspect_and_seed() -> None:
@@ -1227,12 +1226,9 @@ def test_0084_migration_guards_round_trip_and_owned_drift(monkeypatch) -> None:
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "0084_payout_conservation", monkeypatch)
-        downgrade_to(migration_url, "0083_payout_submission_intents", monkeypatch)
-        upgrade_to(migration_url, "0084_payout_conservation", monkeypatch)
+        upgrade_to(migration_url, "0106_development_baseline", monkeypatch)
+        upgrade_to(migration_url, "0106_development_baseline", monkeypatch)
         asyncio.run(inspect_and_seed())
-        with pytest.raises(RuntimeError, match="0084 downgrade blocked"):
-            downgrade_to(migration_url, "0083_payout_submission_intents", monkeypatch)
         upgrade_to(migration_url, "head", monkeypatch)
         assert asyncio.run(compare_owned()) == []
     finally:

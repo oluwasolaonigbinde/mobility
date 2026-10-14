@@ -7,16 +7,16 @@ from unittest.mock import AsyncMock, Mock
 from uuid import UUID
 
 import pytest
-from paystack_fixtures import SYNTHETIC_LIVE_KEY
-from sqlalchemy import func, or_, select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import NullPool
-from test_migration_0014_partitioning import (
+from database_helpers import (
     configured_postgres_url,
     create_database_from_url,
     drop_database,
     upgrade_to,
 )
+from paystack_fixtures import SYNTHETIC_LIVE_KEY
+from sqlalchemy import func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.core.config import Settings
 from app.core.errors import AppError
@@ -719,7 +719,7 @@ def test_demo_seed_is_not_registered_on_app_startup(settings: Settings) -> None:
 def test_no_seed_or_demo_migrations() -> None:
     versions = {path.name for path in Path("alembic/versions").glob("*.py")}
 
-    assert "0010_payouts_and_earnings.py" in versions
+    assert "0106_development_baseline.py" in versions
     assert not any("seed" in name or "demo" in name for name in versions)
 
 

@@ -66,7 +66,7 @@ from app.services.trip_processing import DueTrip, process_ended_trip
 
 @pytest.fixture(autouse=True)
 def _reenable_worker_loggers():
-    # In-process alembic upgrades (test_migration_slice7-9) run fileConfig with
+    # In-process alembic upgrades (current database schema tests) run fileConfig with
     # disable_existing_loggers=True, which disables these module loggers for the
     # rest of the pytest session; caplog assertions need them re-enabled.
     for name in ("app.core.trip_enqueue", "app.jobs.trip_processing"):

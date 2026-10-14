@@ -9,6 +9,12 @@ from alembic.autogenerate import compare_metadata
 from alembic.config import Config
 from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
+from database_helpers import (
+    configured_postgres_url,
+    create_database_from_url,
+    drop_database,
+    upgrade_to,
+)
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -18,13 +24,6 @@ from test_driver_vehicle_approval import (
     _review_files,
     _seed_vehicle_files,
     _vehicle_payload,
-)
-from test_migration_0014_partitioning import (
-    configured_postgres_url,
-    create_database_from_url,
-    downgrade_to,
-    drop_database,
-    upgrade_to,
 )
 
 from app.core.errors import AppError
@@ -52,8 +51,7 @@ from app.services.driver_applications import (
 from app.services.drivers import update_driver_profile
 from app.services.vehicle_onboarding import review_application_vehicle
 
-PRE_TERMINAL_REVISION = "0071_report_issuances"
-TERMINAL_REVISION = "0072_driver_application_terminal_status"
+TERMINAL_REVISION = "0106_development_baseline"
 
 
 async def _seed_application(sessionmaker, settings, *, suffix: str):
@@ -532,7 +530,7 @@ def test_r32_only_terminal_race_winner_emits_audit(
     asyncio.run(run())
 
 
-def test_r32_terminal_status_migration_matrix(monkeypatch) -> None:
+def test_r32_terminal_status_database_constraint(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
 
     async def seed_pending() -> None:
@@ -610,20 +608,13 @@ def test_r32_terminal_status_migration_matrix(monkeypatch) -> None:
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, PRE_TERMINAL_REVISION, monkeypatch)
         upgrade_to(migration_url, TERMINAL_REVISION, monkeypatch)
-        downgrade_to(migration_url, PRE_TERMINAL_REVISION, monkeypatch)
         asyncio.run(seed_pending())
-        upgrade_to(migration_url, TERMINAL_REVISION, monkeypatch)
-        downgrade_to(migration_url, PRE_TERMINAL_REVISION, monkeypatch)
-        upgrade_to(migration_url, TERMINAL_REVISION, monkeypatch)
         assert asyncio.run(read_state()) == (
             TERMINAL_REVISION,
             "pending",
         )
         asyncio.run(assert_invalid_and_set_terminal())
-        with pytest.raises(RuntimeError, match="0072 downgrade blocked"):
-            downgrade_to(migration_url, PRE_TERMINAL_REVISION, monkeypatch)
         assert asyncio.run(read_state()) == (
             TERMINAL_REVISION,
             "approved",

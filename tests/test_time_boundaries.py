@@ -459,7 +459,7 @@ def _backup_authority_arguments(*, created: datetime, retention_days: int) -> di
         release_id="20260828T120000Z-clock",
         release_revision="1" * 40,
         config_sha256="2" * 64,
-        alembic_revision="0082_report_publication_intents",
+        alembic_revision="synthetic_report_publication_intents",
         database_sha256="3" * 64,
         database_bytes=1234,
         database_marker="2026-08-28T12:00:00Z/0-A1B2",

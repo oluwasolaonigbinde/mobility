@@ -189,11 +189,11 @@ exit 0
         """#!/usr/bin/env bash
 case "$*" in
   *"alembic heads"*)
-    echo "0012_head (head)"
+    echo "synthetic_head (head)"
     [[ "${SMOKE_FAILURE:-}" != multihead ]] || echo "other_head (head)"
     ;;
   *"alembic current"*)
-    [[ "${SMOKE_FAILURE:-}" != revision ]] && echo "0012_head (head)" || echo "0011_old"
+    [[ "${SMOKE_FAILURE:-}" != revision ]] && echo "synthetic_head (head)" || echo "synthetic_old"
     ;;
   *"redis-cli"*)
     [[ "${SMOKE_FAILURE:-}" != redis ]] && echo "PONG" || exit 1

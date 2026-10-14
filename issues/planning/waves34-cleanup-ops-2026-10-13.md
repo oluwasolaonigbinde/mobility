@@ -223,3 +223,278 @@ monitoring and Finance escalation. No external monitoring/provider call ran.
 The next step is the separately approved squash, starting with a fresh complete
 chain upgrade and full schema dump; parity and specialist acceptance are not
 yet claimed.
+
+## Approved squash deletion inventory (before deletion)
+
+The following chain/test files are replaced by the single baseline and current
+schema/behavior verification. Required helpers and current protection tests
+are transferred before deletion.
+
+- `alembic/versions/0001_enable_extensions.py`
+- `alembic/versions/0002_identity_and_organizations.py`
+- `alembic/versions/0003_driver_vehicle_foundations.py`
+- `alembic/versions/0004_campaigns_and_creatives.py`
+- `alembic/versions/0005_campaign_zones.py`
+- `alembic/versions/0006_campaign_assignments.py`
+- `alembic/versions/0007_trip_tracking.py`
+- `alembic/versions/0008_route_analytics_and_fraud_flags.py`
+- `alembic/versions/0009_impression_estimation.py`
+- `alembic/versions/0010_payouts_and_earnings.py`
+- `alembic/versions/0011_user_password_management.py`
+- `alembic/versions/0012_audit_event_indexes.py`
+- `alembic/versions/0013_payout_v2_hourly_caps.py`
+- `alembic/versions/0014_location_pings_partitioning.py`
+- `alembic/versions/0015_payout_day_allocation.py`
+- `alembic/versions/0016_trip_seal_protocol.py`
+- `alembic/versions/0017_seal_review_hardening.py`
+- `alembic/versions/0018_payout_rule_revisions.py`
+- `alembic/versions/0019_assignment_rule_bindings.py`
+- `alembic/versions/0020_payout_correction_orders.py`
+- `alembic/versions/0021_frozen_payout_v3_terms.py`
+- `alembic/versions/0022_current_fraud_assessments.py`
+- `alembic/versions/0023_route_replay_signatures.py`
+- `alembic/versions/0024_fraud_review_holds.py`
+- `alembic/versions/0025_fraud_disputes_notifications.py`
+- `alembic/versions/0026_frozen_campaign_payment_window.py`
+- `alembic/versions/0027_earnings_release_sla.py`
+- `alembic/versions/0028_protected_payee_accounts.py`
+- `alembic/versions/0029_payout_batch_reservation.py`
+- `alembic/versions/0030_provider_line_reconciliation.py`
+- `alembic/versions/0031_carry_forward_payout_debt.py`
+- `alembic/versions/0032_commercial_quotation_terms.py`
+- `alembic/versions/0033_advertiser_company_profiles.py`
+- `alembic/versions/0034_canonical_receipts_allocations.py`
+- `alembic/versions/0035_vat_itemised_invoices.py`
+- `alembic/versions/0036_invoice_authority_hardening.py`
+- `alembic/versions/0037_funded_liability_authority.py`
+- `alembic/versions/0038_payment_gateway_events.py`
+- `alembic/versions/0039_billing_corrections_refunds.py`
+- `alembic/versions/0040_budget_policy_blocked_state.py`
+- `alembic/versions/0041_invoice_correction_retry_identity.py`
+- `alembic/versions/0042_invoice_number_prefix_sequence.py`
+- `alembic/versions/0043_campaign_review_lifecycle.py`
+- `alembic/versions/0044_notification_outbox.py`
+- `alembic/versions/0045_disclosure_query_history.py`
+- `alembic/versions/0046_retargeting_sources.py`
+- `alembic/versions/0047_retargeting_source_links.py`
+- `alembic/versions/0048_campaign_assignment_offer_lifecycle.py`
+- `alembic/versions/0049_assignment_activity_flags.py`
+- `alembic/versions/0050_driver_applications.py`
+- `alembic/versions/0051_canonical_impression_authority.py`
+- `alembic/versions/0052_stored_files.py`
+- `alembic/versions/0053_file_scanning.py`
+- `alembic/versions/0054_managed_creatives.py`
+- `alembic/versions/0055_kyc_key_custody.py`
+- `alembic/versions/0056_creative_review.py`
+- `alembic/versions/0057_installation_evidence.py`
+- `alembic/versions/0058_campaign_changes.py`
+- `alembic/versions/0059_campaign_cancellations.py`
+- `alembic/versions/0060_evidence_verifications.py`
+- `alembic/versions/0061_email_delivery.py`
+- `alembic/versions/0062_data_subject_requests.py`
+- `alembic/versions/0063_measurement_runs.py`
+- `alembic/versions/0064_budget_notifications_recovery.py`
+- `alembic/versions/0065_exposure_segments.py`
+- `alembic/versions/0066_audience_deliveries.py`
+- `alembic/versions/0067_exposure_scores.py`
+- `alembic/versions/0068_driver_person_payee_review.py`
+- `alembic/versions/0069_w3_04b_review_authority.py`
+- `alembic/versions/0070_driver_vehicle_approval.py`
+- `alembic/versions/0071_report_issuances.py`
+- `alembic/versions/0072_driver_application_terminal_status.py`
+- `alembic/versions/0073_refund_cancellation_provenance.py`
+- `alembic/versions/0074_trip_evidence_manifest.py`
+- `alembic/versions/0075_governed_audience_delivery.py`
+- `alembic/versions/0076_dsr_assessment_truth.py`
+- `alembic/versions/0077_stored_object_deletions.py`
+- `alembic/versions/0078_campaign_assignment_driver_active.py`
+- `alembic/versions/0079_traffic_density_profile_revisions.py`
+- `alembic/versions/0080_trip_evidence_partial_disposition.py`
+- `alembic/versions/0081_payout_money_authority.py`
+- `alembic/versions/0082_report_publication_intents.py`
+- `alembic/versions/0083_payout_submission_intents.py`
+- `alembic/versions/0084_payout_conservation.py`
+- `alembic/versions/0085_disclosure_protection_retention.py`
+- `alembic/versions/0086_audit_subjects.py`
+- `alembic/versions/0087_kyc_payload_retention.py`
+- `alembic/versions/0088_report_publication_writes.py`
+- `alembic/versions/0089_driver_account_setup.py`
+- `alembic/versions/0090_single_active_advertiser_membership.py`
+- `alembic/versions/0091_budget_urgent_threshold.py`
+- `alembic/versions/0092_payout_v4_daily_rate.py`
+- `alembic/versions/0093_automatic_payout_approval.py`
+- `alembic/versions/0094_customer_service_complaints.py`
+- `alembic/versions/0095_invoice_issuer_contact_and_bank.py`
+- `alembic/versions/0096_payment_checkout_intents.py`
+- `alembic/versions/0097_payout_provider_event_queue.py`
+- `alembic/versions/0098_paystack_edge_case_evidence.py`
+- `alembic/versions/0099_automatic_payout_scan_cursor.py`
+- `alembic/versions/0100_reverse_phone_verification.py`
+- `alembic/versions/0101_document_review_outcomes.py`
+- `alembic/versions/0102_driver_agreement_acceptance.py`
+- `alembic/versions/0103_retire_legacy_engines.py`
+- `alembic/versions/0104_retire_v1_trip_watermarks.py`
+- `alembic/versions/0105_business_health.py`
+- `tests/test_migration_0013_payout_v2.py`
+- `tests/test_migration_0014_partitioning.py`
+- `tests/test_migration_0017_seal_hardening.py`
+- `tests/test_migration_0018_payout_rule_revisions.py`
+- `tests/test_migration_0019_assignment_rule_bindings.py`
+- `tests/test_migration_0020_payout_correction_orders.py`
+- `tests/test_migration_0021_frozen_payout_v3_terms.py`
+- `tests/test_migration_0023_route_replay.py`
+- `tests/test_migration_0024_fraud_review_holds.py`
+- `tests/test_migration_0025_fraud_disputes_notifications.py`
+- `tests/test_migration_0026_frozen_campaign_payment_window.py`
+- `tests/test_migration_0027_earnings_release_sla.py`
+- `tests/test_migration_0028_protected_payee_accounts.py`
+- `tests/test_migration_0029_payout_batch_reservation.py`
+- `tests/test_migration_0030_provider_line_reconciliation.py`
+- `tests/test_migration_0031_carry_forward_payout_debt.py`
+- `tests/test_migration_0032_commercial_quotation_terms.py`
+- `tests/test_migration_0033_advertiser_company_profiles.py`
+- `tests/test_migration_0034_canonical_receipts_allocations.py`
+- `tests/test_migration_0035_vat_itemised_invoices.py`
+- `tests/test_migration_0036_invoice_authority_hardening.py`
+- `tests/test_migration_0037_funded_liability_authority.py`
+- `tests/test_migration_0038_payment_gateway_events.py`
+- `tests/test_migration_0039_billing_corrections_refunds.py`
+- `tests/test_migration_0040_budget_policy_blocked_state.py`
+- `tests/test_migration_0041_invoice_correction_retry_identity.py`
+- `tests/test_migration_0042_invoice_number_prefix_sequence.py`
+- `tests/test_migration_0043_campaign_review_lifecycle.py`
+- `tests/test_migration_0044_notification_outbox.py`
+- `tests/test_migration_0045_disclosure_query_history.py`
+- `tests/test_migration_0046_retargeting_sources.py`
+- `tests/test_migration_0047_retargeting_source_links.py`
+- `tests/test_migration_0048_campaign_assignment_offer_lifecycle.py`
+- `tests/test_migration_0049_assignment_activity_flags.py`
+- `tests/test_migration_0050_driver_applications.py`
+- `tests/test_migration_0051_canonical_impression_authority.py`
+- `tests/test_migration_0052_stored_files.py`
+- `tests/test_migration_0053_file_scanning.py`
+- `tests/test_migration_0054_managed_creatives.py`
+- `tests/test_migration_0055_kyc_key_custody.py`
+- `tests/test_migration_0056_creative_review.py`
+- `tests/test_migration_0057_installation_evidence.py`
+- `tests/test_migration_0058_campaign_changes.py`
+- `tests/test_migration_0059_campaign_cancellations.py`
+- `tests/test_migration_0060_evidence_verifications.py`
+- `tests/test_migration_0061_email_delivery.py`
+- `tests/test_migration_0062_data_subject_requests.py`
+- `tests/test_migration_0063_measurement_runs.py`
+- `tests/test_migration_0064_budget_notifications_recovery.py`
+- `tests/test_migration_0066_audience_deliveries.py`
+- `tests/test_migration_0067_exposure_scores.py`
+- `tests/test_migration_0068_driver_person_payee_review.py`
+- `tests/test_migration_0069_w3_04b_review_authority.py`
+- `tests/test_migration_0070_driver_vehicle_approval.py`
+- `tests/test_migration_0071_report_issuances.py`
+- `tests/test_migration_0073_refund_cancellation_provenance.py`
+- `tests/test_migration_0074_trip_evidence_manifest.py`
+- `tests/test_migration_0075_governed_audience_delivery.py`
+- `tests/test_migration_0076_dsr_assessment_truth.py`
+- `tests/test_migration_0077_stored_object_deletions.py`
+- `tests/test_migration_0078_campaign_assignment_driver_active.py`
+- `tests/test_migration_0079_traffic_density_profile_revisions.py`
+- `tests/test_migration_0080_trip_evidence_disposition.py`
+- `tests/test_migration_0082_report_publication_intents.py`
+- `tests/test_migration_0085_disclosure_protection.py`
+- `tests/test_migration_0086_audit_subjects.py`
+- `tests/test_migration_0088_report_publication_writes.py`
+- `tests/test_migration_0089_driver_account_setup.py`
+- `tests/test_migration_0090_single_active_advertiser_membership.py`
+- `tests/test_migration_0091_budget_urgent_threshold.py`
+- `tests/test_migration_0092_payout_v4.py`
+- `tests/test_migration_0093_automatic_payout_approval.py`
+- `tests/test_migration_0094_complaints.py`
+- `tests/test_migration_0095_invoice_issuer_contact_and_bank.py`
+- `tests/test_migration_0096_0098_paystack.py`
+- `tests/test_migration_0099_automatic_payout_scan_cursor.py`
+- `tests/test_migration_0100_reverse_phone_verification.py`
+- `tests/test_migration_payout_downgrade_guards.py`
+- `tests/test_migration_slice1.py`
+- `tests/test_migration_slice2.py`
+- `tests/test_migration_slice3.py`
+- `tests/test_migration_slice4.py`
+- `tests/test_migration_slice5.py`
+- `tests/test_migration_slice6.py`
+- `tests/test_migration_slice7.py`
+- `tests/test_migration_slice8.py`
+- `tests/test_migration_slice9.py`
+- `tests/test_migration_storage_downgrade_guards.py`
+
+
+## Integrated checkpoint ? 14 October, squash candidate
+
+W3a `18192019`, W3b `115fc505`, W4 `0b0be762` and the W3b
+static/error-path correction `30eadf27` are committed. The squash is the next,
+separate commit. Final reviews, D33 receipt, two full CI runs and merge remain
+pending; the historical checkpoints above are not completion claims.
+
+- Full fresh PostgreSQL chain through 0105 versus fresh baseline 0106:
+  `coverage/w34/schema-before.sql` and `schema-after.sql` are **byte-identical**,
+  591,483 bytes, SHA-256
+  `5cfe8f76c533f6825a3b5649242974b54766ea0d13f0751fff169db359dfb2ad`.
+  `schema-parity.diff` is empty. Separately dumped `alembic_version` data differs
+  only from `0105_business_health` to `0106_development_baseline`.
+  pg_dump 16.4 used `--schema-only` without exclusions or owner/ACL suppression.
+  Thus tables, columns/types/defaults, constraints, indexes, enums/sequences,
+  functions/triggers, partition objects, extensions and grants/RLS match.
+  Catalog: 141 public tables including partitions/extension tables, 1,214
+  constraints, 114 noninternal triggers, zero RLS tables/policies, three explicit
+  relation ACLs. Canonical Alembic check and drift/geometry/constraint tests pass.
+- Bootstrap verification passes: disabled automatic actor, random Argon2 hash,
+  matching SHA-256 fingerprint, singleton controls and money approval guards.
+  All 37 current baseline/protection cases pass across focused runs
+  (`baseline-protections.xml`, corrected `baseline-protections-final.xml` and
+  `baseline-retention-final.xml`). Final retention/R18 run: 28 passed, including
+  real interrupted detach recovery/refusal and signed-evidence immutability.
+- Existing `app.seeds.demo.run_seed` completed on `w34_baseline_after`, with the
+  repository's `seed_private_storage` fixture adapters and synthetic local keys,
+  no provider calls: 379 rich trips, 13 assignments, four rich campaigns, nine
+  rich drivers; basic graph has 1,144 pings, four calculations and four ledger
+  entries. The seed output is local ignored evidence at `baseline-seed.log`.
+- Lifecycle/authority verification: 89 passed on the first combined run, with
+  its 12 stale retention fixtures subsequently corrected and passing above.
+  Reference/head/model follow-up: 41 passed. Two recovery-harness checks need
+  Docker CLI/daemon or a Linux Git checkout/shell environment unavailable in
+  this Windows-bound runner; final full CI must verify them. No extra test
+  container was started. Billing not-found/error corrections: 12 passed.
+- Security specialist `w34-security-review-20261014-r1`: **PASS**, read-only
+  source/artifact review, explicitly confirming no constraints, RLS state,
+  grants or audit/immutability triggers lost. Privacy, money and consolidated
+  minimal-change acceptance remain pending.
+
+### After metrics and comparable clone scope
+
+Radon 6.0.1, same `radon cc app -a`: **3,256 blocks, average 3.6228501228501226
+(A)**, versus 3,299 / 3.7356774780236437 before.
+
+The original jscpd default limit of 1,000 lines silently excluded the old large
+monoliths. With that same limit, before/after are 245/244 clones, 2,861/2,831
+lines, 2.58%/2.39%, 788/809 sources. For an honest whole-source comparison,
+both pristine master and this candidate were also measured with identical
+`--max-lines 20000 --max-size 2mb` plus the original language/ignore options:
+**347 ? 319 clones; 4,088 ? 3,718 duplicate lines; 2.69% ? 2.52%**.
+Total lines: 152,084 ? 147,725; sources: 812 ? 829; duplicated tokens:
+42,762 (2.94%) ? 37,439 (2.77%). Reports remain in ignored
+`coverage/w34/jscpd-complete-before` and `jscpd-complete-after`.
+
+### Deleted test fragments alongside the inventoried chain files
+
+- `tests/test_advertiser_reports.py::test_slice10_adds_no_migration_or_reporting_tables`
+- Historical migration-file assertions at the tail of `tests/test_heatmaps.py`.
+- `tests/test_driver_agreement_retirement.py::test_migration_retires_private_objects_retryably_without_fabricating_consent`
+  and its old-revision loader; current retirement/attachment protection remains.
+- Historical backfill/downgrade-only cases and the unused `seed_revision_chain`
+  fixture in `tests/test_r18_money_authority_postgresql.py`; current money
+  immutability and ledger transition assertions remain.
+- Downgrade-only assertions in current R20/R22/R32, KYC-retention and transferred
+  schema tests; the single baseline has no predecessor. Obsolete migration-test
+  duration entries are removed from `scripts/pytest_shard_durations.json`.
+
+Operational old-revision references in tests, seeds, shell fixtures and migration
+chain/inventory checks now use the baseline or distinct synthetic test versions.
+Append-only historical architecture/progress/build-loop evidence retains its
+original revision names as history, not current instructions.

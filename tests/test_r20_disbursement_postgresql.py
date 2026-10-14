@@ -30,14 +30,13 @@ from app.services.disbursements import (
     claim_payout_submission_intent,
     process_payout_submission_intent,
 )
-from tests.test_disbursement_worker import _prepare_batch
-from tests.test_migration_0014_partitioning import (
+from tests.database_helpers import (
     configured_postgres_url,
     create_database_from_url,
-    downgrade_to,
     drop_database,
     upgrade_to,
 )
+from tests.test_disbursement_worker import _prepare_batch
 from tests.test_mny03a_earnings_release import build_graph
 
 
@@ -396,7 +395,7 @@ def test_resolution_revalidates_prelocked_requester_before_mutation(
     assert adapter.calls == []
 
 
-def test_0083_database_guards_and_model_have_no_owned_drift(monkeypatch) -> None:
+def test_current_database_guards_and_model_have_no_owned_drift(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
 
     async def exercise() -> None:
@@ -511,10 +510,8 @@ def test_0083_database_guards_and_model_have_no_owned_drift(monkeypatch) -> None
             await engine.dispose()
 
     try:
-        upgrade_to(migration_url, "0083_payout_submission_intents", monkeypatch)
+        upgrade_to(migration_url, "0106_development_baseline", monkeypatch)
         asyncio.run(exercise())
-        with pytest.raises(RuntimeError, match="0083 downgrade blocked"):
-            downgrade_to(migration_url, "0082_report_publication_intents", monkeypatch)
         upgrade_to(migration_url, "head", monkeypatch)
         assert asyncio.run(compare_owned()) == []
     finally:

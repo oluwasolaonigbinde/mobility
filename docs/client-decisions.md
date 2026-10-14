@@ -36,6 +36,11 @@ Live accepted work is never repriced or silently changed (D14, D21, D80).
 There is no live data yet: D80 removes obsolete development payout v1?v3 and
 evidence v1 instead of preserving their old formats (REQ-161).
 
+The owner approved a single development database baseline on 13 October 2026
+("squash yes", D83/REQ-167/169). There are no live users or customer data.
+Current database protections and bootstrap facts are preserved and verified;
+disposable old development databases are recreated from the baseline.
+
 ## Topics
 
 - [Product and brand](#product-and-brand)

@@ -2,15 +2,15 @@ import asyncio
 import base64
 import json
 
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import create_async_engine
-from sqlalchemy.pool import NullPool
-from test_migration_0014_partitioning import (
+from database_helpers import (
     configured_postgres_url,
     create_database_from_url,
     drop_database,
     upgrade_to,
 )
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
+from sqlalchemy.pool import NullPool
 
 
 def test_root_health_returns_service_status(client) -> None:
