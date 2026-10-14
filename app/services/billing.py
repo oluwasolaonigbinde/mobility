@@ -197,8 +197,8 @@ async def prepare_invoice_payment_checkout(
             )
     user = await session.get(User, actor_user_id)
     customer_email = (
-        organization.billing_email or (user.email if user is not None else "")
-    ).strip().lower()
+        (organization.billing_email or (user.email if user is not None else "")).strip().lower()
+    )
     if not customer_email:
         raise AppError(
             "PAYMENT_CUSTOMER_EMAIL_REQUIRED",
@@ -474,7 +474,6 @@ RECEIPT_SEQUENCE = {
     ReceiptLifecycleStatus.REVERSED: 4,
 }
 
-LIABILITY_FORMULA_VERSION = "rate-cap-vehicle-days-v1"
 # payout_v4 reservations store the day rate in hourly_rate with a cap of one
 # day unit; the distinct version keeps those columns unambiguous.
 DAILY_RATE_LIABILITY_FORMULA_VERSION = "day-rate-vehicle-days-v1"
@@ -501,7 +500,7 @@ def _aware_utc(value: datetime) -> datetime:
 
 
 def _stored_aware_utc(value: datetime) -> datetime:
-    """Normalize a trusted DB timestamp (SQLite reflection drops tzinfo)."""
+    """Normalize a trusted DB timestamp to UTC."""
     if value.tzinfo is None or value.utcoffset() is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
@@ -1088,8 +1087,7 @@ async def record_payment_receipt(
                 Decimal(str(amount)) == Decimal(gateway_event.amount),
                 currency.strip().upper() == gateway_event.currency,
                 payer_name.strip() == gateway_event.payer_name,
-                _stored_aware_utc(observed_at)
-                == _stored_aware_utc(gateway_event.occurred_at),
+                _stored_aware_utc(observed_at) == _stored_aware_utc(gateway_event.occurred_at),
             )
         ):
             raise AppError(
@@ -1428,9 +1426,7 @@ async def allocate_payment_receipt(
             "Allocation would exceed the receipt amount",
             status_code=status.HTTP_409_CONFLICT,
         )
-    effective_obligation = await effective_invoice_obligation(
-        session, commercial_terms_id=terms.id
-    )
+    effective_obligation = await effective_invoice_obligation(session, commercial_terms_id=terms.id)
     if Decimal(terms_allocated or 0) + allocation_amount > effective_obligation:
         raise AppError(
             "OBLIGATION_OVERFUNDING",
@@ -1741,8 +1737,6 @@ async def create_invoice_draft(
 async def _acquire_invoice_number_lock(
     session: AsyncSession, number_prefix: str, calendar_year: int
 ) -> None:
-    if session.get_bind().dialect.name != "postgresql":
-        return
     digest = hashlib.sha256(f"invoice:{number_prefix}:{calendar_year}".encode()).digest()
     lock_key = int.from_bytes(digest[:8], byteorder="big", signed=True)
     await session.execute(select(func.pg_advisory_xact_lock(lock_key)))
@@ -2397,9 +2391,7 @@ class AssignmentLiabilityCalculation:
 
 
 def _liability_formula_version(binding: AssignmentRuleBinding) -> str:
-    if binding.formula_version == "payout_v4":
-        return DAILY_RATE_LIABILITY_FORMULA_VERSION
-    return LIABILITY_FORMULA_VERSION
+    return DAILY_RATE_LIABILITY_FORMULA_VERSION
 
 
 async def _assignment_liability_calculation(
@@ -2421,16 +2413,10 @@ async def _assignment_liability_calculation(
     binding = await session.scalar(
         select(AssignmentRuleBinding).where(AssignmentRuleBinding.assignment_id == assignment.id)
     )
-    daily_rate = binding is not None and binding.formula_version == "payout_v4"
-    frozen_ceiling = (
-        None
-        if binding is None
-        else binding.daily_rate_naira
-        if daily_rate
-        else binding.daily_payable_hours_cap
-    )
+    frozen_ceiling = None if binding is None else binding.daily_rate_naira
     if (
         binding is None
+        or binding.formula_version != "payout_v4"
         or frozen_ceiling is None
         or binding.campaign_window_start_at is None
         or binding.campaign_window_end_at is None
@@ -2443,16 +2429,7 @@ async def _assignment_liability_calculation(
     start_date = _stored_aware_utc(binding.campaign_window_start_at).astimezone(LAGOS_TZ).date()
     end_date = _stored_aware_utc(binding.campaign_window_end_at).astimezone(LAGOS_TZ).date()
     covered_days = max(1, (end_date - start_date).days + 1)
-    if daily_rate:
-        # payout_v4 pays at most one full day rate per driver per campaign
-        # day, so the ceiling is day rate x one "day" unit per covered day.
-        rate, cap = Decimal(binding.daily_rate_naira), Decimal("1")
-    else:
-        rate = max(
-            Decimal(binding.hourly_rate_naira),
-            Decimal(binding.premium_hourly_rate_naira or binding.hourly_rate_naira),
-        )
-        cap = Decimal(binding.daily_payable_hours_cap)
+    rate, cap = Decimal(binding.daily_rate_naira), Decimal("1")
     requested = (rate * cap * covered_days).quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)
     if requested <= 0:
         raise AppError(
@@ -2691,9 +2668,7 @@ async def record_expedited_production_waiver(
 
 
 async def _fully_funded_at(session: AsyncSession, terms: CommercialTerms) -> datetime | None:
-    obligation = await effective_invoice_obligation(
-        session, commercial_terms_id=terms.id
-    )
+    obligation = await effective_invoice_obligation(session, commercial_terms_id=terms.id)
     if obligation == 0:
         return await database_clock(session)
     cumulative = Decimal("0.00")
@@ -2716,9 +2691,12 @@ async def record_production_start(
     await _campaign(session, campaign_id, lock=True)
     from app.models.campaign_cancellation import CampaignCancellation
 
-    if await session.scalar(
-        select(CampaignCancellation.id).where(CampaignCancellation.campaign_id == campaign_id)
-    ) is not None:
+    if (
+        await session.scalar(
+            select(CampaignCancellation.id).where(CampaignCancellation.campaign_id == campaign_id)
+        )
+        is not None
+    ):
         raise AppError(
             "CAMPAIGN_FINANCIAL_CUTOFF",
             "Cancelled campaign production cannot start",
@@ -2822,9 +2800,12 @@ async def assert_new_work_authorized(
 ) -> None:
     from app.models.campaign_cancellation import CampaignCancellation
 
-    if await session.scalar(
-        select(CampaignCancellation.id).where(CampaignCancellation.campaign_id == campaign_id)
-    ) is not None:
+    if (
+        await session.scalar(
+            select(CampaignCancellation.id).where(CampaignCancellation.campaign_id == campaign_id)
+        )
+        is not None
+    ):
         raise AppError(
             "CAMPAIGN_FINANCIAL_CUTOFF",
             "The campaign cancellation cutoff blocks new work",
@@ -2896,9 +2877,7 @@ async def assert_campaign_production_authorized(
             "Campaign activation requires accepted terms and current production authority",
             status_code=status.HTTP_409_CONFLICT,
         )
-    usable = await _authorization_usable_liability(
-        session, authorization, effective_at=now
-    )
+    usable = await _authorization_usable_liability(session, authorization, effective_at=now)
     if authorization.authority_type == FinancialAuthorityType.APPROVED_CREDIT:
         if usable <= 0:
             raise AppError(
@@ -3528,9 +3507,7 @@ async def effective_invoice_obligation(
 async def _historical_fully_funded_at(
     session: AsyncSession, terms: CommercialTerms
 ) -> datetime | None:
-    obligation = await effective_invoice_obligation(
-        session, commercial_terms_id=terms.id
-    )
+    obligation = await effective_invoice_obligation(session, commercial_terms_id=terms.id)
     if obligation == 0:
         return terms.accepted_at
     cumulative = Decimal("0.00")
@@ -3629,9 +3606,7 @@ async def record_refund_settlement(
         return (
             candidate.commercial_terms_id == terms.id
             and candidate.receipt_id == receipt.id
-            and candidate.cancellation_id == (
-                cancellation.id if cancellation is not None else None
-            )
+            and candidate.cancellation_id == (cancellation.id if cancellation is not None else None)
             and Decimal(candidate.amount) == refund_amount
             and candidate.settlement_provider == provider
             and candidate.external_reference == reference

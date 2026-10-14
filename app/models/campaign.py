@@ -38,11 +38,6 @@ def compile_character_length(element, compiler, **kwargs) -> str:
     return f"char_length({compiler.process(element.clauses, **kwargs)})"
 
 
-@compiles(CharacterLength, "sqlite")
-def compile_sqlite_character_length(element, compiler, **kwargs) -> str:
-    return f"length({compiler.process(element.clauses, **kwargs)})"
-
-
 class CampaignStatus(StrEnum):
     DRAFT = "draft"
     PENDING_REVIEW = "pending_review"
@@ -136,9 +131,7 @@ class Campaign(Base):
     end_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     budget_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     daily_budget_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
-    currency: Mapped[str] = mapped_column(
-        String(3), server_default=text("'NGN'"), nullable=False
-    )
+    currency: Mapped[str] = mapped_column(String(3), server_default=text("'NGN'"), nullable=False)
     campaign_metadata: Mapped[dict[str, Any]] = mapped_column(
         "metadata",
         JSON().with_variant(postgresql.JSONB(), "postgresql"),
@@ -224,8 +217,7 @@ class CampaignCreative(Base):
             name="ck_campaign_creatives_placement",
         ),
         CheckConstraint(
-            "status IN ('draft', 'pending_review', 'approved', 'rejected', "
-            "'ready', 'archived')",
+            "status IN ('draft', 'pending_review', 'approved', 'rejected', 'ready', 'archived')",
             name="ck_campaign_creatives_status",
         ),
         CheckConstraint(

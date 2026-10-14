@@ -96,15 +96,11 @@ def test_change_preview_is_exact_and_creates_no_campaign_request_revision_or_aud
             return (
                 int(await session.scalar(select(func.count()).select_from(Campaign)) or 0),
                 int(
-                    await session.scalar(
-                        select(func.count()).select_from(CampaignChangeRequest)
-                    )
+                    await session.scalar(select(func.count()).select_from(CampaignChangeRequest))
                     or 0
                 ),
                 int(
-                    await session.scalar(
-                        select(func.count()).select_from(CampaignChangeRevision)
-                    )
+                    await session.scalar(select(func.count()).select_from(CampaignChangeRevision))
                     or 0
                 ),
                 int(await session.scalar(select(func.count()).select_from(AuditEvent)) or 0),
@@ -190,15 +186,11 @@ def test_change_confirmation_rejects_stale_preview_and_duplicate_converges(
         async with db_sessionmaker() as session:
             return (
                 int(
-                    await session.scalar(
-                        select(func.count()).select_from(CampaignChangeRequest)
-                    )
+                    await session.scalar(select(func.count()).select_from(CampaignChangeRequest))
                     or 0
                 ),
                 int(
-                    await session.scalar(
-                        select(func.count()).select_from(CampaignChangeRevision)
-                    )
+                    await session.scalar(select(func.count()).select_from(CampaignChangeRevision))
                     or 0
                 ),
                 int(
@@ -226,9 +218,7 @@ def change_graph(db_sessionmaker, suffix: str):
         password=PASSWORD,
         role=UserRole.ADVERTISER,
     )
-    organization, _ = create_test_organization(
-        db_sessionmaker, owner_user_id=advertiser.id
-    )
+    organization, _ = create_test_organization(db_sessionmaker, owner_user_id=advertiser.id)
     now = datetime.now(UTC)
     campaign = create_test_campaign(
         db_sessionmaker,
@@ -356,10 +346,10 @@ def test_campaign_change_retry_conflict_and_tenant_isolation(
     request_id = uuid4()
     headers = auth_headers(db_client, advertiser.email, PASSWORD)
     first_payload = {
-            "client_request_id": str(request_id),
-            "budget_amount": "1100.00",
-            "reason": "First payload",
-        }
+        "client_request_id": str(request_id),
+        "budget_amount": "1100.00",
+        "reason": "First payload",
+    }
     _, first = _preview_and_confirm(
         db_client, campaign_id=campaign.id, headers=headers, payload=first_payload
     )
@@ -450,9 +440,7 @@ def test_earlier_future_start_is_classified_as_an_expansion(
         password=PASSWORD,
         role=UserRole.ADVERTISER,
     )
-    organization, _ = create_test_organization(
-        db_sessionmaker, owner_user_id=advertiser.id
-    )
+    organization, _ = create_test_organization(db_sessionmaker, owner_user_id=advertiser.id)
     now = datetime.now(UTC)
     current_start = now + timedelta(days=5)
     proposed_start = (current_start - timedelta(minutes=30)).astimezone(
@@ -528,13 +516,15 @@ def test_funding_and_change_approval_serialize_without_overauthorization_pg(
                 AssignmentRuleBinding(
                     assignment_id=assignment.id,
                     revision_id=payout_revision.id,
-                    hourly_rate_naira="1000.00",
-                    premium_hourly_rate_naira="1500.00",
-                    daily_payable_hours_cap="8.00",
+                    daily_rate_naira="12000.00",
+                    daily_target_miles="70.00",
+                    shortfall_strategy="proportional",
+                    minimum_miles="0.00",
+                    outside_area_weight="1.00",
                     currency="NGN",
                     eligibility_params={},
                     resolved_eligibility_params={},
-                    formula_version="payout_v3",
+                    formula_version="payout_v4",
                     premium_zone_ids=[],
                     premium_zone_geometry_hash="0" * 64,
                     premium_zone_geometry_wkts=[],
@@ -655,9 +645,9 @@ def test_funding_and_change_approval_serialize_without_overauthorization_pg(
                 raise AssertionError("changed decision retry should fail closed")
 
     asyncio.run(record_pending_and_replays())
-    assert [
-        event.action for event in fetch_audit_events(postgis_db_sessionmaker)
-    ].count("admin.campaign_change.pending_funding") == 1
+    assert [event.action for event in fetch_audit_events(postgis_db_sessionmaker)].count(
+        "admin.campaign_change.pending_funding"
+    ) == 1
 
     start = asyncio.Event()
 
@@ -706,9 +696,7 @@ def test_funding_and_change_approval_serialize_without_overauthorization_pg(
                 )
                 await session.commit()
             request = await session.get(CampaignChangeRequest, change_request_id)
-            reserved = await reserved_campaign_liability_total(
-                session, campaign_id=campaign.id
-            )
+            reserved = await reserved_campaign_liability_total(session, campaign_id=campaign.id)
             binding = await session.scalar(
                 select(AssignmentRuleBinding).where(
                     AssignmentRuleBinding.assignment_id == assignment.id
@@ -722,9 +710,7 @@ def test_funding_and_change_approval_serialize_without_overauthorization_pg(
             )
             return request, reserved, binding, current_campaign, int(binding_count or 0)
 
-    request, reserved, binding, current_campaign, binding_count = asyncio.run(
-        race_and_converge()
-    )
+    request, reserved, binding, current_campaign, binding_count = asyncio.run(race_and_converge())
     assert request.status == "applied"
     assert request.authorization_id is not None
     assert reserved == 12000
@@ -738,7 +724,9 @@ def test_funding_and_change_approval_serialize_without_overauthorization_pg(
 
 @pytest.mark.parametrize("rollback", [False, True])
 def test_postgres_campaign_change_and_disclosure_snapshot_do_not_deadlock(
-    postgis_db_sessionmaker, monkeypatch, rollback,
+    postgis_db_sessionmaker,
+    monkeypatch,
+    rollback,
 ):
     from sqlalchemy import text
 
@@ -746,6 +734,7 @@ def test_postgres_campaign_change_and_disclosure_snapshot_do_not_deadlock(
     from app.services.disclosure import lock_trip_disclosure_snapshot
 
     _, advertiser, campaign = change_graph(postgis_db_sessionmaker, "snapshot-overlap")
+
     async def confirmed_payload():
         async with postgis_db_sessionmaker() as session:
             return await _service_confirmation_payload(
@@ -827,7 +816,8 @@ def test_postgres_campaign_change_and_disclosure_snapshot_do_not_deadlock(
 
 @pytest.mark.parametrize("issuance", [False, True])
 def test_postgres_campaign_change_waits_for_an_existing_disclosure_snapshot(
-    postgis_db_sessionmaker, issuance,
+    postgis_db_sessionmaker,
+    issuance,
 ):
     from sqlalchemy import text
 
@@ -835,6 +825,7 @@ def test_postgres_campaign_change_waits_for_an_existing_disclosure_snapshot(
     from app.services.payout_rule_serialization import acquire_campaign_terms_lock
 
     _, advertiser, campaign = change_graph(postgis_db_sessionmaker, "snapshot-first")
+
     async def confirmed_payload():
         async with postgis_db_sessionmaker() as session:
             return await _service_confirmation_payload(

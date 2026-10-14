@@ -32,8 +32,9 @@ When the client, the PM or the owner changes or adds a rule:
    link them under **Still open**; do not copy the question text here.
 5. When the work merges, add "Built in `<commit>`" to the history line.
 
-Accepted work is never repriced or silently changed: a new rule applies to new
-acceptances unless a D-row says otherwise (D14, D21).
+Live accepted work is never repriced or silently changed (D14, D21, D80).
+There is no live data yet: D80 removes obsolete development payout v1?v3 and
+evidence v1 instead of preserving their old formats (REQ-161).
 
 ## Topics
 
@@ -331,11 +332,11 @@ the day**: miles counted ÷ expected miles × ₦10,000 (50 of 70 miles =
 ₦7,143), with **no minimum distance**. **Only miles inside the campaign area
 count**. Covering more than the expected miles earns no more than the day rate.
 Rates are set per campaign on an audited revision and frozen when the driver
-accepts; "on request" areas may have their own rate (D39a, D43a–c). Work
-accepted under hourly pay keeps its rules (D14, D21). Switching daily-rate pay
+accepts; "on request" areas may have their own rate (D39a, D43a–c). D80 removes the obsolete hourly engines: there is no live accepted hourly work. Switching daily-rate pay
 on for real campaigns: [REQ-048](requests.md).
 
 **History:**
+- **2026-10-13** ? Owner approved removal of obsolete development payout v1?v3/evidence v1 and SQLite paths, with no live data; current daily-rate and frozen-evidence protections remain (D80, REQ-161). Implementation pending.
 - **2026-07 to 2026-08-04** — Fixed naira amount **per hour** of verified time, with a daily cap on payable hours (D2, D4); built as `payout_v1` and `payout_v2` (D9, 30 Jul); reconfirmed against the proposal (D12, 4 Aug).
 - **2026-08-14** — Client set one platform hourly rate with an admin campaign override, and a higher (premium) hourly rate inside the primary zone (Q4, Q5, D18). Built as `payout_v3`.
 - **2026-09-24** — Client's answer gave per-mile figures (₦140 inside the primary zone, ₦50 outside, 70 miles a day) and a ₦10,000 daily rate for special locations (client answers item 2).

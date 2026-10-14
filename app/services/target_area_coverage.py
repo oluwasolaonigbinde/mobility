@@ -354,9 +354,6 @@ async def calculate_synthetic_target_area_coverage(
         return _omitted("disclosure_clearance_absent", provenance_sha256)
     included_cells = [cell for cell in normalized["fixed_cells"] if cell["cell_id"] in included_ids]
 
-    if session.get_bind().dialect.name != "postgresql":
-        return _omitted("postgis_unavailable", provenance_sha256)
-
     zone_json = json.dumps(
         normalized["target_zone"]["geometry"], separators=(",", ":"), sort_keys=True
     )

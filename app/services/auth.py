@@ -168,8 +168,6 @@ async def _serialize_login_attempts(session: AsyncSession, email: str) -> None:
     attempts would queue (on its row lock) and concurrent timing would reveal
     which e-mails exist. Only login takes this lock, always before the row lock.
     """
-    if session.get_bind().dialect.name != "postgresql":
-        return
     digest = hashlib.sha256(f"auth-login:{normalize_email(email)}".encode()).digest()
     lock_key = int.from_bytes(digest[:8], byteorder="big", signed=True)
     await session.execute(select(func.pg_advisory_xact_lock(lock_key)))

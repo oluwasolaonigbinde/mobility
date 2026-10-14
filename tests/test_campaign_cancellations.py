@@ -3,7 +3,6 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
-import pytest
 from conftest import (
     auth_headers,
     create_test_campaign_assignment,
@@ -11,11 +10,10 @@ from conftest import (
     fetch_location_ping_batches,
     fetch_payout_calculations,
 )
+from payout_fixtures import build_v4_graph, drive
 from sqlalchemy import func, select
 from test_campaign_assignments import create_assignment_ready_graph
 from test_financial_authority import _fixture, _funded_terms
-from test_payouts_v2 import build_v2_graph, moving_points, pipeline_to_v2
-from test_payouts_v3 import bind_v2_graph
 from test_trip_analytics import BASE_TIME, add_pings, create_analytics_graph
 from test_trips import create_trip_ready_graph, ping_payload
 
@@ -346,30 +344,18 @@ def test_analytics_recompute_clips_at_the_same_immutable_cutoff(
     assert recomputed.json()["metadata"]["financial_cutoff_at"] == cutoff.isoformat()
 
 
-@pytest.mark.parametrize(
-    ("bound_v3", "formula_version", "expected_amount"),
-    [(False, "payout_v2", Decimal("300.00")), (True, "payout_v3", Decimal("250.00"))],
-)
 def test_pre_cutoff_time_pays_and_post_cutoff_time_never_enters_payout(
     postgis_db_sessionmaker,
     settings,
     monkeypatch,
-    bound_v3,
-    formula_version,
-    expected_amount,
 ) -> None:
-    graph = build_v2_graph(
+    graph = build_v4_graph(
         postgis_db_sessionmaker,
-        f"cancel-{formula_version}",
+        settings,
+        "cancel-daily",
+        daily_rate_naira=Decimal("600.00"),
+        daily_target_miles=Decimal("10.00"),
     )
-    if bound_v3:
-        bind_v2_graph(
-            postgis_db_sessionmaker,
-            settings,
-            graph,
-            base="1000.00",
-            premium="2000.00",
-        )
     cutoff = graph.trip.started_at + timedelta(minutes=15)
 
     async def fixed_cutoff(_session):
@@ -390,20 +376,17 @@ def test_pre_cutoff_time_pays_and_post_cutoff_time_never_enters_payout(
 
     monkeypatch.setattr(campaign_cancellations, "database_clock", fixed_cutoff)
     asyncio.run(cancel())
-    result = pipeline_to_v2(
-        postgis_db_sessionmaker,
-        settings,
-        graph,
-        points=moving_points(graph.trip.started_at),
-        idempotency_key=f"cancel-{formula_version}-pings",
-    )
-
-    assert result.overall == "completed"
+    drive(postgis_db_sessionmaker, settings, graph.trip)
     calculation = fetch_payout_calculations(postgis_db_sessionmaker)[0]
-    assert calculation.formula_version == formula_version
+    assert calculation.formula_version == "payout_v4"
     assert calculation.eligible_seconds == 900
-    assert calculation.payable_seconds == 900
-    assert calculation.final_payout == expected_amount
+    # 30 accepted segments of approximately 89.57 m precede the cutoff;
+    # only those metres may contribute to the proportional daily rate.
+    distance = sum(calculation.distance_m_by_day.values())
+    assert 2600 <= distance <= 2750
+    assert calculation.final_payout == (
+        Decimal(distance) / Decimal("1609.344") / Decimal("10") * Decimal("600")
+    ).quantize(Decimal("0.01"))
     assert calculation.payout_metadata["financial_cutoff_at"] == cutoff.isoformat()
     assert calculation.payout_metadata["recorded_trip_end_at"] == graph.trip.ended_at.isoformat()
 
@@ -456,9 +439,7 @@ def test_cancellation_and_trip_start_race_never_creates_post_cutoff_work(
         outcomes = await asyncio.wait_for(asyncio.gather(cancel(), start()), timeout=10)
         async with postgis_db_sessionmaker() as session:
             cancellation = await session.scalar(
-                select(CampaignCancellation).where(
-                    CampaignCancellation.campaign_id == campaign.id
-                )
+                select(CampaignCancellation).where(CampaignCancellation.campaign_id == campaign.id)
             )
             trips = list(
                 await session.scalars(

@@ -18,11 +18,10 @@ from conftest import (
     fetch_location_pings,
     fetch_trip_sessions,
 )
+from payout_fixtures import create_v4_revision, create_v4_rule
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status as http_status
-from test_payouts_v2 import create_v2_rule
-from test_payouts_v3 import create_revision_row
 
 import app.services.trips as trips_service
 from app.core.config import Settings
@@ -36,7 +35,7 @@ from app.models.campaign_assignment import (
 )
 from app.models.driver import DriverOnboardingStatus, DriverProfile
 from app.models.payout import AssignmentRuleBinding
-from app.models.trip import TripSession, TripSessionStatus
+from app.models.trip import LocationPingBatch, TripSession, TripSessionStatus
 from app.models.user import UserRole
 from app.models.vehicle import Vehicle, VehicleStatus
 from app.schemas.trips import (
@@ -133,9 +132,11 @@ def create_trip_ready_graph(
                 AssignmentRuleBinding(
                     assignment_id=assignment.id,
                     revision_id=payout_revision.id,
-                    hourly_rate_naira=Decimal("1.00"),
-                    premium_hourly_rate_naira=None,
-                    daily_payable_hours_cap=Decimal("1.00"),
+                    daily_rate_naira=Decimal("1.00"),
+                    daily_target_miles=Decimal("8.00"),
+                    shortfall_strategy="proportional",
+                    minimum_miles=Decimal("0"),
+                    outside_area_weight=Decimal("1"),
                     currency="NGN",
                     eligibility_params={},
                     resolved_eligibility_params=resolved_eligibility_snapshot(
@@ -143,14 +144,14 @@ def create_trip_ready_graph(
                     )
                     if eligibility_settings is not None
                     else {},
-                    formula_version="payout_v3",
+                    formula_version="payout_v4",
                     premium_zone_ids=[],
                     premium_zone_geometry_hash=empty_geometry_hash,
                     premium_zone_geometry_wkts=[],
                     exclusion_zone_ids=[],
                     exclusion_zone_geometry_hash=empty_geometry_hash,
                     exclusion_zone_geometry_wkts=[],
-                    stationary_policy_marker="stationary-rd-v1",
+                    stationary_policy_marker="d39-stop-5min-v1",
                     campaign_window_start_at=campaign.start_at or PAST,
                     campaign_window_end_at=campaign.end_at or FUTURE,
                     campaign_window_frozen=True,
@@ -216,22 +217,15 @@ def create_trip_ready_graph(
         # Trip tests exercise the trip protocol, not a funding bypass. Give
         # their graph genuine synthetic commercial authority and a reserve so
         # the production fail-closed gate is identical in tests and runtime.
-        rule = create_v2_rule(
-            db_sessionmaker,
-            campaign_id=campaign.id,
-            created_by_user_id=admin.id,
-            hourly_rate="1.00",
-            daily_cap_hours="1.00",
-            rule_status="inactive",
+        rule = create_v4_rule(
+            db_sessionmaker, campaign_id=campaign.id, admin_id=admin.id, rule_status="inactive"
         )
-        payout_revision = create_revision_row(
+        payout_revision = create_v4_revision(
             db_sessionmaker,
             campaign_id=campaign.id,
             rule_id=rule.id,
-            created_by_user_id=admin.id,
-            base="1.00",
-            premium=None,
-            cap="1.00",
+            admin_id=admin.id,
+            daily_rate_naira="1.00",
         )
         asyncio.run(add_financial_authority(payout_revision))
     return admin, campaign, driver, profile, vehicle, assignment
@@ -1010,7 +1004,11 @@ def test_postgres_trip_summary_and_batch_count_preserve_replay_and_isolation(
             trip = await session.get(TripSession, identifier)
             assert trip is not None
             summary = await trips_service.summarize_trip(session, trip)
-            batches = await trips_service.count_trip_batches(session, identifier)
+            batches = await session.scalar(
+                select(func.count(LocationPingBatch.id)).where(
+                    LocationPingBatch.trip_session_id == identifier
+                )
+            )
             return summary.ping_count, summary.first_ping_at, summary.last_ping_at, batches
 
     assert asyncio.run(summary_counts(trip_id)) == (0, None, None, 0)

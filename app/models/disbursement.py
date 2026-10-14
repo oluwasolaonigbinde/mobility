@@ -87,9 +87,7 @@ CARDVERT_AUTOMATIC_PAYOUT_ACTOR_EMAIL = "automatic-payouts@cardvert.invalid"
 CARDVERT_AUTOMATIC_PAYOUT_ACTOR_NAME = "Cardvert (automatic payouts)"
 
 
-# PostgreSQL compares the literal as a uuid; a SQLite unit-test schema stores
-# UUIDs as 32 hex digits, so the literal never matches there (no automatic batch
-# exists in those schemas and a manual maker is never the actor).
+# PostgreSQL compares this literal against the automatic actor UUID.
 _ACTOR_SQL = f"'{CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID}'"
 _APPROVAL_MODE_CHECK = (
     f"(approval_mode = 'maker_checker' AND automatic_run_id IS NULL "
@@ -208,21 +206,18 @@ class PayoutBatchLine(Base):
             "uq_payout_batch_lines_active_ledger_entry",
             "ledger_entry_id",
             unique=True,
-            sqlite_where=text("reservation_active = true"),
             postgresql_where=text("reservation_active = true"),
         ),
         Index(
             "uq_payout_batch_lines_provider_transfer_reference",
             "provider_transfer_reference",
             unique=True,
-            sqlite_where=text("provider_transfer_reference IS NOT NULL"),
             postgresql_where=text("provider_transfer_reference IS NOT NULL"),
         ),
         Index(
             "uq_payout_batch_lines_predecessor",
             "predecessor_line_id",
             unique=True,
-            sqlite_where=text("predecessor_line_id IS NOT NULL"),
             postgresql_where=text("predecessor_line_id IS NOT NULL"),
         ),
     )
@@ -317,7 +312,6 @@ class PayoutSubmissionIntent(Base):
             "uq_payout_submission_intents_provider_transfer_reference",
             "provider_transfer_reference",
             unique=True,
-            sqlite_where=text("provider_transfer_reference IS NOT NULL"),
             postgresql_where=text("provider_transfer_reference IS NOT NULL"),
         ),
     )
@@ -848,7 +842,6 @@ class PayoutDebtObligation(Base):
             "uq_payout_debt_obligations_direct_reversal",
             "source_reversal_entry_id",
             unique=True,
-            sqlite_where=text("recovery_incident_id IS NULL"),
             postgresql_where=text("recovery_incident_id IS NULL"),
         ),
     )
@@ -1052,7 +1045,6 @@ class PayoutAutomaticAlert(Base):
         Index(
             "ix_payout_automatic_alerts_open",
             "created_at",
-            sqlite_where=text("resolved_at IS NULL"),
             postgresql_where=text("resolved_at IS NULL"),
         ),
     )

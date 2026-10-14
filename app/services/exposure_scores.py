@@ -244,8 +244,6 @@ async def exposure_score_is_stale(session: AsyncSession, score: ExposureScore) -
 async def _score_lock(
     session: AsyncSession, measurement_run_id: UUID, formula_version: str
 ) -> None:
-    if session.get_bind().dialect.name != "postgresql":
-        return
     digest = hashlib.sha256(
         f"exposure-score:{measurement_run_id}:{formula_version}".encode()
     ).digest()[:8]

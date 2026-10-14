@@ -75,7 +75,6 @@ class EvidenceVerification(Base):
             "verification_type",
             "source_trip_session_id",
             unique=True,
-            sqlite_where=text("verification_type <> 'physical_spot_check'"),
             postgresql_where=text("verification_type <> 'physical_spot_check'"),
         ),
         Index(
@@ -83,7 +82,6 @@ class EvidenceVerification(Base):
             "issued_by_user_id",
             "client_request_id",
             unique=True,
-            sqlite_where=text("client_request_id IS NOT NULL"),
             postgresql_where=text("client_request_id IS NOT NULL"),
         ),
         Index("ix_evidence_verifications_fraud_flag", "fraud_flag_id"),

@@ -971,9 +971,6 @@ async def upsert_trips_and_pings(
             session.add(trip)
             await session.flush()
         else:
-            if trip.evidence_protocol_version == 1:
-                trips.append(trip)
-                continue
             started_at = trip.started_at
             ended_at = trip.ended_at or started_at + timedelta(minutes=42)
         await ensure_ping_batch(
@@ -1428,16 +1425,6 @@ async def upsert_payout_rule(
         "formula_version": "payout_v4",
         "status": CampaignPayoutRuleStatus.ACTIVE.value,
         "currency": "NGN",
-        "base_rate_per_km": None,
-        "base_rate_per_active_hour": None,
-        "target_zone_bonus_rate_per_km": None,
-        "bonus_zone_bonus_rate_per_km": None,
-        "estimated_impression_rate_per_1000": None,
-        "min_payout_per_trip": None,
-        "max_payout_per_trip": None,
-        "low_fraud_multiplier": None,
-        "medium_fraud_multiplier": None,
-        "high_fraud_multiplier": None,
         "rule_metadata": demo_metadata(),
     }
     if values["status"] == CampaignPayoutRuleStatus.ACTIVE.value:

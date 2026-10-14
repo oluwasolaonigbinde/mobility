@@ -34,7 +34,6 @@ class RetargetingSourceLink(Base):
             "end_at",
             unique=True,
             postgresql_where=text("status = 'active'"),
-            sqlite_where=text("status = 'active'"),
         ),
     )
 

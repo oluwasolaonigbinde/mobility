@@ -74,8 +74,6 @@ async def lock_fraud_reconciliation_gate(
     exclusive: bool,
 ) -> None:
     """Gate cross-trip reconciliation against ordinary per-trip consumers."""
-    if session.get_bind().dialect.name != "postgresql":
-        return
     function = "pg_advisory_xact_lock" if exclusive else "pg_advisory_xact_lock_shared"
     await session.execute(
         text(f"SELECT {function}(:key)"),
@@ -92,14 +90,11 @@ async def lock_fraud_hold_scope(
     """Serialize detection, review, fraud-derived pricing and later release."""
     if not reconciliation_gate_held:
         await lock_fraud_reconciliation_gate(session, exclusive=False)
-    if session.get_bind().dialect.name == "postgresql":
-        await session.execute(
-            text("SELECT pg_advisory_xact_lock(:key)"),
-            {"key": _trip_lock_key(trip_id)},
-        )
     await session.execute(
-        select(TripSession.id).where(TripSession.id == trip_id).with_for_update()
+        text("SELECT pg_advisory_xact_lock(:key)"),
+        {"key": _trip_lock_key(trip_id)},
     )
+    await session.execute(select(TripSession.id).where(TripSession.id == trip_id).with_for_update())
 
 
 async def lock_fraud_hold_scopes(
@@ -172,9 +167,7 @@ async def _flag_stub(session: AsyncSession, flag_id: UUID) -> tuple[UUID, UUID] 
 
 
 async def _locked_flag(session: AsyncSession, flag_id: UUID) -> FraudFlag | None:
-    return await session.scalar(
-        select(FraudFlag).where(FraudFlag.id == flag_id).with_for_update()
-    )
+    return await session.scalar(select(FraudFlag).where(FraudFlag.id == flag_id).with_for_update())
 
 
 async def _review_fraud_flag(
@@ -214,12 +207,10 @@ async def _review_fraud_flag(
     flag.reviewed_at = reviewed_at
     flag.resolution_note = normalized_note
     # The DB-derived worker sweep uses the flag update watermark to reselect a
-    # now-stale assessment. Assign the application timestamp explicitly rather
-    # than relying on SQLite's lower-precision CURRENT_TIMESTAMP in tests.
+    # now-stale assessment. Keep this watermark strictly increasing even if
+    # the injected review time precedes the prior database timestamp.
     update_watermark = reviewed_at
-    if flag.updated_at is not None and _aware_utc(update_watermark) <= _aware_utc(
-        flag.updated_at
-    ):
+    if flag.updated_at is not None and _aware_utc(update_watermark) <= _aware_utc(flag.updated_at):
         update_watermark = _aware_utc(flag.updated_at) + timedelta(microseconds=1)
     flag.updated_at = update_watermark
     await session.flush()

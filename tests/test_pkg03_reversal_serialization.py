@@ -5,11 +5,10 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from conftest import create_test_display_proof
+from payout_fixtures import create_v4_revision, create_v4_rule, insert_v4_binding
 from sqlalchemy import select
 from test_campaign_assignments import create_assignment_ready_graph, create_postgres_offer
 from test_financial_authority import _fixture, _funded_terms
-from test_payouts_v2 import create_v2_rule
-from test_payouts_v3 import create_revision_row, insert_binding
 from test_trips import create_trip_ready_graph
 
 from app.core.errors import AppError
@@ -38,9 +37,7 @@ from app.services.payout_rule_serialization import acquire_campaign_terms_lock
 from app.services.trips import start_driver_trip
 
 
-async def _blocked_reversal(
-    sessionmaker, *, receipt_id, admin_id, receipt_locked: asyncio.Event
-):
+async def _blocked_reversal(sessionmaker, *, receipt_id, admin_id, receipt_locked: asyncio.Event):
     async with sessionmaker() as session:
         await session.scalar(
             select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
@@ -150,16 +147,14 @@ def test_campaign_activation_commits_before_waiting_reversal_cutoff(
 
     rule_id = asyncio.run(current_rule_id())
     assert rule_id is not None
-    create_revision_row(
+    create_v4_revision(
         postgis_db_sessionmaker,
         campaign_id=campaign.id,
         rule_id=rule_id,
-        created_by_user_id=admin.id,
+        admin_id=admin.id,
         number=2,
         effective_from=now - timedelta(minutes=30),
-        base="1.00",
-        premium="1.00",
-        cap="1.00",
+        daily_rate_naira="1.00",
     )
     assignment_id = create_postgres_offer(
         postgis_db_sessionmaker, settings, admin, campaign, profile, vehicle
@@ -300,24 +295,20 @@ def test_trip_start_commits_before_waiting_reversal_cutoff(
     )
     owner_id = campaign.created_by_user_id
     organization_id = campaign.organization_id
-    rule = create_v2_rule(
+    rule = create_v4_rule(
         postgis_db_sessionmaker,
         campaign_id=campaign.id,
-        created_by_user_id=admin.id,
-        hourly_rate="1.00",
-        daily_cap_hours="1.00",
+        admin_id=admin.id,
         rule_status="inactive",
     )
-    revision = create_revision_row(
+    revision = create_v4_revision(
         postgis_db_sessionmaker,
         campaign_id=campaign.id,
         rule_id=rule.id,
-        created_by_user_id=admin.id,
-        base="1.00",
-        premium=None,
-        cap="1.00",
+        admin_id=admin.id,
+        daily_rate_naira="1.00",
     )
-    insert_binding(
+    insert_v4_binding(
         postgis_db_sessionmaker,
         settings,
         assignment_id=assignment.id,

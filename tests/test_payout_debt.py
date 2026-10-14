@@ -6,18 +6,19 @@ from uuid import uuid4
 
 import pytest
 from conftest import auth_headers, create_test_trip_session
+from payout_fixtures import drive
 from sqlalchemy import func, select
 from test_mny03a_earnings_release import NOW, build_graph, create_flag
 from test_payout_batches import _seed_authority
 from test_payout_corrections import (
     approved_order,
+    build_correction_graph,
     correction_entries,
     execute,
-    raise_rule_rate,
+    seed_misposted_amount,
     set_trip_payout_status,
 )
 from test_payout_reconciliation import _admins, _submitted_batch
-from test_payouts_v2 import build_v2_graph, pipeline_to_v2
 
 from app.adapters.disbursement import FakeDisbursementAdapter
 from app.core.errors import AppError
@@ -130,7 +131,7 @@ def test_available_pre_payment_reversal_is_netted_before_batching(db_sessionmake
 def test_actual_paid_credit_type_defines_post_payment_boundary(
     db_sessionmaker, paid_type: str
 ) -> None:
-    graph = build_graph(db_sessionmaker, f"debt-paid-kind-{paid_type}-{uuid4().hex[:6]}")
+    graph = build_graph(db_sessionmaker, f"debt-{paid_type}-{uuid4().hex[:4]}")
 
     async def exercise():
         async with db_sessionmaker() as session:
@@ -709,10 +710,10 @@ def test_admin_debt_balance_hides_missing_driver_profile(db_client, db_sessionma
 def test_approved_post_payment_correction_posts_new_debt_authority(
     postgis_db_sessionmaker, settings
 ) -> None:
-    graph = build_v2_graph(postgis_db_sessionmaker, "debt-correction")
-    pipeline_to_v2(postgis_db_sessionmaker, settings, graph)
+    graph = build_correction_graph(postgis_db_sessionmaker, settings, "debt-correction")
+    drive(postgis_db_sessionmaker, settings, graph.trip)
     set_trip_payout_status(postgis_db_sessionmaker, graph.trip.id, "paid")
-    raise_rule_rate(postgis_db_sessionmaker, graph.rule.id, "900.00")
+    seed_misposted_amount(postgis_db_sessionmaker, graph.trip.id, "750.00")
     order, approver = approved_order(postgis_db_sessionmaker, settings, graph, "debt-correction")
     executed, executed_now = execute(
         postgis_db_sessionmaker,

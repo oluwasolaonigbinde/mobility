@@ -785,11 +785,7 @@ async def unread_notification_count(session: AsyncSession, *, recipient_user_id:
 async def mark_notification_read(
     session: AsyncSession, *, recipient_user_id: UUID, notification_id: UUID
 ) -> Notification:
-    read_at = (
-        func.statement_timestamp()
-        if session.get_bind().dialect.name == "postgresql"
-        else func.current_timestamp()
-    )
+    read_at = func.statement_timestamp()
     notice = await session.scalar(
         update(Notification)
         .where(
@@ -816,11 +812,7 @@ async def mark_notification_read(
 
 
 async def mark_all_notifications_read(session: AsyncSession, *, recipient_user_id: UUID) -> int:
-    read_at = (
-        func.statement_timestamp()
-        if session.get_bind().dialect.name == "postgresql"
-        else func.current_timestamp()
-    )
+    read_at = func.statement_timestamp()
     result = await session.execute(
         update(Notification)
         .where(

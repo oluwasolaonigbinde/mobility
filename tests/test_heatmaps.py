@@ -770,7 +770,7 @@ def test_heatmap_postgis_sql_uses_bbox_filter_and_meter_grid() -> None:
     assert "ST_AsGeoJSON" in service_text
 
 
-def test_heatmap_endpoint_does_not_create_rows_on_sqlite(
+def test_heatmap_endpoint_does_not_create_rows(
     db_client,
     db_sessionmaker,
 ) -> None:
@@ -785,8 +785,7 @@ def test_heatmap_endpoint_does_not_create_rows_on_sqlite(
     )
     after = asyncio.run(count_rows(db_sessionmaker))
 
-    assert response.status_code == http_status.HTTP_400_BAD_REQUEST
-    assert response.json()["error"]["code"] == "POSTGIS_REQUIRED"
+    assert response.status_code == http_status.HTTP_200_OK, response.text
     assert after == before
 
 

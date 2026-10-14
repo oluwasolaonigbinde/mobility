@@ -1650,32 +1650,10 @@
       },
       "AdminPayoutCalculationRead": {
         "properties": {
-          "active_time_component": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Active Time Component"
-          },
           "assignment_id": {
             "format": "uuid",
             "title": "Assignment Id",
             "type": "string"
-          },
-          "bonus_zone_bonus_component": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bonus Zone Bonus Component"
           },
           "calculated_at": {
             "format": "date-time",
@@ -1691,17 +1669,6 @@
             "title": "Campaign Name",
             "type": "string"
           },
-          "cap_adjustment": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cap Adjustment"
-          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -1710,17 +1677,6 @@
           "currency": {
             "title": "Currency",
             "type": "string"
-          },
-          "distance_component": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Distance Component"
           },
           "driver_profile_id": {
             "format": "uuid",
@@ -1767,17 +1723,6 @@
             "title": "Formula Version",
             "type": "string"
           },
-          "fraud_multiplier": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fraud Multiplier"
-          },
           "gross_payout": {
             "anyOf": [
               {
@@ -1793,17 +1738,6 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
-          },
-          "impression_component": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Impression Component"
           },
           "impression_estimate_id": {
             "format": "uuid",
@@ -1836,46 +1770,13 @@
             "title": "Metadata",
             "type": "object"
           },
-          "payable_seconds": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Payable Seconds"
-          },
           "payout_rule_id": {
             "format": "uuid",
             "title": "Payout Rule Id",
             "type": "string"
           },
-          "quality_multiplier": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Quality Multiplier"
-          },
           "status": {
             "$ref": "#/components/schemas/PayoutCalculationStatus"
-          },
-          "target_zone_bonus_component": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target Zone Bonus Component"
           },
           "trip_analytics_id": {
             "format": "uuid",
@@ -1916,18 +1817,9 @@
           "formula_version",
           "status",
           "currency",
-          "distance_component",
-          "active_time_component",
-          "target_zone_bonus_component",
-          "bonus_zone_bonus_component",
-          "impression_component",
           "gross_payout",
-          "quality_multiplier",
-          "fraud_multiplier",
-          "cap_adjustment",
           "final_payout",
           "eligible_seconds",
-          "payable_seconds",
           "excluded_seconds_by_reason",
           "inputs_fingerprint",
           "calculated_at",
@@ -7188,252 +7080,6 @@
         "title": "CampaignMoneyPositionRead",
         "type": "object"
       },
-      "CampaignPayoutRuleCreate": {
-        "additionalProperties": false,
-        "properties": {
-          "base_rate_per_active_hour": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Base Rate Per Active Hour"
-          },
-          "base_rate_per_km": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Base Rate Per Km"
-          },
-          "bonus_zone_bonus_rate_per_km": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bonus Zone Bonus Rate Per Km"
-          },
-          "currency": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Currency"
-          },
-          "daily_payable_hours_cap": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "maximum": 24.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Daily Payable Hours Cap"
-          },
-          "eligibility_params": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Eligibility Params"
-          },
-          "estimated_impression_rate_per_1000": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Estimated Impression Rate Per 1000"
-          },
-          "formula_version": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Formula Version"
-          },
-          "high_fraud_multiplier": {
-            "anyOf": [
-              {
-                "maximum": 1.0,
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "High Fraud Multiplier"
-          },
-          "hourly_rate_naira": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hourly Rate Naira"
-          },
-          "low_fraud_multiplier": {
-            "anyOf": [
-              {
-                "maximum": 1.0,
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Low Fraud Multiplier"
-          },
-          "max_payout_per_trip": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Payout Per Trip"
-          },
-          "medium_fraud_multiplier": {
-            "anyOf": [
-              {
-                "maximum": 1.0,
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Medium Fraud Multiplier"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "title": "Metadata",
-            "type": "object"
-          },
-          "min_payout_per_trip": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Min Payout Per Trip"
-          },
-          "status": {
-            "$ref": "#/components/schemas/CampaignPayoutRuleStatus",
-            "default": "active"
-          },
-          "target_zone_bonus_rate_per_km": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target Zone Bonus Rate Per Km"
-          }
-        },
-        "title": "CampaignPayoutRuleCreate",
-        "type": "object"
-      },
       "CampaignPayoutRuleListResponse": {
         "properties": {
           "items": {
@@ -7467,39 +7113,6 @@
       },
       "CampaignPayoutRuleRead": {
         "properties": {
-          "base_rate_per_active_hour": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Base Rate Per Active Hour"
-          },
-          "base_rate_per_km": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Base Rate Per Km"
-          },
-          "bonus_zone_bonus_rate_per_km": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bonus Zone Bonus Rate Per Km"
-          },
           "campaign_id": {
             "format": "uuid",
             "title": "Campaign Id",
@@ -7519,133 +7132,22 @@
             "title": "Currency",
             "type": "string"
           },
-          "daily_payable_hours_cap": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Daily Payable Hours Cap"
-          },
-          "eligibility_params": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Eligibility Params"
-          },
-          "estimated_impression_rate_per_1000": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Estimated Impression Rate Per 1000"
-          },
           "formula_version": {
             "title": "Formula Version",
             "type": "string"
-          },
-          "high_fraud_multiplier": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "High Fraud Multiplier"
-          },
-          "hourly_rate_naira": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hourly Rate Naira"
           },
           "id": {
             "format": "uuid",
             "title": "Id",
             "type": "string"
           },
-          "low_fraud_multiplier": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Low Fraud Multiplier"
-          },
-          "max_payout_per_trip": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Payout Per Trip"
-          },
-          "medium_fraud_multiplier": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Medium Fraud Multiplier"
-          },
           "metadata": {
             "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
           },
-          "min_payout_per_trip": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Min Payout Per Trip"
-          },
           "status": {
             "$ref": "#/components/schemas/CampaignPayoutRuleStatus"
-          },
-          "target_zone_bonus_rate_per_km": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target Zone Bonus Rate Per Km"
           },
           "updated_at": {
             "format": "date-time",
@@ -7673,93 +7175,10 @@
           "formula_version",
           "status",
           "currency",
-          "base_rate_per_km",
-          "base_rate_per_active_hour",
-          "target_zone_bonus_rate_per_km",
-          "bonus_zone_bonus_rate_per_km",
-          "estimated_impression_rate_per_1000",
-          "min_payout_per_trip",
-          "max_payout_per_trip",
-          "low_fraud_multiplier",
-          "medium_fraud_multiplier",
-          "high_fraud_multiplier",
-          "hourly_rate_naira",
-          "daily_payable_hours_cap",
-          "eligibility_params",
           "created_at",
           "updated_at"
         ],
         "title": "CampaignPayoutRuleRead",
-        "type": "object"
-      },
-      "CampaignPayoutRuleRevisionCreate": {
-        "additionalProperties": false,
-        "properties": {
-          "daily_payable_hours_cap": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "maximum": 24.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              }
-            ],
-            "title": "Daily Payable Hours Cap"
-          },
-          "effective_from": {
-            "format": "date-time",
-            "title": "Effective From",
-            "type": "string"
-          },
-          "eligibility_params": {
-            "additionalProperties": true,
-            "title": "Eligibility Params",
-            "type": "object"
-          },
-          "hourly_rate_naira": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              }
-            ],
-            "title": "Hourly Rate Naira"
-          },
-          "premium_hourly_rate_naira": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Premium Hourly Rate Naira"
-          },
-          "reason": {
-            "title": "Reason",
-            "type": "string"
-          }
-        },
-        "required": [
-          "effective_from",
-          "hourly_rate_naira",
-          "daily_payable_hours_cap",
-          "reason"
-        ],
-        "title": "CampaignPayoutRuleRevisionCreate",
         "type": "object"
       },
       "CampaignPayoutRuleRevisionListResponse": {
@@ -7814,17 +7233,6 @@
             "title": "Currency",
             "type": "string"
           },
-          "daily_payable_hours_cap": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Daily Payable Hours Cap"
-          },
           "daily_rate_naira": {
             "anyOf": [
               {
@@ -7872,17 +7280,6 @@
             "title": "Formula Version",
             "type": "string"
           },
-          "hourly_rate_naira": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hourly Rate Naira"
-          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -7915,17 +7312,6 @@
             "title": "Payout Rule Id",
             "type": "string"
           },
-          "premium_hourly_rate_naira": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Premium Hourly Rate Naira"
-          },
           "reason": {
             "title": "Reason",
             "type": "string"
@@ -7952,9 +7338,6 @@
           "payout_rule_id",
           "revision_number",
           "effective_from",
-          "hourly_rate_naira",
-          "premium_hourly_rate_naira",
-          "daily_payable_hours_cap",
           "currency",
           "eligibility_params",
           "formula_version",
@@ -7972,247 +7355,6 @@
         ],
         "title": "CampaignPayoutRuleStatus",
         "type": "string"
-      },
-      "CampaignPayoutRuleUpdate": {
-        "additionalProperties": false,
-        "properties": {
-          "base_rate_per_active_hour": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Base Rate Per Active Hour"
-          },
-          "base_rate_per_km": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Base Rate Per Km"
-          },
-          "bonus_zone_bonus_rate_per_km": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bonus Zone Bonus Rate Per Km"
-          },
-          "currency": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Currency"
-          },
-          "daily_payable_hours_cap": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "maximum": 24.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Daily Payable Hours Cap"
-          },
-          "eligibility_params": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Eligibility Params"
-          },
-          "estimated_impression_rate_per_1000": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Estimated Impression Rate Per 1000"
-          },
-          "high_fraud_multiplier": {
-            "anyOf": [
-              {
-                "maximum": 1.0,
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "High Fraud Multiplier"
-          },
-          "hourly_rate_naira": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hourly Rate Naira"
-          },
-          "low_fraud_multiplier": {
-            "anyOf": [
-              {
-                "maximum": 1.0,
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Low Fraud Multiplier"
-          },
-          "max_payout_per_trip": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Max Payout Per Trip"
-          },
-          "medium_fraud_multiplier": {
-            "anyOf": [
-              {
-                "maximum": 1.0,
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Medium Fraud Multiplier"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "title": "Metadata",
-            "type": "object"
-          },
-          "min_payout_per_trip": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Min Payout Per Trip"
-          },
-          "status": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/CampaignPayoutRuleStatus"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "target_zone_bonus_rate_per_km": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target Zone Bonus Rate Per Km"
-          }
-        },
-        "title": "CampaignPayoutRuleUpdate",
-        "type": "object"
       },
       "CampaignPayoutV4RevisionCreate": {
         "additionalProperties": false,
@@ -13479,60 +12621,6 @@
             ],
             "title": "Amount"
           },
-          "base_amount": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Base Amount"
-          },
-          "base_hourly_rate": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Base Hourly Rate"
-          },
-          "base_payable_seconds": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Base Payable Seconds"
-          },
-          "cap": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/DriverTripEarningsCapProgress"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "capped_seconds": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Capped Seconds"
-          },
           "currency": {
             "title": "Currency",
             "type": "string"
@@ -13587,50 +12675,6 @@
             "title": "Formula Version",
             "type": "string"
           },
-          "hourly_rate": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Hourly Rate"
-          },
-          "premium_amount": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Premium Amount"
-          },
-          "premium_hourly_rate": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Premium Hourly Rate"
-          },
-          "premium_payable_seconds": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Premium Payable Seconds"
-          },
           "superseded_by_recompute": {
             "title": "Superseded By Recompute",
             "type": "boolean"
@@ -13648,43 +12692,10 @@
           "amount",
           "eligible_seconds",
           "excluded_seconds_by_reason",
-          "hourly_rate",
-          "capped_seconds",
-          "base_payable_seconds",
-          "premium_payable_seconds",
-          "base_hourly_rate",
-          "premium_hourly_rate",
-          "base_amount",
-          "premium_amount",
           "superseded_by_recompute",
-          "entries",
-          "cap"
+          "entries"
         ],
         "title": "DriverTripEarningsBreakdown",
-        "type": "object"
-      },
-      "DriverTripEarningsCapProgress": {
-        "properties": {
-          "cap_seconds": {
-            "title": "Cap Seconds",
-            "type": "integer"
-          },
-          "day_payable_seconds": {
-            "title": "Day Payable Seconds",
-            "type": "integer"
-          },
-          "lagos_day": {
-            "format": "date",
-            "title": "Lagos Day",
-            "type": "string"
-          }
-        },
-        "required": [
-          "lagos_day",
-          "cap_seconds",
-          "day_payable_seconds"
-        ],
-        "title": "DriverTripEarningsCapProgress",
         "type": "object"
       },
       "EarningsLedgerEntryListResponse": {
@@ -19732,32 +18743,10 @@
       },
       "PayoutCalculationRead": {
         "properties": {
-          "active_time_component": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Active Time Component"
-          },
           "assignment_id": {
             "format": "uuid",
             "title": "Assignment Id",
             "type": "string"
-          },
-          "bonus_zone_bonus_component": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bonus Zone Bonus Component"
           },
           "calculated_at": {
             "format": "date-time",
@@ -19769,17 +18758,6 @@
             "title": "Campaign Id",
             "type": "string"
           },
-          "cap_adjustment": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Cap Adjustment"
-          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -19788,17 +18766,6 @@
           "currency": {
             "title": "Currency",
             "type": "string"
-          },
-          "distance_component": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Distance Component"
           },
           "driver_profile_id": {
             "format": "uuid",
@@ -19845,17 +18812,6 @@
             "title": "Formula Version",
             "type": "string"
           },
-          "fraud_multiplier": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Fraud Multiplier"
-          },
           "gross_payout": {
             "anyOf": [
               {
@@ -19871,17 +18827,6 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
-          },
-          "impression_component": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Impression Component"
           },
           "impression_estimate_id": {
             "format": "uuid",
@@ -19914,46 +18859,13 @@
             "title": "Metadata",
             "type": "object"
           },
-          "payable_seconds": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Payable Seconds"
-          },
           "payout_rule_id": {
             "format": "uuid",
             "title": "Payout Rule Id",
             "type": "string"
           },
-          "quality_multiplier": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Quality Multiplier"
-          },
           "status": {
             "$ref": "#/components/schemas/PayoutCalculationStatus"
-          },
-          "target_zone_bonus_component": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target Zone Bonus Component"
           },
           "trip_analytics_id": {
             "format": "uuid",
@@ -19989,18 +18901,9 @@
           "formula_version",
           "status",
           "currency",
-          "distance_component",
-          "active_time_component",
-          "target_zone_bonus_component",
-          "bonus_zone_bonus_component",
-          "impression_component",
           "gross_payout",
-          "quality_multiplier",
-          "fraud_multiplier",
-          "cap_adjustment",
           "final_payout",
           "eligible_seconds",
-          "payable_seconds",
           "excluded_seconds_by_reason",
           "inputs_fingerprint",
           "calculated_at",
@@ -22250,10 +21153,6 @@
               }
             ]
           },
-          "payable_seconds": {
-            "title": "Payable Seconds",
-            "type": "integer"
-          },
           "payout_calculation_id": {
             "anyOf": [
               {
@@ -22291,7 +21190,6 @@
           "target_amount",
           "delta_amount",
           "eligible_seconds",
-          "payable_seconds",
           "entry_id",
           "entry_type",
           "voided"
@@ -22342,10 +21240,6 @@
             "title": "Campaign Id",
             "type": "string"
           },
-          "cap_seconds": {
-            "title": "Cap Seconds",
-            "type": "integer"
-          },
           "driver_profile_id": {
             "format": "uuid",
             "title": "Driver Profile Id",
@@ -22372,7 +21266,6 @@
           "campaign_id",
           "driver_profile_id",
           "lagos_date",
-          "cap_seconds",
           "trips",
           "adjustment_count",
           "reversal_count"
@@ -29598,62 +28491,6 @@
         "tags": [
           "Payouts"
         ]
-      },
-      "post": {
-        "operationId": "admin_create_campaign_payout_rule_api_v1_admin_campaigns__campaign_id__payout_rules_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "campaign_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Campaign Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CampaignPayoutRuleCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CampaignPayoutRuleRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Create a campaign payout rule",
-        "tags": [
-          "Payouts"
-        ]
       }
     },
     "/api/v1/admin/campaigns/{campaign_id}/payout-rules/{rule_id}": {
@@ -29709,72 +28546,6 @@
           }
         ],
         "summary": "Read a campaign payout rule",
-        "tags": [
-          "Payouts"
-        ]
-      },
-      "patch": {
-        "operationId": "admin_update_campaign_payout_rule_api_v1_admin_campaigns__campaign_id__payout_rules__rule_id__patch",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "campaign_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Campaign Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "rule_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Rule Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CampaignPayoutRuleUpdate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CampaignPayoutRuleRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Update a campaign payout rule",
         "tags": [
           "Payouts"
         ]
@@ -29873,72 +28644,6 @@
           }
         ],
         "summary": "List a campaign's payout-rule revisions",
-        "tags": [
-          "Payouts"
-        ]
-      },
-      "post": {
-        "operationId": "admin_create_payout_rule_revision_api_v1_admin_campaigns__campaign_id__payout_rules__rule_id__revisions_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "campaign_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Campaign Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "rule_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Rule Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CampaignPayoutRuleRevisionCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CampaignPayoutRuleRevisionRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Create an effective-dated payout-rule revision (supersede)",
         "tags": [
           "Payouts"
         ]

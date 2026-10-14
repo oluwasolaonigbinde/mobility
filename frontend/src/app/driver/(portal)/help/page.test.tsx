@@ -52,7 +52,7 @@ it.each([
   {},
   { assignment: null },
   { assignment: { offer_terms: {} } },
-  { assignment: { offer_terms: { payout: { formula_version: "payout_v3" } } } },
+  { assignment: { offer_terms: { payout: { formula_version: "unknown" } } } },
   {
     assignment: {
       offer_terms: {

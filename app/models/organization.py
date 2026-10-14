@@ -99,7 +99,6 @@ class OrganizationMembership(Base):
             "uq_organization_memberships_user_active",
             "user_id",
             unique=True,
-            sqlite_where=text("status = 'active'"),
             postgresql_where=text("status = 'active'"),
         ),
     )

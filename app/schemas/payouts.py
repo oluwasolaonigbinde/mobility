@@ -21,53 +21,11 @@ from app.models.payout import (
 )
 from app.schemas.campaigns import ensure_timezone_aware
 
-REQUIRED_PAYOUT_RULE_UPDATE_FIELDS = {
-    "status",
-    "currency",
-    "base_rate_per_km",
-    "base_rate_per_active_hour",
-    "target_zone_bonus_rate_per_km",
-    "bonus_zone_bonus_rate_per_km",
-    "estimated_impression_rate_per_1000",
-    "min_payout_per_trip",
-    "low_fraud_multiplier",
-    "medium_fraud_multiplier",
-    "high_fraud_multiplier",
-    "hourly_rate_naira",
-    "daily_payable_hours_cap",
-}
-
 
 class DecimalStringMixin(BaseModel):
     @field_serializer(
-        "hourly_rate_naira",
-        "premium_hourly_rate_naira",
-        "daily_payable_hours_cap",
         "ledger_net_total",
-        "hourly_rate",
-        "base_hourly_rate",
-        "premium_hourly_rate",
-        "base_amount",
-        "premium_amount",
-        "base_rate_per_km",
-        "base_rate_per_active_hour",
-        "target_zone_bonus_rate_per_km",
-        "bonus_zone_bonus_rate_per_km",
-        "estimated_impression_rate_per_1000",
-        "min_payout_per_trip",
-        "max_payout_per_trip",
-        "low_fraud_multiplier",
-        "medium_fraud_multiplier",
-        "high_fraud_multiplier",
-        "distance_component",
-        "active_time_component",
-        "target_zone_bonus_component",
-        "bonus_zone_bonus_component",
-        "impression_component",
         "gross_payout",
-        "quality_multiplier",
-        "fraud_multiplier",
-        "cap_adjustment",
         "final_payout",
         "amount",
         "pending_amount",
@@ -103,118 +61,6 @@ def normalize_currency(value: str | None) -> str | None:
     return normalized
 
 
-class CampaignPayoutRuleCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    formula_version: str | None = None
-    status: CampaignPayoutRuleStatus = CampaignPayoutRuleStatus.ACTIVE
-    currency: str | None = None
-    base_rate_per_km: Decimal | None = Field(default=None, ge=Decimal("0"))
-    base_rate_per_active_hour: Decimal | None = Field(default=None, ge=Decimal("0"))
-    target_zone_bonus_rate_per_km: Decimal | None = Field(default=None, ge=Decimal("0"))
-    bonus_zone_bonus_rate_per_km: Decimal | None = Field(default=None, ge=Decimal("0"))
-    estimated_impression_rate_per_1000: Decimal | None = Field(default=None, ge=Decimal("0"))
-    min_payout_per_trip: Decimal | None = Field(default=None, ge=Decimal("0"))
-    max_payout_per_trip: Decimal | None = Field(default=None, ge=Decimal("0"))
-    low_fraud_multiplier: Decimal | None = Field(
-        default=None,
-        ge=Decimal("0"),
-        le=Decimal("1"),
-    )
-    medium_fraud_multiplier: Decimal | None = Field(
-        default=None,
-        ge=Decimal("0"),
-        le=Decimal("1"),
-    )
-    high_fraud_multiplier: Decimal | None = Field(
-        default=None,
-        ge=Decimal("0"),
-        le=Decimal("1"),
-    )
-    hourly_rate_naira: Decimal | None = Field(default=None, ge=Decimal("0"))
-    daily_payable_hours_cap: Decimal | None = Field(
-        default=None,
-        gt=Decimal("0"),
-        le=Decimal("24"),
-    )
-    eligibility_params: dict[str, Any] | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-    @field_validator("currency")
-    @classmethod
-    def validate_currency(cls, value: str | None) -> str | None:
-        return normalize_currency(value)
-
-    @model_validator(mode="after")
-    def validate_caps(self) -> "CampaignPayoutRuleCreate":
-        if (
-            self.max_payout_per_trip is not None
-            and self.min_payout_per_trip is not None
-            and self.max_payout_per_trip < self.min_payout_per_trip
-        ):
-            raise ValueError("max_payout_per_trip must be greater than or equal to min")
-        return self
-
-
-class CampaignPayoutRuleUpdate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    status: CampaignPayoutRuleStatus | None = None
-    currency: str | None = None
-    base_rate_per_km: Decimal | None = Field(default=None, ge=Decimal("0"))
-    base_rate_per_active_hour: Decimal | None = Field(default=None, ge=Decimal("0"))
-    target_zone_bonus_rate_per_km: Decimal | None = Field(default=None, ge=Decimal("0"))
-    bonus_zone_bonus_rate_per_km: Decimal | None = Field(default=None, ge=Decimal("0"))
-    estimated_impression_rate_per_1000: Decimal | None = Field(default=None, ge=Decimal("0"))
-    min_payout_per_trip: Decimal | None = Field(default=None, ge=Decimal("0"))
-    max_payout_per_trip: Decimal | None = Field(default=None, ge=Decimal("0"))
-    low_fraud_multiplier: Decimal | None = Field(
-        default=None,
-        ge=Decimal("0"),
-        le=Decimal("1"),
-    )
-    medium_fraud_multiplier: Decimal | None = Field(
-        default=None,
-        ge=Decimal("0"),
-        le=Decimal("1"),
-    )
-    high_fraud_multiplier: Decimal | None = Field(
-        default=None,
-        ge=Decimal("0"),
-        le=Decimal("1"),
-    )
-    hourly_rate_naira: Decimal | None = Field(default=None, ge=Decimal("0"))
-    daily_payable_hours_cap: Decimal | None = Field(
-        default=None,
-        gt=Decimal("0"),
-        le=Decimal("24"),
-    )
-    eligibility_params: dict[str, Any] | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-    @field_validator("currency")
-    @classmethod
-    def validate_currency(cls, value: str | None) -> str | None:
-        return normalize_currency(value)
-
-    @model_validator(mode="after")
-    def validate_caps(self) -> "CampaignPayoutRuleUpdate":
-        null_fields = sorted(
-            field
-            for field in REQUIRED_PAYOUT_RULE_UPDATE_FIELDS
-            if field in self.model_fields_set and getattr(self, field) is None
-        )
-        if null_fields:
-            raise ValueError(f"{', '.join(null_fields)} must not be null")
-        if (
-            self.max_payout_per_trip is not None
-            and self.min_payout_per_trip is not None
-            and self.max_payout_per_trip < self.min_payout_per_trip
-        ):
-            raise ValueError("max_payout_per_trip must be greater than or equal to min")
-        return self
-
-
 class CampaignPayoutRuleRead(DecimalStringMixin):
     model_config = ConfigDict(from_attributes=True)
 
@@ -225,19 +71,6 @@ class CampaignPayoutRuleRead(DecimalStringMixin):
     formula_version: str
     status: CampaignPayoutRuleStatus
     currency: str
-    base_rate_per_km: Decimal | None
-    base_rate_per_active_hour: Decimal | None
-    target_zone_bonus_rate_per_km: Decimal | None
-    bonus_zone_bonus_rate_per_km: Decimal | None
-    estimated_impression_rate_per_1000: Decimal | None
-    min_payout_per_trip: Decimal | None
-    max_payout_per_trip: Decimal | None
-    low_fraud_multiplier: Decimal | None
-    medium_fraud_multiplier: Decimal | None
-    high_fraud_multiplier: Decimal | None
-    hourly_rate_naira: Decimal | None
-    daily_payable_hours_cap: Decimal | None
-    eligibility_params: dict[str, Any] | None
     metadata: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime
     updated_at: datetime
@@ -248,32 +81,6 @@ class CampaignPayoutRuleListResponse(BaseModel):
     total: int
     limit: int
     offset: int
-
-
-class CampaignPayoutRuleRevisionCreate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    effective_from: datetime
-    hourly_rate_naira: Decimal = Field(ge=Decimal("0"))
-    premium_hourly_rate_naira: Decimal | None = Field(default=None, ge=Decimal("0"))
-    daily_payable_hours_cap: Decimal = Field(gt=Decimal("0"), le=Decimal("24"))
-    eligibility_params: dict[str, Any] = Field(default_factory=dict)
-    reason: str
-
-    @field_validator("effective_from")
-    @classmethod
-    def validate_effective_from(cls, value: datetime) -> datetime:
-        if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
-            raise ValueError("Datetime must include timezone information")
-        return value
-
-    @field_validator("reason")
-    @classmethod
-    def validate_reason(cls, value: str) -> str:
-        trimmed = value.strip()
-        if not trimmed:
-            raise ValueError("reason must not be empty")
-        return trimmed
 
 
 class CampaignPayoutV4RevisionCreate(BaseModel):
@@ -335,9 +142,6 @@ class CampaignPayoutRuleRevisionRead(DecimalStringMixin):
     payout_rule_id: UUID
     revision_number: int
     effective_from: datetime
-    hourly_rate_naira: Decimal | None
-    premium_hourly_rate_naira: Decimal | None
-    daily_payable_hours_cap: Decimal | None
     daily_rate_naira: Decimal | None = None
     daily_target_miles: Decimal | None = None
     shortfall_strategy: str | None = None
@@ -408,18 +212,9 @@ class PayoutCalculationRead(DecimalStringMixin):
     formula_version: str
     status: PayoutCalculationStatus
     currency: str
-    distance_component: Decimal | None
-    active_time_component: Decimal | None
-    target_zone_bonus_component: Decimal | None
-    bonus_zone_bonus_component: Decimal | None
-    impression_component: Decimal | None
     gross_payout: Decimal
-    quality_multiplier: Decimal | None
-    fraud_multiplier: Decimal | None
-    cap_adjustment: Decimal | None
     final_payout: Decimal
     eligible_seconds: int | None
-    payable_seconds: int | None
     excluded_seconds_by_reason: dict[str, int] | None
     inputs_fingerprint: str | None
     calculated_at: datetime
@@ -503,7 +298,6 @@ class RecomputeDayTripResult(DecimalStringMixin):
     target_amount: Decimal
     delta_amount: Decimal
     eligible_seconds: int
-    payable_seconds: int
     entry_id: UUID | None
     entry_type: EarningsLedgerEntryType | None
     voided: bool
@@ -521,7 +315,6 @@ class RecomputePayoutDayResult(BaseModel):
     campaign_id: UUID
     driver_profile_id: UUID
     lagos_date: date
-    cap_seconds: int
     trips: list[RecomputeDayTripResult]
     adjustment_count: int
     reversal_count: int
@@ -593,12 +386,6 @@ class PayoutDayProjection(BaseModel):
     projection_fingerprint: str
 
 
-class DriverTripEarningsCapProgress(BaseModel):
-    lagos_day: date
-    cap_seconds: int
-    day_payable_seconds: int
-
-
 class DriverTripDailyRateDay(DecimalStringMixin):
     """payout_v4: one Nigeria-time day of a trip — metres counted and the pay
     this trip added to that day."""
@@ -615,15 +402,6 @@ class DriverTripEarningsBreakdown(DecimalStringMixin):
     amount: Decimal
     eligible_seconds: int | None
     excluded_seconds_by_reason: dict[str, int] | None
-    hourly_rate: Decimal | None
-    capped_seconds: int | None
-    base_payable_seconds: int | None
-    premium_payable_seconds: int | None
-    base_hourly_rate: Decimal | None
-    premium_hourly_rate: Decimal | None
-    base_amount: Decimal | None
-    premium_amount: Decimal | None
     superseded_by_recompute: bool
     entries: list[EarningsLedgerEntryRead]
-    cap: DriverTripEarningsCapProgress | None
     daily_rate_days: list[DriverTripDailyRateDay] | None = None

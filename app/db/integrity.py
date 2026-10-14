@@ -29,71 +29,7 @@ EXPECTED_UNIQUE_CONSTRAINTS = frozenset(
     }
 )
 
-_SQLITE_UNIQUE_COLUMNS = {
-    ("trip_analytics.trip_session_id",): "uq_trip_analytics_trip_session_id",
-    ("fraud_assessments.trip_session_id",): "uq_fraud_assessments_trip_session_id",
-    ("route_replay_signatures.trip_session_id",): (
-        "uq_route_replay_signatures_trip_session_id"
-    ),
-    (
-        "fraud_flags.trip_session_id",
-        "fraud_flags.flag_type",
-    ): "uq_fraud_flags_trip_nonterminal_flag_type",
-    (
-        "impression_estimates.trip_session_id",
-        "impression_estimates.formula_version",
-        "impression_estimates.traffic_density_profile_id",
-    ): "uq_impression_estimates_trip_formula_profile",
-    (
-        "payout_calculations.trip_session_id",
-        "payout_calculations.formula_version",
-        "payout_calculations.payout_rule_id",
-    ): "uq_payout_calculations_trip_formula_rule",
-    (
-        "earnings_ledger_entries.payout_calculation_id",
-    ): "uq_earnings_ledger_entries_payout_calculation_id",
-    (
-        "traffic_density_profiles.is_default",
-    ): "uq_traffic_density_profiles_active_default",
-    ("campaign_assignments.driver_profile_id",): "uq_campaign_assignments_driver_active",
-    (
-        "campaign_assignments.vehicle_id",
-    ): "uq_campaign_assignments_vehicle_active",
-    (
-        "campaign_assignments.campaign_id",
-        "campaign_assignments.vehicle_id",
-    ): "uq_campaign_assignments_campaign_vehicle_non_terminal",
-    (
-        "trip_sessions.driver_profile_id",
-    ): "uq_trip_sessions_driver_profile_active",
-    (
-        "trip_sessions.vehicle_id",
-    ): "uq_trip_sessions_vehicle_active",
-    (
-        "installation_evidence_submissions.assignment_id",
-        "installation_evidence_submissions.submitted_by_user_id",
-        "installation_evidence_submissions.client_request_id",
-    ): "uq_installation_evidence_request",
-    (
-        "installation_evidence_submissions.assignment_id",
-    ): "uq_installation_evidence_assignment_pending",
-    ("installation_evidence_photos.stored_file_id",): "uq_installation_evidence_photo_file",
-    (
-        "payout_batch_lines.ledger_entry_id",
-    ): "uq_payout_batch_lines_active_ledger_entry",
-    (
-        "payout_batch_lines.provider_transfer_reference",
-    ): "uq_payout_batch_lines_provider_transfer_reference",
-    ("payout_automatic_alerts.dedupe_key",): "uq_payout_automatic_alerts_dedupe_key",
-    (
-        "vehicles.plate_country_code",
-        "vehicles.plate_number_normalized",
-    ): "uq_vehicles_plate_country_normalized",
-    ("organization_memberships.user_id",): "uq_organization_memberships_user_active",
-}
-
 _QUOTED_CONSTRAINT_RE = re.compile(r'(?:constraint|index) ["\']([^"\']+)["\']', re.I)
-_SQLITE_UNIQUE_PREFIX = "UNIQUE constraint failed: "
 
 
 def _exception_chain(exc: BaseException) -> Iterator[BaseException]:
@@ -131,13 +67,6 @@ def integrity_constraint_name(exc: IntegrityError) -> str | None:
         if match and match.group(1) in EXPECTED_UNIQUE_CONSTRAINTS:
             return match.group(1)
 
-        if message.startswith(_SQLITE_UNIQUE_PREFIX):
-            columns = tuple(
-                column.strip() for column in message[len(_SQLITE_UNIQUE_PREFIX) :].split(",")
-            )
-            constraint_name = _SQLITE_UNIQUE_COLUMNS.get(columns)
-            if constraint_name is not None:
-                return constraint_name
     return None
 
 

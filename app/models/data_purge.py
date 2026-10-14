@@ -42,7 +42,6 @@ class DataPurgeAudit(Base):
             "uq_data_purge_audit_dropped",
             "partition_name",
             unique=True,
-            sqlite_where=text("event = 'dropped'"),
             postgresql_where=text("event = 'dropped'"),
         ),
         Index("ix_data_purge_audit_partition_created_at", "partition_name", "created_at"),

@@ -3,8 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { get } = vi.hoisted(() => ({ get: vi.fn() }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: get }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
-vi.mock("../payouts/rules/rule-form", () => ({ RuleForm: () => <p>Legacy editor</p> }));
-vi.mock("../payouts/rules/revisions-panel", () => ({ RevisionsPanel: () => <p>Hourly editor</p> }));
 vi.mock("../payouts/rules/daily-rate-panel", () => ({ DailyRatePanel: () => <p>Daily editor</p> }));
 import Section from "./pay-terms-section";
 import { readPayTerms } from "./pay-terms-read";
@@ -52,18 +50,6 @@ describe("Current Pay terms", () => {
     expect(query.limit).toBe(1);
     expect(query.effective_before).toBeTruthy();
   });
-  it("shows hourly rate, premium and daily cap for v3 terms on an hourly rule", async () => {
-    mock("payout_v2", {
-      ...current,
-      formula_version: "payout_v3",
-      hourly_rate_naira: "1000.00",
-      premium_hourly_rate_naira: "1500.00",
-      daily_payable_hours_cap: "8",
-    });
-    render(await Section({ campaignId: "campaign" }));
-    expect(screen.getByText(/1,000.*per hour, up to 8 payable hours/)).toBeVisible();
-    expect(screen.getByText(/1,500.*premium area/)).toBeVisible();
-  });
   it("future-only terms never tick the launch checklist", async () => {
     mock("payout_v4", { ...current, effective_from: "2099-01-01T00:00:00Z" });
     expect((await readPayTerms("campaign"))?.ready).toBe(false);
@@ -72,11 +58,5 @@ describe("Current Pay terms", () => {
     get.mockRejectedValue(new Error("offline"));
     render(await Section({ campaignId: "campaign" }));
     expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
-  });
-  it("keeps legacy terms truthful and their editor closed", async () => {
-    mock("payout_v1");
-    render(await Section({ campaignId: "campaign" }));
-    expect(screen.getByText(/older distance and zone pay terms/)).toBeVisible();
-    expect(screen.getByText("Legacy editor").closest("details")).not.toHaveAttribute("open");
   });
 });

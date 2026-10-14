@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.134 — 2026-10-13. Canonical source of truth: current state AND target state.**
+**Version 1.135 — 2026-10-13. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -492,7 +492,7 @@ Every new endpoint must obey all of these:
    `asset_url` remains only for readable legacy rows and cannot authorize a
    new offer or activation (§19, D7).
 8. **Computation is versioned.** Analytics/impressions/payouts stamp a
-   `formula_version` (`route_analytics_v1`, `impressions_v1`, `payout_v1`) from
+   `formula_version` (`route_analytics_v1`, `impressions_v1`, `payout_v4`) from
    settings. Changing a formula means bumping its version, not silently changing
    outputs.
 9. **Audit trail.** Mutating flows write `audit_events` via
@@ -780,7 +780,7 @@ regenerates. See §9 for the drift gate.
   and dead letters, and reconciles ambiguous server authority before resuming
   or releasing the writer.
 - Campaign history and earnings are read-only projections of the existing
-  assignment, `payout_v3` breakdown, ledger-summary and fraud-hold contracts.
+  assignment, daily-rate payout breakdown, ledger-summary and fraud-hold contracts.
   The PWA renders every canonical settlement category independently and joins
   a pending trip to an active public hold only for `assessment_pending`,
   `under_review` or `issue_confirmed`; it never calculates a balance or creates
@@ -1460,166 +1460,25 @@ don't fork it.
 
 ## 16. Money out — versioned payout, release, disbursement
 
-Q4, Q5, Q22 and Q27 are client-confirmed by D18. D4's daily cap remains for
-hourly work. D18 changes the zone treatment and therefore requires a new
-immutable formula version; it does not rewrite calculations already stamped
-`payout_v1` or `payout_v2`.
+Q4/Q5 use daily-rate payout_v4 under D39/D43. D80/REQ-161 removes
+payout_v1/v2/v3 and evidence protocol v1 under the development-stage policy:
+there is no live data to preserve. "Never reprice accepted work" protects live
+financial facts; current v4 acceptance snapshots and append-only correction
+controls remain mandatory. PostgreSQL/PostGIS is the sole application database.
 
-**D39/D40 (25–28 Sep 2026)** move new work to a **daily rate** for covering an
-expected daily distance (`payout_v4`, §16.1) with each stop of up to five
-minutes counting as driving, and let Cardvert approve payouts of clean
-`payout_v4` earnings without a person (§16.3), with Finance able to pause,
-see alerts and reconcile daily. Hourly (`payout_v1`–`v3`) work already accepted
-keeps its rules and is never repriced (D14/D21), and its payouts stay
-maker-checker. Both are built and switched off: daily-rate publishing waits
-for the shortfall rule, which miles count and the full-day amount
-(REQ-014–REQ-016), and automatic payouts wait for the payout frequency, run
-limit and alert recipients (REQ-017, REQ-029, REQ-030).
+### 16.1 Daily-rate payout authority **[TARGET ? W3a implementation]**
 
-### 16.1 Payout engine v2 (D2, D4) **[BUILT]**
-
-Delivered in S1 (D8 defaults; Q4/Q5 adopted): migration `0013`, eligibility
-classifier (`app/services/payout_eligibility.py` — pure interval timeline:
-`moving | stationary(+grace) | gps_gap | out_of_area | out_of_window |
-teleport | low_accuracy`, invariant Σ(eligible+excluded) == session duration),
-`payout_v2` computation in `services/payouts.py` (integer payable seconds,
-cap-before-price, one `ROUND_HALF_UP` 2dp quantization per ledger amount),
-per-rule formula dispatch, transaction-scoped `pg_advisory_xact_lock` cap
-concurrency, inputs fingerprint (rate, cap, eligibility params, ping set,
-campaign-zone state), admin recompute-day true-up, driver trip-breakdown
-endpoint + PWA screen, and reversal/adjustment netting in every summary
-(§16.2's same-change mandate). payout_v2 calculations are **write-once per
-trip**: input drift never auto-recomputes money — the admin endpoint flags it
-(409 stale) and the audited recompute-day true-up is the only corrective path.
-
-- New formula version **`payout_v2`** computing: `hourly_rate × verified_payable_hours`,
-  where payable hours are derived from GPS-verified classified intervals under
-  the Q5 eligibility rules (movement, geofence, campaign window, signal
-  hygiene) and capped per campaign/driver/day (D4).
-- **Chronological cap authority:** earlier ended but not yet sealed trips block
-  later allocation on every overlapping Lagos day until their payout can be
-  processed. Half-open trip intervals ending exactly at midnight do not occupy
-  the following day. Worker completion order cannot choose the cap beneficiary.
-- **Frozen admission window:** trip start must be at or after the accepted
-  binding's start and strictly before its end, even after mutable campaign dates
-  change. An absent accepted start remains unbounded.
-- **Trigger:** v2 calculations are produced by the worker's trip-processing
-  pipeline (§14.2) automatically on trip end — not by admin action. The admin
-  "process trip" endpoints stay as recompute/override tools.
-- **Cap concurrency:** the daily cap is a cross-trip invariant, and §25.3
-  sanctions concurrent workers — two same-driver trips computed concurrently
-  must not jointly exceed the cap. Rule: payout computation for a trip takes a
-  **Postgres advisory lock on (driver_profile_id, campaign_id, Lagos-day)** for
-  the read-remaining-cap → write-calculation critical section. **A trip
-  spanning Lagos midnight bills each day separately** *(amended 6 Aug 2026 —
-  RM1/D14; it previously billed the whole trip to the day it started, which
-  contradicted D4's calendar-day cap)*: `classify_session` cuts the timeline at
-  every Africa/Lagos midnight and returns `eligible_seconds_by_day`, the
-  calculation takes **one lock per touched day in sorted order** (deterministic
-  ordering is what keeps concurrent workers deadlock-free), caps each day
-  against its own allowance, and persists the split in
-  `payout_calculations.payable_seconds_by_day` — which is what cap accounting
-  and recompute-day read back, so a trip's consumption is reproducible rather
-  than re-derived. Recomputing an
-  earlier trip never **automatically** reallocates cap already consumed by
-  later immutable calculations (P6) — input drift is flagged for admin review
-  (409 on the admin recompute surface); the **audited admin recompute-day
-  true-up** (`POST /admin/payouts/recompute-day`, S1) is the sanctioned
-  reallocation path: it re-runs the day's allocation under the same advisory
-  lock and posts append-only differential entries (`adjustment` up, positive
-  `reversal` down) — never edits.
-- `campaign_payout_rules` gains nullable v2 fields (`hourly_rate_naira`,
-  `daily_payable_hours_cap`, verification parameters); a rule row is valid for
-  exactly one model (v1 fields XOR v2 fields — DB check constraint). The v1
-  rate columns are currently `NOT NULL`, so the v2 migration **relaxes their
-  nullability** (values on existing rows are frozen, never rewritten) — history
-  must stay reproducible.
-- **Day boundary:** the D4 daily cap is computed over the **Africa/Lagos
-  calendar day** (the operating market's day, and what a driver's offer screen
-  shows) — not UTC, not a rolling 24h window. Pin this in code and tests.
-- `payout_calculations` rows stamp `payout_v2`; v1 rows are immutable history
-  (P6). Reports render whichever version a row carries — no UI may assume one
-  model (D2 build implication). **Migration scope note:** `payout_calculations`
-  itself needs relaxing too — its v1 component columns are `NOT NULL` with
-  non-negativity checks, and `impression_estimate_id`/`trip_analytics_id` are
-  `NOT NULL` (v2 rows can still link an estimate — the §14.2 pipeline produces
-  one before the payout step — but the v1 component columns must go nullable).
-- The daily cap check needs per-driver-per-campaign-per-day aggregation — this
-  is a service-layer computation over `trip_sessions`/`trip_analytics`, not a
-  new table, until measured cost says otherwise (P10).
-- Fraud interaction: under D5, severity multipliers become secondary; the
-  primary control is **holds** (§17). v2 computes gross pay; holds gate its
-  release.
-
-**Preserve / replace:** v1 and v2 stay as immutable history. D18 supersedes
-v2's `out_of_area = unpaid` product rule for new accepted terms; it does not
-reprice old work. The admin payout-rules editor UI ([BUILT], F6) is refactored
-to edit the formula version selected by an effective-dated rule row.
-
-#### Built formula: `payout_v3` (D18/Q4/Q5)
-
-`payout_v3` keeps fixed hourly pricing, verified time, the Africa/Lagos daily
-cap, write-once calculations, concurrency locks, fingerprints and audited
-true-ups from v2. It changes the rate resolved for each valid interval:
-
-- valid campaign time outside the primary/premium targeting zone earns the
-  accepted **base hourly rate**;
-- valid time inside the primary/premium zone earns the accepted **premium
-  hourly rate**;
-- time outside the campaign window, inside an explicit exclusion/no-service
-  area, or invalidated by signal, teleport, fraud, stationary or other
-  configured eligibility rules remains unpaid. D22 supplies the versioned
-  stationary sub-window policy for new payout-v3 acceptances.
-
-Each accepted offer snapshots the effective-dated base rate, premium rate,
-zone revision, eligibility revision and cap. Each classified interval stores
-its resolved tier/reason, and the inputs fingerprint includes those revisions.
-The calculation and ledger rows stamp `payout_v3`; recomputation never applies
-new commercial terms retrospectively. **[BUILT — MNY-06A/B/C]:** immutable
-effective-dated revisions replace in-place rule mutation; assignment acceptance
-persists the complete resolved eligibility values and frozen premium/exclusion
-geometries alongside rates and cap. Valid time outside the premium geometry is
-base-tier time, premium geometry is premium-tier time, and exclusions/invalid
-time remain unpaid. The shared Lagos-day cap fills chronologically across v2/v3,
-and persisted base/premium components reconcile exactly to the once-quantized
-ledger amount. Retroactive changes run only through a projected correction
-order with a separate approver, stale-fingerprint recheck, mandatory release
-time for positive deltas and idempotent execution. The driver breakdown reads
-the latest valid non-voided authoritative correction and explains formula,
-tier, seconds, frozen effective rates and amounts.
-
-**[BUILT — PKG02-C1]:** migration `0026` extends the immutable payout-v3
-binding with the nullable campaign payment window accepted by that assignment.
-Acceptance and revision publication share one campaign-scoped transaction lock
-and PostgreSQL wall clock, so the effective revision/window boundary cannot
-split across application and database time. Calculation, staleness, correction
-fingerprints and persisted payout/differential metadata consume the frozen
-window; legacy bindings without truthful window provenance fail closed. Live
-window edits still affect payout-v2 only. Populated financial authority in
-`0018`–`0021` and accepted `0026` windows blocks destructive downgrade.
-Adjacent-day corrections lock all overlapping trips in stable UUID order before
-their distinct day-cap locks, then restore chronological cap allocation.
-
-**[BUILT — FND-02A/B, D22]:** the `stationary-rd-v1` detector evaluates
-contiguous 120-second elapsed windows using deterministic endpoint
-interpolation inside valid GPS segments. Net displacement at or below 25 metres
-is stationary; two adjacent stationary windows confirm and backdate, one
-above-threshold window releases and backdates, and a GPS gap resets/re-anchors
-the detector. Contaminated windows cannot confirm or release. Its ranges union
-with the legacy 200-metre/300-second long-stay detector before the existing
-240-second whole-trip grace is consumed once. New assignment acceptances freeze
-the complete common and rolling parameters plus detector marker into the
-payout-v3 binding and fingerprint; unknown markers fail closed. Payout-v1/v2
-metadata and fingerprints remain immutable. Calculations/corrections persist
-the stationary reason and compact detector evidence, and driver/admin views
-explain the exclusion. D22's values are provisional: later calibration may
-create a new effective revision for future acceptances only.
+The obsolete hourly and per-kilometre engines are removed with their current
+callers and tests; the historical D-rows and architecture changelog remain the
+record of the replaced design. Current work preserves exact signed v2 evidence,
+write-once calculations, chronological Africa/Lagos-day allocation, frozen terms,
+financial cutoffs, projected maker-checker corrections and debt-aware settlement.
 
 #### Built formula: `payout_v4` (D39) **[BUILT — publishing switched off]**
 
 **[BUILT — Batch B, direct-owner pass]:** a daily rate for reaching a daily
 distance target, both set per campaign on audited, append-only v4 revisions
-(migration `0092`: a rate-less `payout_v4` rule branch, nullable hourly terms,
+(migration `0092`, narrowed by `0103`: a rate-less `payout_v4` rule,
 per-formula shape checks on revisions and bindings, and per-day
 `distance_m_by_day`/`amount_by_day` on calculations; downgrade refuses while
 any v4 row exists). Every pay value is a required revision field entered by
@@ -2837,7 +2696,7 @@ aggregates only, k-floor rules of §22.2 apply to any zone-level display.
   upheld; health is visible as `active | degraded | stopped`.
   **[BUILT — W4-01C/D governed journey and release rehearsal]:** the driver
   shell composes onboarding, vehicle, assignment and foreground tracking with
-  canonical campaign history, `payout_v3` earnings, public hold reasons,
+  canonical campaign history, daily-rate earnings, public hold reasons,
   owner-scoped dispute/reply state and sanitized in-app notices. Failed or
   revoked authority never becomes a successful empty/history/balance view;
   offline navigation exposes only a non-cacheable unavailable shell and cannot
@@ -3264,7 +3123,7 @@ share User → Organization → Campaign → Membership → Issuance → Publica
 lock order. Immutable measurement runs need no row lock; completion reads only
 immutable scope identifiers before acquiring authority and rechecks claim/token,
 lease and current authorization after locking. UTC database timestamps are rendered
-with their timezone even in SQLite test storage; strict renderer validation remains.
+with their timezone in PostgreSQL test storage; strict renderer validation remains.
 
 Migration 0088 records one durable `report_publication_writes` receipt before each
 CSV/PDF storage call under the intent's retirement lock. The generated-object S3
@@ -3720,6 +3579,9 @@ The explicit dependencies in `docs/progress.md` still control build order.
 | **G-pilot** | Production pilot | all of the above + RM17 + the D18 production-PWA acceptance replacing RM14's former native gate |
 
 ## 34. Doc changelog
+
+- **v1.135 ? 13 October 2026 (D80/REQ-161):** Owner-approved development removal of payout v1?v3, evidence v1 and SQLite paths; current v4/v2 and PostgreSQL protection contracts retained. Implementation verification is pending.
+
 
 W1B local verification is recorded in
 [the delivery receipt](../issues/testing/w1b-budget-hosting-evidence-2026-10-05.md).

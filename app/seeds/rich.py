@@ -459,16 +459,6 @@ async def _ensure_payout_rule(
             formula_version="payout_v4",
             status=CampaignPayoutRuleStatus.ACTIVE.value,
             currency="NGN",
-            base_rate_per_km=None,
-            base_rate_per_active_hour=None,
-            target_zone_bonus_rate_per_km=None,
-            bonus_zone_bonus_rate_per_km=None,
-            estimated_impression_rate_per_1000=None,
-            min_payout_per_trip=None,
-            max_payout_per_trip=None,
-            low_fraud_multiplier=None,
-            medium_fraud_multiplier=None,
-            high_fraud_multiplier=None,
             rule_metadata=f7_metadata(),
         )
         session.add(rule)
@@ -2330,7 +2320,6 @@ async def ensure_trip_review_work(session, *, graph, staff, settings):
     from app.services.trips import (
         apply_quarantined_ping_batch,
         discard_quarantined_ping_batch,
-        payload_hash,
         quarantine_ping_batch,
     )
 
@@ -2382,7 +2371,7 @@ async def ensure_trip_review_work(session, *, graph, staff, settings):
     for trip, state in zip(trips[4:], ("quarantined", "applied", "discarded"), strict=False):
         payload = LocationPingBatchCreate(
             idempotency_key=f"{F7_SEED_VERSION}:f7:late:{trip.id}",
-            batch_sequence=1 if trip.evidence_protocol_version == 2 else None,
+            batch_sequence=1,
             metadata=f7_metadata(),
             pings=[
                 LocationPingCreate(
@@ -2398,12 +2387,10 @@ async def ensure_trip_review_work(session, *, graph, staff, settings):
             session,
             trip=trip,
             payload=payload,
-            digest=batch_payload_hash(payload)
-            if trip.evidence_protocol_version == 2
-            else payload_hash(payload),
+            digest=batch_payload_hash(payload),
             received_at=utc_now(),
             settings=settings,
-            hash_version=2 if trip.evidence_protocol_version == 2 else 1,
+            hash_version=2,
         )
         late = result.quarantine
         if late is None:

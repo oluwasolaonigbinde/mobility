@@ -916,8 +916,6 @@ async def find_due_payout_submission_intent_ids(
     session: AsyncSession, *, limit: int = 100, settings: Settings | None = None
 ) -> tuple[UUID, ...]:
     event_entity_id = AuditEvent.entity_id
-    if session.get_bind().dialect.name == "sqlite":
-        event_entity_id = func.replace(event_entity_id, "-", "")
     last_failure_at = (
         select(func.max(AuditEvent.created_at))
         .where(
@@ -1306,7 +1304,7 @@ async def _resolve_payout_submission_claim(
                     error_code="provider_response_invalid",
                 )
             else:
-                if session.bind is not None and session.bind.dialect.name == "postgresql":
+                if session.bind is not None:
                     await session.execute(
                         select(
                             func.pg_advisory_xact_lock(
@@ -2275,12 +2273,8 @@ async def process_payout_provider_event(
         int(
             await session.scalar(
                 select(
-                    func.coalesce(
-                        func.max(PayoutProviderEventProcessingAttempt.attempt_number), 0
-                    )
-                ).where(
-                    PayoutProviderEventProcessingAttempt.provider_event_id == event.id
-                )
+                    func.coalesce(func.max(PayoutProviderEventProcessingAttempt.attempt_number), 0)
+                ).where(PayoutProviderEventProcessingAttempt.provider_event_id == event.id)
             )
             or 0
         )
@@ -2329,12 +2323,8 @@ async def record_payout_provider_event_failure(
         int(
             await session.scalar(
                 select(
-                    func.coalesce(
-                        func.max(PayoutProviderEventProcessingAttempt.attempt_number), 0
-                    )
-                ).where(
-                    PayoutProviderEventProcessingAttempt.provider_event_id == event.id
-                )
+                    func.coalesce(func.max(PayoutProviderEventProcessingAttempt.attempt_number), 0)
+                ).where(PayoutProviderEventProcessingAttempt.provider_event_id == event.id)
             )
             or 0
         )

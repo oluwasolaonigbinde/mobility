@@ -149,9 +149,6 @@ async def driver_ingest_location_pings(
             },
         )
     await session.commit()
-    if result.sealed_now:
-        # Fail-open latency optimization; the sweep is the guaranteed path (Â§14.3.2).
-        await enqueuer.enqueue_trip_processing(trip_id)
     if result.quarantine is not None:
         row = result.quarantine
         return LocationPingBatchResponse(

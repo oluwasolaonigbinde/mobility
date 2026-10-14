@@ -441,10 +441,6 @@ def test_real_funded_active_job_guards_and_atomic_resume(
                 )
                 row.status = "inactive"
             if case == "future_pay":
-                current_rule = await session.scalar(
-                    select(CampaignPayoutRule).where(CampaignPayoutRule.campaign_id == c.id)
-                )
-                current_rule.formula_version = "payout_v3"
                 rows = await session.scalars(
                     select(CampaignPayoutRuleRevision).where(
                         CampaignPayoutRuleRevision.campaign_id == c.id

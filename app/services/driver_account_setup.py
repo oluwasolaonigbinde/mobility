@@ -207,8 +207,6 @@ def _request_fingerprint(application_id: UUID, actor_user_id: UUID) -> str:
 
 
 async def _acquire_client_request_lock(session: AsyncSession, client_request_id: UUID) -> None:
-    if session.get_bind().dialect.name != "postgresql":
-        return
     digest = hashlib.sha256(f"driver-account-setup:{client_request_id}".encode()).digest()
     lock_key = int.from_bytes(digest[:8], byteorder="big", signed=True)
     await session.execute(select(func.pg_advisory_xact_lock(lock_key)))

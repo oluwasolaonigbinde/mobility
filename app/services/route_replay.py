@@ -32,9 +32,7 @@ from app.services.provenance import stable_source_fingerprint
 from app.services.trip_analytics import analytics_output_fingerprint
 
 SIGNATURE_ROW_CONSTRAINTS = frozenset({"uq_route_replay_signatures_trip_session_id"})
-NONTERMINAL_FLAG_CONSTRAINTS = frozenset(
-    {"uq_fraud_flags_trip_nonterminal_flag_type"}
-)
+NONTERMINAL_FLAG_CONSTRAINTS = frozenset({"uq_fraud_flags_trip_nonterminal_flag_type"})
 ROUTE_REPLAY_ERROR_CODE = "route_replay_evaluation_failed"
 UNAVAILABLE_FINGERPRINT = "0" * 64
 ReplayKind = Literal["identical", "time_shifted"]
@@ -192,11 +190,7 @@ async def _lock_transition_fingerprints(
     old_signature: RouteReplaySignature | None,
     new_fingerprints: RouteFingerprints | None,
 ) -> None:
-    if session.get_bind().dialect.name != "postgresql":
-        return
-    keys = sorted(
-        _signature_lock_keys(old_signature) | _fingerprint_lock_keys(new_fingerprints)
-    )
+    keys = sorted(_signature_lock_keys(old_signature) | _fingerprint_lock_keys(new_fingerprints))
     for key in keys:
         await _advisory_lock(session, key)
 
@@ -207,9 +201,7 @@ async def _signature_for_trip(
     *,
     for_update: bool = False,
 ) -> RouteReplaySignature | None:
-    statement = select(RouteReplaySignature).where(
-        RouteReplaySignature.trip_session_id == trip_id
-    )
+    statement = select(RouteReplaySignature).where(RouteReplaySignature.trip_session_id == trip_id)
     if for_update:
         statement = statement.with_for_update()
     return await session.scalar(statement)
@@ -314,11 +306,7 @@ async def _affected_group_trip_ids(
     trip_ids: set[UUID] = set()
     for detector_version, normalized_fingerprint in sorted(group_keys):
         members = _group_members(detector_version, normalized_fingerprint)
-        trip_ids.update(
-            (
-                await session.scalars(select(members.c.trip_id))
-            ).all()
-        )
+        trip_ids.update((await session.scalars(select(members.c.trip_id))).all())
     return trip_ids
 
 

@@ -29,9 +29,6 @@ function revision(overrides: Partial<Revision>): Revision {
     payout_rule_id: "2a6d8e1b-4c3f-4a5d-8e9f-0a1b2c3d4e5f",
     revision_number: 1,
     effective_from: "2026-10-01T07:00:00Z",
-    hourly_rate_naira: null,
-    premium_hourly_rate_naira: null,
-    daily_payable_hours_cap: null,
     daily_rate_naira: "10000.00",
     daily_target_miles: "70.000",
     shortfall_strategy: "per_mile_deduction",
@@ -59,16 +56,7 @@ describe("DailyRatePanel", () => {
       <DailyRatePanel
         campaignId={CAMPAIGN_ID}
         publishingEnabled
-        revisions={[
-          revision({ revision_number: 2, id: "00000000-0000-4000-8000-000000000002" }),
-          revision({
-            formula_version: "payout_v3",
-            hourly_rate_naira: "1200.00",
-            daily_rate_naira: null,
-            shortfall_strategy: null,
-            reason: "earlier hourly pay",
-          }),
-        ]}
+        revisions={[revision({ revision_number: 2, id: "00000000-0000-4000-8000-000000000002" })]}
       />,
     );
 
@@ -96,13 +84,12 @@ describe("DailyRatePanel", () => {
       "Reason",
     ]);
     expect(headers.join(" ")).not.toMatch(/hour/i);
-    const [daily, hourly] = screen.getAllByRole("row").slice(1);
-    if (!daily || !hourly) throw new Error("expected two rows");
+    const [daily] = screen.getAllByRole("row").slice(1);
+    if (!daily) throw new Error("expected daily row");
     expect(within(daily).getByText(/10,000\.00/)).toBeInTheDocument();
     expect(within(daily).getByText("70")).toBeInTheDocument();
     expect(within(daily).getByText(/140\.00 off per missing mile/)).toBeInTheDocument();
     expect(within(daily).getByText("Count at 50%")).toBeInTheDocument();
-    expect(within(hourly).getByText(/Earlier hourly terms: .*1,200\.00\/hour/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Publish daily rate" })).toBeEnabled();
   });
 

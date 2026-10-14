@@ -16,7 +16,7 @@ from test_trip_processing import (
     BASE_TIME,
     add_pings,
     build_graph,
-    create_test_payout_rule,
+    create_test_daily_payout_authority,
     moving_points,
     seed_analytics,
     table_counts,
@@ -837,11 +837,10 @@ def test_process_trip_unexpected_integrity_error_is_captured_and_reraised(
 
 def test_process_trip_logs_outcome_and_never_secrets(db_sessionmaker, settings, caplog) -> None:
     graph = build_graph(db_sessionmaker, "job-log")
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
     seed_analytics(db_sessionmaker, graph)
 
@@ -866,11 +865,10 @@ def test_sweep_recovers_lost_queue_and_second_pass_is_empty(
     caplog,
 ) -> None:
     graph = build_graph(postgis_db_sessionmaker, "sweep")
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         postgis_db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
     add_pings(postgis_db_sessionmaker, trip_id=graph.trip.id, points=moving_points())
 
@@ -914,12 +912,12 @@ def test_sweep_isolates_per_trip_failures_and_continues(
         "iso-good",
         ended_at=BASE_TIME + timedelta(minutes=40),
     )
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         db_sessionmaker,
         campaign_id=graph_good.campaign.id,
         created_by_user_id=graph_good.admin.id,
-        base_rate_per_km=10,
     )
+    add_pings(db_sessionmaker, trip_id=graph_good.trip.id, points=moving_points())
     seed_analytics(db_sessionmaker, graph_good)
 
     async def selective(session, *, trip_id, settings):
@@ -1042,11 +1040,10 @@ def test_burst_worker_runs_enqueued_trip_end_to_end(postgis_db_sessionmaker, set
         pytest.skip("ARQ test Redis URL is not configured")
 
     graph = build_graph(postgis_db_sessionmaker, "burst")
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         postgis_db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
     add_pings(postgis_db_sessionmaker, trip_id=graph.trip.id, points=moving_points())
 

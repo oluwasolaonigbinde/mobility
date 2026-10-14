@@ -30,19 +30,15 @@ from app.schemas.payouts import (
     CalculatePayoutRequest,
     CampaignCostCurrencySummary,
     CampaignCostSummary,
-    CampaignPayoutRuleCreate,
     CampaignPayoutRuleListResponse,
     CampaignPayoutRuleRead,
-    CampaignPayoutRuleRevisionCreate,
     CampaignPayoutRuleRevisionListResponse,
     CampaignPayoutRuleRevisionRead,
-    CampaignPayoutRuleUpdate,
     CampaignPayoutV4RevisionCreate,
     DriverEarningsCurrencySummary,
     DriverEarningsSummary,
     DriverTripDailyRateDay,
     DriverTripEarningsBreakdown,
-    DriverTripEarningsCapProgress,
     EarningsLedgerEntryListResponse,
     EarningsLedgerEntryRead,
     PayoutCalculationListResponse,
@@ -71,8 +67,6 @@ from app.services.payout_corrections import (
 from app.services.payouts import (
     advertiser_campaign_cost_summary,
     calculate_trip_payout,
-    create_campaign_payout_rule,
-    create_payout_rule_revision,
     driver_earnings_summary,
     driver_trip_earnings_breakdown,
     get_campaign_payout_rule,
@@ -83,7 +77,6 @@ from app.services.payouts import (
     list_payout_rule_revisions,
     publish_payout_v4_revision,
     recompute_requires_correction_order,
-    update_campaign_payout_rule,
 )
 
 router = APIRouter(tags=["Payouts"])
@@ -125,19 +118,6 @@ def payout_rule_response(rule: CampaignPayoutRule) -> CampaignPayoutRuleRead:
         formula_version=rule.formula_version,
         status=rule.status,
         currency=rule.currency,
-        base_rate_per_km=rule.base_rate_per_km,
-        base_rate_per_active_hour=rule.base_rate_per_active_hour,
-        target_zone_bonus_rate_per_km=rule.target_zone_bonus_rate_per_km,
-        bonus_zone_bonus_rate_per_km=rule.bonus_zone_bonus_rate_per_km,
-        estimated_impression_rate_per_1000=rule.estimated_impression_rate_per_1000,
-        min_payout_per_trip=rule.min_payout_per_trip,
-        max_payout_per_trip=rule.max_payout_per_trip,
-        low_fraud_multiplier=rule.low_fraud_multiplier,
-        medium_fraud_multiplier=rule.medium_fraud_multiplier,
-        high_fraud_multiplier=rule.high_fraud_multiplier,
-        hourly_rate_naira=rule.hourly_rate_naira,
-        daily_payable_hours_cap=rule.daily_payable_hours_cap,
-        eligibility_params=rule.eligibility_params,
         metadata=rule.rule_metadata,
         created_at=rule.created_at,
         updated_at=rule.updated_at,
@@ -153,9 +133,6 @@ def payout_rule_revision_response(
         payout_rule_id=revision.payout_rule_id,
         revision_number=revision.revision_number,
         effective_from=revision.effective_from,
-        hourly_rate_naira=revision.hourly_rate_naira,
-        premium_hourly_rate_naira=revision.premium_hourly_rate_naira,
-        daily_payable_hours_cap=revision.daily_payable_hours_cap,
         daily_rate_naira=revision.daily_rate_naira,
         daily_target_miles=revision.daily_target_miles,
         shortfall_strategy=revision.shortfall_strategy,
@@ -180,38 +157,19 @@ def payout_rule_revision_audit_values(
     as string, never field names alone (closes RM6 for this path)."""
     if revision is None:
         return None
-    if revision.formula_version == "payout_v4":
-        return {
-            "revision_number": revision.revision_number,
-            "effective_from": revision.effective_from.isoformat(),
-            "daily_rate_naira": str(revision.daily_rate_naira),
-            "daily_target_miles": str(revision.daily_target_miles),
-            "shortfall_strategy": revision.shortfall_strategy,
-            "deduction_per_mile_naira": (
-                str(revision.deduction_per_mile_naira)
-                if revision.deduction_per_mile_naira is not None
-                else None
-            ),
-            "minimum_miles": str(revision.minimum_miles),
-            "outside_area_weight": str(revision.outside_area_weight),
-            "currency": revision.currency,
-            "eligibility_params": revision.eligibility_params,
-            "formula_version": revision.formula_version,
-        }
     return {
         "revision_number": revision.revision_number,
         "effective_from": revision.effective_from.isoformat(),
-        "hourly_rate_naira": str(revision.hourly_rate_naira),
-        "premium_hourly_rate_naira": (
-            str(revision.premium_hourly_rate_naira)
-            if revision.premium_hourly_rate_naira is not None
+        "daily_rate_naira": str(revision.daily_rate_naira),
+        "daily_target_miles": str(revision.daily_target_miles),
+        "shortfall_strategy": revision.shortfall_strategy,
+        "deduction_per_mile_naira": (
+            str(revision.deduction_per_mile_naira)
+            if revision.deduction_per_mile_naira is not None
             else None
         ),
-        "daily_payable_hours_cap": (
-            str(revision.daily_payable_hours_cap)
-            if revision.daily_payable_hours_cap is not None
-            else None
-        ),
+        "minimum_miles": str(revision.minimum_miles),
+        "outside_area_weight": str(revision.outside_area_weight),
         "currency": revision.currency,
         "eligibility_params": revision.eligibility_params,
         "formula_version": revision.formula_version,
@@ -266,18 +224,9 @@ async def payout_calculation_response(
         formula_version=calculation.formula_version,
         status=calculation.status,
         currency=calculation.currency,
-        distance_component=calculation.distance_component,
-        active_time_component=calculation.active_time_component,
-        target_zone_bonus_component=calculation.target_zone_bonus_component,
-        bonus_zone_bonus_component=calculation.bonus_zone_bonus_component,
-        impression_component=calculation.impression_component,
         gross_payout=calculation.gross_payout,
-        quality_multiplier=calculation.quality_multiplier,
-        fraud_multiplier=calculation.fraud_multiplier,
-        cap_adjustment=calculation.cap_adjustment,
         final_payout=calculation.final_payout,
         eligible_seconds=calculation.eligible_seconds,
-        payable_seconds=calculation.payable_seconds,
         excluded_seconds_by_reason=calculation.excluded_seconds_by_reason,
         inputs_fingerprint=calculation.inputs_fingerprint,
         calculated_at=calculation.calculated_at,
@@ -286,42 +235,6 @@ async def payout_calculation_response(
         created_at=calculation.created_at,
         updated_at=calculation.updated_at,
     )
-
-
-@router.post(
-    "/admin/campaigns/{campaign_id}/payout-rules",
-    response_model=CampaignPayoutRuleRead,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create a campaign payout rule",
-)
-async def admin_create_campaign_payout_rule(
-    campaign_id: UUID,
-    payload: CampaignPayoutRuleCreate,
-    current_user: AdminUserDependency,
-    session: SessionDependency,
-    settings: SettingsDependency,
-) -> CampaignPayoutRuleRead:
-    rule, genesis_revision = await create_campaign_payout_rule(
-        session,
-        campaign_id=campaign_id,
-        created_by_user_id=current_user.id,
-        payload=payload,
-        settings=settings,
-    )
-    await create_audit_event(
-        session,
-        actor_user_id=current_user.id,
-        action="admin.campaign_payout_rule.created",
-        entity_type="campaign_payout_rule",
-        entity_id=str(rule.id),
-        metadata={
-            "campaign_id": str(campaign_id),
-            "status": rule.status,
-            "genesis_revision": payout_rule_revision_audit_values(genesis_revision),
-        },
-    )
-    await session.commit()
-    return payout_rule_response(rule)
 
 
 @router.get(
@@ -367,75 +280,6 @@ async def admin_get_campaign_payout_rule(
     del current_user
     rule = await get_campaign_payout_rule(session, campaign_id=campaign_id, rule_id=rule_id)
     return payout_rule_response(rule)
-
-
-@router.patch(
-    "/admin/campaigns/{campaign_id}/payout-rules/{rule_id}",
-    response_model=CampaignPayoutRuleRead,
-    summary="Update a campaign payout rule",
-)
-async def admin_update_campaign_payout_rule(
-    campaign_id: UUID,
-    rule_id: UUID,
-    payload: CampaignPayoutRuleUpdate,
-    current_user: AdminUserDependency,
-    session: SessionDependency,
-) -> CampaignPayoutRuleRead:
-    rule, changed_fields = await update_campaign_payout_rule(
-        session,
-        campaign_id=campaign_id,
-        rule_id=rule_id,
-        updated_by_user_id=current_user.id,
-        payload=payload,
-    )
-    await create_audit_event(
-        session,
-        actor_user_id=current_user.id,
-        action="admin.campaign_payout_rule.updated",
-        entity_type="campaign_payout_rule",
-        entity_id=str(rule.id),
-        metadata={"campaign_id": str(campaign_id), "changed_fields": changed_fields},
-    )
-    await session.commit()
-    return payout_rule_response(rule)
-
-
-@router.post(
-    "/admin/campaigns/{campaign_id}/payout-rules/{rule_id}/revisions",
-    response_model=CampaignPayoutRuleRevisionRead,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create an effective-dated payout-rule revision (supersede)",
-)
-async def admin_create_payout_rule_revision(
-    campaign_id: UUID,
-    rule_id: UUID,
-    payload: CampaignPayoutRuleRevisionCreate,
-    current_user: AdminUserDependency,
-    session: SessionDependency,
-) -> CampaignPayoutRuleRevisionRead:
-    revision, previous = await create_payout_rule_revision(
-        session,
-        campaign_id=campaign_id,
-        rule_id=rule_id,
-        payload=payload,
-        actor_user_id=current_user.id,
-    )
-    await create_audit_event(
-        session,
-        actor_user_id=current_user.id,
-        action="admin.payout_rule_revision.created",
-        entity_type="campaign_payout_rule_revision",
-        entity_id=str(revision.id),
-        metadata={
-            "campaign_id": str(campaign_id),
-            "payout_rule_id": str(rule_id),
-            "reason": revision.reason,
-            "before": payout_rule_revision_audit_values(previous),
-            "after": payout_rule_revision_audit_values(revision),
-        },
-    )
-    await session.commit()
-    return payout_rule_revision_response(revision)
 
 
 @router.get(
@@ -1052,17 +896,6 @@ async def driver_get_trip_earnings_breakdown(
         user_id=current_user.id,
         trip_id=trip_id,
     )
-    cap = None
-    if (
-        breakdown.lagos_day is not None
-        and breakdown.cap_seconds is not None
-        and breakdown.day_payable_seconds is not None
-    ):
-        cap = DriverTripEarningsCapProgress(
-            lagos_day=breakdown.lagos_day,
-            cap_seconds=breakdown.cap_seconds,
-            day_payable_seconds=breakdown.day_payable_seconds,
-        )
     return DriverTripEarningsBreakdown(
         trip_session_id=breakdown.trip_session_id,
         formula_version=breakdown.formula_version,
@@ -1070,17 +903,8 @@ async def driver_get_trip_earnings_breakdown(
         amount=breakdown.amount,
         eligible_seconds=breakdown.eligible_seconds,
         excluded_seconds_by_reason=breakdown.excluded_seconds_by_reason,
-        hourly_rate=breakdown.hourly_rate,
-        capped_seconds=breakdown.capped_seconds,
-        base_payable_seconds=breakdown.base_payable_seconds,
-        premium_payable_seconds=breakdown.premium_payable_seconds,
-        base_hourly_rate=breakdown.base_hourly_rate,
-        premium_hourly_rate=breakdown.premium_hourly_rate,
-        base_amount=breakdown.base_amount,
-        premium_amount=breakdown.premium_amount,
         superseded_by_recompute=breakdown.superseded_by_recompute,
         entries=[ledger_entry_response(entry) for entry in breakdown.entries],
-        cap=cap,
         daily_rate_days=(
             [
                 DriverTripDailyRateDay(lagos_day=day, distance_m=metres, amount=amount)

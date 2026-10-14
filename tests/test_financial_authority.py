@@ -12,10 +12,9 @@ from conftest import (
     create_test_user,
     create_test_vehicle,
 )
+from payout_fixtures import create_v4_revision, create_v4_rule, insert_v4_binding
 from sqlalchemy import func, select
 from test_campaign_assignments import create_assignment_ready_graph, create_postgres_offer
-from test_payouts_v2 import create_v2_rule
-from test_payouts_v3 import create_revision_row, insert_binding
 from test_receipt_allocations import _accepted_terms
 from test_trips import create_trip_ready_graph, start_trip
 
@@ -238,24 +237,20 @@ def test_concurrent_liability_reservations_never_overbook(
                 accepted_at=datetime.now(UTC),
             )
         )
-    rule = create_v2_rule(
+    rule = create_v4_rule(
         postgis_db_sessionmaker,
         campaign_id=campaign.id,
-        created_by_user_id=admin.id,
-        hourly_rate="40.00",
-        daily_cap_hours="1.00",
+        admin_id=admin.id,
     )
-    revision = create_revision_row(
+    revision = create_v4_revision(
         postgis_db_sessionmaker,
         campaign_id=campaign.id,
         rule_id=rule.id,
-        created_by_user_id=admin.id,
-        base="40.00",
-        premium=None,
-        cap="1.00",
+        admin_id=admin.id,
+        daily_rate_naira="40.00",
     )
     for assignment in assignments:
-        insert_binding(
+        insert_v4_binding(
             postgis_db_sessionmaker,
             settings,
             assignment_id=assignment.id,

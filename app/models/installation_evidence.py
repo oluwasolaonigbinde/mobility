@@ -66,7 +66,6 @@ class InstallationEvidenceSubmission(Base):
             "uq_installation_evidence_assignment_pending",
             "assignment_id",
             unique=True,
-            sqlite_where=text("status = 'pending_review'"),
             postgresql_where=text("status = 'pending_review'"),
         ),
         Index(

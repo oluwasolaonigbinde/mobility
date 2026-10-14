@@ -6,22 +6,21 @@ from decimal import Decimal
 from uuid import UUID
 
 from conftest import create_test_user, fetch_earnings_ledger_entries
+from payout_fixtures import (
+    BASE_LAT,
+    BASE_LON,
+    build_v4_graph,
+    create_signed_v2_test_trip_session,
+    resign_signed_v2_manifest_receipt,
+)
 from sqlalchemy import update
 from test_payout_corrections import (
     RELEASE_AT,
     approve,
     correction_entries,
-    raise_rule_rate,
+    seed_misposted_amount,
     service,
     submit,
-)
-from test_payouts_v2 import (
-    BASE_LAT,
-    BASE_LON,
-    build_v2_graph,
-    create_signed_v2_test_trip_session,
-    pipeline_to_v2,
-    resign_signed_v2_manifest_receipt,
 )
 from test_trip_processing import add_pings, run_pipeline
 
@@ -34,24 +33,32 @@ from app.services.payout_corrections import (
 )
 
 
+def pipeline_to_daily(db, settings, graph, *, points, idempotency_key):
+    add_pings(db, trip_id=graph.trip.id, points=points, idempotency_key=idempotency_key)
+    result = run_pipeline(db, graph.trip.id, settings)
+    assert result.overall == "completed"
+    return result
+
+
 def test_adjacent_day_orders_share_one_half_cent_effect_without_deadlock(
     postgis_db_sessionmaker,
     settings,
 ) -> None:
-    # Eighteen seconds straddle Lagos midnight: at NGN 1/h the authoritative
-    # HALF_UP total is 0.01 (exactly 0.005 before quantization); at NGN 3/h it
-    # becomes 0.02. Both selected days therefore project the same +0.01 trip
-    # effect before either order executes.
+    # Both sides of midnight exceed the tiny synthetic daily target. The
+    # correct total is two cents; a one-cent posting defect must be repaired
+    # once even when correction orders for the two days execute concurrently.
     started_at = datetime(2026, 7, 20, 22, 59, 51, tzinfo=UTC)
     ended_at = started_at + timedelta(seconds=18)
-    graph = build_v2_graph(
+    graph = build_v4_graph(
         postgis_db_sessionmaker,
+        settings,
         "adjacent-day-race",
         started_at=started_at,
         ended_at=ended_at,
-        hourly_rate="1.00",
+        daily_rate_naira="0.01",
+        daily_target_miles="0.010",
     )
-    pipeline_to_v2(
+    pipeline_to_daily(
         postgis_db_sessionmaker,
         settings,
         graph,
@@ -63,9 +70,9 @@ def test_adjacent_day_orders_share_one_half_cent_effect_without_deadlock(
         idempotency_key="adjacent-day-race",
     )
     initial_entries = fetch_earnings_ledger_entries(postgis_db_sessionmaker)
-    assert [entry.amount for entry in initial_entries] == [Decimal("0.01")]
+    assert [entry.amount for entry in initial_entries] == [Decimal("0.02")]
 
-    raise_rule_rate(postgis_db_sessionmaker, graph.rule.id, "3.00")
+    seed_misposted_amount(postgis_db_sessionmaker, graph.trip.id, "0.01")
     approver = create_test_user(
         postgis_db_sessionmaker,
         email="approver-adjacent-day-race@example.com",
@@ -143,12 +150,14 @@ def test_uuid_lock_order_preserves_chronological_cap_order_across_adjacent_days(
     first_start = datetime(2026, 7, 20, 22, 59, 40, tzinfo=UTC)
     second_start = first_start + timedelta(seconds=10)
     end_at = first_start + timedelta(seconds=40)
-    graph = build_v2_graph(
+    graph = build_v4_graph(
         postgis_db_sessionmaker,
+        settings,
         "adjacent-day-ordering",
         started_at=first_start,
         ended_at=end_at,
-        daily_cap_hours="0.01",  # 36 seconds per Lagos day
+        daily_rate_naira="600.00",
+        daily_target_miles="0.010",
     )
     second_trip = create_signed_v2_test_trip_session(
         postgis_db_sessionmaker,
@@ -175,9 +184,7 @@ def test_uuid_lock_order_preserves_chronological_cap_order_across_adjacent_days(
                 .values(id=earlier_high_id)
             )
             await session.execute(
-                update(TripSession)
-                .where(TripSession.id == second_trip.id)
-                .values(id=later_low_id)
+                update(TripSession).where(TripSession.id == second_trip.id).values(id=later_low_id)
             )
             await session.commit()
 
@@ -193,7 +200,7 @@ def test_uuid_lock_order_preserves_chronological_cap_order_across_adjacent_days(
             for offset in range(0, duration + 1, 10)
         ]
 
-    pipeline_to_v2(
+    pipeline_to_daily(
         postgis_db_sessionmaker,
         settings,
         graph,
@@ -219,8 +226,8 @@ def test_uuid_lock_order_preserves_chronological_cap_order_across_adjacent_days(
         ),
     )
     targets = {target.trip_session_id: target for target in projection.computations[0].trips}
-    assert targets[earlier_high_id].payable_by_day[next_day.isoformat()] == 20
-    assert targets[later_low_id].payable_by_day[next_day.isoformat()] == 16
+    assert targets[earlier_high_id].amount_by_day[next_day.isoformat()] == "600.00"
+    assert targets[later_low_id].amount_by_day[next_day.isoformat()] == "0.00"
 
     approver = create_test_user(
         postgis_db_sessionmaker,

@@ -250,7 +250,7 @@ async def _check_start_requirements(
             "Set current driver pay terms before resuming.",
             status_code=409,
         )
-    if rule.formula_version in {"payout_v2", "payout_v3", "payout_v4"}:
+    if rule.formula_version == "payout_v4":
         current = await session.scalar(
             select(CampaignPayoutRuleRevision.id)
             .where(

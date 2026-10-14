@@ -77,9 +77,7 @@ def _classify(before: dict[str, object], changes: dict[str, object]) -> list[str
         current = before[field]
         if field in {"start_at", "end_at"}:
             classifications.add("date_change")
-            is_expansion = (
-                field == "end_at" and current is not None and proposed > current
-            ) or (
+            is_expansion = (field == "end_at" and current is not None and proposed > current) or (
                 field == "start_at" and current is not None and proposed < current
             )
             if is_expansion:
@@ -110,51 +108,38 @@ async def _additional_window_liability(
     extra_days = max(
         0,
         (
-            current_start.astimezone(LAGOS_TZ).date()
-            - proposed_start.astimezone(LAGOS_TZ).date()
+            current_start.astimezone(LAGOS_TZ).date() - proposed_start.astimezone(LAGOS_TZ).date()
         ).days,
     ) + max(
         0,
-        (
-            proposed_end.astimezone(LAGOS_TZ).date()
-            - current_end.astimezone(LAGOS_TZ).date()
-        ).days,
+        (proposed_end.astimezone(LAGOS_TZ).date() - current_end.astimezone(LAGOS_TZ).date()).days,
     )
     if extra_days <= 0:
         return Decimal("0.00")
     binding_statement = (
         select(AssignmentRuleBinding)
-            .join(
-                CampaignAssignment,
-                CampaignAssignment.id == AssignmentRuleBinding.assignment_id,
-            )
-            .where(
-                CampaignAssignment.campaign_id == campaign.id,
-                CampaignAssignment.status.in_(
-                    {
-                        CampaignAssignmentStatus.ACCEPTED.value,
-                        CampaignAssignmentStatus.ACTIVE.value,
-                        CampaignAssignmentStatus.DEACTIVATED.value,
-                    }
-                ),
-            )
-            .order_by(AssignmentRuleBinding.assignment_id)
+        .join(
+            CampaignAssignment,
+            CampaignAssignment.id == AssignmentRuleBinding.assignment_id,
+        )
+        .where(
+            CampaignAssignment.campaign_id == campaign.id,
+            CampaignAssignment.status.in_(
+                {
+                    CampaignAssignmentStatus.ACCEPTED.value,
+                    CampaignAssignmentStatus.ACTIVE.value,
+                    CampaignAssignmentStatus.DEACTIVATED.value,
+                }
+            ),
+        )
+        .order_by(AssignmentRuleBinding.assignment_id)
     )
     if lock_bindings:
         binding_statement = binding_statement.with_for_update()
     bindings = list(await session.scalars(binding_statement))
     requested = Decimal("0.00")
     for binding in bindings:
-        if binding.formula_version == "payout_v4":
-            # At most one full day rate per driver per campaign day (D39).
-            requested += Decimal(binding.daily_rate_naira) * extra_days
-            continue
-        rate = max(
-            Decimal(binding.hourly_rate_naira),
-            Decimal(binding.premium_hourly_rate_naira or binding.hourly_rate_naira),
-        )
-        cap = Decimal(binding.daily_payable_hours_cap or 0)
-        requested += rate * cap * extra_days
+        requested += Decimal(binding.daily_rate_naira) * extra_days
     return requested.quantize(MONEY, rounding=ROUND_HALF_UP)
 
 
@@ -258,12 +243,8 @@ async def _build_change_preview(
             session, campaign_id=campaign.id, effective_at=now
         )
         if authorization is not None:
-            usable = await _authorization_usable_liability(
-                session, authorization, effective_at=now
-            )
-            reserved = await reserved_campaign_liability_total(
-                session, campaign_id=campaign.id
-            )
+            usable = await _authorization_usable_liability(session, authorization, effective_at=now)
+            reserved = await reserved_campaign_liability_total(session, campaign_id=campaign.id)
             available_liability = max(Decimal("0.00"), usable - reserved).quantize(MONEY)
     needs_admin = bool({"reduction", "date_change"}.intersection(classifications))
     outcome = (
@@ -320,9 +301,10 @@ async def _apply_if_funded(
 ) -> CampaignChangeRequest:
     now = await database_clock(session)
     new_review = review_reason is not None and request.review_reason is None
-    if review_reason is not None and request.review_reason is not None and (
-        request.review_reason != review_reason
-        or request.reviewed_by_user_id != actor_user_id
+    if (
+        review_reason is not None
+        and request.review_reason is not None
+        and (request.review_reason != review_reason or request.reviewed_by_user_id != actor_user_id)
     ):
         raise _error(
             "CAMPAIGN_CHANGE_DECISION_CONFLICT",
@@ -339,9 +321,7 @@ async def _apply_if_funded(
             if authorization is not None
             else Decimal("0.00")
         )
-        reserved = await reserved_campaign_liability_total(
-            session, campaign_id=campaign.id
-        )
+        reserved = await reserved_campaign_liability_total(session, campaign_id=campaign.id)
         if authorization is None or usable - reserved < requested:
             request.status = CampaignChangeStatus.PENDING_FUNDING.value
             if new_review:
@@ -458,9 +438,7 @@ async def request_campaign_change(
     client_request_id = payload.client_request_id
     fingerprint = _digest(
         {
-            "requested_changes": {
-                field: _json_value(value) for field, value in raw.items()
-            },
+            "requested_changes": {field: _json_value(value) for field, value in raw.items()},
             "reason": reason,
             "client_request_id": str(client_request_id),
             "source_sha256": payload.source_sha256,
@@ -498,9 +476,7 @@ async def request_campaign_change(
             "Funding or classification facts changed after this change was previewed",
         )
     proposed = {
-        field: value
-        for field, value in preview.after.items()
-        if value != preview.before[field]
+        field: value for field, value in preview.after.items() if value != preview.before[field]
     }
     request = CampaignChangeRequest(
         campaign_id=campaign.id,

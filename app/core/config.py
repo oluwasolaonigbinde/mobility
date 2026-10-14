@@ -292,7 +292,6 @@ class Settings(BaseSettings):
     impression_insufficient_data_confidence: float = 0.10
     impression_min_confidence: float = 0.0
     impression_max_confidence: float = 1.0
-    payout_formula_version: str = "payout_v1"
     # D39 daily-rate (payout_v4) publishing stays off until the client answers
     # Q1-Q3 (shortfall formula and minimum, which miles count, the cap and the
     # full-day amount). No pay value exists in configuration; every value is
@@ -312,17 +311,6 @@ class Settings(BaseSettings):
     payout_eligibility_max_accuracy_m: int = 75
     payout_eligibility_teleport_kmh: int = 180
     payout_eligibility_max_ping_gap_seconds: int = 120
-    payout_default_hourly_rate_ngn: float = 0.0
-    payout_default_base_rate_per_km: float = 0.0
-    payout_default_base_rate_per_active_hour: float = 0.0
-    payout_default_target_zone_bonus_rate_per_km: float = 0.0
-    payout_default_bonus_zone_bonus_rate_per_km: float = 0.0
-    payout_default_estimated_impression_rate_per_1000: float = 0.0
-    payout_default_low_fraud_multiplier: float = 0.90
-    payout_default_medium_fraud_multiplier: float = 0.70
-    payout_default_high_fraud_multiplier: float = 0.25
-    payout_default_min_payout_per_trip: float = 0.0
-    payout_default_max_payout_per_trip: OptionalFloat = None
     heatmap_default_resolution_m: int = 500
     heatmap_min_resolution_m: int = 50
     heatmap_max_resolution_m: int = 5000
@@ -680,45 +668,6 @@ class Settings(BaseSettings):
             raise ValueError("PAYOUT_ELIGIBILITY_STATIONARY_GRACE_MIN must be non-negative")
         return value
 
-    @field_validator("payout_default_hourly_rate_ngn")
-    @classmethod
-    def validate_payout_default_hourly_rate(cls, value: float) -> float:
-        if value < 0:
-            raise ValueError("PAYOUT_DEFAULT_HOURLY_RATE_NGN must be nonnegative")
-        return value
-
-    @field_validator(
-        "payout_default_base_rate_per_km",
-        "payout_default_base_rate_per_active_hour",
-        "payout_default_target_zone_bonus_rate_per_km",
-        "payout_default_bonus_zone_bonus_rate_per_km",
-        "payout_default_estimated_impression_rate_per_1000",
-        "payout_default_min_payout_per_trip",
-    )
-    @classmethod
-    def validate_nonnegative_payout_defaults(cls, value: float) -> float:
-        if value < 0:
-            raise ValueError("Payout default settings must be nonnegative")
-        return value
-
-    @field_validator("payout_default_max_payout_per_trip")
-    @classmethod
-    def validate_optional_payout_max(cls, value: float | None) -> float | None:
-        if value is not None and value < 0:
-            raise ValueError("Payout max default must be nonnegative")
-        return value
-
-    @field_validator(
-        "payout_default_low_fraud_multiplier",
-        "payout_default_medium_fraud_multiplier",
-        "payout_default_high_fraud_multiplier",
-    )
-    @classmethod
-    def validate_payout_ratios(cls, value: float) -> float:
-        if value < 0 or value > 1:
-            raise ValueError("Payout ratio settings must be between 0 and 1")
-        return value
-
     @field_validator(
         "heatmap_default_resolution_m",
         "heatmap_min_resolution_m",
@@ -1007,14 +956,6 @@ class Settings(BaseSettings):
             raise ValueError(
                 "DSR_APPROVED_EXCEPTION_REFERENCES requires an approved privacy legal "
                 "reference outside test"
-            )
-        if (
-            self.payout_default_max_payout_per_trip is not None
-            and self.payout_default_max_payout_per_trip < self.payout_default_min_payout_per_trip
-        ):
-            raise ValueError(
-                "PAYOUT_DEFAULT_MAX_PAYOUT_PER_TRIP must not be below "
-                "PAYOUT_DEFAULT_MIN_PAYOUT_PER_TRIP"
             )
         if not (
             self.heatmap_min_resolution_m

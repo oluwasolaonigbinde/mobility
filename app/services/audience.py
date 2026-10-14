@@ -218,8 +218,6 @@ async def _advertiser_membership(
 async def _idempotency_lock(
     session: AsyncSession, *, actor_user_id: UUID, operation: str, key: str
 ) -> None:
-    if session.get_bind().dialect.name != "postgresql":
-        return
     digest = hashlib.sha256(
         f"retargeting-source-v1:{actor_user_id}:{operation}:{key}".encode()
     ).digest()[:8]
@@ -528,8 +526,6 @@ def _zone_fingerprint(zone: CampaignZone) -> str:
 async def _link_idempotency_lock(
     session: AsyncSession, actor_user_id: UUID, operation: str, key: str
 ) -> None:
-    if session.get_bind().dialect.name != "postgresql":
-        return
     digest = hashlib.sha256(
         f"retargeting-link-v1:{actor_user_id}:{operation}:{key}".encode()
     ).digest()[:8]
@@ -919,8 +915,6 @@ async def link_is_stale(session: AsyncSession, link: RetargetingSourceLink) -> b
 
 
 async def _exposure_materialization_lock(session: AsyncSession, source_link_id: UUID) -> None:
-    if session.get_bind().dialect.name != "postgresql":
-        return
     digest = hashlib.sha256(f"exposure-segment-v1:{source_link_id}".encode()).digest()[:8]
     await session.execute(
         text("SELECT pg_advisory_xact_lock(:key)"),

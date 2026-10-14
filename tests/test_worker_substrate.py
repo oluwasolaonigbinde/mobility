@@ -60,11 +60,11 @@ def test_sweep_cron_minutes_tiles_the_hour() -> None:
     assert sweep_cron_minutes(60) == {0}
 
 
-def test_on_startup_and_on_shutdown_lifecycle(tmp_path, monkeypatch) -> None:
+def test_on_startup_and_on_shutdown_lifecycle(monkeypatch) -> None:
     # redis_url is required by the on_startup guard; no connection is made here.
     settings = Settings(
         environment="test",
-        database_url=f"sqlite+aiosqlite:///{tmp_path / 'worker.db'}",
+        database_url=os.environ["TEST_DATABASE_URL"],
         redis_url="redis://localhost:6380/8",
     )
     monkeypatch.setattr(worker, "get_settings", lambda: settings)

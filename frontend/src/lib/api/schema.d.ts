@@ -477,8 +477,7 @@ export interface paths {
         /** List campaign payout rules */
         get: operations["admin_list_campaign_payout_rules_api_v1_admin_campaigns__campaign_id__payout_rules_get"];
         put?: never;
-        /** Create a campaign payout rule */
-        post: operations["admin_create_campaign_payout_rule_api_v1_admin_campaigns__campaign_id__payout_rules_post"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -499,8 +498,7 @@ export interface paths {
         delete?: never;
         options?: never;
         head?: never;
-        /** Update a campaign payout rule */
-        patch: operations["admin_update_campaign_payout_rule_api_v1_admin_campaigns__campaign_id__payout_rules__rule_id__patch"];
+        patch?: never;
         trace?: never;
     };
     "/api/v1/admin/campaigns/{campaign_id}/payout-rules/{rule_id}/revisions": {
@@ -513,8 +511,7 @@ export interface paths {
         /** List a campaign's payout-rule revisions */
         get: operations["admin_list_payout_rule_revisions_api_v1_admin_campaigns__campaign_id__payout_rules__rule_id__revisions_get"];
         put?: never;
-        /** Create an effective-dated payout-rule revision (supersede) */
-        post: operations["admin_create_payout_rule_revision_api_v1_admin_campaigns__campaign_id__payout_rules__rule_id__revisions_post"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5554,15 +5551,11 @@ export interface components {
         };
         /** AdminPayoutCalculationRead */
         AdminPayoutCalculationRead: {
-            /** Active Time Component */
-            active_time_component: string | null;
             /**
              * Assignment Id
              * Format: uuid
              */
             assignment_id: string;
-            /** Bonus Zone Bonus Component */
-            bonus_zone_bonus_component: string | null;
             /**
              * Calculated At
              * Format: date-time
@@ -5575,8 +5568,6 @@ export interface components {
             campaign_id: string;
             /** Campaign Name */
             campaign_name: string;
-            /** Cap Adjustment */
-            cap_adjustment: string | null;
             /**
              * Created At
              * Format: date-time
@@ -5584,8 +5575,6 @@ export interface components {
             created_at: string;
             /** Currency */
             currency: string;
-            /** Distance Component */
-            distance_component: string | null;
             /**
              * Driver Profile Id
              * Format: uuid
@@ -5601,8 +5590,6 @@ export interface components {
             final_payout: string | null;
             /** Formula Version */
             formula_version: string;
-            /** Fraud Multiplier */
-            fraud_multiplier: string | null;
             /** Gross Payout */
             gross_payout: string | null;
             /**
@@ -5610,8 +5597,6 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /** Impression Component */
-            impression_component: string | null;
             /**
              * Impression Estimate Id
              * Format: uuid
@@ -5624,18 +5609,12 @@ export interface components {
             metadata?: {
                 [key: string]: unknown;
             };
-            /** Payable Seconds */
-            payable_seconds: number | null;
             /**
              * Payout Rule Id
              * Format: uuid
              */
             payout_rule_id: string;
-            /** Quality Multiplier */
-            quality_multiplier: string | null;
             status: components["schemas"]["PayoutCalculationStatus"];
-            /** Target Zone Bonus Component */
-            target_zone_bonus_component: string | null;
             /**
              * Trip Analytics Id
              * Format: uuid
@@ -7608,47 +7587,6 @@ export interface components {
             /** Total */
             total: number;
         };
-        /** CampaignPayoutRuleCreate */
-        CampaignPayoutRuleCreate: {
-            /** Base Rate Per Active Hour */
-            base_rate_per_active_hour?: number | string | null;
-            /** Base Rate Per Km */
-            base_rate_per_km?: number | string | null;
-            /** Bonus Zone Bonus Rate Per Km */
-            bonus_zone_bonus_rate_per_km?: number | string | null;
-            /** Currency */
-            currency?: string | null;
-            /** Daily Payable Hours Cap */
-            daily_payable_hours_cap?: number | string | null;
-            /** Eligibility Params */
-            eligibility_params?: {
-                [key: string]: unknown;
-            } | null;
-            /** Estimated Impression Rate Per 1000 */
-            estimated_impression_rate_per_1000?: number | string | null;
-            /** Formula Version */
-            formula_version?: string | null;
-            /** High Fraud Multiplier */
-            high_fraud_multiplier?: number | string | null;
-            /** Hourly Rate Naira */
-            hourly_rate_naira?: number | string | null;
-            /** Low Fraud Multiplier */
-            low_fraud_multiplier?: number | string | null;
-            /** Max Payout Per Trip */
-            max_payout_per_trip?: number | string | null;
-            /** Medium Fraud Multiplier */
-            medium_fraud_multiplier?: number | string | null;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            };
-            /** Min Payout Per Trip */
-            min_payout_per_trip?: number | string | null;
-            /** @default active */
-            status: components["schemas"]["CampaignPayoutRuleStatus"];
-            /** Target Zone Bonus Rate Per Km */
-            target_zone_bonus_rate_per_km?: number | string | null;
-        };
         /** CampaignPayoutRuleListResponse */
         CampaignPayoutRuleListResponse: {
             /** Items */
@@ -7662,12 +7600,6 @@ export interface components {
         };
         /** CampaignPayoutRuleRead */
         CampaignPayoutRuleRead: {
-            /** Base Rate Per Active Hour */
-            base_rate_per_active_hour: string | null;
-            /** Base Rate Per Km */
-            base_rate_per_km: string | null;
-            /** Bonus Zone Bonus Rate Per Km */
-            bonus_zone_bonus_rate_per_km: string | null;
             /**
              * Campaign Id
              * Format: uuid
@@ -7685,40 +7617,18 @@ export interface components {
             created_by_user_id: string;
             /** Currency */
             currency: string;
-            /** Daily Payable Hours Cap */
-            daily_payable_hours_cap: string | null;
-            /** Eligibility Params */
-            eligibility_params: {
-                [key: string]: unknown;
-            } | null;
-            /** Estimated Impression Rate Per 1000 */
-            estimated_impression_rate_per_1000: string | null;
             /** Formula Version */
             formula_version: string;
-            /** High Fraud Multiplier */
-            high_fraud_multiplier: string | null;
-            /** Hourly Rate Naira */
-            hourly_rate_naira: string | null;
             /**
              * Id
              * Format: uuid
              */
             id: string;
-            /** Low Fraud Multiplier */
-            low_fraud_multiplier: string | null;
-            /** Max Payout Per Trip */
-            max_payout_per_trip: string | null;
-            /** Medium Fraud Multiplier */
-            medium_fraud_multiplier: string | null;
             /** Metadata */
             metadata?: {
                 [key: string]: unknown;
             };
-            /** Min Payout Per Trip */
-            min_payout_per_trip: string | null;
             status: components["schemas"]["CampaignPayoutRuleStatus"];
-            /** Target Zone Bonus Rate Per Km */
-            target_zone_bonus_rate_per_km: string | null;
             /**
              * Updated At
              * Format: date-time
@@ -7726,26 +7636,6 @@ export interface components {
             updated_at: string;
             /** Updated By User Id */
             updated_by_user_id: string | null;
-        };
-        /** CampaignPayoutRuleRevisionCreate */
-        CampaignPayoutRuleRevisionCreate: {
-            /** Daily Payable Hours Cap */
-            daily_payable_hours_cap: number | string;
-            /**
-             * Effective From
-             * Format: date-time
-             */
-            effective_from: string;
-            /** Eligibility Params */
-            eligibility_params?: {
-                [key: string]: unknown;
-            };
-            /** Hourly Rate Naira */
-            hourly_rate_naira: number | string;
-            /** Premium Hourly Rate Naira */
-            premium_hourly_rate_naira?: number | string | null;
-            /** Reason */
-            reason: string;
         };
         /** CampaignPayoutRuleRevisionListResponse */
         CampaignPayoutRuleRevisionListResponse: {
@@ -7777,8 +7667,6 @@ export interface components {
             created_by_user_id: string;
             /** Currency */
             currency: string;
-            /** Daily Payable Hours Cap */
-            daily_payable_hours_cap: string | null;
             /** Daily Rate Naira */
             daily_rate_naira?: string | null;
             /** Daily Target Miles */
@@ -7796,8 +7684,6 @@ export interface components {
             };
             /** Formula Version */
             formula_version: string;
-            /** Hourly Rate Naira */
-            hourly_rate_naira: string | null;
             /**
              * Id
              * Format: uuid
@@ -7812,8 +7698,6 @@ export interface components {
              * Format: uuid
              */
             payout_rule_id: string;
-            /** Premium Hourly Rate Naira */
-            premium_hourly_rate_naira: string | null;
             /** Reason */
             reason: string;
             /** Revision Number */
@@ -7826,44 +7710,6 @@ export interface components {
          * @enum {string}
          */
         CampaignPayoutRuleStatus: "active" | "inactive";
-        /** CampaignPayoutRuleUpdate */
-        CampaignPayoutRuleUpdate: {
-            /** Base Rate Per Active Hour */
-            base_rate_per_active_hour?: number | string | null;
-            /** Base Rate Per Km */
-            base_rate_per_km?: number | string | null;
-            /** Bonus Zone Bonus Rate Per Km */
-            bonus_zone_bonus_rate_per_km?: number | string | null;
-            /** Currency */
-            currency?: string | null;
-            /** Daily Payable Hours Cap */
-            daily_payable_hours_cap?: number | string | null;
-            /** Eligibility Params */
-            eligibility_params?: {
-                [key: string]: unknown;
-            } | null;
-            /** Estimated Impression Rate Per 1000 */
-            estimated_impression_rate_per_1000?: number | string | null;
-            /** High Fraud Multiplier */
-            high_fraud_multiplier?: number | string | null;
-            /** Hourly Rate Naira */
-            hourly_rate_naira?: number | string | null;
-            /** Low Fraud Multiplier */
-            low_fraud_multiplier?: number | string | null;
-            /** Max Payout Per Trip */
-            max_payout_per_trip?: number | string | null;
-            /** Medium Fraud Multiplier */
-            medium_fraud_multiplier?: number | string | null;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            };
-            /** Min Payout Per Trip */
-            min_payout_per_trip?: number | string | null;
-            status?: components["schemas"]["CampaignPayoutRuleStatus"] | null;
-            /** Target Zone Bonus Rate Per Km */
-            target_zone_bonus_rate_per_km?: number | string | null;
-        };
         /**
          * CampaignPayoutV4RevisionCreate
          * @description A daily-rate (payout_v4, D39) revision. Every pay value is required and
@@ -9819,15 +9665,6 @@ export interface components {
         DriverTripEarningsBreakdown: {
             /** Amount */
             amount: string | null;
-            /** Base Amount */
-            base_amount: string | null;
-            /** Base Hourly Rate */
-            base_hourly_rate: string | null;
-            /** Base Payable Seconds */
-            base_payable_seconds: number | null;
-            cap: components["schemas"]["DriverTripEarningsCapProgress"] | null;
-            /** Capped Seconds */
-            capped_seconds: number | null;
             /** Currency */
             currency: string;
             /** Daily Rate Days */
@@ -9842,14 +9679,6 @@ export interface components {
             } | null;
             /** Formula Version */
             formula_version: string;
-            /** Hourly Rate */
-            hourly_rate: string | null;
-            /** Premium Amount */
-            premium_amount: string | null;
-            /** Premium Hourly Rate */
-            premium_hourly_rate: string | null;
-            /** Premium Payable Seconds */
-            premium_payable_seconds: number | null;
             /** Superseded By Recompute */
             superseded_by_recompute: boolean;
             /**
@@ -9857,18 +9686,6 @@ export interface components {
              * Format: uuid
              */
             trip_session_id: string;
-        };
-        /** DriverTripEarningsCapProgress */
-        DriverTripEarningsCapProgress: {
-            /** Cap Seconds */
-            cap_seconds: number;
-            /** Day Payable Seconds */
-            day_payable_seconds: number;
-            /**
-             * Lagos Day
-             * Format: date
-             */
-            lagos_day: string;
         };
         /** EarningsLedgerEntryListResponse */
         EarningsLedgerEntryListResponse: {
@@ -12335,15 +12152,11 @@ export interface components {
         };
         /** PayoutCalculationRead */
         PayoutCalculationRead: {
-            /** Active Time Component */
-            active_time_component: string | null;
             /**
              * Assignment Id
              * Format: uuid
              */
             assignment_id: string;
-            /** Bonus Zone Bonus Component */
-            bonus_zone_bonus_component: string | null;
             /**
              * Calculated At
              * Format: date-time
@@ -12354,8 +12167,6 @@ export interface components {
              * Format: uuid
              */
             campaign_id: string;
-            /** Cap Adjustment */
-            cap_adjustment: string | null;
             /**
              * Created At
              * Format: date-time
@@ -12363,8 +12174,6 @@ export interface components {
             created_at: string;
             /** Currency */
             currency: string;
-            /** Distance Component */
-            distance_component: string | null;
             /**
              * Driver Profile Id
              * Format: uuid
@@ -12380,8 +12189,6 @@ export interface components {
             final_payout: string | null;
             /** Formula Version */
             formula_version: string;
-            /** Fraud Multiplier */
-            fraud_multiplier: string | null;
             /** Gross Payout */
             gross_payout: string | null;
             /**
@@ -12389,8 +12196,6 @@ export interface components {
              * Format: uuid
              */
             id: string;
-            /** Impression Component */
-            impression_component: string | null;
             /**
              * Impression Estimate Id
              * Format: uuid
@@ -12403,18 +12208,12 @@ export interface components {
             metadata?: {
                 [key: string]: unknown;
             };
-            /** Payable Seconds */
-            payable_seconds: number | null;
             /**
              * Payout Rule Id
              * Format: uuid
              */
             payout_rule_id: string;
-            /** Quality Multiplier */
-            quality_multiplier: string | null;
             status: components["schemas"]["PayoutCalculationStatus"];
-            /** Target Zone Bonus Component */
-            target_zone_bonus_component: string | null;
             /**
              * Trip Analytics Id
              * Format: uuid
@@ -13362,8 +13161,6 @@ export interface components {
             /** Entry Id */
             entry_id: string | null;
             entry_type: components["schemas"]["EarningsLedgerEntryType"] | null;
-            /** Payable Seconds */
-            payable_seconds: number;
             /** Payout Calculation Id */
             payout_calculation_id: string | null;
             /** Previous Posted Amount */
@@ -13409,8 +13206,6 @@ export interface components {
              * Format: uuid
              */
             campaign_id: string;
-            /** Cap Seconds */
-            cap_seconds: number;
             /**
              * Driver Profile Id
              * Format: uuid
@@ -16352,41 +16147,6 @@ export interface operations {
             };
         };
     };
-    admin_create_campaign_payout_rule_api_v1_admin_campaigns__campaign_id__payout_rules_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                campaign_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CampaignPayoutRuleCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CampaignPayoutRuleRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     admin_get_campaign_payout_rule_api_v1_admin_campaigns__campaign_id__payout_rules__rule_id__get: {
         parameters: {
             query?: never;
@@ -16398,42 +16158,6 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CampaignPayoutRuleRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_update_campaign_payout_rule_api_v1_admin_campaigns__campaign_id__payout_rules__rule_id__patch: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                campaign_id: string;
-                rule_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CampaignPayoutRuleUpdate"];
-            };
-        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -16478,42 +16202,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CampaignPayoutRuleRevisionListResponse"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_create_payout_rule_revision_api_v1_admin_campaigns__campaign_id__payout_rules__rule_id__revisions_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                campaign_id: string;
-                rule_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CampaignPayoutRuleRevisionCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CampaignPayoutRuleRevisionRead"];
                 };
             };
             /** @description Request validation failed */

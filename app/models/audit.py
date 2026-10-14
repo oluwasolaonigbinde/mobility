@@ -75,7 +75,6 @@ class AuditEventSubjectResolution(Base):
             "role",
             unique=True,
             postgresql_where=text("subject_user_id IS NULL"),
-            sqlite_where=text("subject_user_id IS NULL"),
         ),
         Index("ix_audit_subject_user_event", "subject_user_id", "audit_event_id"),
     )

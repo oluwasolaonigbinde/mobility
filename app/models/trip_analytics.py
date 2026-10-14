@@ -288,19 +288,13 @@ class FraudFlag(Base):
             "ix_fraud_flags_unresolved_sla",
             "detected_at",
             "id",
-            sqlite_where=text(
-                "status IN ('open', 'acknowledged') AND escalated_at IS NULL"
-            ),
-            postgresql_where=text(
-                "status IN ('open', 'acknowledged') AND escalated_at IS NULL"
-            ),
+            postgresql_where=text("status IN ('open', 'acknowledged') AND escalated_at IS NULL"),
         ),
         Index(
             "uq_fraud_flags_trip_nonterminal_flag_type",
             "trip_session_id",
             "flag_type",
             unique=True,
-            sqlite_where=text("status IN ('open', 'acknowledged', 'confirmed')"),
             postgresql_where=text("status IN ('open', 'acknowledged', 'confirmed')"),
         ),
     )

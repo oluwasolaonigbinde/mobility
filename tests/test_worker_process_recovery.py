@@ -37,7 +37,7 @@ from test_mny03a_earnings_release import (
 from test_payout_batches import _seed_authority
 from test_trip_processing import (
     add_pings,
-    create_test_payout_rule,
+    create_test_daily_payout_authority,
     moving_points,
 )
 from test_trip_processing import (
@@ -1220,11 +1220,10 @@ def test_cursor_persists_across_kill_and_reaches_every_tail_item_once(
             f"c{index}-{uuid4().hex[:7]}",
             ended_at=datetime(2026, 8, 1, 12, index, tzinfo=UTC),
         )
-        create_test_payout_rule(
+        create_test_daily_payout_authority(
             recovery_environment.sessionmaker,
             campaign_id=graph.campaign.id,
             created_by_user_id=graph.admin.id,
-            base_rate_per_km=10,
         )
         add_pings(
             recovery_environment.sessionmaker,

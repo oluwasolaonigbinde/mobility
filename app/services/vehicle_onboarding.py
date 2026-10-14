@@ -75,8 +75,6 @@ async def acquire_work_eligibility_lock(
     profile/vehicle advisory suffix before assignment or evidence row locks.
     """
 
-    if session.get_bind().dialect.name != "postgresql":
-        return
     identifiers = {driver_profile_id}
     if vehicle_id is not None:
         identifiers.add(vehicle_id)

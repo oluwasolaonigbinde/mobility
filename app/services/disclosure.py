@@ -106,8 +106,6 @@ async def lock_trip_disclosure_snapshot(
     campaign_id: UUID | None,
 ) -> None:
     """Freeze report contributors before response construction under PostgreSQL."""
-    if session.get_bind().dialect.name != "postgresql":
-        return
     from app.services.fraud_holds import lock_fraud_reconciliation_gate
 
     # Exclude fraud/money writers before parent FK and contributor row locks.
@@ -179,8 +177,6 @@ def _utc_date(value: datetime):
 
 
 async def _lock_disclosure_history(session: AsyncSession) -> None:
-    if session.get_bind().dialect.name != "postgresql":
-        return
     lock_digest = hashlib.sha256(b"disclosure-history-v2").digest()[:8]
     lock_key = int.from_bytes(lock_digest, "big", signed=True)
     await session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": lock_key})

@@ -244,8 +244,6 @@ async def _authorize_scope(
 
 
 async def _lock_key(session: AsyncSession, label: str) -> None:
-    if session.get_bind().dialect.name != "postgresql":
-        return
     digest = hashlib.sha256(label.encode()).digest()[:8]
     await session.execute(
         text("SELECT pg_advisory_xact_lock(:key)"),

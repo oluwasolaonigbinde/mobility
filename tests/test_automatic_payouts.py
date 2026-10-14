@@ -20,20 +20,20 @@ from conftest import (
     create_test_campaign_assignment,
     create_test_user,
 )
-from sqlalchemy import select, update
-from test_mny03a_earnings_release import build_graph as build_manual_graph
-from test_payout_batches import _seed_authority
-from test_payouts_v2 import moving_points
-from test_payouts_v3 import add_target_zone
-from test_payouts_v4 import (
+from payout_fixtures import (
     TRIP_START,
+    add_target_zone,
     add_trip,
     build_v4_graph,
     create_v4_revision,
     create_v4_rule,
     drive,
     insert_v4_binding,
+    moving_points,
 )
+from sqlalchemy import select, update
+from test_mny03a_earnings_release import build_graph as build_manual_graph
+from test_payout_batches import _seed_authority
 from test_trip_processing import add_pings, run_pipeline
 
 from app.adapters.crypto import EnvelopeCryptoProvider

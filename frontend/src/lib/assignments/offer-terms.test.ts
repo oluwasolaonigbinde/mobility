@@ -12,9 +12,12 @@ describe("offerTermLines", () => {
       branding: { campaign_id: "c1", campaign_name: "Wuse Blitz", brand_name: null },
       payout: {
         revision_id: "r1",
-        formula_version: "payout_v3",
-        hourly_rate_naira: "1500.00",
-        premium_hourly_rate_naira: "",
+        formula_version: "payout_v4",
+        daily_rate_naira: "1500.00",
+        daily_target_miles: "10.000",
+        shortfall_strategy: "proportional",
+        minimum_miles: "0",
+        outside_area_weight: "1",
         missing_rate_naira: null,
         eligibility_params: { stationary_window_min: 5 },
       },
@@ -40,7 +43,7 @@ describe("offerTermLines", () => {
     expect(text).toContain("Shifts: morning, evening");
     expect(text).toMatch(/Campaign window start at: \d/);
     expect(text).not.toMatch(
-      /c1|r1|z1|MULTIPOLYGON|payout_v3|offer_terms_v3|stationary-rd|semantics/,
+      /c1|r1|z1|MULTIPOLYGON|payout_v4|offer_terms_v3|stationary-rd|semantics/,
     );
     expect(text).not.toContain("Brand name");
     expect(text).not.toContain("Exclusion");
@@ -108,8 +111,8 @@ describe("dailyRateSentences", () => {
     );
   });
 
-  it("returns nothing for hourly offers and hides the raw daily-rate keys", () => {
-    expect(dailyRateSentences({ payout: { formula_version: "payout_v3" } })).toEqual([]);
+  it("returns nothing for unknown offers and hides the raw daily-rate keys", () => {
+    expect(dailyRateSentences({ payout: { formula_version: "unknown" } })).toEqual([]);
     const text = offerTermLines(offer({}))
       .map((line) => `${line.label}: ${line.value}`)
       .join("\n");

@@ -1,5 +1,3 @@
-import hashlib
-import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -106,8 +104,6 @@ class PingBatchResult:
     batch: LocationPingBatch | None
     duplicate: bool
     quarantine: QuarantinedPingBatch | None = None
-    # Legacy v1 only: set when ingest completed its watermark and sealed it.
-    sealed_now: bool = False
 
     @property
     def quarantined(self) -> bool:
@@ -488,18 +484,6 @@ async def summarize_trip(session: AsyncSession, trip: TripSession) -> TripSummar
     )
 
 
-async def count_trip_batches(session: AsyncSession, trip_id: UUID) -> int:
-    count = await session.scalar(
-        select(func.count(LocationPingBatch.id)).where(LocationPingBatch.trip_session_id == trip_id)
-    )
-    return int(count or 0)
-
-
-def watermark_satisfied(trip: TripSession, server_batch_count: int) -> bool:
-    """Return whether a legacy-v1 trip satisfies D15's historical watermark."""
-    return trip.client_batch_count is not None and server_batch_count >= trip.client_batch_count
-
-
 async def try_seal_trip(
     session: AsyncSession,
     trip: TripSession,
@@ -573,63 +557,62 @@ async def end_driver_trip(
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     manifest = payload.evidence_manifest
-    if trip.evidence_protocol_version == 2:
-        signing_key(settings)
-        existing_batches = list(
-            (
-                await session.execute(
-                    select(LocationPingBatch).where(
-                        LocationPingBatch.trip_session_id == trip.id,
-                        LocationPingBatch.evidence_scope == "manifest",
-                    )
+    signing_key(settings)
+    existing_batches = list(
+        (
+            await session.execute(
+                select(LocationPingBatch).where(
+                    LocationPingBatch.trip_session_id == trip.id,
+                    LocationPingBatch.evidence_scope == "manifest",
                 )
             )
-            .scalars()
-            .all()
         )
-        if manifest is None:
-            if existing_batches:
-                raise AppError(
-                    "TRIP_EVIDENCE_MANIFEST_REQUIRED",
-                    "A v2 evidence manifest is required when evidence exists",
-                    status_code=status.HTTP_409_CONFLICT,
-                )
-            manifest = TripEvidenceManifestCreate(
-                version=2,
-                root_sha256=manifest_root(trip_id=trip.id, entries=[], ping_count=0),
-                ping_count=0,
-                complete=False,
-                entries=[],
+        .scalars()
+        .all()
+    )
+    if manifest is None:
+        if existing_batches:
+            raise AppError(
+                "TRIP_EVIDENCE_MANIFEST_REQUIRED",
+                "A v2 evidence manifest is required when evidence exists",
+                status_code=status.HTTP_409_CONFLICT,
             )
-        validate_manifest(trip.id, manifest)
-        descriptors = {entry.idempotency_key: entry for entry in manifest.entries}
-        for batch in existing_batches:
-            descriptor = descriptors.get(batch.idempotency_key)
-            if descriptor is None or (
-                descriptor.batch_sequence != batch.batch_sequence
-                or descriptor.payload_hash_version != batch.payload_hash_version
-                or descriptor.payload_hash != batch.payload_hash
-                or descriptor.submitted_count != batch.pings_submitted
-            ):
-                raise AppError(
-                    "TRIP_EVIDENCE_MANIFEST_INVALID",
-                    "Uploaded evidence does not match the committed manifest",
-                    status_code=status.HTTP_409_CONFLICT,
-                )
-        session.add_all(
-            [
-                TripEvidenceManifestEntry(
-                    trip_session_id=trip.id,
-                    batch_sequence=entry.batch_sequence,
-                    idempotency_key=entry.idempotency_key,
-                    payload_hash_version=entry.payload_hash_version,
-                    payload_hash=entry.payload_hash,
-                    submitted_count=entry.submitted_count,
-                )
-                for entry in manifest.entries
-            ]
+        manifest = TripEvidenceManifestCreate(
+            version=2,
+            root_sha256=manifest_root(trip_id=trip.id, entries=[], ping_count=0),
+            ping_count=0,
+            complete=False,
+            entries=[],
         )
-        await session.flush()
+    validate_manifest(trip.id, manifest)
+    descriptors = {entry.idempotency_key: entry for entry in manifest.entries}
+    for batch in existing_batches:
+        descriptor = descriptors.get(batch.idempotency_key)
+        if descriptor is None or (
+            descriptor.batch_sequence != batch.batch_sequence
+            or descriptor.payload_hash_version != batch.payload_hash_version
+            or descriptor.payload_hash != batch.payload_hash
+            or descriptor.submitted_count != batch.pings_submitted
+        ):
+            raise AppError(
+                "TRIP_EVIDENCE_MANIFEST_INVALID",
+                "Uploaded evidence does not match the committed manifest",
+                status_code=status.HTTP_409_CONFLICT,
+            )
+    session.add_all(
+        [
+            TripEvidenceManifestEntry(
+                trip_session_id=trip.id,
+                batch_sequence=entry.batch_sequence,
+                idempotency_key=entry.idempotency_key,
+                payload_hash_version=entry.payload_hash_version,
+                payload_hash=entry.payload_hash,
+                submitted_count=entry.submitted_count,
+            )
+            for entry in manifest.entries
+        ]
+    )
+    await session.flush()
     # Guarded transition (like ended -> sealed): two concurrent end requests
     # must not both pass a read-then-write check — the loser would overwrite
     # a seal and trip the sealed-fields constraint as a 500.
@@ -669,21 +652,12 @@ async def end_driver_trip(
     await session.refresh(trip)
 
     sealed_now = False
-    if trip.evidence_protocol_version == 2:
-        completeness = await manifest_completeness(session, trip, settings)
-        if manifest and manifest.complete and completeness.complete:
-            trip.evidence_manifest_complete = True
-            trip.evidence_manifest_verified_at = now
-            sign_manifest_receipt(trip, settings)
-            await session.flush()
-            sealed_now = await try_seal_trip(
-                session,
-                trip,
-                reason=TripSealReason.CLIENT_COMPLETE,
-                now=now,
-                actor_user_id=user_id,
-            )
-    elif watermark_satisfied(trip, await count_trip_batches(session, trip.id)):
+    completeness = await manifest_completeness(session, trip, settings)
+    if manifest and manifest.complete and completeness.complete:
+        trip.evidence_manifest_complete = True
+        trip.evidence_manifest_verified_at = now
+        sign_manifest_receipt(trip, settings)
+        await session.flush()
         sealed_now = await try_seal_trip(
             session,
             trip,
@@ -717,15 +691,6 @@ def canonical_ping_payload(payload: LocationPingBatchCreate) -> dict[str, Any]:
         ],
         "metadata": payload.metadata,
     }
-
-
-def payload_hash(payload: LocationPingBatchCreate) -> str:
-    canonical_json = json.dumps(
-        canonical_ping_payload(payload),
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    return hashlib.sha256(canonical_json.encode("utf-8")).hexdigest()
 
 
 def ensure_ping_batch_size(payload: LocationPingBatchCreate, settings: Settings) -> None:
@@ -898,9 +863,7 @@ def classify_ping(
 
 
 def point_value(session: AsyncSession, *, lon: float, lat: float):
-    if session.get_bind().dialect.name == "postgresql":
-        return func.ST_SetSRID(func.ST_MakePoint(lon, lat), 4326)
-    return f"POINT({lon} {lat})"
+    return func.ST_SetSRID(func.ST_MakePoint(lon, lat), 4326)
 
 
 async def ingest_location_ping_batch(
@@ -939,26 +902,22 @@ async def ingest_location_ping_batch(
     # already recorded must not depend on the assignment still being active.
     # `sealed` falls through to the quarantine path below.
 
-    if trip.evidence_protocol_version == 2:
-        signing_key(settings)
-        if payload.batch_sequence is None:
-            raise AppError(
-                "TRIP_EVIDENCE_BATCH_SEQUENCE_REQUIRED",
-                "A v2 evidence batch sequence is required",
-                status_code=status.HTTP_409_CONFLICT,
-            )
-        try:
-            digest = batch_payload_hash(payload)
-        except ValueError as exc:
-            raise AppError(
-                "TRIP_EVIDENCE_TIMESTAMP_PRECISION_INVALID",
-                "V2 evidence timestamps must have exact millisecond precision",
-                status_code=status.HTTP_400_BAD_REQUEST,
-            ) from exc
-        hash_version = BATCH_HASH_VERSION
-    else:
-        digest = payload_hash(payload)
-        hash_version = 1
+    signing_key(settings)
+    if payload.batch_sequence is None:
+        raise AppError(
+            "TRIP_EVIDENCE_BATCH_SEQUENCE_REQUIRED",
+            "A v2 evidence batch sequence is required",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    try:
+        digest = batch_payload_hash(payload)
+    except ValueError as exc:
+        raise AppError(
+            "TRIP_EVIDENCE_TIMESTAMP_PRECISION_INVALID",
+            "V2 evidence timestamps must have exact millisecond precision",
+            status_code=status.HTTP_400_BAD_REQUEST,
+        ) from exc
+    hash_version = BATCH_HASH_VERSION
     # Live-batch dedup first, for every status: a batch uploaded pre-seal
     # whose response was lost and is retried post-seal must return its
     # original ACK, never a conflict and never a quarantine row.
@@ -970,11 +929,8 @@ async def ingest_location_ping_batch(
     )
     if existing_batch is not None:
         if existing_batch.payload_hash != digest or (
-            trip.evidence_protocol_version == 2
-            and (
-                existing_batch.batch_sequence != payload.batch_sequence
-                or not verify_batch_receipt(existing_batch, settings)
-            )
+            existing_batch.batch_sequence != payload.batch_sequence
+            or not verify_batch_receipt(existing_batch, settings)
         ):
             raise AppError(
                 "IDEMPOTENCY_KEY_CONFLICT",
@@ -1000,7 +956,7 @@ async def ingest_location_ping_batch(
             hash_version=hash_version,
         )
 
-    if trip.evidence_protocol_version == 2 and trip.status == TripSessionStatus.ENDED.value:
+    if trip.status == TripSessionStatus.ENDED.value:
         descriptor = await session.scalar(
             select(TripEvidenceManifestEntry).where(
                 TripEvidenceManifestEntry.trip_session_id == trip.id,
@@ -1039,20 +995,15 @@ async def ingest_location_ping_batch(
     accepted_pings = [
         ping for ping, rejection in zip(payload.pings, rejections, strict=True) if rejection is None
     ]
-    partial_allowed = trip.evidence_protocol_version == 2
     first_rejection = next((rejection for rejection in rejections if rejection is not None), None)
-    if first_rejection is not None and (not accepted_pings or not partial_allowed):
+    if first_rejection is not None and not accepted_pings:
         raise first_rejection.as_error()
 
-    rejection_manifest = (
-        rejection_manifest_document(
-            [
-                (ping.sequence_number, rejection.code if rejection else None)
-                for ping, rejection in zip(payload.pings, rejections, strict=True)
-            ]
-        )
-        if partial_allowed
-        else None
+    rejection_manifest = rejection_manifest_document(
+        [
+            (ping.sequence_number, rejection.code if rejection else None)
+            for ping, rejection in zip(payload.pings, rejections, strict=True)
+        ]
     )
     rejection_digest = (
         rejection_manifest_digest(rejection_manifest) if rejection_manifest is not None else None
@@ -1075,7 +1026,7 @@ async def ingest_location_ping_batch(
         pings_submitted=len(payload.pings),
         pings_accepted=len(accepted_pings),
         pings_rejected=len(payload.pings) - len(accepted_pings),
-        evidence_scope=("manifest" if trip.evidence_protocol_version == 2 else "legacy"),
+        evidence_scope=("manifest"),
         received_at=received_at,
         rejection_manifest=rejection_manifest,
         rejection_digest=rejection_digest,
@@ -1104,25 +1055,11 @@ async def ingest_location_ping_batch(
         )
     trip.updated_at = received_at
     await session.flush()
-    if trip.evidence_protocol_version == 2:
-        sign_batch_receipt(batch, settings)
-        await session.flush()
+    sign_batch_receipt(batch, settings)
+    await session.flush()
     await session.refresh(batch)
 
-    sealed_now = False
-    if (
-        trip.evidence_protocol_version == 1
-        and trip.status == TripSessionStatus.ENDED.value
-        and watermark_satisfied(trip, await count_trip_batches(session, trip.id))
-    ):
-        sealed_now = await try_seal_trip(
-            session,
-            trip,
-            reason=TripSealReason.LATE_DATA_COMPLETE,
-            now=received_at,
-            actor_user_id=user_id,
-        )
-    return PingBatchResult(batch=batch, duplicate=False, sealed_now=sealed_now)
+    return PingBatchResult(batch=batch, duplicate=False)
 
 
 async def quarantine_ping_batch(
@@ -1143,11 +1080,8 @@ async def quarantine_ping_batch(
     )
     if existing is not None:
         if existing.payload_hash != digest or (
-            trip.evidence_protocol_version == 2
-            and (
-                existing.batch_sequence != payload.batch_sequence
-                or not verify_quarantine_receipt(existing, settings)
-            )
+            existing.batch_sequence != payload.batch_sequence
+            or not verify_quarantine_receipt(existing, settings)
         ):
             raise AppError(
                 "IDEMPOTENCY_KEY_CONFLICT",
@@ -1170,8 +1104,7 @@ async def quarantine_ping_batch(
         status=QuarantinedPingBatchStatus.QUARANTINED.value,
     )
     session.add(quarantine)
-    if trip.evidence_protocol_version == 2:
-        sign_quarantine_receipt(quarantine, settings)
+    sign_quarantine_receipt(quarantine, settings)
     await session.flush()
     await session.refresh(quarantine)
     return PingBatchResult(batch=None, duplicate=False, quarantine=quarantine)
@@ -1194,7 +1127,7 @@ async def reconcile_trip_evidence(
     )
     if trip is None:
         raise trip_not_found()
-    if trip.evidence_protocol_version != 2 or trip.evidence_manifest_root_sha256 is None:
+    if trip.evidence_manifest_root_sha256 is None:
         raise AppError(
             "TRIP_EVIDENCE_MANIFEST_REQUIRED",
             "A committed v2 evidence manifest is required",
@@ -1363,7 +1296,7 @@ async def apply_quarantined_ping_batch(
 ) -> QuarantineApplyResult:
     """Insert a quarantined batch's pings as live evidence (audited).
 
-    Money is deliberately NOT recomputed here: payout_v2 is write-once and the
+    Money is deliberately NOT recomputed here: daily-rate payout is write-once and the
     corrective path is the admin recompute-day tool (§16.1). The result names
     the affected Africa/Lagos days so the admin can run it per day.
 
@@ -1375,7 +1308,7 @@ async def apply_quarantined_ping_batch(
     quarantine, trip = await get_quarantined_batch_for_review(
         session, trip_id=trip_id, quarantine_id=quarantine_id
     )
-    if trip.evidence_protocol_version == 2 and not verify_quarantine_receipt(quarantine, settings):
+    if not verify_quarantine_receipt(quarantine, settings):
         raise AppError(
             "TRIP_EVIDENCE_RECEIPT_INVALID",
             "Quarantined trip evidence receipt is invalid",
@@ -1397,24 +1330,23 @@ async def apply_quarantined_ping_batch(
         pings=quarantine.payload.get("pings", []),
         metadata=quarantine.payload.get("metadata") or {},
     )
-    if trip.evidence_protocol_version == 2:
-        try:
-            stored_payload_hash = batch_payload_hash(payload)
-        except ValueError as exc:
-            raise AppError(
-                "TRIP_EVIDENCE_RECEIPT_INVALID",
-                "Quarantined trip evidence receipt is invalid",
-                status_code=status.HTTP_409_CONFLICT,
-            ) from exc
-        if (
-            stored_payload_hash != quarantine.payload_hash
-            or len(payload.pings) != quarantine.pings_submitted
-        ):
-            raise AppError(
-                "TRIP_EVIDENCE_RECEIPT_INVALID",
-                "Quarantined trip evidence receipt is invalid",
-                status_code=status.HTTP_409_CONFLICT,
-            )
+    try:
+        stored_payload_hash = batch_payload_hash(payload)
+    except ValueError as exc:
+        raise AppError(
+            "TRIP_EVIDENCE_RECEIPT_INVALID",
+            "Quarantined trip evidence receipt is invalid",
+            status_code=status.HTTP_409_CONFLICT,
+        ) from exc
+    if (
+        stored_payload_hash != quarantine.payload_hash
+        or len(payload.pings) != quarantine.pings_submitted
+    ):
+        raise AppError(
+            "TRIP_EVIDENCE_RECEIPT_INVALID",
+            "Quarantined trip evidence receipt is invalid",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     ensure_ping_batch_size(payload, settings)
     now = utc_now()
     # Admin reopen stays all-or-nothing: an operator applies one preserved
@@ -1471,9 +1403,8 @@ async def apply_quarantined_ping_batch(
         )
         lagos_days.add(as_aware_utc(ping.recorded_at).astimezone(LAGOS_TZ).date().isoformat())
     await session.flush()
-    if trip.evidence_protocol_version == 2:
-        sign_batch_receipt(batch, settings)
-        await session.flush()
+    sign_batch_receipt(batch, settings)
+    await session.flush()
     quarantine.status = QuarantinedPingBatchStatus.APPLIED.value
     quarantine.resolved_at = now
     quarantine.resolved_by_user_id = admin_user_id
