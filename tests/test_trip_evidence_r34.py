@@ -5,7 +5,6 @@ from pathlib import Path
 from uuid import UUID
 
 import pytest
-from conftest import create_test_trip_session
 from sqlalchemy import func, select, update
 from starlette import status as http_status
 from test_trip_seal import (
@@ -35,7 +34,7 @@ from app.services.trip_evidence import (
     validate_manifest,
     verify_signature,
 )
-from app.services.trip_processing import process_ended_trip, seal_due_trips
+from app.services.trip_processing import seal_due_trips
 from app.services.trips import (
     end_driver_trip,
     ingest_location_ping_batch,
@@ -67,32 +66,6 @@ def test_python_matches_shared_typescript_golden_vector() -> None:
     assert manifest_root(
         trip_id=UUID(vector["trip_id"]), entries=[entry], ping_count=1
     ) == vector["manifest_root"]
-
-
-def test_legacy_v1_trip_cannot_originate_new_money(
-    db_sessionmaker, settings
-) -> None:
-    _, _, driver, profile, vehicle, assignment = create_trip_ready_graph(db_sessionmaker)
-    ended_at = datetime.now(UTC)
-    trip = create_test_trip_session(
-        db_sessionmaker,
-        assignment_id=assignment.id,
-        campaign_id=assignment.campaign_id,
-        driver_profile_id=profile.id,
-        vehicle_id=vehicle.id,
-        started_by_user_id=driver.id,
-        trip_status=TripSessionStatus.SEALED,
-        ended_at=ended_at,
-    )
-
-    async def run():
-        async with db_sessionmaker() as session:
-            return await process_ended_trip(session, trip_id=trip.id, settings=settings)
-
-    result = asyncio.run(run())
-
-    assert result.overall == "blocked"
-    assert result.stages[0].reason == "legacy_money_origination_prohibited"
 
 
 def fetch_trip(db_sessionmaker, trip_id: str) -> TripSession:

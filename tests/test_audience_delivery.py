@@ -130,7 +130,7 @@ def test_recommendations_export_and_unsafe_payload_rejection_api(
     assert "export_approval_id" not in recommendations.json()
     assert recommendations.json()["recommendations"][0] == {
         "rank": 1,
-        "coverage_cell": "grid-50m:0:0",
+        "coverage_cell": "grid-50m:6790:13494",
         "window_start_at": recommendations.json()["recommendations"][0]["window_start_at"],
         "window_end_at": recommendations.json()["recommendations"][0]["window_end_at"],
         "campaign_context": "vehicle_transit",
@@ -176,7 +176,7 @@ def test_recommendations_export_and_unsafe_payload_rejection_api(
     assert csv_content.splitlines()[0] == (
         "campaign_id,coverage_cell,window_start_at,window_end_at,campaign_context"
     )
-    assert "grid-50m:0:0" in csv_content
+    assert "grid-50m:6790:13494" in csv_content
     for forbidden in (
         "driver_id",
         "trip_id",

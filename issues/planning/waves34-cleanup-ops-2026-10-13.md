@@ -623,3 +623,49 @@ on the corrected complete candidate before a valid source-bound D33 receipt
 can be reviewed. This is an end-of-batch failure repair, not a per-wave run;
 no gate, policy or floor is weakened. Backend results, full-range qualification,
 receipt review and final green verification are not inferred from partial CI.
+
+
+### Completed first-run diagnosis and PostgreSQL test corrections
+
+Run 38517311734 finished: backend static and both real-stack browser jobs PASS;
+frontend 1,540 passed/one stale assertion failed; backend shards total 3,333
+passed/21 failed. Aggregate verification correctly refused the incomplete
+shards and policy was skipped. No valid combined coverage artifact or receipt
+is claimed. The failures are addressed without changing backend runtime logic:
+
+- Billing authorization inventories now point to the five domain modules and
+  concurrency call-site parsing splits at the final dot. All 44 denial sites
+  and three disable/write/rollback interleavings remain covered.
+- PostgreSQL fixtures use timezone-aware expectations, bounded vehicle plates,
+  existing renewal source trips, and real alternate payee/bank versions for
+  frozen-destination tampering. Foreign keys and other guards remain enabled.
+- The route audit registry removes only the three deleted legacy mutation
+  endpoints; current v4 route auditing remains. Cron assertions inspect the
+  monitored target and include the five-minute health job, retaining all
+  existing schedule/uniqueness/recovery assertions.
+- Spatial expectations use the actual PostGIS grid rather than the removed
+  SQLite fallback. A deliberately unavailable spatial function now proves
+  fail-closed omission and recovery of the enclosing database session.
+- The obsolete `tests/test_trip_evidence_r34.py::test_legacy_v1_trip_cannot_originate_new_money`
+  case and its now-unused factory/processor imports are deleted: it exercised
+  removed v1 origination authority, not current v2 rejection behavior. Current
+  signed-v2 golden-vector and immutability protections remain. This is an
+  additional deleted test fragment for the final inventory.
+- Remaining active source comments/docstrings now refer to baseline 0106 or
+  current package paths, rather than removed migration/module names.
+
+Focused corrected evidence has **27 distinct PASS cases, zero remaining
+failures**, combining `ci-fixture-repair.xml`, superseding cases in
+`ci-fixture-repair-final.xml`, and `ci-spatial-failure-final.xml`. The initial
+collection attempt lacked local REDIS_URL and was rerun with the isolated test
+configuration; no extra container or external call was used. Full repository
+Ruff and whitespace checks pass. Consolidated reassessment
+`w34-consolidated-review-20261014-r3` returned source/minimal-change PASS with
+no actionable findings, confirming the earlier four fixes remain resolved and
+the fixture repairs preserve the database and application guards. This is not
+merge clearance: complete measurement, full-range qualification, independent
+D33 receipt review and final green verification remain required.
+
+Final matched jscpd after the comment corrections: 829 sources, 147,781 lines,
+319 clones, 3,718 duplicated lines (2.52%), 37,439 duplicated tokens (2.77%).
+Radon remains 3,259 blocks with average complexity 3.6225836146057073 (A).

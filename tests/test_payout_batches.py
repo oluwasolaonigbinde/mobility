@@ -283,6 +283,11 @@ def test_multi_line_reservation_freezes_exact_total_hashes_and_keys(db_sessionma
 )
 def test_frozen_columns_tamper_blocks_approval(db_sessionmaker, tamper: str) -> None:
     graph = build_graph(db_sessionmaker, f"tamper-{tamper}-{uuid4().hex[:6]}")
+    alternate = (
+        build_graph(db_sessionmaker, f"other-destination-{uuid4().hex[:6]}")
+        if tamper in {"payee_version_id", "bank_account_version_id"}
+        else None
+    )
     checker = type(graph.admin)(
         email=f"tamper-checker-{uuid4().hex}@example.com",
         password_hash=graph.admin.password_hash,
@@ -306,14 +311,29 @@ def test_frozen_columns_tamper_blocks_approval(db_sessionmaker, tamper: str) -> 
                 actor_user_id=graph.admin.id,
             )
             line = lines[0]
+            other_line = None
+            if alternate is not None:
+                other_entry = await _seed_authority(session, alternate)
+                other_batch = await create_payout_batch_draft(
+                    session, currency="NGN", actor_user_id=graph.admin.id
+                )
+                _, other_lines = await reserve_payout_batch(
+                    session,
+                    batch_id=other_batch.id,
+                    ledger_entry_ids=(other_entry.id,),
+                    actor_user_id=graph.admin.id,
+                )
+                other_line = other_lines[0]
             if tamper == "line_amount":
                 line.amount = Decimal("99.00")
             elif tamper == "line_currency":
                 line.currency = "USD"
             elif tamper == "payee_version_id":
-                line.payee_version_id = uuid4()
+                assert other_line is not None
+                line.payee_version_id = other_line.payee_version_id
             elif tamper == "bank_account_version_id":
-                line.bank_account_version_id = uuid4()
+                assert other_line is not None
+                line.bank_account_version_id = other_line.bank_account_version_id
             elif tamper == "idempotency_key":
                 line.idempotency_key = "f" * 64
             elif tamper == "batch_total":

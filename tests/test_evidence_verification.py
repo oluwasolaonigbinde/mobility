@@ -480,17 +480,34 @@ def test_admin_can_list_physical_checks_behind_a_backlog_of_newer_renewals(
     assert queued.status_code == 201
 
     async def add_newer_renewals() -> None:
-        # The automatic sweep can issue one renewal per trip; source trips only
-        # need distinct identities for this list query.
+        # Each renewal references a distinct existing trip, as PostgreSQL requires.
         async with db_sessionmaker() as session:
             later = datetime.now(UTC) + timedelta(minutes=5)
+            source_ids = [uuid4() for _ in range(101)]
+            session.add_all(
+                TripSession(
+                    id=trip_id,
+                    assignment_id=graph.assignment.id,
+                    campaign_id=graph.campaign.id,
+                    driver_profile_id=graph.profile.id,
+                    vehicle_id=graph.vehicle.id,
+                    started_by_user_id=graph.trip.started_by_user_id,
+                    status="ended",
+                    started_at=later,
+                    ended_at=later,
+                    evidence_protocol_version=2,
+                    trip_metadata={},
+                )
+                for trip_id in source_ids
+            )
+            await session.flush()
             session.add_all(
                 EvidenceVerification(
                     assignment_id=graph.assignment.id,
                     campaign_id=graph.campaign.id,
                     driver_profile_id=graph.profile.id,
                     vehicle_id=graph.vehicle.id,
-                    source_trip_session_id=uuid4(),
+                    source_trip_session_id=source_ids[index],
                     verification_type="high_earner_renewal",
                     status=EvidenceVerificationStatus.PENDING.value,
                     due_at=later + timedelta(hours=24),

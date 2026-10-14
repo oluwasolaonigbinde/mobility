@@ -116,7 +116,7 @@ def test_admin_can_acknowledge_then_confirm_and_list_enriched_flag(
             "driver_name": "Test User",
             "campaign_name": "Launch Campaign",
             "vehicle_plate": "ANA-123",
-            "trip_started_at": BASE_TIME.replace(tzinfo=None).isoformat(),
+            "trip_started_at": BASE_TIME.isoformat().replace("+00:00", "Z"),
             "problem_count": 0,
             "money_effect": {
                 **confirmed_body["money_effect"],

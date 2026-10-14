@@ -652,7 +652,7 @@ async def ensure_activation_event(
         )
     )
     if existing is not None:
-        # Lifecycle evidence is append-only after migration 0048. A seed rerun
+        # Lifecycle evidence is append-only under the current baseline. A seed rerun
         # recognizes the existing deterministic event and never rewrites it.
         return
     session.add(

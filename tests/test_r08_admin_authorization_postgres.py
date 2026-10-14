@@ -74,7 +74,7 @@ async def _assert_blocked_by(
 
 
 async def _invoke_call_site(session, call_site: str, *, actor_user_id: UUID, settings) -> None:
-    service_name, function_name = call_site.split(".", maxsplit=1)
+    service_name, function_name = call_site.rsplit(".", maxsplit=1)
     function = getattr(_module(service_name), function_name)
     kwargs = {}
     for parameter in inspect.signature(function).parameters.values():
@@ -133,7 +133,7 @@ async def _disable_first(
             assert disabled is not None
             assert disabled.status == UserStatus.DISABLED
 
-    service_name, _ = call_site.split(".", maxsplit=1)
+    service_name, _ = call_site.rsplit(".", maxsplit=1)
     with monkeypatch.context() as patch:
         patch.setattr(_module(service_name), "require_active_admin", require_active_admin)
         disable_task = asyncio.create_task(disable())
@@ -187,7 +187,7 @@ async def _write_first(sessionmaker, *, admin: User, call_site: str, settings, m
             user.status = UserStatus.DISABLED
         timeline.append("disable_committed")
 
-    service_name, _ = call_site.split(".", maxsplit=1)
+    service_name, _ = call_site.rsplit(".", maxsplit=1)
     with monkeypatch.context() as patch:
         patch.setattr(_module(service_name), "require_active_admin", probed_authority)
         write_task = asyncio.create_task(write())
@@ -246,7 +246,7 @@ async def _rollback_releases_lock(
             user.status = UserStatus.DISABLED
         timeline.append("disable_committed")
 
-    service_name, _ = call_site.split(".", maxsplit=1)
+    service_name, _ = call_site.rsplit(".", maxsplit=1)
     with monkeypatch.context() as patch:
         patch.setattr(_module(service_name), "require_active_admin", probed_authority)
         write_task = asyncio.create_task(write())

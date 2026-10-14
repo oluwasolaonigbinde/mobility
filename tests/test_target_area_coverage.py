@@ -6,7 +6,9 @@ import json
 from pathlib import Path
 
 import pytest
+from sqlalchemy import text
 
+from app.services import target_area_coverage
 from app.services.target_area_coverage import (
     _coverage_areas,
     calculate_synthetic_target_area_coverage,
@@ -330,7 +332,7 @@ def test_malformed_nonqualifying_cell_fails_closed(postgis_db_sessionmaker) -> N
     assert result["omission_reason"] == "fixed_cell_geometry_invalid"
 
 
-def test_live_input_and_unavailable_postgis_never_issue_percentage(db_sessionmaker) -> None:
+def test_live_input_and_failed_postgis_never_issue_percentage(db_sessionmaker, monkeypatch) -> None:
     class SqlTrap:
         def get_bind(self):
             raise AssertionError("live input reached database authority")
@@ -339,13 +341,20 @@ def test_live_input_and_unavailable_postgis_never_issue_percentage(db_sessionmak
     live["test_only"] = False
     live_result = asyncio.run(calculate_synthetic_target_area_coverage(SqlTrap(), live))
 
+    async def failed_spatial_query(session, **_kwargs):
+        await session.execute(text("SELECT cardvert_missing_spatial_function()"))
+
+    monkeypatch.setattr(target_area_coverage, "_coverage_areas", failed_spatial_query)
+
     async def unavailable() -> dict:
         async with db_sessionmaker() as session:
-            return await calculate_synthetic_target_area_coverage(session, sealed())
+            result = await calculate_synthetic_target_area_coverage(session, sealed())
+            assert await session.scalar(text("SELECT 1")) == 1
+            return result
 
     unavailable_result = asyncio.run(unavailable())
 
     assert live_result["percentage"] is None
     assert live_result["omission_reason"] == "synthetic_test_only_required"
     assert unavailable_result["percentage"] is None
-    assert unavailable_result["omission_reason"] == "postgis_unavailable"
+    assert unavailable_result["omission_reason"] == "spatial_calculation_failed"

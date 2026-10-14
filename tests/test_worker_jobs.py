@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import logging
 import os
 from datetime import UTC, datetime, timedelta
@@ -29,6 +30,7 @@ from app.core.trip_enqueue import RedisTripProcessingEnqueuer
 from app.jobs import assignment_activity as assignment_activity_jobs
 from app.jobs import automatic_payouts as automatic_payout_jobs
 from app.jobs import budget_enforcement as budget_enforcement_jobs
+from app.jobs import business_health as business_health_jobs
 from app.jobs import campaign_assignments as campaign_assignment_jobs
 from app.jobs import data_lifecycle as data_lifecycle_jobs
 from app.jobs import disbursements as disbursement_jobs
@@ -103,72 +105,102 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert payout_event.coroutine is disbursement_jobs.process_payout_provider_event_job
     assert payout_event.keep_result_s == 0
 
-    assert len(WorkerSettings.cron_jobs) == 22
-    cron_job = WorkerSettings.cron_jobs[0]
+    assert len(WorkerSettings.cron_jobs) == 23
+    health_crons = [
+        job
+        for job in WorkerSettings.cron_jobs
+        if inspect.unwrap(job.coroutine) is business_health_jobs.sweep_business_health
+    ]
+    assert len(health_crons) == 1
+    assert health_crons[0].minute == set(range(0, 60, 5))
+    assert health_crons[0].unique is True
+    existing_crons = [job for job in WorkerSettings.cron_jobs if job not in health_crons]
+    assert len(existing_crons) == 22
+    cron_job = existing_crons[0]
     assert isinstance(cron_job, CronJob)
-    assert cron_job.coroutine is jobs.process_unprocessed_trips
+    assert inspect.unwrap(cron_job.coroutine) is jobs.process_unprocessed_trips
     assert cron_job.unique is True
     assert cron_job.max_tries == 1
     assert cron_job.keep_result_s == 0
     assert cron_job.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
 
-    seal_cron = WorkerSettings.cron_jobs[1]
+    seal_cron = existing_crons[1]
     assert isinstance(seal_cron, CronJob)
-    assert seal_cron.coroutine is jobs.seal_ended_trips_job
+    assert inspect.unwrap(seal_cron.coroutine) is jobs.seal_ended_trips_job
     assert seal_cron.unique is True
     assert seal_cron.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
 
-    release_cron = WorkerSettings.cron_jobs[2]
+    release_cron = existing_crons[2]
     assert isinstance(release_cron, CronJob)
-    assert release_cron.coroutine is earnings_release_jobs.sweep_earnings_release_reviews
+    assert (
+        inspect.unwrap(release_cron.coroutine)
+        is earnings_release_jobs.sweep_earnings_release_reviews
+    )
 
-    gateway_sweep = WorkerSettings.cron_jobs[3]
+    gateway_sweep = existing_crons[3]
     assert isinstance(gateway_sweep, CronJob)
-    assert gateway_sweep.coroutine is payment_gateway_jobs.sweep_payment_gateway_events
+    assert (
+        inspect.unwrap(gateway_sweep.coroutine) is payment_gateway_jobs.sweep_payment_gateway_events
+    )
     assert gateway_sweep.unique is True
     assert release_cron.unique is True
     assert release_cron.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
 
-    assignment_expiry = WorkerSettings.cron_jobs[4]
+    assignment_expiry = existing_crons[4]
     assert isinstance(assignment_expiry, CronJob)
     assert (
-        assignment_expiry.coroutine is campaign_assignment_jobs.sweep_campaign_assignment_expiries
+        inspect.unwrap(assignment_expiry.coroutine)
+        is campaign_assignment_jobs.sweep_campaign_assignment_expiries
     )
     assert assignment_expiry.unique is True
     assert assignment_expiry.minute == sweep_cron_minutes(
         get_settings().worker_sweep_interval_minutes
     )
-    vehicle_sweep = WorkerSettings.cron_jobs[5]
+    vehicle_sweep = existing_crons[5]
     assert isinstance(vehicle_sweep, CronJob)
-    assert vehicle_sweep.coroutine is vehicle_approval_jobs.sweep_vehicle_approval_expiries
+    assert (
+        inspect.unwrap(vehicle_sweep.coroutine)
+        is vehicle_approval_jobs.sweep_vehicle_approval_expiries
+    )
 
-    activity_sweep = WorkerSettings.cron_jobs[6]
+    activity_sweep = existing_crons[6]
     assert isinstance(activity_sweep, CronJob)
-    assert activity_sweep.coroutine is assignment_activity_jobs.sweep_assignment_activity_flags
+    assert (
+        inspect.unwrap(activity_sweep.coroutine)
+        is assignment_activity_jobs.sweep_assignment_activity_flags
+    )
     assert activity_sweep.unique is True
     assert activity_sweep.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
 
-    evidence_sweep = WorkerSettings.cron_jobs[7]
-    assert evidence_sweep.coroutine is evidence_verification_jobs.sweep_evidence_verifications
-    email_sweep = WorkerSettings.cron_jobs[8]
-    assert email_sweep.coroutine is email_delivery_jobs.sweep_email_notifications
+    evidence_sweep = existing_crons[7]
+    assert (
+        inspect.unwrap(evidence_sweep.coroutine)
+        is evidence_verification_jobs.sweep_evidence_verifications
+    )
+    email_sweep = existing_crons[8]
+    assert inspect.unwrap(email_sweep.coroutine) is email_delivery_jobs.sweep_email_notifications
 
-    budget_sweep = WorkerSettings.cron_jobs[9]
-    assert budget_sweep.coroutine is budget_enforcement_jobs.sweep_campaign_budget_enforcement
+    budget_sweep = existing_crons[9]
+    assert (
+        inspect.unwrap(budget_sweep.coroutine)
+        is budget_enforcement_jobs.sweep_campaign_budget_enforcement
+    )
     assert budget_sweep.unique is True
 
-    scan_sweep = WorkerSettings.cron_jobs[10]
+    scan_sweep = existing_crons[10]
     assert isinstance(scan_sweep, CronJob)
-    assert scan_sweep.coroutine is file_scanning_jobs.scan_pending_files
+    assert inspect.unwrap(scan_sweep.coroutine) is file_scanning_jobs.scan_pending_files
     assert scan_sweep.unique is True
     assert scan_sweep.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
 
-    report_sweep = WorkerSettings.cron_jobs[11]
+    report_sweep = existing_crons[11]
     assert isinstance(report_sweep, CronJob)
-    assert report_sweep.coroutine is report_issuance_jobs.sweep_report_issuances
+    assert inspect.unwrap(report_sweep.coroutine) is report_issuance_jobs.sweep_report_issuances
     assert report_sweep.unique is True
 
-    lifecycle_crons = {cron_job.coroutine: cron_job for cron_job in WorkerSettings.cron_jobs[12:-3]}
+    lifecycle_crons = {
+        inspect.unwrap(cron_job.coroutine): cron_job for cron_job in existing_crons[12:-3]
+    }
     assert set(lifecycle_crons) == {
         data_lifecycle_jobs.premake_ping_partitions,
         data_lifecycle_jobs.check_ping_partition_coverage,
@@ -186,24 +218,31 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
         # Daily, staggered hours so lifecycle DDL never stacks.
         assert len(cron_job.hour) == 1
     assert len({next(iter(job.hour)) for job in lifecycle_crons.values()}) == 6
-    disbursement_sweep = WorkerSettings.cron_jobs[-3]
-    assert disbursement_sweep.coroutine is disbursement_jobs.sweep_disbursement_intents
+    disbursement_sweep = existing_crons[-3]
+    assert (
+        inspect.unwrap(disbursement_sweep.coroutine) is disbursement_jobs.sweep_disbursement_intents
+    )
     assert disbursement_sweep.unique is True
     assert disbursement_sweep.minute == sweep_cron_minutes(
         get_settings().worker_sweep_interval_minutes
     )
-    provider_event_sweep = WorkerSettings.cron_jobs[-2]
-    assert provider_event_sweep.coroutine is disbursement_jobs.sweep_payout_provider_events
+    provider_event_sweep = existing_crons[-2]
+    assert (
+        inspect.unwrap(provider_event_sweep.coroutine)
+        is disbursement_jobs.sweep_payout_provider_events
+    )
     assert provider_event_sweep.unique is True
     assert provider_event_sweep.minute == disbursement_sweep.minute
-    automatic_sweep = WorkerSettings.cron_jobs[-1]
-    assert automatic_sweep.coroutine is automatic_payout_jobs.sweep_automatic_payouts
+    automatic_sweep = existing_crons[-1]
+    assert (
+        inspect.unwrap(automatic_sweep.coroutine) is automatic_payout_jobs.sweep_automatic_payouts
+    )
     assert automatic_sweep.unique is True
     assert automatic_sweep.minute == disbursement_sweep.minute
 
     registered_recovery = registered_recovery_jobs()
     assert {
-        registration.name: registered_recovery[registration.name].coroutine
+        registration.name: inspect.unwrap(registered_recovery[registration.name].coroutine)
         for registration in RECOVERY_JOB_REGISTRATIONS
     } == {registration.name: registration.coroutine for registration in RECOVERY_JOB_REGISTRATIONS}
     assert {

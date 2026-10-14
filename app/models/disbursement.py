@@ -79,7 +79,7 @@ class PayoutRecoveryIncidentStatus(StrEnum):
 
 
 # D39(c) Batch C: the one non-human identity that prepares and approves
-# automatic payout batches. Seeded by migration 0093 as a disabled admin with an
+# automatic payout batches. Seeded by baseline 0106 as a disabled admin with an
 # unusable password, so it can never sign in or pass require_active_admin; the
 # automatic path checks its integrity instead.
 CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID = UUID("6c0de000-0000-4000-8000-000000000001")
@@ -995,7 +995,7 @@ class PayoutAutomaticRun(Base):
 
 
 class PayoutAutomaticControl(Base):
-    """The Finance pause switch (single row, id 1, seeded by migration 0093)."""
+    """The Finance pause switch (single row, id 1, seeded by baseline 0106)."""
 
     __tablename__ = "payout_automatic_controls"
     __table_args__ = (

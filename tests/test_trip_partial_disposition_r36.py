@@ -204,7 +204,7 @@ def test_all_invalid_batch_stays_a_deterministic_whole_batch_rejection(
 
 def test_batches_signed_before_this_protocol_still_verify(db_sessionmaker, settings) -> None:
     # A row whose disposition columns are NULL must keep the exact receipt
-    # value it was signed over, or migration 0080 would invalidate history.
+    # value it was signed over; restating it would invalidate the receipt.
     batch = LocationPingBatch(
         trip_session_id=UUID("75000000-0000-0000-0000-000000000001"),
         idempotency_key="pre-protocol",

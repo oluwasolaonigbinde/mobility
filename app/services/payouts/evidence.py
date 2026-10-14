@@ -189,9 +189,8 @@ def effective_eligibility_params_overlay(
 def frozen_eligibility_params(binding: AssignmentRuleBinding) -> EligibilityParams:
     """Read the complete acceptance-time classifier values, never Settings.
 
-    Bindings created before migration 0021 cannot prove a complete snapshot;
-    fail closed rather than silently filling their gaps from mutable runtime
-    configuration.
+    An incomplete binding cannot prove the accepted snapshot; fail closed
+    rather than silently filling its gaps from mutable runtime configuration.
     """
     expected_marker = STATIONARY_POLICY_D39
     if binding.stationary_policy_marker != expected_marker:

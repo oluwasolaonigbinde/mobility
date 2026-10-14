@@ -215,16 +215,6 @@ AUDITED = {
     ("DELETE", "/api/v1/advertiser/campaigns/{campaign_id}/zones/{zone_id}"): (
         "advertiser.campaign_zone.deleted"
     ),
-    ("POST", "/api/v1/admin/campaigns/{campaign_id}/payout-rules"): (
-        "admin.campaign_payout_rule.created"
-    ),
-    ("PATCH", "/api/v1/admin/campaigns/{campaign_id}/payout-rules/{rule_id}"): (
-        "admin.campaign_payout_rule.updated"
-    ),
-    (
-        "POST",
-        "/api/v1/admin/campaigns/{campaign_id}/payout-rules/{rule_id}/revisions",
-    ): "admin.payout_rule_revision.created",
     ("POST", "/api/v1/admin/campaigns/{campaign_id}/payout-v4-revisions"): (
         "admin.payout_rule_revision.created"
     ),

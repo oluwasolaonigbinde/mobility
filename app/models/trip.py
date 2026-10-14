@@ -495,7 +495,7 @@ class LocationPing(Base):
     )
 
     # Composite PK (id, recorded_at): the table is range-partitioned by
-    # recorded_at (migration 0014) and PostgreSQL requires the partition key
+    # recorded_at (baseline 0106) and PostgreSQL requires the partition key
     # in every unique constraint. Partitioning itself is declared only in the
     # migration — metadata.create_all (isolated PostGIS test schemas)
     # must keep producing a plain insertable table.

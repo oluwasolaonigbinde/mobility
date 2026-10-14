@@ -1,6 +1,6 @@
 """Maker-checker payout correction orders (MNY-06C, Q22, PR7/PR12).
 
-The PR6 recompute core (services/payouts.py) is the single computation
+The PR6 recompute core (services/payouts/corrections.py) is the single computation
 engine; this module wraps it in the correction-order authority: a named
 adjuster projects a campaign/Lagos-day delta (dry-run, no writes), a
 DIFFERENT admin approves, and execution re-verifies the projection
