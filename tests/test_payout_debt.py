@@ -925,3 +925,34 @@ def test_postgres_duplicate_reversal_creation_is_idempotent(
     assert count == 1
     assert account.outstanding_amount == Decimal("45.00")
     assert account.lifetime_incurred_amount == Decimal("45.00")
+
+
+def test_debt_identity_refusals_cannot_create_cross_driver_authority(db_sessionmaker):
+    from app.services.payout_debt import _locked_debt_account, lock_driver_currency_debt_scope
+
+    graph = build_graph(db_sessionmaker, "debt-identity")
+
+    async def run():
+        async with db_sessionmaker() as session:
+            with pytest.raises(ValueError, match="Driver profile was not found"):
+                await lock_driver_currency_debt_scope(
+                    session, driver_profile_id=uuid4(), currency="NGN"
+                )
+            with pytest.raises(ValueError, match="Debt authority does not match"):
+                await _locked_debt_account(
+                    session,
+                    driver_profile_id=graph.profile.id,
+                    driver_user_id=graph.admin.id,
+                    currency="NGN",
+                )
+            reversal = _ledger(graph, amount="10", status="available", entry_type="reversal")
+            reversal.driver_user_id = graph.admin.id
+            with pytest.raises(ValueError, match="Reversal authority does not match"):
+                await record_reversal_obligation(session, reversal_entry=reversal)
+            assert (
+                await session.scalar(select(func.count()).select_from(DriverCurrencyDebtAccount))
+                == 0
+            )
+            assert await session.scalar(select(func.count()).select_from(PayoutDebtObligation)) == 0
+
+    asyncio.run(run())

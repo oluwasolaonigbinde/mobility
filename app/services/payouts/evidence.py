@@ -30,11 +30,9 @@ from app.services.payout_eligibility import (
     EligibilityPing,
 )
 from app.services.payouts.common import (
-    ELIGIBILITY_PARAM_KEYS,
     PAYOUT_SOURCE_FIELDS,
     RESOLVED_ELIGIBILITY_PARAM_KEYS,
     impression_estimate_not_found,
-    invalid_rule_values,
     payout_source_mismatch,
 )
 from app.services.provenance import stable_source_fingerprint
@@ -158,34 +156,6 @@ class CampaignZoneState:
     max_updated_at: datetime | None
 
 
-def effective_eligibility_params_overlay(
-    settings: Settings,
-    overlay: dict | None,
-) -> EligibilityParams:
-    overlay = overlay or {}
-
-    def value(key: str, fallback: float) -> float:
-        raw = overlay.get(key, fallback)
-        return float(raw)
-
-    return EligibilityParams(
-        stationary_radius_m=value(
-            "stationary_radius_m", settings.payout_eligibility_stationary_radius_m
-        ),
-        stationary_window_seconds=int(
-            value("stationary_window_min", settings.payout_eligibility_stationary_window_min) * 60
-        ),
-        stationary_grace_seconds=int(
-            value("stationary_grace_min", settings.payout_eligibility_stationary_grace_min) * 60
-        ),
-        max_accuracy_m=value("max_accuracy_m", settings.payout_eligibility_max_accuracy_m),
-        teleport_kmh=value("teleport_kmh", settings.payout_eligibility_teleport_kmh),
-        max_ping_gap_seconds=int(
-            value("max_ping_gap_seconds", settings.payout_eligibility_max_ping_gap_seconds)
-        ),
-    )
-
-
 def frozen_eligibility_params(binding: AssignmentRuleBinding) -> EligibilityParams:
     """Read the complete acceptance-time classifier values, never Settings.
 
@@ -216,23 +186,6 @@ def frozen_eligibility_params(binding: AssignmentRuleBinding) -> EligibilityPara
         teleport_kmh=float(snapshot["teleport_kmh"]),
         max_ping_gap_seconds=int(snapshot["max_ping_gap_seconds"]),
     )
-
-
-def validate_eligibility_params_overlay(overlay: dict | None) -> None:
-    if overlay is None:
-        return
-    unknown = sorted(set(overlay) - ELIGIBILITY_PARAM_KEYS)
-    if unknown:
-        raise invalid_rule_values(f"Unknown eligibility_params keys: {', '.join(unknown)}")
-    for key, raw in overlay.items():
-        if isinstance(raw, bool) or not isinstance(raw, int | float):
-            raise invalid_rule_values(f"eligibility_params.{key} must be a number")
-        minimum = 0 if key == "stationary_grace_min" else 0.000001
-        if raw < minimum:
-            raise invalid_rule_values(
-                f"eligibility_params.{key} must be "
-                + ("non-negative" if key == "stationary_grace_min" else "positive")
-            )
 
 
 async def load_eligibility_pings(

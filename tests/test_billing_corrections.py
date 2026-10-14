@@ -936,3 +936,225 @@ def test_missing_billing_authority_returns_not_found(db_sessionmaker, operation,
             assert caught.value.status_code == 404
 
     asyncio.run(exercise())
+
+
+def test_invoice_correction_input_refusals_preserve_issued_obligation(db_sessionmaker, settings):
+    from sqlalchemy import func, select
+
+    from app.models.billing import InvoiceCorrection
+
+    admin, owner, _, campaign = _fixture(db_sessionmaker, "correction-input")
+
+    async def run():
+        async with db_sessionmaker() as session:
+            terms = await _accepted_terms(
+                session, campaign=campaign, admin=admin, owner=owner, reference="CORRECTION-INPUT"
+            )
+            invoice = await create_invoice_draft(
+                session, commercial_terms_id=terms.id, actor_user_id=admin.id
+            )
+            args = dict(
+                invoice_id=invoice.id,
+                actor_user_id=admin.id,
+                correction_reference="INPUT-CREDIT",
+                correction_type=InvoiceCorrectionType.CREDIT_NOTE,
+                net_amount="10",
+                tax_amount="0",
+                reason="approved",
+            )
+            with pytest.raises(AppError) as caught:
+                await record_invoice_correction(session, **args)
+            assert caught.value.code == "ISSUED_INVOICE_REQUIRED"
+            issuer = await _issuer(
+                session, admin, IssuerVerificationStatus.SYNTHETIC, "SYNTHETIC-INPUT", settings
+            )
+            await issue_invoice(
+                session,
+                invoice_id=invoice.id,
+                issuer_profile_id=issuer.id,
+                actor_user_id=admin.id,
+                settings=settings,
+            )
+            for changed, code in (
+                ({"correction_reference": " "}, "INVALID_CORRECTION_REFERENCE"),
+                ({"correction_reference": "legacy:reserved"}, "INVALID_CORRECTION_REFERENCE"),
+                ({"net_amount": "0"}, "INVALID_INVOICE_CORRECTION"),
+                ({"reason": " "}, "INVALID_INVOICE_CORRECTION"),
+            ):
+                with pytest.raises(AppError) as caught:
+                    await record_invoice_correction(session, **{**args, **changed})
+                assert caught.value.code == code
+                assert (
+                    await session.scalar(select(func.count()).select_from(InvoiceCorrection)) == 0
+                )
+                assert await adjusted_invoice_obligation(session, invoice.id) == 100
+
+    asyncio.run(run())
+
+
+def test_refund_requires_reversed_allocated_receipt_and_complete_record(
+    db_sessionmaker, monkeypatch
+):
+    from sqlalchemy import func, select
+
+    from app.models.billing import RefundSettlement
+
+    admin, owner, organization, campaign = _fixture(db_sessionmaker, "refund-boundary")
+
+    async def run():
+        async with db_sessionmaker() as session:
+            terms, allocation, _ = await _funded_terms(
+                session,
+                admin=admin,
+                owner=owner,
+                organization=organization,
+                campaign=campaign,
+                reference="REFUND-BOUNDARY",
+            )
+            cancellation = await _cancel_for_refund(
+                session,
+                campaign=campaign,
+                owner=owner,
+                cutoff=allocation.allocated_at + timedelta(hours=1),
+                monkeypatch=monkeypatch,
+                reason="refund due",
+            )
+            args = dict(
+                commercial_terms_id=terms.id,
+                receipt_id=allocation.receipt_id,
+                actor_user_id=admin.id,
+                amount="1",
+                settlement_provider="synthetic",
+                external_reference="BOUNDARY-REFUND",
+                reason="record refund",
+            )
+            for changed, code in (
+                ({}, "REVERSED_RECEIPT_REQUIRED"),
+                ({"receipt_id": uuid4()}, "REFUND_AUTHORITY_NOT_FOUND"),
+                ({"amount": "0"}, "INVALID_REFUND_SETTLEMENT"),
+                ({"reason": " "}, "INVALID_REFUND_SETTLEMENT"),
+                ({"settlement_provider": " "}, "INVALID_REFUND_SETTLEMENT"),
+            ):
+                with pytest.raises(AppError) as caught:
+                    await record_refund_settlement(session, **{**args, **changed})
+                assert caught.value.code == code
+            spare = await record_payment_receipt(
+                session,
+                organization_id=organization.id,
+                actor_user_id=admin.id,
+                method=ReceiptMethod.MANUAL_TRANSFER,
+                provider="synthetic",
+                external_transaction_id="UNALLOCATED-RECEIPT",
+                amount="10",
+                currency="NGN",
+                payer_name="Synthetic",
+                evidence_reference="SYNTHETIC",
+                observed_at=datetime.now(UTC),
+            )
+            await reconcile_payment_receipt(
+                session,
+                receipt_id=spare.id,
+                actor_user_id=admin.id,
+                expected_amount="10",
+                expected_currency="NGN",
+            )
+            await confirm_payment_receipt(session, receipt_id=spare.id, actor_user_id=admin.id)
+            await reverse_payment_receipt(
+                session,
+                receipt_id=spare.id,
+                actor_user_id=admin.id,
+                reason="returned unallocated funds",
+            )
+            with pytest.raises(AppError) as caught:
+                await record_refund_settlement(session, **{**args, "receipt_id": spare.id})
+            assert caught.value.code == "REFUND_ALLOCATION_REQUIRED"
+            assert await session.scalar(select(func.count()).select_from(RefundSettlement)) == 0
+            assert cancellation.refundable_amount == 100 and allocation.amount == 100
+
+    asyncio.run(run())
+
+
+def test_credit_authority_and_contract_settlement_refusals_preserve_terms(db_sessionmaker):
+    from sqlalchemy import func, select
+
+    from app.models.billing import CampaignFinancialAuthorization, RefundSettlement
+
+    admin, owner, _, campaign = _fixture(db_sessionmaker, "credit-boundary")
+
+    other_admin, other_owner, _, other_campaign = _fixture(db_sessionmaker, "credit-other")
+
+    async def run():
+        async with db_sessionmaker() as session:
+            terms = await _accepted_terms(
+                session,
+                campaign=campaign,
+                admin=admin,
+                owner=owner,
+                reference="CREDIT-BOUNDARY",
+                payment_class=PaymentClass.APPROVED_CORPORATE_CREDIT,
+            )
+            with pytest.raises(AppError) as caught:
+                await record_prepaid_cash_authorization(
+                    session,
+                    campaign_id=campaign.id,
+                    actor_user_id=admin.id,
+                    max_driver_liability="10",
+                    reason="wrong class",
+                )
+            assert caught.value.code == "PREPAID_AUTHORITY_NOT_PERMITTED"
+            credit_args = dict(
+                campaign_id=campaign.id,
+                actor_user_id=admin.id,
+                credit_limit="100",
+                max_driver_liability="50",
+                due_at=datetime.now(UTC) + timedelta(days=30),
+                approved_by_user_id=admin.id,
+                credit_terms={"net_days": 30},
+                reason="approved",
+            )
+            for change in (
+                {"due_at": datetime(2020, 1, 1, tzinfo=UTC)},
+                {"credit_terms": {}},
+                {"credit_terms": None},
+            ):
+                with pytest.raises(AppError) as caught:
+                    await billing_authority.record_approved_credit_authorization(
+                        session, **{**credit_args, **change}
+                    )
+                assert caught.value.code == "INVALID_CREDIT_APPROVAL"
+            assert (
+                await session.scalar(
+                    select(func.count()).select_from(CampaignFinancialAuthorization)
+                )
+                == 0
+            )
+            args = dict(
+                commercial_terms_id=terms.id,
+                actor_user_id=admin.id,
+                settlement_provider="synthetic",
+                external_reference="CREDIT-END",
+                reason="contract ended",
+            )
+            with pytest.raises(AppError) as caught:
+                await record_credit_contract_settlement(session, **{**args, "reason": " "})
+            assert caught.value.code == "INVALID_CREDIT_SETTLEMENT"
+            settlement = await record_credit_contract_settlement(session, **args)
+            assert (await record_credit_contract_settlement(session, **args)).id == settlement.id
+            assert await session.scalar(select(func.count()).select_from(RefundSettlement)) == 1
+            assert settlement.amount == 0 and settlement.receipt_id is None
+            other_terms = await _accepted_terms(
+                session,
+                campaign=other_campaign,
+                admin=other_admin,
+                owner=other_owner,
+                reference="CREDIT-OTHER",
+                payment_class=PaymentClass.APPROVED_CORPORATE_CREDIT,
+            )
+            with pytest.raises(AppError) as caught:
+                await record_credit_contract_settlement(
+                    session, **{**args, "commercial_terms_id": other_terms.id}
+                )
+            assert caught.value.code == "SETTLEMENT_REFERENCE_CONFLICT"
+            assert await session.scalar(select(func.count()).select_from(RefundSettlement)) == 1
+
+    asyncio.run(run())

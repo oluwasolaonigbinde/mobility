@@ -804,3 +804,109 @@ def test_submit_draft_batch_always_refuses_before_provider_or_intent(db_sessionm
             assert adapter.calls == []
 
     asyncio.run(exercise())
+
+
+def test_batch_state_and_actor_refusals_leave_provider_and_frozen_facts_untouched(db_sessionmaker):
+    from conftest import create_test_user
+
+    graph = build_graph(db_sessionmaker, "state-boundary")
+    checker = create_test_user(db_sessionmaker, email="state-checker@example.test")
+    other = create_test_user(db_sessionmaker, email="state-other@example.test")
+    adapter = FakeDisbursementAdapter()
+
+    async def run():
+        async with db_sessionmaker() as session:
+            from app.services.disbursements import _frozen_payee_authority
+
+            payee, _ = await create_pilot_payee(
+                session, driver_profile_id=graph.profile.id, actor_user_id=graph.admin.id
+            )
+            with pytest.raises(AppError) as caught:
+                await _frozen_payee_authority(session, EarningsLedgerEntry(), payee)
+            assert caught.value.code == "PAYOUT_BANK_ACCOUNT_MISSING"
+            entry = await _seed_authority(session, graph)
+            batch = await create_payout_batch_draft(
+                session, currency="NGN", actor_user_id=graph.admin.id
+            )
+
+            async def refuses(operation, code):
+                before = [
+                    await session.scalar(select(func.count()).select_from(model))
+                    for model in (PayoutBatchLine, PayoutSubmissionIntent, AuditEvent)
+                ]
+                with pytest.raises(AppError) as caught:
+                    await operation()
+                assert caught.value.code == code
+                assert [
+                    await session.scalar(select(func.count()).select_from(model))
+                    for model in (PayoutBatchLine, PayoutSubmissionIntent, AuditEvent)
+                ] == before
+                assert adapter.calls == []
+
+            for operation, code in (
+                (
+                    lambda: reserve_payout_batch(
+                        session,
+                        batch_id=uuid4(),
+                        ledger_entry_ids=(entry.id,),
+                        actor_user_id=graph.admin.id,
+                    ),
+                    "PAYOUT_BATCH_NOT_FOUND",
+                ),
+                (
+                    lambda: reserve_payout_batch(
+                        session,
+                        batch_id=batch.id,
+                        ledger_entry_ids=(entry.id,),
+                        actor_user_id=other.id,
+                    ),
+                    "PAYOUT_BATCH_MAKER_REQUIRED",
+                ),
+                (
+                    lambda: reserve_payout_batch(
+                        session,
+                        batch_id=batch.id,
+                        ledger_entry_ids=(uuid4(),),
+                        actor_user_id=graph.admin.id,
+                    ),
+                    "PAYOUT_ENTRY_INELIGIBLE",
+                ),
+                (
+                    lambda: approve_payout_batch(
+                        session, batch_id=batch.id, actor_user_id=checker.id
+                    ),
+                    "PAYOUT_BATCH_NOT_RESERVED",
+                ),
+            ):
+                await refuses(operation, code)
+            _, lines = await reserve_payout_batch(
+                session,
+                batch_id=batch.id,
+                ledger_entry_ids=(entry.id,),
+                actor_user_id=graph.admin.id,
+            )
+            frozen = (
+                batch.total_amount,
+                batch.instruction_set_fingerprint,
+                dict(lines[0].instruction),
+            )
+            await refuses(
+                lambda: submit_payout_batch(
+                    session, batch_id=batch.id, actor_user_id=graph.admin.id, adapter=adapter
+                ),
+                "PAYOUT_BATCH_NOT_APPROVED",
+            )
+            await approve_payout_batch(session, batch_id=batch.id, actor_user_id=checker.id)
+            await refuses(
+                lambda: approve_payout_batch(session, batch_id=batch.id, actor_user_id=other.id),
+                "PAYOUT_BATCH_APPROVAL_CONFLICT",
+            )
+            assert batch.approved_by_user_id == checker.id
+            assert (
+                batch.total_amount,
+                batch.instruction_set_fingerprint,
+                lines[0].instruction,
+            ) == frozen
+            assert lines[0].reservation_active and lines[0].status == "reserved"
+
+    asyncio.run(run())

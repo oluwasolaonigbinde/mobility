@@ -55,18 +55,6 @@ RULE_REVISION_UNIQUE_CONSTRAINTS = (
 LAGOS_TZ = ZoneInfo("Africa/Lagos")
 
 
-ELIGIBILITY_PARAM_KEYS = frozenset(
-    {
-        "stationary_radius_m",
-        "stationary_window_min",
-        "stationary_grace_min",
-        "max_accuracy_m",
-        "teleport_kmh",
-        "max_ping_gap_seconds",
-    }
-)
-
-
 PAYOUT_SOURCE_FIELDS = ("campaign_id", "assignment_id", "driver_profile_id", "vehicle_id")
 
 
@@ -82,9 +70,7 @@ LEDGER_ENTRY_CONSTRAINTS = frozenset(
 
 
 def quantize_ngn_half_up(value: Decimal) -> Decimal:
-    """Daily-rate money quantization: 2dp NGN, ROUND_HALF_UP, applied exactly
-    once per ledger amount. v1 keeps quantize_2 (context default HALF_EVEN) —
-    frozen history, never converge the two."""
+    """Quantize current daily-rate ledger amounts once to 2dp using HALF_UP."""
     return value.quantize(DECIMAL_2, rounding=ROUND_HALF_UP)
 
 
@@ -133,7 +119,7 @@ def paycap_lock_key(driver_profile_id: UUID, campaign_id: UUID, lagos_date: date
 async def acquire_paycap_lock(session: AsyncSession, lock_key: int) -> None:
     """Transaction-scoped advisory lock for the read-remaining-cap -> write
     critical section. Must never be taken inside begin_nested(): a savepoint
-    abort would release it. No-op outside PostgreSQL."""
+    abort would release it."""
     await session.execute(text("SELECT pg_advisory_xact_lock(:lock_key)"), {"lock_key": lock_key})
 
 

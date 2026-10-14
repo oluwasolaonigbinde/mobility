@@ -669,3 +669,74 @@ D33 receipt review and final green verification remain required.
 Final matched jscpd after the comment corrections: 829 sources, 147,781 lines,
 319 clones, 3,718 duplicated lines (2.52%), 37,439 duplicated tokens (2.77%).
 Radon remains 3,259 blocks with average complexity 3.6225836146057073 (A).
+
+### Complete measurement and coverage boundary correction
+
+Full measurement [38520447920](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38520447920)
+on `41107dcb4edc996b7bcb50e02f251a19992f4f98` passed all 3,353 backend tests,
+aggregate shard verification, frontend, static checks and both browser jobs.
+The coverage-policy job failed its separate money floor: 1,599/1,980 branches
+(80.7576%). The complete downloaded reports also show privacy at 736/870
+(84.5977%). Both require correction before a D33 receipt; neither is waived.
+
+Global coverage was 92.1245% lines / 79.0065% branches; backend was
+93.6786% / 81.2234%, and frontend 85.3834% / 77.0188%, above their prior adopted
+ratios. Diagnostic full-range comparison from the pre-REQ-158/159 ancestor
+48e4ab51 gives 3,112/3,412 changed lines (91.2075%) and 931/1,202 branches
+(77.4542%): the unchanged 80% changed-branch gate also needs improvement.
+These are CI-artifact readings, not local coverage measurement or qualification.
+A clean committed-source export is used for report evaluation so Windows CRLF
+checkout conversion cannot create false changed lines or source hashes.
+
+The bounded money coverage advisory review identified two uncalled legacy
+eligibility-overlay helpers. Current v4 publishing rejects that input and uses
+the complete frozen snapshot. Caller search confirmed no current users, so
+`effective_eligibility_params_overlay`, `validate_eligibility_params_overlay`
+and their `ELIGIBILITY_PARAM_KEYS` constant are deleted instead of testing an
+obsolete path. Include these fragments in the final deleted inventory. Stale
+v1/no-op-outside-PostgreSQL docstrings are corrected; current money formulas,
+values, authority, database constraints and instrumentation remain unchanged.
+
+Focused additions cover PostgreSQL read IDs/totals/time windows and isolation;
+receipt lifecycle, immutable retry and currency/actor refusal; billing funding,
+credit, invoice/refund prerequisites; batch maker/checker/state and frozen facts;
+cross-driver debt refusal; manually resolved Finance alert filters; current
+source identity/frozen evidence; synthetic malformed provider responses; and
+privacy request-state refusals with no assessment/audit mutation. Existing
+fixtures are reused, including an optional credit payment class in the accepted
+terms helper with its original default unchanged. Provider tests use only the
+existing in-memory RecordingTransport.
+
+After corrections, the combined affected XML evidence records **49 distinct
+PASS cases, zero remaining failures**, including the current v4 publication
+check. Earlier local fixture failures are superseded by their corrected cases.
+Full Ruff and whitespace checks pass. Money reassessment and consolidated
+minimal-change review are pending before committing/pushing this correction;
+the full measurement phase then repeats. A source-bound D33 receipt is still
+blocked on the unchanged floors, followed by independent receipt review and
+full green verification before merge. No local coverage, extra containers,
+provider calls or gate weakening.
+
+Updated final-source metrics: Radon 3,257 blocks, average 3.621430764507215 (A).
+Matched complete-source jscpd: 829 sources, 147,720 lines, 319 clones, 3,718
+duplicate lines (2.52%), 37,439 duplicate tokens (2.77%).
+
+Money reassessment r3 found one test-quality defect: empty refund ID/status
+fixtures also lacked amount/currency, so another guard could mask a regression.
+Each now starts from the complete `refund(amount=100)` fixture and changes only
+the tested field. All four affected cases pass (`money-refund-review-fix.xml`);
+the distinct-case count remains 49. Ruff and whitespace checks still pass.
+Fresh money reassessment r4 returned source/test-quality PASS with no actionable
+findings; no application behavior changed. Basedpyright also passes with zero
+errors, warnings or notes. Consolidated reassessment remains pending before
+the next full measurement; this is not coverage qualification or merge clearance.
+
+Consolidated r4 found the ended-trip refusal fixture also lacked an end time,
+masking removal of the sealed-status guard. The ended case now has a fixed UTC
+end time; the started case retains `None`. Both pass in
+`unsealed-trip-review-fix.xml`, superseding those cases without changing the
+49-case count. Focused Ruff and whitespace checks pass. Fresh consolidated r5
+returned source/minimal-change PASS at the premeasurement stage, with no
+actionable findings; no application change was needed. Full-range qualification,
+the independently reviewed D33 receipt and green final verification remain
+required before merge.

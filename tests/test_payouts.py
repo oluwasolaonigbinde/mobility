@@ -135,3 +135,133 @@ def test_driver_earnings_ledger_paginates_beyond_first_fifty(db_client, db_sessi
     assert response.json()["limit"] == 50
     assert response.json()["offset"] == 50
     assert len(response.json()["items"]) == 25
+
+
+def test_current_money_reads_filter_rows_totals_and_time_windows(db_sessionmaker, settings):
+
+    from app.services.payouts.read import (
+        advertiser_campaign_cost_summary,
+        driver_earnings_summary,
+        list_driver_ledger_entries,
+        list_payout_calculations,
+    )
+    from app.services.payouts.rules import list_campaign_payout_rules
+
+    first = build_v4_graph(
+        db_sessionmaker, settings, "read-first", daily_rate_naira="600", daily_target_miles="1"
+    )
+    other = build_v4_graph(
+        db_sessionmaker, settings, "read-other", daily_rate_naira="900", daily_target_miles="1"
+    )
+    drive(db_sessionmaker, settings, first.trip)
+    drive(db_sessionmaker, settings, other.trip)
+    calculations = {row.trip_session_id: row for row in fetch_payout_calculations(db_sessionmaker)}
+    expected = calculations[first.trip.id]
+
+    original = next(
+        row
+        for row in fetch_earnings_ledger_entries(db_sessionmaker)
+        if row.driver_user_id == first.driver.id
+    )
+
+    async def run():
+        async with db_sessionmaker() as session:
+            filters = dict(
+                campaign_id=None,
+                trip_session_id=None,
+                driver_profile_id=None,
+                vehicle_id=None,
+                calculation_status=None,
+                currency=None,
+            )
+            rows, total = await list_payout_calculations(session, limit=10, offset=0, **filters)
+            assert total == len(rows) == 2
+            identities = {
+                "campaign_id": first.campaign.id,
+                "trip_session_id": first.trip.id,
+                "driver_profile_id": first.profile.id,
+                "vehicle_id": first.vehicle.id,
+            }
+            for field, value in identities.items():
+                rows, total = await list_payout_calculations(
+                    session, limit=10, offset=0, **{**filters, field: value}
+                )
+                assert [row[0].id for row in rows] == [expected.id] and total == 1
+                rows, total = await list_payout_calculations(
+                    session, limit=10, offset=0, **{**filters, field: uuid4()}
+                )
+                assert rows == [] and total == 0
+            combined = {
+                **filters,
+                **identities,
+                "calculation_status": "calculated",
+                "currency": " ngn ",
+            }
+            rows, total = await list_payout_calculations(session, limit=1, offset=1, **combined)
+            assert rows == [] and total == 1
+            for changed in (
+                {"calculation_status": "blocked"},
+                {"currency": "USD"},
+                {"campaign_id": other.campaign.id},
+            ):
+                rows, total = await list_payout_calculations(
+                    session, limit=10, offset=0, **{**combined, **changed}
+                )
+                assert rows == [] and total == 0
+            ledger_filters = dict(
+                user_id=first.driver.id,
+                limit=10,
+                offset=0,
+                ledger_status=original.status,
+                entry_type="trip_payout",
+                currency="ngn",
+            )
+            rows, total = await list_driver_ledger_entries(session, **ledger_filters)
+            assert [row.id for row in rows] == [original.id] and total == 1
+            for changed in (
+                {"ledger_status": "voided"},
+                {"entry_type": "reversal"},
+                {"currency": "USD"},
+            ):
+                rows, total = await list_driver_ledger_entries(
+                    session, **{**ledger_filters, **changed}
+                )
+                assert rows == [] and total == 0
+            summary = await driver_earnings_summary(
+                session, user_id=first.driver.id, currency="USD", settings=settings
+            )
+            assert len(summary.totals_by_currency) == 1
+            assert summary.totals_by_currency[0].ledger_entry_count == 0
+            cost_args = dict(
+                user_id=first.campaign.created_by_user_id,
+                campaign_id=first.campaign.id,
+                currency="NGN",
+                settings=settings,
+            )
+            start = min(expected.calculated_at, original.occurred_at) - timedelta(seconds=1)
+            end = max(expected.calculated_at, original.occurred_at) + timedelta(seconds=1)
+            cost = await advertiser_campaign_cost_summary(
+                session, start_at=start, end_at=end, **cost_args
+            )
+            assert cost.totals_by_currency[0].final_payout_total == Decimal("600.00")
+            assert cost.totals_by_currency[0].ledger_net_total == Decimal("600.00")
+            for bounds in ((end, None), (None, start)):
+                cost = await advertiser_campaign_cost_summary(
+                    session, start_at=bounds[0], end_at=bounds[1], **cost_args
+                )
+                assert cost.totals_by_currency[0].final_payout_total == 0
+                assert cost.totals_by_currency[0].ledger_net_total == 0
+                assert cost.totals_by_currency[0].calculated_trip_count == 0
+            for rule_status, count in (("active", 1), ("inactive", 0)):
+                rules, total = await list_campaign_payout_rules(
+                    session,
+                    campaign_id=first.campaign.id,
+                    limit=10,
+                    offset=0,
+                    rule_status=rule_status,
+                )
+                assert len(rules) == total == count
+                if rules:
+                    assert rules[0].id == first.rule.id
+
+    asyncio.run(run())

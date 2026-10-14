@@ -303,3 +303,198 @@ def test_cash_refund_refuses_mismatched_or_expired_frozen_cancellation(field, va
     with pytest.raises(AppError) as caught:
         _validate_refund_cancellation(cancellation, terms)
     assert caught.value.code == code
+
+
+@pytest.mark.parametrize("source", ["analytics", "estimate", "estimate_link"])
+def test_payout_source_identity_must_match_every_authoritative_input(source):
+    from app.services.payouts.evidence import ensure_payout_sources_match
+
+    identities = dict(
+        campaign_id=uuid4(), assignment_id=uuid4(), driver_profile_id=uuid4(), vehicle_id=uuid4()
+    )
+    trip = SimpleNamespace(**identities)
+    analytics = SimpleNamespace(id=uuid4(), **identities)
+    estimate = SimpleNamespace(trip_analytics_id=analytics.id, **identities)
+    ensure_payout_sources_match(trip=trip, analytics=analytics, estimate=estimate)
+    if source == "estimate_link":
+        estimate.trip_analytics_id = uuid4()
+    else:
+        (analytics if source == "analytics" else estimate).driver_profile_id = uuid4()
+    with pytest.raises(AppError) as caught:
+        ensure_payout_sources_match(trip=trip, analytics=analytics, estimate=estimate)
+    assert caught.value.code == "PAYOUT_SOURCE_MISMATCH"
+    assert len(caught.value.details["mismatches"]) == 1
+    assert caught.value.details["mismatches"][0]["field"] == (
+        "trip_analytics_id" if source == "estimate_link" else "driver_profile_id"
+    )
+
+
+def test_binding_requires_complete_frozen_snapshot():
+    from app.services.payout_eligibility import STATIONARY_POLICY_D39
+    from app.services.payouts.evidence import frozen_eligibility_params
+
+    binding = SimpleNamespace(
+        formula_version="payout_v4",
+        stationary_policy_marker=STATIONARY_POLICY_D39,
+        resolved_eligibility_params={"max_accuracy_m": 20},
+    )
+    with pytest.raises(AppError) as caught:
+        frozen_eligibility_params(binding)
+    assert caught.value.code == "PAYOUT_BINDING_INCOMPLETE"
+
+
+def test_missing_payout_sources_are_domain_refusals(db_sessionmaker, settings):
+    from app.services.payouts.evidence import (
+        get_analytics_for_trip,
+        get_impression_estimate_for_trip,
+        get_trip_for_payout,
+    )
+
+    async def run():
+        async with db_sessionmaker() as session:
+            for operation, expected in (
+                (lambda: get_trip_for_payout(session, uuid4(), settings), "TRIP_NOT_FOUND"),
+                (lambda: get_analytics_for_trip(session, uuid4()), "ANALYTICS_NOT_FOUND"),
+                (
+                    lambda: get_impression_estimate_for_trip(
+                        session, trip_id=uuid4(), settings=settings
+                    ),
+                    "IMPRESSION_ESTIMATE_NOT_FOUND",
+                ),
+            ):
+                with pytest.raises(AppError) as caught:
+                    await operation()
+                assert caught.value.code == expected
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    "metadata,expected",
+    [
+        ({}, (None, None)),
+        ({"eligible_seconds": 10, "excluded_seconds_by_reason": []}, None),
+        ({"eligible_seconds": 10, "excluded_seconds_by_reason": {"": 5}}, None),
+        ({"eligible_seconds": 10, "excluded_seconds_by_reason": {"gps_gap": -1}}, None),
+        ({"eligible_seconds": 10, "excluded_seconds_by_reason": {"gps_gap": True}}, None),
+    ],
+)
+def test_malformed_correction_explanation_never_fabricates_excluded_time(metadata, expected):
+    from app.services.payouts.breakdown import _recompute_explanation_from_stored_metadata
+
+    assert _recompute_explanation_from_stored_metadata(metadata) == expected
+
+
+@pytest.mark.parametrize(
+    "source,actor,message",
+    [
+        ("unverified", None, "Unknown provider evidence source"),
+        ("webhook", uuid4(), "system actor"),
+        ("poll", None, "authenticated admin actor"),
+    ],
+)
+def test_reconciliation_requires_trusted_source_and_correct_actor_before_database_access(
+    source, actor, message
+):
+    session = AsyncMock()
+    with pytest.raises(ValueError, match=message):
+        asyncio.run(
+            disbursements._apply_verified_line_evidence(
+                session, evidence=None, source=source, actor_user_id=actor
+            )
+        )
+    session.execute.assert_not_awaited()
+    session.flush.assert_not_awaited()
+
+
+def test_missing_billing_prerequisites_cannot_create_authority_or_liability(db_sessionmaker):
+    from app.models.billing import CampaignLiabilityReservation
+    from app.services.billing.authority import (
+        record_prepaid_cash_authorization,
+        reserve_assignment_liability,
+    )
+
+    admin, owner, _, campaign = _fixture(db_sessionmaker, "missing-authority")
+
+    async def run():
+        async with db_sessionmaker() as session:
+            with pytest.raises(AppError) as caught:
+                await record_subsidy_authorization(
+                    session,
+                    campaign_id=campaign.id,
+                    actor_user_id=admin.id,
+                    subsidy_amount="100",
+                    max_driver_liability="50",
+                    subsidy_reference="SYNTHETIC",
+                    reason="approved",
+                )
+            assert caught.value.code == "COMMERCIAL_TERMS_REQUIRED"
+            await _accepted_terms(
+                session, campaign=campaign, admin=admin, owner=owner, reference="NO-FUNDING"
+            )
+            with pytest.raises(AppError) as caught:
+                await record_prepaid_cash_authorization(
+                    session,
+                    campaign_id=campaign.id,
+                    actor_user_id=admin.id,
+                    max_driver_liability="50",
+                    reason="unfunded",
+                )
+            assert caught.value.code == "CONFIRMED_FUNDING_REQUIRED"
+            for actor, require_admin, code in (
+                (admin.id, True, "ASSIGNMENT_NOT_FOUND"),
+                (uuid4(), False, "ACTIVE_ACTOR_REQUIRED"),
+            ):
+                with pytest.raises(AppError) as caught:
+                    await reserve_assignment_liability(
+                        session,
+                        assignment_id=uuid4(),
+                        actor_user_id=actor,
+                        require_admin=require_admin,
+                    )
+                assert caught.value.code == code
+            for model in (CampaignFinancialAuthorization, CampaignLiabilityReservation):
+                assert await session.scalar(select(func.count()).select_from(model)) == 0
+
+    asyncio.run(run())
+
+
+def test_release_and_escalation_empty_or_invalid_limits_never_mutate(db_sessionmaker):
+    from app.services.earnings_release import (
+        escalate_fraud_flag_if_due,
+        find_due_fraud_flag_ids,
+        find_pending_release_trip_ids,
+    )
+
+    async def run():
+        async with db_sessionmaker() as session:
+            assert await find_pending_release_trip_ids(session, limit=0) == []
+            assert await find_due_fraud_flag_ids(session, review_sla_days=1, limit=0) == []
+            assert (
+                await escalate_fraud_flag_if_due(session, flag_id=uuid4(), review_sla_days=1)
+                is False
+            )
+            for operation in (
+                lambda: find_due_fraud_flag_ids(session, review_sla_days=0, limit=1),
+                lambda: escalate_fraud_flag_if_due(session, flag_id=uuid4(), review_sla_days=0),
+            ):
+                with pytest.raises(ValueError, match="review_sla_days must be positive"):
+                    await operation()
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("trip_status", ["started", "ended"])
+def test_unsealed_trip_cannot_reach_payout_source_reads(trip_status, settings):
+    from app.services.payouts.evidence import get_trip_for_payout
+
+    session = AsyncMock()
+    session.get.return_value = SimpleNamespace(
+        status=trip_status,
+        ended_at=datetime(2026, 10, 14, tzinfo=UTC) if trip_status == "ended" else None,
+    )
+    with pytest.raises(AppError) as caught:
+        asyncio.run(get_trip_for_payout(session, uuid4(), settings))
+    assert caught.value.code == "TRIP_NOT_SEALED"
+    session.scalar.assert_not_awaited()
+    session.flush.assert_not_awaited()

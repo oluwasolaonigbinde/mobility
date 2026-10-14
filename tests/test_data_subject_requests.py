@@ -773,3 +773,108 @@ def test_dsr_request_and_location_exact_races_converge(postgis_db_sessionmaker) 
             )
 
     asyncio.run(run())
+
+
+@pytest.mark.parametrize(
+    "case_name,expected",
+    [
+        ("unverified", "DSR_NOT_ASSESSABLE"),
+        ("wrong_right", "DSR_DISPOSITION_MISMATCH"),
+        ("empty_evidence", "DSR_EVIDENCE_REQUIRED"),
+        ("irrelevant_exception", "DSR_EXCEPTION_NOT_APPLICABLE"),
+        ("invented_database_count", "DSR_EXTERNAL_COUNT_NOT_APPLICABLE"),
+        ("missing_external_count", "DSR_EXTERNAL_COUNT_REQUIRED"),
+        ("negative_external_count", "DSR_EXTERNAL_COUNT_REQUIRED"),
+    ],
+)
+def test_assessment_refusals_preserve_request_and_write_no_assessment(
+    db_sessionmaker, case_name, expected
+):
+    admin = create_test_user(db_sessionmaker, email="assessment-boundary-admin@example.test")
+    subject = create_test_user(
+        db_sessionmaker, email="assessment-boundary-subject@example.test", role=UserRole.DRIVER
+    )
+
+    async def run():
+        async with db_sessionmaker() as session:
+            case = await create_data_subject_request(
+                session,
+                actor_user_id=admin.id,
+                subject_user_id=subject.id,
+                request_type=DataSubjectRequestType.ACCESS,
+                client_request_id=uuid4(),
+                requested_at=datetime.now(UTC),
+            )
+            if case_name != "unverified":
+                await verify_data_subject_identity(
+                    session, actor_user_id=admin.id, request_id=case.id
+                )
+            await session.flush()
+            original_status = case.status
+            original_audits = await session.scalar(select(func.count()).select_from(AuditEvent))
+            arguments = dict(
+                actor_user_id=admin.id,
+                request_id=case.id,
+                location=DataSubjectLocation.PROCESSORS,
+                disposition=DataSubjectDisposition.NOT_FOUND,
+                evidence_reference="SYNTHETIC-BOUNDARY",
+                exception_reference=None,
+                external_record_count=0,
+                client_request_id=uuid4(),
+                approved_exception_references=set(),
+            )
+            if case_name == "wrong_right":
+                arguments["disposition"] = DataSubjectDisposition.ERASED
+            elif case_name == "empty_evidence":
+                arguments["evidence_reference"] = " "
+            elif case_name == "irrelevant_exception":
+                arguments["exception_reference"] = "UNAPPLICABLE"
+            elif case_name == "invented_database_count":
+                arguments["location"] = DataSubjectLocation.DATABASE
+            elif case_name == "missing_external_count":
+                arguments["external_record_count"] = None
+            elif case_name == "negative_external_count":
+                arguments["external_record_count"] = -1
+            with pytest.raises(AppError) as caught:
+                await record_location_assessment(session, **arguments)
+            assert caught.value.code == expected
+            assert case.status == original_status
+            assert (
+                await session.scalar(
+                    select(func.count()).select_from(DataSubjectLocationAssessment)
+                )
+                == 0
+            )
+            assert (
+                await session.scalar(select(func.count()).select_from(AuditEvent))
+                == original_audits
+            )
+
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("invalid", ["naive_time", "missing_subject"])
+def test_request_requires_known_subject_and_unambiguous_time(db_sessionmaker, invalid):
+    from app.models.data_subject_request import DataSubjectRequest
+
+    admin = create_test_user(db_sessionmaker, email="request-boundary-admin@example.test")
+
+    async def run():
+        async with db_sessionmaker() as session:
+            with pytest.raises(AppError) as caught:
+                await create_data_subject_request(
+                    session,
+                    actor_user_id=admin.id,
+                    subject_user_id=admin.id if invalid == "naive_time" else uuid4(),
+                    request_type=DataSubjectRequestType.ACCESS,
+                    client_request_id=uuid4(),
+                    requested_at=datetime(2026, 10, 14)
+                    if invalid == "naive_time"
+                    else datetime.now(UTC),
+                )
+            assert caught.value.code == (
+                "INVALID_DSR_REQUEST_TIME" if invalid == "naive_time" else "DATA_SUBJECT_NOT_FOUND"
+            )
+            assert await session.scalar(select(func.count()).select_from(DataSubjectRequest)) == 0
+
+    asyncio.run(run())
