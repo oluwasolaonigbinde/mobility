@@ -222,9 +222,9 @@ def test_staff_created_driver_without_consent_cannot_be_approved_and_can_accept_
     assert accepted.json() == retry.json()
     status = db_client.get("/api/v1/driver/documents", headers=driver_headers).json()
     assert status["person_payee"]["agreement_version"] == "1"
-    assert status["person_payee"]["agreement_accepted_at"] == accepted.json()[
-        "agreement_accepted_at"
-    ]
+    assert (
+        status["person_payee"]["agreement_accepted_at"] == accepted.json()["agreement_accepted_at"]
+    )
 
     async def persisted_acceptance():
         async with db_sessionmaker() as session:
@@ -266,3 +266,14 @@ def test_staff_created_driver_without_consent_cannot_be_approved_and_can_accept_
         },
     )
     assert approved.status_code == 200, approved.text
+
+
+def test_submitted_version_does_not_substitute_for_affirmative_consent():
+    from app.core.errors import AppError
+    from app.services.driver_agreement import submission_agreement
+
+    with pytest.raises(AppError) as caught:
+        asyncio.run(
+            submission_agreement(None, current=None, version="1", accepted=False, renewal=True)
+        )
+    assert caught.value.code == "DRIVER_AGREEMENT_REQUIRED"

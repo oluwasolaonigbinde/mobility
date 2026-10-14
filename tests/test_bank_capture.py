@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -219,3 +220,47 @@ def test_provider_http_logs_never_include_account_query_or_returned_name(caplog)
     messages = " ".join(record.getMessage() for record in caplog.records)
     assert "bank/resolve" in messages
     assert not any(value in messages for value in ("0123456789", "058", "PRIVATE DRIVER"))
+
+
+def test_invalid_resolution_never_mints_a_bank_check_receipt(settings):
+    class RejectedAccount(BankAdapter):
+        async def resolve(self, bank_code, account_number):
+            raise BankLookupInvalid("synthetic rejected account")
+
+    with pytest.raises(AppError) as caught:
+        asyncio.run(
+            check_account_name(
+                user_id=uuid4(),
+                bank_code="058",
+                account_number="0123456789",
+                adapter=RejectedAccount(),
+                settings=settings,
+            )
+        )
+    assert caught.value.code == "BANK_CHECK_INVALID"
+
+
+@pytest.mark.parametrize("receipt_kind", ["missing", "unknown_outcome"])
+def test_bank_capture_requires_an_explicit_recognized_receipt(settings, receipt_kind):
+    user_id = uuid4()
+    now = datetime.now(UTC)
+    receipt = (
+        None
+        if receipt_kind == "missing"
+        else jwt.encode(
+            {
+                "kind": "driver-bank-check-v1",
+                "sub": str(user_id),
+                "bank_code": "058",
+                "account_digest": hashlib.sha256(b"0123456789").hexdigest(),
+                "outcome": "pending",
+                "iat": now,
+                "exp": now + timedelta(minutes=15),
+            },
+            settings.jwt_secret_key,
+            algorithm="HS256",
+        )
+    )
+    with pytest.raises(AppError) as caught:
+        require_bank_check(payload(receipt), user_id=user_id, settings=settings)
+    assert caught.value.code == "BANK_CHECK_INVALID"
