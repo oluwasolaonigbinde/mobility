@@ -70,7 +70,7 @@ from app.services.disbursements import process_payout_submission_intent
 WEBHOOK = "/api/v1/webhooks/paystack"
 
 
-@pytest.mark.parametrize("declared", [None, "1", str(1024 * 1024 + 1)])
+@pytest.mark.parametrize("declared", [None, "1", "not-a-length", str(1024 * 1024 + 1)])
 @pytest.mark.parametrize("endpoint", ["paystack", "payments"])
 def test_webhook_rejects_oversize_before_authentication_or_persistence(
     monkeypatch, declared, endpoint
@@ -102,7 +102,8 @@ def test_webhook_rejects_oversize_before_authentication_or_persistence(
     assert len(received) == (0 if declared == str(1024 * 1024 + 1) else 2)
 
 
-def test_webhook_authenticates_original_stream_bytes_at_exact_cap():
+@pytest.mark.parametrize("declared", [None, "not-a-length"])
+def test_webhook_authenticates_original_stream_bytes_at_exact_cap(declared):
     from app.api.v1.webhooks import paystack_webhook
 
     adapter = PaystackPaymentGatewayAdapter(PaystackClient(SYNTHETIC_TEST_KEY))
@@ -115,7 +116,8 @@ def test_webhook_authenticates_original_stream_bytes_at_exact_cap():
         async def receive():
             return {"type": "http.request", "body": chunks.pop(0), "more_body": bool(chunks)}
 
-        return Request({"type": "http", "headers": []}, receive)
+        headers = [] if declared is None else [(b"content-length", declared.encode())]
+        return Request({"type": "http", "headers": headers}, receive)
 
     receipt = asyncio.run(paystack_webhook(request(), None, adapter, None, None, None, sign(raw)))
     assert receipt.event == "refund.processed" and receipt.accepted is False

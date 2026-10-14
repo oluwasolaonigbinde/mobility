@@ -38,6 +38,13 @@ wants, topic by topic, is in [client-decisions.md](client-decisions.md).
 
 ## Register
 
+**14 October delivery continuation for REQ-171–177:** the orchestrator authorizes
+one test commit for real uncovered paths in this batch's own code, using the
+complete CI reports from run 38557836646. Preserve the adopted figures, checker
+and baseline during this correction; no unrelated tests or coverage padding.
+Then perform measurement, reviewed D33 receipt, full verification and final
+consolidated reassessment before merge and closure of REQ-171–179.
+
 Wave 3/4 plan numbering is historical: its REQ-115 maps to REQ-161 below,
 REQ-116 to REQ-162, REQ-117 to REQ-163, REQ-118 to REQ-164 and REQ-119
 to REQ-165. The report-wording and demo-phone reminders are already delivered

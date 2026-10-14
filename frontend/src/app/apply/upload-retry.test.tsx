@@ -277,3 +277,69 @@ describe.each(cases)("$field upload retry", ({ Component, files, field }) => {
     );
   });
 });
+
+describe("vehicle upload scope", () => {
+  it("replaces cached uploads when selecting another owned car, then reuses that car's retry", async () => {
+    vi.mocked(uploadOnboardingFile).mockReset();
+    vi.mocked(uploadOnboardingFile).mockImplementation(
+      async (_token, file, key) => `${file.name}-${key}`,
+    );
+    let attempts = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input) => {
+        if (String(input) === "/api/apply/onboarding/vehicles")
+          return Response.json({
+            items: [
+              { vehicle_id: "car-a", plate_number: "CAR-A", status: "rejected" },
+              { vehicle_id: "car-b", plate_number: "CAR-B", status: "rejected" },
+            ],
+          });
+        attempts += 1;
+        return attempts < 3
+          ? Response.json({ error: { message: "Submission failed" } }, { status: 503 })
+          : Response.json({ status: "pending_review", version: 1, vehicle_id: "car-b" });
+      }),
+    );
+    render(<VehicleForm />);
+    fireEvent.change(screen.getByLabelText("Code from your email"), {
+      target: { value: "access" },
+    });
+    for (const label of ["Registration papers", "Insurance certificate", "Photo of the car"])
+      fireEvent.change(screen.getByLabelText(label), {
+        target: { files: [new File([label], `${label}.png`, { type: "image/png" })] },
+      });
+    fireEvent.click(screen.getByRole("button", { name: "Find my cars" }));
+    fireEvent.click(await screen.findByRole("radio", { name: /CAR-A/ }));
+    const form = screen.getByRole("button", { name: /^Send my/ }).closest("form")!;
+    const submissions = () =>
+      vi
+        .mocked(fetch)
+        .mock.calls.filter(([url]) => String(url) === "/api/apply/onboarding/vehicle");
+    fireEvent.submit(form);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Submission failed");
+    expect(uploadOnboardingFile).toHaveBeenCalledTimes(3);
+    const first = JSON.parse(String(submissions()[0]![1]!.body));
+    expect(first.vehicle_id).toBe("car-a");
+
+    fireEvent.click(screen.getByRole("radio", { name: /CAR-B/ }));
+    expect(screen.queryAllByText("Uploaded")).toHaveLength(0);
+    fireEvent.submit(form);
+    await waitFor(() => expect(submissions()).toHaveLength(2));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Submission failed");
+    const second = JSON.parse(String(submissions()[1]![1]!.body));
+    expect(second.vehicle_id).toBe("car-b");
+    expect(uploadOnboardingFile).toHaveBeenCalledTimes(6);
+    for (const key of ["registration_file_id", "insurance_file_id", "vehicle_photo_file_id"])
+      expect(second[key]).not.toBe(first[key]);
+    for (let index = 0; index < 3; index += 1)
+      expect(vi.mocked(uploadOnboardingFile).mock.calls[index + 3]![1]).toBe(
+        vi.mocked(uploadOnboardingFile).mock.calls[index]![1],
+      );
+
+    fireEvent.submit(form);
+    await screen.findByRole("status");
+    expect(uploadOnboardingFile).toHaveBeenCalledTimes(6);
+    expect(submissions()[2]![1]!.body).toBe(submissions()[1]![1]!.body);
+  });
+});

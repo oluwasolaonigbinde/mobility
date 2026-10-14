@@ -188,6 +188,129 @@ def test_checkout_recovery_serializes_create_verify_and_intervening_webhook(
     asyncio.run(scenario())
 
 
+def test_unlock_failure_discards_owned_connection_without_losing_saved_checkout(
+    db_sessionmaker, settings
+):
+    import hashlib
+
+    from sqlalchemy import event
+    from sqlalchemy.exc import OperationalError
+    from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+
+    admin = create_test_user(db_sessionmaker, email="unlock-admin@example.test")
+    owner = create_test_user(
+        db_sessionmaker, email="unlock-owner@example.test", role=UserRole.ADVERTISER
+    )
+    organization, _ = create_test_organization(db_sessionmaker, owner_user_id=owner.id)
+    campaign = create_test_campaign(
+        db_sessionmaker, organization_id=organization.id, created_by_user_id=admin.id
+    )
+
+    async def scenario():
+        transport = RecordingTransport()
+        adapter = PaystackPaymentGatewayAdapter(
+            PaystackClient(SYNTHETIC_TEST_KEY, transport=transport)
+        )
+        async with db_sessionmaker() as session:
+            terms = await _accepted_terms(
+                session,
+                campaign=campaign,
+                admin=admin,
+                owner=owner,
+                reference="UNLOCK-CHECKOUT",
+                amount="100.00",
+            )
+            draft = await create_invoice_draft(
+                session, commercial_terms_id=terms.id, actor_user_id=admin.id
+            )
+            issuer = await _issuer(
+                session, admin, IssuerVerificationStatus.SYNTHETIC, "UNLOCK-ISSUER", settings
+            )
+            invoice = await issue_invoice(
+                session,
+                invoice_id=draft.id,
+                issuer_profile_id=issuer.id,
+                actor_user_id=admin.id,
+                settings=settings,
+            )
+            saved = await prepare_invoice_payment_checkout(
+                session, invoice_id=invoice.id, actor_user_id=owner.id, adapter=adapter
+            )
+            await session.commit()
+            checkout_id, reference = saved.id, saved.reference
+        url = f"https://checkout.paystack.com/{reference}"
+        transport.queue(ok({"reference": reference, "authorization_url": url}))
+
+        # Use a real reusable connection: NullPool would close it anyway and
+        # conceal a missing invalidation after failed session-lock cleanup.
+        bind = db_sessionmaker.kw["bind"]
+        options = bind.get_execution_options()
+        schema = options["schema_translate_map"][None]
+        engine = create_async_engine(
+            bind.url,
+            connect_args={"server_settings": {"search_path": f"{schema},public"}},
+            execution_options=options,
+            pool_size=1,
+            max_overflow=0,
+        )
+        sessions = async_sessionmaker(engine, expire_on_commit=False)
+        failed = []
+
+        def fail_unlock(_connection, _cursor, statement, parameters, _context, _many):
+            if "pg_advisory_unlock(" in statement and not failed:
+                failed.append(True)
+                raise OperationalError(statement, parameters, RuntimeError("unlock driver failure"))
+
+        event.listen(engine.sync_engine, "before_cursor_execute", fail_unlock)
+        try:
+            async with sessions() as session:
+                with pytest.raises(OperationalError, match="unlock driver failure"):
+                    await initialize_invoice_payment_checkout(
+                        session,
+                        checkout_id=checkout_id,
+                        adapter=adapter,
+                        return_url="http://localhost:3000/advertiser/billing/paystack/return",
+                    )
+            assert failed == [True]
+            key = int.from_bytes(
+                hashlib.sha256(f"payment-checkout:{checkout_id}".encode()).digest()[:8],
+                "big",
+                signed=True,
+            )
+            async with db_sessionmaker() as waiter:
+                # A different PostgreSQL connection must own this key; reusing
+                # the failed owner's connection could hide a reentrant leak.
+                assert await waiter.scalar(select(func.pg_try_advisory_lock(key))) is True
+                assert await waiter.scalar(select(func.pg_advisory_unlock(key))) is True
+                current = await waiter.get(PaymentCheckoutIntent, checkout_id)
+                assert current.status == "initialized"
+                assert current.reference == reference and current.checkout_url == url
+                assert current.invoice_id == invoice.id
+                assert current.organization_id == organization.id
+                assert await waiter.scalar(select(func.count(PaymentCheckoutIntent.id))) == 1
+                assert await waiter.scalar(select(func.count(PaymentGatewayEvent.id))) == 0
+                assert await waiter.scalar(select(func.count(PaymentReceipt.id))) == 0
+
+            async def retry():
+                async with sessions() as session:
+                    return await initialize_invoice_payment_checkout(
+                        session,
+                        checkout_id=checkout_id,
+                        adapter=adapter,
+                        return_url="http://localhost:3000/advertiser/billing/paystack/return",
+                    )
+
+            recovered, provider_session = await asyncio.wait_for(retry(), 5)
+            assert recovered.reference == reference and recovered.checkout_url == url
+            assert recovered.status == "initialized" and provider_session is None
+            assert len(transport.requests) == 1 and transport.requests[0].method == "POST"
+        finally:
+            event.remove(engine.sync_engine, "before_cursor_execute", fail_unlock)
+            await engine.dispose()
+
+    asyncio.run(scenario())
+
+
 def test_issued_invoice_checkout_is_stable_and_verified_before_funding(
     db_client, db_sessionmaker, settings, monkeypatch
 ) -> None:

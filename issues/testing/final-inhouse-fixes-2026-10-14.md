@@ -97,3 +97,63 @@ priority. No actual provider context or handoff error occurred. Batch containers
 must be removed before final handoff. Motorcycle code, G04, external accounts/keys
 and client answers remain outside this batch; A06 records only the later car-only
 decision. No package-queue promotion is authorized.
+
+## D33 measurement and changed-code uncovered-path audit
+
+Full run [38557836646](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38557836646)
+on `7e9f18d8` passed all six backend shards (3,429 tests), aggregation, backend
+static checks, frontend checks/build, R59 and desktop/mobile browser jobs.
+Coverage policy alone refused the required inventory receipt. The unchanged
+checker then refused refresh because backend lines were 31,892/33,914, below
+the adopted exact 31,688/33,692 ratio; at least 31,897 covered lines are needed.
+Changed-code coverage was 416/443 lines and 197/232 branches. No baseline or
+checker edit was made. The owner authorized behavior tests of this batch's code.
+
+The following list comes from that run's LCOV intersected with added/changed
+executable lines in `966abd3a..7e9f18d8`. Branch entries name their source line
+(and destination for backend arcs); they are uncovered in that measurement.
+This lists the actual gaps, rather than treating every gap as an additional ask.
+
+| Changed source | Uncovered lines | Uncovered branches |
+| --- | --- | --- |
+| `app/core/webhook_body.py` | 23, 24 | none |
+| `app/services/audience.py` | 1254, 1445 | 1253?1254; 1444?1445 |
+| `app/services/audience_delivery.py` | 754�758, 760 | 755?756/757; 757?758/760; 764?766 |
+| `app/services/billing/checkout.py` | 229, 250, 252, 253, 276, 277 | 228?229; 396?398 |
+| `app/services/report_issuances.py` | 258 | 257?258; 419?420 |
+| `app/services/report_rendering.py` | 105, 112, 114 | 104?105; 111?112; 113?114 |
+| `frontend/src/app/advertiser/planning-sources/page.tsx` | none | 181 name fallback; 240 area fallback; 257 absent uncertainty |
+| `frontend/src/app/apply/person-payee-form.tsx` | 79 | 76 account-name refusal; 114/124 stale result |
+| `frontend/src/app/apply/vehicle-form.tsx` | 40, 41 | 39 vehicle selection; 125/131 stale result |
+| `frontend/src/app/driver/(portal)/profile/document-renewals.tsx` | none | 62, 66, 71, 104, 117, 120, 252, 268, 272, 285 |
+| `frontend/src/app/driver/(portal)/track/trip-tracker.tsx` | 1135, 1179 | none |
+| `frontend/src/lib/files/use-document-uploads.ts` | 58, 59 | 55 post-logout refusal; 57 identity mismatch |
+
+No uncovered changed executable lines or branches were reported for the new
+sweep job/model, Lagos formatter, billing BFF or upload helper. The account-name
+refusal is a relocated pre-existing guard, so no unrelated coverage test is
+added for it. Unsupported unbound-session/malformed-authority guards and
+fabricated provider or audience exceptions are not exercised solely to raise
+the count. Existing timezone-midnight tests already prove the A11 edge.
+
+Six backend test files add 18 cases; 25 focused cases pass sequentially, with
+Ruff and whitespace checks passing. Assertions verify capped/exact-byte webhook
+behavior, real pooled-connection lock release and same-reference checkout retry,
+both shortened link-window refusals with no durable segments/targets, actual
+policy drift with no released targets/new disclosure history, a two-session
+source-link race refusing a mixed snapshot then succeeding on the same request,
+and both CSV/PDF refusing damaged authority or unreleased targets. These target
+14 previously uncovered backend lines; only the next CI measurement can confirm
+the aggregate margin. Local coverage was not measured.
+
+Frontend full touched-file verification passes: 84 cases across tracker (58),
+Apply upload retry (23) and private upload hook (3), in 12.76s. The new cases
+prove retained frozen End evidence across rejected reconciliation/retry, fresh
+IDs for changed File/access identity with unchanged siblings reused, post-logout
+refusal without sending a private document, and selected-car scope change
+followed by same-ID/same-request retry. Dependencies were installed from the
+unchanged lockfile in the batch runner after the slow mounted copy was stopped.
+No repository dependency or source file changed. Existing tracker act warnings
+remain visible; they did not fail the run. No local coverage was collected.
+
+Focused frontend ESLint, Prettier and integrated TypeScript checks pass.

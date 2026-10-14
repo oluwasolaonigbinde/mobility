@@ -225,6 +225,57 @@ def _create_link_and_run(db_client, db_sessionmaker, *, points=None, measurement
     return advertiser, other, UUID(link.json()["id"]), UUID(run.json()["id"])
 
 
+@pytest.mark.parametrize("shorten", ["start", "end"])
+def test_worker_refuses_issued_measurement_outside_current_link_window(
+    db_client, db_sessionmaker, settings, shorten
+):
+    from app.models.retargeting_source_link import RetargetingSourceLink
+
+    advertiser, _, link_id, run_id = _create_link_and_run(db_client, db_sessionmaker)
+
+    async def parents():
+        async with db_sessionmaker() as session:
+            link = await session.get(RetargetingSourceLink, link_id)
+            return link.source_id, link.campaign_id, link.zone_id
+
+    source_id, campaign_id, zone_id = asyncio.run(parents())
+    headers = auth_headers(db_client, advertiser.email, PASSWORD)
+    bounded = db_client.post(
+        "/api/v1/advertiser/retargeting-source-links",
+        headers=headers | {"Idempotency-Key": f"bounded-link-{shorten}"},
+        json={
+            "source_id": str(source_id),
+            "campaign_id": str(campaign_id),
+            "zone_id": str(zone_id),
+            "start_at": (DAY_1 + timedelta(hours=1 if shorten == "start" else 0)).isoformat(),
+            "end_at": (DAY_1 + timedelta(hours=23 if shorten == "end" else 24)).isoformat(),
+        },
+    )
+    assert bounded.status_code == 201, bounded.text
+    bounded_id = UUID(bounded.json()["id"])
+
+    async def refused():
+        with pytest.raises(AppError) as outside:
+            await materialize_exposure_segment_job(
+                {"sessionmaker": db_sessionmaker, "settings": settings},
+                str(run_id),
+                str(bounded_id),
+            )
+        assert outside.value.code == "EXPOSURE_SEGMENT_WINDOW_INVALID"
+        async with db_sessionmaker() as session:
+            assert await session.scalar(select(func.count(ExposureSegment.id))) == 0
+            assert await session.scalar(select(func.count(ExposureSegmentCell.id))) == 0
+
+    asyncio.run(refused())
+    recommendations = db_client.get(
+        f"/api/v1/advertiser/retargeting-source-links/{bounded_id}/recommendations",
+        headers=headers,
+    )
+    assert recommendations.status_code == 200, recommendations.text
+    assert recommendations.json()["state"] == "empty"
+    assert recommendations.json()["recommendations"] == []
+
+
 @pytest.mark.parametrize("measurement_first", [False, True])
 @pytest.mark.parametrize("empty_cells", [False, True])
 def test_committed_authority_reaches_ready_or_suppressed_through_worker(

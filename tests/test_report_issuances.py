@@ -324,6 +324,122 @@ def test_fresh_report_disclosures_hold_parent_and_access_locks_until_commit(
     asyncio.run(exercise())
 
 
+def test_new_source_link_between_source_selection_and_scope_locks_refuses_mixed_snapshot(
+    db_sessionmaker, settings, ready_linked_source, monkeypatch
+):
+    from pydantic import TypeAdapter
+    from test_retargeting_source_links import source_payload
+
+    from app.core.errors import AppError
+    from app.models.disclosure import DisclosureQueryDecision
+    from app.models.retargeting_source import RetargetingSource
+    from app.models.retargeting_source_link import RetargetingSourceLink
+    from app.schemas.retargeting_source_links import RetargetingSourceLinkCreate
+    from app.schemas.retargeting_sources import RetargetingSourceCreate
+    from app.services.audience import create_retargeting_source, create_retargeting_source_link
+
+    advertiser, link_id, run_id = ready_linked_source
+    payload = ReportIssuanceCreate(client_request_id=uuid4())
+
+    async def exercise():
+        selected, added = asyncio.Event(), asyncio.Event()
+        async with db_sessionmaker() as issuer, db_sessionmaker() as writer:
+            existing = await writer.get(RetargetingSourceLink, link_id)
+            campaign_id, zone_id = existing.campaign_id, existing.zone_id
+            start_at, end_at = existing.start_at, existing.end_at
+            await writer.rollback()
+            scalars = issuer.scalars
+
+            async def pause_after_source_selection(statement, *args, **kwargs):
+                result = await scalars(statement, *args, **kwargs)
+                if (
+                    statement.column_descriptions[0].get("entity") is RetargetingSource
+                    and not selected.is_set()
+                ):
+                    # The actual SELECT FOR UPDATE has returned. The writer
+                    # commits a new parent before issuance locks User/Campaign.
+                    selected.set()
+                    await asyncio.wait_for(added.wait(), 5)
+                return result
+
+            monkeypatch.setattr(issuer, "scalars", pause_after_source_selection)
+
+            async def issue_once():
+                with pytest.raises(AppError) as changed:
+                    await request_report_issuance(
+                        issuer,
+                        actor_user_id=advertiser.id,
+                        measurement_run_id=run_id,
+                        payload=payload,
+                        settings=settings,
+                        admin=False,
+                    )
+                assert changed.value.code == "REPORT_AUDIENCE_CHANGED"
+                await issuer.rollback()
+
+            task = asyncio.create_task(issue_once())
+            try:
+                await asyncio.wait_for(selected.wait(), 5)
+                await writer.execute(sql_text("SET LOCAL lock_timeout = '2s'"))
+                source = await create_retargeting_source(
+                    writer,
+                    settings=settings,
+                    actor_user_id=advertiser.id,
+                    payload=TypeAdapter(RetargetingSourceCreate).validate_python(
+                        source_payload(datetime.now(UTC) + timedelta(days=365))
+                    ),
+                    idempotency_key="concurrent-report-source",
+                )
+                new_link = await create_retargeting_source_link(
+                    writer,
+                    settings=settings,
+                    actor_user_id=advertiser.id,
+                    payload=RetargetingSourceLinkCreate(
+                        source_id=source.id,
+                        campaign_id=campaign_id,
+                        zone_id=zone_id,
+                        start_at=start_at,
+                        end_at=end_at,
+                    ),
+                    idempotency_key="concurrent-report-link",
+                )
+                await writer.commit()
+                new_link_id = new_link.id
+                added.set()
+                await asyncio.wait_for(task, 5)
+            finally:
+                if not task.done():
+                    task.cancel()
+                    await asyncio.gather(task, return_exceptions=True)
+
+            assert await writer.scalar(select(func.count(ReportIssuance.id))) == 0
+            assert await writer.scalar(select(func.count(ReportArtifact.id))) == 0
+            assert await writer.scalar(select(func.count(DisclosureQueryDecision.id))) == 0
+            await writer.rollback()
+            retry = await request_report_issuance(
+                issuer,
+                actor_user_id=advertiser.id,
+                measurement_run_id=run_id,
+                payload=payload,
+                settings=settings,
+                admin=False,
+            )
+            await issuer.commit()
+            items = {
+                item["source_link_id"]: item
+                for item in retry.snapshot["linked_source_recommendations"]
+            }
+            assert set(items) == {str(link_id), str(new_link_id)}
+            assert items[str(link_id)]["state"] == "ready"
+            assert items[str(link_id)]["recommendations"]
+            assert items[str(new_link_id)]["state"] == "unavailable"
+            assert items[str(new_link_id)]["recommendations"] == []
+            assert all(item["measurement_run_id"] == str(run_id) for item in items.values())
+            assert await writer.scalar(select(func.count(ReportIssuance.id))) == 1
+
+    asyncio.run(exercise())
+
+
 @pytest.mark.parametrize("reader", ["zone_insights", "recommendations"])
 def test_ordinary_audience_readers_still_commit_fresh_disclosure_history(
     db_sessionmaker, settings, ready_linked_source, reader

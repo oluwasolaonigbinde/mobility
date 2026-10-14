@@ -183,3 +183,11 @@ touched file and preserves their agreement/retirement checks. Consolidated
 reassessment PASS covers the docs-only A06 decision and this expectation fix.
 Successful complete CI remains required; failed-run artifacts cannot
 qualify a D33 receipt.
+
+## Behavior-test continuation after D33 measurement
+
+The owner resumed the D33 block on 14 October: test this batch's own uncovered
+behavior, retain the adopted exact ratios and unchanged checker, then perform
+measurement, reviewed receipt, verification and final consolidated reassessment.
+No new product rule, D-row, version or migration is needed. This continuation
+refines verification of REQ-171�177; all additions belong in one test commit.

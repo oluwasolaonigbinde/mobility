@@ -109,6 +109,54 @@ def _issued_segment(db_client, db_sessionmaker, settings):
     return advertiser, other, admin, link_id, run_id, segment_id
 
 
+def test_frozen_recommendations_redact_targets_after_current_policy_changes(
+    db_client, db_sessionmaker, settings
+):
+    from app.models.disclosure import DisclosureQueryDecision
+    from app.services.audience_delivery import frozen_recommendations_for_run
+
+    advertiser, _, _, link_id, run_id, _ = _issued_segment(
+        db_client, db_sessionmaker, settings
+    )
+
+    async def scenario():
+        async with db_sessionmaker() as session:
+            run = await session.get(MeasurementRun, run_id)
+            ready = await frozen_recommendations_for_run(
+                session,
+                settings=settings,
+                actor_user_id=advertiser.id,
+                run=run,
+                admin=False,
+            )
+            assert len(ready) == 1 and ready[0]["source_link_id"] == str(link_id)
+            assert ready[0]["state"] == "ready" and ready[0]["recommendations"]
+            assert ready[0]["provenance"]["measurement_run_id"] == str(run_id)
+            served = await session.scalar(select(func.count(DisclosureQueryDecision.id)))
+            assert served == 1
+
+        async with db_sessionmaker() as session:
+            run = await session.get(MeasurementRun, run_id)
+            refused = await frozen_recommendations_for_run(
+                session,
+                settings=settings.model_copy(update={"privacy_min_vehicles_per_cell": 5}),
+                actor_user_id=advertiser.id,
+                run=run,
+                admin=False,
+            )
+            assert len(refused) == 1
+            assert refused[0]["state"] == "unavailable"
+            assert refused[0]["recommendations"] == []
+            assert refused[0]["provenance"] is None and refused[0]["uncertainty"] is None
+            assert refused[0]["measurement_run_id"] == str(run_id)
+            assert refused[0]["source_label"] == ready[0]["source_label"]
+            assert refused[0]["zone_label"] == ready[0]["zone_label"]
+            assert refused[0]["disclaimer"]
+            assert await session.scalar(select(func.count(DisclosureQueryDecision.id))) == served
+
+    asyncio.run(scenario())
+
+
 def _approval_payload(operation: str) -> dict:
     return {
         "operation": operation,

@@ -88,6 +88,48 @@ def completeness(*, covered: int, insufficient: int = 0, excluded: int = 0) -> d
     }
 
 
+@pytest.mark.parametrize("renderer", [render_report_csv, render_report_pdf])
+@pytest.mark.parametrize("corruption", ["missing", "invalid", "suppressed", "stale", "unavailable"])
+def test_v3_exports_refuse_missing_authority_and_unreleased_linked_targets(renderer, corruption):
+    snapshot = export_snapshot()
+    snapshot["schema_version"] = "campaign-performance-export-v3"
+    snapshot["issuance"]["schema_version"] = "campaign-performance-export-v3"
+    item = {
+        "source_label": "Website traffic",
+        "zone_label": "Wuse II",
+        "measurement_run_id": snapshot["measurement"]["run_id"],
+        "state": "ready",
+        "recommendations": [
+            {
+                "rank": 1,
+                "coverage_cell": "grid-500m:10:20",
+                "window_start_at": "2026-10-14T23:30:00Z",
+                "window_end_at": "2026-10-15T00:30:00Z",
+                "rationale": "Strongest governed modelled contact signal.",
+            }
+        ],
+        "provenance": None,
+        "provenance_statement": "Governed aggregate vehicle movement.",
+        "uncertainty": None,
+        "disclaimer": "Not observed people or guaranteed outcomes.",
+    }
+    snapshot["linked_source_recommendations"] = [item]
+    # Establish a renderable current-version snapshot before damaging its
+    # authority. Neither artifact format may release targets after this damage.
+    assert renderer(snapshot)
+    if corruption == "missing":
+        del snapshot["linked_source_recommendations"]
+        expected = "linked-source snapshot is missing"
+    elif corruption == "invalid":
+        item["state"] = "pending"
+        expected = "linked-source state is invalid"
+    else:
+        item["state"] = corruption
+        expected = "unreleased linked-source targets"
+    with pytest.raises(ReportRenderLimitError, match=expected):
+        renderer(snapshot)
+
+
 def density_profile(index: int) -> dict:
     return {
         "profile_id": f"00000000-0000-4000-8000-0000000000{index:02d}",

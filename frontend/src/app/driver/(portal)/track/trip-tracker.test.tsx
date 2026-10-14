@@ -944,6 +944,68 @@ describe("end watermark honesty (finding 5)", () => {
     expect(screen.getByTestId("tracking-health")).toHaveAttribute("data-runtime-health", "stopped");
   });
 
+  it("retains the frozen manifest across rejected evidence reconciliation and End retry", async () => {
+    const runtime = installRuntime();
+    let savedManifest: unknown;
+    const queue = fakeQueue({
+      freezeEnd: vi.fn().mockImplementation(async (_tripId, complete) => {
+        savedManifest = {
+          version: 2,
+          root_sha256: "a".repeat(64),
+          ping_count: 3,
+          complete,
+          entries: [],
+        };
+        return savedManifest;
+      }),
+      meta: vi.fn().mockImplementation(async () => ({
+        tripId: TRIP_ID,
+        nextSeq: 3,
+        batchesCut: 2,
+        pingsRecorded: 3,
+        endManifest: savedManifest,
+      })),
+    });
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    actions.getCurrentTripAction
+      .mockResolvedValueOnce({ trip: TRIP, outcome: "started" })
+      .mockResolvedValue({ outcome: "failed" });
+    actions.reconcileTripEvidenceAction
+      .mockRejectedValueOnce(new Error("Evidence reconciliation transport lost"))
+      .mockResolvedValue({ outcome: "unknown" });
+    actions.endTripAction
+      .mockResolvedValueOnce({ outcome: "unknown" })
+      .mockRejectedValueOnce(new Error("End retry transport lost"))
+      .mockResolvedValue({ outcome: "ended", status: "sealed" });
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    const endButton = screen.getByRole("button", { name: /End trip/ });
+    await waitFor(() => expect(endButton).toBeEnabled());
+    await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+
+    await userEvent.click(endButton);
+    const retry = await screen.findByRole("button", { name: /Check trip status/ });
+    expect(retry).toBeEnabled();
+    expect(queue.forgetTrip).not.toHaveBeenCalled();
+    expect(queue.dropBatch).not.toHaveBeenCalled();
+    expect(runtime.watchPosition).toHaveBeenCalledTimes(1);
+
+    await userEvent.click(retry);
+    await waitFor(() => expect(actions.reconcileTripEvidenceAction).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("button", { name: /Check trip status/ })).toBeEnabled();
+    expect(queue.freezeEnd).toHaveBeenCalledTimes(1);
+    expect(actions.endTripAction.mock.calls[0]![1]).toEqual(savedManifest);
+    expect(actions.endTripAction.mock.calls[1]![1]).toEqual(savedManifest);
+    expect(queue.forgetTrip).not.toHaveBeenCalled();
+    expect(runtime.watchPosition).toHaveBeenCalledTimes(1);
+
+    await userEvent.click(screen.getByRole("button", { name: /Check trip status/ }));
+    await screen.findByText(/No active campaign/i);
+    expect(actions.endTripAction.mock.calls[2]![1]).toEqual(savedManifest);
+    expect(queue.freezeEnd).toHaveBeenCalledTimes(1);
+    expect(queue.forgetTrip).toHaveBeenCalledWith(TRIP_ID);
+    expect(runtime.watchPosition).toHaveBeenCalledTimes(1);
+  });
+
   it("does not submit a watermark after storage fails during the final drain", async () => {
     const runtime = installRuntime();
     pingQueue.openPingQueue.mockResolvedValue(
