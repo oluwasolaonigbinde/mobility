@@ -36,15 +36,31 @@ async def record_attempt(redis: Any, *, rejected: bool, now: datetime) -> None:
 async def record_gps_attempt(settings: Settings, attempt: GPSAttempt) -> None:
     # Independent of the evidence transaction, including wholly rejected batches.
     # No error text, identifiers, request payload, URL or coordinates in logs.
-    if not settings.redis_url:
-        logger.warning("event=gps_health_telemetry_unavailable")
-        return
+    now = datetime.now(UTC)
     try:
+        if not settings.redis_url:
+            raise RuntimeError("GPS telemetry is not configured")
         async with asyncio.timeout(1):
             async with Redis.from_url(settings.redis_url) as redis:
-                await record_attempt(redis, rejected=attempt.rejected, now=datetime.now(UTC))
+                await record_attempt(redis, rejected=attempt.rejected, now=now)
+        return
     except Exception:
         logger.warning("event=gps_health_telemetry_unavailable")
+
+    # Redis cannot reliably retain its own outage signal. Use the existing
+    # daily Finance item in an independent transaction, shared across workers.
+    from sqlalchemy.ext.asyncio import AsyncSession
+
+    from app.db.session import get_engine
+    from app.services.business_health import record_gps_counter_failure
+
+    try:
+        async with asyncio.timeout(1):
+            async with AsyncSession(get_engine(settings)) as session:
+                await record_gps_counter_failure(session, now=now)
+                await session.commit()
+    except Exception:
+        logger.warning("event=gps_health_failure_signal_unavailable")
 
 
 async def gps_window(redis: Any, *, now: datetime) -> tuple[int, int] | None:

@@ -486,3 +486,106 @@ def test_gps_recording_uses_fake_redis_and_never_leaks_exception(settings, monke
     asyncio.run(run())
     assert "telemetry_unavailable" in caplog.text
     assert "synthetic redis failure" not in caplog.text
+
+
+def test_failed_counter_writes_invalidate_readable_window_across_recovery(
+    db_sessionmaker, settings, monkeypatch
+):
+    from app.core import gps_health
+    from app.db import session as database
+
+    redis = FakeRedis()
+    redis.values[minute_key(NOW - timedelta(minutes=1))] = {"attempts": 20, "rejected": 0}
+
+    class Clock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return NOW - timedelta(seconds=30)
+
+    class Client:
+        @staticmethod
+        def from_url(url):
+            return redis
+
+    async def covered(*args, **kwargs):
+        return True, NOW + timedelta(days=60)
+
+    monkeypatch.setattr(gps_health, "Redis", Client)
+    monkeypatch.setattr(gps_health, "datetime", Clock)
+    monkeypatch.setattr(database, "get_engine", lambda *_: db_sessionmaker.kw["bind"])
+    monkeypatch.setattr(health, "check_partition_coverage", covered)
+
+    async def run():
+        redis.broken = True
+        await gps_health.record_gps_attempt(
+            settings.model_copy(update={"redis_url": "redis://synthetic"}),
+            gps_health.GPSAttempt(rejected=True),
+        )
+        redis.broken = False
+        # Readable Redis data alone falsely suggests a healthy rejection rate.
+        assert await gps_window(redis, now=NOW) == (20, 0)
+        async with db_sessionmaker() as other_worker:
+            counts = await health.health_counts(
+                other_worker, now=NOW, settings=settings, redis=redis
+            )
+            assert counts.get("gps_telemetry_unavailable") == 1
+            assert "gps_rejections" not in counts
+            alert = await other_worker.scalar(select(PayoutAutomaticAlert))
+            assert alert.detail["check"] == "gps_telemetry_unavailable"
+            assert alert.resolved_at is None
+            assert await health.publish_health_alerts(other_worker, now=NOW, counts=counts) == 0
+            await other_worker.commit()
+        # Once the incomplete minute leaves the window, new complete data works;
+        # the existing Finance item remains available for manual resolution.
+        later = NOW + timedelta(minutes=15)
+        await record_attempt(redis, rejected=False, now=later - timedelta(minutes=1))
+        async with db_sessionmaker() as restarted_worker:
+            counts = await health.health_counts(
+                restarted_worker, now=later, settings=settings, redis=redis
+            )
+            assert counts.get("gps_rejections") == 0
+            assert "gps_telemetry_unavailable" not in counts
+            alert = await restarted_worker.scalar(select(PayoutAutomaticAlert))
+            assert alert.resolved_at is None
+
+    asyncio.run(run())
+
+
+def test_counter_failure_signal_survives_midnight_resolution_and_concurrent_updates(
+    db_sessionmaker,
+):
+    admin = create_test_user(db_sessionmaker, email="gps-signal@example.com", role="admin")
+    midnight = NOW.replace(hour=0)
+
+    async def record(moment):
+        async with db_sessionmaker() as session:
+            await health.record_gps_counter_failure(session, now=moment)
+            await session.commit()
+
+    async def run():
+        late = midnight - timedelta(seconds=10)
+        early = midnight - timedelta(minutes=5)
+        await asyncio.gather(record(late), record(early))
+        async with db_sessionmaker() as session:
+            alerts = list((await session.scalars(select(PayoutAutomaticAlert))).all())
+            assert len(alerts) == 1
+            alert = alerts[0]
+            assert set(alert.detail) == {"check", "count", "counter_incomplete_until"}
+            assert (
+                alert.detail["counter_incomplete_until"]
+                == (midnight + timedelta(minutes=15)).isoformat()
+            )
+            alert.resolved_by_user_id = admin.id
+            alert.resolved_at = midnight
+            alert.resolution_note = "Investigated Redis outage"
+            await session.commit()
+        async with db_sessionmaker() as session:
+            assert await health._gps_counter_incomplete(session, midnight)
+            assert await health._gps_counter_incomplete(
+                session, midnight + timedelta(minutes=15) - timedelta(microseconds=1)
+            )
+            assert not await health._gps_counter_incomplete(
+                session, midnight + timedelta(minutes=15)
+            )
+
+    asyncio.run(run())

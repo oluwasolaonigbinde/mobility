@@ -15,4 +15,3 @@ This work does not promote or reorder the paused package queue. Open client
 parameters stay fail-closed; `payout_v1`–`v3` history is never repriced.
 Commit, push, deployment, provider calls and external-account action require
 separate owner approval.
-

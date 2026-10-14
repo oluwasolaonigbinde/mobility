@@ -3626,6 +3626,13 @@ adjudication remains terminal and does not generate stale alerts. Email terminal
 failure timestamps support the 24-hour window. Redis keys contain only minute
 buckets and attempt/rejection counts, expire after one hour, and are written
 independently of the evidence transaction; telemetry failure cannot reject GPS.
+A failed counter write independently updates the existing daily Finance item
+with an identifier-free `counter_incomplete_until` UTC time. Row locking keeps
+concurrent failure times monotonic; the sweep treats the window as unavailable
+across worker restart, Redis recovery, midnight and manual alert resolution.
+The timestamp remains operational alert evidence; Redis counts still expire
+within one hour. Simultaneous Redis/database failure can only emit the fixed
+failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
 

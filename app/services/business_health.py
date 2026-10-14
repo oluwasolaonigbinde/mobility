@@ -10,6 +10,7 @@ from app.core.config import Settings
 from app.core.gps_health import gps_window
 from app.models.billing import PaymentGatewayEvent, PaymentGatewayProcessingAttempt
 from app.models.disbursement import (
+    PayoutAutomaticAlert,
     PayoutAutomaticAlertKind,
     PayoutAutomaticControl,
     PayoutBatchLine,
@@ -19,7 +20,7 @@ from app.models.disbursement import (
 )
 from app.models.notification import Notification
 from app.models.trip import LocationPingBatch, TripSession
-from app.services.automatic_payouts import raise_alert
+from app.services.automatic_payouts import _key, raise_alert
 from app.services.data_lifecycle import check_partition_coverage
 
 CHECKS = frozenset(
@@ -122,11 +123,52 @@ async def stale_trips(session: AsyncSession, now: datetime, settings: Settings) 
     )
 
 
+def _gps_failure_key(now: datetime) -> str:
+    return _key(
+        "cardvert-automatic-payout-alert-v1",
+        PayoutAutomaticAlertKind.BUSINESS_HEALTH.value,
+        "gps_telemetry_unavailable",
+        now.astimezone(UTC).date().isoformat(),
+    )
+
+
+async def record_gps_counter_failure(session: AsyncSession, *, now: datetime) -> None:
+    await publish_health_alerts(session, now=now, counts={"gps_telemetry_unavailable": 1})
+    alert = await session.scalar(
+        select(PayoutAutomaticAlert)
+        .where(PayoutAutomaticAlert.dedupe_key == _gps_failure_key(now))
+        .with_for_update()
+    )
+    assert alert is not None
+    # The failed minute must leave the 15-complete-minute window before any
+    # readable counters can prove health. Resolution never clears this signal.
+    until = now.astimezone(UTC).replace(second=0, microsecond=0) + timedelta(minutes=16)
+    previous = alert.detail.get("counter_incomplete_until")
+    if previous is None or datetime.fromisoformat(previous) < until:
+        alert.detail = {**alert.detail, "counter_incomplete_until": until.isoformat()}
+    await session.flush()
+
+
+async def _gps_counter_incomplete(session: AsyncSession, now: datetime) -> bool:
+    details = await session.scalars(
+        select(PayoutAutomaticAlert.detail).where(
+            PayoutAutomaticAlert.dedupe_key.in_(
+                (_gps_failure_key(now), _gps_failure_key(now - timedelta(days=1)))
+            )
+        )
+    )
+    return any(
+        datetime.fromisoformat(detail["counter_incomplete_until"]) > now
+        for detail in details
+        if "counter_incomplete_until" in detail
+    )
+
+
 async def health_counts(
     session: AsyncSession, *, now: datetime, settings: Settings, redis: Any
 ) -> dict[str, int]:
     covered, _ = await check_partition_coverage(session, now=now)
-    gps = await gps_window(redis, now=now)
+    gps = None if await _gps_counter_incomplete(session, now) else await gps_window(redis, now=now)
     counts = {
         "stuck_payouts": await stuck_payouts(session, now),
         "unprocessed_webhooks": await unprocessed_webhooks(session, now),

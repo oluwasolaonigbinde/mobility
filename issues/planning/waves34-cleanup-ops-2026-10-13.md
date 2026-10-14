@@ -107,7 +107,16 @@ telemetry rather than a healthy GPS result. Test with fake Redis; real PostgreSQ
 tests cover durable predicates and concurrent deduplication.
 
 Extend the existing Finance alert kind with a business-health kind and allowlist
-the check key/count in detail. Reuse `raise_alert` and `create_active_admin_notices`:
+the check key/count in detail. On counter-write failure, the same daily Finance
+item also retains an identifier-free `counter_incomplete_until` UTC time;
+concurrent failures extend it under the alert row lock, through the failed
+minute leaving the 15-complete-minute window. This operational failure evidence
+is retained with the manually resolved alert, not with the expiring Redis
+counters. The sweep reads it across workers/restarts and UTC midnight even
+after manual resolution. Counter and failure-signal writes have separate
+one-second limits and never change ingestion authority; simultaneous Redis/DB
+failure produces a distinct safe log event and cannot durably record a signal.
+Reuse `raise_alert` and `create_active_admin_notices`:
 all active admins are Finance recipients under D38e/REQ-030 (no separate roles).
 One alert/notification per unhealthy check per UTC date, transactionally deduped.
 Persistent failures may recur on the next date; recovery emits no new alert and
@@ -498,3 +507,43 @@ Operational old-revision references in tests, seeds, shell fixtures and migratio
 chain/inventory checks now use the baseline or distinct synthetic test versions.
 Append-only historical architecture/progress/build-loop evidence retains its
 original revision names as history, not current instructions.
+
+
+## Post-build privacy correction ? 14 October
+
+Privacy review r1 reproduced an incomplete-counter defect: readable successful
+attempts could conceal rejected attempts whose Redis writes failed. A new
+regression failed with a healthy result before correction. The existing daily
+Finance item now retains the operational invalidation time described above;
+no schema change was needed. `tests/test_business_health.py` passed 17 cases
+(`privacy-counter-fix.xml`), and the added concurrent older/newer failures,
+midnight and manual-resolution boundary passed (`privacy-counter-concurrency.xml`).
+Ruff and the progress validator pass. Privacy reassessment
+`w34-privacy-review-20261014-r2` returned PASS on the integrated source and
+reconfirmed exact schema parity/no lost constraints, RLS, grants or audit and
+immutability triggers. Money and consolidated reviews remain pending.
+
+The committed squash is `54ddc8933a78b28980308a71dae932a497ed2c1d`.
+The operational correction leaves the baseline and parity dumps unchanged.
+Post-correction Radon is 3,259 blocks, average 3.6225836146057073 (A).
+The identical full-source jscpd command now reports 829 sources, 147,783 lines,
+319 clones and 3,718 duplicated lines (2.52%); 37,439 duplicated tokens (2.77%).
+Targeted basedpyright reports zero errors/warnings/notes.
+
+### D33 qualification bases
+
+The complete changed-code qualification range starts at
+`48e4ab51338dcaf8abde34aee56e91a1a2c40b2c`, the master ancestor before the
+REQ-158/159 agreement/shared-picker merge. After the measurement run, apply the
+unchanged checker to its exact downloaded LCOV/provenance against that ancestor,
+including the separate 85% money/privacy floors, and retain the result for the
+independent receipt review. No local coverage is measured.
+
+This branch has no remote predecessor, so its first push event supplies a zero
+base; the measurement run can produce all full-suite/coverage artifacts but its
+coverage job cannot resolve that base. The explicit qualification above covers
+the complete range. The canonical receipt is then generated against the actual
+measurement candidate SHA, matching the next push event's predecessor. That
+receipt commit changes no application source. Its full verification must pass
+all unchanged gates before merge; a zero source delta on this second event does
+not replace the required complete-range qualification from the first run.

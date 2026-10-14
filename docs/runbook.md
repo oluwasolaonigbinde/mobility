@@ -624,11 +624,20 @@ are capped at 1,000 (shown as 1,000+); inspect the relevant operator worklist.
 | Unprocessed webhooks | Payment or payout events over 15 minutes old with no successful terminal processing attempt, including failed retries. Check worker errors and retry through the existing event processor. |
 | Paused payouts | Finance pause has remained on strictly longer than 24 hours. Confirm the reason and ask the authorized Finance operator to resume only after investigation. |
 | GPS rejection spike | At least 20 authenticated attempts in the preceding 15 complete UTC minutes and at least 25% with time/accuracy/speed rejection, including partial rejections and retries. Investigate device clocks/accuracy and service health without copying routes or identities into monitoring. |
-| GPS telemetry unavailable | Redis unavailable, invalid counters or no observations in that window. A quiet window is unknown rather than proof of successful ingestion. Check Redis and safe `gps_health_telemetry_unavailable` logs; this never changes ingestion acceptance. |
+| GPS telemetry unavailable | Redis unavailable, invalid counters, no observations, or a recorded counter-write failure affecting that window. A quiet window is unknown rather than proof of successful ingestion. Check Redis and safe `gps_health_telemetry_unavailable` logs; this never changes ingestion acceptance. |
 | Stale trips | Active trips without accepted ping/start activity for more than 30 minutes, or ended unsealed evidence past grace that has not been terminally adjudicated. Review the trip/evidence worklist; do not seal or reprice manually. |
 | Partition coverage | Existing coverage service cannot prove contiguous coverage through now plus one month. Follow the partition premake/recovery procedure above. |
 | Email failures | Terminal email failure within the last 24 hours, or pending email older than 15 minutes. Inspect safe failure codes and outbox/provider evidence; preserve idempotency when recovering. |
 
 Redis stores only `cardvert:health:gps:<UTC-minute>` with integer attempts and
 rejected counts, expiring after one hour. No trip, user, IP, coordinate or payload
-is included. These operational thresholds do not alter product or money rules.
+is included. A failed counter write independently creates/updates the existing
+UTC-daily Finance item with `counter_incomplete_until`, an operational UTC time
+through the failed minute leaving the window. Other workers and restarts honor
+it even when Redis recovers or Finance resolves the item. It contains no request
+identity or payload and remains operational failure evidence with that alert;
+it is not a retained counter. Concurrent failures extend the time without
+creating duplicate notices. If both Redis and the database are unavailable,
+`gps_health_failure_signal_unavailable` means the durable outage signal could
+not be stored: investigate these safe logs alongside the Cron failure signal.
+These operational thresholds do not alter product or money rules.
