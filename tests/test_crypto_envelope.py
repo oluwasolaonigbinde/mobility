@@ -103,9 +103,7 @@ def test_provider_neutral_custody_preserves_schema_and_rewraps_only_the_dek() ->
     )
     encrypted = old.encrypt(b"12345678901", aad)
     rotating = CustodyEnvelopeCryptoProvider(
-        custody=LocalKeyCustodyBackend(
-            keys={1: b"a" * 32, 2: b"b" * 32}, active_key_version=2
-        )
+        custody=LocalKeyCustodyBackend(keys={1: b"a" * 32, 2: b"b" * 32}, active_key_version=2)
     )
 
     rotated = rotating.rotate(encrypted, aad)
@@ -156,3 +154,46 @@ def test_custody_cannot_claim_an_inactive_wrapping_version() -> None:
 
     with pytest.raises(CryptoOperationError, match="invalid wrapped key data"):
         provider.encrypt(b"12345678901", aad)
+
+
+@pytest.mark.parametrize("field_name", ["", "x" * 256])
+def test_invalid_associated_data_never_encrypts(field_name):
+    provider = EnvelopeCryptoProvider(keys={1: b"a" * 32}, active_key_version=1)
+    with pytest.raises(CryptoOperationError, match="Associated data is invalid"):
+        provider.encrypt(b"private", AssociatedData(uuid4(), uuid4(), field_name))
+
+
+@pytest.mark.parametrize("plaintext", [b"", "private"])
+def test_empty_or_non_bytes_plaintext_is_rejected(plaintext):
+    provider = EnvelopeCryptoProvider(keys={1: b"a" * 32}, active_key_version=1)
+    with pytest.raises(CryptoOperationError, match="non-empty bytes"):
+        provider.encrypt(plaintext, AssociatedData(uuid4(), uuid4(), "bank"))
+
+
+@pytest.mark.parametrize("mutation", ["extra", "missing", "not_base64", "not_string"])
+def test_malformed_persisted_envelope_cannot_reach_key_custody(mutation):
+    provider = EnvelopeCryptoProvider(keys={1: b"a" * 32}, active_key_version=1)
+    stored = provider.encrypt(b"private", AssociatedData(uuid4(), uuid4(), "bank")).to_mapping()
+    if mutation == "extra":
+        stored["plaintext"] = "private"
+    elif mutation == "missing":
+        del stored["nonce_b64"]
+    elif mutation == "not_base64":
+        stored["nonce_b64"] = "!"
+    else:
+        stored["nonce_b64"] = None
+    with pytest.raises(CryptoOperationError, match="invalid format"):
+        CiphertextEnvelope.from_mapping(stored)
+
+
+def test_invalid_custody_version_and_same_version_rotation():
+    class InvalidCustody:
+        active_key_version = 0
+
+    with pytest.raises(CryptoConfigurationError, match="key version is unavailable"):
+        CustodyEnvelopeCryptoProvider(custody=InvalidCustody())
+    provider = EnvelopeCryptoProvider(keys={1: b"a" * 32}, active_key_version=1)
+    aad = AssociatedData(uuid4(), uuid4(), "bank")
+    encrypted = provider.encrypt(b"private", aad)
+    assert provider.rotate(encrypted, aad) == encrypted
+    assert provider.decrypt(encrypted, aad) == b"private"

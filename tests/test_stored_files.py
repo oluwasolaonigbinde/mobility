@@ -897,3 +897,22 @@ def test_storage_outage_creates_no_intent(db_client, db_sessionmaker, storage) -
             assert await session.scalar(select(func.count()).select_from(FileUploadIntent)) == 0
 
     asyncio.run(inspect())
+
+
+@pytest.mark.parametrize(
+    "prefix,expected",
+    [
+        (b"%PDF-1.7", "application/pdf"),
+        (b"\xff\xd8\xff", "image/jpeg"),
+        (b"\x89PNG\r\n\x1a\n", "image/png"),
+        (b"RIFF0000WEBP", "image/webp"),
+        (b"0000ftypisom", "video/mp4"),
+        (b"RIFF0000WAVE", None),
+        (b"RIFF", None),
+        (b"<script>private()</script>", None),
+    ],
+)
+def test_uploaded_content_magic_discriminates_supported_types(prefix, expected):
+    from app.services.stored_files import _detected_content_type
+
+    assert _detected_content_type(prefix) == expected
