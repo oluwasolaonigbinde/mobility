@@ -40,6 +40,8 @@ The owner approved a single development database baseline on 13 October 2026
 ("squash yes", D83/REQ-167/169). There are no live users or customer data.
 Current database protections and bootstrap facts are preserved and verified;
 disposable old development databases are recreated from the baseline.
+Built in `54ddc893`; exact full schema parity, bootstrap, seeds and protection
+reviews pass, with full branch verification `38539599622` green.
 
 ## Topics
 
@@ -341,7 +343,7 @@ accepts; "on request" areas may have their own rate (D39a, D43a–c). D80 remove
 on for real campaigns: [REQ-048](requests.md).
 
 **History:**
-- **2026-10-13** ? Owner approved removal of obsolete development payout v1?v3/evidence v1 and SQLite paths, with no live data; current daily-rate and frozen-evidence protections remain (D80, REQ-161). Implementation pending.
+- **2026-10-13, completed 14 October** - Owner approved removal of obsolete development payout v1-v3/evidence v1 and SQLite paths, with no live data; current daily-rate and frozen-evidence protections remain (D80, REQ-161). Built in `18192019`, with daily-rate Jobs completion in `8840fc10`.
 - **2026-07 to 2026-08-04** — Fixed naira amount **per hour** of verified time, with a daily cap on payable hours (D2, D4); built as `payout_v1` and `payout_v2` (D9, 30 Jul); reconfirmed against the proposal (D12, 4 Aug).
 - **2026-08-14** — Client set one platform hourly rate with an admin campaign override, and a higher (premium) hourly rate inside the primary zone (Q4, Q5, D18). Built as `payout_v3`.
 - **2026-09-24** — Client's answer gave per-mile figures (₦140 inside the primary zone, ₦50 outside, 70 miles a day) and a ₦10,000 daily rate for special locations (client answers item 2).
@@ -575,7 +577,7 @@ measurement run, receipt commit and final green verification run before merge
 (REQ-163/170). The shared bank picker remains one implementation under D78.
 
 **History:**
-- **2026-10-13, implemented 14 October** - Owner approved Waves 3/4 and the two-run D33/D41 sequence. The earlier policy had no separate 85% money/privacy floor. Verification and merge are pending.
+- **2026-10-13, completed 14 October** - Owner approved Waves 3/4 and the two-run D33/D41 sequence. The earlier policy had no separate 85% money/privacy floor. Built in `115fc505`, with independently reviewed receipt `40e39f4c` and full green verification [38539599622](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38539599622). Whole-range qualification includes REQ-158/159; shared bank picker retained. Non-squash merge `4bbb689d`. Structural refinement Built in `30eadf27`; progress archive/process trim and hosting-scope verification Built in `0b0be762`.
 
 ### Demo and staging external-input placeholders
 
@@ -671,6 +673,8 @@ per check and UTC date; Finance resolves them manually. GPS monitoring keeps
 only one-hour aggregate minute counters. The runbook defines the thresholds.
 
 **History:**
-- **2026-10-14:** Implements the owner's approved Waves 3/4 operational scope;
-  integrated verification and specialist review remain pending. Earlier jobs
-  exposed logs/errors and partition alarms without a consolidated health sweep.
+- **2026-10-14:** Implements the owner's approved Waves 3/4 operational scope.
+  Built in `0b0be762`, with durable privacy-safe counter-failure handling in
+  `44ded5ea`. Specialist reviews and full verification `38539599622` pass.
+  Earlier jobs exposed logs/errors and partition alarms without a consolidated
+  health sweep.

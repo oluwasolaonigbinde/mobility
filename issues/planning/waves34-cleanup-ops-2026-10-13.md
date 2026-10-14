@@ -591,11 +591,11 @@ gates remain pending; this is not merge clearance.
 | Current v4/v2 authority, legacy/SQLite removal, current consumers | PASS in affected PostgreSQL, frontend and R14-B contract cases recorded above; consolidated r1 found only the four corrected omissions. |
 | Domain splits, existing-function complexity exceptions, shared picker | PASS in static/import/type and affected billing/payout checks; matched Radon/jscpd evidence above. |
 | Shared-reader/exclusive-writer campaign serialization and deterministic refusal paths | PASS in four PostgreSQL interleavings and targeted payout/trip rejection cases above. |
-| Separate 85% money/privacy floors and unchanged ratchets | Checker behavior tests PASS; exact-source CI coverage and independently reviewed D33 receipt PENDING. |
+| Separate 85% money/privacy floors and unchanged ratchets | PASS: full-range measurement qualification, independent D33 receipt review and full verification 38539599622 including coverage policy. |
 | Scheduled-job Cron outcomes, seven health checks, manual Finance resolution, privacy-safe GPS | PASS in focused worker/health cases including terminal adjudication, next UTC date, concurrent/midnight counter failure and resolved-alert boundaries. Money/privacy/security source reviews PASS. |
 | Process trim, validator state and proven obsolete hosting scope | PASS; deletion inventory above, validator passes, archive links corrected; no unproven unused operational script removed. |
 | Squash schema/bootstrap/head/reference/seed safety | PASS: byte-identical complete dumps, version-only data difference, single root/head, seed completion and current protection cases. Security/privacy confirm no lost protection. |
-| Integrated agreement/bank and final delivery | Local targeted checks PASS; full candidate measurement, full-range qualification, receipt review, final full verification and non-squash merge PENDING. |
+| Integrated agreement/bank and final delivery | PASS: qualified measurement 38534616984 includes pre-REQ-158/159 range; receipt review PASS; full verification 38539599622 green on 40e39f4c; non-squash merge 4bbb689d preserves implementing SHAs. |
 
 
 ### First full measurement and bounded frontend correction
@@ -760,3 +760,24 @@ provenance and reproducible source identities. Independent receipt review r1
 returned PASS, including recomputed hashes and whole-range metrics; its
 metadata-only commit and full green verification follow.
 No source changes, local coverage or weakened gate accompany the refresh.
+
+
+### Final verification and master merge
+
+[Full verification 38539599622](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38539599622)
+is completely green on receipt commit `40e39f4c065be002090f6e36569ea40fce606ea2`,
+including all six backend shards, aggregate provenance, frontend/static,
+coverage policy and both browser jobs. All 3,398 backend tests executed.
+The final downloaded report again hits disbursement line 558 / arc 557 -> 558
+and trip rejection lines 848/854 / arcs 847 -> 848 and 853 -> 854. Final backend
+LCOV SHA-256: `cdd86e3841761fbeb848c1368939b6b9186fcb08123cd3a5ce13385855f110b9`.
+Application/test/policy source is identical to the qualified measurement.
+
+All contract criteria and required reviews are now satisfied. Authorized
+non-squash merge `4bbb689d7dd05615ea47137f67c3a8c33c3cdd97` joins starting master
+`87074053` and verified branch `40e39f4c`; every implementing SHA is retained.
+REQ-161 through REQ-170 are closed with their implementing commits (REQ-167
+remains the previously answered approval). The closure changes only delivery
+records. D79's deferred agreement/bank CI is discharged by the full-range
+qualification and this final green run. External launch/provider/device/pilot
+and handover gates remain open; no deployment or provider call was made.
