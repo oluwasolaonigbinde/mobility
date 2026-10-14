@@ -79,7 +79,7 @@ def build_graph(db_sessionmaker, tag: str) -> SimpleNamespace:
     vehicle = create_test_vehicle(
         db_sessionmaker,
         driver_profile_id=profile.id,
-        plate_number=f"ER-{tag}",
+        plate_number=f"ER-{tag[-20:]}",
         vehicle_status=VehicleStatus.ACTIVE,
     )
     assignment = create_test_campaign_assignment(
@@ -533,7 +533,7 @@ def test_seven_day_escalation_is_once_and_never_releases(
 
     first, second, escalated_at, status = asyncio.run(escalate_twice())
     assert first is True and second is False
-    assert escalated_at == NOW.replace(tzinfo=None)
+    assert escalated_at == NOW
     assert status == "pending"
 
 

@@ -405,7 +405,7 @@ jobs:
           git merge-base --is-ancestor "$base" HEAD || { echo "::error::base is not an ancestor"; exit 1; }
           echo "base=$base" >> "$GITHUB_OUTPUT"
       - name: Verify controlled baseline provenance and enforce coverage
-        run: python scripts/check_changed_coverage.py --base "${{ steps.base.outputs.base }}" --backend-lcov coverage/artifacts/backend/backend.lcov --backend-provenance coverage/artifacts/backend/backend-provenance.json --frontend-lcov coverage/artifacts/frontend/lcov.info --baseline coverage/baseline.json --verify-baseline-provenance
+        run: python scripts/check_changed_coverage.py --base "${{ steps.base.outputs.base }}" --backend-lcov coverage/artifacts/backend/backend.lcov --backend-provenance coverage/artifacts/backend/backend-provenance.json --frontend-lcov coverage/artifacts/frontend/lcov.info --baseline coverage/baseline.json --verify-baseline-provenance --sensitive-branches
 
   e2e:
     name: e2e against the real stack

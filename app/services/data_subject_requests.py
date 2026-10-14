@@ -324,7 +324,7 @@ async def verify_data_subject_identity(
     return case
 
 
-async def data_subject_inventory(
+async def data_subject_inventory(  # noqa: C901
     session: AsyncSession,
     *,
     actor_user_id: UUID,
@@ -343,12 +343,7 @@ async def data_subject_inventory(
         )
     if case.status == DataSubjectRequestStatus.OPEN.value:
         raise _conflict("DSR_IDENTITY_NOT_VERIFIED", "Verify identity before inventory")
-    subject_parameter = (
-        case.subject_user_id.hex
-        if session.get_bind().dialect.name == "sqlite"
-        else str(case.subject_user_id)
-    )
-    parameters = {"subject_user_id": subject_parameter}
+    parameters = {"subject_user_id": str(case.subject_user_id)}
     database: dict[str, int] = {}
     for rule in SUBJECT_LINK_REGISTRY:
         database[rule.data_class] = int(
@@ -457,7 +452,7 @@ def _allowed_dispositions(request_type: str) -> set[DataSubjectDisposition]:
     }[request_type]
 
 
-async def record_location_assessment(
+async def record_location_assessment(  # noqa: C901
     session: AsyncSession,
     *,
     actor_user_id: UUID,

@@ -20,20 +20,20 @@ from conftest import (
     create_test_campaign_assignment,
     create_test_user,
 )
-from sqlalchemy import select, update
-from test_mny03a_earnings_release import build_graph as build_manual_graph
-from test_payout_batches import _seed_authority
-from test_payouts_v2 import moving_points
-from test_payouts_v3 import add_target_zone
-from test_payouts_v4 import (
+from payout_fixtures import (
     TRIP_START,
+    add_target_zone,
     add_trip,
     build_v4_graph,
     create_v4_revision,
     create_v4_rule,
     drive,
     insert_v4_binding,
+    moving_points,
 )
+from sqlalchemy import select, update
+from test_mny03a_earnings_release import build_graph as build_manual_graph
+from test_payout_batches import _seed_authority
 from test_trip_processing import add_pings, run_pipeline
 
 from app.adapters.crypto import EnvelopeCryptoProvider
@@ -2660,5 +2660,59 @@ def test_w1p_dispute_reply_serializes_before_payout_check(
         else:
             assert result.action.value == "submit"
         assert fake.calls == []
+
+    asyncio.run(scenario())
+
+
+def test_automatic_alert_filters_preserve_manual_resolution_and_exact_totals(db_sessionmaker):
+    from conftest import create_test_user
+
+    from app.models.disbursement import PayoutAutomaticAlert
+    from app.services.automatic_payouts import (
+        list_automatic_payout_alerts,
+        resolve_automatic_payout_alert,
+    )
+
+    admin = create_test_user(db_sessionmaker, email="alert-filter-admin@example.test")
+
+    async def scenario():
+        async with db_sessionmaker() as session:
+            alerts = [
+                PayoutAutomaticAlert(
+                    kind="business_health", dedupe_key=f"filter-{i}", currency="NGN", detail={}
+                )
+                for i in range(2)
+            ]
+            session.add_all(alerts)
+            await session.flush()
+            await resolve_automatic_payout_alert(
+                session,
+                alert_id=alerts[0].id,
+                actor_user_id=admin.id,
+                note="Reviewed synthetic case",
+            )
+            for state, expected in (
+                ("open", [alerts[1].id]),
+                ("resolved", [alerts[0].id]),
+                ("all", [alerts[0].id, alerts[1].id]),
+            ):
+                result = await list_automatic_payout_alerts(session, alert_status=state)
+                assert {item["id"] for item in result["items"]} == set(expected)
+                assert result["total"] == len(expected)
+            result = await list_automatic_payout_alerts(
+                session, alert_status="open", alert_id=alerts[0].id
+            )
+            assert result["items"] == [] and result["total"] == 0
+            result = await list_automatic_payout_alerts(
+                session, alert_status="resolved", alert_id=alerts[0].id, offset=1
+            )
+            assert result["items"] == [] and result["total"] == 1
+            for limit, offset in ((0, 0), (101, 0), (1, -1)):
+                with pytest.raises(AppError) as caught:
+                    await list_automatic_payout_alerts(
+                        session, alert_status="all", limit=limit, offset=offset
+                    )
+                assert caught.value.code == "PAYOUT_PAGE_INVALID"
+            assert alerts[0].resolved_by_user_id == admin.id and alerts[1].resolved_at is None
 
     asyncio.run(scenario())

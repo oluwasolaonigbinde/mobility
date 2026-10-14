@@ -83,7 +83,7 @@ async def list_organization_members(
     return [(membership, user) for membership, user in rows], int(total or 0)
 
 
-def _normalize_profile_value(field: str, value: object) -> str | None:
+def _normalize_profile_value(field: str, value: object) -> str | None:  # noqa: C901
     if value is None:
         return None
     if not isinstance(value, str):

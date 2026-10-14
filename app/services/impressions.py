@@ -938,7 +938,7 @@ def estimate_values(
     }
 
 
-async def estimate_trip_impressions(
+async def estimate_trip_impressions(  # noqa: C901
     session: AsyncSession,
     *,
     trip_id: UUID,

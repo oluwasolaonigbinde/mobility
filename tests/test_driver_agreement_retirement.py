@@ -1,34 +1,24 @@
 import asyncio
-import importlib.util
-from pathlib import Path
-from uuid import UUID, uuid4
 
 import pytest
-from alembic.migration import MigrationContext
-from alembic.operations import Operations
-from sqlalchemy import select, text
 from test_driver_person_payee_onboarding import (
     _application,
-    _person_payee_payload,
     _register,
     _seed_clean_kyc_files,
 )
 from test_stored_files import FakeStorageProvider
 
-from app.adapters.storage import ObjectMetadata
 from app.core.errors import AppError
-from app.models.driver_application import DriverApplication
-from app.models.stored_file import FilePurpose, FileUploadIntent, StoredFile, StoredObjectDeletion
+from app.models.stored_file import FilePurpose, StoredFile, StoredObjectDeletion
 from app.services.kyc import _require_files
 from app.services.stored_object_deletions import (
     delete_stored_object,
     ensure_stored_object_deletion,
-    process_stored_object_deletions,
 )
 
 
 def test_agreement_migration_is_reachable_from_the_real_alembic_chain(monkeypatch):
-    from test_migration_0014_partitioning import (
+    from database_helpers import (
         configured_postgres_url,
         create_database_from_url,
         drop_database,
@@ -57,124 +47,10 @@ def test_agreement_migration_is_reachable_from_the_real_alembic_chain(monkeypatc
             "bank_name_confirmed",
         } <= columns
         assert asyncio.run(fetch_all(url, "SELECT version_num FROM alembic_version")) == [
-            ("0102_driver_agreement_acceptance",)
+            ("0106_development_baseline",)
         ]
     finally:
         asyncio.run(drop_database(url))
-
-
-def migration():
-    path = Path(__file__).parents[1] / "alembic/versions/0102_driver_agreement_acceptance.py"
-    spec = importlib.util.spec_from_file_location("agreement_migration", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-@pytest.mark.parametrize("shared", [False, True])
-def test_migration_retires_private_objects_retryably_without_fabricating_consent(
-    postgis_db_client, postgis_db_sessionmaker, settings, shared
-):
-    client, sessions = postgis_db_client, postgis_db_sessionmaker
-    token, _ = _register(client, sessions, settings, suffix="retirement")
-    application = _application(sessions, email="person-payee-retirement@example.com")
-    files = _seed_clean_kyc_files(sessions, email=application.email)
-    response = client.post(
-        "/api/v1/auth/driver-onboarding/person-payee",
-        json=_person_payee_payload(token, files, client),
-    )
-    assert response.status_code == 201, response.text
-    unused = _seed_clean_kyc_files(sessions, email=application.email)
-    file_id = files["driver_license"] if shared else unused["driver_license"]
-    storage = FakeStorageProvider()
-
-    async def run():
-        async with sessions() as session:
-            stored = await session.get(StoredFile, file_id)
-            upload = await session.get(FileUploadIntent, stored.upload_intent_id)
-            keys = {stored.storage_key, upload.object_key}
-            for key in keys:
-                storage.objects[key] = ObjectMetadata(
-                    key, stored.size_bytes, stored.content_type, stored.checksum_sha256
-                )
-            await session.execute(
-                text(
-                    "ALTER TABLE driver_kyc_documents DROP CONSTRAINT ck_driver_kyc_documents_type"
-                )
-            )
-            await session.execute(
-                text(
-                    "ALTER TABLE driver_kyc_documents ADD CONSTRAINT ck_driver_kyc_documents_type "
-                    "CHECK (document_type IN ('driver_license','driver_photo','signed_agreement'))"
-                )
-            )
-            await session.execute(
-                text(
-                    "INSERT INTO driver_kyc_documents "
-                    "(id,submission_id,stored_file_id,document_type) "
-                    "VALUES (:id,:submission,:file,'signed_agreement')"
-                ),
-                {
-                    "id": uuid4(),
-                    "submission": UUID(response.json()["submission_id"]),
-                    "file": file_id,
-                },
-            )
-            for table, fields in {
-                "driver_applications": ("agreement_version", "agreement_accepted_at"),
-                "driver_kyc_submissions": (
-                    "agreement_version",
-                    "agreement_accepted_at",
-                    "agreement_acceptance_requested",
-                    "bank_check_receipt_sha256",
-                    "bank_name_confirmed",
-                ),
-            }.items():
-                for field in fields:
-                    await session.execute(text(f"ALTER TABLE {table} DROP COLUMN {field}"))
-            connection = await session.connection()
-
-            def upgrade(sync):
-                with Operations.context(MigrationContext.configure(sync)):
-                    migration().upgrade()
-
-            await connection.run_sync(upgrade)
-            await session.commit()
-        async with sessions() as session:
-            actual = await session.get(DriverApplication, application.id)
-            assert actual.agreement_version is actual.agreement_accepted_at is None
-            assert (
-                await session.scalar(
-                    text(
-                        "SELECT count(*) FROM driver_kyc_documents "
-                        "WHERE document_type='signed_agreement'"
-                    )
-                )
-                == 0
-            )
-            intents = list(await session.scalars(select(StoredObjectDeletion)))
-            assert len(intents) == (0 if shared else 2)
-            if shared:
-                assert await session.get(StoredFile, file_id) is not None
-                assert keys <= storage.objects.keys()
-                return
-            assert {i.subject_user_id for i in intents} == {application.user_id}
-            assert {i.storage_key for i in intents} == keys
-        storage.unavailable = True
-        with pytest.raises(AppError, match="Private file storage"):
-            await process_stored_object_deletions(sessions, storage=storage, limit=2)
-        assert keys <= storage.objects.keys()
-        storage.unavailable = False
-        assert await process_stored_object_deletions(sessions, storage=storage, limit=2) == 2
-        assert not keys.intersection(storage.objects)
-        async with sessions() as session:
-            intents = list(await session.scalars(select(StoredObjectDeletion)))
-            assert all(
-                i.state == "completed" and i.subject_user_id == application.user_id for i in intents
-            )
-            assert await session.get(StoredFile, file_id) is None
-
-    asyncio.run(run())
 
 
 def test_retirement_serializes_attachment_and_denies_provider_deleted_gap(

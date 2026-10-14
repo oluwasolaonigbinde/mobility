@@ -26,14 +26,8 @@ def _recovery_eligible(user: User | None) -> bool:
     return bool(
         user is not None
         and (
-            (
-                user.role in RECOVERY_ELIGIBLE_ROLES
-                and user.status in RECOVERY_ELIGIBLE_STATUSES
-            )
-            or (
-                user.role == UserRole.DRIVER.value
-                and user.status == UserStatus.ACTIVE.value
-            )
+            (user.role in RECOVERY_ELIGIBLE_ROLES and user.status in RECOVERY_ELIGIBLE_STATUSES)
+            or (user.role == UserRole.DRIVER.value and user.status == UserStatus.ACTIVE.value)
         )
     )
 
@@ -53,8 +47,6 @@ def _rate_lock_key(digest: str) -> int:
 async def _acquire_rate_limit_locks(
     session: AsyncSession, *, email_digest: str, ip_digest: str
 ) -> None:
-    if session.get_bind().dialect.name != "postgresql":
-        return
     for lock_key in sorted({_rate_lock_key(email_digest), _rate_lock_key(ip_digest)}):
         await session.execute(select(func.pg_advisory_xact_lock(lock_key)))
 

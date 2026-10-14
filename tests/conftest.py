@@ -6,7 +6,6 @@ import os
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from pathlib import Path
 from uuid import UUID, uuid4
 
 os.environ.setdefault(
@@ -113,14 +112,9 @@ def settings() -> Settings:
 
 # --- R02 / TST-001, DB-005: real-integration authority -----------------------
 #
-# The default `db_sessionmaker` below is SQLite + `create_all`. It is deliberately
-# kept: it makes the ordinary suite fast to run locally. It is *not* release
-# evidence, because it cannot show PostgreSQL-only behaviour or migration truth.
-#
-# Release evidence is a run with REQUIRE_REAL_INTEGRATIONS=1, where real
-# PostgreSQL/PostGIS, Redis, MinIO and ClamAV are present. Under that flag a
-# service-gated test may not quietly excuse itself: the presence of an integration
-# test only proves something if it actually ran.
+# All DB fixtures require PostgreSQL/PostGIS. Full CI additionally refuses any
+# service-gated skips; metadata fixtures are unit/integration setups, while the
+# baseline migration tests verify database-installed triggers and constraints.
 
 REAL_INTEGRATION_AUTHORITY_ENV = "REQUIRE_REAL_INTEGRATIONS"
 
@@ -189,24 +183,9 @@ def client(settings: Settings) -> Generator[TestClient, None, None]:
 
 
 @pytest.fixture
-def db_sessionmaker(tmp_path: Path) -> Generator[async_sessionmaker[AsyncSession], None, None]:
-    """Fast local SQLite fixture. Non-authoritative: see the authority block above."""
-    database_path = tmp_path / "test.db"
-    engine = create_async_engine(f"sqlite+aiosqlite:///{database_path}")
-
-    async def setup_database() -> None:
-        async with engine.begin() as connection:
-            await connection.run_sync(Base.metadata.create_all)
-
-    async def teardown_database() -> None:
-        async with engine.begin() as connection:
-            await connection.run_sync(Base.metadata.drop_all)
-        await engine.dispose()
-
-    asyncio.run(setup_database())
-    sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
-    yield sessionmaker
-    asyncio.run(teardown_database())
+def db_sessionmaker(postgis_db_sessionmaker):
+    """All database tests use an isolated PostgreSQL/PostGIS schema."""
+    return postgis_db_sessionmaker
 
 
 @pytest.fixture
@@ -215,7 +194,7 @@ def postgis_db_sessionmaker() -> Generator[async_sessionmaker[AsyncSession], Non
     if database_url is None or not database_url.startswith("postgresql+asyncpg://"):
         if real_integration_authority_required():
             pytest.fail("PostGIS test database is not configured under integration authority")
-        pytest.skip("PostGIS test database is not configured")
+        pytest.fail("TEST_DATABASE_URL must configure an isolated PostgreSQL/PostGIS database")
 
     schema_name = f"test_{uuid4().hex}"
     engine = create_async_engine(
@@ -785,6 +764,25 @@ def create_test_display_proof(
     return proof
 
 
+def sign_test_trip_manifest(trip: TripSession) -> None:
+    """Give non-pricing sealed fixtures an explicit signed v2 manifest."""
+    from app.services.trip_evidence import manifest_root, sign_manifest_receipt
+
+    trip.id = trip.id or uuid4()
+    trip.evidence_protocol_version = 2
+    trip.evidence_manifest_version = 2
+    trip.evidence_manifest_root_sha256 = manifest_root(trip_id=trip.id, entries=[], ping_count=0)
+    trip.evidence_manifest_batch_count = 0
+    trip.evidence_manifest_ping_count = 0
+    trip.evidence_manifest_committed_at = trip.ended_at
+    trip.evidence_manifest_complete = True
+    assert trip.ended_at is not None
+    trip.evidence_manifest_verified_at = trip.ended_at.replace(
+        microsecond=(trip.ended_at.microsecond // 1000) * 1000
+    )
+    sign_manifest_receipt(trip, Settings(environment="test"))
+
+
 def create_test_trip_session(
     db_sessionmaker: async_sessionmaker[AsyncSession],
     *,
@@ -812,6 +810,8 @@ def create_test_trip_session(
     async def create() -> TripSession:
         async with db_sessionmaker() as session:
             trip = TripSession(
+                id=uuid4(),
+                evidence_protocol_version=2,
                 assignment_id=assignment_id,
                 campaign_id=campaign_id,
                 driver_profile_id=driver_profile_id,
@@ -825,6 +825,8 @@ def create_test_trip_session(
                 seal_reason=seal_reason,
                 trip_metadata=metadata or {},
             )
+            if trip_status == TripSessionStatus.SEALED:
+                sign_test_trip_manifest(trip)
             session.add(trip)
             await session.commit()
             await session.refresh(trip)
@@ -970,16 +972,6 @@ def create_test_payout_rule(
     created_by_user_id: UUID,
     status: str = "active",
     currency: str = "NGN",
-    base_rate_per_km=0,
-    base_rate_per_active_hour=0,
-    target_zone_bonus_rate_per_km=0,
-    bonus_zone_bonus_rate_per_km=0,
-    estimated_impression_rate_per_1000=0,
-    min_payout_per_trip=0,
-    max_payout_per_trip=None,
-    low_fraud_multiplier=0.90,
-    medium_fraud_multiplier=0.70,
-    high_fraud_multiplier=0.25,
     metadata: dict | None = None,
 ) -> CampaignPayoutRule:
     async def create() -> CampaignPayoutRule:
@@ -987,19 +979,9 @@ def create_test_payout_rule(
             rule = CampaignPayoutRule(
                 campaign_id=campaign_id,
                 created_by_user_id=created_by_user_id,
-                formula_version="payout_v1",
+                formula_version="payout_v4",
                 status=status,
                 currency=currency,
-                base_rate_per_km=base_rate_per_km,
-                base_rate_per_active_hour=base_rate_per_active_hour,
-                target_zone_bonus_rate_per_km=target_zone_bonus_rate_per_km,
-                bonus_zone_bonus_rate_per_km=bonus_zone_bonus_rate_per_km,
-                estimated_impression_rate_per_1000=estimated_impression_rate_per_1000,
-                min_payout_per_trip=min_payout_per_trip,
-                max_payout_per_trip=max_payout_per_trip,
-                low_fraud_multiplier=low_fraud_multiplier,
-                medium_fraud_multiplier=medium_fraud_multiplier,
-                high_fraud_multiplier=high_fraud_multiplier,
                 rule_metadata=metadata or {},
             )
             session.add(rule)
@@ -1010,15 +992,50 @@ def create_test_payout_rule(
     return asyncio.run(create())
 
 
+def create_test_daily_payout_authority(db_sessionmaker, *, campaign_id, created_by_user_id):
+    """Seed complete current terms for worker fixtures' existing assignments."""
+    from payout_fixtures import create_v4_revision, insert_v4_binding
+
+    rule = create_test_payout_rule(
+        db_sessionmaker, campaign_id=campaign_id, created_by_user_id=created_by_user_id
+    )
+    revision = create_v4_revision(
+        db_sessionmaker, campaign_id=campaign_id, rule_id=rule.id, admin_id=created_by_user_id
+    )
+
+    async def unbound_assignments():
+        async with db_sessionmaker() as session:
+            return list(
+                (
+                    await session.scalars(
+                        select(CampaignAssignment.id).where(
+                            CampaignAssignment.campaign_id == campaign_id,
+                            ~select(AssignmentRuleBinding.id)
+                            .where(AssignmentRuleBinding.assignment_id == CampaignAssignment.id)
+                            .exists(),
+                        )
+                    )
+                ).all()
+            )
+
+    for assignment_id in asyncio.run(unbound_assignments()):
+        insert_v4_binding(
+            db_sessionmaker,
+            Settings(environment="test"),
+            assignment_id=assignment_id,
+            revision=revision,
+        )
+    return rule
+
+
 def create_test_campaign_payout_revision(
     db_sessionmaker: async_sessionmaker[AsyncSession],
     *,
     campaign_id: UUID,
     created_by_user_id: UUID,
     effective_from: datetime | None = None,
-    hourly_rate_naira=1000,
-    premium_hourly_rate_naira=1500,
-    daily_payable_hours_cap=8,
+    daily_rate_naira=8000,
+    daily_target_miles=8,
 ) -> CampaignPayoutRuleRevision:
     rule = create_test_payout_rule(
         db_sessionmaker,
@@ -1033,12 +1050,14 @@ def create_test_campaign_payout_revision(
                 payout_rule_id=rule.id,
                 revision_number=1,
                 effective_from=effective_from or datetime.now(UTC) - timedelta(days=1),
-                hourly_rate_naira=hourly_rate_naira,
-                premium_hourly_rate_naira=premium_hourly_rate_naira,
-                daily_payable_hours_cap=daily_payable_hours_cap,
+                daily_rate_naira=daily_rate_naira,
+                daily_target_miles=daily_target_miles,
+                shortfall_strategy="proportional",
+                minimum_miles=0,
+                outside_area_weight=1,
                 currency="NGN",
                 eligibility_params={},
-                formula_version="payout_v3",
+                formula_version="payout_v4",
                 reason="test offer terms",
                 created_by_user_id=created_by_user_id,
             )
@@ -1072,9 +1091,7 @@ def create_test_frozen_payout_binding(
             db_sessionmaker,
             campaign_id=campaign.id,
             created_by_user_id=admin.id,
-            hourly_rate_naira=1,
-            premium_hourly_rate_naira=None,
-            daily_payable_hours_cap=1,
+            daily_rate_naira=1,
         )
 
     async def bind() -> None:
@@ -1083,9 +1100,12 @@ def create_test_frozen_payout_binding(
                 AssignmentRuleBinding(
                     assignment_id=assignment.id,
                     revision_id=revision.id,
-                    hourly_rate_naira=revision.hourly_rate_naira,
-                    premium_hourly_rate_naira=revision.premium_hourly_rate_naira,
-                    daily_payable_hours_cap=revision.daily_payable_hours_cap,
+                    daily_rate_naira=revision.daily_rate_naira,
+                    daily_target_miles=revision.daily_target_miles,
+                    shortfall_strategy=revision.shortfall_strategy,
+                    deduction_per_mile_naira=revision.deduction_per_mile_naira,
+                    minimum_miles=revision.minimum_miles,
+                    outside_area_weight=revision.outside_area_weight,
                     currency=revision.currency,
                     eligibility_params=revision.eligibility_params or {},
                     resolved_eligibility_params={},
@@ -1096,7 +1116,7 @@ def create_test_frozen_payout_binding(
                     exclusion_zone_ids=[],
                     exclusion_zone_geometry_hash=hashlib.sha256(b"").hexdigest(),
                     exclusion_zone_geometry_wkts=[],
-                    stationary_policy_marker="stationary-rd-v1",
+                    stationary_policy_marker="d39-stop-5min-v1",
                     campaign_window_start_at=campaign.start_at,
                     campaign_window_end_at=campaign.end_at,
                     campaign_window_frozen=True,
@@ -1123,11 +1143,7 @@ def create_test_campaign_zone(
                     [[[3.30, 6.40], [3.50, 6.40], [3.50, 6.60], [3.30, 6.60], [3.30, 6.40]]]
                 ],
             }
-            geom = (
-                geometry_expression(json.dumps(geojson, separators=(",", ":")))
-                if session.get_bind().dialect.name == "postgresql"
-                else "MULTIPOLYGON(((3.3 6.4,3.5 6.4,3.5 6.6,3.3 6.6,3.3 6.4)))"
-            )
+            geom = geometry_expression(json.dumps(geojson, separators=(",", ":")))
             zone = CampaignZone(
                 campaign_id=campaign_id,
                 created_by_user_id=created_by_user_id,

@@ -16,7 +16,6 @@ const actions = vi.hoisted(() => ({
   startTripAction: vi.fn(),
   getCurrentTripAction: vi.fn(),
   endTripAction: vi.fn(),
-  endLegacyTripAction: vi.fn(),
   getTripEvidenceAuthorityAction: vi.fn(),
   reconcileTripEvidenceAction: vi.fn(),
   sendPingBatchAction: vi.fn(),
@@ -88,14 +87,8 @@ function fakeQueue(overrides: Record<string, unknown> = {}) {
     listBatches: vi.fn().mockResolvedValue([]),
     listDeadLetters: vi.fn().mockResolvedValue([]),
     deadLetterCount: vi.fn().mockResolvedValue(0),
-    acknowledgeLegacyBatch: vi.fn().mockResolvedValue(undefined),
     acknowledgeBatch: vi.fn().mockResolvedValue(undefined),
     listReceipts: vi.fn().mockResolvedValue([]),
-    freezeLegacyEnd: vi
-      .fn()
-      .mockImplementation((_tripId: string, complete: boolean) =>
-        Promise.resolve({ clientBatchCount: 2, clientPingCount: 3, clientComplete: complete }),
-      ),
     freezeEnd: vi.fn().mockImplementation((_tripId: string, complete: boolean) =>
       Promise.resolve({
         version: 2,
@@ -183,7 +176,6 @@ beforeEach(() => {
   for (const mock of Object.values(actions)) mock.mockReset();
   pingQueue.openPingQueue.mockReset();
   actions.endTripAction.mockResolvedValue({ outcome: "ended", status: "sealed" });
-  actions.endLegacyTripAction.mockResolvedValue({ outcome: "ended", status: "sealed" });
   actions.getTripEvidenceAuthorityAction.mockResolvedValue({
     protocolVersion: 2,
     status: "active",
@@ -942,33 +934,6 @@ describe("stranded-data recovery (finding 7)", () => {
     await waitFor(() => expect(queue.forgetTrip).toHaveBeenCalledWith(TRIP_ID));
   });
 
-  it("drains an active legacy-v1 encrypted batch without requiring a v2 receipt", async () => {
-    grantWebLock();
-    const queue = fakeQueue({
-      tripsWithLeftovers: vi.fn().mockResolvedValue([TRIP_ID]),
-      listBatches: vi.fn().mockResolvedValueOnce([BATCH]).mockResolvedValue([]),
-      unsyncedCount: vi.fn().mockResolvedValue(0),
-    });
-    pingQueue.openPingQueue.mockResolvedValue(queue);
-    actions.getTripEvidenceAuthorityAction.mockResolvedValue({
-      protocolVersion: 1,
-      status: "active",
-    });
-    actions.sendPingBatchAction.mockResolvedValue({
-      acknowledged: true,
-      acceptedCount: 1,
-    });
-
-    render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
-
-    await waitFor(() => expect(queue.acknowledgeLegacyBatch).toHaveBeenCalledWith(BATCH.key));
-    expect(actions.sendPingBatchAction).toHaveBeenCalledWith(
-      expect.objectContaining({ tripId: TRIP_ID, evidenceProtocolVersion: 1 }),
-    );
-    expect(queue.acknowledgeBatch).not.toHaveBeenCalled();
-    expect(actions.reconcileTripEvidenceAction).not.toHaveBeenCalled();
-  });
-
   it("drains leftover trips on mount, on a timer, and on reconnect", async () => {
     vi.useFakeTimers();
     try {
@@ -1473,65 +1438,54 @@ it("fails closed when the durable End marker cannot commit", async () => {
   expect(screen.getByRole("button", { name: /End trip/ })).toBeDisabled();
 });
 
-it.each([1, 2])(
-  "finishes a restored protocol %s End without overstating completeness",
-  async (protocol) => {
-    const runtime = installRuntime();
-    const endManifest = {
-      version: 2,
-      root_sha256: "a".repeat(64),
-      ping_count: 3,
-      complete: false,
-      entries: [],
-    };
-    const legacyEnd = { clientBatchCount: 2, clientPingCount: 3, clientComplete: false };
-    const queue = fakeQueue({
-      meta: vi.fn().mockResolvedValue({
-        tripId: TRIP_ID,
-        nextSeq: 3,
-        batchesCut: 2,
-        pingsRecorded: 3,
-        ...(protocol === 2 ? { endManifest } : { legacyEnd }),
-      }),
-    });
-    pingQueue.openPingQueue.mockResolvedValue(queue);
-    actions.endTripAction.mockResolvedValue({ outcome: "ended", status: "sealed" });
-    actions.endLegacyTripAction.mockResolvedValue({ outcome: "ended", status: "sealed" });
-    actions.getTripEvidenceAuthorityAction.mockResolvedValue({
-      protocolVersion: protocol,
-      status: "active",
-    });
-    actions.getCurrentTripAction.mockResolvedValue({
-      trip: { id: TRIP_ID, evidenceProtocolVersion: protocol },
-      outcome: "started",
-    });
-    render(
-      <TripTracker
-        assignment={null}
-        initialTrip={{
-          id: TRIP_ID,
-        }}
-        driverId={DRIVER_ID}
-      />,
-    );
-    const button = await screen.findByRole("button", { name: /Check trip status/ });
-    await waitFor(() => expect(button).toBeEnabled());
-    await userEvent.click(button);
-    const expectedAction = protocol === 2 ? actions.endTripAction : actions.endLegacyTripAction;
-    await waitFor(() =>
-      expect(expectedAction).toHaveBeenCalledExactlyOnceWith(
-        TRIP_ID,
-        protocol === 2 ? endManifest : legacyEnd,
-      ),
-    );
-    expect(
-      protocol === 2 ? actions.endLegacyTripAction : actions.endTripAction,
-    ).not.toHaveBeenCalled();
-    expect(actions.reconcileTripEvidenceAction).not.toHaveBeenCalled();
-    expect(queue.forgetTrip).not.toHaveBeenCalled();
-    expect(runtime.watchPosition).not.toHaveBeenCalled();
-    await waitFor(() =>
-      expect(screen.queryByRole("button", { name: /Check trip status/ })).not.toBeInTheDocument(),
-    );
-  },
-);
+it("finishes a restored signed v2 End without overstating completeness", async () => {
+  const protocol = 2 as const;
+  const runtime = installRuntime();
+  const endManifest = {
+    version: 2,
+    root_sha256: "a".repeat(64),
+    ping_count: 3,
+    complete: false,
+    entries: [],
+  };
+  const queue = fakeQueue({
+    meta: vi.fn().mockResolvedValue({
+      tripId: TRIP_ID,
+      nextSeq: 3,
+      batchesCut: 2,
+      pingsRecorded: 3,
+      endManifest,
+    }),
+  });
+  pingQueue.openPingQueue.mockResolvedValue(queue);
+  actions.endTripAction.mockResolvedValue({ outcome: "ended", status: "sealed" });
+  actions.getTripEvidenceAuthorityAction.mockResolvedValue({
+    protocolVersion: protocol,
+    status: "active",
+  });
+  actions.getCurrentTripAction.mockResolvedValue({
+    trip: { id: TRIP_ID, evidenceProtocolVersion: protocol },
+    outcome: "started",
+  });
+  render(
+    <TripTracker
+      assignment={null}
+      initialTrip={{
+        id: TRIP_ID,
+      }}
+      driverId={DRIVER_ID}
+    />,
+  );
+  const button = await screen.findByRole("button", { name: /Check trip status/ });
+  await waitFor(() => expect(button).toBeEnabled());
+  await userEvent.click(button);
+  await waitFor(() =>
+    expect(actions.endTripAction).toHaveBeenCalledExactlyOnceWith(TRIP_ID, endManifest),
+  );
+  expect(actions.reconcileTripEvidenceAction).not.toHaveBeenCalled();
+  expect(queue.forgetTrip).not.toHaveBeenCalled();
+  expect(runtime.watchPosition).not.toHaveBeenCalled();
+  await waitFor(() =>
+    expect(screen.queryByRole("button", { name: /Check trip status/ })).not.toBeInTheDocument(),
+  );
+});

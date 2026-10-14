@@ -1192,7 +1192,7 @@ def compatibility_receipt(
 ) -> dict:
     generated_at = generated_at or datetime(2026, 8, 28, 12, 0, tzinfo=UTC)
     previous_revision = "3" * 40
-    forward_revision = "0082_report_publication_intents"
+    forward_revision = "synthetic_report_publication_intents"
     checked_at = (generated_at - timedelta(seconds=1)).isoformat().replace("+00:00", "Z")
     readiness_output = {
         "event": "release_readiness",
@@ -1248,7 +1248,7 @@ def validate_test_compatibility_receipt(evidence: dict, *, now: datetime | None 
         previous_release_id="20260827T120000Z-previous",
         previous_revision="3" * 40,
         previous_backend_image="registry.invalid/backend@sha256:" + "4" * 64,
-        forward_alembic_revision="0082_report_publication_intents",
+        forward_alembic_revision="synthetic_report_publication_intents",
         signing_secret=RELEASE_EVIDENCE_SECRET,
         key_id=RELEASE_EVIDENCE_KEY_ID,
         now=now or datetime(2026, 8, 28, 12, 1, tzinfo=UTC),
@@ -1264,7 +1264,7 @@ def validate_test_compatibility_receipt(evidence: dict, *, now: datetime | None 
         (("previous_release_id",), "20260827T120000Z-changed"),
         (("previous_revision",), "b" * 40),
         (("previous_backend_image",), "registry.invalid/backend@sha256:" + "b" * 64),
-        (("forward_alembic_revision",), "0081_payout_money_authority"),
+        (("forward_alembic_revision",), "synthetic_payout_money_authority"),
         (("generated_at",), "2026-08-28T11:59:00Z"),
         (("key_id",), "release-evidence-2026-02"),
         (("probes", "readiness", "output_sha256"), "c" * 64),
@@ -1319,7 +1319,7 @@ def test_compatibility_receipt_rejects_malformed_signed_readiness_checks() -> No
             previous_release_id="20260827T120000Z-previous",
             previous_revision="3" * 40,
             previous_backend_image="registry.invalid/backend@sha256:" + "4" * 64,
-            forward_alembic_revision="0082_report_publication_intents",
+            forward_alembic_revision="synthetic_report_publication_intents",
             readiness_output={
                 "event": "release_readiness",
                 "status": "ready",
@@ -1331,7 +1331,7 @@ def test_compatibility_receipt_rejects_malformed_signed_readiness_checks() -> No
                 "event": "report_schema_canary",
                 "status": "passed",
                 "release_revision": "3" * 40,
-                "forward_alembic_revision": "0082_report_publication_intents",
+                "forward_alembic_revision": "synthetic_report_publication_intents",
                 "checked_at": "2026-08-28T11:59:59Z",
                 "checks": {
                     "report_issuances_select": "ok",
@@ -1384,7 +1384,7 @@ def test_first_release_uses_signed_bootstrap_receipt_without_inventing_predecess
         previous_release_id="",
         previous_revision="",
         previous_backend_image="",
-        forward_alembic_revision="0082_report_publication_intents",
+        forward_alembic_revision="synthetic_report_publication_intents",
         readiness_output=None,
         report_schema_output=None,
         generated_at=generated_at,
@@ -1504,7 +1504,7 @@ def test_backup_manifest_authenticates_database_objects_and_release() -> None:
         release_id="20260828T120000Z-1715fe53",
         release_revision="1" * 40,
         config_sha256="2" * 64,
-        alembic_revision="0071_report_issuance",
+        alembic_revision="synthetic_report_issuance",
         database_sha256="3" * 64,
         database_bytes=1234,
         database_marker="2026-08-28T12:00:00Z/0-A1B2",
@@ -1531,7 +1531,7 @@ def test_backup_completion_binds_ciphertext_manifest_state_and_retention() -> No
         release_id="20260828T120000Z-authority",
         release_revision="1" * 40,
         config_sha256="2" * 64,
-        alembic_revision="0070_report_storage",
+        alembic_revision="synthetic_report_storage",
         database_sha256="3" * 64,
         database_bytes=1234,
         database_marker="2026-08-28T12:00:00Z/0-A1B2",

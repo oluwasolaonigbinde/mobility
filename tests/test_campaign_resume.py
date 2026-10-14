@@ -263,13 +263,15 @@ def test_real_funded_active_job_guards_and_atomic_resume(
     from app.models.installation_evidence import InstallationEvidenceSubmission
     from app.models.payout import CampaignPayoutRule, CampaignPayoutRuleRevision
     from app.models.vehicle import Vehicle
-    from app.services.billing import (
-        accept_quotation_revision,
+    from app.services.billing.authority import (
         record_approved_credit_authorization,
         record_production_start,
+        reserve_assignment_liability,
+    )
+    from app.services.billing.quotes import (
+        accept_quotation_revision,
         record_quotation_revision,
         request_custom_quote,
-        reserve_assignment_liability,
     )
 
     monkeypatch.setattr(campaign_resume, "get_settings", lambda: settings)
@@ -441,10 +443,6 @@ def test_real_funded_active_job_guards_and_atomic_resume(
                 )
                 row.status = "inactive"
             if case == "future_pay":
-                current_rule = await session.scalar(
-                    select(CampaignPayoutRule).where(CampaignPayoutRule.campaign_id == c.id)
-                )
-                current_rule.formula_version = "payout_v3"
                 rows = await session.scalars(
                     select(CampaignPayoutRuleRevision).where(
                         CampaignPayoutRuleRevision.campaign_id == c.id

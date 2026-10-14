@@ -13,9 +13,9 @@ from conftest import (
     create_test_vehicle,
     fetch_user_by_email,
 )
+from payout_fixtures import create_v4_revision
 from sqlalchemy import func, select
 from test_campaign_assignments import create_postgres_offer
-from test_payouts_v3 import create_revision_row
 from test_trips import PASSWORD, create_trip_ready_graph
 
 import app.services.campaign_assignments as assignments_service
@@ -32,7 +32,7 @@ from app.models.vehicle import VehicleStatus
 from app.schemas.campaign_assignments import CampaignAssignmentTransition
 from app.schemas.campaign_changes import CampaignChangeCreate, CampaignChangePreviewCreate
 from app.schemas.trips import TripStartRequest
-from app.services.billing import reserve_assignment_liability
+from app.services.billing.authority import reserve_assignment_liability
 from app.services.payout_rule_serialization import database_clock
 from app.services.trips import start_driver_trip
 
@@ -144,16 +144,14 @@ def test_campaign_extension_and_trip_start_serialize_on_frozen_assignment_window
         **(campaign.campaign_metadata or {}),
         "_test_creative_id": str(creative.id),
     }
-    create_revision_row(
+    create_v4_revision(
         postgis_db_sessionmaker,
         campaign_id=campaign.id,
         rule_id=payout_rule_id,
-        created_by_user_id=admin.id,
+        admin_id=admin.id,
         number=2,
         effective_from=datetime.now(UTC) - timedelta(seconds=1),
-        base="1.00",
-        premium="1.50",
-        cap="1.00",
+        daily_rate_naira="1.00",
     )
 
     requested_end = frozen_end + timedelta(days=2)
@@ -368,7 +366,7 @@ def test_campaign_extension_and_trip_start_serialize_on_frozen_assignment_window
     fresh_trip = asyncio.run(reserve_and_start_fresh_assignment())
     assert fresh_binding.campaign_window_frozen is True
     assert fresh_binding.campaign_window_end_at == requested_end
-    assert fresh_binding.formula_version == "payout_v3"
-    assert Decimal(fresh_binding.hourly_rate_naira) > 0
-    assert Decimal(fresh_binding.daily_payable_hours_cap) > 0
+    assert fresh_binding.formula_version == "payout_v4"
+    assert Decimal(fresh_binding.daily_rate_naira) > 0
+    assert Decimal(fresh_binding.daily_target_miles) > 0
     assert fresh_trip.started_at < requested_end

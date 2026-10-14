@@ -278,18 +278,15 @@ def add_payout_calculation(
                 campaign_id=trip.campaign_id,
                 driver_profile_id=trip.driver_profile_id,
                 vehicle_id=trip.vehicle_id,
-                formula_version="payout_v1",
+                formula_version="payout_v4",
+                eligible_seconds=0,
+                excluded_seconds_by_reason={},
+                inputs_fingerprint="synthetic-report-fixture",
+                distance_m_by_day={},
+                amount_by_day={},
                 status=status,
                 currency="NGN",
-                distance_component=Decimal("0.00"),
-                active_time_component=Decimal("0.00"),
-                target_zone_bonus_component=Decimal("0.00"),
-                bonus_zone_bonus_component=Decimal("0.00"),
-                impression_component=Decimal("0.00"),
                 gross_payout=gross_payout,
-                quality_multiplier=Decimal("1.0000"),
-                fraud_multiplier=Decimal("1.0000"),
-                cap_adjustment=Decimal("0.00"),
                 final_payout=final_payout,
                 calculated_at=calculated_at,
                 payout_metadata={},
@@ -831,23 +828,3 @@ def test_reporting_empty_cohort_suppression_cross_org_date_validation_and_no_aut
     assert len(fetch_impression_estimates(db_sessionmaker)) == before_estimates
     assert len(fetch_payout_calculations(db_sessionmaker)) == before_payouts
     assert admin.role == UserRole.ADMIN
-
-
-def test_slice10_adds_no_migration_or_reporting_tables() -> None:
-    from pathlib import Path
-
-    versions = {path.name for path in Path("alembic/versions").glob("*.py")}
-    assert "0010_payouts_and_earnings.py" in versions
-    text = Path("alembic/versions/0010_payouts_and_earnings.py").read_text()
-    for forbidden_table in [
-        "campaign_daily_metrics",
-        "advertiser_reports",
-        "heatmaps",
-        "heatmap_cache",
-        "billing",
-        "invoices",
-        "settlements",
-        "withdrawals",
-        "payments",
-    ]:
-        assert f'"{forbidden_table}"' not in text

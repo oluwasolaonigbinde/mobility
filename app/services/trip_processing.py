@@ -16,8 +16,6 @@ from app.models.fraud_assessment import (
 from app.models.impression import ImpressionEstimate, TrafficDensityProfile
 from app.models.payout import (
     AssignmentRuleBinding,
-    CampaignPayoutRule,
-    CampaignPayoutRuleStatus,
     EarningsLedgerEntry,
     EarningsLedgerEntryType,
     PayoutCalculation,
@@ -47,12 +45,8 @@ from app.services.impressions import (
     estimate_trip_impressions,
 )
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock
-from app.services.payouts import (
-    PAYOUT_V2,
-    PAYOUT_V4,
-    calculate_trip_payout,
-    repair_missing_ledger_entries,
-)
+from app.services.payouts.engine import calculate_trip_payout
+from app.services.payouts.ledger import repair_missing_ledger_entries
 from app.services.route_replay import detect_route_replay, route_replay_config_fingerprint
 from app.services.trip_analytics import (
     is_valid_ping,
@@ -116,8 +110,10 @@ async def _audit_processing_writes(
         if key.endswith("_id")
     }
     for index, ledger_id in enumerate(created_ledger_ids, start=1):
-        key = "earnings_ledger_entry_id" if len(created_ledger_ids) == 1 else (
-            f"earnings_ledger_entry_{index}_id"
+        key = (
+            "earnings_ledger_entry_id"
+            if len(created_ledger_ids) == 1
+            else (f"earnings_ledger_entry_{index}_id")
         )
         created_row_ids.setdefault(key, str(ledger_id))
     await create_audit_event(
@@ -134,7 +130,7 @@ async def _audit_processing_writes(
     )
 
 
-async def process_ended_trip(
+async def process_ended_trip(  # noqa: C901
     session: AsyncSession,
     *,
     trip_id: UUID,
@@ -153,43 +149,18 @@ async def process_ended_trip(
             overall="blocked",
             stages=[StageResult(stage="trip", outcome="blocked", reason="trip_not_sealed")],
         )
-    if trip.evidence_protocol_version == 2:
-        if trip.evidence_manifest_verified_at is None or not verify_manifest_receipt(
-            trip, settings
-        ):
-            return TripProcessingResult(
-                trip_id=trip_id,
-                overall="blocked",
-                stages=[
-                    StageResult(
-                        stage="trip",
-                        outcome="blocked",
-                        reason="manifest_not_authenticated",
-                    )
-                ],
-            )
-    if trip.evidence_protocol_version == 1:
-        existing_money = await session.scalar(
-            select(PayoutCalculation.id)
-            .where(PayoutCalculation.trip_session_id == trip.id)
-            .limit(1)
-        ) or await session.scalar(
-            select(EarningsLedgerEntry.id)
-            .where(EarningsLedgerEntry.trip_session_id == trip.id)
-            .limit(1)
+    if trip.evidence_manifest_verified_at is None or not verify_manifest_receipt(trip, settings):
+        return TripProcessingResult(
+            trip_id=trip_id,
+            overall="blocked",
+            stages=[
+                StageResult(
+                    stage="trip",
+                    outcome="blocked",
+                    reason="manifest_not_authenticated",
+                )
+            ],
         )
-        if existing_money is None:
-            return TripProcessingResult(
-                trip_id=trip_id,
-                overall="blocked",
-                stages=[
-                    StageResult(
-                        stage="trip",
-                        outcome="blocked",
-                        reason="legacy_money_origination_prohibited",
-                    )
-                ],
-            )
 
     # Campaign authority precedes fraud/trip scopes so cancellation and the
     # complete analytics-to-payout chain have one deterministic order.
@@ -318,9 +289,7 @@ async def process_ended_trip(
             )
         )
 
-    ordered_pings = await load_ordered_pings(
-        session, trip.id, recorded_through=analytics.ended_at
-    )
+    ordered_pings = await load_ordered_pings(session, trip.id, recorded_through=analytics.ended_at)
     replay_result = await detect_route_replay(
         session,
         trip=trip,
@@ -414,9 +383,7 @@ async def process_ended_trip(
     prior_ledger_ids = set(
         (
             await session.execute(
-                select(EarningsLedgerEntry.id).where(
-                    EarningsLedgerEntry.trip_session_id == trip.id
-                )
+                select(EarningsLedgerEntry.id).where(EarningsLedgerEntry.trip_session_id == trip.id)
             )
         ).scalars()
     )
@@ -429,7 +396,7 @@ async def process_ended_trip(
                 metadata=dict(WORKER_METADATA),
                 settings=settings,
                 now=processing_now,
-                # payout_v2 rows are write-once: input drift never auto-recomputes
+                # daily-rate payout rows are write-once: input drift never auto-recomputes
                 # money in the pipeline; the admin recompute-day tool corrects.
                 strict_staleness=False,
             )
@@ -472,10 +439,10 @@ async def process_ended_trip(
                 return TripProcessingResult(trip_id=trip.id, overall="partial", stages=stages)
             # Expected non-progression only; raised before any payout write,
             # so the session stays healthy and earlier stages commit.
-            if exc.code != "PAYOUT_RULE_NOT_FOUND":
+            if exc.code not in {"PAYOUT_RULE_NOT_FOUND", "PAYOUT_BINDING_NOT_FOUND"}:
                 raise
             stages.append(
-                StageResult(stage="payout", outcome="blocked", reason="no_active_payout_rule")
+                StageResult(stage="payout", outcome="blocked", reason="no_frozen_payout_terms")
             )
             if repaired_ledger_ids or assessment_result.changed:
                 await _audit_processing_writes(
@@ -690,95 +657,9 @@ async def find_unprocessed_trip_page(
         )
         .exists()
     )
-    payout_source_analytics_formula = PayoutCalculation.payout_metadata[
-        "source_analytics_formula_version"
-    ].as_string()
-    payout_source_impression_formula = PayoutCalculation.payout_metadata[
-        "source_impression_formula_version"
-    ].as_string()
-    payout_source_analytics_fingerprint = PayoutCalculation.payout_metadata[
-        "source_analytics_fingerprint"
-    ].as_string()
-    payout_source_impression_fingerprint = PayoutCalculation.payout_metadata[
-        "source_impression_fingerprint"
-    ].as_string()
-    estimate_output_fingerprint = ImpressionEstimate.estimate_metadata[
-        "output_fingerprint"
-    ].as_string()
-    payout_low_count = PayoutCalculation.payout_metadata["fraud_flag_counts"][
-        FraudFlagSeverity.LOW.value
-    ].as_integer()
-    payout_medium_count = PayoutCalculation.payout_metadata["fraud_flag_counts"][
-        FraudFlagSeverity.MEDIUM.value
-    ].as_integer()
-    payout_high_count = PayoutCalculation.payout_metadata["fraud_flag_counts"][
-        FraudFlagSeverity.HIGH.value
-    ].as_integer()
-    # Expected payout formula comes from the governing (active) rule row, not
-    # the global setting: v1 and v2 campaigns coexist after S1 (D2/D8).
-    active_rule_formula = (
-        select(CampaignPayoutRule.formula_version)
-        .where(
-            CampaignPayoutRule.campaign_id == TripSession.campaign_id,
-            CampaignPayoutRule.status == CampaignPayoutRuleStatus.ACTIVE.value,
-        )
-        .order_by(CampaignPayoutRule.created_at.desc(), CampaignPayoutRule.id)
-        .limit(1)
-        .correlate(TripSession)
-        .scalar_subquery()
-    )
     any_payout_calculation_exists = (
         select(PayoutCalculation.id)
         .where(PayoutCalculation.trip_session_id == TripSession.id)
-        .exists()
-    )
-    current_payout_exists = (
-        select(PayoutCalculation.id)
-        .join(TripAnalytics, TripAnalytics.id == PayoutCalculation.trip_analytics_id)
-        .join(
-            ImpressionEstimate,
-            ImpressionEstimate.id == PayoutCalculation.impression_estimate_id,
-        )
-        .where(
-            PayoutCalculation.trip_session_id == TripSession.id,
-            PayoutCalculation.formula_version == active_rule_formula,
-            TripAnalytics.formula_version == settings.route_analytics_formula_version,
-            ImpressionEstimate.formula_version == settings.impression_formula_version,
-            payout_low_count == open_low_count,
-            payout_medium_count == open_medium_count,
-            payout_high_count == open_high_count,
-            or_(
-                and_(
-                    payout_source_analytics_formula
-                    == settings.route_analytics_formula_version,
-                    payout_source_impression_formula == settings.impression_formula_version,
-                    payout_source_analytics_fingerprint == analytics_output_fingerprint,
-                    payout_source_impression_fingerprint == estimate_output_fingerprint,
-                ),
-                and_(
-                    analytics_output_fingerprint.is_(None),
-                    payout_source_analytics_formula
-                    == settings.route_analytics_formula_version,
-                    payout_source_impression_formula == settings.impression_formula_version,
-                    payout_source_impression_fingerprint == estimate_output_fingerprint,
-                    PayoutCalculation.calculated_at >= ImpressionEstimate.estimated_at,
-                ),
-                and_(
-                    payout_source_analytics_fingerprint.is_(None),
-                    payout_source_impression_fingerprint.is_(None),
-                    or_(
-                        payout_source_analytics_formula.is_(None),
-                        payout_source_analytics_formula
-                        == settings.route_analytics_formula_version,
-                    ),
-                    or_(
-                        payout_source_impression_formula.is_(None),
-                        payout_source_impression_formula == settings.impression_formula_version,
-                    ),
-                    PayoutCalculation.calculated_at >= ImpressionEstimate.estimated_at,
-                ),
-            ),
-        )
         .exists()
     )
     ledger_exists = (
@@ -809,14 +690,6 @@ async def find_unprocessed_trip_page(
         .exists(),
         ~trip_payout_entry_exists,
     )
-    active_rule_exists = (
-        select(CampaignPayoutRule.id)
-        .where(
-            CampaignPayoutRule.campaign_id == TripSession.campaign_id,
-            CampaignPayoutRule.status == CampaignPayoutRuleStatus.ACTIVE.value,
-        )
-        .exists()
-    )
     # MNY-06B: a bound assignment's trips price from the frozen binding, so
     # they stay payable (and must stay selected) even if the rule row is
     # later deactivated.
@@ -826,27 +699,11 @@ async def find_unprocessed_trip_page(
         .correlate(TripSession)
         .exists()
     )
-    governing_formula_calculation_exists = (
-        select(PayoutCalculation.id)
-        .where(
-            PayoutCalculation.trip_session_id == TripSession.id,
-            PayoutCalculation.formula_version == active_rule_formula,
-        )
-        .exists()
-    )
     statement = select(TripSession.id, TripSession.ended_at).where(
         TripSession.status == TripSessionStatus.SEALED.value,
         TripSession.ended_at.is_not(None),
-        or_(
-            and_(
-                TripSession.evidence_protocol_version == 2,
-                TripSession.evidence_manifest_verified_at.is_not(None),
-            ),
-            and_(
-                TripSession.evidence_protocol_version == 1,
-                or_(any_payout_calculation_exists, trip_payout_entry_exists),
-            ),
-        ),
+        TripSession.evidence_protocol_version == 2,
+        TripSession.evidence_manifest_verified_at.is_not(None),
         or_(
             ~analytics_exists,
             and_(current_analytics_exists, ~current_assessment_exists),
@@ -854,23 +711,8 @@ async def find_unprocessed_trip_page(
             and_(
                 current_analytics_exists,
                 current_estimate_exists,
-                or_(active_rule_exists, rule_binding_exists),
-                or_(
-                    # The dispatcher computes fresh only when NO calculation
-                    # exists at all (formula-agnostic reuse; payout_v2 is
-                    # write-once) - the sweep mirrors that exactly so a
-                    # cross-model switch in either direction never re-queues
-                    # an already-calculated trip.
-                    ~any_payout_calculation_exists,
-                    # payout_v1 staleness recompute path: only when the trip's
-                    # chain is itself under the governing v1 formula.
-                    and_(
-                        # v2 and v4 rows are write-once; never re-queue them.
-                        active_rule_formula.not_in((PAYOUT_V2, PAYOUT_V4)),
-                        governing_formula_calculation_exists,
-                        ~current_payout_exists,
-                    ),
-                ),
+                rule_binding_exists,
+                ~any_payout_calculation_exists,
             ),
             repairable_ledger_gap_exists,
         ),
@@ -938,10 +780,8 @@ async def seal_due_trips(
             entity_id=str(trip.id),
             metadata={"evidence_protocol_version": trip.evidence_protocol_version},
         )
-        if (
-            trip.evidence_protocol_version == 2
-            and trip.evidence_manifest_root_sha256 is not None
-            and not (await manifest_completeness(session, trip, settings)).complete
+        if trip.evidence_manifest_root_sha256 is not None and (
+            not (await manifest_completeness(session, trip, settings)).complete
         ):
             trip.evidence_adjudicated_at = processing_now
             trip.evidence_adjudication_outcome = "incomplete_grace_expired"

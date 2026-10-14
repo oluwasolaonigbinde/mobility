@@ -83,3 +83,23 @@ describe("automatic payout copy helpers", () => {
     expect(alertDetail(alert("failed_payment", {}))).toBeNull();
   });
 });
+
+describe("business-health Finance alerts", () => {
+  it("shows allowlisted checks and bounded counts without exposing arbitrary detail", () => {
+    expect(alertLabel("business_health")).toBe("Business health needs attention");
+    expect(alertDetail(alert("business_health", { check: "stale_trips", count: 3 }))).toContain(
+      "Trips need an evidence or activity review (3)",
+    );
+    expect(
+      alertDetail(alert("business_health", { check: "stuck_payouts", count: 1000 })),
+    ).toContain("1,000+");
+    for (const detail of [
+      { check: "secret", count: 2 },
+      { check: "stale_trips", count: -1 },
+      { check: "stale_trips", count: "secret" },
+      {},
+    ]) {
+      expect(alertDetail(alert("business_health", detail))).toBe("Review the operations runbook.");
+    }
+  });
+});

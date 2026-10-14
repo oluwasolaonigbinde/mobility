@@ -115,7 +115,7 @@ def _submission_fingerprint(payload: InstallationEvidenceCreate) -> str:
     ).hexdigest()
 
 
-async def submit_installation_evidence(
+async def submit_installation_evidence(  # noqa: C901
     session: AsyncSession,
     *,
     actor_user_id: UUID,

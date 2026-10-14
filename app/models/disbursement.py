@@ -79,7 +79,7 @@ class PayoutRecoveryIncidentStatus(StrEnum):
 
 
 # D39(c) Batch C: the one non-human identity that prepares and approves
-# automatic payout batches. Seeded by migration 0093 as a disabled admin with an
+# automatic payout batches. Seeded by baseline 0106 as a disabled admin with an
 # unusable password, so it can never sign in or pass require_active_admin; the
 # automatic path checks its integrity instead.
 CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID = UUID("6c0de000-0000-4000-8000-000000000001")
@@ -87,9 +87,7 @@ CARDVERT_AUTOMATIC_PAYOUT_ACTOR_EMAIL = "automatic-payouts@cardvert.invalid"
 CARDVERT_AUTOMATIC_PAYOUT_ACTOR_NAME = "Cardvert (automatic payouts)"
 
 
-# PostgreSQL compares the literal as a uuid; a SQLite unit-test schema stores
-# UUIDs as 32 hex digits, so the literal never matches there (no automatic batch
-# exists in those schemas and a manual maker is never the actor).
+# PostgreSQL compares this literal against the automatic actor UUID.
 _ACTOR_SQL = f"'{CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID}'"
 _APPROVAL_MODE_CHECK = (
     f"(approval_mode = 'maker_checker' AND automatic_run_id IS NULL "
@@ -113,6 +111,7 @@ class PayoutAutomaticAlertKind(StrEnum):
     BATCH_LIMIT = "batch_limit"
     RUN_FAILED = "run_failed"
     SUBMISSION_BLOCKED = "submission_blocked"
+    BUSINESS_HEALTH = "business_health"
 
 
 class PayoutBatch(Base):
@@ -177,6 +176,7 @@ class PayoutBatch(Base):
 class PayoutBatchLine(Base):
     __tablename__ = "payout_batch_lines"
     __table_args__ = (
+        Index("ix_health_payout_line_progress", "status", "created_at"),
         CheckConstraint("amount > 0", name="ck_payout_batch_lines_amount_positive"),
         CheckConstraint("length(currency) = 3", name="ck_payout_batch_lines_currency"),
         CheckConstraint(
@@ -208,21 +208,18 @@ class PayoutBatchLine(Base):
             "uq_payout_batch_lines_active_ledger_entry",
             "ledger_entry_id",
             unique=True,
-            sqlite_where=text("reservation_active = true"),
             postgresql_where=text("reservation_active = true"),
         ),
         Index(
             "uq_payout_batch_lines_provider_transfer_reference",
             "provider_transfer_reference",
             unique=True,
-            sqlite_where=text("provider_transfer_reference IS NOT NULL"),
             postgresql_where=text("provider_transfer_reference IS NOT NULL"),
         ),
         Index(
             "uq_payout_batch_lines_predecessor",
             "predecessor_line_id",
             unique=True,
-            sqlite_where=text("predecessor_line_id IS NOT NULL"),
             postgresql_where=text("predecessor_line_id IS NOT NULL"),
         ),
     )
@@ -317,7 +314,6 @@ class PayoutSubmissionIntent(Base):
             "uq_payout_submission_intents_provider_transfer_reference",
             "provider_transfer_reference",
             unique=True,
-            sqlite_where=text("provider_transfer_reference IS NOT NULL"),
             postgresql_where=text("provider_transfer_reference IS NOT NULL"),
         ),
     )
@@ -607,6 +603,7 @@ class PayoutProviderEvent(Base):
 
     __tablename__ = "payout_provider_events"
     __table_args__ = (
+        Index("ix_health_payout_event_received", "received_at"),
         CheckConstraint(
             "outcome IN ('succeeded', 'failed')",
             name="ck_payout_provider_events_outcome",
@@ -848,7 +845,6 @@ class PayoutDebtObligation(Base):
             "uq_payout_debt_obligations_direct_reversal",
             "source_reversal_entry_id",
             unique=True,
-            sqlite_where=text("recovery_incident_id IS NULL"),
             postgresql_where=text("recovery_incident_id IS NULL"),
         ),
     )
@@ -999,7 +995,7 @@ class PayoutAutomaticRun(Base):
 
 
 class PayoutAutomaticControl(Base):
-    """The Finance pause switch (single row, id 1, seeded by migration 0093)."""
+    """The Finance pause switch (single row, id 1, seeded by baseline 0106)."""
 
     __tablename__ = "payout_automatic_controls"
     __table_args__ = (
@@ -1038,7 +1034,7 @@ class PayoutAutomaticAlert(Base):
     __table_args__ = (
         CheckConstraint(
             "kind IN ('failed_payment', 'duplicate_payment', 'daily_limit', "
-            "'batch_limit', 'run_failed', 'submission_blocked')",
+            "'batch_limit', 'run_failed', 'submission_blocked', 'business_health')",
             name="ck_payout_automatic_alerts_kind",
         ),
         CheckConstraint(
@@ -1052,7 +1048,6 @@ class PayoutAutomaticAlert(Base):
         Index(
             "ix_payout_automatic_alerts_open",
             "created_at",
-            sqlite_where=text("resolved_at IS NULL"),
             postgresql_where=text("resolved_at IS NULL"),
         ),
     )

@@ -302,14 +302,14 @@ const server = createServer(async (request, response) => {
   ) {
     return send(response, 200, {
       trip_session_id: ids.heldTrip,
-      formula_version: "payout_v3",
+      formula_version: "payout_v4",
       amount: "1250.00",
       currency: "NGN",
-      hourly_rate: "1000.00",
       eligible_seconds: 4500,
-      capped_seconds: 4500,
       excluded_seconds_by_reason: { gps_gap: 60 },
-      cap: { lagos_day: "2026-08-26", day_payable_seconds: 4500, cap_seconds: 28800 },
+      daily_rate_days: [
+        { lagos_day: "2026-08-26", distance_m: 20117, amount: "1250.00" },
+      ],
       entries: [
         ledgerEntry(
           "21000000-0000-4000-8000-000000000001",
@@ -321,12 +321,6 @@ const server = createServer(async (request, response) => {
         ),
       ],
       superseded_by_recompute: false,
-      base_payable_seconds: 3600,
-      premium_payable_seconds: 900,
-      base_hourly_rate: "1000.00",
-      premium_hourly_rate: "1000.00",
-      base_amount: "1000.00",
-      premium_amount: "250.00",
     });
   }
   if (

@@ -9,6 +9,7 @@ from app.api.v1.dependencies import (
     SettingsDependency,
     TripEnqueuerDependency,
 )
+from app.core.gps_health import GPSAttempt, record_gps_attempt
 from app.schemas.trips import (
     CurrentTripResponse,
     LocationPingBatchCreate,
@@ -129,13 +130,18 @@ async def driver_ingest_location_pings(
     settings: SettingsDependency,
     enqueuer: TripEnqueuerDependency,
 ) -> LocationPingBatchResponse:
-    result = await ingest_location_ping_batch(
-        session,
-        user_id=current_user.id,
-        trip_id=trip_id,
-        payload=payload,
-        settings=settings,
-    )
+    telemetry = GPSAttempt()
+    try:
+        result = await ingest_location_ping_batch(
+            session,
+            user_id=current_user.id,
+            trip_id=trip_id,
+            payload=payload,
+            settings=settings,
+            telemetry=telemetry,
+        )
+    finally:
+        await record_gps_attempt(settings, telemetry)
     if result.quarantine is not None and not result.duplicate:
         await create_audit_event(
             session,
@@ -149,9 +155,6 @@ async def driver_ingest_location_pings(
             },
         )
     await session.commit()
-    if result.sealed_now:
-        # Fail-open latency optimization; the sweep is the guaranteed path (Â§14.3.2).
-        await enqueuer.enqueue_trip_processing(trip_id)
     if result.quarantine is not None:
         row = result.quarantine
         return LocationPingBatchResponse(
@@ -222,9 +225,9 @@ async def driver_end_trip(
         entity_id=str(trip.id),
         metadata={
             "end_reason": trip.end_reason,
-            "client_batch_count": trip.client_batch_count,
-            "client_ping_count": trip.client_ping_count,
-            "client_complete": trip.client_complete,
+            "evidence_manifest_batch_count": trip.evidence_manifest_batch_count,
+            "evidence_manifest_ping_count": trip.evidence_manifest_ping_count,
+            "evidence_manifest_complete": trip.evidence_manifest_complete,
             "sealed_now": result.sealed_now,
         },
     )

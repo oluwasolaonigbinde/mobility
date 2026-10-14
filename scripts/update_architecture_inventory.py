@@ -167,7 +167,8 @@ def render_inventory(inventory: Inventory) -> str:
             "",
             f"SQLAlchemy metadata contains **{inventory.tables} mapped tables**.",
             (
-                f"Alembic contains **{inventory.revisions} linear revisions**, from base "
+                f"Alembic contains **{inventory.revisions} linear "
+                f"revision{'s' if inventory.revisions != 1 else ''}**, from base "
                 f"`{inventory.base}` to the single head `{inventory.head}`."
             ),
             "",
@@ -228,9 +229,10 @@ def render_architecture(text: str, inventory: Inventory) -> str:
         if count != 1:
             raise InventoryError(f"architecture owned field did not match exactly once: {pattern}")
 
-    migration_pattern = re.compile(r"- Alembic(?: has)? .*?(?=- `0001` enables)", re.DOTALL)
+    migration_pattern = re.compile(r"- Alembic(?: has)? .*?(?=- The baseline enables)", re.DOTALL)
     migration_text = (
-        f"- Alembic has **{inventory.revisions} linear revisions**, from base "
+        f"- Alembic has **{inventory.revisions} linear "
+        f"revision{'s' if inventory.revisions != 1 else ''}**, from base "
         f"`{inventory.base}` to the single head `{inventory.head}`.\n"
         "  <!-- verified by scripts/update_architecture_inventory.py from Alembic's "
         "ScriptDirectory -->\n"

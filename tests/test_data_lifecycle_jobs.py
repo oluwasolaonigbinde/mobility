@@ -8,11 +8,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
-from sqlalchemy.pool import NullPool
-from starlette.testclient import TestClient
-from test_migration_0014_partitioning import (
+from database_helpers import (
     configured_postgres_url,
     create_database_from_url,
     drop_database,
@@ -20,6 +16,10 @@ from test_migration_0014_partitioning import (
     seed_ping_graph,
     upgrade_to,
 )
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
+from starlette.testclient import TestClient
 
 import app.db.session as db_session
 from app.core.config import Settings, get_settings
@@ -169,9 +169,7 @@ def test_concurrent_premake_waits_and_refreshes_coverage(monkeypatch) -> None:
                         {"key": PREMAKE_LOCK_KEY},
                     )
                     async with sessionmaker() as waiting:
-                        task = asyncio.create_task(
-                            premake_partitions(waiting, settings=settings)
-                        )
+                        task = asyncio.create_task(premake_partitions(waiting, settings=settings))
                         with pytest.raises(TimeoutError):
                             await asyncio.wait_for(asyncio.shield(task), timeout=0.1)
                         await blocker.commit()
@@ -289,37 +287,16 @@ def test_retention_purges_expired_partitions_with_evidence(monkeypatch) -> None:
     source_url = configured_postgres_url()
     migration_url = asyncio.run(create_database_from_url(source_url))
     try:
-        upgrade_to(migration_url, "0013_payout_v2_hourly_caps", monkeypatch)
-        seeded = seed_ping_graph(migration_url)
+        upgrade_to(migration_url, "0106_development_baseline", monkeypatch)
+        seeded = seed_ping_graph(
+            migration_url,
+            future_straddling_at=add_months(month_start(datetime.now(UTC)), 1) + timedelta(hours=1),
+        )
         upgrade_to(migration_url, "head", monkeypatch)
 
         current_month = month_start(datetime.now(UTC))
         next_month = add_months(current_month, 1)
         straddling_batch_id = seeded["batches"]["straddling"][0]
-
-        # Give the straddling batch a ping in the retained next-month
-        # partition, so it spans expired (legacy) and retained partitions.
-        async def add_future_ping(session):
-            await session.execute(
-                text(
-                    """
-                    INSERT INTO location_pings
-                        (trip_session_id, batch_id, recorded_at, received_at,
-                         latitude, longitude, geom, metadata)
-                    VALUES
-                        (:trip_id, :batch_id, :recorded_at, :recorded_at, 6.45, 3.39,
-                         ST_SetSRID(ST_MakePoint(3.39, 6.45), 4326), '{}'::jsonb)
-                    """
-                ),
-                {
-                    "trip_id": seeded["trip_id"],
-                    "batch_id": straddling_batch_id,
-                    "recorded_at": next_month + timedelta(hours=1),
-                },
-            )
-            await session.commit()
-
-        run_async(with_session(migration_url, add_future_ping))
 
         injected_now = add_months(current_month, 13) + timedelta(days=1)
 
@@ -331,9 +308,10 @@ def test_retention_purges_expired_partitions_with_evidence(monkeypatch) -> None:
                     INSERT INTO location_ping_batches
                         (trip_session_id, idempotency_key, payload_hash,
                          pings_submitted, pings_accepted, pings_rejected,
-                         received_at, metadata)
-                    VALUES (:trip_id, 'recent-empty', 'hash-recent-empty', 0, 0, 0,
-                            :received_at, '{}'::jsonb)
+                         received_at, metadata, batch_sequence, receipt_format_version,
+                         receipt_key_version, receipt_signature, receipt_outcome)
+                    VALUES (:trip_id, 'recent-empty', repeat('d', 64), 0, 0, 0,
+                            :received_at, '{}'::jsonb, 3, 2, 1, 'signed-empty', 'accepted')
                     """
                 ),
                 {
@@ -372,7 +350,7 @@ def test_retention_purges_expired_partitions_with_evidence(monkeypatch) -> None:
         run_async(with_session(migration_url, add_quarantines))
 
         legacy_ping_count = asyncio.run(
-            fetch_all(migration_url, "SELECT count(*) FROM location_pings_legacy")
+            fetch_all(migration_url, f"SELECT count(*) FROM {month_partition(-2)}")
         )[0][0]
 
         settings = make_settings()
@@ -388,13 +366,13 @@ def test_retention_purges_expired_partitions_with_evidence(monkeypatch) -> None:
                 await engine.dispose()
 
         result = asyncio.run(run_retention())
-        assert result["dropped"] == ["location_pings_legacy"]
+        assert set(result["dropped"]) == {month_partition(offset) for offset in (-3, -2, -1, 0)}
         assert result["finalized"] == []
         assert result["batches_purged"] == 2  # oldest + middle: zero pings remain
         assert result["quarantines_purged"] == 1  # the retention-expired row only
 
         names = partition_names(migration_url)
-        assert "location_pings_legacy" not in names
+        assert month_partition(-2) not in names
         assert f"location_pings_p{next_month.strftime('%Y_%m')}" in names
 
         # The straddling batch survives with exactly its retained ping.
@@ -427,12 +405,12 @@ def test_retention_purges_expired_partitions_with_evidence(monkeypatch) -> None:
         assert [row[0] for row in surviving_quarantines] == ["quarantine-recent"]
 
         events = purge_events(migration_url)
-        assert ("purge_started", "location_pings_legacy", legacy_ping_count) in events
-        assert ("dropped", "location_pings_legacy", None) in events
+        assert ("purge_started", month_partition(-2), legacy_ping_count) in events
+        assert ("dropped", month_partition(-2), None) in events
         assert ("batches_purged", None, 2) in events
         assert ("quarantined_batches_purged", None, 1) in events
         # Evidence precedes destruction: purge_started ordered before dropped.
-        event_kinds = [event for event, name, _ in events if name == "location_pings_legacy"]
+        event_kinds = [event for event, name, _ in events if name == month_partition(-2)]
         assert event_kinds.index("purge_started") < event_kinds.index("dropped")
 
         # Re-run: idempotent, no duplicate evidence.
@@ -455,9 +433,7 @@ def test_retention_is_a_noop_while_lock_is_held(monkeypatch) -> None:
             sessionmaker = async_sessionmaker(engine, expire_on_commit=False)
             holder = await engine.connect()
             try:
-                holder_autocommit = await holder.execution_options(
-                    isolation_level="AUTOCOMMIT"
-                )
+                holder_autocommit = await holder.execution_options(isolation_level="AUTOCOMMIT")
                 acquired = (
                     await holder_autocommit.execute(
                         text("SELECT pg_try_advisory_lock(:key)"),
@@ -494,8 +470,7 @@ def induce_pending_detach(migration_url: str, partition: str) -> None:
                 await asyncio.wait_for(
                     detacher_ac.execute(
                         text(
-                            "ALTER TABLE location_pings DETACH PARTITION"
-                            f" {partition} CONCURRENTLY"
+                            f"ALTER TABLE location_pings DETACH PARTITION {partition} CONCURRENTLY"
                         )
                     ),
                     timeout=2.0,
@@ -551,9 +526,7 @@ def insert_purge_started(
             range_to = add_months(range_from, 1)
         if mismatched_bounds:
             range_from = add_months(range_from, -1)
-        row_count = asyncio.run(
-            fetch_all(migration_url, f"SELECT count(*) FROM {partition}")
-        )[0][0]
+        row_count = asyncio.run(fetch_all(migration_url, f"SELECT count(*) FROM {partition}"))[0][0]
     exec_sql(
         migration_url,
         "INSERT INTO data_purge_audit"
@@ -587,7 +560,7 @@ def run_retention_once(migration_url: str, now=None):
 def seeded_migrated_db(monkeypatch) -> str:
     source_url = configured_postgres_url()
     migration_url = asyncio.run(create_database_from_url(source_url))
-    upgrade_to(migration_url, "0013_payout_v2_hourly_caps", monkeypatch)
+    upgrade_to(migration_url, "0106_development_baseline", monkeypatch)
     seed_ping_graph(migration_url)
     upgrade_to(migration_url, "head", monkeypatch)
     return migration_url
@@ -603,22 +576,26 @@ def test_detached_recovery_refuses_unproven_or_currently_retained_bounds(monkeyp
     try:
         if reason != "unclaimed":
             insert_purge_started(
-                migration_url, "location_pings_legacy", complete=reason != "incomplete"
+                migration_url, month_partition(-2), complete=reason != "incomplete"
             )
         if reason == "ambiguous":
             exec_sql(
                 migration_url,
-                """
+                f"""
                 INSERT INTO data_purge_audit
                   (partition_name, range_from, range_to, event, row_count,
                    retention_months, initiated_by, job_run_id)
                 SELECT partition_name, range_from - interval '1 day', range_to,
                        event, row_count, retention_months, initiated_by, 'conflicting-run'
-                FROM data_purge_audit WHERE partition_name = 'location_pings_legacy'
+                FROM data_purge_audit WHERE partition_name = '{month_partition(-2)}'
             """,
             )
-        exec_sql(migration_url, "ALTER TABLE location_pings DETACH PARTITION location_pings_legacy")
-        before = asyncio.run(fetch_all(migration_url, "SELECT count(*) FROM location_pings_legacy"))
+        exec_sql(
+            migration_url, f"ALTER TABLE location_pings DETACH PARTITION {month_partition(-2)}"
+        )
+        before = asyncio.run(
+            fetch_all(migration_url, f"SELECT count(*) FROM {month_partition(-2)}")
+        )
         batches = asyncio.run(
             fetch_all(migration_url, "SELECT count(*) FROM location_ping_batches")
         )
@@ -628,10 +605,10 @@ def test_detached_recovery_refuses_unproven_or_currently_retained_bounds(monkeyp
         assert result["dropped"] == []
         assert result["finalized"] == []
         assert result["purge_blocked_reason"] == "refused_detached_orphan"
-        assert result["refused_orphans"] == ["location_pings_legacy"]
+        assert result["refused_orphans"] == [month_partition(-2)]
         assert result["batches_purged"] == result["quarantines_purged"] == 0
         assert (
-            asyncio.run(fetch_all(migration_url, "SELECT count(*) FROM location_pings_legacy"))
+            asyncio.run(fetch_all(migration_url, f"SELECT count(*) FROM {month_partition(-2)}"))
             == before
         )
         assert (
@@ -645,22 +622,24 @@ def test_detached_recovery_refuses_unproven_or_currently_retained_bounds(monkeyp
 def test_detached_recovery_preserves_reconstructed_bounds_in_drop_receipt(monkeypatch):
     migration_url = seeded_migrated_db(monkeypatch)
     try:
-        insert_purge_started(migration_url, "location_pings_legacy")
+        insert_purge_started(migration_url, month_partition(-2))
         bounds = asyncio.run(
             fetch_all(
                 migration_url,
                 "SELECT range_from, range_to FROM data_purge_audit "
-                "WHERE partition_name = 'location_pings_legacy'",
+                f"WHERE partition_name = '{month_partition(-2)}'",
             )
         )
-        exec_sql(migration_url, "ALTER TABLE location_pings DETACH PARTITION location_pings_legacy")
+        exec_sql(
+            migration_url, f"ALTER TABLE location_pings DETACH PARTITION {month_partition(-2)}"
+        )
         result = run_retention_once(migration_url, now=expired_now())
-        assert "location_pings_legacy" in result["dropped"]
+        assert month_partition(-2) in result["dropped"]
         receipt = asyncio.run(
             fetch_all(
                 migration_url,
                 "SELECT range_from, range_to FROM data_purge_audit "
-                "WHERE partition_name = 'location_pings_legacy' AND event = 'dropped'",
+                f"WHERE partition_name = '{month_partition(-2)}' AND event = 'dropped'",
             )
         )
         assert receipt == bounds
@@ -673,17 +652,17 @@ def test_authorized_expired_pending_detach_is_finalized_and_completed(monkeypatc
     try:
         # Simulate this job crashing after writing its evidence: the
         # purge_started row exists, the detach was interrupted.
-        insert_purge_started(migration_url, "location_pings_legacy")
-        induce_pending_detach(migration_url, "location_pings_legacy")
+        insert_purge_started(migration_url, month_partition(-2))
+        induce_pending_detach(migration_url, month_partition(-2))
 
         result = run_retention_once(migration_url, now=expired_now())
-        assert result["finalized"] == ["location_pings_legacy"]
-        assert "location_pings_legacy" in result["dropped"]
+        assert result["finalized"] == [month_partition(-2)]
+        assert month_partition(-2) in result["dropped"]
 
         events = purge_events(migration_url)
-        kinds = [event for event, name, _ in events if name == "location_pings_legacy"]
+        kinds = [event for event, name, _ in events if name == month_partition(-2)]
         assert kinds.index("detach_finalized") < kinds.index("dropped")
-        assert "location_pings_legacy" not in partition_names(migration_url)
+        assert month_partition(-2) not in partition_names(migration_url)
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -692,7 +671,7 @@ def test_unclaimed_pending_detach_is_refused_and_left_untouched(monkeypatch) -> 
     migration_url = seeded_migrated_db(monkeypatch)
     try:
         # No purge_started evidence: this detach is not ours (e.g. manual).
-        induce_pending_detach(migration_url, "location_pings_legacy")
+        induce_pending_detach(migration_url, month_partition(-2))
 
         captured: list[Exception] = []
         import app.services.data_lifecycle as service
@@ -705,21 +684,19 @@ def test_unclaimed_pending_detach_is_refused_and_left_untouched(monkeypatch) -> 
         result = run_retention_once(migration_url, now=expired_now())
         assert result["finalized"] == []
         assert result["dropped"] == []
-        assert result["refused_pending"] == ["location_pings_legacy"]
+        assert result["refused_pending"] == [month_partition(-2)]
         # Untouched: still a partition, still pending.
-        assert "location_pings_legacy" in partition_names(migration_url)
-        assert detach_pending_flags(migration_url, "location_pings_legacy") == [True]
+        assert month_partition(-2) in partition_names(migration_url)
+        assert detach_pending_flags(migration_url, month_partition(-2)) == [True]
         # Alerted.
         assert len(captured) == 1
-        assert "location_pings_legacy" in str(captured[0])
+        assert month_partition(-2) in str(captured[0])
         # No destruction evidence was fabricated, and the batch purge was
         # skipped (a pending partition is invisible through the parent — a
         # purge here would cascade-delete its pings).
         assert purge_events(migration_url) == []
         assert (
-            asyncio.run(
-                fetch_all(migration_url, "SELECT count(*) FROM location_ping_batches")
-            )
+            asyncio.run(fetch_all(migration_url, "SELECT count(*) FROM location_ping_batches"))
             == batches_before
         )
     finally:
@@ -732,7 +709,7 @@ def test_nonmatching_pending_detach_evidence_is_refused(monkeypatch, evidence) -
     try:
         insert_purge_started(
             migration_url,
-            "location_pings_legacy",
+            month_partition(-2),
             complete=evidence != "null_bounds",
             mismatched_bounds=evidence == "mismatched_bounds",
         )
@@ -741,16 +718,16 @@ def test_nonmatching_pending_detach_evidence_is_refused(monkeypatch, evidence) -
                 migration_url,
                 "INSERT INTO data_purge_audit"
                 " (partition_name, event, retention_months, initiated_by, job_run_id)"
-                " VALUES ('location_pings_legacy', 'dropped', 12, 'system', 'old-run')",
+                f" VALUES ('{month_partition(-2)}', 'dropped', 12, 'system', 'old-run')",
             )
-        induce_pending_detach(migration_url, "location_pings_legacy")
+        induce_pending_detach(migration_url, month_partition(-2))
 
         result = run_retention_once(migration_url, now=expired_now())
         assert result["finalized"] == []
         assert result["dropped"] == []
-        assert result["refused_pending"] == ["location_pings_legacy"]
-        assert "location_pings_legacy" in partition_names(migration_url)
-        assert detach_pending_flags(migration_url, "location_pings_legacy") == [True]
+        assert result["refused_pending"] == [month_partition(-2)]
+        assert month_partition(-2) in partition_names(migration_url)
+        assert detach_pending_flags(migration_url, month_partition(-2)) == [True]
     finally:
         asyncio.run(drop_database(migration_url))
 
@@ -761,8 +738,8 @@ def test_non_expired_pending_detach_is_refused_and_left_untouched(monkeypatch) -
         # Evidence exists, but under current settings the partition is no
         # longer retention-expired (e.g. the window was widened after a
         # crash): refuse.
-        insert_purge_started(migration_url, "location_pings_legacy")
-        induce_pending_detach(migration_url, "location_pings_legacy")
+        insert_purge_started(migration_url, month_partition(-2))
+        induce_pending_detach(migration_url, month_partition(-2))
 
         captured: list[Exception] = []
         import app.services.data_lifecycle as service
@@ -784,11 +761,11 @@ def test_non_expired_pending_detach_is_refused_and_left_untouched(monkeypatch) -
         result = run_retention_once(migration_url)  # real clock: not expired
         assert result["finalized"] == []
         assert result["dropped"] == []
-        assert result["refused_pending"] == ["location_pings_legacy"]
+        assert result["refused_pending"] == [month_partition(-2)]
         assert result["quarantines_purged"] == 0
         assert result["purge_blocked_reason"] == "refused_pending_detach"
-        assert "location_pings_legacy" in partition_names(migration_url)
-        assert detach_pending_flags(migration_url, "location_pings_legacy") == [True]
+        assert month_partition(-2) in partition_names(migration_url)
+        assert detach_pending_flags(migration_url, month_partition(-2)) == [True]
         assert len(captured) == 1
         events = purge_events(migration_url)
         assert [e for e, _, _ in events] == ["purge_started"]

@@ -191,25 +191,15 @@ export function DailyRatePanel({
                   <tr key={r.id} className="border-edge/60 border-b text-xs last:border-0">
                     <td className="py-3 pr-4 font-mono">Version {r.revision_number}</td>
                     <td className="px-4 py-3 font-mono">{formatDateTime(r.effective_from)}</td>
-                    {r.formula_version === "payout_v4" ? (
-                      <>
-                        <td className="px-4 py-3 text-right font-mono">
-                          {formatMoneyExact(r.daily_rate_naira)}
-                        </td>
-                        <td className="px-4 py-3 text-right font-mono">
-                          {Number(r.daily_target_miles)}
-                        </td>
-                        <td className="px-4 py-3">{shorterDays(r)}</td>
-                        <td className="px-4 py-3 text-right font-mono">
-                          {Number(r.minimum_miles)}
-                        </td>
-                        <td className="px-4 py-3">{outsideArea(r.outside_area_weight)}</td>
-                      </>
-                    ) : (
-                      <td className="text-muted px-4 py-3" colSpan={5}>
-                        Earlier hourly terms: {formatMoneyExact(r.hourly_rate_naira)}/hour
-                      </td>
-                    )}
+                    <td className="px-4 py-3 text-right font-mono">
+                      {formatMoneyExact(r.daily_rate_naira)}
+                    </td>
+                    <td className="px-4 py-3 text-right font-mono">
+                      {Number(r.daily_target_miles)}
+                    </td>
+                    <td className="px-4 py-3">{shorterDays(r)}</td>
+                    <td className="px-4 py-3 text-right font-mono">{Number(r.minimum_miles)}</td>
+                    <td className="px-4 py-3">{outsideArea(r.outside_area_weight)}</td>
                     <td className="text-muted max-w-[14rem] truncate py-3 pl-4" title={r.reason}>
                       {r.reason}
                     </td>

@@ -20,7 +20,7 @@ from app.models.billing import PaymentClass, QuoteRequestSource
 from app.models.campaign import CreativeStatus
 from app.models.notification import Notification, NotificationChannel, NotificationType
 from app.models.organization import MembershipRole
-from app.services.billing import record_quotation_revision, request_custom_quote
+from app.services.billing.quotes import record_quotation_revision, request_custom_quote
 from app.services.campaigns import decide_creative_review
 from app.services.email_templates import render_email_template
 

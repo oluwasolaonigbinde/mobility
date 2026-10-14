@@ -73,7 +73,7 @@ from app.seeds.driver_story import workday_processing_time
 from app.seeds.rich import F7_DRIVER_PASSWORDS, F7_SEED_VERSION, RichSeedResult, build_rich_seed
 from app.services.campaign_zones import geometry_expression, validate_geometry_with_postgis
 from app.services.impressions import create_traffic_density_profile, estimate_trip_impressions
-from app.services.payouts import calculate_trip_payout
+from app.services.payouts.engine import calculate_trip_payout
 from app.services.trip_analytics import recompute_trip_analytics
 from app.services.trip_evidence import (
     batch_payload_hash,
@@ -652,7 +652,7 @@ async def ensure_activation_event(
         )
     )
     if existing is not None:
-        # Lifecycle evidence is append-only after migration 0048. A seed rerun
+        # Lifecycle evidence is append-only under the current baseline. A seed rerun
         # recognizes the existing deterministic event and never rewrites it.
         return
     session.add(
@@ -971,9 +971,6 @@ async def upsert_trips_and_pings(
             session.add(trip)
             await session.flush()
         else:
-            if trip.evidence_protocol_version == 1:
-                trips.append(trip)
-                continue
             started_at = trip.started_at
             ended_at = trip.ended_at or started_at + timedelta(minutes=42)
         await ensure_ping_batch(
@@ -1428,16 +1425,6 @@ async def upsert_payout_rule(
         "formula_version": "payout_v4",
         "status": CampaignPayoutRuleStatus.ACTIVE.value,
         "currency": "NGN",
-        "base_rate_per_km": None,
-        "base_rate_per_active_hour": None,
-        "target_zone_bonus_rate_per_km": None,
-        "bonus_zone_bonus_rate_per_km": None,
-        "estimated_impression_rate_per_1000": None,
-        "min_payout_per_trip": None,
-        "max_payout_per_trip": None,
-        "low_fraud_multiplier": None,
-        "medium_fraud_multiplier": None,
-        "high_fraud_multiplier": None,
         "rule_metadata": demo_metadata(),
     }
     if values["status"] == CampaignPayoutRuleStatus.ACTIVE.value:
@@ -1463,7 +1450,7 @@ async def upsert_payout_rule(
     return rule
 
 
-async def upsert_palmpay_graph(
+async def upsert_palmpay_graph(  # noqa: C901
     session: AsyncSession,
     *,
     settings: Settings,

@@ -93,7 +93,7 @@ def _utc_instant(value: object) -> str:
     return instant.astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
-def build_frozen_report_projection(snapshot: dict) -> FrozenReportProjection:
+def build_frozen_report_projection(snapshot: dict) -> FrozenReportProjection:  # noqa: C901
     """Normalize every frozen report fact once before any output renderer sees it."""
     _snapshot_size_guard(snapshot)
     measurement = snapshot["measurement"]

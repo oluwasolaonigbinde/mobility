@@ -35,27 +35,23 @@ class TripSessionStatus(StrEnum):
 class TripSealReason(StrEnum):
     CLIENT_COMPLETE = "client_complete"
     LATE_DATA_COMPLETE = "late_data_complete"
-    GRACE_EXPIRED = "grace_expired"
-    MIGRATION_BACKFILL = "migration_backfill"
 
 
 class TripSession(Base):
     __tablename__ = "trip_sessions"
     __table_args__ = (
-        CheckConstraint(
-            "status IN ('active', 'ended', 'sealed')", name="ck_trip_sessions_status"
-        ),
+        Index("ix_health_trip_status_activity", "status", "started_at", "ended_at"),
+        CheckConstraint("status IN ('active', 'ended', 'sealed')", name="ck_trip_sessions_status"),
         CheckConstraint(
             "(status = 'sealed') = (sealed_at IS NOT NULL AND seal_reason IS NOT NULL)",
             name="ck_trip_sessions_sealed_fields",
         ),
         CheckConstraint(
-            "seal_reason IS NULL OR seal_reason IN "
-            "('client_complete', 'late_data_complete', 'grace_expired', 'migration_backfill')",
+            "seal_reason IS NULL OR seal_reason IN ('client_complete', 'late_data_complete')",
             name="ck_trip_sessions_seal_reason",
         ),
         CheckConstraint(
-            "evidence_protocol_version IN (1, 2)",
+            "evidence_protocol_version = 2",
             name="ck_trip_sessions_evidence_protocol_version",
         ),
         CheckConstraint(
@@ -91,8 +87,7 @@ class TripSession(Base):
             name="ck_trip_sessions_manifest_receipt_cluster",
         ),
         CheckConstraint(
-            "evidence_protocol_version = 1 OR status != 'sealed' "
-            "OR evidence_manifest_verified_at IS NOT NULL",
+            "status != 'sealed' OR evidence_manifest_verified_at IS NOT NULL",
             name="ck_trip_sessions_v2_sealed_manifest_verified",
         ),
         CheckConstraint(
@@ -127,14 +122,12 @@ class TripSession(Base):
             "uq_trip_sessions_driver_profile_active",
             "driver_profile_id",
             unique=True,
-            sqlite_where=text("status = 'active'"),
             postgresql_where=text("status = 'active'"),
         ),
         Index(
             "uq_trip_sessions_vehicle_active",
             "vehicle_id",
             unique=True,
-            sqlite_where=text("status = 'active'"),
             postgresql_where=text("status = 'active'"),
         ),
     )
@@ -169,26 +162,17 @@ class TripSession(Base):
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     end_reason: Mapped[str | None] = mapped_column(Text)
     evidence_protocol_version: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1, server_default=text("2")
+        Integer, nullable=False, default=2, server_default=text("2")
     )
-    # Legacy v1 finalization watermark retained for readable history. New v2
-    # trips use the immutable manifest fields below as their seal authority.
-    client_batch_count: Mapped[int | None] = mapped_column(Integer)
-    client_ping_count: Mapped[int | None] = mapped_column(Integer)
-    client_complete: Mapped[bool | None] = mapped_column(Boolean)
     evidence_manifest_version: Mapped[int | None] = mapped_column(Integer)
     evidence_manifest_root_sha256: Mapped[str | None] = mapped_column(String(64))
     evidence_manifest_batch_count: Mapped[int | None] = mapped_column(Integer)
     evidence_manifest_ping_count: Mapped[int | None] = mapped_column(Integer)
-    evidence_manifest_committed_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True)
-    )
+    evidence_manifest_committed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     evidence_manifest_complete: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )
-    evidence_manifest_verified_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True)
-    )
+    evidence_manifest_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     evidence_manifest_receipt_format_version: Mapped[int | None] = mapped_column(Integer)
     evidence_manifest_receipt_key_version: Mapped[int | None] = mapped_column(Integer)
     evidence_manifest_receipt_signature: Mapped[str | None] = mapped_column(Text)
@@ -236,7 +220,7 @@ class LocationPingBatch(Base):
             name="ck_location_ping_batches_ping_conservation",
         ),
         CheckConstraint(
-            "evidence_scope IN ('legacy', 'manifest', 'postseal_applied')",
+            "evidence_scope IN ('manifest', 'postseal_applied')",
             name="ck_location_ping_batches_evidence_scope",
         ),
         CheckConstraint(
@@ -268,7 +252,6 @@ class LocationPingBatch(Base):
             "trip_session_id",
             "batch_sequence",
             unique=True,
-            sqlite_where=text("evidence_scope = 'manifest'"),
             postgresql_where=text("evidence_scope = 'manifest'"),
         ),
         Index(
@@ -295,7 +278,7 @@ class LocationPingBatch(Base):
     idempotency_key: Mapped[str] = mapped_column(Text, nullable=False)
     batch_sequence: Mapped[int | None] = mapped_column(Integer)
     payload_hash_version: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1, server_default=text("1")
+        Integer, nullable=False, default=2, server_default=text("2")
     )
     payload_hash: Mapped[str] = mapped_column(Text, nullable=False)
     pings_submitted: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -304,7 +287,7 @@ class LocationPingBatch(Base):
         Integer, nullable=False, default=0, server_default=text("0")
     )
     evidence_scope: Mapped[str] = mapped_column(
-        String(32), nullable=False, default="legacy", server_default=text("'legacy'")
+        String(32), nullable=False, default="manifest", server_default=text("'manifest'")
     )
     receipt_format_version: Mapped[int | None] = mapped_column(Integer)
     receipt_key_version: Mapped[int | None] = mapped_column(Integer)
@@ -317,9 +300,7 @@ class LocationPingBatch(Base):
     rejection_manifest: Mapped[dict[str, Any] | None] = mapped_column(
         # `none_as_null` keeps an absent disposition a real SQL NULL rather
         # than the JSON scalar `null`, which the cluster constraint relies on.
-        JSON(none_as_null=True).with_variant(
-            postgresql.JSONB(none_as_null=True), "postgresql"
-        )
+        JSON(none_as_null=True).with_variant(postgresql.JSONB(none_as_null=True), "postgresql")
     )
     rejection_digest: Mapped[str | None] = mapped_column(String(64))
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -348,7 +329,7 @@ class QuarantinedPingBatch(Base):
 
     Evidence-preserving: the full payload is stored, no location_pings rows
     are written, and only an audited admin action may apply or discard it.
-    Applying never auto-recomputes money — payout_v2 is write-once and the
+    Applying never auto-recomputes money — daily-rate payout is write-once and the
     corrective path stays the admin recompute-day tool (§16.1).
     """
 
@@ -409,7 +390,7 @@ class QuarantinedPingBatch(Base):
     idempotency_key: Mapped[str] = mapped_column(Text, nullable=False)
     batch_sequence: Mapped[int | None] = mapped_column(Integer)
     payload_hash_version: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=1, server_default=text("1")
+        Integer, nullable=False, default=2, server_default=text("2")
     )
     payload_hash: Mapped[str] = mapped_column(Text, nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
@@ -514,9 +495,9 @@ class LocationPing(Base):
     )
 
     # Composite PK (id, recorded_at): the table is range-partitioned by
-    # recorded_at (migration 0014) and PostgreSQL requires the partition key
+    # recorded_at (baseline 0106) and PostgreSQL requires the partition key
     # in every unique constraint. Partitioning itself is declared only in the
-    # migration — metadata.create_all (SQLite units, PostGIS test schemas)
+    # migration — metadata.create_all (isolated PostGIS test schemas)
     # must keep producing a plain insertable table.
     id: Mapped[UUID] = mapped_column(
         primary_key=True,

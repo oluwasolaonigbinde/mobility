@@ -347,7 +347,7 @@ async def _same_complaint(
     )
 
 
-async def raise_complaint(
+async def raise_complaint(  # noqa: C901
     session: AsyncSession,
     *,
     owner: ComplaintOwner,

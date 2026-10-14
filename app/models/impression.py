@@ -196,7 +196,6 @@ class TrafficDensityProfile(Base):
             "uq_traffic_density_profiles_active_default",
             "is_default",
             unique=True,
-            sqlite_where=text("is_default = 1 AND status = 'active'"),
             postgresql_where=text("is_default = true AND status = 'active'"),
         ),
     )
@@ -356,7 +355,6 @@ class ImpressionEstimate(Base):
             "formula_version",
             unique=True,
             postgresql_where=text("is_authoritative = true"),
-            sqlite_where=text("is_authoritative = 1"),
         ),
     )
 

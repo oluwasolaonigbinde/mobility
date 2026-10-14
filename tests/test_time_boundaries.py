@@ -40,8 +40,8 @@ from app.services.account_recovery import (
     request_password_reset,
     synthetic_password_reset_token,
 )
-from app.services.billing import record_payment_receipt
-from app.services.payouts import lagos_day_for, lagos_day_utc_range
+from app.services.billing.receipts import record_payment_receipt
+from app.services.payouts.common import lagos_day_for, lagos_day_utc_range
 from scripts.release_contract import (
     COMPATIBILITY_RECEIPT_MAX_AGE,
     ContractError,
@@ -459,7 +459,7 @@ def _backup_authority_arguments(*, created: datetime, retention_days: int) -> di
         release_id="20260828T120000Z-clock",
         release_revision="1" * 40,
         config_sha256="2" * 64,
-        alembic_revision="0082_report_publication_intents",
+        alembic_revision="synthetic_report_publication_intents",
         database_sha256="3" * 64,
         database_bytes=1234,
         database_marker="2026-08-28T12:00:00Z/0-A1B2",

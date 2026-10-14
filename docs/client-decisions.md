@@ -32,8 +32,14 @@ When the client, the PM or the owner changes or adds a rule:
    link them under **Still open**; do not copy the question text here.
 5. When the work merges, add "Built in `<commit>`" to the history line.
 
-Accepted work is never repriced or silently changed: a new rule applies to new
-acceptances unless a D-row says otherwise (D14, D21).
+Live accepted work is never repriced or silently changed (D14, D21, D80).
+There is no live data yet: D80 removes obsolete development payout v1?v3 and
+evidence v1 instead of preserving their old formats (REQ-161).
+
+The owner approved a single development database baseline on 13 October 2026
+("squash yes", D83/REQ-167/169). There are no live users or customer data.
+Current database protections and bootstrap facts are preserved and verified;
+disposable old development databases are recreated from the baseline.
 
 ## Topics
 
@@ -331,11 +337,11 @@ the day**: miles counted ÷ expected miles × ₦10,000 (50 of 70 miles =
 ₦7,143), with **no minimum distance**. **Only miles inside the campaign area
 count**. Covering more than the expected miles earns no more than the day rate.
 Rates are set per campaign on an audited revision and frozen when the driver
-accepts; "on request" areas may have their own rate (D39a, D43a–c). Work
-accepted under hourly pay keeps its rules (D14, D21). Switching daily-rate pay
+accepts; "on request" areas may have their own rate (D39a, D43a–c). D80 removes the obsolete hourly engines: there is no live accepted hourly work. Switching daily-rate pay
 on for real campaigns: [REQ-048](requests.md).
 
 **History:**
+- **2026-10-13** ? Owner approved removal of obsolete development payout v1?v3/evidence v1 and SQLite paths, with no live data; current daily-rate and frozen-evidence protections remain (D80, REQ-161). Implementation pending.
 - **2026-07 to 2026-08-04** — Fixed naira amount **per hour** of verified time, with a daily cap on payable hours (D2, D4); built as `payout_v1` and `payout_v2` (D9, 30 Jul); reconfirmed against the proposal (D12, 4 Aug).
 - **2026-08-14** — Client set one platform hourly rate with an admin campaign override, and a higher (premium) hourly rate inside the primary zone (Q4, Q5, D18). Built as `payout_v3`.
 - **2026-09-24** — Client's answer gave per-mile figures (₦140 inside the primary zone, ₦50 outside, 70 miles a day) and a ₦10,000 daily rate for special locations (client answers item 2).
@@ -560,6 +566,17 @@ aggregate runtime provenance and all coverage gates remain unchanged.
 - **Before 2026-10-05** — The frontend audit rejected every high or critical advisory without exceptions.
 - **2026-10-05** — Owner approved this one expiring advisory exception while finishing REQ-106, preserving all other high/critical checks and prohibiting npm's forced lint-package downgrade (D59, REQ-107). Built in `69655e2`.
 
+### Money and privacy verification
+
+**Current rule:** D81 adds separate 85% branch-coverage floors for the money
+and privacy modules. Existing changed-code and backend/frontend/global gates
+remain. D33 refreshes require independent review; this batch uses an approved
+measurement run, receipt commit and final green verification run before merge
+(REQ-163/170). The shared bank picker remains one implementation under D78.
+
+**History:**
+- **2026-10-13, implemented 14 October** - Owner approved Waves 3/4 and the two-run D33/D41 sequence. The earlier policy had no separate 85% money/privacy floor. Verification and merge are pending.
+
 ### Demo and staging external-input placeholders
 
 **Current rule:** Use realistic seed-backed content for missing external inputs
@@ -644,3 +661,16 @@ Combined Wave 1 merge: payout architecture entry renumbered at merge from lane v
 Before D72, renewal required the complete identity/bank or vehicle capture and displayed filenames (D69). The owner replaced that presentation and complete-input requirement with partial renewal in REQ-144. D73 replaces UK demonstration phone fixtures and Lagos seed geography with Nigerian-format fixtures and Abuja geography. Built in `74cdb314`; [historical correction verification](../issues/testing/w2c-claude-renewals-correction-2026-10-07.md), final integrated review and accepted master CI [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034) pass. Screenshots are historical; live operator, wording and preview-destination gates remain separate.
 
 - **2026-10-13** — Reviewed Wave 1 and 2 integration Built in `21239a6d`, with renewal/expiry and MapTiler corrections in `7f374c39`; canonical receipt in `3a9f8b64` and one-time parent correction in `e1716154`, deterministic privacy-test fixture in `1217e4a1`, and payout recovery lock repair in `31997a67`. Exact R branch CI 38334710143, final repair branch CI [38369572447](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38369572447) and accepted master CI [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034) pass. Delivery requests close in the register; external launch prerequisites remain open.
+
+## Scheduled operational monitoring
+
+**Current rule (D82 / REQ-164):** Scheduled jobs publish Cron status, and a
+five-minute health sweep notifies Finance through the existing active-admin
+alert surface. Money/evidence authority is unchanged. Alerts are deduplicated
+per check and UTC date; Finance resolves them manually. GPS monitoring keeps
+only one-hour aggregate minute counters. The runbook defines the thresholds.
+
+**History:**
+- **2026-10-14:** Implements the owner's approved Waves 3/4 operational scope;
+  integrated verification and specialist review remain pending. Earlier jobs
+  exposed logs/errors and partition alarms without a consolidated health sweep.

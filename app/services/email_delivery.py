@@ -55,10 +55,7 @@ async def _preference_allows_delivery(
                     user.role in {UserRole.ADMIN.value, UserRole.ADVERTISER.value}
                     and user.status in {UserStatus.ACTIVE.value, UserStatus.INVITED.value}
                 )
-                or (
-                    user.role == UserRole.DRIVER.value
-                    and user.status == UserStatus.ACTIVE.value
-                )
+                or (user.role == UserRole.DRIVER.value and user.status == UserStatus.ACTIVE.value)
             )
         )
         onboarding_recipient = (
@@ -141,6 +138,7 @@ async def _claim(
         allowed, recipient_or_error = await _preference_allows_delivery(session, notice)
         if not allowed:
             notice.status = NotificationStatus.FAILED.value
+            notice.failed_at = now
             notice.last_error_code = recipient_or_error
             notice.delivery_claim_token = None
             notice.delivery_claim_expires_at = None
@@ -156,7 +154,7 @@ async def _claim(
         return token, notice, str(recipient_or_error)
 
 
-async def process_email_notification(
+async def process_email_notification(  # noqa: C901
     sessionmaker: async_sessionmaker[AsyncSession],
     *,
     notification_id: UUID,
@@ -320,6 +318,7 @@ async def process_email_notification(
                 result = "retry_scheduled"
             else:
                 locked.status = NotificationStatus.FAILED.value
+                locked.failed_at = now
                 locked.next_attempt_at = None
                 result = "failed"
         await session.commit()
@@ -332,8 +331,6 @@ logger = logging.getLogger(__name__)
 def email_sweep_visit_order(session: AsyncSession):
     """Rotate durably failed prefixes without changing uncertain delivery claims."""
     event_entity_id = AuditEvent.entity_id
-    if session.get_bind().dialect.name == "sqlite":
-        event_entity_id = func.replace(event_entity_id, "-", "")
     last_failure_at = (
         select(func.max(AuditEvent.created_at))
         .where(

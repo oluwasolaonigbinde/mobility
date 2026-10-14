@@ -22,7 +22,7 @@ from app.models.payee import Payee
 from app.models.payout import EarningsLedgerEntry
 from app.models.trip_analytics import FraudFlag
 from app.models.user import User
-from app.services.billing import campaign_settlement_position
+from app.services.billing.queries import campaign_settlement_position
 from app.services.disbursements import _frozen_payee_authority
 from app.services.fraud_assessments import load_current_successful_assessment
 from app.services.fraud_holds import fraud_hold_active_clause
@@ -34,7 +34,7 @@ def _page(limit: int, offset: int) -> None:
         raise AppError("PAYOUT_PAGE_INVALID", "Choose a valid result page", status_code=422)
 
 
-async def eligible_payment_entries(
+async def eligible_payment_entries(  # noqa: C901
     session: AsyncSession,
     *,
     limit: int = 25,

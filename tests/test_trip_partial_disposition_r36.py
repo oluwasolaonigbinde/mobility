@@ -13,7 +13,7 @@ from test_trips import (
     start_trip,
 )
 
-from app.models.trip import LocationPing, LocationPingBatch, TripSession
+from app.models.trip import LocationPing, LocationPingBatch
 from app.services.trip_evidence import (
     BATCH_RECEIPT_DOMAIN,
     batch_receipt_value,
@@ -47,18 +47,6 @@ def far_future(sequence_number: int) -> dict:
     moment = datetime.now(UTC) + timedelta(seconds=901)
     moment = moment.replace(microsecond=moment.microsecond // 1000 * 1000)
     return sample(sequence_number, recorded_at=moment.isoformat())
-
-
-def demote_to_legacy_protocol(db_sessionmaker, trip_id) -> None:
-    """New trips are v2-only; a v1 row only exists as retained history."""
-
-    async def demote() -> None:
-        async with db_sessionmaker() as session:
-            trip = await session.get(TripSession, UUID(trip_id))
-            trip.evidence_protocol_version = 1
-            await session.commit()
-
-    asyncio.run(demote())
 
 
 def post_pings(db_client, trip_id, key, pings, *, batch_sequence=0):
@@ -162,9 +150,7 @@ def test_partial_disposition_is_bound_into_the_signed_receipt(
     _, key = signing_key(settings, batch.receipt_key_version)
     tampered = dict(value)
     tampered["rejection_digest"] = "f" * 64
-    assert not verify_signature(
-        BATCH_RECEIPT_DOMAIN, tampered, key, batch.receipt_signature
-    )
+    assert not verify_signature(BATCH_RECEIPT_DOMAIN, tampered, key, batch.receipt_signature)
 
 
 def test_replayed_mixed_batch_returns_identical_dispositions(
@@ -216,27 +202,9 @@ def test_all_invalid_batch_stays_a_deterministic_whole_batch_rejection(
     assert fetch_pings(db_sessionmaker) == []
 
 
-def test_legacy_v1_batches_stay_all_or_nothing_without_a_disposition(
-    db_client, db_sessionmaker, settings
-) -> None:
-    _, _, _, _, _, assignment = create_trip_ready_graph(db_sessionmaker)
-    trip_id = start_trip(db_client, assignment.id).json()["id"]
-    demote_to_legacy_protocol(db_sessionmaker, trip_id)
-
-    mixed = post_pings(db_client, trip_id, "legacy-mixed", [sample(0), far_future(1)])
-    accepted = post_pings(db_client, trip_id, "legacy-valid", [sample(0)], batch_sequence=1)
-
-    assert mixed.status_code == http_status.HTTP_400_BAD_REQUEST
-    assert mixed.json()["error"]["code"] == "INVALID_RECORDED_AT"
-    assert accepted.status_code == http_status.HTTP_200_OK
-    assert accepted.json()["sample_results"] == []
-    batch = fetch_batches(db_sessionmaker)[0]
-    assert batch.rejection_manifest is None and batch.rejection_digest is None
-
-
 def test_batches_signed_before_this_protocol_still_verify(db_sessionmaker, settings) -> None:
     # A row whose disposition columns are NULL must keep the exact receipt
-    # value it was signed over, or migration 0080 would invalidate history.
+    # value it was signed over; restating it would invalidate the receipt.
     batch = LocationPingBatch(
         trip_session_id=UUID("75000000-0000-0000-0000-000000000001"),
         idempotency_key="pre-protocol",

@@ -1,22 +1,20 @@
 import asyncio
-import json
 from uuid import uuid4
 
 import pytest
+from database_helpers import (
+    configured_postgres_url,
+    create_database_from_url,
+    drop_database,
+    upgrade_to,
+)
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
-from test_migration_0014_partitioning import (
-    configured_postgres_url,
-    create_database_from_url,
-    downgrade_to,
-    drop_database,
-    upgrade_to,
-)
 
-PREVIOUS_REVISION = "0080_trip_evidence_partial_disposition"
-REVISION = "0081_payout_money_authority"
+PREVIOUS_REVISION = "0106_development_baseline"
+REVISION = "0106_development_baseline"
 
 RESTRICTED_FOREIGN_KEYS = {
     "campaign_payout_rule_revisions_campaign_id_fkey",
@@ -69,147 +67,6 @@ async def rejected(
         await execute(database_url, statement, params)
 
 
-async def seed_revision_chain(
-    database_url: str,
-    *,
-    rule_currency: str = "NGN",
-    offer_currency: str | None = "NGN",
-    null_payout_currency: bool = False,
-    offer_terms_sql_null: bool = False,
-    calculation_currency: str | None = None,
-    ledger_currency: str | None = None,
-    include_rule: bool = True,
-    include_revision: bool = True,
-    include_binding: bool = True,
-) -> dict[str, str]:
-    ids = {
-        key: str(uuid4())
-        for key in (
-            "rule",
-            "revision",
-            "campaign",
-            "organization",
-            "user",
-            "assignment",
-            "driver",
-            "vehicle",
-            "trip",
-            "analytics",
-            "estimate",
-            "calculation",
-            "ledger",
-        )
-    }
-    statements = ["SET LOCAL session_replication_role = replica"]
-    statements.append(
-        """
-        INSERT INTO campaigns (
-          id, organization_id, created_by_user_id, name, status, currency,
-          metadata
-        ) VALUES (
-          :campaign, :organization, :user, 'R18 migration test', 'draft',
-          'NGN', '{}'::jsonb
-        )
-        """
-    )
-    if include_rule:
-        statements.append(
-            """
-            INSERT INTO campaign_payout_rules (
-              id, campaign_id, created_by_user_id, formula_version, status,
-              currency, hourly_rate_naira, daily_payable_hours_cap,
-              eligibility_params, metadata
-            ) VALUES (
-              :rule, :campaign, :user, 'payout_v2', 'active', :rule_currency,
-              1000.00, 8.00, '{}'::jsonb, '{}'::jsonb
-            )
-            """
-        )
-    if include_revision:
-        statements.append(
-            """
-            INSERT INTO campaign_payout_rule_revisions (
-              id, campaign_id, payout_rule_id, revision_number, effective_from,
-              hourly_rate_naira, premium_hourly_rate_naira,
-              daily_payable_hours_cap, eligibility_params, formula_version,
-              reason, created_by_user_id
-            ) VALUES (
-              :revision, :campaign, :rule, 1, now(), 1000.00, 1500.00,
-              8.00, '{}'::jsonb, 'payout_v3', 'R18 migration test', :user
-            )
-            """
-        )
-    if include_binding:
-        if offer_terms_sql_null:
-            offer_terms = None
-        else:
-            offer_terms = {
-                **({"currency": offer_currency} if offer_currency is not None else {}),
-                "payout": ({"currency": None} if null_payout_currency else {}),
-            }
-        statements.extend(
-            (
-                """
-                INSERT INTO campaign_assignments (
-                  id, campaign_id, driver_profile_id, vehicle_id,
-                  assigned_by_user_id, status, offered_at, metadata,
-                  offer_terms, offer_terms_sha256
-                ) VALUES (
-                  :assignment, :campaign, :driver, :vehicle, :user,
-                  'offered', now(), '{}'::jsonb, CAST(:offer_terms AS json),
-                  :offer_terms_sha256
-                )
-                """,
-                """
-                INSERT INTO assignment_rule_bindings (
-                  assignment_id, revision_id, hourly_rate_naira,
-                  premium_hourly_rate_naira, daily_payable_hours_cap,
-                  eligibility_params, formula_version,
-                  premium_zone_geometry_hash
-                ) VALUES (
-                  :assignment, :revision, 1000.00, 1500.00, 8.00,
-                  '{}'::jsonb, 'payout_v3', repeat('b', 64)
-                )
-                """,
-            )
-        )
-        ids["offer_terms"] = json.dumps(offer_terms) if offer_terms is not None else None
-        ids["offer_terms_sha256"] = "a" * 64 if offer_terms is not None else None
-    if calculation_currency is not None:
-        statements.append(
-            """
-            INSERT INTO payout_calculations (
-              id, trip_session_id, trip_analytics_id, impression_estimate_id,
-              payout_rule_id, assignment_id, campaign_id, driver_profile_id,
-              vehicle_id, formula_version, status, currency, gross_payout,
-              final_payout, calculated_at, metadata
-            ) VALUES (
-              :calculation, :trip, :analytics, :estimate, :rule, :assignment,
-              :campaign, :driver, :vehicle, 'payout_v3', 'calculated',
-              :calculation_currency, 10.00, 10.00, now(), '{}'::jsonb
-            )
-            """
-        )
-        ids["calculation_currency"] = calculation_currency
-    if ledger_currency is not None:
-        statements.append(
-            """
-            INSERT INTO earnings_ledger_entries (
-              id, payout_calculation_id, driver_profile_id, driver_user_id,
-              campaign_id, trip_session_id, vehicle_id, entry_type, status,
-              amount, currency, occurred_at, metadata
-            ) VALUES (
-              :ledger, :calculation, :driver, :user, :campaign, :trip, :vehicle,
-              'trip_payout', 'pending', 10.00, :ledger_currency, now(), '{}'::jsonb
-            )
-            """
-        )
-        ids["ledger_currency"] = ledger_currency
-    ids["rule_currency"] = rule_currency
-    await execute(database_url, tuple(statements), ids)
-    return ids
-
-
 async def seed_immutable_authority(database_url: str) -> dict[str, str]:
     ids = {
         key: str(uuid4())
@@ -240,13 +97,8 @@ async def seed_immutable_authority(database_url: str) -> dict[str, str]:
             "SET LOCAL session_replication_role = replica",
             """
             INSERT INTO campaign_payout_rules (
-              id, campaign_id, created_by_user_id, formula_version, status,
-              currency, hourly_rate_naira, daily_payable_hours_cap,
-              eligibility_params, metadata
-            ) VALUES (
-              :rule, :campaign, :user, 'payout_v2', 'active', 'NGN', 1000.00,
-              8.00, '{}'::jsonb, '{}'::jsonb
-            )
+              id, campaign_id, created_by_user_id, formula_version, status, currency, metadata
+            ) VALUES (:rule, :campaign, :user, 'payout_v4', 'active', 'NGN', '{}'::jsonb)
             """,
             """
             INSERT INTO campaign_assignments (
@@ -260,22 +112,22 @@ async def seed_immutable_authority(database_url: str) -> dict[str, str]:
             """
             INSERT INTO campaign_payout_rule_revisions (
               id, campaign_id, payout_rule_id, revision_number, effective_from,
-              hourly_rate_naira, premium_hourly_rate_naira,
-              daily_payable_hours_cap, currency, eligibility_params,
+              daily_rate_naira, daily_target_miles, minimum_miles, outside_area_weight,
+              shortfall_strategy, currency, eligibility_params,
               formula_version, reason, created_by_user_id
             ) VALUES (
-              :revision, :campaign, :rule, 1, now(), 1000.00, 1500.00,
-              8.00, 'NGN', '{}'::jsonb, 'payout_v3', 'R18 test', :user
+              :revision, :campaign, :rule, 1, now(), 1000.00, 10.00, 0, 1,
+              'proportional', 'NGN', '{}'::jsonb, 'payout_v4', 'R18 test', :user
             )
             """,
             """
             INSERT INTO assignment_rule_bindings (
-              id, assignment_id, revision_id, hourly_rate_naira,
-              premium_hourly_rate_naira, daily_payable_hours_cap, currency,
+              id, assignment_id, revision_id, daily_rate_naira, daily_target_miles,
+              minimum_miles, outside_area_weight, shortfall_strategy, currency,
               eligibility_params, formula_version, premium_zone_geometry_hash
             ) VALUES (
-              :binding, :assignment, :revision, 1000.00, 1500.00, 8.00,
-              'NGN', '{}'::jsonb, 'payout_v3', repeat('b', 64)
+              :binding, :assignment, :revision, 1000.00, 10.00, 0, 1, 'proportional',
+              'NGN', '{}'::jsonb, 'payout_v4', repeat('b', 64)
             )
             """,
             """
@@ -283,11 +135,13 @@ async def seed_immutable_authority(database_url: str) -> dict[str, str]:
               id, trip_session_id, trip_analytics_id, impression_estimate_id,
               payout_rule_id, assignment_id, campaign_id, driver_profile_id,
               vehicle_id, formula_version, status, currency, gross_payout,
-              final_payout, calculated_at, metadata
+              final_payout, calculated_at, metadata, eligible_seconds,
+              excluded_seconds_by_reason, inputs_fingerprint, distance_m_by_day, amount_by_day
             ) VALUES (
               :calculation, :trip, :analytics, :estimate, :rule, :assignment,
-              :campaign, :driver, :vehicle, 'payout_v1', 'calculated', 'NGN',
-              10.00, 10.00, now(), '{}'::jsonb
+              :campaign, :driver, :vehicle, 'payout_v4', 'calculated', 'NGN',
+              10.00, 10.00, now(), '{}'::jsonb, 3600,
+              '{}'::jsonb, repeat('a', 64), '{}'::jsonb, '{}'::jsonb
             )
             """,
             """
@@ -321,111 +175,6 @@ async def seed_immutable_authority(database_url: str) -> dict[str, str]:
         ids,
     )
     return ids
-
-
-def test_currency_backfill_and_refusal_cases(monkeypatch) -> None:
-    source_url = configured_postgres_url()
-
-    valid_url = asyncio.run(create_database_from_url(source_url))
-    try:
-        upgrade_to(valid_url, PREVIOUS_REVISION, monkeypatch)
-        ids = asyncio.run(seed_revision_chain(valid_url))
-        upgrade_to(valid_url, REVISION, monkeypatch)
-        rows = asyncio.run(
-            fetch_all(
-                valid_url,
-                "SELECT revision.currency, binding.currency "
-                "FROM campaign_payout_rule_revisions revision "
-                "JOIN assignment_rule_bindings binding "
-                "ON binding.revision_id = revision.id",
-            )
-        )
-        assert rows == [("NGN", "NGN")]
-        assert ids["rule_currency"] == "NGN"
-    finally:
-        asyncio.run(drop_database(valid_url))
-
-    cases = (
-        {"include_rule": False, "include_binding": False},
-        {"include_revision": False},
-        {"rule_currency": "usd", "include_binding": False},
-        {"offer_currency": "USD"},
-        {"null_payout_currency": True},
-        {"offer_terms_sql_null": True},
-        {"calculation_currency": "USD"},
-        {"calculation_currency": "NGN", "ledger_currency": "USD"},
-    )
-    for case in cases:
-        migration_url = asyncio.run(create_database_from_url(source_url))
-        try:
-            upgrade_to(migration_url, PREVIOUS_REVISION, monkeypatch)
-            asyncio.run(seed_revision_chain(migration_url, **case))
-            with pytest.raises(DBAPIError, match="0081 upgrade blocked"):
-                upgrade_to(migration_url, REVISION, monkeypatch)
-            version_rows = asyncio.run(
-                fetch_all(migration_url, "SELECT version_num FROM alembic_version")
-            )
-            assert version_rows == [(PREVIOUS_REVISION,)]
-        finally:
-            asyncio.run(drop_database(migration_url))
-
-
-def test_upgrade_locks_currency_sources_before_validation(monkeypatch) -> None:
-    source_url = configured_postgres_url()
-    migration_url = asyncio.run(create_database_from_url(source_url))
-    try:
-        upgrade_to(migration_url, PREVIOUS_REVISION, monkeypatch)
-        ids = asyncio.run(seed_revision_chain(migration_url))
-
-        async def race_writer_against_upgrade() -> None:
-            engine = create_async_engine(migration_url, poolclass=NullPool)
-            migration_task = None
-            try:
-                async with engine.begin() as connection:
-                    await connection.execute(text("SET LOCAL session_replication_role = replica"))
-                    await connection.execute(
-                        text(
-                            "UPDATE campaign_assignments "
-                            "SET offer_terms = '{\"currency\":\"USD\",\"payout\":{}}'::jsonb "
-                            "WHERE id = :assignment_id"
-                        ),
-                        {"assignment_id": ids["assignment"]},
-                    )
-                    migration_task = asyncio.create_task(
-                        asyncio.to_thread(upgrade_to, migration_url, REVISION, monkeypatch)
-                    )
-                    waiting_on_source_lock = False
-                    for _ in range(100):
-                        waiting_on_source_lock = bool(
-                            await connection.scalar(
-                                text(
-                                    "SELECT EXISTS ("
-                                    "SELECT 1 FROM pg_locks lock "
-                                    "JOIN pg_class relation ON relation.oid = lock.relation "
-                                    "WHERE relation.relname = 'campaign_assignments' "
-                                    "AND lock.mode = 'ShareRowExclusiveLock' "
-                                    "AND NOT lock.granted "
-                                    "AND lock.pid <> pg_backend_pid()"
-                                    ")"
-                                )
-                            )
-                        )
-                        if waiting_on_source_lock or migration_task.done():
-                            break
-                        await asyncio.sleep(0.05)
-                assert migration_task is not None
-                with pytest.raises(DBAPIError, match="0081 upgrade blocked"):
-                    await migration_task
-                assert waiting_on_source_lock
-            finally:
-                await engine.dispose()
-
-        asyncio.run(race_writer_against_upgrade())
-        assert asyncio.run(fetch_all(migration_url, "SELECT version_num FROM alembic_version")) == [
-            (PREVIOUS_REVISION,)
-        ]
-    finally:
-        asyncio.run(drop_database(migration_url))
 
 
 def test_schema_immutable_money_authority_and_ledger_transitions(monkeypatch) -> None:
@@ -632,9 +381,7 @@ def test_schema_immutable_money_authority_and_ledger_transitions(monkeypatch) ->
                 )
                 transition = (old_status, new_status)
                 params = {"id": entry_id, "status": new_status}
-                statement = (
-                    "UPDATE earnings_ledger_entries SET status = :status WHERE id = :id"
-                )
+                statement = "UPDATE earnings_ledger_entries SET status = :status WHERE id = :id"
                 if transition in allowed_transitions:
                     asyncio.run(execute(migration_url, statement, params))
                 else:
@@ -667,22 +414,6 @@ def test_schema_immutable_money_authority_and_ledger_transitions(monkeypatch) ->
             )
         )
 
-        with pytest.raises(RuntimeError, match="0081 downgrade blocked"):
-            downgrade_to(migration_url, PREVIOUS_REVISION, monkeypatch)
-        assert asyncio.run(fetch_all(migration_url, "SELECT version_num FROM alembic_version")) == [
-            (REVISION,)
-        ]
-    finally:
-        asyncio.run(drop_database(migration_url))
-
-
-def test_empty_downgrade_and_reupgrade(monkeypatch) -> None:
-    source_url = configured_postgres_url()
-    migration_url = asyncio.run(create_database_from_url(source_url))
-    try:
-        upgrade_to(migration_url, REVISION, monkeypatch)
-        downgrade_to(migration_url, PREVIOUS_REVISION, monkeypatch)
-        upgrade_to(migration_url, REVISION, monkeypatch)
         assert asyncio.run(fetch_all(migration_url, "SELECT version_num FROM alembic_version")) == [
             (REVISION,)
         ]

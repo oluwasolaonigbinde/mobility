@@ -20,19 +20,24 @@ from app.models.billing import (
 from app.models.organization import AdvertiserOrganization
 from app.models.user import UserRole
 from app.schemas.billing import IssuerProfileCreate
-from app.services import billing as billing_service
-from app.services.billing import (
-    accept_quotation_revision,
-    allocate_payment_receipt,
-    confirm_payment_receipt,
+from app.services.billing import common as billing_common
+from app.services.billing import invoices as billing_invoices
+from app.services.billing.invoices import (
     create_invoice_draft,
     invoice_payment_status,
     issue_invoice,
-    reconcile_payment_receipt,
     record_invoice_issuer_profile,
-    record_payment_receipt,
+)
+from app.services.billing.quotes import (
+    accept_quotation_revision,
     record_quotation_revision,
     request_custom_quote,
+)
+from app.services.billing.receipts import (
+    allocate_payment_receipt,
+    confirm_payment_receipt,
+    reconcile_payment_receipt,
+    record_payment_receipt,
 )
 
 
@@ -133,7 +138,7 @@ def test_vat_invoice_issues_from_frozen_terms_and_verified_issuer_facts(
             if issued_at.tzinfo is None:
                 issued_at = issued_at.replace(tzinfo=UTC)
             assert issued.invoice_number.startswith(
-                f"TEST-CV-{issued_at.astimezone(billing_service.LAGOS_TZ).year}-000001"
+                f"TEST-CV-{issued_at.astimezone(billing_common.LAGOS_TZ).year}-000001"
             )
             assert issued.issuer_snapshot["legal_name"] == "Terrax Media"
             assert issued.issuer_snapshot["synthetic_test_authority"] is True
@@ -171,7 +176,7 @@ def test_invoice_sequence_year_uses_lagos_civil_time_and_preserves_retry(
     async def frozen_database_clock(_session):
         return clock["now"]
 
-    monkeypatch.setattr(billing_service, "database_clock", frozen_database_clock)
+    monkeypatch.setattr(billing_invoices, "database_clock", frozen_database_clock)
 
     async def issue_at(session, *, campaign, reference, issuer, at):
         clock["now"] = at

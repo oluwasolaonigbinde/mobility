@@ -5,7 +5,10 @@ from sqlalchemy import exists, select
 
 from app.core.errors import AppError
 from app.models.billing import PaymentGatewayEvent, PaymentGatewayProcessingAttempt
-from app.services.billing import process_payment_gateway_event, record_payment_gateway_failure
+from app.services.billing.gateway import (
+    process_payment_gateway_event,
+    record_payment_gateway_failure,
+)
 
 
 async def process_payment_gateway_event_job(

@@ -15,20 +15,30 @@ from app.models.billing import (
     ReceiptMethod,
 )
 from app.models.user import UserRole
-from app.services.billing import (
+from app.services.billing.quotes import (
     accept_quotation_revision,
+    record_quotation_revision,
+    request_custom_quote,
+)
+from app.services.billing.receipts import (
     allocate_payment_receipt,
     confirm_payment_receipt,
     reconcile_payment_receipt,
     record_payment_receipt,
-    record_quotation_revision,
-    request_custom_quote,
     reverse_payment_receipt,
 )
 
 
 async def _accepted_terms(
-    session, *, campaign, admin, owner, reference, amount="100.00", tax_rate="0"
+    session,
+    *,
+    campaign,
+    admin,
+    owner,
+    reference,
+    amount="100.00",
+    tax_rate="0",
+    payment_class=PaymentClass.STANDARD_PREPAID,
 ):
     request = await request_custom_quote(
         session,
@@ -45,8 +55,10 @@ async def _accepted_terms(
         currency="NGN",
         line_items=[{"code": "MEDIA", "description": "Media", "kind": "media", "amount": amount}],
         production_scope={"vehicle_count": 1},
-        payment_class=PaymentClass.STANDARD_PREPAID,
-        payment_terms={},
+        payment_class=payment_class,
+        payment_terms={"net_days": 30}
+        if payment_class == PaymentClass.APPROVED_CORPORATE_CREDIT
+        else {},
         tax_rate=tax_rate,
     )
     return await accept_quotation_revision(
@@ -296,3 +308,213 @@ def test_allocation_cannot_exceed_receipt_or_accepted_obligation(db_sessionmaker
             assert obligation_limit.value.code == "OBLIGATION_OVERFUNDING"
 
     asyncio.run(scenario())
+
+
+def test_receipt_refusals_and_retries_preserve_canonical_authority(db_sessionmaker):
+    from uuid import uuid4
+
+    from sqlalchemy import func
+
+    from app.models.audit import AuditEvent
+    from app.models.billing import PaymentReceipt, ReceiptAllocation, ReceiptReconciliation
+
+    admin, owner, organization, campaign = _fixture(db_sessionmaker)
+
+    async def run():
+        async with db_sessionmaker() as session:
+            terms = await _accepted_terms(
+                session, campaign=campaign, admin=admin, owner=owner, reference="BOUNDARY"
+            )
+
+            async def counts():
+                await session.flush()
+                return [
+                    await session.scalar(select(func.count()).select_from(model))
+                    for model in (
+                        PaymentReceipt,
+                        ReceiptAllocation,
+                        ReceiptReconciliation,
+                        ReceiptLifecycleEvent,
+                        AuditEvent,
+                    )
+                ]
+
+            async def refuses(operation, code):
+                before = await counts()
+                with pytest.raises(AppError) as caught:
+                    await operation()
+                assert caught.value.code == code
+                assert await counts() == before
+
+            for operation in (
+                lambda: reconcile_payment_receipt(
+                    session,
+                    receipt_id=uuid4(),
+                    actor_user_id=admin.id,
+                    expected_amount="100",
+                    expected_currency="NGN",
+                ),
+                lambda: confirm_payment_receipt(
+                    session, receipt_id=uuid4(), actor_user_id=admin.id
+                ),
+                lambda: reverse_payment_receipt(
+                    session, receipt_id=uuid4(), actor_user_id=admin.id, reason="missing"
+                ),
+            ):
+                await refuses(operation, "RECEIPT_NOT_FOUND")
+            receipt = await record_payment_receipt(
+                session,
+                organization_id=organization.id,
+                actor_user_id=admin.id,
+                method=ReceiptMethod.MANUAL_TRANSFER,
+                provider="synthetic",
+                external_transaction_id="BOUNDARY-RECEIPT",
+                amount="100",
+                currency="NGN",
+                payer_name="Synthetic",
+                evidence_reference="SYNTHETIC-ONLY",
+                observed_at=datetime.now(UTC),
+            )
+            await refuses(
+                lambda: reverse_payment_receipt(
+                    session, receipt_id=receipt.id, actor_user_id=admin.id, reason="early"
+                ),
+                "RECEIPT_NOT_CONFIRMED",
+            )
+            for amount, currency in (("0", "NGN"), ("100", "N")):
+                await refuses(
+                    lambda amount=amount, currency=currency: reconcile_payment_receipt(
+                        session,
+                        receipt_id=receipt.id,
+                        actor_user_id=admin.id,
+                        expected_amount=amount,
+                        expected_currency=currency,
+                    ),
+                    "INVALID_RECONCILIATION_EXPECTATION",
+                )
+            args = dict(
+                receipt_id=receipt.id,
+                actor_user_id=admin.id,
+                expected_amount="100",
+                expected_currency="NGN",
+            )
+            reconciled = await reconcile_payment_receipt(session, **args)
+            before = await counts()
+            assert (await reconcile_payment_receipt(session, **args)).id == reconciled.id
+            assert await counts() == before
+            await refuses(
+                lambda: reconcile_payment_receipt(session, **{**args, "expected_amount": "99"}),
+                "RECONCILIATION_ALREADY_RECORDED",
+            )
+            await confirm_payment_receipt(session, receipt_id=receipt.id, actor_user_id=admin.id)
+            allocation_args = dict(
+                receipt_id=receipt.id,
+                commercial_terms_id=terms.id,
+                actor_user_id=admin.id,
+                amount="50",
+            )
+            for changed, code in (
+                ({"actor_user_id": None}, "ALLOCATION_ACTOR_REQUIRED"),
+                ({"trusted_gateway_event_id": uuid4()}, "ALLOCATION_AUTHORITY_CONFLICT"),
+                ({"commercial_terms_id": uuid4()}, "BILLING_AUTHORITY_NOT_FOUND"),
+                ({"receipt_id": uuid4()}, "BILLING_AUTHORITY_NOT_FOUND"),
+                ({"amount": "0"}, "INVALID_ALLOCATION_AMOUNT"),
+            ):
+                await refuses(
+                    lambda changed=changed: allocate_payment_receipt(
+                        session, **{**allocation_args, **changed}
+                    ),
+                    code,
+                )
+            allocation = await allocate_payment_receipt(session, **allocation_args)
+            await refuses(
+                lambda: allocate_payment_receipt(session, **{**allocation_args, "amount": "49"}),
+                "ALLOCATION_ALREADY_RECORDED",
+            )
+            assert allocation.amount == 50
+            await refuses(
+                lambda: reverse_payment_receipt(
+                    session, receipt_id=receipt.id, actor_user_id=admin.id, reason=" "
+                ),
+                "REVERSAL_REASON_REQUIRED",
+            )
+            await reverse_payment_receipt(
+                session, receipt_id=receipt.id, actor_user_id=admin.id, reason="bank reversed"
+            )
+            before = await counts()
+            assert (
+                await reverse_payment_receipt(
+                    session, receipt_id=receipt.id, actor_user_id=admin.id, reason="bank reversed"
+                )
+            ).id == receipt.id
+            assert await counts() == before
+            statuses = list(
+                await session.scalars(
+                    select(ReceiptLifecycleEvent.status)
+                    .where(ReceiptLifecycleEvent.receipt_id == receipt.id)
+                    .order_by(ReceiptLifecycleEvent.sequence_number)
+                )
+            )
+            assert statuses == ["observed", "reconciled", "confirmed", "reversed"]
+
+    asyncio.run(run())
+
+
+def test_receipt_missing_actor_invalid_facts_and_currency_cannot_grant_funding(db_sessionmaker):
+    from uuid import uuid4
+
+    from sqlalchemy import func
+
+    from app.models.billing import PaymentReceipt, ReceiptAllocation
+
+    admin, owner, organization, campaign = _fixture(db_sessionmaker)
+
+    async def run():
+        async with db_sessionmaker() as session:
+            terms = await _accepted_terms(
+                session, campaign=campaign, admin=admin, owner=owner, reference="CURRENCY-BOUNDARY"
+            )
+            args = dict(
+                organization_id=organization.id,
+                actor_user_id=admin.id,
+                method=ReceiptMethod.MANUAL_TRANSFER,
+                provider="synthetic",
+                external_transaction_id="USD-RECEIPT",
+                amount="100",
+                currency="USD",
+                payer_name="Synthetic",
+                evidence_reference="SYNTHETIC",
+                observed_at=datetime.now(UTC),
+            )
+            for change, code in (
+                ({"actor_user_id": None}, "RECEIPT_ACTOR_REQUIRED"),
+                ({"organization_id": uuid4()}, "ORGANIZATION_NOT_FOUND"),
+                ({"amount": "0"}, "INVALID_PAYMENT_RECEIPT"),
+                ({"currency": "U"}, "INVALID_PAYMENT_RECEIPT"),
+                ({"evidence_reference": " "}, "INVALID_PAYMENT_RECEIPT"),
+            ):
+                with pytest.raises(AppError) as caught:
+                    await record_payment_receipt(session, **{**args, **change})
+                assert caught.value.code == code
+                assert await session.scalar(select(func.count()).select_from(PaymentReceipt)) == 0
+            receipt = await record_payment_receipt(session, **args)
+            await reconcile_payment_receipt(
+                session,
+                receipt_id=receipt.id,
+                actor_user_id=admin.id,
+                expected_amount="100",
+                expected_currency="USD",
+            )
+            await confirm_payment_receipt(session, receipt_id=receipt.id, actor_user_id=admin.id)
+            with pytest.raises(AppError) as caught:
+                await allocate_payment_receipt(
+                    session,
+                    receipt_id=receipt.id,
+                    commercial_terms_id=terms.id,
+                    actor_user_id=admin.id,
+                    amount="100",
+                )
+            assert caught.value.code == "ALLOCATION_CURRENCY_MISMATCH"
+            assert await session.scalar(select(func.count()).select_from(ReceiptAllocation)) == 0
+
+    asyncio.run(run())

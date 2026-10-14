@@ -91,14 +91,12 @@ class CampaignAssignment(Base):
             "uq_campaign_assignments_vehicle_active",
             "vehicle_id",
             unique=True,
-            sqlite_where=text("status = 'active'"),
             postgresql_where=text("status = 'active'"),
         ),
         Index(
             "uq_campaign_assignments_driver_active",
             "driver_profile_id",
             unique=True,
-            sqlite_where=text("status = 'active'"),
             postgresql_where=text("status = 'active'"),
         ),
         Index(
@@ -106,7 +104,6 @@ class CampaignAssignment(Base):
             "campaign_id",
             "vehicle_id",
             unique=True,
-            sqlite_where=text("status IN ('offered', 'accepted', 'active', 'deactivated')"),
             postgresql_where=text("status IN ('offered', 'accepted', 'active', 'deactivated')"),
         ),
     )
@@ -188,7 +185,6 @@ class CampaignActivationEvent(Base):
             "uq_campaign_activation_events_assignment_terminal_decision",
             "assignment_id",
             unique=True,
-            sqlite_where=text("event_type IN ('accepted', 'declined', 'expired')"),
             postgresql_where=text("event_type IN ('accepted', 'declined', 'expired')"),
         ),
         Index("ix_campaign_activation_events_assignment_id", "assignment_id"),

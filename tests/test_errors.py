@@ -3,6 +3,7 @@ import logging
 import time
 import tracemalloc
 
+import pytest
 from starlette import status
 
 from app.core.config import Settings
@@ -1258,3 +1259,35 @@ def test_r13_ordered_person_business_contexts_cover_structured_and_serialized_va
         '"contact_organization":{"name":"Acme Ads","owner_name":[REDACTED]},'
         '"company_owner":{"name":[REDACTED],"organization_name":"Acme Ads"}}'
     )
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        'Identity("PRIVATE", [42])',
+        "Identity('PRIVATE', {'label': 'PRIVATE'})",
+        'Identity("PRI\\"VATE", ["PRIVATE"])',
+        "Identity(nested(PRIVATE))",
+        '"PRI\\"VATE PRIVATE"',
+    ],
+)
+def test_serialized_person_values_with_nested_syntax_are_fully_redacted(value):
+    message = f"full_name={value} status=active"
+    safe = redact_log_message(message)
+    assert safe == "full_name=[REDACTED] status=active"
+    assert scrub_observability_value({"message": message}) == {"message": safe}
+    assert redact_log_message(safe) == safe
+
+
+@pytest.mark.parametrize(
+    "message,expected",
+    [
+        ("full_name=", "full_name=[REDACTED]"),
+        ("full_name=PRIVATE, status=active", "full_name=[REDACTED], status=active"),
+        ("full_name=PRIVATE; status=active", "full_name=[REDACTED]; status=active"),
+        ("full_name=PRIVATE;", "full_name=[REDACTED];"),
+        ("full_name=PRIVATE,", "full_name=[REDACTED],"),
+    ],
+)
+def test_empty_and_terminal_sensitive_assignments_fail_closed(message, expected):
+    assert redact_log_message(message) == expected

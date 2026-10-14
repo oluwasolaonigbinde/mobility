@@ -691,3 +691,81 @@ def test_subunit_conversion_is_exact_and_refuses_ambiguity() -> None:
     for bad in (0, -1, True, 1.5, "1.5", "", "٣", None):
         with pytest.raises(ValueError):
             from_subunits(bad)
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        None,
+        [],
+        {**refund(amount=100), "id": ""},
+        {**refund(amount=100), "status": ""},
+    ],
+)
+def test_malformed_refund_evidence_remains_unknown(data):
+    transport = RecordingTransport(ok(data))
+    with pytest.raises(PaystackOutcomeUnknownError, match="refund response is malformed"):
+        asyncio.run(
+            payments(transport).create_refund(
+                transaction_reference="synthetic-transaction",
+                amount=Decimal("1"),
+                currency="NGN",
+                merchant_note="synthetic",
+            )
+        )
+    assert len(transport.requests) == 1
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"reference": None},
+        {"reference": " "},
+        {"metadata": {"commercial_terms_id": "terms-1"}},
+        {
+            "paid_at": None,
+            "paidAt": None,
+            "transaction_date": None,
+            "created_at": None,
+            "createdAt": None,
+        },
+    ],
+)
+def test_incomplete_transaction_identity_never_authorizes_payment(changes):
+    recorded = {**transaction(), **changes}
+    body = payload({"event": "charge.success", "data": recorded})
+    adapter = payments(RecordingTransport())
+    with pytest.raises(PaymentWebhookPayloadError):
+        asyncio.run(adapter.parse_webhook(body, sign(body)))
+    assert adapter.client._transport.requests == []
+
+
+def test_naive_provider_time_normalizes_to_utc_and_missing_time_is_rejected():
+    from datetime import UTC, datetime
+
+    from app.adapters.payments.paystack import parse_paystack_time
+
+    assert parse_paystack_time(None, "", "2026-10-14T12:00:00") == datetime(
+        2026, 10, 14, 12, tzinfo=UTC
+    )
+    with pytest.raises(ValueError, match="timestamp is missing"):
+        parse_paystack_time(None, " ")
+
+
+def test_non_text_checkout_destination_and_provider_rejection_fail_closed():
+    transport = RecordingTransport(
+        ok(
+            {
+                "authorization_url": None,
+                "access_code": "synthetic",
+                "reference": "cv-synthetic-checkout-0001",
+            }
+        ),
+        httpx.Response(200, json={"status": False, "data": {}}),
+    )
+    adapter = payments(transport)
+    with pytest.raises(PaystackOutcomeUnknownError):
+        asyncio.run(adapter.create_checkout(checkout()))
+    with pytest.raises(PaystackRejectedError):
+        asyncio.run(adapter.verify_transaction("cv-synthetic-checkout-0001"))
+    assert len(transport.requests) == 2

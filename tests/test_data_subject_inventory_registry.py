@@ -177,12 +177,14 @@ def test_subject_link_registry_counts_recovery_contact_and_trip_manifest_rows(
             binding = AssignmentRuleBinding(
                 assignment_id=assignment.id,
                 revision_id=revision.id,
-                hourly_rate_naira=Decimal("1000"),
-                premium_hourly_rate_naira=Decimal("1500"),
-                daily_payable_hours_cap=Decimal("8"),
+                daily_rate_naira="12000.00",
+                daily_target_miles="70.00",
+                shortfall_strategy="proportional",
+                minimum_miles="0.00",
+                outside_area_weight="1.00",
                 currency="NGN",
                 eligibility_params={},
-                formula_version="payout_v3",
+                formula_version="payout_v4",
                 premium_zone_ids=[],
                 premium_zone_geometry_hash="a" * 64,
                 premium_zone_geometry_wkts=[],
@@ -215,7 +217,7 @@ def test_subject_link_registry_counts_recovery_contact_and_trip_manifest_rows(
                         daily_hours_cap=Decimal("8"),
                         requested_amount=Decimal("8000"),
                         requested_at=now,
-                        formula_version="payout_v3",
+                        formula_version="payout_v4",
                     ),
                 ]
             )

@@ -372,13 +372,6 @@ def test_heatmap_validation_rbac_cross_org_and_scope_guards(db_client, db_sessio
     assert mismatch.status_code == http_status.HTTP_400_BAD_REQUEST
     assert mismatch.json()["error"]["code"] == "INVALID_HEATMAP_FILTERS"
 
-    versions = {path.name for path in Path("alembic/versions").glob("*.py")}
-    assert "0010_payouts_and_earnings.py" in versions
-    for migration in Path("alembic/versions").glob("*.py"):
-        migration_text = migration.read_text()
-        assert '"heatmaps"' not in migration_text
-        assert '"heatmap_cache"' not in migration_text
-
 
 def test_advertiser_heatmap_aggregates_metrics_and_preserves_privacy(
     postgis_db_client,
@@ -770,7 +763,7 @@ def test_heatmap_postgis_sql_uses_bbox_filter_and_meter_grid() -> None:
     assert "ST_AsGeoJSON" in service_text
 
 
-def test_heatmap_endpoint_does_not_create_rows_on_sqlite(
+def test_heatmap_endpoint_does_not_create_rows(
     db_client,
     db_sessionmaker,
 ) -> None:
@@ -785,8 +778,7 @@ def test_heatmap_endpoint_does_not_create_rows_on_sqlite(
     )
     after = asyncio.run(count_rows(db_sessionmaker))
 
-    assert response.status_code == http_status.HTTP_400_BAD_REQUEST
-    assert response.json()["error"]["code"] == "POSTGIS_REQUIRED"
+    assert response.status_code == http_status.HTTP_200_OK, response.text
     assert after == before
 
 

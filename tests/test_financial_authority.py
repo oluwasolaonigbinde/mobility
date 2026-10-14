@@ -12,10 +12,9 @@ from conftest import (
     create_test_user,
     create_test_vehicle,
 )
+from payout_fixtures import create_v4_revision, create_v4_rule, insert_v4_binding
 from sqlalchemy import func, select
 from test_campaign_assignments import create_assignment_ready_graph, create_postgres_offer
-from test_payouts_v2 import create_v2_rule
-from test_payouts_v3 import create_revision_row, insert_binding
 from test_receipt_allocations import _accepted_terms
 from test_trips import create_trip_ready_graph, start_trip
 
@@ -36,24 +35,30 @@ from app.models.payout import AssignmentRuleBinding
 from app.models.user import User, UserRole
 from app.models.vehicle import VehicleStatus
 from app.schemas.campaign_assignments import CampaignAssignmentTransition
-from app.services import billing
-from app.services.billing import (
+from app.services.billing import authority as billing_authority
+from app.services.billing.authority import (
+    assert_campaign_production_authorized,
+    record_approved_credit_authorization,
+    record_expedited_production_waiver,
+    record_prepaid_cash_authorization,
+    record_production_start,
+    reserve_assignment_liability,
+)
+from app.services.billing.common import (
     EXPEDITED_WAIVER_WORDING,
     EXPEDITED_WAIVER_WORDING_HASH,
     EXPEDITED_WAIVER_WORDING_VERSION,
+)
+from app.services.billing.quotes import (
     accept_quotation_revision,
-    allocate_payment_receipt,
-    assert_campaign_production_authorized,
-    confirm_payment_receipt,
-    reconcile_payment_receipt,
-    record_approved_credit_authorization,
-    record_expedited_production_waiver,
-    record_payment_receipt,
-    record_prepaid_cash_authorization,
-    record_production_start,
     record_quotation_revision,
     request_custom_quote,
-    reserve_assignment_liability,
+)
+from app.services.billing.receipts import (
+    allocate_payment_receipt,
+    confirm_payment_receipt,
+    reconcile_payment_receipt,
+    record_payment_receipt,
     reverse_payment_receipt,
 )
 from app.services.campaign_assignments import accept_driver_assignment
@@ -143,7 +148,7 @@ def test_cash_authority_uses_confirmed_allocations_and_standard_boundary(
             async def before_boundary(_session):
                 return allocation.allocated_at + timedelta(hours=24) - timedelta(microseconds=1)
 
-            monkeypatch.setattr(billing, "database_clock", before_boundary)
+            monkeypatch.setattr(billing_authority, "database_clock", before_boundary)
             with pytest.raises(AppError) as error:
                 await record_production_start(
                     session, campaign_id=campaign.id, actor_user_id=admin.id
@@ -153,7 +158,7 @@ def test_cash_authority_uses_confirmed_allocations_and_standard_boundary(
             async def at_boundary(_session):
                 return allocation.allocated_at + timedelta(hours=24)
 
-            monkeypatch.setattr(billing, "database_clock", at_boundary)
+            monkeypatch.setattr(billing_authority, "database_clock", at_boundary)
             production = await record_production_start(
                 session, campaign_id=campaign.id, actor_user_id=admin.id
             )
@@ -238,24 +243,20 @@ def test_concurrent_liability_reservations_never_overbook(
                 accepted_at=datetime.now(UTC),
             )
         )
-    rule = create_v2_rule(
+    rule = create_v4_rule(
         postgis_db_sessionmaker,
         campaign_id=campaign.id,
-        created_by_user_id=admin.id,
-        hourly_rate="40.00",
-        daily_cap_hours="1.00",
+        admin_id=admin.id,
     )
-    revision = create_revision_row(
+    revision = create_v4_revision(
         postgis_db_sessionmaker,
         campaign_id=campaign.id,
         rule_id=rule.id,
-        created_by_user_id=admin.id,
-        base="40.00",
-        premium=None,
-        cap="1.00",
+        admin_id=admin.id,
+        daily_rate_naira="40.00",
     )
     for assignment in assignments:
-        insert_binding(
+        insert_v4_binding(
             postgis_db_sessionmaker,
             settings,
             assignment_id=assignment.id,
@@ -658,7 +659,7 @@ def test_new_work_revalidates_reversed_cash_and_expired_credit(
             async def after_due(_session):
                 return due_at + timedelta(microseconds=1)
 
-            monkeypatch.setattr(billing, "database_clock", after_due)
+            monkeypatch.setattr(billing_authority, "database_clock", after_due)
             with pytest.raises(AppError) as expired_error:
                 await assert_campaign_production_authorized(session, campaign_id=credit_campaign.id)
             assert expired_error.value.code == "CREDIT_AUTHORITY_EXPIRED"

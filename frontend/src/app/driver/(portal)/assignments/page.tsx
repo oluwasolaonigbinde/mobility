@@ -38,12 +38,11 @@ const OFFERS: AssignmentStatus[] = ["offered"];
 
 function JobTerms({ a }: { a: Assignment }) {
   const payout = a.offer_terms?.payout as Record<string, unknown> | undefined;
-  const daily = payout?.formula_version === "payout_v4";
-  const rate = daily ? payout?.daily_rate_naira : payout?.hourly_rate_naira;
+  const rate = payout?.daily_rate_naira;
   return (
     <p className="mt-3 text-base font-semibold">
-      {payout
-        ? `${formatMoney(rate == null || rate === "" ? null : String(rate))} / ${daily ? "day" : "hour"}`
+      {payout?.formula_version === "payout_v4"
+        ? `${formatMoney(rate == null || rate === "" ? null : String(rate))} / day`
         : "Pay terms unavailable"}
     </p>
   );

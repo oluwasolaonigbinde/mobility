@@ -6,18 +6,19 @@ from uuid import uuid4
 
 import pytest
 from conftest import auth_headers, create_test_trip_session
+from payout_fixtures import drive
 from sqlalchemy import func, select
 from test_mny03a_earnings_release import NOW, build_graph, create_flag
 from test_payout_batches import _seed_authority
 from test_payout_corrections import (
     approved_order,
+    build_correction_graph,
     correction_entries,
     execute,
-    raise_rule_rate,
+    seed_misposted_amount,
     set_trip_payout_status,
 )
 from test_payout_reconciliation import _admins, _submitted_batch
-from test_payouts_v2 import build_v2_graph, pipeline_to_v2
 
 from app.adapters.disbursement import FakeDisbursementAdapter
 from app.core.errors import AppError
@@ -43,12 +44,9 @@ from app.services.payout_debt import (
     driver_money_balance,
     record_reversal_obligation,
 )
-from app.services.payouts import (
-    _posted_amount_for_trip,
-    advertiser_campaign_cost_summary,
-    driver_earnings_summary,
-    driver_trip_earnings_breakdown,
-)
+from app.services.payouts.breakdown import driver_trip_earnings_breakdown
+from app.services.payouts.corrections import _posted_amount_for_trip
+from app.services.payouts.read import advertiser_campaign_cost_summary, driver_earnings_summary
 
 
 def _ledger(
@@ -130,7 +128,7 @@ def test_available_pre_payment_reversal_is_netted_before_batching(db_sessionmake
 def test_actual_paid_credit_type_defines_post_payment_boundary(
     db_sessionmaker, paid_type: str
 ) -> None:
-    graph = build_graph(db_sessionmaker, f"debt-paid-kind-{paid_type}-{uuid4().hex[:6]}")
+    graph = build_graph(db_sessionmaker, f"debt-{paid_type}-{uuid4().hex[:4]}")
 
     async def exercise():
         async with db_sessionmaker() as session:
@@ -709,10 +707,10 @@ def test_admin_debt_balance_hides_missing_driver_profile(db_client, db_sessionma
 def test_approved_post_payment_correction_posts_new_debt_authority(
     postgis_db_sessionmaker, settings
 ) -> None:
-    graph = build_v2_graph(postgis_db_sessionmaker, "debt-correction")
-    pipeline_to_v2(postgis_db_sessionmaker, settings, graph)
+    graph = build_correction_graph(postgis_db_sessionmaker, settings, "debt-correction")
+    drive(postgis_db_sessionmaker, settings, graph.trip)
     set_trip_payout_status(postgis_db_sessionmaker, graph.trip.id, "paid")
-    raise_rule_rate(postgis_db_sessionmaker, graph.rule.id, "900.00")
+    seed_misposted_amount(postgis_db_sessionmaker, graph.trip.id, "750.00")
     order, approver = approved_order(postgis_db_sessionmaker, settings, graph, "debt-correction")
     executed, executed_now = execute(
         postgis_db_sessionmaker,
@@ -927,3 +925,34 @@ def test_postgres_duplicate_reversal_creation_is_idempotent(
     assert count == 1
     assert account.outstanding_amount == Decimal("45.00")
     assert account.lifetime_incurred_amount == Decimal("45.00")
+
+
+def test_debt_identity_refusals_cannot_create_cross_driver_authority(db_sessionmaker):
+    from app.services.payout_debt import _locked_debt_account, lock_driver_currency_debt_scope
+
+    graph = build_graph(db_sessionmaker, "debt-identity")
+
+    async def run():
+        async with db_sessionmaker() as session:
+            with pytest.raises(ValueError, match="Driver profile was not found"):
+                await lock_driver_currency_debt_scope(
+                    session, driver_profile_id=uuid4(), currency="NGN"
+                )
+            with pytest.raises(ValueError, match="Debt authority does not match"):
+                await _locked_debt_account(
+                    session,
+                    driver_profile_id=graph.profile.id,
+                    driver_user_id=graph.admin.id,
+                    currency="NGN",
+                )
+            reversal = _ledger(graph, amount="10", status="available", entry_type="reversal")
+            reversal.driver_user_id = graph.admin.id
+            with pytest.raises(ValueError, match="Reversal authority does not match"):
+                await record_reversal_obligation(session, reversal_entry=reversal)
+            assert (
+                await session.scalar(select(func.count()).select_from(DriverCurrencyDebtAccount))
+                == 0
+            )
+            assert await session.scalar(select(func.count()).select_from(PayoutDebtObligation)) == 0
+
+    asyncio.run(run())

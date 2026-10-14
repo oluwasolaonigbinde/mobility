@@ -9,10 +9,10 @@ import pytest
 from conftest import (
     create_test_campaign,
     create_test_campaign_assignment,
+    create_test_daily_payout_authority,
     create_test_driver_profile,
     create_test_impression_estimate,
     create_test_organization,
-    create_test_payout_rule,
     create_test_traffic_density_profile,
     create_test_trip_analytics,
     create_test_trip_session,
@@ -44,7 +44,7 @@ from app.schemas.impressions import TrafficDensityProfileUpdate
 from app.services import fraud_assessments, route_replay, trip_processing
 from app.services.fraud_holds import acknowledge_fraud_flag, resolve_fraud_flag
 from app.services.impressions import update_traffic_density_profile
-from app.services.payouts import calculate_trip_payout
+from app.services.payouts.engine import calculate_trip_payout
 from app.services.trip_evidence import sign_manifest_receipt
 from app.services.trip_processing import (
     AUDIT_ACTION_TRIP_PROCESSING,
@@ -200,8 +200,8 @@ def add_pings(
 def moving_points() -> list[tuple[datetime, float, float, float]]:
     return [
         (BASE_TIME, 6.45, 3.39, 10),
-        (BASE_TIME + timedelta(minutes=5), 6.45, 3.40, 12),
-        (BASE_TIME + timedelta(minutes=10), 6.45, 3.42, 14),
+        (BASE_TIME + timedelta(seconds=30), 6.45, 3.391, 12),
+        (BASE_TIME + timedelta(seconds=60), 6.45, 3.392, 14),
     ]
 
 
@@ -276,11 +276,10 @@ def stage_outcomes(result: TripProcessingResult) -> dict[str, str]:
 
 def test_happy_path_creates_full_chain_and_audits(postgis_db_sessionmaker, settings) -> None:
     graph = build_graph(postgis_db_sessionmaker, "happy")
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         postgis_db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
     add_pings(postgis_db_sessionmaker, trip_id=graph.trip.id, points=moving_points())
 
@@ -332,11 +331,10 @@ def test_injected_time_stamps_the_full_postgis_pipeline(
     settings,
 ) -> None:
     graph = build_graph(postgis_db_sessionmaker, "clock-full")
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         postgis_db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
     add_pings(
         postgis_db_sessionmaker,
@@ -369,9 +367,7 @@ def test_injected_time_stamps_the_full_postgis_pipeline(
                 )
             )
             calculation = await session.scalar(
-                select(PayoutCalculation).where(
-                    PayoutCalculation.trip_session_id == graph.trip.id
-                )
+                select(PayoutCalculation).where(PayoutCalculation.trip_session_id == graph.trip.id)
             )
             assert analytics.computed_at == frozen_now
             assert flags
@@ -385,11 +381,10 @@ def test_injected_time_stamps_the_full_postgis_pipeline(
 
 def test_idempotent_repeat_creates_no_new_rows(postgis_db_sessionmaker, settings) -> None:
     graph = build_graph(postgis_db_sessionmaker, "idem")
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         postgis_db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
     add_pings(postgis_db_sessionmaker, trip_id=graph.trip.id, points=moving_points())
 
@@ -410,11 +405,11 @@ def test_idempotent_repeat_creates_no_new_rows(postgis_db_sessionmaker, settings
 
 def test_preexisting_analytics_is_reused(db_sessionmaker, settings) -> None:
     graph = build_graph(db_sessionmaker, "reuse-ana")
-    create_test_payout_rule(
+    add_pings(db_sessionmaker, trip_id=graph.trip.id, points=moving_points())
+    create_test_daily_payout_authority(
         db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
     analytics = seed_analytics(db_sessionmaker, graph)
 
@@ -442,11 +437,10 @@ def test_assessment_error_stays_due_and_retry_converges(
     monkeypatch,
 ) -> None:
     graph = build_graph(db_sessionmaker, "assessment-retry")
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
     seed_analytics(db_sessionmaker, graph)
     original = fraud_assessments.assessment_inputs_fingerprint
@@ -561,9 +555,7 @@ def test_time_shifted_cross_account_route_flags_latest_assessment(
     async def inspect():
         async with postgis_db_sessionmaker() as session:
             assessment = await session.scalar(
-                select(FraudAssessment).where(
-                    FraudAssessment.trip_session_id == later.trip.id
-                )
+                select(FraudAssessment).where(FraudAssessment.trip_session_id == later.trip.id)
             )
             flag = await session.scalar(
                 select(FraudFlag).where(
@@ -584,11 +576,10 @@ def test_time_shifted_cross_account_route_flags_latest_assessment(
 
 def test_preexisting_explicit_profile_estimate_is_reused(db_sessionmaker, settings) -> None:
     graph = build_graph(db_sessionmaker, "reuse-est")
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
     analytics = seed_analytics(db_sessionmaker, graph)
     explicit_profile = create_test_traffic_density_profile(
@@ -628,12 +619,12 @@ def test_preexisting_payout_calculation_is_reused_and_ledger_ensured(
     settings,
 ) -> None:
     graph = build_graph(db_sessionmaker, "reuse-pay")
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
+    add_pings(db_sessionmaker, trip_id=graph.trip.id, points=moving_points())
     analytics = seed_analytics(db_sessionmaker, graph)
     profile = create_test_traffic_density_profile(db_sessionmaker, name="Reuse Profile")
     create_test_impression_estimate(
@@ -690,6 +681,7 @@ def test_repairs_every_missing_ledger_before_stale_analytics_gate(
     settings,
 ) -> None:
     graph = build_graph(db_sessionmaker, "repair-all")
+    add_pings(db_sessionmaker, trip_id=graph.trip.id, points=moving_points())
     analytics = seed_analytics(db_sessionmaker, graph)
     profile = create_test_traffic_density_profile(db_sessionmaker, name="Repair Profile")
     create_test_impression_estimate(
@@ -703,11 +695,10 @@ def test_repairs_every_missing_ledger_before_stale_analytics_gate(
         traffic_density_profile_id=profile.id,
         estimated_impressions=Decimal("1000"),
     )
-    first_rule = create_test_payout_rule(
+    first_rule = create_test_daily_payout_authority(
         db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
 
     async def create_first_calculation_and_deactivate_rule() -> None:
@@ -726,30 +717,15 @@ def test_repairs_every_missing_ledger_before_stale_analytics_gate(
             await session.commit()
 
     asyncio.run(create_first_calculation_and_deactivate_rule())
-    second_rule = create_test_payout_rule(
-        db_sessionmaker,
-        campaign_id=graph.campaign.id,
-        created_by_user_id=graph.admin.id,
-        base_rate_per_km=12,
-    )
 
-    async def create_second_calculation_then_break_chain() -> None:
-        async with db_sessionmaker() as session:
-            await calculate_trip_payout(
-                session,
-                trip_id=graph.trip.id,
-                payout_rule_id=second_rule.id,
-                metadata={"source": "test"},
-                settings=settings,
-            )
-            await session.commit()
+    async def break_chain() -> None:
         async with db_sessionmaker() as session:
             stored_analytics = await session.get(TripAnalytics, analytics.id)
             stored_analytics.formula_version = "route_analytics_v0"
             await session.execute(delete(EarningsLedgerEntry))
             await session.commit()
 
-    asyncio.run(create_second_calculation_then_break_chain())
+    asyncio.run(break_chain())
 
     assert find_due(db_sessionmaker, settings) == [graph.trip.id]
     result = run_pipeline(db_sessionmaker, graph.trip.id, settings)
@@ -762,9 +738,7 @@ def test_repairs_every_missing_ledger_before_stale_analytics_gate(
         "impressions": "skipped",
         "payout": "skipped",
     }
-    # One trip_payout entry per trip across calculations (0013 guard): the
-    # older calculation's entry is repaired, the second is skipped instead of
-    # double-paying the same trip under a superseded rule.
+    # Repair the existing frozen calculation without repricing it.
     entries = fetch_earnings_ledger_entries(db_sessionmaker)
     assert len(entries) == 1
     events = worker_audit_events(db_sessionmaker)
@@ -802,11 +776,10 @@ def test_stale_analytics_is_blocked_in_worker_and_shared_services(
         traffic_density_profile_id=profile.id,
         metadata={"source_analytics_formula_version": "route_analytics_v0"},
     )
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
 
     result = run_pipeline(db_sessionmaker, graph.trip.id, settings)
@@ -881,17 +854,16 @@ def test_admin_downstream_endpoints_reject_stale_analytics(db_client, db_session
     assert payout.json()["error"]["code"] == "ANALYTICS_FORMULA_VERSION_MISMATCH"
 
 
-def test_changed_analytics_requires_estimate_refresh_and_new_payout_version(
+def test_changed_analytics_requires_estimate_refresh_but_preserves_daily_pay(
     db_sessionmaker,
     settings,
 ) -> None:
     graph = build_graph(db_sessionmaker, "source-refresh")
     analytics = seed_analytics(db_sessionmaker, graph)
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
     run_pipeline(db_sessionmaker, graph.trip.id, settings)
 
@@ -925,15 +897,16 @@ def test_changed_analytics_requires_estimate_refresh_and_new_payout_version(
                 metadata={"source": "admin"},
                 settings=settings,
             )
-            with pytest.raises(AppError) as stale_payout:
-                await calculate_trip_payout(
-                    session,
-                    trip_id=graph.trip.id,
-                    payout_rule_id=None,
-                    metadata={"source": "admin"},
-                    settings=settings,
-                )
-            assert stale_payout.value.code == "PAYOUT_CALCULATION_STALE"
+            _, _, created = await calculate_trip_payout(
+                session,
+                trip_id=graph.trip.id,
+                payout_rule_id=None,
+                metadata={"source": "admin"},
+                settings=settings,
+            )
+            # Daily-rate pricing reads frozen terms and signed GPS, so an
+            # analytics-only revision cannot reprice the accepted calculation.
+            assert created is False
             await session.rollback()
 
     asyncio.run(mutate_and_verify())
@@ -972,11 +945,10 @@ def test_formula_only_estimate_provenance_still_requires_timestamp_order(
             "fraud_flag_counts": {"low": 0, "medium": 0, "high": 0},
         },
     )
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
 
     async def calculate() -> None:
@@ -995,43 +967,39 @@ def test_formula_only_estimate_provenance_still_requires_timestamp_order(
     assert find_due(db_sessionmaker, settings) == [graph.trip.id]
 
 
-def test_formula_only_payout_provenance_still_requires_timestamp_order(
+def test_daily_payout_reuses_frozen_evidence_when_estimate_timestamp_changes(
     db_sessionmaker,
     settings,
 ) -> None:
     graph = build_graph(db_sessionmaker, "payout-formula-time")
     seed_analytics(db_sessionmaker, graph)
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
     run_pipeline(db_sessionmaker, graph.trip.id, settings)
 
-    async def make_formula_only_and_stale() -> None:
+    async def advance_estimate_timestamp() -> None:
         async with db_sessionmaker() as session:
             calculation = await session.scalar(select(PayoutCalculation))
             estimate = await session.scalar(select(ImpressionEstimate))
-            metadata = dict(calculation.payout_metadata)
-            metadata.pop("source_analytics_fingerprint", None)
-            metadata.pop("source_impression_fingerprint", None)
-            calculation.payout_metadata = metadata
+            original_id = calculation.id
             estimate.estimated_at = calculation.calculated_at + timedelta(seconds=1)
             await session.commit()
         async with db_sessionmaker() as session:
-            with pytest.raises(AppError) as exc_info:
-                await calculate_trip_payout(
-                    session,
-                    trip_id=graph.trip.id,
-                    payout_rule_id=None,
-                    metadata={"source": "test"},
-                    settings=settings,
-                )
-            assert exc_info.value.code == "PAYOUT_CALCULATION_STALE"
+            result = await calculate_trip_payout(
+                session,
+                trip_id=graph.trip.id,
+                payout_rule_id=None,
+                metadata={"source": "test"},
+                settings=settings,
+            )
+            assert result[2] is False
+            assert result[0].id == original_id
 
-    asyncio.run(make_formula_only_and_stale())
-    assert find_due(db_sessionmaker, settings) == [graph.trip.id]
+    asyncio.run(advance_estimate_timestamp())
+    assert find_due(db_sessionmaker, settings) == []
 
 
 def test_review_status_changes_refresh_assessment_and_dismissal_refreshes_money_inputs(
@@ -1188,11 +1156,10 @@ def test_confirmed_review_transition_is_due_but_remains_held(
 def test_injected_processing_time_stamps_downstream_rows(db_sessionmaker, settings) -> None:
     graph = build_graph(db_sessionmaker, "clock")
     seed_analytics(db_sessionmaker, graph)
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
     frozen_now = datetime(2026, 2, 3, 4, 5, tzinfo=UTC)
 
@@ -1230,7 +1197,7 @@ def test_missing_active_rule_blocks_payout_then_completes(
         "impressions": "created",
         "payout": "blocked",
     }
-    assert first.stages[3].reason == "no_active_payout_rule"
+    assert first.stages[3].reason == "no_frozen_payout_terms"
     counts = table_counts(postgis_db_sessionmaker)
     assert counts["analytics"] == 1
     assert counts["estimates"] == 1
@@ -1238,11 +1205,10 @@ def test_missing_active_rule_blocks_payout_then_completes(
     assert counts["ledger"] == 0
     assert len(worker_audit_events(postgis_db_sessionmaker)) == 1
 
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         postgis_db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
     second = run_pipeline(postgis_db_sessionmaker, graph.trip.id, settings)
 
@@ -1261,11 +1227,10 @@ def test_missing_active_rule_blocks_payout_then_completes(
 
 def test_insufficient_data_terminates_with_zero_payout(postgis_db_sessionmaker, settings) -> None:
     graph = build_graph(postgis_db_sessionmaker, "insuff")
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         postgis_db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
     add_pings(
         postgis_db_sessionmaker,
@@ -1291,6 +1256,7 @@ def test_insufficient_data_terminates_with_zero_payout(postgis_db_sessionmaker, 
     assert calculation.final_payout == 0
     assert fetch_earnings_ledger_entries(postgis_db_sessionmaker) == []
     assert len(worker_audit_events(postgis_db_sessionmaker)) == 1
+
     # Terminal: a current-formula payout row exists, so the sweep stops selecting it.
     async def still_due() -> list:
         async with postgis_db_sessionmaker() as session:
@@ -1304,11 +1270,10 @@ def test_blocked_analytics_produces_excluded_estimate_and_blocked_payout(
     settings,
 ) -> None:
     graph = build_graph(db_sessionmaker, "blocked")
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
     seed_analytics(db_sessionmaker, graph, status="blocked")
 
@@ -1367,11 +1332,10 @@ def test_unexpected_failure_rolls_back_whole_run_then_retry_completes(
     monkeypatch,
 ) -> None:
     graph = build_graph(postgis_db_sessionmaker, "boom")
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         postgis_db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
     add_pings(postgis_db_sessionmaker, trip_id=graph.trip.id, points=moving_points())
 
@@ -1489,11 +1453,10 @@ def test_impression_savepoint_propagates_unexpected_check_failure(
 
 def test_concurrent_runs_on_same_trip_never_duplicate(postgis_db_sessionmaker, settings) -> None:
     graph = build_graph(postgis_db_sessionmaker, "race")
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         postgis_db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
     add_pings(postgis_db_sessionmaker, trip_id=graph.trip.id, points=moving_points())
 
@@ -1546,11 +1509,10 @@ def test_concurrent_runs_on_different_trips_both_complete(
     graph_a = build_graph(postgis_db_sessionmaker, "par-a")
     graph_b = build_graph(postgis_db_sessionmaker, "par-b")
     for graph in (graph_a, graph_b):
-        create_test_payout_rule(
+        create_test_daily_payout_authority(
             postgis_db_sessionmaker,
             campaign_id=graph.campaign.id,
             created_by_user_id=graph.admin.id,
-            base_rate_per_km=10,
         )
     add_pings(
         postgis_db_sessionmaker,
@@ -1587,11 +1549,10 @@ def test_admin_and_worker_race_keeps_single_consistent_chain(
     settings,
 ) -> None:
     graph = build_graph(postgis_db_sessionmaker, "admin-race")
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         postgis_db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
     add_pings(postgis_db_sessionmaker, trip_id=graph.trip.id, points=moving_points())
 
@@ -1673,11 +1634,10 @@ def test_due_work_selects_unprocessed_and_skips_active(db_sessionmaker, settings
 
 def test_due_work_excludes_fully_processed_trip(db_sessionmaker, settings) -> None:
     graph = build_graph(db_sessionmaker, "due2")
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
     seed_analytics(db_sessionmaker, graph)
     run_pipeline(db_sessionmaker, graph.trip.id, settings)
@@ -1719,11 +1679,10 @@ def test_profile_replacement_reissues_worker_estimate_and_blocks_stale_payout(
     assert sum(estimate.is_authoritative for estimate in estimates) == 1
 
     current = next(estimate for estimate in estimates if estimate.is_authoritative)
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
     run_pipeline(db_sessionmaker, graph.trip.id, settings)
     asyncio.run(replace_profile(current.traffic_density_profile_id))
@@ -1792,9 +1751,7 @@ def test_due_work_reselects_changed_replay_detector_version(
     run_pipeline(db_sessionmaker, graph.trip.id, settings)
     assert find_due(db_sessionmaker, settings) == []
 
-    next_settings = settings.model_copy(
-        update={"route_replay_detector_version": "route_replay_v2"}
-    )
+    next_settings = settings.model_copy(update={"route_replay_detector_version": "route_replay_v2"})
     assert find_due(db_sessionmaker, next_settings) == [graph.trip.id]
 
     run_pipeline(db_sessionmaker, graph.trip.id, next_settings)
@@ -1802,9 +1759,7 @@ def test_due_work_reselects_changed_replay_detector_version(
 
     async def inspect() -> tuple[int, str]:
         async with db_sessionmaker() as session:
-            count = await session.scalar(
-                select(func.count()).select_from(RouteReplaySignature)
-            )
+            count = await session.scalar(select(func.count()).select_from(RouteReplaySignature))
             signature = await session.scalar(select(RouteReplaySignature))
             return int(count or 0), signature.detector_version
 
@@ -1903,11 +1858,10 @@ def test_due_work_ruleless_trip_becomes_due_when_rule_appears(db_sessionmaker, s
     assert stage_outcomes(first)["fraud_assessment"] == "created"
     assert find_due(db_sessionmaker, settings) == []
 
-    create_test_payout_rule(
+    create_test_daily_payout_authority(
         db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
-        base_rate_per_km=10,
     )
 
     assert find_due(db_sessionmaker, settings) == [graph.trip.id]
@@ -1928,6 +1882,7 @@ def test_due_work_orders_by_ended_at_and_respects_limit(db_sessionmaker, setting
             started_at=BASE_TIME,
             ended_at=ended_at,
         )
+
         async def bind_evidence() -> None:
             async with db_sessionmaker() as session:
                 stored = await session.get(type(trip), trip.id)

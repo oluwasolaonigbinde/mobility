@@ -4,7 +4,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from conftest import auth_headers, create_test_display_proof
+from conftest import auth_headers, create_test_display_proof, sign_test_trip_manifest
 from sqlalchemy import func, select
 from test_fraud_assessments import build_graph
 
@@ -173,9 +173,10 @@ def test_concurrent_sessions_create_one_authoritative_day_hold(db_sessionmaker, 
                 started_at=source.started_at + timedelta(minutes=30),
                 ended_at=source.ended_at + timedelta(minutes=30),
                 sealed_at=source.ended_at + timedelta(minutes=40),
-                seal_reason="migration_backfill",
+                seal_reason="client_complete",
                 trip_metadata={"synthetic_overlap": True},
             )
+            sign_test_trip_manifest(overlap)
             session.add(overlap)
             await session.commit()
         async with db_sessionmaker() as session:
@@ -479,17 +480,34 @@ def test_admin_can_list_physical_checks_behind_a_backlog_of_newer_renewals(
     assert queued.status_code == 201
 
     async def add_newer_renewals() -> None:
-        # The automatic sweep can issue one renewal per trip; source trips only
-        # need distinct identities for this list query.
+        # Each renewal references a distinct existing trip, as PostgreSQL requires.
         async with db_sessionmaker() as session:
             later = datetime.now(UTC) + timedelta(minutes=5)
+            source_ids = [uuid4() for _ in range(101)]
+            session.add_all(
+                TripSession(
+                    id=trip_id,
+                    assignment_id=graph.assignment.id,
+                    campaign_id=graph.campaign.id,
+                    driver_profile_id=graph.profile.id,
+                    vehicle_id=graph.vehicle.id,
+                    started_by_user_id=graph.trip.started_by_user_id,
+                    status="ended",
+                    started_at=later,
+                    ended_at=later,
+                    evidence_protocol_version=2,
+                    trip_metadata={},
+                )
+                for trip_id in source_ids
+            )
+            await session.flush()
             session.add_all(
                 EvidenceVerification(
                     assignment_id=graph.assignment.id,
                     campaign_id=graph.campaign.id,
                     driver_profile_id=graph.profile.id,
                     vehicle_id=graph.vehicle.id,
-                    source_trip_session_id=uuid4(),
+                    source_trip_session_id=source_ids[index],
                     verification_type="high_earner_renewal",
                     status=EvidenceVerificationStatus.PENDING.value,
                     due_at=later + timedelta(hours=24),

@@ -121,9 +121,7 @@ class CommercialQuoteRequest(Base):
         UniqueConstraint("campaign_id", name="uq_commercial_quote_requests_campaign"),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     campaign_id: Mapped[UUID] = mapped_column(
         ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False, index=True
     )
@@ -183,9 +181,7 @@ class CommercialQuotationRevision(Base):
         ),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     quote_request_id: Mapped[UUID] = mapped_column(
         ForeignKey("commercial_quote_requests.id", ondelete="RESTRICT"), nullable=False
     )
@@ -264,9 +260,7 @@ class CommercialTerms(Base):
         UniqueConstraint("quotation_revision_id", name="uq_commercial_terms_quote_revision"),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     campaign_id: Mapped[UUID] = mapped_column(
         ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False, index=True
     )
@@ -322,9 +316,7 @@ class PaymentReceipt(Base):
         ),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     organization_id: Mapped[UUID] = mapped_column(
         ForeignKey("advertiser_organizations.id", ondelete="RESTRICT"), nullable=False, index=True
     )
@@ -362,9 +354,7 @@ class ReceiptReconciliation(Base):
         UniqueConstraint("provider_event_id", name="uq_receipt_reconciliations_provider_event"),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     receipt_id: Mapped[UUID] = mapped_column(
         ForeignKey("payment_receipts.id", ondelete="RESTRICT"), nullable=False, index=True
     )
@@ -402,9 +392,7 @@ class ReceiptLifecycleEvent(Base):
         UniqueConstraint("receipt_id", "sequence_number", name="uq_receipt_lifecycle_sequence"),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     receipt_id: Mapped[UUID] = mapped_column(
         ForeignKey("payment_receipts.id", ondelete="RESTRICT"), nullable=False, index=True
     )
@@ -431,9 +419,7 @@ class ReceiptAllocation(Base):
         UniqueConstraint("provider_event_id", name="uq_receipt_allocations_provider_event"),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     receipt_id: Mapped[UUID] = mapped_column(
         ForeignKey("payment_receipts.id", ondelete="RESTRICT"), nullable=False, index=True
     )
@@ -467,9 +453,7 @@ class InvoiceIssuerProfile(Base):
         ),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     legal_name: Mapped[str] = mapped_column(String(255), nullable=False)
     tax_identification_number: Mapped[str] = mapped_column(String(128), nullable=False)
     registered_address: Mapped[str] = mapped_column(Text, nullable=False)
@@ -503,9 +487,7 @@ class InvoiceNumberSequence(Base):
         ),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     number_prefix: Mapped[str] = mapped_column(String(64), nullable=False)
     calendar_year: Mapped[int] = mapped_column(Integer, nullable=False)
     next_number: Mapped[int] = mapped_column(Integer, nullable=False)
@@ -537,9 +519,7 @@ class Invoice(Base):
         UniqueConstraint("invoice_number", name="uq_invoices_number"),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     commercial_terms_id: Mapped[UUID] = mapped_column(
         ForeignKey("commercial_terms.id", ondelete="RESTRICT"), nullable=False
     )
@@ -558,9 +538,7 @@ class Invoice(Base):
         JSON().with_variant(postgresql.JSONB(), "postgresql"), nullable=False
     )
     issuer_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
-        JSON(none_as_null=True).with_variant(
-            postgresql.JSONB(none_as_null=True), "postgresql"
-        )
+        JSON(none_as_null=True).with_variant(postgresql.JSONB(none_as_null=True), "postgresql")
     )
     line_items: Mapped[list[dict[str, Any]]] = mapped_column(
         JSON().with_variant(postgresql.JSONB(), "postgresql"), nullable=False
@@ -664,9 +642,7 @@ class CampaignFinancialAuthorization(Base):
         ),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     campaign_id: Mapped[UUID] = mapped_column(
         ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False, index=True
     )
@@ -707,9 +683,7 @@ class FinancialAuthorizationAllocation(Base):
         ),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     authorization_id: Mapped[UUID] = mapped_column(
         ForeignKey("campaign_financial_authorizations.id", ondelete="RESTRICT"), nullable=False
     )
@@ -748,9 +722,7 @@ class CampaignLiabilityReservation(Base):
         UniqueConstraint("assignment_id", name="uq_campaign_liability_reservations_assignment"),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     campaign_id: Mapped[UUID] = mapped_column(
         ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False, index=True
     )
@@ -791,9 +763,7 @@ class ExpeditedProductionWaiver(Base):
         UniqueConstraint("campaign_id", name="uq_expedited_production_waivers_campaign"),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     campaign_id: Mapped[UUID] = mapped_column(
         ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False
     )
@@ -838,9 +808,7 @@ class ProductionStart(Base):
         UniqueConstraint("campaign_id", name="uq_production_starts_campaign"),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     campaign_id: Mapped[UUID] = mapped_column(
         ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False
     )
@@ -861,6 +829,7 @@ class ProductionStart(Base):
 class PaymentGatewayEvent(Base):
     __tablename__ = "payment_gateway_events"
     __table_args__ = (
+        Index("ix_health_payment_event_received", "received_at"),
         CheckConstraint(
             "event_type IN ('payment_confirmed', 'payment_failed')",
             name="ck_payment_gateway_events_type",
@@ -875,9 +844,7 @@ class PaymentGatewayEvent(Base):
         ),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     provider: Mapped[str] = mapped_column(String(64), nullable=False)
     provider_event_id: Mapped[str] = mapped_column(String(255), nullable=False)
     external_transaction_id: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -918,9 +885,7 @@ class PaymentGatewayProcessingAttempt(Base):
         ),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     gateway_event_id: Mapped[UUID] = mapped_column(
         ForeignKey("payment_gateway_events.id", ondelete="RESTRICT"), nullable=False, index=True
     )
@@ -959,9 +924,7 @@ class InvoiceCorrection(Base):
         ),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     invoice_id: Mapped[UUID] = mapped_column(
         ForeignKey("invoices.id", ondelete="RESTRICT"), nullable=False, index=True
     )
@@ -1013,9 +976,7 @@ class RefundSettlement(Base):
         ),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     commercial_terms_id: Mapped[UUID] = mapped_column(
         ForeignKey("commercial_terms.id", ondelete="RESTRICT"), nullable=False, index=True
     )
@@ -1098,9 +1059,7 @@ class BudgetPolicyEvaluation(Base):
         UniqueConstraint("campaign_id", "evaluation_key", name="uq_budget_policy_evaluation_key"),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     campaign_id: Mapped[UUID] = mapped_column(
         ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False, index=True
     )
@@ -1153,9 +1112,7 @@ class BudgetCampaignTransition(Base):
         ),
     )
 
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4
-    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     campaign_id: Mapped[UUID] = mapped_column(
         ForeignKey("campaigns.id", ondelete="RESTRICT"), nullable=False
     )

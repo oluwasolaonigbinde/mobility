@@ -24,11 +24,6 @@ class PostGISGeometry(UserDefinedType):
         return f"geometry({self.geometry_type},{self.srid})"
 
 
-@compiles(PostGISGeometry, "sqlite")
-def compile_sqlite_geometry(_: PostGISGeometry, __, **___: Any) -> str:
-    return "TEXT"
-
-
 ischema_names["geometry"] = PostGISGeometry
 
 

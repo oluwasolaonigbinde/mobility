@@ -56,19 +56,12 @@ export interface EvidenceReceipt extends EvidenceManifestEntry {
   sampleResults?: EvidenceSampleResult[];
 }
 
-export interface LegacyEndWatermark {
-  clientBatchCount: number;
-  clientPingCount: number;
-  clientComplete: boolean;
-}
-
 export interface TripMeta {
   tripId: string;
   nextSeq: number;
   batchesCut: number;
   pingsRecorded: number;
   endManifest?: EvidenceManifest;
-  legacyEnd?: LegacyEndWatermark;
 }
 
 export interface DeadLetter extends QueuedBatch {
@@ -437,8 +430,7 @@ export class PingQueue {
     ping: Omit<QueuedPing, "sequence_number">,
   ): Promise<QueuedPing> {
     const meta = await this.metaOrDefault(tripId);
-    if (meta.endManifest || meta.legacyEnd)
-      throw new Error("Capture is closed by the durable End boundary");
+    if (meta.endManifest) throw new Error("Capture is closed by the durable End boundary");
     const queued: QueuedPing = { ...ping, sequence_number: meta.nextSeq };
     const nextMeta = {
       ...meta,
@@ -530,12 +522,6 @@ export class PingQueue {
     );
   }
 
-  async acknowledgeLegacyBatch(key: string): Promise<void> {
-    const tx = this.db.transaction(RECORDS, "readwrite");
-    tx.objectStore(RECORDS).delete(recordKey(this.driverId, "batch", key));
-    await transactionDone(tx);
-  }
-
   acknowledgeBatch(batch: QueuedBatch, receipt: EvidenceReceipt): Promise<void> {
     return this.serializeMutation(() => this.acknowledgeBatchMutation(batch, receipt));
   }
@@ -592,23 +578,6 @@ export class PingQueue {
     return receipts.sort((left, right) => left.batch_sequence - right.batch_sequence);
   }
 
-  freezeLegacyEnd(tripId: string, complete: boolean): Promise<LegacyEndWatermark> {
-    return this.serializeMutation(async () => {
-      const existing = await this.metaOrDefault(tripId);
-      if (existing.legacyEnd) return existing.legacyEnd;
-      if (existing.endManifest) throw new Error("End protocol cannot change");
-      while (await this.cutBatchMutation(tripId, 40)) {}
-      const meta = await this.metaOrDefault(tripId);
-      const request = {
-        clientBatchCount: meta.batchesCut,
-        clientPingCount: meta.pingsRecorded,
-        clientComplete: complete,
-      };
-      await this.persistEndMeta(tripId, { ...meta, legacyEnd: request });
-      return request;
-    });
-  }
-
   private async persistEndMeta(tripId: string, meta: TripMeta): Promise<void> {
     const storageKey = recordKey(this.driverId, "meta", tripId);
     const encrypted = await encryptPayload(
@@ -625,7 +594,6 @@ export class PingQueue {
     return this.serializeMutation(async () => {
       const existing = await this.metaOrDefault(tripId);
       if (existing.endManifest) return existing.endManifest;
-      if (existing.legacyEnd) throw new Error("End protocol cannot change");
       // Declare even deferred, unsubmitted evidence before freezing the boundary.
       while (await this.cutBatchMutation(tripId, 40)) {}
       const manifest = await this.evidenceManifest(tripId, complete);
@@ -764,7 +732,7 @@ export class PingQueue {
         .filter((row) => row.kind === "meta")
         .map(async (row) => {
           const meta = await decryptPayload<TripMeta>(this.key, row);
-          return meta.endManifest || meta.legacyEnd ? row.tripId : null;
+          return meta.endManifest ? row.tripId : null;
         }),
     );
     return [

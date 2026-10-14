@@ -19,7 +19,10 @@ from app.models.user import User
 from app.models.vehicle import Vehicle
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
-from app.services.billing import assert_campaign_production_authorized, assert_new_work_authorized
+from app.services.billing.authority import (
+    assert_campaign_production_authorized,
+    assert_new_work_authorized,
+)
 from app.services.campaign_assignments import (
     _creative_snapshot,
     as_aware_utc,
@@ -250,7 +253,7 @@ async def _check_start_requirements(
             "Set current driver pay terms before resuming.",
             status_code=409,
         )
-    if rule.formula_version in {"payout_v2", "payout_v3", "payout_v4"}:
+    if rule.formula_version == "payout_v4":
         current = await session.scalar(
             select(CampaignPayoutRuleRevision.id)
             .where(

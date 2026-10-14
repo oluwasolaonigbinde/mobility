@@ -58,13 +58,15 @@ from app.schemas.campaign_assignments import (
     CampaignAssignmentCreate,
     CampaignAssignmentTransition,
 )
-from app.services.billing import (
-    accept_quotation_revision,
+from app.services.billing.authority import (
     record_approved_credit_authorization,
     record_production_start,
+    reserve_assignment_liability,
+)
+from app.services.billing.quotes import (
+    accept_quotation_revision,
     record_quotation_revision,
     request_custom_quote,
-    reserve_assignment_liability,
 )
 
 PASSWORD = "long-secure-password"
@@ -476,9 +478,10 @@ def test_offer_creation_observes_campaign_or_zone_edit_after_pg_lock(
     _, assignment = asyncio.run(race())
     assert assignment.offer_terms is not None
     if producer_kind == "campaign_window":
-        assert assignment.offer_terms["campaign_window_end_at"] == (
-            FUTURE + timedelta(days=1)
-        ).isoformat()
+        assert (
+            assignment.offer_terms["campaign_window_end_at"]
+            == (FUTURE + timedelta(days=1)).isoformat()
+        )
     else:
         assert assignment.offer_terms["zones"]["target"][0]["name"] == "Producer-updated target"
 
@@ -503,9 +506,7 @@ def test_offer_creation_fails_closed_after_creative_archive_pg_lock(
     async def producer() -> None:
         async with postgis_db_sessionmaker() as session:
             creative = await session.scalar(
-                select(CampaignCreative)
-                .where(CampaignCreative.id == creative_id)
-                .with_for_update()
+                select(CampaignCreative).where(CampaignCreative.id == creative_id).with_for_update()
             )
             assert creative is not None
             creative.status = CreativeStatus.ARCHIVED.value
@@ -843,14 +844,10 @@ def test_recommendations_exclude_ineligible_and_already_assigned_candidates(
         plate_number="IDR-123",
         driver_status=DriverOnboardingStatus.SUSPENDED,
     )
-    add_candidate(
-        "inactive-vehicle", plate_number="IVE-123", vehicle_status=VehicleStatus.INACTIVE
-    )
+    add_candidate("inactive-vehicle", plate_number="IVE-123", vehicle_status=VehicleStatus.INACTIVE)
     add_candidate("wrong-city", plate_number="WCT-123", service_city="Abuja")
     add_candidate("non-car", plate_number="NCR-123", vehicle_type=VehicleType.VAN)
-    assigned_profile, assigned_vehicle = add_candidate(
-        "already-assigned", plate_number="AAS-123"
-    )
+    assigned_profile, assigned_vehicle = add_candidate("already-assigned", plate_number="AAS-123")
     create_test_campaign_assignment(
         db_sessionmaker,
         campaign_id=campaign.id,
@@ -1043,12 +1040,12 @@ def test_admin_can_create_list_read_and_cancel_assignment_with_events_and_audit(
     assert created["expires_at"] is not None
     assert len(created["offer_terms_sha256"]) == 64
     assert created["offer_terms"]["offer_terms_version"] == "campaign-assignment-offer-v1"
-    assert created["offer_terms"]["payout"]["formula_version"] == "payout_v3"
+    assert created["offer_terms"]["payout"]["formula_version"] == "payout_v4"
     assert created["offer_terms"]["zones"]["target"]
     assert created["offer_terms"]["zones"]["premium"]
-    assert created["offer_terms"]["creative"]["id"] == campaign.campaign_metadata[
-        "_test_creative_id"
-    ]
+    assert (
+        created["offer_terms"]["creative"]["id"] == campaign.campaign_metadata["_test_creative_id"]
+    )
     assert created["campaign"]["id"] == str(campaign.id)
     assert created["driver_profile"]["id"] == str(profile.id)
     assert created["vehicle"]["id"] == str(vehicle.id)
@@ -1441,9 +1438,7 @@ def test_direct_driver_decisions_reject_opposite_state_and_expire_due_offer(
                     declined_at=(
                         decided_at if status == CampaignAssignmentStatus.DECLINED else None
                     ),
-                    expired_at=(
-                        decided_at if status == CampaignAssignmentStatus.EXPIRED else None
-                    ),
+                    expired_at=(decided_at if status == CampaignAssignmentStatus.EXPIRED else None),
                 )
             )
             await session.commit()
@@ -1787,9 +1782,7 @@ def test_admin_cannot_cancel_a_complete_offered_assignment(
     assert response.status_code == http_status.HTTP_409_CONFLICT
     assert response.json()["error"]["code"] == "OFFER_DECISION_REQUIRED"
     assert fetch_assignments(db_sessionmaker)[0].status == CampaignAssignmentStatus.OFFERED.value
-    assert [event.event_type for event in fetch_activation_events(db_sessionmaker)] == [
-        "assigned"
-    ]
+    assert [event.event_type for event in fetch_activation_events(db_sessionmaker)] == ["assigned"]
 
 
 def test_concurrent_accept_decline_has_one_terminal_decision_postgres(
@@ -1866,18 +1859,17 @@ def test_concurrent_accept_decline_has_one_terminal_decision_postgres(
     outcomes = asyncio.run(race())
 
     assert lock_call_count == 2
-    assert sorted(outcomes) == ["ASSIGNMENT_DECISION_CONFLICT", "accepted"] or sorted(
-        outcomes
-    ) == ["ASSIGNMENT_DECISION_CONFLICT", "declined"]
+    assert sorted(outcomes) == ["ASSIGNMENT_DECISION_CONFLICT", "accepted"] or sorted(outcomes) == [
+        "ASSIGNMENT_DECISION_CONFLICT",
+        "declined",
+    ]
     terminal_events = [
         event
         for event in fetch_activation_events(postgis_db_sessionmaker)
         if event.event_type in {"accepted", "declined", "expired"}
     ]
     assert len(terminal_events) == 1
-    assert len(
-        fetch_bindings_for_assignment(postgis_db_sessionmaker, assignment_id)
-    ) <= 1
+    assert len(fetch_bindings_for_assignment(postgis_db_sessionmaker, assignment_id)) <= 1
     assert len(fetch_reservations_for_assignment(postgis_db_sessionmaker, assignment_id)) <= 1
 
 
@@ -2453,9 +2445,10 @@ def test_admin_activation_commits_one_immutable_snapshot_and_replay_converges(
     metadata = activated_events[0].event_metadata
     snapshot = metadata["activation_snapshot"]
     canonical = json.dumps(snapshot, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
-    assert metadata["activation_snapshot_sha256"] == hashlib.sha256(
-        canonical.encode("utf-8")
-    ).hexdigest()
+    assert (
+        metadata["activation_snapshot_sha256"]
+        == hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+    )
     assert snapshot["assignment_id"] == str(assignment_id)
     assert snapshot["vehicle_id"] == str(vehicle.id)
 
@@ -2475,9 +2468,7 @@ def test_admin_activation_then_driver_trip_uses_real_synthetic_authorities(
         driver_email="activation-e2e-driver@example.com",
         plate_number="ACT-E2E",
     )
-    advertiser = fetch_user_by_email(
-        db_sessionmaker, "activation-e2e-advertiser@example.com"
-    )
+    advertiser = fetch_user_by_email(db_sessionmaker, "activation-e2e-advertiser@example.com")
     assert advertiser is not None
     created_campaign = db_client.post(
         "/api/v1/advertiser/campaigns",

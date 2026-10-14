@@ -16,40 +16,38 @@ from types import SimpleNamespace
 import pytest
 from conftest import (
     auth_headers,
-    create_test_campaign_assignment,
-    create_test_vehicle,
     fetch_audit_events,
     fetch_earnings_ledger_entries,
     fetch_payout_calculations,
 )
 from fastapi.testclient import TestClient
-from sqlalchemy import delete, func, select, update
-from test_payouts_v2 import (
+from payout_fixtures import (
     BASE_LAT,
     BASE_LON,
+    DEFAULT_TERMS,
     TRIP_END,
     TRIP_START,
+    accept_assignment,
+    add_trip,
+    build_offered_graph,
+    build_v4_graph,
     calculate,
-    create_signed_v2_test_trip_session,
-    create_v2_rule,
+    calculations_by_trip,
+    create_v4_revision,
+    create_v4_rule,
+    drive,
+    materialize_offer,
     moving_points,
     run_recompute,
 )
-from test_payouts_v3 import (
-    PAST_EFFECTIVE,
-    accept_assignment,
-    add_target_zone,
-    build_offered_graph,
-    materialize_offer,
-)
+from sqlalchemy import delete, func, select, update
 from test_trip_processing import add_pings, build_graph, run_pipeline
 
 from app.core.errors import AppError
 from app.db.session import get_session
 from app.main import create_app
 from app.models.campaign import Campaign
-from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
-from app.models.campaign_zone import CampaignZone, CampaignZoneType
+from app.models.campaign_assignment import CampaignAssignment
 from app.models.payout import (
     AssignmentRuleBinding,
     CampaignPayoutRule,
@@ -60,40 +58,27 @@ from app.models.payout import (
     PayoutCalculationStatus,
 )
 from app.models.trip import LocationPing, TripSession
-from app.models.vehicle import VehicleStatus
 from app.schemas.payouts import (
-    CampaignPayoutRuleRevisionCreate,
-    CampaignPayoutRuleUpdate,
     CampaignPayoutV4RevisionCreate,
 )
-from app.services import payouts
-from app.services.billing import _assignment_liability_calculation
-from app.services.campaign_assignments import (
-    premium_zone_geometry_hash,
-    resolved_eligibility_snapshot,
-)
+from app.services.billing.authority import _assignment_liability_calculation
 from app.services.campaign_changes import _additional_window_liability
 from app.services.payout_corrections import project_campaign_day
 from app.services.payout_eligibility import (
     D39_STOP_OVERLAY,
     STATIONARY_POLICY_D39,
-    STATIONARY_POLICY_V1,
     EligibilityParams,
     EligibilityPing,
     classify_session,
     credited_distance_m_by_day,
 )
-from app.services.payouts import (
-    PAYOUT_V2,
-    PAYOUT_V4,
-    DailyRateTerms,
-    create_payout_rule_revision,
-    day_credited_distance_m,
-    day_pay_naira,
-    driver_trip_earnings_breakdown,
-    publish_payout_v4_revision,
-    v4_calculation_is_stale,
-)
+from app.services.payouts import engine as payouts_engine
+from app.services.payouts.breakdown import driver_trip_earnings_breakdown
+from app.services.payouts.common import PAYOUT_V4
+from app.services.payouts.daily import DailyRateTerms, day_pay_naira
+from app.services.payouts.engine import v4_calculation_is_stale
+from app.services.payouts.ledger import day_credited_distance_m
+from app.services.payouts.rules import publish_payout_v4_revision
 from app.services.trip_processing import find_unprocessed_trips
 
 MILE = Fraction("1609.344")
@@ -290,7 +275,7 @@ def test_d39_stop_rule_counts_stops_up_to_five_minutes(stop, excluded) -> None:
     )
 
 
-def test_250s_stop_on_rolling_windows_counts_under_v4_but_not_v3_detector() -> None:
+def test_250s_stop_counts_under_daily_rate_policy() -> None:
     # Moving 333 m per 30 s, then a 250 s stop aligned to 120 s windows
     # (240-490 s): D22's rolling detector confirms it; D39 does not.
     pings = [ping(t, BASE_LAT + (t // 30) * 0.003) for t in range(0, 241, 30)]
@@ -299,18 +284,6 @@ def test_250s_stop_on_rolling_windows_counts_under_v4_but_not_v3_detector() -> N
     pings += [ping(490 + t, stop_lat + (t // 30) * 0.003) for t in range(30, 241, 30)]
     d39 = classify(pings)
     assert d39.excluded_seconds_by_reason == {}
-    v3_params = EligibilityParams(
-        stationary_radius_m=200.0,
-        stationary_window_seconds=300,
-        stationary_grace_seconds=0,
-        max_accuracy_m=75.0,
-        teleport_kmh=180.0,
-        max_ping_gap_seconds=120,
-    )
-    v3 = classify(pings, marker=STATIONARY_POLICY_V1, params=v3_params)
-    assert v3.excluded_seconds_by_reason["stationary_rolling_displacement"] > 0
-    # The v3 detector keeps its own evidence shape.
-    assert "window_observations" in v3.stationary_detector_evidence
 
 
 def test_distance_prorates_by_eligible_time_and_skips_every_exclusion() -> None:
@@ -456,171 +429,6 @@ def test_noisy_stationary_trace_jitter_is_bounded_and_long_stops_add_nothing() -
 
 # --- PostGIS graph helpers ----------------------------------------------------
 
-DEFAULT_TERMS = {
-    "daily_rate_naira": "8000.00",
-    "daily_target_miles": "8.000",
-    "shortfall_strategy": "proportional",
-    "deduction_per_mile_naira": None,
-    "minimum_miles": "0.000",
-    "outside_area_weight": "1.0000",
-}
-
-
-def create_v4_rule(db, *, campaign_id, admin_id, rule_status="active") -> CampaignPayoutRule:
-    async def create():
-        async with db() as session:
-            rule = CampaignPayoutRule(
-                campaign_id=campaign_id,
-                created_by_user_id=admin_id,
-                formula_version=PAYOUT_V4,
-                status=rule_status,
-                currency="NGN",
-                rule_metadata={},
-            )
-            session.add(rule)
-            await session.commit()
-            await session.refresh(rule)
-            return rule
-
-    return asyncio.run(create())
-
-
-def create_v4_revision(db, *, campaign_id, rule_id, admin_id, number=1, **overrides):
-    values = {**DEFAULT_TERMS, **overrides}
-
-    async def create():
-        async with db() as session:
-            revision = CampaignPayoutRuleRevision(
-                campaign_id=campaign_id,
-                payout_rule_id=rule_id,
-                revision_number=number,
-                effective_from=PAST_EFFECTIVE + timedelta(days=number),
-                currency="NGN",
-                eligibility_params=dict(D39_STOP_OVERLAY),
-                formula_version=PAYOUT_V4,
-                reason="synthetic test revision",
-                created_by_user_id=admin_id,
-                **{
-                    key: (Decimal(value) if key != "shortfall_strategy" and value else value)
-                    for key, value in values.items()
-                },
-            )
-            session.add(revision)
-            await session.commit()
-            await session.refresh(revision)
-            return revision
-
-    return asyncio.run(create())
-
-
-def insert_v4_binding(db, settings, *, assignment_id, revision, zone_ids):
-    async def create():
-        async with db() as session:
-            campaign = await session.get(Campaign, revision.campaign_id)
-            target_rows = (
-                await session.execute(
-                    select(CampaignZone.id, func.ST_AsText(CampaignZone.geom))
-                    .where(CampaignZone.id.in_(list(zone_ids)))
-                    .order_by(CampaignZone.id)
-                )
-            ).all()
-            exclusion_rows = (
-                await session.execute(
-                    select(CampaignZone.id, func.ST_AsText(CampaignZone.geom)).where(
-                        CampaignZone.campaign_id == revision.campaign_id,
-                        CampaignZone.zone_type == CampaignZoneType.EXCLUSION.value,
-                    )
-                )
-            ).all()
-            binding = AssignmentRuleBinding(
-                assignment_id=assignment_id,
-                revision_id=revision.id,
-                currency=revision.currency,
-                daily_rate_naira=revision.daily_rate_naira,
-                daily_target_miles=revision.daily_target_miles,
-                shortfall_strategy=revision.shortfall_strategy,
-                deduction_per_mile_naira=revision.deduction_per_mile_naira,
-                minimum_miles=revision.minimum_miles,
-                outside_area_weight=revision.outside_area_weight,
-                eligibility_params=revision.eligibility_params,
-                resolved_eligibility_params=resolved_eligibility_snapshot(
-                    settings, revision.eligibility_params
-                ),
-                formula_version=PAYOUT_V4,
-                premium_zone_ids=[str(row[0]) for row in target_rows],
-                premium_zone_geometry_hash=premium_zone_geometry_hash(target_rows),
-                premium_zone_geometry_wkts=[str(row[1]) for row in target_rows],
-                exclusion_zone_ids=[str(row[0]) for row in exclusion_rows],
-                exclusion_zone_geometry_hash=premium_zone_geometry_hash(exclusion_rows),
-                exclusion_zone_geometry_wkts=[str(row[1]) for row in exclusion_rows],
-                stationary_policy_marker=STATIONARY_POLICY_D39,
-                campaign_window_start_at=campaign.start_at,
-                campaign_window_end_at=campaign.end_at,
-                campaign_window_frozen=True,
-                bound_at=datetime.now(UTC),
-            )
-            session.add(binding)
-            await session.commit()
-            await session.refresh(binding)
-            return binding
-
-    return asyncio.run(create())
-
-
-def build_v4_graph(db, settings, tag, *, started_at=TRIP_START, ended_at=TRIP_END, **overrides):
-    graph = build_graph(db, tag, started_at=started_at, ended_at=ended_at)
-    graph.rule = create_v4_rule(db, campaign_id=graph.campaign.id, admin_id=graph.admin.id)
-    graph.zone = add_target_zone(
-        db,
-        campaign_id=graph.campaign.id,
-        created_by_user_id=graph.admin.id,
-        name="Target",
-        lat_min=6.40,
-        lat_max=6.60,
-    )
-    graph.revision = create_v4_revision(
-        db,
-        campaign_id=graph.campaign.id,
-        rule_id=graph.rule.id,
-        admin_id=graph.admin.id,
-        **overrides,
-    )
-    graph.binding = insert_v4_binding(
-        db,
-        settings,
-        assignment_id=graph.assignment.id,
-        revision=graph.revision,
-        zone_ids=[graph.zone.id],
-    )
-    graph.terms = {**DEFAULT_TERMS, **overrides}
-    return graph
-
-
-def add_trip(db, settings, graph, *, started_at, minutes=30, assignment=None, vehicle=None):
-    return create_signed_v2_test_trip_session(
-        db,
-        settings,
-        assignment_id=(assignment or graph.assignment).id,
-        campaign_id=graph.campaign.id,
-        driver_profile_id=graph.profile.id,
-        vehicle_id=(vehicle or graph.vehicle).id,
-        started_by_user_id=graph.driver.id,
-        started_at=started_at,
-        ended_at=started_at + timedelta(minutes=minutes),
-    )
-
-
-def drive(db, settings, trip, *, minutes=30, key=None):
-    points = moving_points(trip.started_at, minutes=minutes)
-    add_pings(db, trip_id=trip.id, points=points, idempotency_key=key or f"v4-{trip.id}")
-    result = run_pipeline(db, trip.id, settings)
-    assert result.overall == "completed"
-    return [(p[0], p[1], p[2]) for p in points]
-
-
-def calculations_by_trip(db) -> dict:
-    return {calc.trip_session_id: calc for calc in fetch_payout_calculations(db)}
-
 
 def pay(graph, metres) -> Decimal:
     t = graph.terms
@@ -661,7 +469,7 @@ def test_three_same_day_trips_earn_increments_that_sum_to_the_capped_day(
         assert calc.payout_metadata["distance"]["prior_distance_m_by_day"] == {day: credited}
         assert calc.payout_metadata["daily_rate"]["shortfall_strategy"] == "proportional"
         assert calc.payout_metadata["stationary_detector"]["version"] == STATIONARY_POLICY_D39
-        assert calc.payable_seconds is None and calc.inputs_fingerprint
+        assert calc.inputs_fingerprint
         credited += added
     # 3 x ~5.4 km passes the synthetic 8-mile target: the day pays exactly
     # one day rate in total.
@@ -756,14 +564,14 @@ def test_blocked_trip_credits_no_distance_and_later_trips_start_from_zero(
     graph = build_v4_graph(db, settings, "v4-blocked")
     later = add_trip(db, settings, graph, started_at=TRIP_START + timedelta(hours=1))
     # The first trip's evidence is blocked (as a fraud/exclusion decision would).
-    original_status = payouts._payout_status
+    original_status = payouts_engine._payout_status
 
     def blocked_for_first(analytics, estimate):
         if analytics.trip_session_id == graph.trip.id:
             return PayoutCalculationStatus.BLOCKED.value
         return original_status(analytics, estimate)
 
-    monkeypatch.setattr(payouts, "_payout_status", blocked_for_first)
+    monkeypatch.setattr(payouts_engine, "_payout_status", blocked_for_first)
     drive(db, settings, graph.trip)
     added = metres_along(drive(db, settings, later))
     calcs = calculations_by_trip(db)
@@ -816,97 +624,10 @@ def test_unbound_trip_on_daily_rate_campaign_fails_closed(
     graph = build_graph(db, "v4-unbound", started_at=TRIP_START, ended_at=TRIP_END)
     create_v4_rule(db, campaign_id=graph.campaign.id, admin_id=graph.admin.id)
     add_pings(db, trip_id=graph.trip.id, points=moving_points(TRIP_START))
-    with pytest.raises(AppError) as exc_info:
-        run_pipeline(db, graph.trip.id, settings)
-    assert exc_info.value.code == "PAYOUT_BINDING_NOT_FOUND"
+    result = run_pipeline(db, graph.trip.id, settings)
+    assert result.overall == "partial"
+    assert result.stages[-1].reason == "no_frozen_payout_terms"
     assert fetch_payout_calculations(db) == []
-
-
-def build_mixed_day(db, settings, tag, *, hourly_first: bool):
-    """Same driver/campaign/Lagos day: an unbound hourly (v2) trip and a bound
-    daily-rate trip on a second vehicle."""
-    graph = build_graph(db, tag, started_at=TRIP_START, ended_at=TRIP_END)
-    graph.rule = create_v2_rule(
-        db, campaign_id=graph.campaign.id, created_by_user_id=graph.admin.id
-    )
-    v4_rule = create_v4_rule(
-        db, campaign_id=graph.campaign.id, admin_id=graph.admin.id, rule_status="inactive"
-    )
-    zone = add_target_zone(
-        db,
-        campaign_id=graph.campaign.id,
-        created_by_user_id=graph.admin.id,
-        name="T",
-        lat_min=6.4,
-        lat_max=6.6,
-    )
-    revision = create_v4_revision(
-        db, campaign_id=graph.campaign.id, rule_id=v4_rule.id, admin_id=graph.admin.id
-    )
-    vehicle2 = create_test_vehicle(
-        db,
-        driver_profile_id=graph.profile.id,
-        plate_number=f"M4-{tag[:9].upper()}",
-        vehicle_status=VehicleStatus.ACTIVE,
-    )
-    assignment2 = create_test_campaign_assignment(
-        db,
-        campaign_id=graph.campaign.id,
-        driver_profile_id=graph.profile.id,
-        vehicle_id=vehicle2.id,
-        assigned_by_user_id=graph.admin.id,
-        assignment_status=CampaignAssignmentStatus.ACCEPTED,
-    )
-    insert_v4_binding(
-        db, settings, assignment_id=assignment2.id, revision=revision, zone_ids=[zone.id]
-    )
-    offset = timedelta(hours=1)
-    graph.v4_trip = add_trip(
-        db,
-        settings,
-        graph,
-        started_at=TRIP_START + (offset if hourly_first else -offset),
-        assignment=assignment2,
-        vehicle=vehicle2,
-    )
-    graph.terms = dict(DEFAULT_TERMS)
-    return graph
-
-
-@pytest.mark.parametrize("hourly_first", [True, False])
-def test_same_day_hourly_and_daily_rate_pay_is_refused_both_ways(
-    postgis_db_sessionmaker, settings, hourly_first
-) -> None:
-    db = postgis_db_sessionmaker
-    graph = build_mixed_day(db, settings, f"v4-mix-{int(hourly_first)}", hourly_first=hourly_first)
-    first, second = (graph.trip, graph.v4_trip) if hourly_first else (graph.v4_trip, graph.trip)
-    drive(db, settings, first)
-    add_pings(
-        db, trip_id=second.id, points=moving_points(second.started_at), idempotency_key="second"
-    )
-    with pytest.raises(AppError) as exc_info:
-        run_pipeline(db, second.id, settings)
-    assert exc_info.value.code == "PAYOUT_DAY_MIXED_FORMULA"
-    assert [c.trip_session_id for c in fetch_payout_calculations(db)] == [first.id]
-
-
-def test_recompute_refuses_a_day_holding_both_formula_families(
-    postgis_db_sessionmaker, settings, monkeypatch
-) -> None:
-    db = postgis_db_sessionmaker
-    graph = build_mixed_day(db, settings, "v4-mix-recompute", hourly_first=True)
-
-    async def allow(*args, **kwargs) -> None:
-        return None
-
-    monkeypatch.setattr(payouts, "refuse_mixed_formula_day", allow)  # test-only setup
-    drive(db, settings, graph.trip)
-    drive(db, settings, graph.v4_trip)
-    assert {c.formula_version for c in fetch_payout_calculations(db)} == {PAYOUT_V2, PAYOUT_V4}
-    monkeypatch.undo()
-    with pytest.raises(AppError) as exc_info:
-        run_recompute(db, settings, graph, lagos_date=date(2026, 7, 20))
-    assert exc_info.value.code == "PAYOUT_DAY_MIXED_FORMULA"
 
 
 # --- Recompute-day ------------------------------------------------------------
@@ -1140,7 +861,6 @@ def test_v4_offer_freezes_daily_terms_and_acceptance_binds_them_verbatim(
     assert binding.formula_version == PAYOUT_V4
     assert binding.revision_id == revision.id
     assert binding.stationary_policy_marker == STATIONARY_POLICY_D39
-    assert binding.hourly_rate_naira is None and binding.daily_payable_hours_cap is None
     assert (
         binding.daily_rate_naira,
         binding.deduction_per_mile_naira,
@@ -1273,7 +993,7 @@ def test_publishing_is_switched_off_by_default_validated_and_audited(
         assert created.status_code == 201, created.text
         body = created.json()
         assert body["formula_version"] == PAYOUT_V4
-        assert body["hourly_rate_naira"] is None
+        assert "hourly_rate_naira" not in body
         assert body["daily_rate_naira"] == "10000.00"
         assert body["deduction_per_mile_naira"] == "140.00"
         assert body["eligibility_params"] == D39_STOP_OVERLAY
@@ -1299,81 +1019,6 @@ def test_publishing_is_switched_off_by_default_validated_and_audited(
         and after["shortfall_strategy"] == "per_mile_deduction"
     )
     assert events["admin.payout_rule_revision.created"].event_metadata["before"] is None
-
-
-def test_hourly_and_daily_rate_chains_never_extend_each_other(
-    postgis_db_sessionmaker, settings
-) -> None:
-    db = postgis_db_sessionmaker
-    enabled = settings.model_copy(update={"payout_v4_publishing_enabled": True})
-    hourly = build_offered_graph(db, "v4-hourly-chain")
-    create_v2_rule(db, campaign_id=hourly.campaign.id, created_by_user_id=hourly.admin.id)
-    with pytest.raises(AppError) as exc_info:
-        publish(db, enabled, hourly.campaign.id, hourly.admin.id)
-    assert exc_info.value.code == "INVALID_PAYOUT_RULE_REVISION"
-
-    daily = build_offered_graph(db, "v4-daily-chain")
-    revision, previous, rule = publish(db, enabled, daily.campaign.id, daily.admin.id)
-    assert previous is None and rule.formula_version == PAYOUT_V4
-
-    async def hourly_revision_on_v4_rule():
-        async with db() as session:
-            await create_payout_rule_revision(
-                session,
-                campaign_id=daily.campaign.id,
-                rule_id=rule.id,
-                payload=CampaignPayoutRuleRevisionCreate(
-                    effective_from=datetime.now(UTC) + timedelta(days=2),
-                    hourly_rate_naira=Decimal("1000.00"),
-                    daily_payable_hours_cap=Decimal("8.00"),
-                    reason="must be refused",
-                ),
-                actor_user_id=daily.admin.id,
-            )
-
-    with pytest.raises(AppError) as exc_info:
-        asyncio.run(hourly_revision_on_v4_rule())
-    assert exc_info.value.code == "INVALID_PAYOUT_RULE_REVISION"
-
-    second, previous, created_rule = publish(
-        db,
-        enabled,
-        daily.campaign.id,
-        daily.admin.id,
-        effective_from=(datetime.now(UTC) + timedelta(days=3)).isoformat(),
-        shortfall_strategy="proportional",
-        deduction_per_mile_naira=None,
-    )
-    assert (second.revision_number, previous.id, created_rule) == (2, revision.id, None)
-    assert second.deduction_per_mile_naira is None
-
-
-def test_daily_rate_rule_values_cannot_be_patched(postgis_db_sessionmaker, settings) -> None:
-    db = postgis_db_sessionmaker
-    enabled = settings.model_copy(update={"payout_v4_publishing_enabled": True})
-    graph = build_offered_graph(db, "v4-patch")
-    _, _, rule = publish(db, enabled, graph.campaign.id, graph.admin.id)
-
-    async def patch(**fields):
-        async with db() as session:
-            return await payouts.update_campaign_payout_rule(
-                session,
-                campaign_id=graph.campaign.id,
-                rule_id=rule.id,
-                updated_by_user_id=graph.admin.id,
-                payload=CampaignPayoutRuleUpdate(**fields),
-            )
-
-    for fields in (
-        {"hourly_rate_naira": Decimal("1")},
-        {"base_rate_per_km": Decimal("1")},
-        {"currency": "USD"},
-    ):
-        with pytest.raises(AppError) as exc_info:
-            asyncio.run(patch(**fields))
-        assert exc_info.value.code == "INVALID_PAYOUT_RULE"
-    updated, changed = asyncio.run(patch(status="inactive"))
-    assert updated.status == "inactive" and changed == ["status"]
 
 
 def test_publishing_defaults_off_and_configuration_holds_no_pay_value(settings) -> None:
@@ -1452,7 +1097,7 @@ def test_fractional_ping_timestamps_credit_their_full_distance() -> None:
 def test_zero_delta_correction_still_records_the_new_distance_for_later_trips(
     postgis_db_sessionmaker, settings
 ) -> None:
-    from test_payout_corrections import approve, create_order, execute, second_admin, submit
+    from payout_correction_fixtures import approve, create_order, execute, second_admin, submit
 
     db = postgis_db_sessionmaker
     # Synthetic minimum above one trip: the first trip is paid ₦0 before and
@@ -1502,7 +1147,8 @@ def test_zero_delta_correction_still_records_the_new_distance_for_later_trips(
 
 def test_incomplete_or_malformed_daily_rate_data_fails_closed() -> None:
     from app.services.campaign_assignments import _daily_rate_offer_terms
-    from app.services.payouts import _daily_rate_days, daily_rate_terms
+    from app.services.payouts.breakdown import _daily_rate_days
+    from app.services.payouts.daily import daily_rate_terms
 
     complete = {
         "daily_rate_naira": Decimal("10000.00"),
@@ -1546,7 +1192,7 @@ def test_incomplete_or_malformed_daily_rate_data_fails_closed() -> None:
 
 
 def test_payout_status_maps_insufficient_blocked_and_excluded() -> None:
-    from app.services.payouts import _payout_status
+    from app.services.payouts.engine import _payout_status
 
     def status(analytics: str, estimate: str) -> str:
         return _payout_status(SimpleNamespace(status=analytics), SimpleNamespace(status=estimate))

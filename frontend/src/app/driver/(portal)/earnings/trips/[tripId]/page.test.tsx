@@ -22,22 +22,13 @@ type Breakdown = components["schemas"]["DriverTripEarningsBreakdown"];
 function breakdown(overrides: Partial<Breakdown> = {}): Breakdown {
   return {
     trip_session_id: "00000000-0000-4000-8000-000000000001",
-    formula_version: "payout_v3",
+    formula_version: "payout_v4",
     amount: "750.00",
     currency: "NGN",
-    hourly_rate: "1000.00",
     eligible_seconds: 2700,
-    capped_seconds: 2700,
     excluded_seconds_by_reason: {},
-    cap: null,
     entries: [],
     superseded_by_recompute: false,
-    base_payable_seconds: 1800,
-    premium_payable_seconds: 900,
-    base_hourly_rate: "1000.00",
-    premium_hourly_rate: "2000.00",
-    base_amount: "500.00",
-    premium_amount: "250.00",
     ...overrides,
   };
 }
@@ -48,30 +39,11 @@ describe("DriverTripEarningsPage", () => {
     notFound.mockReset();
   });
 
-  it("shows historical hourly earnings and counted time without payment formulas", async () => {
-    get.mockResolvedValue({ data: breakdown() });
-
-    render(await DriverTripEarningsPage({ params: Promise.resolve({ tripId: "trip-1" }) }));
-
-    expect(screen.getByText("₦750.00")).toBeInTheDocument();
-    expect(screen.getAllByText("45m")).toHaveLength(2);
-    expect(screen.getByText("Counted")).toBeInTheDocument();
-    expect(screen.queryByText(/hourly pay|hour|base tier|premium tier/i)).not.toBeInTheDocument();
-  });
-
   it("explains payout_v4 per-day miles and pay without internal codes", async () => {
     get.mockResolvedValue({
       data: breakdown({
         formula_version: "payout_v4",
         amount: "3500.00",
-        hourly_rate: null,
-        capped_seconds: null,
-        base_payable_seconds: null,
-        premium_payable_seconds: null,
-        base_hourly_rate: null,
-        premium_hourly_rate: null,
-        base_amount: null,
-        premium_amount: null,
         excluded_seconds_by_reason: { stationary: 420 },
         daily_rate_days: [
           { lagos_day: "2026-07-20", distance_m: 48280, amount: "3000.00" },
@@ -93,39 +65,6 @@ describe("DriverTripEarningsPage", () => {
     expect(screen.queryByText(/payout_v4|d39|stationary/)).not.toBeInTheDocument();
     expect(screen.queryByRole("heading", { name: "Verified time" })).not.toBeInTheDocument();
   });
-  it("shows historical payout_v2 counted time without a payment explanation", async () => {
-    get.mockResolvedValue({
-      data: breakdown({
-        formula_version: "payout_v2",
-        base_payable_seconds: null,
-        premium_payable_seconds: null,
-        base_hourly_rate: null,
-        premium_hourly_rate: null,
-        base_amount: null,
-        premium_amount: null,
-      }),
-    });
-
-    render(await DriverTripEarningsPage({ params: Promise.resolve({ tripId: "trip-2" }) }));
-
-    expect(screen.getAllByText("45m")).toHaveLength(2);
-    expect(screen.queryByText(/hour|formula/i)).not.toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Pay breakdown" })).not.toBeInTheDocument();
-  });
-
-  it("explains rolling stationary exclusions in plain language", async () => {
-    get.mockResolvedValue({
-      data: breakdown({
-        excluded_seconds_by_reason: { stationary_rolling_displacement: 360 },
-      }),
-    });
-
-    render(await DriverTripEarningsPage({ params: Promise.resolve({ tripId: "trip-4" }) }));
-
-    expect(screen.getByText("Not moving for more than 4 minutes")).toBeInTheDocument();
-    expect(screen.getByText("6m")).toBeInTheDocument();
-  });
-
   it("renders only public hold, notice and dispute fields", async () => {
     get.mockImplementation(async (path: string) => {
       if (path.includes("earnings-breakdown")) return { data: breakdown() };

@@ -75,8 +75,6 @@ async def acquire_work_eligibility_lock(
     profile/vehicle advisory suffix before assignment or evidence row locks.
     """
 
-    if session.get_bind().dialect.name != "postgresql":
-        return
     identifiers = {driver_profile_id}
     if vehicle_id is not None:
         identifiers.add(vehicle_id)
@@ -338,7 +336,7 @@ def _submission_matches(
     )
 
 
-async def submit_application_vehicle(
+async def submit_application_vehicle(  # noqa: C901
     session: AsyncSession,
     *,
     payload: ApplicantVehicleSubmissionCreate,
@@ -720,7 +718,7 @@ async def _decision_retry_view(
     return VehicleStageView(vehicle, original, retry, await _documents(session, original.id))
 
 
-async def review_application_vehicle(
+async def review_application_vehicle(  # noqa: C901
     session: AsyncSession,
     *,
     application_id: UUID | None = None,

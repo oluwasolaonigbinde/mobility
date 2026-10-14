@@ -53,9 +53,7 @@ from app.models.stored_file import (
 from app.models.user import User
 from app.models.vehicle import Vehicle, VehicleType
 from app.services.bank_capture import check_account_name
-from app.services.billing import (
-    reserve_assignment_liability,
-)
+from app.services.billing.authority import reserve_assignment_liability
 from app.services.campaign_assignments import (
     build_offer_terms,
     create_rule_binding_for_accept,

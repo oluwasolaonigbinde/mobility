@@ -46,6 +46,7 @@ export function missingSettingLabel(name: string): string {
 }
 
 const ALERT_LABELS: Record<string, string> = {
+  business_health: "Business health needs attention",
   failed_payment: "A payment failed",
   duplicate_payment: "A possible duplicate payment",
   daily_limit: "Above one day's pay — kept for a person to check",
@@ -93,6 +94,25 @@ export function outcomeText(outcome: string): string {
 
 export function alertDetail(alert: AutomaticAlert): string | null {
   const detail = alert.detail as Record<string, unknown>;
+  if (alert.kind === "business_health") {
+    const checks: Record<string, string> = {
+      stuck_payouts: "Payments have stopped making progress",
+      unprocessed_webhooks: "Payment updates are waiting to be processed",
+      paused_payouts: "Automatic payouts have been paused for over a day",
+      gps_rejections: "An unusual share of GPS uploads was rejected",
+      gps_telemetry_unavailable: "GPS upload monitoring is unavailable",
+      stale_trips: "Trips need an evidence or activity review",
+      partition_coverage: "GPS storage needs its next partition",
+      email_failures: "Emails failed or are waiting too long",
+    };
+    const label = typeof detail.check === "string" ? checks[detail.check] : undefined;
+    return label &&
+      typeof detail.count === "number" &&
+      Number.isSafeInteger(detail.count) &&
+      detail.count > 0
+      ? `${label} (${detail.count >= 1000 ? "1,000+" : detail.count}). Follow the operations runbook.`
+      : "Review the operations runbook.";
+  }
   if (alert.kind === "daily_limit") {
     if (detail.rates_differ) return "The driver's campaigns have different day rates that day.";
     if (detail.other_pay_type_same_day) return "The driver also earned hourly pay that day.";

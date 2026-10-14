@@ -8,6 +8,7 @@ from conftest import (
     create_test_driver_profile,
     create_test_user,
     create_test_vehicle,
+    sign_test_trip_manifest,
 )
 from sqlalchemy import delete, func, select
 from test_campaign_assignments import (
@@ -224,12 +225,16 @@ def test_history_requires_existing_owned_assignment_before_read_audit(
         headers=admin_headers,
     )
     assert owned_driver.status_code == existing_admin.status_code == 200
-    assert owned_driver.json() == existing_admin.json() == {
-        "items": [],
-        "total": None,
-        "limit": None,
-        "offset": None,
-    }
+    assert (
+        owned_driver.json()
+        == existing_admin.json()
+        == {
+            "items": [],
+            "total": None,
+            "limit": None,
+            "offset": None,
+        }
+    )
     assert asyncio.run(read_audit_count()) == before + 2
 
 
@@ -479,9 +484,10 @@ def test_display_proof_nonce_is_device_bound_fresh_and_one_use(
                 started_at=issued_at - timedelta(hours=1),
                 ended_at=issued_at - timedelta(minutes=10),
                 sealed_at=issued_at - timedelta(minutes=5),
-                seal_reason="migration_backfill",
+                seal_reason="client_complete",
                 trip_metadata={"synthetic": True},
             )
+            sign_test_trip_manifest(source_trip)
             session.add(source_trip)
             await session.flush()
             verification = EvidenceVerification(
@@ -628,6 +634,7 @@ def test_trip_start_fails_closed_without_current_bound_display_proof(
     response = start_trip(db_client, assignment.id)
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "CURRENT_DISPLAY_PROOF_REQUIRED"
+
 
 def test_photo_policy_enables_driver_uploads_before_display_proof_windows_exist(
     db_client, db_sessionmaker, settings

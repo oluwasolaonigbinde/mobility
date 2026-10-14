@@ -215,7 +215,7 @@ class IssuerProfileCreate(BaseModel):
     numbering_prefix: str
     verification_status: IssuerVerificationStatus
     external_input_reference: str
-    # Lengths match migration 0095; an over-long value is a 422, not a database error.
+    # Lengths match the current baseline; an over-long value is a 422, not a database error.
     company_registration_number: str | None = Field(default=None, max_length=128)
     contact_phone: str | None = Field(default=None, max_length=64)
     contact_email: str | None = Field(

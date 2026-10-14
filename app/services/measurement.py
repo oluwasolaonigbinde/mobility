@@ -415,8 +415,6 @@ def _validate_issuance(payload: MeasurementRunCreate, settings: Settings) -> Non
 
 
 async def _lock_request(session: AsyncSession, actor_id: UUID, request_id: UUID) -> None:
-    if session.get_bind().dialect.name != "postgresql":
-        return
     digest = hashlib.sha256(f"measurement-run:{actor_id}:{request_id}".encode()).digest()[:8]
     await session.execute(
         text("SELECT pg_advisory_xact_lock(:key)"),
@@ -434,7 +432,7 @@ async def _audience_exposure_authority(
     window_end_at: datetime,
 ) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
-    if session.get_bind().dialect.name == "postgresql" and trip_ids:
+    if trip_ids:
         zone_ids = list(
             (
                 await session.scalars(
@@ -564,7 +562,7 @@ async def _proof_manifest(
     return manifest, bindings
 
 
-async def issue_measurement_run(
+async def issue_measurement_run(  # noqa: C901
     session: AsyncSession,
     *,
     actor_user_id: UUID,

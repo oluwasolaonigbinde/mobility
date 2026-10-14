@@ -1,8 +1,6 @@
 import asyncio
 import inspect
-from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
-from unittest.mock import patch
 from uuid import UUID, uuid4
 
 import pytest
@@ -130,7 +128,7 @@ def _create_link_and_run(db_client, db_sessionmaker, *, points=None):
             return zone.id
 
     zone_id = asyncio.run(add_zone())
-    if points is None and db_sessionmaker.kw["bind"].dialect.name == "postgresql":
+    if points is None:
         points = [(DAY_1 + timedelta(minutes=10), 6.05, 3.05)]
     if points is not None:
 
@@ -168,45 +166,11 @@ def _create_link_and_run(db_client, db_sessionmaker, *, points=None):
     )
     assert link.status_code == 201, link.text
 
-    async def sqlite_authority(session, **kwargs):
-        # SQLite cannot perform PostGIS cell intersection. Freeze explicit unit-test
-        # authority at issuance; the PostGIS test above uses real recorded pings.
-        trips = (
-            await session.scalars(select(TripSession).where(TripSession.id.in_(kwargs["trip_ids"])))
-        ).all()
-        return {
-            "schema_version": "audience-exposure-authority-v1",
-            "formula_version": "audience_exposure_v1",
-            "resolution_m": kwargs["resolution_m"],
-            "window_start_at": kwargs["window_start_at"].isoformat(),
-            "window_end_at": kwargs["window_end_at"].isoformat(),
-            "rows": [
-                {
-                    "zone_id": str(zone_id),
-                    "grid_x": 0,
-                    "grid_y": 0,
-                    "trip_session_id": str(trip.id),
-                    "vehicle_id": str(trip.vehicle_id),
-                    "cell_ping_count": 1,
-                    "total_ping_count": 1,
-                    "recorded_days": [DAY_1.date().isoformat()],
-                }
-                for trip in trips
-            ],
-        }
-
-    backend = db_sessionmaker.kw["bind"].dialect.name
-    authority = (
-        patch("app.services.measurement._audience_exposure_authority", sqlite_authority)
-        if backend == "sqlite"
-        else nullcontext()
+    run = db_client.post(
+        "/api/v1/admin/measurement-runs",
+        headers=auth_headers(db_client, admin.email, PASSWORD),
+        json=issue_payload(campaign.id),
     )
-    with authority:
-        run = db_client.post(
-            "/api/v1/admin/measurement-runs",
-            headers=auth_headers(db_client, admin.email, PASSWORD),
-            json=issue_payload(campaign.id),
-        )
     assert run.status_code == 201, run.text
     return advertiser, other, UUID(link.json()["id"]), UUID(run.json()["id"])
 
@@ -281,7 +245,7 @@ def test_materialization_suppresses_isolates_retries_and_reissues(
             assert first.releasable_cell_count == 1
             assert first.suppressed_cell_count == 0
             assert [row.coverage_cell for row in await exposure_segment_cells(session, first)] == [
-                "grid-50m:0:0"
+                "grid-50m:6790:13494"
             ]
 
         worker_replay = await materialize_exposure_segment_job(

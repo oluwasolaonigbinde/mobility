@@ -162,7 +162,7 @@ describe("DriverAssignmentsPage history availability", () => {
         offer_terms_sha256: "f".repeat(64),
         offer_terms: {
           currency: "NGN",
-          payout: { revision_id: "r-1", hourly_rate_naira: "1500.00" },
+          payout: { revision_id: "r-1", formula_version: "payout_v4", daily_rate_naira: "1500.00" },
           zones: { target: [{ id: "z-1", name: "Wuse II", wkt: "MULTIPOLYGON EMPTY" }] },
         },
         campaign: { name: "Abuja offer" },
@@ -172,7 +172,7 @@ describe("DriverAssignmentsPage history availability", () => {
 
     const { container } = render(await DriverAssignmentsPage({}));
 
-    expect(screen.getByText("₦1,500.00 / hour")).toBeVisible();
+    expect(screen.getByText("₦1,500.00 / day")).toBeVisible();
     expect(screen.queryByText("Full job terms")).not.toBeInTheDocument();
     expect(container.textContent).not.toMatch(/f{64}|r-1|z-1|MULTIPOLYGON|Technical reference/);
   });
@@ -184,15 +184,41 @@ describe("DriverAssignmentsPage history availability", () => {
         campaign_id: "blank-rate-campaign",
         status: "offered",
         offered_at: "2026-09-01T09:00:00Z",
-        offer_terms: { currency: "NGN", payout: { hourly_rate_naira: "" } },
+        offer_terms: {
+          currency: "NGN",
+          payout: { formula_version: "payout_v4", daily_rate_naira: "" },
+        },
         campaign: { name: "Rates not supplied" },
         vehicle: { plate_number: "ABC-126" },
       },
     ]);
     render(await DriverAssignmentsPage({}));
-    expect(screen.getByText("— / hour")).toBeInTheDocument();
-    expect(screen.queryByText("₦0.00 / hour")).not.toBeInTheDocument();
+    expect(screen.getByText("— / day")).toBeInTheDocument();
+    expect(screen.queryByText("₦0.00 / day")).not.toBeInTheDocument();
   });
+
+  it.each([undefined, "unrecognized"])(
+    "withholds pay for unsupported formula %s",
+    async (formula) => {
+      mockJobs([
+        {
+          id: "unknown-pay-job",
+          campaign_id: "unknown-pay-campaign",
+          status: "offered",
+          offered_at: "2026-09-01T09:00:00Z",
+          offer_terms: {
+            currency: "NGN",
+            payout: { formula_version: formula, daily_rate_naira: "1500.00" },
+          },
+          campaign: { name: "Unknown pay terms" },
+          vehicle: { plate_number: "ABC-127" },
+        },
+      ]);
+      render(await DriverAssignmentsPage({}));
+      expect(screen.getByText("Pay terms unavailable")).toBeVisible();
+      expect(screen.queryByText(/\/ hour|\/ day/)).not.toBeInTheDocument();
+    },
+  );
 
   it("dates past jobs by the driver's assignment instead of the campaign window", async () => {
     mockJobs([

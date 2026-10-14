@@ -20,13 +20,12 @@ from app.models.billing import (
     PaymentReceipt,
 )
 from app.models.user import UserRole
-from app.services.billing import (
-    create_invoice_draft,
+from app.services.billing.checkout import (
     initialize_invoice_payment_checkout,
-    issue_invoice,
     prepare_invoice_payment_checkout,
-    reverse_payment_receipt,
 )
+from app.services.billing.invoices import create_invoice_draft, issue_invoice
+from app.services.billing.receipts import reverse_payment_receipt
 
 
 def test_issued_invoice_checkout_is_stable_and_verified_before_funding(
@@ -86,7 +85,7 @@ def test_issued_invoice_checkout_is_stable_and_verified_before_funding(
     terms_id, invoice_id, organization_id = asyncio.run(arrange())
     fixed_id = UUID("11111111-2222-4333-8444-555555555555")
     reference = f"cv-{fixed_id.hex}"
-    monkeypatch.setattr("app.services.billing.uuid4", lambda: fixed_id)
+    monkeypatch.setattr("app.services.billing.checkout.uuid4", lambda: fixed_id)
     transport = RecordingTransport(
         ok(
             {
@@ -156,14 +155,12 @@ def test_issued_invoice_checkout_is_stable_and_verified_before_funding(
         asyncio.run(reverse_applied_payment())
         replacement_id = UUID("66666666-7777-4888-8999-000000000000")
         replacement_reference = f"cv-{replacement_id.hex}"
-        monkeypatch.setattr("app.services.billing.uuid4", lambda: replacement_id)
+        monkeypatch.setattr("app.services.billing.checkout.uuid4", lambda: replacement_id)
         transport.queue(
             ok(
                 {
                     "reference": replacement_reference,
-                    "authorization_url": (
-                        f"https://checkout.paystack.com/{replacement_reference}"
-                    ),
+                    "authorization_url": (f"https://checkout.paystack.com/{replacement_reference}"),
                 }
             )
         )
@@ -241,7 +238,7 @@ def test_paystack_verification_rejects_amount_outside_saved_checkout(
     terms_id, invoice_id, organization_id = asyncio.run(arrange())
     fixed_id = UUID("aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee")
     reference = f"cv-{fixed_id.hex}"
-    monkeypatch.setattr("app.services.billing.uuid4", lambda: fixed_id)
+    monkeypatch.setattr("app.services.billing.checkout.uuid4", lambda: fixed_id)
     transport = RecordingTransport(
         ok(
             {
@@ -356,7 +353,7 @@ def test_provider_acceptance_before_local_save_keeps_one_recoverable_reference(
             async def local_save_failed(_session):
                 raise RuntimeError("synthetic local persistence failure")
 
-            monkeypatch.setattr("app.services.billing.database_clock", local_save_failed)
+            monkeypatch.setattr("app.services.billing.checkout.database_clock", local_save_failed)
             with pytest.raises(RuntimeError, match="local persistence failure"):
                 await initialize_invoice_payment_checkout(
                     session,
@@ -439,7 +436,7 @@ def test_invalid_billing_email_fails_before_provider_and_can_be_corrected(
     invoice_id = asyncio.run(arrange())
     first_id = UUID("10101010-2020-4030-8040-505050505050")
     replacement_id = UUID("60606060-7070-4080-8090-a0a0a0a0a0a0")
-    monkeypatch.setattr("app.services.billing.uuid4", lambda: first_id)
+    monkeypatch.setattr("app.services.billing.checkout.uuid4", lambda: first_id)
     replacement_reference = f"cv-{replacement_id.hex}"
     transport = RecordingTransport(
         ok(
@@ -468,7 +465,7 @@ def test_invalid_billing_email_fails_before_provider_and_can_be_corrected(
                 await session.commit()
 
         asyncio.run(correct_email())
-        monkeypatch.setattr("app.services.billing.uuid4", lambda: replacement_id)
+        monkeypatch.setattr("app.services.billing.checkout.uuid4", lambda: replacement_id)
         created = db_client.post(
             f"/api/v1/advertiser/invoices/{invoice_id}/checkout", headers=headers
         )

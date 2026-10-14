@@ -74,6 +74,7 @@ class NotificationStatus(StrEnum):
 class Notification(Base):
     __tablename__ = "notifications"
     __table_args__ = (
+        Index("ix_health_email_status_age", "channel", "status", "created_at", "failed_at"),
         CheckConstraint(
             "length(trim(type_key)) > 0",
             name="ck_notifications_type_key",
@@ -129,9 +130,7 @@ class Notification(Base):
         String(16), default="v1", server_default=text("'v1'"), nullable=False
     )
     payload: Mapped[dict[str, Any]] = mapped_column(
-        MutableDict.as_mutable(
-            JSON().with_variant(postgresql.JSONB(), "postgresql")
-        ),
+        MutableDict.as_mutable(JSON().with_variant(postgresql.JSONB(), "postgresql")),
         default=dict,
         server_default=text("'{}'"),
         nullable=False,
@@ -149,15 +148,14 @@ class Notification(Base):
         server_default=text("'pending'"),
         nullable=False,
     )
-    attempt_count: Mapped[int] = mapped_column(
-        default=0, server_default=text("0"), nullable=False
-    )
+    attempt_count: Mapped[int] = mapped_column(default=0, server_default=text("0"), nullable=False)
     provider_message_id: Mapped[str | None] = mapped_column(String(255))
     next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     delivery_claim_token: Mapped[UUID | None] = mapped_column()
     delivery_claim_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     last_error_code: Mapped[str | None] = mapped_column(String(64))
     dedupe_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

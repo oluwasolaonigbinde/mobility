@@ -12,7 +12,7 @@ from test_payout_batches import _seed_authority
 
 from app.models.audit import AuditEvent
 from app.models.billing import CampaignLiabilityReservation
-from app.services import billing
+from app.services.billing import authority as billing_authority
 from app.services.payout_operations import campaign_money_position, preview_payment_selection
 
 
@@ -67,8 +67,8 @@ def test_funded_readiness_matches_new_reservation_without_writes(
             async def clock(_session):
                 return allocation.allocated_at + timedelta(hours=24)
 
-            monkeypatch.setattr(billing, "database_clock", clock)
-            await billing.record_production_start(
+            monkeypatch.setattr(billing_authority, "database_clock", clock)
+            await billing_authority.record_production_start(
                 session, campaign_id=graph.campaign.id, actor_user_id=graph.admin.id
             )
             await session.commit()
@@ -85,7 +85,7 @@ def test_funded_readiness_matches_new_reservation_without_writes(
             engine = sessions.kw["bind"].sync_engine
             event.listen(engine, "before_cursor_execute", reject_writes)
             try:
-                readiness = await billing.assignment_liability_readiness(
+                readiness = await billing_authority.assignment_liability_readiness(
                     session, assignment_id=graph.assignment.id
                 )
             finally:
@@ -95,16 +95,16 @@ def test_funded_readiness_matches_new_reservation_without_writes(
             assert readiness.reason is None
             assert await session.scalar(select(func.count(CampaignLiabilityReservation.id))) == 0
             assert await session.scalar(select(func.count(AuditEvent.id))) == audits
-            reservation = await billing.reserve_assignment_liability(
+            reservation = await billing_authority.reserve_assignment_liability(
                 session, assignment_id=graph.assignment.id, actor_user_id=graph.admin.id
             )
             assert reservation.status == "reserved"
-            existing = await billing.assignment_liability_readiness(
+            existing = await billing_authority.assignment_liability_readiness(
                 session, assignment_id=graph.assignment.id
             )
             assert existing.eligible is True
             assert existing.existing_reservation_id == reservation.id
-            await billing.assert_new_work_authorized(
+            await billing_authority.assert_new_work_authorized(
                 session, campaign_id=graph.campaign.id, assignment_id=graph.assignment.id
             )
 
@@ -119,7 +119,7 @@ def test_unfunded_readiness_and_exact_selection_preview_fail_closed(request, fix
 
     async def exercise():
         async with sessions() as session:
-            readiness = await billing.assignment_liability_readiness(
+            readiness = await billing_authority.assignment_liability_readiness(
                 session, assignment_id=graph.assignment.id
             )
             assert readiness.eligible is False

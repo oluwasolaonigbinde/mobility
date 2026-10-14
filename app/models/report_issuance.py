@@ -102,7 +102,6 @@ class ReportIssuance(Base):
             "measurement_run_id",
             unique=True,
             postgresql_where=text("reissue_of_id IS NULL"),
-            sqlite_where=text("reissue_of_id IS NULL"),
         ),
         Index(
             "ix_report_issuances_due",
@@ -257,7 +256,6 @@ class ReportPublicationIntent(Base):
             "report_issuance_id",
             unique=True,
             postgresql_where=text("state IN ('prepared', 'publishing')"),
-            sqlite_where=text("state IN ('prepared', 'publishing')"),
         ),
         Index(
             "ix_report_publication_intents_due",

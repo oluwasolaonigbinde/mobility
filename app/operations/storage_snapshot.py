@@ -104,7 +104,7 @@ async def export_snapshot() -> None:
         archive.addfile(_tar_member("inventory.json", encoded), io.BytesIO(encoded))
 
 
-async def verify_snapshot(archive_path: Path, restore_prefix: str) -> None:
+async def verify_snapshot(archive_path: Path, restore_prefix: str) -> None:  # noqa: C901
     settings = get_settings()
     if not settings.database_url:
         raise RuntimeError("DATABASE_URL is required")

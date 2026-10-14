@@ -9,7 +9,7 @@ from app.adapters.budget import BudgetPolicyContext, BudgetPolicyDecision
 from app.core.errors import AppError
 from app.models.billing import BudgetPolicyEvaluation
 from app.models.campaign import Campaign, CampaignStatus
-from app.services.billing import (
+from app.services.billing.budget import (
     evaluate_campaign_budget_policy,
     sweep_budget_policy_evaluations,
 )

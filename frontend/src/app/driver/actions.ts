@@ -54,7 +54,7 @@ export async function assignmentAction(
 // --- trips -------------------------------------------------------------------
 
 export interface StartTripResult extends DriverActionState {
-  trip?: { id: string; startedAt?: string; evidenceProtocolVersion: 1 | 2 };
+  trip?: { id: string; startedAt?: string; evidenceProtocolVersion: 2 };
   outcome?: "started" | "failed" | "unknown";
 }
 
@@ -81,14 +81,15 @@ export async function startTripAction(assignmentId: string): Promise<StartTripRe
     });
     revalidateDriver();
     return {
-      trip: data
-        ? {
-            id: data.id,
-            startedAt: data.started_at,
-            evidenceProtocolVersion: data.evidence_protocol_version as 1 | 2,
-          }
-        : undefined,
-      outcome: data ? "started" : "unknown",
+      trip:
+        data?.evidence_protocol_version === 2
+          ? {
+              id: data.id,
+              startedAt: data.started_at,
+              evidenceProtocolVersion: data.evidence_protocol_version as 2,
+            }
+          : undefined,
+      outcome: data?.evidence_protocol_version === 2 ? "started" : "unknown",
     };
   } catch (error) {
     if (error instanceof ApiError && START_PHOTO_REFUSALS[error.code]) {
@@ -106,14 +107,16 @@ export async function getCurrentTripAction(): Promise<StartTripResult> {
     const api = createApiClient(await getSessionToken());
     const { data } = await api.GET("/api/v1/driver/trips/current");
     return {
-      trip: data?.trip
-        ? {
-            id: data.trip.id,
-            startedAt: data.trip.started_at,
-            evidenceProtocolVersion: data.trip.evidence_protocol_version as 1 | 2,
-          }
-        : undefined,
-      outcome: data?.trip ? "started" : "failed",
+      trip:
+        data?.trip?.evidence_protocol_version === 2
+          ? {
+              id: data.trip.id,
+              startedAt: data.trip.started_at,
+              evidenceProtocolVersion: data.trip.evidence_protocol_version as 2,
+            }
+          : undefined,
+      outcome:
+        data?.trip?.evidence_protocol_version === 2 ? "started" : data?.trip ? "unknown" : "failed",
     };
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) return { outcome: "failed" };
@@ -140,16 +143,16 @@ export async function verifyDriverTripOwnershipAction(
 
 export async function getTripEvidenceAuthorityAction(
   tripId: string,
-): Promise<{ protocolVersion: 1 | 2; status: "active" | "ended" | "sealed" } | undefined> {
+): Promise<{ protocolVersion: 2; status: "active" | "ended" | "sealed" } | undefined> {
   if (!z.string().uuid().safeParse(tripId).success) return undefined;
   try {
     const api = createApiClient(await getSessionToken());
     const { data } = await api.GET("/api/v1/driver/trips/{trip_id}", {
       params: { path: { trip_id: tripId } },
     });
-    return data?.id === tripId
+    return data?.id === tripId && data.evidence_protocol_version === 2
       ? {
-          protocolVersion: data.evidence_protocol_version as 1 | 2,
+          protocolVersion: data.evidence_protocol_version as 2,
           status: data.status,
         }
       : undefined;
@@ -224,38 +227,6 @@ export async function endTripAction(
   }
 }
 
-export async function endLegacyTripAction(
-  tripId: string,
-  watermark: { clientBatchCount: number; clientPingCount: number; clientComplete: boolean },
-): Promise<EndTripResult> {
-  if (!z.string().uuid().safeParse(tripId).success)
-    return { error: "Invalid trip", outcome: "failed" };
-  try {
-    const api = createApiClient(await getSessionToken());
-    const { data } = await api.POST("/api/v1/driver/trips/{trip_id}/end", {
-      params: { path: { trip_id: tripId } },
-      body: {
-        end_reason: "driver_ended",
-        client_batch_count: watermark.clientBatchCount,
-        client_ping_count: watermark.clientPingCount,
-        client_complete: watermark.clientComplete,
-      },
-    });
-    const returnedStatus = data?.status;
-    return !data ||
-      data.id !== tripId ||
-      (returnedStatus !== "ended" && returnedStatus !== "sealed")
-      ? { error: "Trip end was not confirmed.", outcome: "unknown" }
-      : { outcome: "ended", status: returnedStatus };
-  } catch (error) {
-    const outcome =
-      error instanceof ApiError && [400, 403, 404, 409, 422].includes(error.status)
-        ? "failed"
-        : "unknown";
-    return { ...toState(error), outcome };
-  }
-}
-
 const pingSchema = z.object({
   recorded_at: z.string(),
   lat: z.number().min(-90).max(90),
@@ -270,11 +241,11 @@ const pingBatchSchema = z.object({
   tripId: z.string().uuid(),
   idempotencyKey: z.string().min(8).max(128),
   batchSequence: z.number().int().nonnegative(),
-  evidenceProtocolVersion: z.union([z.literal(1), z.literal(2)]),
+  evidenceProtocolVersion: z.literal(2),
   pings: z.array(pingSchema).min(1).max(200),
 });
 
-const legacyPingBatchAckSchema = z.object({
+const basePingBatchAckSchema = z.object({
   batch_id: z.string().uuid(),
   trip_id: z.string().uuid(),
   accepted_count: z.number().int().nonnegative(),
@@ -298,7 +269,7 @@ const sampleResultSchema = z.object({
     .nullable(),
 });
 
-const pingBatchAckSchema = legacyPingBatchAckSchema.extend({
+const pingBatchAckSchema = basePingBatchAckSchema.extend({
   batch_sequence: z.number().int().nonnegative(),
   payload_hash_version: z.literal(2),
   payload_hash: z.string().regex(/^[0-9a-f]{64}$/),
@@ -364,24 +335,6 @@ export async function sendPingBatchAction(
         pings: parsed.data.pings,
       },
     });
-    if (parsed.data.evidenceProtocolVersion === 1) {
-      const acknowledgement = legacyPingBatchAckSchema.safeParse(data);
-      const positiveAck =
-        acknowledgement.success &&
-        acknowledgement.data.trip_id === parsed.data.tripId &&
-        acknowledgement.data.submitted_count === parsed.data.pings.length &&
-        (acknowledgement.data.duplicate ||
-          acknowledgement.data.quarantined ||
-          acknowledgement.data.accepted_count === parsed.data.pings.length);
-      if (!positiveAck)
-        return { error: "GPS batch was not confirmed.", retryable: true, acknowledged: false };
-      return {
-        acknowledged: true,
-        acceptedCount: acknowledgement.data.accepted_count,
-        duplicate: acknowledgement.data.duplicate,
-        quarantined: acknowledgement.data.quarantined,
-      };
-    }
     const acknowledgement = pingBatchAckSchema.safeParse(data);
     const positiveAck =
       acknowledgement.success &&

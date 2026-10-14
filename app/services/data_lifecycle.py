@@ -65,9 +65,7 @@ BOUND_SQL = text(
     """
 )
 
-BOUND_EXPR_PATTERN = re.compile(
-    r"FOR VALUES FROM \('(?P<lower>[^']+)'\) TO \('(?P<upper>[^']+)'\)"
-)
+BOUND_EXPR_PATTERN = re.compile(r"FOR VALUES FROM \('(?P<lower>[^']+)'\) TO \('(?P<upper>[^']+)'\)")
 
 
 @dataclass(frozen=True)
@@ -128,9 +126,7 @@ async def list_partitions(executor: AsyncSession | AsyncConnection) -> list[Part
         match = BOUND_EXPR_PATTERN.search(bound_expr or "")
         if match is None:
             # DEFAULT partitions are forbidden by design; surface loudly.
-            raise RuntimeError(
-                f"Unparseable partition bound for {name!r}: {bound_expr!r}"
-            )
+            raise RuntimeError(f"Unparseable partition bound for {name!r}: {bound_expr!r}")
         partitions.append(
             PartitionInfo(
                 name=name,
@@ -180,9 +176,7 @@ async def premake_partitions(
     now + PARTITION_PREMAKE_MONTHS. Coverage-based, never name-based: the
     legacy partition covers the current month until it rolls over."""
     now = now or await db_now(session)
-    await session.execute(
-        text("SELECT pg_advisory_xact_lock(:key)"), {"key": PREMAKE_LOCK_KEY}
-    )
+    await session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": PREMAKE_LOCK_KEY})
     partitions = await list_partitions(session)
     created: list[str] = []
     current = month_start(now)
@@ -190,8 +184,7 @@ async def premake_partitions(
         start = add_months(current, offset)
         upper = add_months(start, 1)
         covered = any(
-            p.lower <= start and upper <= p.upper and not p.detach_pending
-            for p in partitions
+            p.lower <= start and upper <= p.upper and not p.detach_pending for p in partitions
         )
         if covered:
             continue
@@ -310,7 +303,7 @@ async def _detached_orphans(session: AsyncSession) -> list[str]:
     return [row[0] for row in result.all()]
 
 
-async def run_ping_retention(
+async def run_ping_retention(  # noqa: C901
     engine: AsyncEngine,
     session_factory,
     *,
@@ -449,9 +442,7 @@ async def run_ping_retention(
                 ]
                 for partition in expired_partitions:
                     row_count = (
-                        await session.execute(
-                            text(f"SELECT count(*) FROM {partition.name}")
-                        )
+                        await session.execute(text(f"SELECT count(*) FROM {partition.name}"))
                     ).scalar_one()
                     # Evidence strictly precedes destruction.
                     await _record_purge_event(
@@ -507,10 +498,7 @@ async def run_ping_retention(
                 # applies. received_at is safe here: quarantine rows never
                 # own location_pings rows, so no cascade hazard exists.
                 quarantine_result = await session.execute(
-                    text(
-                        "DELETE FROM quarantined_ping_batches"
-                        " WHERE received_at < :cutoff"
-                    ),
+                    text("DELETE FROM quarantined_ping_batches WHERE received_at < :cutoff"),
                     {"cutoff": cutoff},
                 )
                 quarantines_purged = quarantine_result.rowcount or 0
@@ -590,8 +578,7 @@ async def _drop_with_evidence(
     if inserted is None:
         await session.rollback()
         logger.error(
-            "job=ping_retention partition=%s outcome=drop_refused"
-            " reason=dropped_evidence_conflict",
+            "job=ping_retention partition=%s outcome=drop_refused reason=dropped_evidence_conflict",
             name,
         )
         raise RuntimeError(

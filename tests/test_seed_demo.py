@@ -7,16 +7,16 @@ from unittest.mock import AsyncMock, Mock
 from uuid import UUID
 
 import pytest
-from paystack_fixtures import SYNTHETIC_LIVE_KEY
-from sqlalchemy import func, or_, select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import NullPool
-from test_migration_0014_partitioning import (
+from database_helpers import (
     configured_postgres_url,
     create_database_from_url,
     drop_database,
     upgrade_to,
 )
+from paystack_fixtures import SYNTHETIC_LIVE_KEY
+from sqlalchemy import func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.core.config import Settings
 from app.core.errors import AppError
@@ -55,11 +55,9 @@ from app.seeds.demo import (
     SEED_VERSION,
     build_demo_graph,
     ensure_seed_allowed,
-    upsert_trips_and_pings,
 )
 from app.seeds.renewals import ensure_demo_renewals
 from app.seeds.rich import F7_DRIVER_PASSWORDS, F7_SEED_VERSION
-from app.services.payouts import get_trip_for_payout
 from app.services.trip_evidence import (
     batch_payload_hash,
     manifest_root,
@@ -721,7 +719,7 @@ def test_demo_seed_is_not_registered_on_app_startup(settings: Settings) -> None:
 def test_no_seed_or_demo_migrations() -> None:
     versions = {path.name for path in Path("alembic/versions").glob("*.py")}
 
-    assert "0010_payouts_and_earnings.py" in versions
+    assert "0106_development_baseline.py" in versions
     assert not any("seed" in name or "demo" in name for name in versions)
 
 
@@ -2174,111 +2172,6 @@ def test_demo_seed_preserves_existing_payout_metadata(
             )
 
     asyncio.run(verify())
-
-
-def test_demo_seed_preserves_legacy_v1_evidence_and_money_fence(
-    postgis_db_sessionmaker,
-    settings: Settings,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "0")
-    seed_demo_graph(postgis_db_sessionmaker, settings)
-
-    async def exercise() -> None:
-        async with postgis_db_sessionmaker() as session:
-            graph = await build_demo_graph(session, settings)
-            started_at = datetime(2025, 1, 2, 9, tzinfo=UTC)
-            ended_at = started_at + timedelta(minutes=42)
-            legacy_trip = TripSession(
-                assignment_id=graph.assignment.id,
-                campaign_id=graph.campaign.id,
-                driver_profile_id=graph.driver_profile.id,
-                vehicle_id=graph.vehicle.id,
-                started_by_user_id=graph.driver.id,
-                status="sealed",
-                started_at=started_at,
-                ended_at=ended_at,
-                sealed_at=ended_at,
-                seal_reason="client_complete",
-                end_reason="legacy_demo_completed",
-                evidence_protocol_version=1,
-                trip_metadata={
-                    "demo": True,
-                    "seed_version": SEED_VERSION,
-                    "seed_trip_key": "legacy-demo-trip",
-                },
-            )
-            session.add(legacy_trip)
-            await session.flush()
-            original = (
-                legacy_trip.status,
-                legacy_trip.ended_at,
-                legacy_trip.sealed_at,
-                legacy_trip.seal_reason,
-                legacy_trip.trip_metadata,
-            )
-
-            returned = await upsert_trips_and_pings(
-                session,
-                assignment=graph.assignment,
-                campaign=graph.campaign,
-                profile=graph.driver_profile,
-                vehicle=graph.vehicle,
-                driver=graph.driver,
-                settings=settings,
-                specs=[("legacy-demo-trip", started_at, [(6.5, 3.4)])],
-            )
-            await session.refresh(legacy_trip)
-
-            assert returned == [legacy_trip]
-            assert legacy_trip.evidence_protocol_version == 1
-            assert (
-                legacy_trip.status,
-                legacy_trip.ended_at,
-                legacy_trip.sealed_at,
-                legacy_trip.seal_reason,
-                legacy_trip.trip_metadata,
-            ) == original
-            assert (
-                await session.scalar(
-                    select(func.count(LocationPingBatch.id)).where(
-                        LocationPingBatch.trip_session_id == legacy_trip.id
-                    )
-                )
-                == 0
-            )
-            assert (
-                await session.scalar(
-                    select(func.count(TripEvidenceManifestEntry.id)).where(
-                        TripEvidenceManifestEntry.trip_session_id == legacy_trip.id
-                    )
-                )
-                == 0
-            )
-            with pytest.raises(AppError) as raised:
-                await get_trip_for_payout(session, legacy_trip.id, settings)
-            assert raised.value.code == "LEGACY_TRIP_MONEY_ORIGINATION_PROHIBITED"
-
-            session.add(
-                EarningsLedgerEntry(
-                    driver_profile_id=graph.driver_profile.id,
-                    driver_user_id=graph.driver.id,
-                    campaign_id=graph.campaign.id,
-                    trip_session_id=legacy_trip.id,
-                    vehicle_id=graph.vehicle.id,
-                    entry_type="trip_payout",
-                    status="available",
-                    amount=Decimal("1.00"),
-                    currency="NGN",
-                    description="Existing legacy demo payout",
-                    occurred_at=ended_at,
-                    ledger_metadata={"legacy_demo": True},
-                )
-            )
-            await session.flush()
-            assert await get_trip_for_payout(session, legacy_trip.id, settings) is legacy_trip
-
-    asyncio.run(exercise())
 
 
 def test_rich_seed_later_rerun_only_appends_valid_rolling_trips(

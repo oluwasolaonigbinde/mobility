@@ -145,11 +145,11 @@ def test_app_database_url_is_never_used_as_a_test_database() -> None:
 
     assert authority.returncode == 4, authority.stdout + authority.stderr
     assert "requires TEST_DATABASE_URL" in authority.stderr
-    assert local.returncode == 0, local.stdout + local.stderr
-    assert "1 skipped" in local.stdout
+    assert local.returncode == 1, local.stdout + local.stderr
+    assert "TEST_DATABASE_URL must configure" in local.stdout
 
 
-def test_fast_local_sqlite_probe(db_sessionmaker) -> None:
+def test_local_postgres_probe(db_sessionmaker) -> None:
     async def probe() -> str:
         async with db_sessionmaker() as session:
             return str((await session.execute(text("SELECT 1"))).scalar_one())
@@ -157,14 +157,15 @@ def test_fast_local_sqlite_probe(db_sessionmaker) -> None:
     assert asyncio.run(probe()) == "1"
 
 
-def test_local_mode_keeps_fast_sqlite_available() -> None:
+def test_local_mode_requires_explicit_postgres() -> None:
     result = _run_probe(
-        f"{__file__}::test_fast_local_sqlite_probe",
+        f"{__file__}::test_local_postgres_probe",
         authority=False,
         database_url=None,
     )
 
-    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "TEST_DATABASE_URL must configure" in result.stdout
 
 
 def test_backend_job_declares_real_postgis_and_redis_services(workflow: dict) -> None:
@@ -211,7 +212,7 @@ def test_backend_job_requires_real_integration_authority(workflow: dict) -> None
 
     assert env["TEST_DATABASE_URL"].startswith("postgresql+asyncpg://"), (
         "DB-005: the authoritative backend job must run against real PostgreSQL, "
-        "never the SQLite fast-local fixture."
+        "including local verification."
     )
     assert env["REDIS_URL"] == "redis://localhost:6379/0"
     assert env["RATE_LIMIT_TEST_REDIS_URL"] == "redis://localhost:6379/9"
@@ -423,7 +424,7 @@ def test_job_timeouts_and_master_concurrency(workflow):
 def test_clamav_start_and_readiness_are_selected_by_actual_scanner_consumers(workflow):
     steps = workflow["jobs"]["backend_tests"]["steps"]
     plan = next(step for step in steps if step.get("id") == "shard_plan")
-    scanner_env_read = 'os.environ[' + '"LOCAL_CLAMAV_HOST"]'
+    scanner_env_read = "os.environ[" + '"LOCAL_CLAMAV_HOST"]'
     consumers = {
         path.as_posix().removeprefix(REPO_ROOT.as_posix() + "/")
         for path in (REPO_ROOT / "tests").glob("test_*.py")

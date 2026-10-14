@@ -6,7 +6,6 @@ from conftest import create_test_campaign, create_test_organization, create_test
 from sqlalchemy import func, select
 from test_receipt_allocations import _accepted_terms
 
-import app.services.billing as billing_service
 from app.core.errors import AppError
 from app.models.audit import AuditEvent
 from app.models.billing import (
@@ -19,19 +18,23 @@ from app.models.billing import (
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.user import UserRole
 from app.schemas.campaign_cancellations import CampaignCancellationCreate
-from app.services.billing import (
-    allocate_payment_receipt,
-    confirm_payment_receipt,
+from app.services.billing import queries as billing_queries
+from app.services.billing import receipts as billing_receipts
+from app.services.billing import settlements as billing_settlements
+from app.services.billing.invoices import (
     create_invoice_draft,
     invoice_payment_status,
     issue_invoice,
-    reconcile_payment_receipt,
-    record_invoice_correction,
     record_invoice_issuer_profile,
+)
+from app.services.billing.receipts import (
+    allocate_payment_receipt,
+    confirm_payment_receipt,
+    reconcile_payment_receipt,
     record_payment_receipt,
-    record_refund_settlement,
     reverse_payment_receipt,
 )
+from app.services.billing.settlements import record_invoice_correction, record_refund_settlement
 from app.services.campaign_cancellations import request_campaign_cancellation
 
 
@@ -127,8 +130,8 @@ def test_invoice_credit_and_allocation_overlap_respects_corrected_obligation(
         correction_at_insert = asyncio.Event()
         release_correction = asyncio.Event()
         allocation_read_obligation = asyncio.Event()
-        original_clock = billing_service.database_clock
-        original_obligation = billing_service.effective_invoice_obligation
+        original_clock = billing_settlements.database_clock
+        original_obligation = billing_queries.effective_invoice_obligation
         correction_task = None
         allocation_task = None
 
@@ -144,8 +147,8 @@ def test_invoice_credit_and_allocation_overlap_respects_corrected_obligation(
                 allocation_read_obligation.set()
             return obligation
 
-        monkeypatch.setattr(billing_service, "database_clock", controlled_clock)
-        monkeypatch.setattr(billing_service, "effective_invoice_obligation", observed_obligation)
+        monkeypatch.setattr(billing_settlements, "database_clock", controlled_clock)
+        monkeypatch.setattr(billing_receipts, "effective_invoice_obligation", observed_obligation)
 
         async def correct():
             async with postgis_db_sessionmaker() as session:
@@ -542,7 +545,9 @@ def test_concurrent_refund_reference_conflict_is_stable_across_campaigns(
             await release.wait()
             return datetime.now(UTC)
 
-        monkeypatch.setattr(billing_service, "database_clock", synchronize_after_reference_lookup)
+        monkeypatch.setattr(
+            billing_settlements, "database_clock", synchronize_after_reference_lookup
+        )
         return await _parallel(*(attempt(*authority) for authority in authorities))
 
     outcomes = asyncio.run(overlap())

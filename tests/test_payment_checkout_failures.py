@@ -17,7 +17,7 @@ from app.adapters.payments.paystack import (
 from app.api.v1 import billing as billing_api
 from app.core.errors import AppError
 from app.models.billing import InvoiceStatus, PaymentCheckoutStatus, PaymentClass
-from app.services import billing
+from app.services.billing import checkout as billing_checkout
 
 
 class Session:
@@ -103,11 +103,11 @@ async def install_prepare_dependencies(
     async def audit(*_args, **_kwargs):
         return None
 
-    monkeypatch.setattr(billing, "get_required_advertiser_context", context)
-    monkeypatch.setattr(billing, "invoice_payment_status", payment_status)
-    monkeypatch.setattr(billing, "adjusted_invoice_obligation", adjusted)
-    monkeypatch.setattr(billing, "database_clock", clock)
-    monkeypatch.setattr(billing, "create_audit_event", audit)
+    monkeypatch.setattr(billing_checkout, "get_required_advertiser_context", context)
+    monkeypatch.setattr(billing_checkout, "invoice_payment_status", payment_status)
+    monkeypatch.setattr(billing_checkout, "adjusted_invoice_obligation", adjusted)
+    monkeypatch.setattr(billing_checkout, "database_clock", clock)
+    monkeypatch.setattr(billing_checkout, "create_audit_event", audit)
 
 
 @pytest.mark.parametrize(
@@ -187,7 +187,7 @@ def test_prepare_checkout_fails_closed_without_contacting_paystack(monkeypatch, 
 
     with pytest.raises(AppError) as error:
         asyncio.run(
-            billing.prepare_invoice_payment_checkout(
+            billing_checkout.prepare_invoice_payment_checkout(
                 session,
                 invoice_id=invoice.id,
                 actor_user_id=actor.id,
@@ -279,7 +279,7 @@ def test_initialize_checkout_preserves_retry_and_uncertainty_state(monkeypatch, 
 
     with pytest.raises(AppError) as error:
         asyncio.run(
-            billing.initialize_invoice_payment_checkout(
+            billing_checkout.initialize_invoice_payment_checkout(
                 session,
                 checkout_id=saved.id,
                 adapter=adapter,
@@ -299,7 +299,7 @@ def test_initialize_checkout_returns_existing_initialized_intent_without_provide
     adapter = Adapter()
 
     result, provider_session = asyncio.run(
-        billing.initialize_invoice_payment_checkout(
+        billing_checkout.initialize_invoice_payment_checkout(
             Session(scalars=[saved]),
             checkout_id=saved.id,
             adapter=adapter,
@@ -320,7 +320,7 @@ def test_prepare_checkout_reuses_the_same_active_amount(monkeypatch):
     asyncio.run(install_prepare_dependencies(monkeypatch, organization))
 
     result = asyncio.run(
-        billing.prepare_invoice_payment_checkout(
+        billing_checkout.prepare_invoice_payment_checkout(
             Session(scalars=[invoice, existing], gets=[terms]),
             invoice_id=invoice.id,
             actor_user_id=actor.id,
@@ -339,9 +339,9 @@ def test_initialize_checkout_records_the_returned_provider_session(monkeypatch):
     async def clock(_session):
         return datetime(2026, 9, 30, tzinfo=UTC)
 
-    monkeypatch.setattr(billing, "database_clock", clock)
+    monkeypatch.setattr(billing_checkout, "database_clock", clock)
     result, provider_session = asyncio.run(
-        billing.initialize_invoice_payment_checkout(
+        billing_checkout.initialize_invoice_payment_checkout(
             Session(scalars=[saved, committed]),
             checkout_id=saved.id,
             adapter=Adapter(),
@@ -362,10 +362,10 @@ def test_get_checkout_hides_missing_advertiser_reference(monkeypatch):
     async def context(*_args, **_kwargs):
         return organization, object()
 
-    monkeypatch.setattr(billing, "get_required_advertiser_context", context)
+    monkeypatch.setattr(billing_checkout, "get_required_advertiser_context", context)
     with pytest.raises(AppError) as error:
         asyncio.run(
-            billing.get_advertiser_payment_checkout(
+            billing_checkout.get_advertiser_payment_checkout(
                 Session(scalars=[None]), reference="cv-missing", actor_user_id=uuid4()
             )
         )

@@ -24,7 +24,7 @@ from app.api.v1.dependencies import (
 )
 from app.core.errors import AppError
 from app.schemas.billing import PaystackWebhookReceipt
-from app.services.billing import ingest_payment_gateway_webhook
+from app.services.billing.gateway import ingest_payment_gateway_webhook
 from app.services.disbursements import ingest_payout_provider_webhook
 
 router = APIRouter(prefix="/webhooks", tags=["Provider webhooks"])
@@ -107,9 +107,7 @@ async def paystack_webhook(
         )
         await session.commit()
         await payout_enqueuer.enqueue_payout_event(event.id)
-        return PaystackWebhookReceipt(
-            event=event_name, accepted=True, duplicate=not created
-        )
+        return PaystackWebhookReceipt(event=event_name, accepted=True, duplicate=not created)
     if not is_payment:
         return PaystackWebhookReceipt(event=event_name, accepted=False, duplicate=False)
     event, created = await ingest_payment_gateway_webhook(

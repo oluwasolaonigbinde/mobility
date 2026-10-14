@@ -70,8 +70,6 @@ def _canonical_hash(value: dict) -> str:
 async def _delivery_lock(
     session: AsyncSession, *, actor_user_id: UUID, operation: str, idempotency_key: str
 ) -> None:
-    if session.get_bind().dialect.name != "postgresql":
-        return
     digest = hashlib.sha256(
         f"audience-delivery-v1:{actor_user_id}:{operation}:{idempotency_key}".encode()
     ).digest()[:8]
@@ -110,8 +108,6 @@ async def _delivery_replay(
 async def _approval_lock(
     session: AsyncSession, *, actor_user_id: UUID, idempotency_key: str
 ) -> None:
-    if session.get_bind().dialect.name != "postgresql":
-        return
     digest = hashlib.sha256(
         f"audience-delivery-approval-v1:{actor_user_id}:{idempotency_key}".encode()
     ).digest()[:8]

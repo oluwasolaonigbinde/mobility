@@ -18,11 +18,10 @@ from conftest import (
     fetch_location_pings,
     fetch_trip_sessions,
 )
+from payout_fixtures import create_v4_revision, create_v4_rule
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status as http_status
-from test_payouts_v2 import create_v2_rule
-from test_payouts_v3 import create_revision_row
 
 import app.services.trips as trips_service
 from app.core.config import Settings
@@ -36,20 +35,22 @@ from app.models.campaign_assignment import (
 )
 from app.models.driver import DriverOnboardingStatus, DriverProfile
 from app.models.payout import AssignmentRuleBinding
-from app.models.trip import TripSession, TripSessionStatus
+from app.models.trip import LocationPingBatch, TripSession, TripSessionStatus
 from app.models.user import UserRole
 from app.models.vehicle import Vehicle, VehicleStatus
 from app.schemas.trips import (
     LocationPingBatchCreate,
     TripEvidenceManifestEntryCreate,
 )
-from app.services.billing import (
-    accept_quotation_revision,
+from app.services.billing.authority import (
     record_approved_credit_authorization,
     record_production_start,
+    reserve_assignment_liability,
+)
+from app.services.billing.quotes import (
+    accept_quotation_revision,
     record_quotation_revision,
     request_custom_quote,
-    reserve_assignment_liability,
 )
 from app.services.campaign_assignments import resolved_eligibility_snapshot
 from app.services.trip_evidence import batch_payload_hash, manifest_root
@@ -133,9 +134,11 @@ def create_trip_ready_graph(
                 AssignmentRuleBinding(
                     assignment_id=assignment.id,
                     revision_id=payout_revision.id,
-                    hourly_rate_naira=Decimal("1.00"),
-                    premium_hourly_rate_naira=None,
-                    daily_payable_hours_cap=Decimal("1.00"),
+                    daily_rate_naira=Decimal("1.00"),
+                    daily_target_miles=Decimal("8.00"),
+                    shortfall_strategy="proportional",
+                    minimum_miles=Decimal("0"),
+                    outside_area_weight=Decimal("1"),
                     currency="NGN",
                     eligibility_params={},
                     resolved_eligibility_params=resolved_eligibility_snapshot(
@@ -143,14 +146,14 @@ def create_trip_ready_graph(
                     )
                     if eligibility_settings is not None
                     else {},
-                    formula_version="payout_v3",
+                    formula_version="payout_v4",
                     premium_zone_ids=[],
                     premium_zone_geometry_hash=empty_geometry_hash,
                     premium_zone_geometry_wkts=[],
                     exclusion_zone_ids=[],
                     exclusion_zone_geometry_hash=empty_geometry_hash,
                     exclusion_zone_geometry_wkts=[],
-                    stationary_policy_marker="stationary-rd-v1",
+                    stationary_policy_marker="d39-stop-5min-v1",
                     campaign_window_start_at=campaign.start_at or PAST,
                     campaign_window_end_at=campaign.end_at or FUTURE,
                     campaign_window_frozen=True,
@@ -216,22 +219,15 @@ def create_trip_ready_graph(
         # Trip tests exercise the trip protocol, not a funding bypass. Give
         # their graph genuine synthetic commercial authority and a reserve so
         # the production fail-closed gate is identical in tests and runtime.
-        rule = create_v2_rule(
-            db_sessionmaker,
-            campaign_id=campaign.id,
-            created_by_user_id=admin.id,
-            hourly_rate="1.00",
-            daily_cap_hours="1.00",
-            rule_status="inactive",
+        rule = create_v4_rule(
+            db_sessionmaker, campaign_id=campaign.id, admin_id=admin.id, rule_status="inactive"
         )
-        payout_revision = create_revision_row(
+        payout_revision = create_v4_revision(
             db_sessionmaker,
             campaign_id=campaign.id,
             rule_id=rule.id,
-            created_by_user_id=admin.id,
-            base="1.00",
-            premium=None,
-            cap="1.00",
+            admin_id=admin.id,
+            daily_rate_naira="1.00",
         )
         asyncio.run(add_financial_authority(payout_revision))
     return admin, campaign, driver, profile, vehicle, assignment
@@ -815,7 +811,17 @@ def test_ping_schema_validation_rejects_invalid_batches(
     assert len(fetch_location_pings(db_sessionmaker)) == 0
 
 
-def test_ping_service_validation_and_all_or_nothing_behavior(db_client, db_sessionmaker) -> None:
+def test_ping_service_validation_and_all_or_nothing_behavior(
+    db_client, db_sessionmaker, monkeypatch
+) -> None:
+    from app.api.v1 import trips as trip_api
+
+    recorded = []
+
+    async def record(_settings, attempt):
+        recorded.append(attempt.rejected)
+
+    monkeypatch.setattr(trip_api, "record_gps_attempt", record)
     _, _, _, _, _, assignment = create_trip_ready_graph(db_sessionmaker)
     trip_id = start_trip(db_client, assignment.id).json()["id"]
     headers = driver_headers(db_client)
@@ -843,6 +849,7 @@ def test_ping_service_validation_and_all_or_nothing_behavior(db_client, db_sessi
         )
         assert response.status_code == http_status.HTTP_400_BAD_REQUEST
         assert response.json()["error"]["code"] == expected_code
+        assert recorded[-1] is True
         assert len(fetch_location_pings(db_sessionmaker)) == 0
 
     many_pings = [ping_payload()["pings"][0] | {"sequence_number": number} for number in range(501)]
@@ -1010,7 +1017,11 @@ def test_postgres_trip_summary_and_batch_count_preserve_replay_and_isolation(
             trip = await session.get(TripSession, identifier)
             assert trip is not None
             summary = await trips_service.summarize_trip(session, trip)
-            batches = await trips_service.count_trip_batches(session, identifier)
+            batches = await session.scalar(
+                select(func.count(LocationPingBatch.id)).where(
+                    LocationPingBatch.trip_session_id == identifier
+                )
+            )
             return summary.ping_count, summary.first_ping_at, summary.last_ping_at, batches
 
     assert asyncio.run(summary_counts(trip_id)) == (0, None, None, 0)
@@ -1045,3 +1056,28 @@ def test_driver_records_gps_with_no_legal_collection_reference(
     )
     assert recorded.status_code == 200, recorded.text
     assert recorded.json()["accepted_count"] == 1
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "code"),
+    [("speed_mps", 121, "INVALID_SPEED"), ("accuracy_m", 10001, "INVALID_ACCURACY")],
+)
+def test_ping_rejection_uses_fixed_time_and_independent_invalid_field(settings, field, value, code):
+    # The time checks must always pass, so neither a slow runner nor midnight
+    # can short-circuit the intended speed/accuracy rejection branch.
+    from app.schemas.trips import LocationPingCreate
+
+    now = datetime(2026, 10, 13, 12, tzinfo=UTC)
+    trip = TripSession(started_at=now - timedelta(minutes=1), ended_at=None)
+    ping = LocationPingCreate.model_validate(
+        {
+            "recorded_at": now,
+            "lat": 6.45,
+            "lon": 3.39,
+            "sequence_number": 0,
+            field: value,
+        }
+    )
+    rejection = trips_service.classify_ping(trip=trip, ping=ping, now=now, settings=settings)
+    assert rejection is not None
+    assert rejection.code == code

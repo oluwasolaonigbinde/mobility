@@ -22,22 +22,30 @@ from tests.conftest import create_test_user
 SERVICE_ROOT = Path(__file__).parents[1] / "app" / "services"
 
 MIGRATED_CALL_SITES: dict[str, tuple[str, ...]] = {
-    "billing": (
+    "billing.quotes": (
         "request_custom_quote",
         "record_quotation_revision",
         "accept_quotation_revision",
+    ),
+    "billing.receipts": (
         "record_payment_receipt",
         "reconcile_payment_receipt",
         "confirm_payment_receipt",
         "allocate_payment_receipt",
         "reverse_payment_receipt",
+    ),
+    "billing.invoices": (
         "record_invoice_issuer_profile",
         "create_invoice_draft",
         "issue_invoice",
+    ),
+    "billing.authority": (
         "_append_financial_authorization",
         "record_approved_credit_authorization",
         "reserve_assignment_liability",
         "record_production_start",
+    ),
+    "billing.settlements": (
         "record_invoice_correction",
         "record_refund_settlement",
         "record_credit_contract_settlement",
@@ -80,15 +88,11 @@ MIGRATED_CALL_SITES: dict[str, tuple[str, ...]] = {
 
 
 def _service_tree(service_name: str) -> ast.Module:
-    return ast.parse((SERVICE_ROOT / f"{service_name}.py").read_text())
+    return ast.parse((SERVICE_ROOT / f"{service_name.replace('.', '/')}.py").read_text())
 
 
 def _named_functions(tree: ast.Module) -> dict[str, ast.AsyncFunctionDef]:
-    return {
-        node.name: node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.AsyncFunctionDef)
-    }
+    return {node.name: node for node in ast.walk(tree) if isinstance(node, ast.AsyncFunctionDef)}
 
 
 def _canonical_calls(function: ast.AsyncFunctionDef) -> list[ast.Call]:
@@ -121,8 +125,7 @@ def test_all_44_sites_import_and_call_only_the_canonical_authority() -> None:
         assert not any(
             isinstance(node, ast.ImportFrom)
             and any(
-                alias.name in {"_active_admin", "_require_active_admin"}
-                for alias in node.names
+                alias.name in {"_active_admin", "_require_active_admin"} for alias in node.names
             )
             for node in _service_tree(service_name).body
         )
@@ -143,7 +146,10 @@ def _first_call_line(function: ast.AsyncFunctionDef, names: set[str]) -> int:
 
 
 def test_named_admin_branches_authorize_before_protected_domain_access() -> None:
-    functions = _named_functions(_service_tree("billing"))
+    functions = {
+        **_named_functions(_service_tree("billing.quotes")),
+        **_named_functions(_service_tree("billing.authority")),
+    }
     assert _first_call_line(
         functions["request_custom_quote"], {"require_active_admin"}
     ) < _first_call_line(functions["request_custom_quote"], {"_campaign"})
@@ -166,9 +172,7 @@ def test_named_admin_branches_authorize_before_protected_domain_access() -> None
     assert lock_loop.iter.func.id == "sorted"
     assert isinstance(lock_loop.iter.args[0], ast.Set)
     assert {
-        element.id
-        for element in lock_loop.iter.args[0].elts
-        if isinstance(element, ast.Name)
+        element.id for element in lock_loop.iter.args[0].elts if isinstance(element, ast.Name)
     } == {"actor_user_id", "approved_by_user_id"}
 
 
@@ -272,9 +276,7 @@ async def _table_counts(session) -> dict[str, int]:
     }
 
 
-def test_each_migrated_entry_point_denies_without_mutation(
-    db_sessionmaker, settings
-) -> None:
+def test_each_migrated_entry_point_denies_without_mutation(db_sessionmaker, settings) -> None:
     async def scenario() -> None:
         active_admin = User(
             id=UUID(int=10),
@@ -329,7 +331,7 @@ def test_each_migrated_entry_point_denies_without_mutation(
 
                 await _invoke_denied_site(
                     session,
-                    "billing",
+                    "billing.authority",
                     "record_approved_credit_authorization",
                     denied_user_id=active_admin.id,
                     active_admin_id=denied_user_id,

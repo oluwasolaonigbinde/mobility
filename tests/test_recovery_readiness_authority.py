@@ -81,7 +81,7 @@ def overlay(scope="qualification", **changes):
     params = dict(
         current=current,
         previous=previous,
-        capability={"capability": CAPABILITY, "alembic_revision": "0081_example"},
+        capability={"capability": CAPABILITY, "alembic_revision": "synthetic_example"},
         forward=receipt["forward_alembic_revision"],
         scope=scope,
         now=NOW,
@@ -107,7 +107,7 @@ def validate(token, scope="qualification", **changes):
         release_id=previous["RELEASE_ID"],
         revision=previous["RELEASE_REVISION"],
         image=previous["BACKEND_IMAGE"],
-        code_head="0081_example",
+        code_head="synthetic_example",
         now=NOW,
     )
     params.update(changes)
@@ -160,7 +160,7 @@ def test_every_tampered_authority_field_is_rejected(field):
         {"scope": "recovery"},
         {"revision": "f" * 40},
         {"image": "sha256:" + "f" * 64},
-        {"code_head": "0080_wrong"},
+        {"code_head": "synthetic_wrong"},
         {"release_id": "different"},
         {"secret": "f" * 40},
         {"now": NOW + timedelta(minutes=30)},
@@ -176,13 +176,13 @@ def test_signed_authority_cannot_be_replayed_in_another_context(changes):
 @pytest.mark.parametrize("mutation", ["state", "acceptance", "receipt", "unaccepted", "capability"])
 def test_host_recovery_cannot_issue_from_unaccepted_or_incapable_predecessor(mutation):
     current, previous, receipt, state = environments()
-    capability = {"capability": CAPABILITY, "alembic_revision": "0081_example"}
+    capability = {"capability": CAPABILITY, "alembic_revision": "synthetic_example"}
     if mutation == "state":
         state["backend_image"] = previous["BACKEND_IMAGE"]
     elif mutation == "acceptance":
         state["events"][0]["outcome"] = "passed:" + "a" * 64 + ":" + "b" * 64
     elif mutation == "receipt":
-        receipt["forward_alembic_revision"] = "0080_stale"
+        receipt["forward_alembic_revision"] = "synthetic_stale"
     elif mutation == "unaccepted":
         state["stages"] = []
     else:
@@ -245,7 +245,7 @@ def test_probe_scopes_preserve_worker_and_exact_database_authority(monkeypatch, 
             release_revision="3" * 40,
         ),
     )
-    monkeypatch.setattr(readiness, "code_migration_head", lambda: "0081_example")
+    monkeypatch.setattr(readiness, "code_migration_head", lambda: "synthetic_example")
     real_validate = readiness.validate_authority
     monkeypatch.setattr(
         readiness,
@@ -259,7 +259,7 @@ def test_probe_scopes_preserve_worker_and_exact_database_authority(monkeypatch, 
 
     async def database(_url, *, expected_revision=None):
         calls.append(("database", expected_revision))
-        if observed_revision != (expected_revision or "0081_example"):
+        if observed_revision != (expected_revision or "synthetic_example"):
             raise RuntimeError("wrong database")
         return {"alembic_revision": observed_revision, "postgis_version": "3.4"}
 
@@ -301,7 +301,9 @@ def test_probe_scopes_preserve_worker_and_exact_database_authority(monkeypatch, 
     assert calls[0] == ("database", observed_revision if scope else None)
 
 
-@pytest.mark.parametrize("head", ["0084_current", "0088_report_publication_writes", "future_0099"])
+@pytest.mark.parametrize(
+    "head", ["synthetic_current", "synthetic_report_publication_writes", "synthetic_future"]
+)
 def test_image_head_is_derived_from_exact_identified_image(monkeypatch, head):
     calls = []
 
@@ -318,7 +320,7 @@ def test_image_head_is_derived_from_exact_identified_image(monkeypatch, head):
 
 
 @pytest.mark.parametrize(
-    "output", ["", "0082_old (head)\n0088_new (head)", "0082_old", "not a head"]
+    "output", ["", "synthetic_old (head)\nsynthetic_new (head)", "synthetic_old", "not a head"]
 )
 def test_missing_multiple_or_malformed_image_heads_fail_closed(monkeypatch, output):
     monkeypatch.setattr(host, "image_command", lambda *args: output)
@@ -340,14 +342,14 @@ def test_image_label_mismatch_blocks_execution(monkeypatch):
 
 
 def test_actual_forward_database_is_exact_and_public_readiness_stays_closed(monkeypatch):
-    from sqlalchemy import text
-    from sqlalchemy.exc import DBAPIError
-    from sqlalchemy.ext.asyncio import create_async_engine
-    from test_migration_0014_partitioning import (
+    from database_helpers import (
         configured_postgres_url,
         create_database_from_url,
         drop_database,
     )
+    from sqlalchemy import text
+    from sqlalchemy.exc import DBAPIError
+    from sqlalchemy.ext.asyncio import create_async_engine
 
     from app.core.config import Settings
 
@@ -364,7 +366,7 @@ def test_actual_forward_database_is_exact_and_public_readiness_stays_closed(monk
                     text("INSERT INTO alembic_version VALUES (:head)"), {"head": head}
                 )
             monkeypatch.setattr(
-                readiness, "code_migration_head", lambda: "0084_payout_conservation"
+                readiness, "code_migration_head", lambda: "synthetic_payout_conservation"
             )
             with pytest.raises(RuntimeError, match="database migration"):
                 await readiness._database_check(url)
@@ -373,7 +375,7 @@ def test_actual_forward_database_is_exact_and_public_readiness_stays_closed(monk
             ] == head
             with pytest.raises(RuntimeError, match="database migration"):
                 await readiness._database_check(
-                    url, expected_revision="0082_report_publication_intents"
+                    url, expected_revision="synthetic_report_publication_intents"
                 )
             for key, value in unpack(overlay("recovery")).items():
                 monkeypatch.setenv(key, value)
@@ -398,7 +400,7 @@ def test_rehearsal_uses_both_image_heads_without_obsolete_revision_constant():
     from pathlib import Path
 
     source = (Path(__file__).resolve().parents[1] / "scripts/rehearse_w403a.sh").read_text()
-    assert 'FORWARD_ALEMBIC_REVISION="0082_report_publication_intents"' not in source
+    assert 'FORWARD_ALEMBIC_REVISION="synthetic_report_publication_intents"' not in source
     for name, image, revision in (
         ("PREVIOUS", "previous_backend_image", "PREVIOUS_REVISION"),
         ("FORWARD", "backend_image", "REVISION"),
@@ -486,7 +488,7 @@ def test_wrong_authority_is_rejected_before_any_dependency_probe(monkeypatch):
             release_revision="3" * 40,
         ),
     )
-    monkeypatch.setattr(readiness, "code_migration_head", lambda: "0081_example")
+    monkeypatch.setattr(readiness, "code_migration_head", lambda: "synthetic_example")
     for key, value in unpack(overlay("recovery")).items():
         monkeypatch.setenv(key, value)
     monkeypatch.setenv("RELEASE_COMPATIBILITY_KEY", "wrong" * 20)
@@ -564,7 +566,7 @@ def test_operator_cli_success_checks_all_dependencies_in_its_scope(monkeypatch, 
         database_url="local-db", redis_url="local-redis", release_revision="3" * 40
     )
     monkeypatch.setattr(readiness, "get_settings", lambda: settings)
-    monkeypatch.setattr(readiness, "code_migration_head", lambda: "0081_example")
+    monkeypatch.setattr(readiness, "code_migration_head", lambda: "synthetic_example")
     for key, value in unpack(overlay(scope or "qualification")).items():
         monkeypatch.setenv(key, value)
     real_validate = readiness.validate_authority
@@ -581,9 +583,12 @@ def test_operator_cli_success_checks_all_dependencies_in_its_scope(monkeypatch, 
 
     async def database(url, *, expected_revision=None):
         assert url == "local-db"
-        assert expected_revision == ("0082_report_publication_intents" if scope else None)
+        assert expected_revision == ("synthetic_report_publication_intents" if scope else None)
         calls.append("database")
-        return {"alembic_revision": expected_revision or "0081_example", "postgis_version": "3.4"}
+        return {
+            "alembic_revision": expected_revision or "synthetic_example",
+            "postgis_version": "3.4",
+        }
 
     monkeypatch.setattr(readiness, "_database_check", database)
 
@@ -641,11 +646,13 @@ def test_operator_cli_failure_redacts_details_and_capability_needs_no_runtime_se
         "status": "failed",
         "reason": "RuntimeError",
     }
-    monkeypatch.setattr(readiness, "code_migration_head", lambda: "0088_report_publication_writes")
+    monkeypatch.setattr(
+        readiness, "code_migration_head", lambda: "synthetic_report_publication_writes"
+    )
     assert readiness.main(["--capability"]) == 0
     assert json.loads(capsys.readouterr().out) == {
         "capability": CAPABILITY,
-        "alembic_revision": "0088_report_publication_writes",
+        "alembic_revision": "synthetic_report_publication_writes",
     }
 
 

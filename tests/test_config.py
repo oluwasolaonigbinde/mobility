@@ -61,17 +61,6 @@ def test_settings_defaults_load() -> None:
     assert settings.impression_insufficient_data_confidence == 0.10
     assert settings.impression_min_confidence == 0.0
     assert settings.impression_max_confidence == 1.0
-    assert settings.payout_formula_version == "payout_v1"
-    assert settings.payout_default_base_rate_per_km == 0.0
-    assert settings.payout_default_base_rate_per_active_hour == 0.0
-    assert settings.payout_default_target_zone_bonus_rate_per_km == 0.0
-    assert settings.payout_default_bonus_zone_bonus_rate_per_km == 0.0
-    assert settings.payout_default_estimated_impression_rate_per_1000 == 0.0
-    assert settings.payout_default_low_fraud_multiplier == 0.90
-    assert settings.payout_default_medium_fraud_multiplier == 0.70
-    assert settings.payout_default_high_fraud_multiplier == 0.25
-    assert settings.payout_default_min_payout_per_trip == 0.0
-    assert settings.payout_default_max_payout_per_trip is None
     assert settings.payout_crypto_key_version == 1
     assert len(settings.payout_crypto_keys[1]) == 32
     assert "AAECAw" not in repr(settings)
@@ -218,17 +207,14 @@ def test_nonlocal_runtime_urls_reject_special_use_and_placeholder_hosts(host: st
             )
         )
     with pytest.raises(ValidationError):
-        production_settings(
-            redis_url=f"rediss://:synthetic-redis-secret@{host}:6379/0"
-        )
+        production_settings(redis_url=f"rediss://:synthetic-redis-secret@{host}:6379/0")
 
 
 @pytest.mark.parametrize("host", ["db", "postgres.internal", "10.42.0.8"])
 def test_nonlocal_runtime_urls_allow_explicit_bundled_or_managed_hosts(host: str) -> None:
     settings = production_settings(
         database_url=(
-            f"postgresql+asyncpg://mobility:synthetic-db-secret@{host}:5432/"
-            "mobility?ssl=require"
+            f"postgresql+asyncpg://mobility:synthetic-db-secret@{host}:5432/mobility?ssl=require"
         ),
         redis_url=f"rediss://:synthetic-redis-secret@{host}:6379/0",
     )
@@ -374,51 +360,6 @@ def test_impression_min_confidence_must_not_exceed_max() -> None:
         Settings(impression_min_confidence=0.9, impression_max_confidence=0.5)
 
 
-@pytest.mark.parametrize(
-    "setting_name",
-    [
-        "payout_default_base_rate_per_km",
-        "payout_default_base_rate_per_active_hour",
-        "payout_default_target_zone_bonus_rate_per_km",
-        "payout_default_bonus_zone_bonus_rate_per_km",
-        "payout_default_estimated_impression_rate_per_1000",
-        "payout_default_min_payout_per_trip",
-        "payout_default_max_payout_per_trip",
-    ],
-)
-def test_payout_default_settings_must_be_nonnegative(setting_name: str) -> None:
-    with pytest.raises(ValidationError):
-        Settings(**{setting_name: -1})
-
-
-@pytest.mark.parametrize(
-    "setting_name",
-    [
-        "payout_default_low_fraud_multiplier",
-        "payout_default_medium_fraud_multiplier",
-        "payout_default_high_fraud_multiplier",
-    ],
-)
-@pytest.mark.parametrize("invalid_value", [-0.1, 1.1])
-def test_payout_ratio_settings_must_be_between_zero_and_one(
-    setting_name: str,
-    invalid_value: float,
-) -> None:
-    with pytest.raises(ValidationError):
-        Settings(**{setting_name: invalid_value})
-
-
-def test_payout_max_default_must_not_be_below_min() -> None:
-    with pytest.raises(ValidationError):
-        Settings(payout_default_min_payout_per_trip=10, payout_default_max_payout_per_trip=9)
-
-
-def test_blank_payout_max_default_parses_as_unset() -> None:
-    settings = Settings(payout_default_max_payout_per_trip="")
-
-    assert settings.payout_default_max_payout_per_trip is None
-
-
 def test_file_kyc_retention_has_no_default_and_blank_parses_as_unset() -> None:
     assert Settings().file_kyc_retention_days is None
     assert Settings(file_kyc_retention_days="").file_kyc_retention_days is None
@@ -490,39 +431,9 @@ def test_email_delivery_numeric_settings_must_be_positive(setting_name: str) -> 
     ["evidence_renewal_lookback_days", "evidence_challenge_response_hours"],
 )
 @pytest.mark.parametrize("invalid_value", [0, -1])
-def test_recurring_evidence_windows_must_be_positive(
-    setting_name: str, invalid_value: int
-) -> None:
+def test_recurring_evidence_windows_must_be_positive(setting_name: str, invalid_value: int) -> None:
     with pytest.raises(ValidationError):
         Settings(**{setting_name: invalid_value})
-
-
-def test_payout_settings_load_from_environment(monkeypatch) -> None:
-    monkeypatch.setenv("PAYOUT_FORMULA_VERSION", "payout_v1")
-    monkeypatch.setenv("PAYOUT_DEFAULT_BASE_RATE_PER_KM", "11.5")
-    monkeypatch.setenv("PAYOUT_DEFAULT_BASE_RATE_PER_ACTIVE_HOUR", "22.5")
-    monkeypatch.setenv("PAYOUT_DEFAULT_TARGET_ZONE_BONUS_RATE_PER_KM", "3.5")
-    monkeypatch.setenv("PAYOUT_DEFAULT_BONUS_ZONE_BONUS_RATE_PER_KM", "4.5")
-    monkeypatch.setenv("PAYOUT_DEFAULT_ESTIMATED_IMPRESSION_RATE_PER_1000", "5.5")
-    monkeypatch.setenv("PAYOUT_DEFAULT_LOW_FRAUD_MULTIPLIER", "0.91")
-    monkeypatch.setenv("PAYOUT_DEFAULT_MEDIUM_FRAUD_MULTIPLIER", "0.61")
-    monkeypatch.setenv("PAYOUT_DEFAULT_HIGH_FRAUD_MULTIPLIER", "0.21")
-    monkeypatch.setenv("PAYOUT_DEFAULT_MIN_PAYOUT_PER_TRIP", "10")
-    monkeypatch.setenv("PAYOUT_DEFAULT_MAX_PAYOUT_PER_TRIP", "")
-
-    settings = Settings()
-
-    assert settings.payout_formula_version == "payout_v1"
-    assert settings.payout_default_base_rate_per_km == 11.5
-    assert settings.payout_default_base_rate_per_active_hour == 22.5
-    assert settings.payout_default_target_zone_bonus_rate_per_km == 3.5
-    assert settings.payout_default_bonus_zone_bonus_rate_per_km == 4.5
-    assert settings.payout_default_estimated_impression_rate_per_1000 == 5.5
-    assert settings.payout_default_low_fraud_multiplier == 0.91
-    assert settings.payout_default_medium_fraud_multiplier == 0.61
-    assert settings.payout_default_high_fraud_multiplier == 0.21
-    assert settings.payout_default_min_payout_per_trip == 10
-    assert settings.payout_default_max_payout_per_trip is None
 
 
 def test_default_currency_must_be_three_letters() -> None:

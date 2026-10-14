@@ -1,6 +1,6 @@
 """Maker-checker payout correction orders (MNY-06C, Q22, PR7/PR12).
 
-The PR6 recompute core (services/payouts.py) is the single computation
+The PR6 recompute core (services/payouts/corrections.py) is the single computation
 engine; this module wraps it in the correction-order authority: a named
 adjuster projects a campaign/Lagos-day delta (dry-run, no writes), a
 DIFFERENT admin approves, and execution re-verifies the projection
@@ -37,18 +37,15 @@ from app.models.payout import (
 from app.models.trip import TripSession, TripSessionStatus
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
-from app.services.payouts import (
-    PAYOUT_V2,
+from app.services.impressions import quantize_2
+from app.services.payouts.common import correction_release_at_required, lagos_day_utc_range, utc_now
+from app.services.payouts.corrections import (
     DayComputation,
     RecomputeDayOutcome,
     compute_payout_day_targets,
-    correction_release_at_required,
-    get_campaign,
-    lagos_day_utc_range,
-    quantize_2,
-    utc_now,
     write_day_differentials,
 )
+from app.services.payouts.rules import get_campaign
 from app.services.provenance import stable_source_fingerprint
 
 
@@ -146,7 +143,6 @@ def _projection_payload(computations: list[DayComputation]) -> dict:
                     "target_amount": str(target.target_amount),
                     "delta_amount": str(target.delta_amount),
                     "eligible_seconds": target.eligible_seconds,
-                    "payable_seconds": target.payable_seconds,
                     "voided": target.voided,
                     **(
                         {"distance_m_by_day": target.distance_m_by_day}
@@ -203,7 +199,6 @@ async def _projection_fingerprint(
                     "stored_inputs_fingerprint": target.stored_inputs_fingerprint,
                     "current_ping_fingerprint": target.current_ping_fingerprint,
                     "governing_values": target.governing_values,
-                    "cap_seconds": target.cap_seconds,
                     "voided": target.voided,
                 }
             )
@@ -226,46 +221,12 @@ async def _projection_fingerprint(
             }
             for entry in entries.scalars().all()
         ]
-    first = computations[0] if computations else None
     return stable_source_fingerprint(
         {
             "campaign_id": campaign_id,
             "lagos_day": lagos_day.isoformat(),
             "trips": trip_inputs,
             "ledger_entries": ledger_rows,
-            # Live zones affect payout_v2 classification. payout_v3 consumes
-            # only the acceptance-time geometry snapshot, already carried in
-            # governing_values/current_ping_fingerprint, so unrelated live
-            # zone edits must not stale a v3-only order.
-            "zone_state_fingerprint": (
-                first.zone_state_fingerprint
-                if any(
-                    target.formula_version == PAYOUT_V2
-                    for computation in computations
-                    for target in computation.trips
-                )
-                else None
-            ),
-            "window_start_at": (
-                first.window_start_at
-                if first is not None
-                and any(
-                    target.formula_version == PAYOUT_V2
-                    for computation in computations
-                    for target in computation.trips
-                )
-                else None
-            ),
-            "window_end_at": (
-                first.window_end_at
-                if first is not None
-                and any(
-                    target.formula_version == PAYOUT_V2
-                    for computation in computations
-                    for target in computation.trips
-                )
-                else None
-            ),
         }
     )
 

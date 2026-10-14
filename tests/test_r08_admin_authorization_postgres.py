@@ -11,8 +11,8 @@ from sqlalchemy import func, select
 
 from app.core.errors import AppError
 from app.models.user import User, UserRole, UserStatus
-from app.services import billing
 from app.services.admin_authorization import require_active_admin
+from app.services.billing import authority as billing_authority
 from tests.test_r08_admin_authorization import (
     MIGRATED_CALL_SITES,
     _module,
@@ -74,7 +74,7 @@ async def _assert_blocked_by(
 
 
 async def _invoke_call_site(session, call_site: str, *, actor_user_id: UUID, settings) -> None:
-    service_name, function_name = call_site.split(".", maxsplit=1)
+    service_name, function_name = call_site.rsplit(".", maxsplit=1)
     function = getattr(_module(service_name), function_name)
     kwargs = {}
     for parameter in inspect.signature(function).parameters.values():
@@ -133,7 +133,7 @@ async def _disable_first(
             assert disabled is not None
             assert disabled.status == UserStatus.DISABLED
 
-    service_name, _ = call_site.split(".", maxsplit=1)
+    service_name, _ = call_site.rsplit(".", maxsplit=1)
     with monkeypatch.context() as patch:
         patch.setattr(_module(service_name), "require_active_admin", require_active_admin)
         disable_task = asyncio.create_task(disable())
@@ -187,7 +187,7 @@ async def _write_first(sessionmaker, *, admin: User, call_site: str, settings, m
             user.status = UserStatus.DISABLED
         timeline.append("disable_committed")
 
-    service_name, _ = call_site.split(".", maxsplit=1)
+    service_name, _ = call_site.rsplit(".", maxsplit=1)
     with monkeypatch.context() as patch:
         patch.setattr(_module(service_name), "require_active_admin", probed_authority)
         write_task = asyncio.create_task(write())
@@ -246,7 +246,7 @@ async def _rollback_releases_lock(
             user.status = UserStatus.DISABLED
         timeline.append("disable_committed")
 
-    service_name, _ = call_site.split(".", maxsplit=1)
+    service_name, _ = call_site.rsplit(".", maxsplit=1)
     with monkeypatch.context() as patch:
         patch.setattr(_module(service_name), "require_active_admin", probed_authority)
         write_task = asyncio.create_task(write())
@@ -326,7 +326,7 @@ def test_approved_credit_locks_equal_and_swapped_admins_sorted_unique(
             calls.setdefault(task.get_name(), []).append(actor_user_id)
             await real_authority(session, actor_user_id)
 
-        monkeypatch.setattr(billing, "require_active_admin", tracked_authority)
+        monkeypatch.setattr(billing_authority, "require_active_admin", tracked_authority)
 
         async def attempt(name: str, actor_user_id: UUID, approver_user_id: UUID) -> str:
             task = asyncio.current_task()
@@ -335,7 +335,7 @@ def test_approved_credit_locks_equal_and_swapped_admins_sorted_unique(
             async with postgis_db_sessionmaker() as session:
                 with pytest.raises(AppError) as caught:
                     async with session.begin():
-                        await billing.record_approved_credit_authorization(
+                        await billing_authority.record_approved_credit_authorization(
                             session,
                             campaign_id=uuid4(),
                             actor_user_id=actor_user_id,

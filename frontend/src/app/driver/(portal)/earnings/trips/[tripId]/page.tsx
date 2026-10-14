@@ -72,7 +72,6 @@ const EXCLUSION_LABELS: Record<string, string> = {
   out_of_window: "Outside campaign window",
   out_of_area: "Outside campaign area",
   stationary: "Parked too long",
-  stationary_rolling_displacement: "Not moving for more than 4 minutes",
 };
 
 const METRES_PER_MILE = 1609.344;
@@ -140,9 +139,6 @@ export default async function DriverTripEarningsPage({
   const data = breakdown.data;
   const holds = holdsResponse.data.items ?? [];
 
-  const isDailyRate = data.formula_version === "payout_v4";
-  const isV3 = data.formula_version === "payout_v3";
-  const isHourly = data.formula_version === "payout_v2" || isV3;
   const excluded = Object.entries(data.excluded_seconds_by_reason ?? {});
 
   return (
@@ -228,82 +224,43 @@ export default async function DriverTripEarningsPage({
           );
         })}
 
-        {isDailyRate ? (
-          <Panel className="p-5">
-            <h2 className="micro text-muted mb-3">Miles counted</h2>
-            {data.daily_rate_days && data.daily_rate_days.length > 0 ? (
-              <ul className="divide-edge/60 divide-y">
-                {data.daily_rate_days.map((day) => (
-                  <li key={day.lagos_day} className="grid grid-cols-[1fr_auto] gap-4 py-2.5">
-                    <div>
-                      <p className="text-sm font-medium">{formatDate(day.lagos_day)}</p>
-                      <p className="micro text-faint mt-0.5">
-                        {formatMiles(day.distance_m)} miles counted on this trip (Nigeria time, WAT)
-                      </p>
-                    </div>
-                    <p className="font-mono text-sm">
-                      {formatMoneyExact(day.amount, data.currency)}
+        <Panel className="p-5">
+          <h2 className="micro text-muted mb-3">Miles counted</h2>
+          {data.daily_rate_days && data.daily_rate_days.length > 0 ? (
+            <ul className="divide-edge/60 divide-y">
+              {data.daily_rate_days.map((day) => (
+                <li key={day.lagos_day} className="grid grid-cols-[1fr_auto] gap-4 py-2.5">
+                  <div>
+                    <p className="text-sm font-medium">{formatDate(day.lagos_day)}</p>
+                    <p className="micro text-faint mt-0.5">
+                      {formatMiles(day.distance_m)} miles counted on this trip (Nigeria time, WAT)
                     </p>
+                  </div>
+                  <p className="font-mono text-sm">{formatMoneyExact(day.amount, data.currency)}</p>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-muted text-sm">No miles counted on this trip.</p>
+          )}
+          {excluded.length > 0 ? (
+            <div className="border-edge/60 mt-4 border-t pt-3">
+              <p className="text-muted mb-1 text-sm font-medium">Time that didn&apos;t count</p>
+              <ul className="flex flex-col gap-1.5">
+                {excluded.map(([reason, seconds]) => (
+                  <li key={reason} className="flex items-center justify-between text-sm">
+                    <span className="text-muted">
+                      {reason === "stationary"
+                        ? "Stops longer than 5 minutes"
+                        : (EXCLUSION_LABELS[reason] ?? reason.replace(/_/g, " "))}
+                    </span>
+                    <span className="font-mono">{formatDuration(seconds)}</span>
                   </li>
                 ))}
               </ul>
-            ) : (
-              <p className="text-muted text-sm">No miles counted on this trip.</p>
-            )}
-            {excluded.length > 0 ? (
-              <div className="border-edge/60 mt-4 border-t pt-3">
-                <p className="text-muted mb-1 text-sm font-medium">Time that didn&apos;t count</p>
-                <ul className="flex flex-col gap-1.5">
-                  {excluded.map(([reason, seconds]) => (
-                    <li key={reason} className="flex items-center justify-between text-sm">
-                      <span className="text-muted">
-                        {reason === "stationary"
-                          ? "Stops longer than 5 minutes"
-                          : (EXCLUSION_LABELS[reason] ?? reason.replace(/_/g, " "))}
-                      </span>
-                      <span className="font-mono">{formatDuration(seconds)}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : null}
-          </Panel>
-        ) : null}
-
-        {isHourly ? (
-          <>
-            <Panel className="p-5">
-              <h2 className="micro text-muted mb-3">Verified time</h2>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="micro text-faint">Eligible</p>
-                  <p className="mt-0.5 font-mono text-lg">
-                    {formatDuration(data.eligible_seconds)}
-                  </p>
-                </div>
-                <div>
-                  <p className="micro text-faint">Counted</p>
-                  <p className="mt-0.5 font-mono text-lg">{formatDuration(data.capped_seconds)}</p>
-                </div>
-              </div>
-              {excluded.length > 0 ? (
-                <div className="border-edge/60 mt-4 border-t pt-3">
-                  <p className="micro text-faint mb-2">Time that didn&apos;t count</p>
-                  <ul className="flex flex-col gap-1.5">
-                    {excluded.map(([reason, seconds]) => (
-                      <li key={reason} className="flex items-center justify-between text-sm">
-                        <span className="text-muted">
-                          {EXCLUSION_LABELS[reason] ?? reason.replace(/_/g, " ")}
-                        </span>
-                        <span className="font-mono">{formatDuration(seconds)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : null}
-            </Panel>
-          </>
-        ) : null}
+            </div>
+          ) : null}
+        </Panel>
 
         <Panel className="overflow-hidden">
           <div className="border-edge border-b px-5 py-3.5">

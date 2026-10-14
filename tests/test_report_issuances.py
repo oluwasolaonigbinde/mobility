@@ -1338,7 +1338,7 @@ def test_expired_final_claim_terminalizes_once_on_postgres(
 
 @pytest.fixture
 def deterministic_render(monkeypatch):
-    """Isolate R51 publication mechanics from the SQLite timezone-naive renderer limit."""
+    """Isolate publication ownership and retry mechanics from report rendering."""
 
     def csv(snapshot) -> bytes:
         return f"section,label\nissuance,{snapshot['issuance']['id']}\n".encode()

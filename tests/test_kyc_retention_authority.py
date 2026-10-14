@@ -7,19 +7,18 @@ import pytest
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 from conftest import create_test_vehicle
+from database_helpers import (
+    configured_postgres_url,
+    create_database_from_url,
+    drop_database,
+    upgrade_to,
+)
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 from test_file_kyc_lifecycle import _create_terminal_submission
 from test_kyc import NIN, _seed_driver_authority
-from test_migration_0014_partitioning import (
-    configured_postgres_url,
-    create_database_from_url,
-    downgrade_to,
-    drop_database,
-    upgrade_to,
-)
 from test_stored_files import FakeStorageProvider
 
 from app.adapters.crypto import AssociatedData, EnvelopeCryptoProvider
@@ -409,15 +408,13 @@ def test_document_binding_waits_on_parent_before_file_and_rejects_retired_payloa
     asyncio.run(run())
 
 
-@pytest.mark.parametrize("migrated_kyc_factory", ["0087_kyc_payload_retention"], indirect=True)
-def test_kyc_retention_migration_preserves_live_payload_and_serializes_downgrade(
+@pytest.mark.parametrize("migrated_kyc_factory", ["0106_development_baseline"], indirect=True)
+def test_kyc_retention_schema_preserves_and_retires_payload(
     migrated_kyc_factory, settings, monkeypatch
 ):
     factory = migrated_kyc_factory
     url = factory.kw["bind"].url.render_as_string(hide_password=False)
-    # Empty guarded downgrade and re-upgrade remain available.
-    downgrade_to(url, "0086_audit_subjects", monkeypatch)
-    upgrade_to(url, "0087_kyc_payload_retention", monkeypatch)
+    upgrade_to(url, "0106_development_baseline", monkeypatch)
     admin, driver, profile, bank_id, files = _seed_driver_authority(
         factory, suffix="purge-migration"
     )
@@ -430,8 +427,7 @@ def test_kyc_retention_migration_preserves_live_payload_and_serializes_downgrade
 
     async def seed_and_race():
         async with factory() as session:
-            # This frozen revision predates 0102; current capture/ORM fields cannot
-            # be used to manufacture its historical payload.
+            # Seed a rejected payload old enough for authorized retention.
             await session.execute(
                 text("""
                     INSERT INTO driver_kyc_submissions
@@ -461,12 +457,6 @@ def test_kyc_retention_migration_preserves_live_payload_and_serializes_downgrade
                     )
                 )
             await session.commit()
-            await session.execute(
-                text("SELECT id FROM driver_kyc_submissions WHERE id=:id FOR UPDATE"),
-                {"id": identity},
-            )
-            with pytest.raises(DBAPIError, match="could not obtain lock"):
-                await asyncio.to_thread(downgrade_to, url, "0086_audit_subjects", monkeypatch)
 
     async def snapshot_and_schema():
         async with factory() as session:
@@ -499,26 +489,12 @@ def test_kyc_retention_migration_preserves_live_payload_and_serializes_downgrade
                     for name in ("driver_kyc_submissions", "vehicle_evidence_submissions")
                 )
             ]
-            # The only intentional difference from today's model is 0102's
-            # five additive capture fields. Every other owned drift still fails.
-            assert len(owned_changes) == 5
-            assert all(
-                change[0] == "add_column" and change[2] == "driver_kyc_submissions"
-                for change in owned_changes
-            )
-            assert {change[3].name for change in owned_changes} == {
-                "agreement_version",
-                "agreement_accepted_at",
-                "agreement_acceptance_requested",
-                "bank_check_receipt_sha256",
-                "bank_name_confirmed",
-            }
+            assert owned_changes == []
             return before, bindings
 
     asyncio.run(seed_and_race())
     before = asyncio.run(snapshot_and_schema())
-    downgrade_to(url, "0086_audit_subjects", monkeypatch)
-    upgrade_to(url, "0087_kyc_payload_retention", monkeypatch)
+    upgrade_to(url, "0106_development_baseline", monkeypatch)
     assert asyncio.run(snapshot_and_schema()) == before
 
     async def retire_historical_payload():
@@ -553,5 +529,3 @@ def test_kyc_retention_migration_preserves_live_payload_and_serializes_downgrade
             )
 
     asyncio.run(retire_historical_payload())
-    with pytest.raises(RuntimeError, match="0087 downgrade blocked"):
-        downgrade_to(url, "0086_audit_subjects", monkeypatch)

@@ -192,9 +192,7 @@ def test_batch_submission_commits_frozen_intent_without_provider_io(db_sessionma
             await session.commit()
             return batch, lines[0], frozen, submitted_audits, queued_audits, intents
 
-    batch, line, frozen, submitted_audits, queued_audits, intents = asyncio.run(
-        exercise()
-    )
+    batch, line, frozen, submitted_audits, queued_audits, intents = asyncio.run(exercise())
     assert batch.status == "reserved"
     assert batch.total_amount == Decimal("100.00")
     assert line.instruction == frozen[0]
@@ -285,6 +283,11 @@ def test_multi_line_reservation_freezes_exact_total_hashes_and_keys(db_sessionma
 )
 def test_frozen_columns_tamper_blocks_approval(db_sessionmaker, tamper: str) -> None:
     graph = build_graph(db_sessionmaker, f"tamper-{tamper}-{uuid4().hex[:6]}")
+    alternate = (
+        build_graph(db_sessionmaker, f"other-destination-{uuid4().hex[:6]}")
+        if tamper in {"payee_version_id", "bank_account_version_id"}
+        else None
+    )
     checker = type(graph.admin)(
         email=f"tamper-checker-{uuid4().hex}@example.com",
         password_hash=graph.admin.password_hash,
@@ -308,14 +311,29 @@ def test_frozen_columns_tamper_blocks_approval(db_sessionmaker, tamper: str) -> 
                 actor_user_id=graph.admin.id,
             )
             line = lines[0]
+            other_line = None
+            if alternate is not None:
+                other_entry = await _seed_authority(session, alternate)
+                other_batch = await create_payout_batch_draft(
+                    session, currency="NGN", actor_user_id=graph.admin.id
+                )
+                _, other_lines = await reserve_payout_batch(
+                    session,
+                    batch_id=other_batch.id,
+                    ledger_entry_ids=(other_entry.id,),
+                    actor_user_id=graph.admin.id,
+                )
+                other_line = other_lines[0]
             if tamper == "line_amount":
                 line.amount = Decimal("99.00")
             elif tamper == "line_currency":
                 line.currency = "USD"
             elif tamper == "payee_version_id":
-                line.payee_version_id = uuid4()
+                assert other_line is not None
+                line.payee_version_id = other_line.payee_version_id
             elif tamper == "bank_account_version_id":
-                line.bank_account_version_id = uuid4()
+                assert other_line is not None
+                line.bank_account_version_id = other_line.bank_account_version_id
             elif tamper == "idempotency_key":
                 line.idempotency_key = "f" * 64
             elif tamper == "batch_total":
@@ -639,12 +657,11 @@ def test_postgres_duplicate_provider_reference_preserves_outer_write(
                 for intent_id, batch_id in (
                     await session.execute(
                         select(PayoutSubmissionIntent.id, PayoutBatchLine.batch_id)
-                    .join(
-                        PayoutBatchLine,
-                        PayoutBatchLine.id
-                        == PayoutSubmissionIntent.payout_batch_line_id,
-                    )
-                    .where(PayoutBatchLine.batch_id.in_([batch.id for batch in batches]))
+                        .join(
+                            PayoutBatchLine,
+                            PayoutBatchLine.id == PayoutSubmissionIntent.payout_batch_line_id,
+                        )
+                        .where(PayoutBatchLine.batch_id.in_([batch.id for batch in batches]))
                     )
                 )
             }
@@ -682,9 +699,7 @@ def test_postgres_duplicate_provider_reference_preserves_outer_write(
             lines = tuple(
                 (
                     await session.scalars(
-                        select(PayoutBatchLine).where(
-                            PayoutBatchLine.batch_id == batches[1].id
-                        )
+                        select(PayoutBatchLine).where(PayoutBatchLine.batch_id == batches[1].id)
                     )
                 ).all()
             )
@@ -765,3 +780,133 @@ def test_postgres_hold_creation_serializes_before_reservation(
     result, line_count = asyncio.run(exercise())
     assert result == "PAYOUT_ENTRY_HELD"
     assert line_count == 0
+
+
+def test_submit_draft_batch_always_refuses_before_provider_or_intent(db_sessionmaker):
+    graph = build_graph(db_sessionmaker, f"draft-refusal-{uuid4().hex[:6]}")
+    adapter = FakeDisbursementAdapter()
+
+    async def exercise():
+        async with db_sessionmaker() as session:
+            batch = await create_payout_batch_draft(
+                session, currency="NGN", actor_user_id=graph.admin.id
+            )
+            await session.commit()
+            with pytest.raises(AppError) as refused:
+                await submit_payout_batch(
+                    session, batch_id=batch.id, actor_user_id=graph.admin.id, adapter=adapter
+                )
+            assert refused.value.code == "PAYOUT_BATCH_NOT_RESERVED"
+            assert (
+                await session.scalar(select(func.count()).select_from(PayoutSubmissionIntent)) == 0
+            )
+            assert batch.status == "draft"
+            assert adapter.calls == []
+
+    asyncio.run(exercise())
+
+
+def test_batch_state_and_actor_refusals_leave_provider_and_frozen_facts_untouched(db_sessionmaker):
+    from conftest import create_test_user
+
+    graph = build_graph(db_sessionmaker, "state-boundary")
+    checker = create_test_user(db_sessionmaker, email="state-checker@example.test")
+    other = create_test_user(db_sessionmaker, email="state-other@example.test")
+    adapter = FakeDisbursementAdapter()
+
+    async def run():
+        async with db_sessionmaker() as session:
+            from app.services.disbursements import _frozen_payee_authority
+
+            payee, _ = await create_pilot_payee(
+                session, driver_profile_id=graph.profile.id, actor_user_id=graph.admin.id
+            )
+            with pytest.raises(AppError) as caught:
+                await _frozen_payee_authority(session, EarningsLedgerEntry(), payee)
+            assert caught.value.code == "PAYOUT_BANK_ACCOUNT_MISSING"
+            entry = await _seed_authority(session, graph)
+            batch = await create_payout_batch_draft(
+                session, currency="NGN", actor_user_id=graph.admin.id
+            )
+
+            async def refuses(operation, code):
+                before = [
+                    await session.scalar(select(func.count()).select_from(model))
+                    for model in (PayoutBatchLine, PayoutSubmissionIntent, AuditEvent)
+                ]
+                with pytest.raises(AppError) as caught:
+                    await operation()
+                assert caught.value.code == code
+                assert [
+                    await session.scalar(select(func.count()).select_from(model))
+                    for model in (PayoutBatchLine, PayoutSubmissionIntent, AuditEvent)
+                ] == before
+                assert adapter.calls == []
+
+            for operation, code in (
+                (
+                    lambda: reserve_payout_batch(
+                        session,
+                        batch_id=uuid4(),
+                        ledger_entry_ids=(entry.id,),
+                        actor_user_id=graph.admin.id,
+                    ),
+                    "PAYOUT_BATCH_NOT_FOUND",
+                ),
+                (
+                    lambda: reserve_payout_batch(
+                        session,
+                        batch_id=batch.id,
+                        ledger_entry_ids=(entry.id,),
+                        actor_user_id=other.id,
+                    ),
+                    "PAYOUT_BATCH_MAKER_REQUIRED",
+                ),
+                (
+                    lambda: reserve_payout_batch(
+                        session,
+                        batch_id=batch.id,
+                        ledger_entry_ids=(uuid4(),),
+                        actor_user_id=graph.admin.id,
+                    ),
+                    "PAYOUT_ENTRY_INELIGIBLE",
+                ),
+                (
+                    lambda: approve_payout_batch(
+                        session, batch_id=batch.id, actor_user_id=checker.id
+                    ),
+                    "PAYOUT_BATCH_NOT_RESERVED",
+                ),
+            ):
+                await refuses(operation, code)
+            _, lines = await reserve_payout_batch(
+                session,
+                batch_id=batch.id,
+                ledger_entry_ids=(entry.id,),
+                actor_user_id=graph.admin.id,
+            )
+            frozen = (
+                batch.total_amount,
+                batch.instruction_set_fingerprint,
+                dict(lines[0].instruction),
+            )
+            await refuses(
+                lambda: submit_payout_batch(
+                    session, batch_id=batch.id, actor_user_id=graph.admin.id, adapter=adapter
+                ),
+                "PAYOUT_BATCH_NOT_APPROVED",
+            )
+            await approve_payout_batch(session, batch_id=batch.id, actor_user_id=checker.id)
+            await refuses(
+                lambda: approve_payout_batch(session, batch_id=batch.id, actor_user_id=other.id),
+                "PAYOUT_BATCH_APPROVAL_CONFLICT",
+            )
+            assert batch.approved_by_user_id == checker.id
+            assert (
+                batch.total_amount,
+                batch.instruction_set_fingerprint,
+                lines[0].instruction,
+            ) == frozen
+            assert lines[0].reservation_active and lines[0].status == "reserved"
+
+    asyncio.run(run())

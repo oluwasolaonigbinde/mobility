@@ -154,24 +154,18 @@ def test_stack_helper_enforces_project_scope_and_sanitized_receipt() -> None:
 
 def test_w401_modes_and_documentation_are_explicitly_ui_only() -> None:
     config = _read("frontend/playwright.config.ts")
-    rehearsal = _read("docs/pkg-07-w4-01d-release-rehearsal.md")
 
     assert "W401C_SYNTHETIC" in config
     assert "W401D_SYNTHETIC" in config
     assert "W403B_SYNTHETIC" in config
-    assert "UI-only synthetic rehearsal" in rehearsal
-    assert "not real-stack release authority" in rehearsal
 
 
 def test_r14_security_boundary_has_an_explicit_external_edge_mode() -> None:
     config = _read("frontend/playwright.config.ts")
-    readme = _read("frontend/README.md")
 
     assert 'process.env.R14_SECURITY_BOUNDARY === "1"' in config
     assert 'r14: "**/security-boundary.spec.ts"' in config
     assert "r59RealStack || r14SecurityBoundary" in config
-    assert "R14_SECURITY_BOUNDARY=1" in readme
-    assert "PLAYWRIGHT_BASE_URL=https://" in readme
 
 
 def test_mutating_ordinary_journeys_use_isolated_campaigns() -> None:

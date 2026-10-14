@@ -138,7 +138,7 @@ class S3StorageProvider:
             and metadata.checksum_sha256.lower() == checksum_sha256.lower()
         )
 
-    def _put_sync(
+    def _put_sync(  # noqa: C901
         self,
         *,
         object_key: str,

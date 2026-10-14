@@ -131,7 +131,7 @@ def _normalized_period(value: Any) -> dict[str, Any] | None:
     }
 
 
-def _normalize_provenance(value: Any) -> tuple[dict[str, Any] | None, str | None]:
+def _normalize_provenance(value: Any) -> tuple[dict[str, Any] | None, str | None]:  # noqa: C901
     if not isinstance(value, dict):
         return None, "provenance_missing"
     if value.get("test_only") is not True:
@@ -333,7 +333,7 @@ async def _coverage_areas(
     )
 
 
-async def calculate_synthetic_target_area_coverage(
+async def calculate_synthetic_target_area_coverage(  # noqa: C901
     session: AsyncSession, provenance: dict[str, Any]
 ) -> dict[str, Any]:
     if not isinstance(provenance, dict) or provenance.get("test_only") is not True:
@@ -353,9 +353,6 @@ async def calculate_synthetic_target_area_coverage(
     if not included_ids:
         return _omitted("disclosure_clearance_absent", provenance_sha256)
     included_cells = [cell for cell in normalized["fixed_cells"] if cell["cell_id"] in included_ids]
-
-    if session.get_bind().dialect.name != "postgresql":
-        return _omitted("postgis_unavailable", provenance_sha256)
 
     zone_json = json.dumps(
         normalized["target_zone"]["geometry"], separators=(",", ":"), sort_keys=True

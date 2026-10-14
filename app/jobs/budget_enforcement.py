@@ -3,7 +3,7 @@ from typing import Any
 
 from app.adapters.budget import build_budget_policy_adapter
 from app.core.config import get_settings
-from app.services.billing import sweep_budget_policy_evaluations
+from app.services.billing.budget import sweep_budget_policy_evaluations
 
 
 async def sweep_campaign_budget_enforcement(ctx: dict[str, Any]) -> dict[str, int | bool]:

@@ -241,7 +241,7 @@ def _has_sensitive_key_family(normalized: str) -> bool:
     )
 
 
-def _is_sensitive_key(key: object, contexts: tuple[str, ...] = ()) -> bool:
+def _is_sensitive_key(key: object, contexts: tuple[str, ...] = ()) -> bool:  # noqa: C901
     normalized = _normalize_key(key)
     if _ALWAYS_SENSITIVE_KEY.fullmatch(normalized):
         return True
@@ -329,7 +329,7 @@ def _is_escaped_character(message: str, index: int) -> bool:
     return backslashes % 2 == 1
 
 
-def _balanced_value_ends(message: str) -> tuple[dict[int, int], int | None]:
+def _balanced_value_ends(message: str) -> tuple[dict[int, int], int | None]:  # noqa: C901
     closing = {"(": ")", "[": "]", "{": "}"}
     stack: list[tuple[str, int, bool]] = []
     ends: dict[int, int] = {}
@@ -393,7 +393,7 @@ def _balanced_value_ends(message: str) -> tuple[dict[int, int], int | None]:
     return ends, None
 
 
-def _assignment_value_end(
+def _assignment_value_end(  # noqa: C901
     message: str,
     start: int,
     balanced_ends: dict[int, int],
@@ -498,7 +498,7 @@ def _is_sensitive_serialized_key(
     return _is_sensitive_key(key_path[-1], contexts)
 
 
-def _redact_serialized_assignments(message: str) -> str:
+def _redact_serialized_assignments(message: str) -> str:  # noqa: C901
     balanced_ends, malformed_at = _balanced_value_ends(message)
     skip_until = 0
     remaining = _MAX_ASSIGNMENTS
@@ -632,7 +632,7 @@ def configure_logging(settings: Settings, *, service: str) -> None:
     root.addHandler(handler)
 
 
-def scrub_observability_value(
+def scrub_observability_value(  # noqa: C901
     value,
     *,
     semantic_context: object | None = None,

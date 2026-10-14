@@ -45,7 +45,7 @@ from app.schemas.campaign_assignments import (
 from app.schemas.drivers import normalize_optional_text
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
-from app.services.billing import (
+from app.services.billing.authority import (
     assert_campaign_production_authorized,
     assert_new_work_authorized,
     reserve_assignment_liability,
@@ -54,13 +54,7 @@ from app.services.campaigns import comparable_campaign_datetime
 from app.services.drivers import get_driver_profile_by_user_id
 from app.services.installation_evidence import ensure_current_approved_installation_evidence
 from app.services.payout_eligibility import (
-    D22_ROLLING_CONFIRMATION_WINDOWS,
-    D22_ROLLING_MAX_DISPLACEMENT_M,
-    D22_ROLLING_RELEASE_WINDOWS,
-    D22_ROLLING_STRIDE_SECONDS,
-    D22_ROLLING_WINDOW_SECONDS,
     STATIONARY_POLICY_D39,
-    STATIONARY_POLICY_V1,
 )
 from app.services.payout_rule_serialization import (
     acquire_campaign_terms_lock,
@@ -102,15 +96,13 @@ TERMINAL_DECISION_STATUSES = {
 }
 
 OFFER_TERMS_VERSION = "campaign-assignment-offer-v1"
-PAYOUT_V3 = "payout_v3"
 PAYOUT_V4 = "payout_v4"
 # Frozen-offer zone semantics per formula. v4 counts target-zone miles in full
 # and other eligible miles at the revision's outside_area_weight.
 ZONE_SEMANTICS = {
-    PAYOUT_V3: "target_zones_are_premium; exclusions_are_unpaid",
     PAYOUT_V4: "target_zone_miles_count_in_full; other_miles_weighted; exclusions_are_unpaid",
 }
-STOP_POLICY_BY_FORMULA = {PAYOUT_V3: STATIONARY_POLICY_V1, PAYOUT_V4: STATIONARY_POLICY_D39}
+STOP_POLICY_BY_FORMULA = {PAYOUT_V4: STATIONARY_POLICY_D39}
 V4_TERM_FIELDS = (
     "daily_rate_naira",
     "daily_target_miles",
@@ -1185,7 +1177,7 @@ def _valid_frozen_currency(value: object) -> bool:
     )
 
 
-def _offer_terms_complete(terms: dict | None, terms_sha256: str | None) -> bool:
+def _offer_terms_complete(terms: dict | None, terms_sha256: str | None) -> bool:  # noqa: C901
     if terms is None or terms_sha256 is None:
         return False
     required = {
@@ -1233,7 +1225,7 @@ def _offer_terms_complete(terms: dict | None, terms_sha256: str | None) -> bool:
     payout_currency = payout.get("currency")
     formula_version = payout.get("formula_version")
     if (
-        formula_version not in (PAYOUT_V3, PAYOUT_V4)
+        formula_version != PAYOUT_V4
         or not payout.get("revision_id")
         or not payout.get("payout_rule_id")
         or not payout.get("effective_from")
@@ -1249,24 +1241,8 @@ def _offer_terms_complete(terms: dict | None, terms_sha256: str | None) -> bool:
         UUID(str(payout["payout_rule_id"]))
     except (KeyError, TypeError, ValueError):
         return False
-    if formula_version == PAYOUT_V4:
-        if _daily_rate_offer_terms(payout) is None:
-            return False
-    else:
-        try:
-            rates = [
-                Decimal(str(payout["hourly_rate_naira"])),
-                Decimal(str(payout["premium_hourly_rate_naira"])),
-                Decimal(str(payout["daily_payable_hours_cap"])),
-            ]
-        except (KeyError, TypeError, ValueError, ArithmeticError):
-            return False
-        if (
-            not all(rate.is_finite() and rate >= 0 for rate in rates[:2])
-            or not rates[2].is_finite()
-            or rates[2] <= 0
-        ):
-            return False
+    if _daily_rate_offer_terms(payout) is None:
+        return False
     zones = terms.get("zones")
     if not isinstance(zones, dict) or zones.get("semantics") != ZONE_SEMANTICS[formula_version]:
         return False
@@ -1406,12 +1382,6 @@ async def build_offer_terms(
         .limit(1)
         .with_for_update()
     )
-    hourly_terms_complete = revision is not None and (
-        revision.formula_version == PAYOUT_V3
-        and revision.hourly_rate_naira is not None
-        and revision.premium_hourly_rate_naira is not None
-        and revision.daily_payable_hours_cap is not None
-    )
     daily_rate_terms_complete = revision is not None and (
         revision.formula_version == PAYOUT_V4
         and revision.daily_rate_naira is not None
@@ -1422,18 +1392,16 @@ async def build_offer_terms(
     )
     if (
         revision is None
-        or not (hourly_terms_complete or daily_rate_terms_complete)
+        or not daily_rate_terms_complete
         or not _valid_frozen_currency(revision.currency)
         or revision.currency != campaign.currency
     ):
         raise AppError(
             "FROZEN_PAYOUT_TERMS_REQUIRED",
-            "Effective payout terms (hourly base/premium rate and daily cap, or a"
-            " complete daily rate) are required before offering",
+            "Complete daily-rate terms are required before offering",
             status_code=status.HTTP_409_CONFLICT,
         )
-    bind = session.get_bind()
-    geom = CampaignZone.geom if bind.dialect.name == "sqlite" else func.ST_AsText(CampaignZone.geom)
+    geom = func.ST_AsText(CampaignZone.geom)
     rows = (
         await session.execute(
             select(CampaignZone.id, CampaignZone.zone_type, CampaignZone.name, geom)
@@ -1466,19 +1434,9 @@ async def build_offer_terms(
         "effective_from": as_aware_utc(revision.effective_from).isoformat(),
         "formula_version": revision.formula_version,
     }
-    if revision.formula_version == PAYOUT_V4:
-        # D39: the exact audited revision values, verbatim; no hourly fields.
-        for field in V4_TERM_FIELDS:
-            value = getattr(revision, field)
-            payout_terms[field] = None if value is None else str(value)
-    else:
-        payout_terms.update(
-            {
-                "hourly_rate_naira": str(revision.hourly_rate_naira),
-                "premium_hourly_rate_naira": str(revision.premium_hourly_rate_naira),
-                "daily_payable_hours_cap": str(revision.daily_payable_hours_cap),
-            }
-        )
+    for field in V4_TERM_FIELDS:
+        value = getattr(revision, field)
+        payout_terms[field] = None if value is None else str(value)
     payout_terms["eligibility_params"] = revision.eligibility_params or {}
     terms = {
         "offer_terms_version": OFFER_TERMS_VERSION,
@@ -1515,7 +1473,7 @@ async def build_offer_terms(
             ],
         },
         # The detector policy marker is part of the offer evidence, while the
-        # numeric classifier snapshot remains exactly the payout_v3 binding
+        # numeric classifier snapshot records the complete daily-rate binding
         # shape.  The binding carries the same marker in its dedicated column.
         "eligibility": {
             **resolved_eligibility_snapshot(settings, revision.eligibility_params),
@@ -1531,16 +1489,11 @@ async def build_offer_terms(
     return terms, canonical_offer_terms_sha256(terms)
 
 
-# Backwards-compatible name retained for the B2 tests/imports.
-premium_zone_geometry_hash = frozen_zone_geometry_hash
-
-
 def resolved_eligibility_snapshot(settings: Settings, overlay: dict | None) -> dict:
     """Freeze every classifier value effective at acceptance.
 
-    Existing common values retain their configured fallbacks. D22's rolling
-    values are fixed policy defaults: only an effective revision overlay may
-    tune them for later acceptances.
+    Values retain their configured fallbacks; the daily-rate revision fixes
+    the D39 stop window and zero grace for later acceptances.
     """
     overlay = overlay or {}
 
@@ -1573,34 +1526,6 @@ def resolved_eligibility_snapshot(settings: Settings, overlay: dict | None) -> d
                 settings.payout_eligibility_max_ping_gap_seconds,
             )
         ),
-        "rolling_window_seconds": int(
-            value(
-                "rolling_window_seconds",
-                D22_ROLLING_WINDOW_SECONDS,
-            )
-        ),
-        "rolling_stride_seconds": int(
-            value(
-                "rolling_stride_seconds",
-                D22_ROLLING_STRIDE_SECONDS,
-            )
-        ),
-        "rolling_max_displacement_m": value(
-            "rolling_max_displacement_m",
-            D22_ROLLING_MAX_DISPLACEMENT_M,
-        ),
-        "rolling_confirmation_windows": int(
-            value(
-                "rolling_confirmation_windows",
-                D22_ROLLING_CONFIRMATION_WINDOWS,
-            )
-        ),
-        "rolling_release_windows": int(
-            value(
-                "rolling_release_windows",
-                D22_ROLLING_RELEASE_WINDOWS,
-            )
-        ),
     }
 
 
@@ -1629,26 +1554,13 @@ async def create_rule_binding_for_accept(
     zones = terms["zones"]
     premium_zone_rows = [(row["id"], row["wkt"]) for row in zones["premium"]]
     exclusion_zone_rows = [(row["id"], row["wkt"]) for row in zones["exclusion"]]
-    daily_rate = payout["formula_version"] == PAYOUT_V4
     try:
         window_start = datetime.fromisoformat(terms["campaign_window_start_at"])
         window_end = datetime.fromisoformat(terms["campaign_window_end_at"])
         revision_id = UUID(payout["revision_id"])
-        if daily_rate:
-            # Copied verbatim from the frozen offer; the DB shape check
-            # refuses an incomplete or mixed set.
-            pay_terms = {
-                "hourly_rate_naira": None,
-                "premium_hourly_rate_naira": None,
-                "daily_payable_hours_cap": None,
-                **_daily_rate_offer_terms(payout),
-            }
-        else:
-            pay_terms = {
-                "hourly_rate_naira": Decimal(payout["hourly_rate_naira"]),
-                "premium_hourly_rate_naira": Decimal(payout["premium_hourly_rate_naira"]),
-                "daily_payable_hours_cap": Decimal(payout["daily_payable_hours_cap"]),
-            }
+        pay_terms = _daily_rate_offer_terms(payout)
+        if pay_terms is None:
+            raise ValueError("incomplete frozen daily-rate terms")
         currency = payout["currency"] if "currency" in payout else terms["currency"]
     except (KeyError, TypeError, ValueError, ArithmeticError) as exc:
         raise AppError(
@@ -1714,7 +1626,7 @@ async def create_rule_binding_for_accept(
     return binding
 
 
-async def accept_driver_assignment(
+async def accept_driver_assignment(  # noqa: C901
     session: AsyncSession,
     *,
     user_id: UUID,
@@ -1934,7 +1846,7 @@ async def decline_driver_assignment(
     return assignment
 
 
-async def activate_admin_assignment(
+async def activate_admin_assignment(  # noqa: C901
     session: AsyncSession,
     *,
     admin_user_id: UUID,
@@ -2099,7 +2011,7 @@ async def activate_admin_assignment(
             status_code=status.HTTP_409_CONFLICT,
         )
     if advisory_only:
-        from app.services.billing import assignment_liability_readiness
+        from app.services.billing.authority import assignment_liability_readiness
 
         readiness = await assignment_liability_readiness(session, assignment_id=assignment.id)
         if not readiness.eligible:

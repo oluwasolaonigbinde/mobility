@@ -196,7 +196,7 @@ async def _file_is_referenced(
     return False
 
 
-async def _finalize_kyc_owner(
+async def _finalize_kyc_owner(  # noqa: C901
     session: AsyncSession,
     *,
     intent: StoredObjectDeletion,
@@ -306,7 +306,7 @@ async def _finalize_kyc_owner(
     return True
 
 
-async def finalize_stored_object_deletion(
+async def finalize_stored_object_deletion(  # noqa: C901
     session: AsyncSession,
     *,
     intent: StoredObjectDeletion,

@@ -61,9 +61,6 @@ def _reason(value: str) -> str:
 async def _acquire_retention_lock(
     session: AsyncSession,
 ) -> tuple[bool, AsyncConnection | None]:
-    bind = session.get_bind()
-    if bind.dialect.name != "postgresql":
-        return True, None
     engine = session.bind
     if engine is None:  # pragma: no cover
         raise RuntimeError("File/KYC retention requires a database bind")
@@ -397,7 +394,7 @@ async def _purge_vehicle_submission(
     return 1, purged_files
 
 
-async def purge_terminal_file_kyc(
+async def purge_terminal_file_kyc(  # noqa: C901
     session: AsyncSession,
     *,
     storage: StorageProvider,

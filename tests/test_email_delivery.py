@@ -152,10 +152,9 @@ def test_advertiser_email_creation_honors_org_preference_and_exact_retry(
             assert suppressed is None
             assert (
                 await session.scalar(
-                    select(func.count()).select_from(Notification).where(
-                        Notification.channel
-                        == NotificationChannel.TRANSACTIONAL_EMAIL.value
-                    )
+                    select(func.count())
+                    .select_from(Notification)
+                    .where(Notification.channel == NotificationChannel.TRANSACTIONAL_EMAIL.value)
                 )
                 == 1
             )
@@ -177,9 +176,7 @@ def test_email_worker_retries_with_same_idempotency_key_then_sends(db_sessionmak
             )
             await session.commit()
             notice_id = notice.id
-        adapter = RecordingEmailAdapter(
-            [EmailSendError("synthetic_outage", retryable=True)]
-        )
+        adapter = RecordingEmailAdapter([EmailSendError("synthetic_outage", retryable=True)])
         now = datetime.now(UTC)
         settings = _settings()
         assert (
@@ -370,9 +367,7 @@ def test_email_service_eligibility_and_template_failures_are_terminal(
 ) -> None:
     async def run() -> None:
         user_id, organization_id = await _seed_advertiser(db_sessionmaker)
-        inactive_user_id, inactive_organization_id = await _seed_advertiser(
-            db_sessionmaker
-        )
+        inactive_user_id, inactive_organization_id = await _seed_advertiser(db_sessionmaker)
         async with db_sessionmaker() as session:
             missing_context = Notification(
                 recipient_user_id=user_id,
@@ -400,9 +395,7 @@ def test_email_service_eligibility_and_template_failures_are_terminal(
                 payload={},
                 dedupe_key="email:inactive-org:1",
             )
-            inactive_org = await session.get(
-                AdvertiserOrganization, inactive_organization_id
-            )
+            inactive_org = await session.get(AdvertiserOrganization, inactive_organization_id)
             assert inactive_org is not None
             inactive_org.status = OrganizationStatus.SUSPENDED.value
             session.add_all([missing_context, unsupported_template])
@@ -460,6 +453,10 @@ def test_email_service_eligibility_and_template_failures_are_terminal(
                 "unsupported_email_template_version",
                 "email_recipient_inactive",
             ]
+        async with db_sessionmaker() as session:
+            for notice_id in ids:
+                notice = await session.get(Notification, notice_id)
+                assert notice.failed_at == now
 
     asyncio.run(run())
 
@@ -594,12 +591,8 @@ def test_email_service_expired_claim_reclaims_and_stale_claimant_cannot_finish(
         )
         release.set()
         assert await stale_task == "stale_claim"
-        assert [message.idempotency_key for message in stale_adapter.messages] == [
-            str(notice_id)
-        ]
-        assert [message.idempotency_key for message in winning_adapter.messages] == [
-            str(notice_id)
-        ]
+        assert [message.idempotency_key for message in stale_adapter.messages] == [str(notice_id)]
+        assert [message.idempotency_key for message in winning_adapter.messages] == [str(notice_id)]
 
         async with postgis_db_sessionmaker() as session:
             stored = await session.get(Notification, notice_id)
@@ -636,9 +629,7 @@ def test_email_service_stale_claim_token_fences_terminal_write(db_sessionmaker) 
                     assert stored is not None and stored.delivery_claim_token is not None
                     stored.delivery_claim_token = replacement_token
                     await session.commit()
-                return EmailSubmission(
-                    provider_message_id=f"provider-{message.idempotency_key}"
-                )
+                return EmailSubmission(provider_message_id=f"provider-{message.idempotency_key}")
 
         assert (
             await process_email_notification(
@@ -875,15 +866,11 @@ def test_signed_receipt_is_exactly_idempotent_and_first_terminal_wins(
             )
             assert retry.id == first.id
             assert (
-                await session.scalar(
-                    select(func.count()).select_from(NotificationDeliveryReceipt)
-                )
+                await session.scalar(select(func.count()).select_from(NotificationDeliveryReceipt))
                 == 1
             )
             notice = await session.scalar(
-                select(Notification).where(
-                    Notification.provider_message_id == "provider-message-1"
-                )
+                select(Notification).where(Notification.provider_message_id == "provider-message-1")
             )
             assert notice.status == NotificationStatus.DELIVERED.value
             with pytest.raises(ValueError, match="immutable"):

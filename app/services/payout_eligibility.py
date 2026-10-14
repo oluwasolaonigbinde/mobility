@@ -1,4 +1,4 @@
-"""Deterministic payable-time classification for payout_v2 (D2, Q5).
+"""Deterministic payable-time classification for daily-rate payouts (D39).
 
 Pure functions over an ended trip's ordered pings: the session is segmented
 into contiguous intervals between consecutive pings, every interval gets
@@ -23,7 +23,6 @@ LAGOS_TZ = ZoneInfo("Africa/Lagos")
 
 REASON_MOVING = "moving"
 REASON_STATIONARY = "stationary"
-REASON_STATIONARY_ROLLING = "stationary_rolling_displacement"
 REASON_GPS_GAP = "gps_gap"
 REASON_OUT_OF_AREA = "out_of_area"
 REASON_OUT_OF_WINDOW = "out_of_window"
@@ -37,10 +36,8 @@ EXCLUSION_REASONS = (
     REASON_OUT_OF_WINDOW,
     REASON_OUT_OF_AREA,
     REASON_STATIONARY,
-    REASON_STATIONARY_ROLLING,
 )
 
-STATIONARY_POLICY_V1 = "stationary-rd-v1"
 # D39(b) stop rule, payout_v4 only: movement continues through each stop of up
 # to 5 minutes; a continuous stay LONGER than the frozen window adds nothing.
 # No rolling detector and no whole-trip grace. The server fixes this overlay on
@@ -48,11 +45,6 @@ STATIONARY_POLICY_V1 = "stationary-rd-v1"
 STATIONARY_POLICY_D39 = "d39-stop-5min-v1"
 D39_STOP_OVERLAY = {"stationary_window_min": 5, "stationary_grace_min": 0}
 METRES_PER_MILE = Decimal("1609.344")
-D22_ROLLING_WINDOW_SECONDS = 120
-D22_ROLLING_STRIDE_SECONDS = 120
-D22_ROLLING_MAX_DISPLACEMENT_M = 25.0
-D22_ROLLING_CONFIRMATION_WINDOWS = 2
-D22_ROLLING_RELEASE_WINDOWS = 1
 
 EARTH_RADIUS_M = 6371000.0
 
@@ -65,13 +57,8 @@ class EligibilityParams:
     max_accuracy_m: float
     teleport_kmh: float
     max_ping_gap_seconds: int
-    rolling_window_seconds: int = D22_ROLLING_WINDOW_SECONDS
-    rolling_stride_seconds: int = D22_ROLLING_STRIDE_SECONDS
-    rolling_max_displacement_m: float = D22_ROLLING_MAX_DISPLACEMENT_M
-    rolling_confirmation_windows: int = D22_ROLLING_CONFIRMATION_WINDOWS
-    rolling_release_windows: int = D22_ROLLING_RELEASE_WINDOWS
 
-    def as_legacy_metadata(self) -> dict[str, float | int]:
+    def as_metadata(self) -> dict[str, float | int]:
         return {
             "stationary_radius_m": self.stationary_radius_m,
             "stationary_window_seconds": self.stationary_window_seconds,
@@ -79,16 +66,6 @@ class EligibilityParams:
             "max_accuracy_m": self.max_accuracy_m,
             "teleport_kmh": self.teleport_kmh,
             "max_ping_gap_seconds": self.max_ping_gap_seconds,
-        }
-
-    def as_metadata(self) -> dict[str, float | int]:
-        return {
-            **self.as_legacy_metadata(),
-            "rolling_window_seconds": self.rolling_window_seconds,
-            "rolling_stride_seconds": self.rolling_stride_seconds,
-            "rolling_max_displacement_m": self.rolling_max_displacement_m,
-            "rolling_confirmation_windows": self.rolling_confirmation_windows,
-            "rolling_release_windows": self.rolling_release_windows,
         }
 
 
@@ -99,8 +76,7 @@ class EligibilityPing:
     longitude: float
     accuracy_m: float | None
     in_area: bool
-    # payout_v3 tier resolution only (MNY-06B): membership of the binding's
-    # frozen premium (target) zones. Plays no role in eligibility/exclusion.
+    # Membership of the binding's frozen target zones, for outside-area weighting.
     in_premium: bool = False
 
 
@@ -111,7 +87,7 @@ class EligibleSlice:
     Slices are already cut at every ping offset, Lagos midnight, window edge,
     and stay-region boundary, so premium membership — like in_area — is
     constant within a slice: premium iff both governing pings are inside a
-    frozen premium zone. payout_v2 ignores these; payout_v3 prices them.
+    frozen target zone, used for the daily-rate outside-area distance weight.
     """
 
     start_offset: int
@@ -142,7 +118,7 @@ class EligibilityBreakdown:
     # A trip that crosses midnight contributes to two days; the cap is applied
     # per day against its own allowance (RM1, D4/D14). Sums to eligible_seconds.
     eligible_seconds_by_day: dict[str, int]
-    # Chronological eligible slices with day + tier (payout_v3 only). Slice
+    # Chronological eligible slices with day and target membership. Slice
     # lengths always sum to eligible_seconds.
     eligible_slices: tuple[EligibleSlice, ...] = ()
     stationary_detector_evidence: dict = field(default_factory=dict)
@@ -181,18 +157,8 @@ def _stay_point_regions(
     offsets: list[int],
     raw_seconds: list[float],
     params: EligibilityParams,
-    *,
-    longer_than_window: bool = False,
 ) -> list[tuple[int, int]]:
-    """Legacy confirmed stay-point spans before shared grace allocation.
-
-    Detection runs over the full ping series so area/window exclusions never
-    reset it; only a GPS gap breaks a stretch. Rolling and legacy ranges are
-    unioned before the existing whole-trip grace is spent once. Under the D39
-    stop rule (``longer_than_window``) a stay confirms only when it lasts
-    strictly longer than the window: a stay of exactly the window counts as
-    movement.
-    """
+    """D39: only continuous stops strictly longer than the window are excluded."""
     regions: list[tuple[int, int]] = []
     count = len(pings)
     anchor = 0
@@ -213,11 +179,7 @@ def _stay_point_regions(
                 break
             last_inside = j
         duration = raw_seconds[last_inside] - raw_seconds[anchor]
-        confirmed = (
-            duration > params.stationary_window_seconds
-            if longer_than_window
-            else duration >= params.stationary_window_seconds
-        )
+        confirmed = duration > params.stationary_window_seconds
         if last_inside > anchor and confirmed:
             span_start = offsets[anchor]
             span_end = offsets[last_inside]
@@ -250,225 +212,6 @@ def _signal_reason(
     return None
 
 
-def _position_at(
-    offset: float,
-    pings: list[EligibilityPing],
-    raw_seconds: list[float],
-    params: EligibilityParams,
-) -> tuple[float, float] | None:
-    """Resolve an endpoint without ever interpolating through invalid evidence."""
-    for index, ping_offset in enumerate(raw_seconds):
-        if math.isclose(offset, ping_offset, abs_tol=1e-9):
-            ping = pings[index]
-            if _accuracy_fails(ping, params):
-                return None
-            return ping.latitude, ping.longitude
-    for index in range(len(pings) - 1):
-        first_offset = raw_seconds[index]
-        second_offset = raw_seconds[index + 1]
-        if first_offset < offset < second_offset:
-            delta = second_offset - first_offset
-            if _signal_reason(pings[index], pings[index + 1], delta, params) is not None:
-                return None
-            ratio = (offset - first_offset) / delta
-            return (
-                pings[index].latitude + (pings[index + 1].latitude - pings[index].latitude) * ratio,
-                pings[index].longitude
-                + (pings[index + 1].longitude - pings[index].longitude) * ratio,
-            )
-    return None
-
-
-def _rolling_stationary_regions(
-    pings: list[EligibilityPing],
-    raw_seconds: list[float],
-    duration: int,
-    params: EligibilityParams,
-) -> tuple[list[tuple[int, int]], list[dict], list[dict]]:
-    """Classify fixed elapsed windows under stationary-rd-v1 hysteresis."""
-    if len(pings) < 2:
-        return [], [], []
-
-    segments: list[tuple[int, int]] = []
-    segment_start = 0
-    gaps: list[tuple[int, int]] = []
-    for index in range(len(pings) - 1):
-        if raw_seconds[index + 1] - raw_seconds[index] > params.max_ping_gap_seconds:
-            segments.append((segment_start, index))
-            gaps.append((index, index + 1))
-            segment_start = index + 1
-    segments.append((segment_start, len(pings) - 1))
-
-    ranges: list[tuple[int, int]] = []
-    observations: list[dict] = []
-    resets: list[dict] = []
-    for segment_number, (first_index, last_index) in enumerate(segments):
-        accepted = next(
-            (
-                index
-                for index in range(first_index, last_index + 1)
-                if 0 <= raw_seconds[index] <= duration and not _accuracy_fails(pings[index], params)
-            ),
-            None,
-        )
-        if segment_number > 0:
-            gap_first, gap_second = gaps[segment_number - 1]
-            resets.append(
-                {
-                    "event": "gps_gap_reset",
-                    "gap_start_offset": max(0, math.floor(raw_seconds[gap_first])),
-                    "gap_end_offset": min(duration, math.floor(raw_seconds[gap_second])),
-                    "reanchor_offset": (
-                        min(duration, max(0, math.floor(raw_seconds[accepted])))
-                        if accepted is not None
-                        else None
-                    ),
-                }
-            )
-        if accepted is None and segment_number > 0:
-            continue
-
-        # v1 starts on the trip clock. Only a GPS-gap reset changes the anchor
-        # to the first subsequent accepted-quality ping.
-        anchor = 0.0 if segment_number == 0 else raw_seconds[accepted]
-        segment_end = min(float(duration), raw_seconds[last_index])
-        confirmed = False
-        streak_starts: list[float] = []
-        moving_starts: list[float] = []
-        active_start: float | None = None
-        window_start = anchor
-        while window_start + params.rolling_window_seconds <= segment_end + 1e-9:
-            window_end = window_start + params.rolling_window_seconds
-            contaminated = False
-            for index in range(first_index, last_index):
-                interval_start = raw_seconds[index]
-                interval_end = raw_seconds[index + 1]
-                if interval_end <= window_start or interval_start >= window_end:
-                    continue
-                reason = _signal_reason(
-                    pings[index], pings[index + 1], interval_end - interval_start, params
-                )
-                if reason in (REASON_LOW_ACCURACY, REASON_TELEPORT):
-                    contaminated = True
-                    break
-            start_position = _position_at(window_start, pings, raw_seconds, params)
-            end_position = _position_at(window_end, pings, raw_seconds, params)
-            displacement: float | None = None
-            if start_position is None or end_position is None:
-                contaminated = True
-            else:
-                displacement = haversine_m(*start_position, *end_position)
-
-            transition: str | None = None
-            if contaminated:
-                verdict = "contaminated"
-                moving_starts.clear()
-                if not confirmed:
-                    streak_starts.clear()
-            elif displacement <= params.rolling_max_displacement_m:
-                verdict = "stationary"
-                moving_starts.clear()
-                if not confirmed:
-                    if not streak_starts or math.isclose(
-                        streak_starts[-1] + params.rolling_stride_seconds,
-                        window_start,
-                        abs_tol=1e-9,
-                    ):
-                        streak_starts.append(window_start)
-                    else:
-                        streak_starts = [window_start]
-                    if len(streak_starts) >= params.rolling_confirmation_windows:
-                        confirmed = True
-                        active_start = streak_starts[-params.rolling_confirmation_windows]
-                        transition = "confirmed"
-            else:
-                verdict = "moving"
-                streak_starts.clear()
-                if confirmed:
-                    if not moving_starts or math.isclose(
-                        moving_starts[-1] + params.rolling_stride_seconds,
-                        window_start,
-                        abs_tol=1e-9,
-                    ):
-                        moving_starts.append(window_start)
-                    else:
-                        moving_starts = [window_start]
-                    if len(moving_starts) >= params.rolling_release_windows:
-                        release_at = moving_starts[-params.rolling_release_windows]
-                        if active_start is not None and active_start < release_at:
-                            ranges.append((math.floor(active_start), math.floor(release_at)))
-                        confirmed = False
-                        active_start = None
-                        moving_starts.clear()
-                        transition = "released"
-
-            observations.append(
-                {
-                    "start_offset": math.floor(window_start),
-                    "end_offset": math.floor(window_end),
-                    "verdict": verdict,
-                    "net_displacement_m": (
-                        round(displacement, 3) if displacement is not None else None
-                    ),
-                    **({"transition": transition} if transition else {}),
-                }
-            )
-            window_start += params.rolling_stride_seconds
-
-        if confirmed and active_start is not None and active_start < segment_end:
-            ranges.append((math.floor(active_start), math.floor(segment_end)))
-
-    return ranges, observations, resets
-
-
-def _stationary_exclusion_regions(
-    legacy_ranges: list[tuple[int, int]],
-    rolling_ranges: list[tuple[int, int]],
-    grace_seconds: int,
-) -> tuple[list[tuple[int, int, str]], list[dict]]:
-    """Union both detectors, then spend the existing grace once in time order."""
-    all_ranges = sorted(legacy_ranges + rolling_ranges)
-    merged: list[list[int]] = []
-    for start, end in all_ranges:
-        if start >= end:
-            continue
-        if not merged or start > merged[-1][1]:
-            merged.append([start, end])
-        else:
-            merged[-1][1] = max(merged[-1][1], end)
-
-    grace_remaining = max(0, grace_seconds)
-    exclusions: list[tuple[int, int, str]] = []
-    allocations: list[dict] = []
-    source_cuts = sorted({point for region in all_ranges for point in region})
-    for start, end in merged:
-        granted = min(grace_remaining, end - start)
-        grace_remaining -= granted
-        allocations.append(
-            {
-                "range_start_offset": start,
-                "range_end_offset": end,
-                "granted_seconds": granted,
-            }
-        )
-        excluded_from = start + granted
-        cuts = [excluded_from, end]
-        cuts.extend(point for point in source_cuts if excluded_from < point < end)
-        cuts = sorted(set(cuts))
-        for slice_start, slice_end in zip(cuts, cuts[1:], strict=False):
-            if slice_start >= slice_end:
-                continue
-            rolling = any(a <= slice_start < b for a, b in rolling_ranges)
-            exclusions.append(
-                (
-                    slice_start,
-                    slice_end,
-                    REASON_STATIONARY_ROLLING if rolling else REASON_STATIONARY,
-                )
-            )
-    return exclusions, allocations
-
-
 def lagos_day_at(start: datetime, offset_seconds: int) -> str:
     """ISO Africa/Lagos calendar date of an offset into the session."""
     return (_utc(start) + timedelta(seconds=offset_seconds)).astimezone(LAGOS_TZ).date().isoformat()
@@ -493,7 +236,7 @@ def _lagos_midnight_offsets(start: datetime, duration: int) -> list[int]:
             offsets.append(offset)
 
 
-def classify_session(
+def classify_session(  # noqa: C901
     *,
     session_started_at: datetime,
     session_ended_at: datetime,
@@ -501,8 +244,10 @@ def classify_session(
     window_start_at: datetime | None,
     window_end_at: datetime | None,
     params: EligibilityParams,
-    stationary_policy_marker: str | None = None,
+    stationary_policy_marker: str = STATIONARY_POLICY_D39,
 ) -> EligibilityBreakdown:
+    if stationary_policy_marker != STATIONARY_POLICY_D39:
+        raise ValueError("Only the frozen daily-rate stop policy is supported")
     start = _utc(session_started_at)
     end = _utc(session_ended_at)
     duration = max(0, math.floor((end - start).total_seconds()))
@@ -536,22 +281,8 @@ def classify_session(
     window_from = off((_utc(window_start_at) - start).total_seconds()) if window_start_at else 0
     window_to = off((_utc(window_end_at) - start).total_seconds()) if window_end_at else duration
 
-    d39_stop_rule = stationary_policy_marker == STATIONARY_POLICY_D39
-    legacy_stay_regions = _stay_point_regions(
-        ordered, offsets, raw_seconds, params, longer_than_window=d39_stop_rule
-    )
-    rolling_regions: list[tuple[int, int]] = []
-    rolling_observations: list[dict] = []
-    reset_events: list[dict] = []
-    if stationary_policy_marker == STATIONARY_POLICY_V1:
-        rolling_regions, rolling_observations, reset_events = _rolling_stationary_regions(
-            ordered, raw_seconds, duration, params
-        )
-    stationary_regions, grace_allocation = _stationary_exclusion_regions(
-        legacy_stay_regions,
-        rolling_regions,
-        params.stationary_grace_seconds,
-    )
+    stay_regions = _stay_point_regions(ordered, offsets, raw_seconds, params)
+    stationary_regions = [(start, end, REASON_STATIONARY) for start, end in stay_regions]
 
     # Per ping-interval base reason (highest-precedence signal rules only).
     interval_reason: list[str | None] = []
@@ -674,27 +405,13 @@ def classify_session(
             )
         )
 
-    if stationary_policy_marker == STATIONARY_POLICY_V1:
-        detector_evidence = {
-            "version": stationary_policy_marker,
-            "params": params.as_metadata(),
-            "classified_stationary_ranges": [
-                {"start_offset": start, "end_offset": end} for start, end in rolling_regions
-            ],
-            "window_observations": rolling_observations,
-            "reset_events": reset_events,
-            "grace_allocation": grace_allocation,
-        }
-    elif d39_stop_rule:
-        detector_evidence = {
-            "version": stationary_policy_marker,
-            "params": params.as_legacy_metadata(),
-            "excluded_stop_ranges": [
-                {"start_offset": start, "end_offset": end} for start, end in legacy_stay_regions
-            ],
-        }
-    else:
-        detector_evidence = {}
+    detector_evidence = {
+        "version": stationary_policy_marker,
+        "params": params.as_metadata(),
+        "excluded_stop_ranges": [
+            {"start_offset": start, "end_offset": end} for start, end in stay_regions
+        ],
+    }
 
     return EligibilityBreakdown(
         eligible_seconds=eligible,

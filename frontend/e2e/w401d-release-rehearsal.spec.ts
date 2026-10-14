@@ -36,6 +36,8 @@ test("W4-01D history, hold, dispute, outcome and fail-safe PWA rehearsal", async
   await page.locator(`a[href="/driver/earnings/trips/${heldTrip}"]`).click();
   await expect(page).toHaveURL(new RegExp(`/driver/earnings/trips/${heldTrip}$`));
   await expect(page.getByText("₦1,250.00", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/^12\.5 miles counted on this trip/)).toBeVisible();
+  await expect(page.getByText("No miles counted on this trip.")).toHaveCount(0);
   await expect(page.getByText("Route pattern needs review")).toBeVisible();
 
   const message = "My signal dropped near the bridge; please review this trip.";
