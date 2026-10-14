@@ -154,3 +154,15 @@ controller/upload frontend runs use separate local source copies with read-only
 shared dependencies. No concurrent writes to any file or shared verification
 source tree, no worker commits. Controller preserves the ordered commits.
 Capacity returns to controller plus one reviewer after implementations complete.
+
+## Post-build checkpoint
+
+Final source through `dfa5f1c3` implements all approved code items; the original
+defects were reverified on master before correction. Money PASS, privacy PASS
+after correcting both disclosure transaction boundaries, security PASS, and
+consolidated minimal-change-review round 1 PASS. Criterion evidence is recorded
+in `issues/testing/final-inhouse-fixes-2026-10-14.md`. No scope increase, unanswered
+product choice or provider context/handoff failure occurred. Full branch CI,
+any required reviewed D33 receipt, green non-squash merge and new-request closure
+remain pending. The owner-approved historical request tidy-up is committed;
+REQ-171–178 remain IN PROGRESS until delivery reaches master.
