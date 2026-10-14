@@ -414,6 +414,7 @@ async def _compose_snapshot(
         campaign_id=run.campaign_id,
         measurement_run_id=run.id,
         admin=admin,
+        commit_served=False,
     )
     if insights.state == "unavailable":
         raise _error(
@@ -476,6 +477,7 @@ async def _compose_snapshot(
             actor_user_id=actor_user_id,
             run=run,
             admin=admin,
+            commit_served=False,
         )
     if result.roi_gate.decision == "INCLUDE" and result.roi is not None:
         snapshot["financial_result"] = {

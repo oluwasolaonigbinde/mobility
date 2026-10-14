@@ -8,8 +8,9 @@ from uuid import UUID, uuid4
 
 import pytest
 from conftest import auth_headers, create_test_organization, create_test_user
-from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import func, select, update
+from sqlalchemy import text as sql_text
+from sqlalchemy.exc import DBAPIError, IntegrityError
 from test_advertiser_reports import PASSWORD
 from test_measurement_runs import create_measurement_graph, issue_payload
 from test_stored_files import FakeStorageProvider
@@ -198,6 +199,167 @@ def run_worker(db_sessionmaker, settings, storage) -> int:
             {"sessionmaker": db_sessionmaker, "settings": settings, "storage": storage}
         )
     )
+
+
+@pytest.fixture
+def ready_linked_source(db_client, db_sessionmaker, settings):
+    from test_exposure_segments import _create_link_and_run
+
+    from app.jobs.exposure_segments import sweep_exposure_segments
+    from app.models.disclosure import DisclosureQueryDecision
+
+    advertiser, _, link_id, run_id = _create_link_and_run(db_client, db_sessionmaker)
+
+    async def prepare():
+        assert (
+            await sweep_exposure_segments({"sessionmaker": db_sessionmaker, "settings": settings})
+            == 1
+        )
+        async with db_sessionmaker() as session:
+            assert (
+                await session.scalar(select(func.count()).select_from(DisclosureQueryDecision)) == 0
+            )
+
+    asyncio.run(prepare())
+    return advertiser, link_id, run_id
+
+
+@pytest.mark.parametrize(
+    "edit", ["source", "user", "organization", "membership", "campaign", "zone", "link"]
+)
+def test_fresh_report_disclosures_hold_parent_and_access_locks_until_commit(
+    db_sessionmaker, settings, ready_linked_source, monkeypatch, edit
+):
+    from app.models.campaign import Campaign
+    from app.models.campaign_zone import CampaignZone
+    from app.models.disclosure import DisclosureQueryDecision
+    from app.models.organization import AdvertiserOrganization
+    from app.models.retargeting_source import RetargetingSource
+    from app.models.retargeting_source_link import RetargetingSourceLink
+    from app.models.user import User
+    from app.services import audience, audience_delivery
+
+    advertiser, link_id, run_id = ready_linked_source
+
+    async def exercise():
+        async with db_sessionmaker() as issuer, db_sessionmaker() as writer:
+            link = await writer.get(RetargetingSourceLink, link_id)
+            membership_id = await writer.scalar(
+                select(OrganizationMembership.id).where(
+                    OrganizationMembership.user_id == advertiser.id,
+                    OrganizationMembership.organization_id == link.organization_id,
+                )
+            )
+            model, identity, values = {
+                "source": (RetargetingSource, link.source_id, {"status": "deactivated"}),
+                "user": (User, advertiser.id, {"status": "disabled"}),
+                "organization": (
+                    AdvertiserOrganization, link.organization_id, {"status": "disabled"}
+                ),
+                "membership": (OrganizationMembership, membership_id, {"status": "disabled"}),
+                "campaign": (Campaign, link.campaign_id, {"name": "Concurrent campaign edit"}),
+                "zone": (CampaignZone, link.zone_id, {"name": "Concurrent zone edit"}),
+                "link": (RetargetingSourceLink, link.id, {"status": "removed"}),
+            }[edit]
+            statement = update(model).where(model.id == identity).values(**values)
+            await writer.rollback()
+            checkpoints = []
+
+            async def assert_edit_blocked(checkpoint):
+                await writer.execute(sql_text("SET LOCAL lock_timeout = '100ms'"))
+                try:
+                    with pytest.raises(DBAPIError) as blocked:
+                        await writer.execute(statement)
+                    assert blocked.value.orig.sqlstate == "55P03"
+                finally:
+                    await writer.rollback()
+                # Served history must be recorded, but invisible until issuance commits.
+                assert (
+                    await writer.scalar(select(func.count()).select_from(DisclosureQueryDecision))
+                    == 0
+                )
+                await writer.rollback()
+                checkpoints.append(checkpoint)
+
+            record = audience.record_disclosure
+
+            async def record_and_check(session, **kwargs):
+                await record(session, **kwargs)
+                await assert_edit_blocked(kwargs["query"].route_id)
+                assert (
+                    await session.scalar(select(func.count()).select_from(DisclosureQueryDecision))
+                    == len(checkpoints)
+                )
+
+            monkeypatch.setattr(audience, "record_disclosure", record_and_check)
+            monkeypatch.setattr(audience_delivery, "record_disclosure", record_and_check)
+            issuance = await request_report_issuance(
+                issuer,
+                actor_user_id=advertiser.id,
+                measurement_run_id=run_id,
+                payload=ReportIssuanceCreate(client_request_id=uuid4()),
+                settings=settings,
+                admin=False,
+            )
+            assert issuance.snapshot["exposure"]["state"] == "ready"
+            assert issuance.snapshot["linked_source_recommendations"][0]["state"] == "ready"
+            await assert_edit_blocked("snapshot_frozen")
+            assert checkpoints == [
+                "advertiser.campaign.zone_insights",
+                "advertiser.audience.recommendations",
+                "snapshot_frozen",
+            ]
+            await issuer.commit()
+            await writer.execute(sql_text("SET LOCAL lock_timeout = '1s'"))
+            await writer.execute(statement)
+            await writer.commit()
+            assert await writer.get(ReportIssuance, issuance.id) is not None
+            decisions = list(await writer.scalars(select(DisclosureQueryDecision)))
+            assert {row.output_class for row in decisions} == set(checkpoints[:2])
+            assert len(decisions) == 2
+            assert all(row.decision == "served" for row in decisions)
+            changed = await writer.get(model, identity, populate_existing=True)
+            assert all(getattr(changed, field) == value for field, value in values.items())
+
+    asyncio.run(exercise())
+
+
+@pytest.mark.parametrize("reader", ["zone_insights", "recommendations"])
+def test_ordinary_audience_readers_still_commit_fresh_disclosure_history(
+    db_sessionmaker, settings, ready_linked_source, reader
+):
+    from app.models.disclosure import DisclosureQueryDecision
+    from app.models.measurement import MeasurementRun
+    from app.services.audience import high_exposure_zone_insights
+    from app.services.audience_delivery import recommendations_for_link
+
+    advertiser, link_id, run_id = ready_linked_source
+
+    async def exercise():
+        async with db_sessionmaker() as session, db_sessionmaker() as observer:
+            if reader == "zone_insights":
+                run = await session.get(MeasurementRun, run_id)
+                result = await high_exposure_zone_insights(
+                    session,
+                    settings=settings,
+                    actor_user_id=advertiser.id,
+                    campaign_id=run.campaign_id,
+                    measurement_run_id=run_id,
+                )
+                route = "advertiser.campaign.zone_insights"
+            else:
+                result = await recommendations_for_link(
+                    session, settings=settings, actor_user_id=advertiser.id, source_link_id=link_id
+                )
+                route = "advertiser.audience.recommendations"
+            assert result.state == "ready"
+            # No caller commit: the ordinary reader must make this decision durable itself.
+            decisions = list(await observer.scalars(select(DisclosureQueryDecision)))
+            assert len(decisions) == 1
+            assert decisions[0].output_class == route
+            assert decisions[0].decision == "served"
+
+    asyncio.run(exercise())
 
 
 def test_linked_source_snapshot_publication_download_and_historical_integrity(

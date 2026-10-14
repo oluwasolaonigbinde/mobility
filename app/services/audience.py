@@ -1508,6 +1508,7 @@ async def high_exposure_zone_insights(  # noqa: C901
     admin: bool = False,
     measurement_run_id: UUID | None = None,
     record_history: bool = True,
+    commit_served: bool = True,
 ) -> HighExposureZoneInsightsRead:
     organization_id: UUID | None = None
     if admin:
@@ -1727,5 +1728,6 @@ async def high_exposure_zone_insights(  # noqa: C901
             settings=settings,
             has_releasable_cells=True,
             result_hash=_canonical_hash(result.model_dump(mode="json")),
+            commit_served=commit_served,
         )
     return result

@@ -590,6 +590,7 @@ async def _recommendations_for_segment(
     settings: Settings,
     actor_user_id: UUID,
     admin: bool,
+    commit_served: bool = True,
 ) -> RecommendationsRead:
     if link.status != "active" or await exposure_segment_is_stale(session, segment):
         return RecommendationsRead(
@@ -629,6 +630,7 @@ async def _recommendations_for_segment(
             actor_user_id=actor_user_id,
             segment=segment,
             cells=cells,
+            commit_served=commit_served,
         )
     return RecommendationsRead(
         state=state,
@@ -705,6 +707,7 @@ async def frozen_recommendations_for_run(
     actor_user_id: UUID,
     run: MeasurementRun,
     admin: bool,
+    commit_served: bool = True,
 ) -> list[dict]:
     """Compose only exact-run recommendations under the caller's stable parent locks."""
     items = []
@@ -745,6 +748,7 @@ async def frozen_recommendations_for_run(
                     settings=settings,
                     actor_user_id=actor_user_id,
                     admin=admin,
+                    commit_served=commit_served,
                 )
                 state = result.state
             except AppError as exc:
