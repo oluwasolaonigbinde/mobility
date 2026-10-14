@@ -152,7 +152,7 @@ export default async function DriverProfilePage() {
                 />
               </Panel>
 
-              <DocumentRenewals />
+              <DocumentRenewals driverId={p.user_id} />
               <PhoneVerification savedPhone={p.phone ?? ""} />
 
               <Panel className="overflow-hidden">

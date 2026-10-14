@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.141 — 2026-10-14. Canonical source of truth: current state AND target state.**
+**Version 1.142 — 2026-10-14. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -2016,6 +2016,18 @@ remains the production-adoption gate.
 
 ### 19.2 Upload flow (one pattern for all file kinds)
 
+**[BUILT locally — D87 / REQ-177]:** Apply person/vehicle and driver renewal
+forms retain independent in-memory progress for each exact File/access/purpose/
+request identity: intent, successful storage upload, confirmed ID and scan stage.
+Retry resumes unfinished work and reuses clean siblings; an already-running
+same-identity upload is coalesced. Confirm-response loss reconfirms the same
+intent, and scan-poll failure polls the confirmed file rather than reopening an
+intent. Replacement/context changes fence old results. Renewals add owner,
+submission, vehicle and unmount fencing; logout clears private progress. No
+browser-persistent sensitive state or backend authority is added; only exact
+owned clean files may be submitted. Local failure/retry tests pass; specialist
+review and full batch CI remain pending.
+
 1. Client asks its server action → backend `POST .../uploads` for a **presigned
    POST** (not PUT: only POST policy conditions enforce
    `content-length-range` and content-type server-side; presigned PUTs cannot
@@ -3670,6 +3682,8 @@ within one hour. Simultaneous Redis/database failure can only emit the fixed
 failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
+
+- **v1.142 — 14 October 2026 (D87/REQ-177):** Independent resumable upload progress for Apply person/vehicle and signed-in renewals, coalesced siblings, exact context/generation fencing and scan-only recovery. Focused 59 tests and integrated driver identity typecheck pass; privacy/security/consolidated review and full batch CI pending.
 
 - **v1.141 — 14 October 2026 (D86/REQ-174–176):** Governed materialization producer and fair durable catch-up (0107), worker/reader supersession checks, recognizable Lagos-time planning, exact-run linked-source recommendations in frozen export v3 and deterministic CSV/PDF. Unseeded and fake-storage journeys pass; privacy/consolidated review and full batch CI pending.
 

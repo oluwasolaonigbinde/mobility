@@ -551,11 +551,16 @@ key-management service (D44).
 **Current rule:** Limits per purpose: identity documents 10 MB, vehicle photos
 20 MB, installation photos 20 MB, artwork 25 MB. File types and sizes follow the
 developer's recommendation; files are virus-checked (client answers item 12).
+Apply and renewal uploads resume each exact file independently after transport
+or scan-poll failure, retaining confirmed siblings and current context fences.
+Progress stays in form memory; only owned clean files may be submitted (D87,
+REQ-177).
 
 **Still open:** [REQ-038](requests.md) — client confirmation of these limits.
 
 **History:**
 - **Before 2026-09-26** — One shared 25 MB limit.
+- **2026-10-14** — D87/REQ-177 replaces all-or-nothing browser upload retries with per-file resumable intent/confirmation/scan progress for Apply and renewals. The earlier flow recreated intents after a late failure and discarded successful siblings. Focused retry/fencing checks pass; privacy/security review and full batch CI remain pending.
 - **2026-09-24** — Client accepted the developer's recommendation; limits set per purpose and told to the client for information. Built in `7a9ceb0` (REQ-001).
 
 ### Sign-in security and availability

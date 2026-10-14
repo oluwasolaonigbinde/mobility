@@ -9,6 +9,7 @@ import { FilePicker } from "@/components/ui/file-picker";
 import { Panel } from "@/components/ui/panel";
 import { onboardingResponseJson, uploadOnboardingFile } from "@/lib/files/onboarding-upload";
 import { useUploadStates } from "./upload-states";
+import { useDocumentUploads } from "@/lib/files/use-document-uploads";
 
 type StageResponse = {
   status: string;
@@ -26,18 +27,14 @@ export function PersonPayeeForm() {
   const [result, setResult] = useState<StageResponse>();
   const uploads = useUploadStates(FILES);
   const submissionRequestId = useRef(crypto.randomUUID());
-  const uploadRequestIds = useRef({
-    license: crypto.randomUUID(),
-    photo: crypto.randomUUID(),
-  });
-  const uploadedFileIds = useRef<[string, string] | null>(null);
-  const uploadContext = useRef<{ token: string; files: File[] } | null>(null);
+  const fileUploads = useDocumentUploads();
   const generation = useRef(0);
 
   function changed(event?: FormEvent<HTMLFormElement>) {
     if ((event?.target as HTMLInputElement | undefined)?.name === "bank_search") return;
     if ((event?.target as HTMLInputElement | undefined)?.name === "application_access_token") {
       uploads.reset();
+      fileUploads.clear();
       setAccessToken((event?.target as HTMLInputElement).value);
     }
     generation.current += 1;
@@ -46,6 +43,7 @@ export function PersonPayeeForm() {
   }
 
   function fileChanged(key: (typeof FILES)[number]) {
+    fileUploads.remove(key);
     uploads.set(key, "idle");
     changed();
   }
@@ -54,12 +52,14 @@ export function PersonPayeeForm() {
     event.preventDefault();
     if (pending) return;
     const selectedGeneration = generation.current;
+    const active = fileUploads.fence();
+    const isCurrent = () => active() && selectedGeneration === generation.current;
     const formElement = event.currentTarget;
     setPending(true);
     setError(undefined);
     setResult(undefined);
     const form = new FormData(formElement);
-    const track = uploads.tracker(() => selectedGeneration === generation.current);
+    const track = uploads.tracker(isCurrent);
     try {
       const accessToken = String(form.get("application_access_token") ?? "").trim();
       const license = (formElement.elements.namedItem("driver_license") as HTMLInputElement)
@@ -72,39 +72,26 @@ export function PersonPayeeForm() {
         throw new Error("Read and agree to the driver agreement.");
       if (!form.get("bank_check_receipt") || !form.get("account_name"))
         throw new Error("Check your bank account name first.");
-      if (form.get("bank_check_outcome") === "resolved" && form.get("account_name_confirmed") !== "true")
-        throw new Error("Confirm that the account name is yours.");
-      const files = [license, photo];
       if (
-        uploadContext.current?.token !== accessToken ||
-        files.some((file, index) => file !== uploadContext.current?.files[index])
-      ) {
-        uploadedFileIds.current = null;
-        uploadRequestIds.current = {
-          license: crypto.randomUUID(),
-          photo: crypto.randomUUID(),
-        };
-        uploadContext.current = { token: accessToken, files };
-      }
-      const [licenseId, photoId] =
-        uploadedFileIds.current ??
-        (await Promise.all([
-          track(
-            "license",
-            uploadOnboardingFile(
-              accessToken,
-              license,
-              uploadRequestIds.current.license,
-              "driver_kyc",
-            ),
+        form.get("bank_check_outcome") === "resolved" &&
+        form.get("account_name_confirmed") !== "true"
+      )
+        throw new Error("Confirm that the account name is yours.");
+      const [licenseId, photoId] = await Promise.all([
+        track(
+          "license",
+          fileUploads.upload("license", license, accessToken, (id, progress) =>
+            uploadOnboardingFile(accessToken, license, id, "driver_kyc", progress),
           ),
-          track(
-            "photo",
-            uploadOnboardingFile(accessToken, photo, uploadRequestIds.current.photo, "driver_kyc"),
+        ),
+        track(
+          "photo",
+          fileUploads.upload("photo", photo, accessToken, (id, progress) =>
+            uploadOnboardingFile(accessToken, photo, id, "driver_kyc", progress),
           ),
-        ]));
-      if (selectedGeneration !== generation.current) return;
-      uploadedFileIds.current = [licenseId, photoId];
+        ),
+      ]);
+      if (!isCurrent()) return;
       const response = await fetch("/api/apply/onboarding/person-payee", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -124,26 +111,25 @@ export function PersonPayeeForm() {
         }),
       });
       const nextResult = await onboardingResponseJson<StageResponse>(response);
-      if (selectedGeneration !== generation.current) return;
+      if (!isCurrent()) return;
       setResult(nextResult);
       formElement.reset();
       setAccessToken("");
       setBankReset((value) => value + 1);
       uploads.reset();
       submissionRequestId.current = crypto.randomUUID();
-      uploadRequestIds.current = {
-        license: crypto.randomUUID(),
-        photo: crypto.randomUUID(),
-      };
-      uploadedFileIds.current = null;
+      setPending(false);
+      fileUploads.clear();
     } catch (caught) {
-      if (selectedGeneration !== generation.current) return;
+      if (!isCurrent()) return;
       setError(
         caught instanceof Error ? caught.message : "Something went wrong. Please try again.",
       );
     } finally {
-      if (selectedGeneration !== generation.current) uploads.clearUploading();
-      setPending(false);
+      if (fileUploads.alive()) {
+        if (!isCurrent()) uploads.clearUploading();
+        setPending(false);
+      }
     }
   }
 

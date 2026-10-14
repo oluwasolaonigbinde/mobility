@@ -8,6 +8,7 @@ import { Panel } from "@/components/ui/panel";
 import { onboardingResponseJson, uploadOnboardingFile } from "@/lib/files/onboarding-upload";
 import { CarChooser } from "./car-chooser";
 import { useUploadStates } from "./upload-states";
+import { useDocumentUploads } from "@/lib/files/use-document-uploads";
 
 type VehicleStage = {
   status: string;
@@ -25,19 +26,18 @@ export function VehicleForm() {
   const [chooserKey, setChooserKey] = useState(0);
   const uploads = useUploadStates(FILES);
   const submissionRequestId = useRef(crypto.randomUUID());
-  const uploadRequestIds = useRef({
-    registration: crypto.randomUUID(),
-    insurance: crypto.randomUUID(),
-    photo: crypto.randomUUID(),
-  });
-  const uploadedFileIds = useRef<[string, string, string] | null>(null);
-  const uploadContext = useRef<{ token: string; files: File[] } | null>(null);
+  const fileUploads = useDocumentUploads();
   const generation = useRef(0);
 
   function changed(event?: FormEvent<HTMLFormElement>) {
     // A different code may own different cars, so the looked-up list starts over.
     if ((event?.target as HTMLInputElement | undefined)?.name === "application_access_token") {
       setChooserKey((key) => key + 1);
+      uploads.reset();
+      fileUploads.clear();
+    }
+    if ((event?.target as HTMLInputElement | undefined)?.name === "vehicle_id") {
+      fileUploads.clear();
       uploads.reset();
     }
     generation.current += 1;
@@ -46,6 +46,7 @@ export function VehicleForm() {
   }
 
   function fileChanged(key: (typeof FILES)[number]) {
+    fileUploads.remove(key);
     uploads.set(key, "idle");
     changed();
   }
@@ -54,12 +55,14 @@ export function VehicleForm() {
     event.preventDefault();
     if (pending) return;
     const selectedGeneration = generation.current;
+    const active = fileUploads.fence();
+    const isCurrent = () => active() && selectedGeneration === generation.current;
     const formElement = event.currentTarget;
     setPending(true);
     setError(undefined);
     setResult(undefined);
     const form = new FormData(formElement);
-    const track = uploads.tracker(() => selectedGeneration === generation.current);
+    const track = uploads.tracker(isCurrent);
     try {
       const accessToken = String(form.get("application_access_token") ?? "").trim();
       const registration = (formElement.elements.namedItem("registration") as HTMLInputElement)
@@ -77,52 +80,28 @@ export function VehicleForm() {
           "Add all three files: the registration papers, the insurance certificate and a photo of the car.",
         );
       }
-      const files = [registration, insurance, photo];
-      if (
-        uploadContext.current?.token !== accessToken ||
-        files.some((file, index) => file !== uploadContext.current?.files[index])
-      ) {
-        uploadedFileIds.current = null;
-        uploadRequestIds.current = {
-          registration: crypto.randomUUID(),
-          insurance: crypto.randomUUID(),
-          photo: crypto.randomUUID(),
-        };
-        uploadContext.current = { token: accessToken, files };
-      }
-      const [registrationId, insuranceId, photoId] =
-        uploadedFileIds.current ??
-        (await Promise.all([
-          track(
-            "registration",
-            uploadOnboardingFile(
-              accessToken,
-              registration,
-              uploadRequestIds.current.registration,
-              "vehicle_evidence",
-            ),
+      const context = JSON.stringify([accessToken, String(form.get("vehicle_id") ?? "")]);
+      const [registrationId, insuranceId, photoId] = await Promise.all([
+        track(
+          "registration",
+          fileUploads.upload("registration", registration, context, (id, progress) =>
+            uploadOnboardingFile(accessToken, registration, id, "vehicle_evidence", progress),
           ),
-          track(
-            "insurance",
-            uploadOnboardingFile(
-              accessToken,
-              insurance,
-              uploadRequestIds.current.insurance,
-              "vehicle_evidence",
-            ),
+        ),
+        track(
+          "insurance",
+          fileUploads.upload("insurance", insurance, context, (id, progress) =>
+            uploadOnboardingFile(accessToken, insurance, id, "vehicle_evidence", progress),
           ),
-          track(
-            "photo",
-            uploadOnboardingFile(
-              accessToken,
-              photo,
-              uploadRequestIds.current.photo,
-              "vehicle_evidence",
-            ),
+        ),
+        track(
+          "photo",
+          fileUploads.upload("photo", photo, context, (id, progress) =>
+            uploadOnboardingFile(accessToken, photo, id, "vehicle_evidence", progress),
           ),
-        ]));
-      if (selectedGeneration !== generation.current) return;
-      uploadedFileIds.current = [registrationId, insuranceId, photoId];
+        ),
+      ]);
+      if (!isCurrent()) return;
       const response = await fetch("/api/apply/onboarding/vehicle", {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -143,23 +122,21 @@ export function VehicleForm() {
         }),
       });
       const nextResult = await onboardingResponseJson<VehicleStage>(response);
-      if (selectedGeneration !== generation.current) return;
+      if (!isCurrent()) return;
       setResult(nextResult);
       submissionRequestId.current = crypto.randomUUID();
-      uploadRequestIds.current = {
-        registration: crypto.randomUUID(),
-        insurance: crypto.randomUUID(),
-        photo: crypto.randomUUID(),
-      };
-      uploadedFileIds.current = null;
+      setPending(false);
+      fileUploads.clear();
     } catch (caught) {
-      if (selectedGeneration !== generation.current) return;
+      if (!isCurrent()) return;
       setError(
         caught instanceof Error ? caught.message : "Something went wrong. Please try again.",
       );
     } finally {
-      if (selectedGeneration !== generation.current) uploads.clearUploading();
-      setPending(false);
+      if (fileUploads.alive()) {
+        if (!isCurrent()) uploads.clearUploading();
+        setPending(false);
+      }
     }
   }
 

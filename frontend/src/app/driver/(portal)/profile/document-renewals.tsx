@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { BankPicker } from "@/components/driver/bank-picker";
 import { DriverAgreement } from "@/components/driver/driver-agreement";
@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { formatDate } from "@/lib/format";
 import { onboardingResponseJson, uploadDriverDocument } from "@/lib/files/onboarding-upload";
+import { useDocumentUploads } from "@/lib/files/use-document-uploads";
 import type { components } from "@/lib/api/schema";
 
 type Documents = components["schemas"]["DriverDocumentsRead"];
@@ -33,6 +34,7 @@ const reasons: Record<string, string> = {
 };
 
 function RenewalForm({
+  driverId,
   submissionId,
   vehicleId,
   onSent,
@@ -41,6 +43,7 @@ function RenewalForm({
   replaceBank = false,
   needsAgreement = false,
 }: {
+  driverId: string;
   submissionId: string;
   vehicleId?: string;
   onSent: () => Promise<void>;
@@ -50,10 +53,27 @@ function RenewalForm({
   needsAgreement?: boolean;
 }) {
   const requestId = useRef(crypto.randomUUID());
-  const uploads = useRef(new Map<string, { requestId: string; fileId?: string }>());
+  const uploads = useDocumentUploads();
+  const generation = useRef(0);
+  const context = JSON.stringify([driverId, submissionId, vehicleId ?? null]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  async function submit(form: FormData) {
+  function changed(event: FormEvent<HTMLFormElement>) {
+    if ((event.target as HTMLInputElement).name === "bank_search") return;
+    generation.current += 1;
+    requestId.current = crypto.randomUUID();
+    setError("");
+    if ((event.target as HTMLInputElement).type === "file")
+      uploads.remove((event.target as HTMLInputElement).name);
+  }
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (busy) return;
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const selectedGeneration = generation.current;
+    const active = uploads.fence();
+    const isCurrent = () => active() && selectedGeneration === generation.current;
     setBusy(true);
     setError("");
     try {
@@ -73,27 +93,15 @@ function RenewalForm({
       ])
         body[field] = String(form.get(field) ?? "");
       for (const kind of kinds) {
-        const file = form.get(kind);
+        const file = (formElement.elements.namedItem(kind) as HTMLInputElement).files?.[0];
         if (!(file instanceof File) || !file.size)
           throw new Error(`Choose a file for ${(labels[kind] ?? kind).toLowerCase()}.`);
-        const digest = Array.from(
-          new Uint8Array(await crypto.subtle.digest("SHA-256", await file.arrayBuffer())),
-          (byte) => byte.toString(16).padStart(2, "0"),
-        ).join("");
-        const uploadKey = `${kind}:${file.name}:${digest}`;
-        let upload = uploads.current.get(uploadKey);
-        if (!upload) {
-          upload = { requestId: crypto.randomUUID() };
-          uploads.current.set(uploadKey, upload);
-        }
-        if (!upload.fileId)
-          upload.fileId = await uploadDriverDocument(
-            file,
-            upload.requestId,
-            vehicleId ? "vehicle_evidence" : "driver_kyc",
-          );
-        body[`${kind}_file_id`] = upload.fileId;
+        body[`${kind}_file_id`] = await uploads.upload(kind, file, context, (id, progress) =>
+          uploadDriverDocument(file, id, vehicleId ? "vehicle_evidence" : "driver_kyc", progress),
+        );
+        if (!isCurrent()) return;
       }
+      if (!isCurrent()) return;
       await onboardingResponseJson(
         await fetch(
           vehicleId
@@ -106,15 +114,17 @@ function RenewalForm({
           },
         ),
       );
+      if (!isCurrent()) return;
       await onSent();
     } catch (e) {
+      if (!isCurrent()) return;
       setError(e instanceof Error ? e.message : "Couldn't send your documents. Try again.");
     } finally {
-      setBusy(false);
+      if (active()) setBusy(false);
     }
   }
   return (
-    <form action={submit} className="mt-4 flex flex-col gap-4">
+    <form onSubmit={submit} onChange={changed} className="mt-4 flex flex-col gap-4">
       {replaceNin ? (
         <Field
           name="nin"
@@ -222,33 +232,57 @@ function replacements(documents: Record<string, components["schemas"]["DocumentR
   );
 }
 
-export function DocumentRenewals() {
+export function DocumentRenewals({ driverId }: { driverId: string }) {
+  return <OwnedDocumentRenewals key={driverId} driverId={driverId} />;
+}
+
+function OwnedDocumentRenewals({ driverId }: { driverId: string }) {
   const router = useRouter();
   const [documents, setDocuments] = useState<Documents>();
   const [error, setError] = useState("");
+  const generation = useRef(0);
+  const mounted = useRef(true);
+  const loggedOut = useRef(false);
   async function refresh() {
+    const selectedGeneration = generation.current;
     setError("");
     const data = await onboardingResponseJson<Documents>(
       await fetch("/api/driver/documents", { cache: "no-store" }),
     );
+    if (!mounted.current || loggedOut.current || selectedGeneration !== generation.current) return;
     setDocuments(data);
   }
   useEffect(() => {
+    mounted.current = true;
     let active = true;
+    const selectedGeneration = generation.current;
+    const logout = () => {
+      loggedOut.current = true;
+      generation.current += 1;
+      setDocuments(undefined);
+    };
+    window.addEventListener("cardvert-driver-logout", logout);
     fetch("/api/driver/documents", { cache: "no-store" })
       .then(onboardingResponseJson<Documents>)
       .then((data) => {
-        if (active) setDocuments(data);
+        if (active && !loggedOut.current && selectedGeneration === generation.current)
+          setDocuments(data);
       })
       .catch(() => {
-        if (active) setError("Couldn't load your documents. Try again.");
+        if (active && !loggedOut.current && selectedGeneration === generation.current)
+          setError("Couldn't load your documents. Try again.");
       });
     return () => {
       active = false;
+      mounted.current = false;
+      generation.current += 1;
+      window.removeEventListener("cardvert-driver-logout", logout);
     };
-  }, []);
+  }, [driverId]);
   const sent = async () => {
+    const selectedGeneration = generation.current;
     await refresh();
+    if (!mounted.current || loggedOut.current || selectedGeneration !== generation.current) return;
     router.refresh();
   };
   if (error)
@@ -309,7 +343,8 @@ export function DocumentRenewals() {
           (person.status === "approved" &&
             (!person.agreement_accepted_at || person.agreement_version !== "1"))) ? (
           <RenewalForm
-            key={person.submission_id}
+            key={`${driverId}:${person.submission_id}`}
+            driverId={driverId}
             submissionId={person.submission_id}
             kinds={
               person.purged_at
@@ -351,7 +386,8 @@ export function DocumentRenewals() {
           vehicle.vehicle_id &&
           ["rejected", "expired"].includes(vehicle.status ?? "") ? (
             <RenewalForm
-              key={vehicle.submission_id}
+              key={`${driverId}:${vehicle.vehicle_id}:${vehicle.submission_id}`}
+              driverId={driverId}
               vehicleId={vehicle.vehicle_id}
               submissionId={vehicle.submission_id}
               kinds={
