@@ -740,3 +740,23 @@ returned source/minimal-change PASS at the premeasurement stage, with no
 actionable findings; no application change was needed. Full-range qualification,
 the independently reviewed D33 receipt and green final verification remain
 required before merge.
+
+### Qualified measurement and canonical D33 receipt
+
+Candidate `6a1c8e6e0c47bf84b583b66f79263226073f7012` completed full measurement
+[38534616984](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38534616984):
+all 3,398 backend tests, aggregate provenance, frontend/static and both browser
+jobs passed. Only the expected inventory/policy refresh refusal remained.
+Full-range qualification from `48e4ab51338dcaf8abde34aee56e91a1a2c40b2c`, including
+REQ-158/159, passes at 93.7224% changed lines and 83.2215% changed branches.
+Separate money/privacy branches are 85.8883% / 85.5172%; exact adopted ratchets
+also pass. The disbursement refusal and fixed-clock ping rejection lines/arcs
+are hit in both this and the preceding complete CI report.
+
+The canonical source-bound receipt was generated with parent `6a1c8e6e`, after
+separate whole-range qualification, then passed ordinary verification. See
+[D33 receipt](../testing/waves34-d33-receipt-2026-10-14.md) for counts, hashes,
+provenance and reproducible source identities. Independent receipt review r1
+returned PASS, including recomputed hashes and whole-range metrics; its
+metadata-only commit and full green verification follow.
+No source changes, local coverage or weakened gate accompany the refresh.
