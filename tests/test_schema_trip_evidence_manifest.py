@@ -1,4 +1,4 @@
-"""PostgreSQL migration coverage for the R34 evidence authority."""
+"""Current PostgreSQL protection coverage for the R34 evidence authority."""
 
 import asyncio
 from datetime import UTC, datetime, timedelta
@@ -254,5 +254,234 @@ def test_signed_v2_batches_follow_audited_partition_retention(monkeypatch) -> No
         assert ("dropped", oldest_partition, None) in events
         assert ("batches_purged", None, 3) in events
         assert ("quarantined_batches_purged", None, 1) in events
+    finally:
+        asyncio.run(drop_database(migration_url))
+
+
+def test_current_signed_evidence_rejects_mutation_and_unaudited_deletion(monkeypatch) -> None:
+    migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
+
+    async def seed_current_trip() -> None:
+        engine = create_async_engine(migration_url, poolclass=NullPool)
+        try:
+            async with engine.begin() as connection:
+                await connection.execute(text("SET LOCAL session_replication_role = replica"))
+                await connection.execute(
+                    text(
+                        "INSERT INTO trip_sessions "
+                        "(id, assignment_id, campaign_id, driver_profile_id, vehicle_id, "
+                        "started_by_user_id, status, started_at, ended_at, end_reason, "
+                        "evidence_protocol_version, metadata) VALUES "
+                        "(:trip, :assignment, :campaign, :driver, :vehicle, :user, "
+                        "'ended', now(), now(), 'driver_ended', 2, '{}'::jsonb)"
+                    ),
+                    {
+                        "trip": TRIP_ID,
+                        "assignment": "74000000-0000-0000-0000-000000000002",
+                        "campaign": "74000000-0000-0000-0000-000000000003",
+                        "driver": "74000000-0000-0000-0000-000000000004",
+                        "vehicle": "74000000-0000-0000-0000-000000000005",
+                        "user": "74000000-0000-0000-0000-000000000006",
+                    },
+                )
+                await connection.execute(
+                    text(
+                        "INSERT INTO location_ping_batches "
+                        "(id, trip_session_id, idempotency_key, payload_hash, "
+                        "pings_accepted, pings_submitted, pings_rejected, payload_hash_version, "
+                        "evidence_scope, received_at, metadata) VALUES "
+                        "('74000000-0000-0000-0000-000000000011', :trip, "
+                        "'unsigned-batch', repeat('a', 64), 3, 3, 0, 2, "
+                        "'manifest', now(), '{}'::jsonb)"
+                    ),
+                    {"trip": TRIP_ID},
+                )
+        finally:
+            await engine.dispose()
+
+    async def seed_signed_evidence() -> None:
+        engine = create_async_engine(migration_url, poolclass=NullPool)
+        try:
+            async with engine.begin() as connection:
+                await connection.execute(text("SET LOCAL session_replication_role = replica"))
+                await connection.execute(
+                    text(
+                        "UPDATE trip_sessions SET evidence_protocol_version=2, "
+                        "evidence_manifest_version=2, "
+                        "evidence_manifest_root_sha256=repeat('b', 64), "
+                        "evidence_manifest_batch_count=1, evidence_manifest_ping_count=1, "
+                        "evidence_manifest_committed_at=now() WHERE id=:trip"
+                    ),
+                    {"trip": TRIP_ID},
+                )
+                await connection.execute(
+                    text(
+                        "INSERT INTO trip_evidence_manifest_entries "
+                        "(trip_session_id, batch_sequence, idempotency_key, "
+                        "payload_hash_version, payload_hash, submitted_count) VALUES "
+                        "(:trip, 0, 'signed-batch', 2, repeat('c', 64), 1)"
+                    ),
+                    {"trip": TRIP_ID},
+                )
+                await connection.execute(
+                    text(
+                        "INSERT INTO location_ping_batches "
+                        "(id, trip_session_id, idempotency_key, batch_sequence, "
+                        "payload_hash_version, payload_hash, pings_submitted, pings_accepted, "
+                        "pings_rejected, evidence_scope, receipt_format_version, "
+                        "receipt_key_version, receipt_signature, receipt_outcome, "
+                        "received_at, metadata) VALUES "
+                        "('74000000-0000-0000-0000-000000000012', :trip, "
+                        "'signed-batch', 0, 2, repeat('c', 64), 1, 1, 0, "
+                        "'manifest', 2, 1, 'signature', 'accepted', now(), '{}'::jsonb)"
+                    ),
+                    {"trip": TRIP_ID},
+                )
+                await connection.execute(
+                    text(
+                        "INSERT INTO location_pings "
+                        "(trip_session_id, batch_id, recorded_at, received_at, "
+                        "sequence_number, latitude, longitude, geom, metadata) VALUES "
+                        "(:trip, '74000000-0000-0000-0000-000000000012', now(), now(), "
+                        "0, 6.45, 3.39, ST_SetSRID(ST_MakePoint(3.39, 6.45), 4326), '{}'::jsonb)"
+                    ),
+                    {"trip": TRIP_ID},
+                )
+                await connection.execute(
+                    text(
+                        "INSERT INTO location_ping_batches "
+                        "(id, trip_session_id, idempotency_key, batch_sequence, "
+                        "payload_hash_version, payload_hash, pings_submitted, pings_accepted, "
+                        "pings_rejected, evidence_scope, receipt_format_version, "
+                        "receipt_key_version, receipt_signature, receipt_outcome, "
+                        "received_at, metadata) VALUES "
+                        "('74000000-0000-0000-0000-000000000014', :trip, "
+                        "'retention-empty-signed-batch', 2, 2, repeat('e', 64), 1, 1, 0, "
+                        "'manifest', 2, 1, 'signature', 'accepted', now(), '{}'::jsonb)"
+                    ),
+                    {"trip": TRIP_ID},
+                )
+                await connection.execute(
+                    text(
+                        "INSERT INTO quarantined_ping_batches "
+                        "(id, trip_session_id, idempotency_key, batch_sequence, "
+                        "payload_hash_version, payload_hash, payload, ping_count, "
+                        "pings_submitted, pings_rejected, receipt_format_version, "
+                        "receipt_key_version, receipt_signature, receipt_outcome, received_at) "
+                        "VALUES ('74000000-0000-0000-0000-000000000013', :trip, "
+                        "'quarantined-batch', 1, 2, repeat('d', 64), '{}'::jsonb, 1, "
+                        "1, 1, 2, 1, 'signature', 'quarantined', now())"
+                    ),
+                    {"trip": TRIP_ID},
+                )
+        finally:
+            await engine.dispose()
+
+    async def assert_mutation_rejected(statement: str, message: str) -> None:
+        engine = create_async_engine(migration_url, poolclass=NullPool)
+        try:
+            with pytest.raises(DBAPIError, match=message):
+                async with engine.begin() as connection:
+                    await connection.execute(text(statement), {"trip": TRIP_ID})
+        finally:
+            await engine.dispose()
+
+    async def assert_unsigned_batch_cleanup_allowed() -> None:
+        engine = create_async_engine(migration_url, poolclass=NullPool)
+        try:
+            async with engine.begin() as connection:
+                deleted_id = await connection.scalar(
+                    text(
+                        "DELETE FROM location_ping_batches "
+                        "WHERE id='74000000-0000-0000-0000-000000000011' "
+                        "AND receipt_signature IS NULL RETURNING id"
+                    )
+                )
+                assert str(deleted_id) == "74000000-0000-0000-0000-000000000011"
+        finally:
+            await engine.dispose()
+
+    try:
+        upgrade_to(migration_url, BASELINE_REVISION, monkeypatch)
+        asyncio.run(seed_current_trip())
+        asyncio.run(seed_signed_evidence())
+        asyncio.run(
+            assert_mutation_rejected(
+                "UPDATE trip_sessions SET evidence_manifest_root_sha256=repeat('d', 64) "
+                "WHERE id=:trip",
+                "manifest header is immutable",
+            )
+        )
+        asyncio.run(
+            assert_mutation_rejected(
+                "UPDATE trip_evidence_manifest_entries SET submitted_count=2 "
+                "WHERE trip_session_id=:trip",
+                "manifest entries are immutable",
+            )
+        )
+        asyncio.run(
+            assert_mutation_rejected(
+                "INSERT INTO trip_evidence_manifest_entries "
+                "(trip_session_id, batch_sequence, idempotency_key, payload_hash_version, "
+                "payload_hash, submitted_count) VALUES "
+                "(:trip, 1, 'late-entry', 2, repeat('e', 64), 1)",
+                "manifest entries are immutable",
+            )
+        )
+        asyncio.run(
+            assert_mutation_rejected(
+                "UPDATE location_ping_batches SET payload_hash=repeat('e', 64) "
+                "WHERE trip_session_id=:trip AND receipt_signature IS NOT NULL",
+                "batch receipt is immutable",
+            )
+        )
+        asyncio.run(
+            assert_mutation_rejected(
+                "UPDATE location_ping_batches SET idempotency_key='mutated' "
+                "WHERE trip_session_id=:trip AND receipt_signature IS NOT NULL",
+                "batch receipt is immutable",
+            )
+        )
+        asyncio.run(
+            assert_mutation_rejected(
+                "DELETE FROM location_ping_batches "
+                "WHERE id='74000000-0000-0000-0000-000000000012' "
+                "AND trip_session_id=:trip AND receipt_signature IS NOT NULL",
+                "batch receipt is immutable",
+            )
+        )
+        asyncio.run(assert_unsigned_batch_cleanup_allowed())
+        asyncio.run(
+            assert_mutation_rejected(
+                "DELETE FROM location_ping_batches "
+                "WHERE id='74000000-0000-0000-0000-000000000014' "
+                "AND receipt_signature IS NOT NULL "
+                "AND NOT EXISTS (SELECT 1 FROM location_pings "
+                "WHERE batch_id='74000000-0000-0000-0000-000000000014')",
+                "batch receipt is immutable",
+            )
+        )
+        for statement in (
+            "UPDATE location_pings SET latitude=7.0 WHERE trip_session_id=:trip",
+            "DELETE FROM location_pings WHERE trip_session_id=:trip",
+            "INSERT INTO location_pings "
+            "(trip_session_id, batch_id, recorded_at, received_at, sequence_number, "
+            "latitude, longitude, geom, metadata) VALUES "
+            "(:trip, '74000000-0000-0000-0000-000000000012', now(), now(), 1, "
+            "6.45, 3.39, ST_SetSRID(ST_MakePoint(3.39, 6.45), 4326), '{}'::jsonb)",
+        ):
+            asyncio.run(
+                assert_mutation_rejected(
+                    statement,
+                    "signed trip ping evidence is immutable",
+                )
+            )
+        asyncio.run(
+            assert_mutation_rejected(
+                "UPDATE quarantined_ping_batches SET payload=jsonb_build_object('tampered', true) "
+                "WHERE trip_session_id=:trip AND receipt_signature IS NOT NULL",
+                "quarantined trip batch receipt is immutable",
+            )
+        )
     finally:
         asyncio.run(drop_database(migration_url))

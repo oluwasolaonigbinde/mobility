@@ -547,3 +547,52 @@ measurement candidate SHA, matching the next push event's predecessor. That
 receipt commit changes no application source. Its full verification must pass
 all unchanged gates before merge; a zero source delta on this second event does
 not replace the required complete-range qualification from the first run.
+
+
+## Consolidated correction and qualification checkpoint - 14 October
+
+Money specialist `w34-money-review-20261014-r1` returned PASS on the integrated
+baseline and GPS correction. Consolidated r1 also returned a narrow security
+PASS for that GPS correction. Its four valid source findings are corrected:
+
+- Current signed manifest, entry, receipt, ping and quarantine mutation-refusal
+  assertions are restored against the baseline, including empty signed receipts
+  and late inserts. The added PostgreSQL case passed (`restored-signed-evidence.xml`).
+- The active W4-01D rehearsal now returns a v4 daily-distance breakdown and
+  asserts the paid trip's 12.5-mile explanation rather than only its amount.
+- The current runbook describes fresh baseline creation, explicitly selected
+  disposable database recreation, current v4/v2 authority and publication-write
+  protections. The stationary-policy README cites the current v4 tests.
+- Relocated progress-history links resolve to the sibling archive and parent
+  current documents. Historical decision/architecture records remain intact.
+
+Additional refusal-boundary tests address gaps in the downloaded *previous*
+master CI evidence, without measuring coverage locally. Crypto: 19 passed;
+redaction/file detection/money adapters: 30 passed (44 deselected); frozen
+payout/bank/refund/subsidy authority: 48 passed. REQ-158/159's separately labelled
+commit `49f84945` adds four passing agreement/bank receipt cases. The shared
+picker is unchanged. Ruff passes for the affected Python files. XML evidence
+is under ignored `coverage/w34/`; coverage percentages await full branch CI.
+Consolidated reassessment `w34-consolidated-review-20261014-r2` returned
+source/minimal-change PASS: all four findings resolved, added tests meaningful
+and proportionate, identical schema hashes independently reconfirmed. Its
+inspected XML subset records 102 passing cases. The isolated Chromium rehearsal
+then passed (one complete history/hold/dispute/outcome/offline/privacy/access
+journey, `w401d-rehearsal.log`). Its production webpack build and TypeScript
+check passed, as did ESLint on the two touched rehearsal files. The initial
+180-second local startup limit expired; the isolated copy used 600 seconds
+without changing the repository config or port-3100 demo. Full CI/coverage/receipt
+gates remain pending; this is not merge clearance.
+
+### Criterion verification at the final-source boundary
+
+| Criterion | Evidence / verdict |
+| --- | --- |
+| Current v4/v2 authority, legacy/SQLite removal, current consumers | PASS in affected PostgreSQL, frontend and R14-B contract cases recorded above; consolidated r1 found only the four corrected omissions. |
+| Domain splits, existing-function complexity exceptions, shared picker | PASS in static/import/type and affected billing/payout checks; matched Radon/jscpd evidence above. |
+| Shared-reader/exclusive-writer campaign serialization and deterministic refusal paths | PASS in four PostgreSQL interleavings and targeted payout/trip rejection cases above. |
+| Separate 85% money/privacy floors and unchanged ratchets | Checker behavior tests PASS; exact-source CI coverage and independently reviewed D33 receipt PENDING. |
+| Scheduled-job Cron outcomes, seven health checks, manual Finance resolution, privacy-safe GPS | PASS in focused worker/health cases including terminal adjudication, next UTC date, concurrent/midnight counter failure and resolved-alert boundaries. Money/privacy/security source reviews PASS. |
+| Process trim, validator state and proven obsolete hosting scope | PASS; deletion inventory above, validator passes, archive links corrected; no unproven unused operational script removed. |
+| Squash schema/bootstrap/head/reference/seed safety | PASS: byte-identical complete dumps, version-only data difference, single root/head, seed completion and current protection cases. Security/privacy confirm no lost protection. |
+| Integrated agreement/bank and final delivery | Local targeted checks PASS; full candidate measurement, full-range qualification, receipt review, final full verification and non-squash merge PENDING. |

@@ -220,39 +220,30 @@ trap - EXIT
 
 ## Migrations
 
-Before migrating, take a backup and inspect the pending revisions:
+D83 replaces the disposable development chain with the single root/head
+`0106_development_baseline`. Initialize a fresh PostgreSQL database with:
 
 ```bash
-docker compose exec -T api alembic current
-docker compose exec -T api alembic history --indicate-current
-scripts/db_backup.sh
 docker compose exec -T api alembic upgrade head
 docker compose exec -T api alembic current
 ```
 
-Apply migrations before starting newly deployed application code. A migration rollback is allowed only when its revision file documents a safe downgrade and no incompatible data has been written. Prefer restoring the pre-migration backup over improvising destructive SQL.
+A database stamped with a removed pre-baseline revision is not an upgrade target.
+Recreate only the explicitly selected disposable development/test database, then
+apply the baseline and rerun the existing seed path. There is no baseline
+downgrade or production-data migration: Cardvert has no live data. Do not stamp
+an old schema as the baseline. Future revisions must document their own upgrade
+and recovery procedure before deployment.
 
-### One active company per advertiser login (D29, migration 0090)
+### One active company per advertiser login (D29)
 
-Migration `0090_single_active_advertiser_membership` refuses to run while any
-login holds more than one active advertiser membership, because only an operator
-can decide which company that person keeps. List the conflicts with:
-
-```sql
-SELECT user_id, count(*) AS active_memberships
-FROM organization_memberships WHERE status = 'active'
-GROUP BY user_id HAVING count(*) > 1;
-```
-
-For each login, confirm with the advertiser which company is current, set every
-other membership for that `user_id` to `disabled` (never delete it), take a
-backup, then rerun the upgrade. The upgrade takes a `NOWAIT` table lock, so it
-fails at once if another session holds `organization_memberships`; retry in a
-quiet window rather than forcing it. The same rule applies after the upgrade: to move
-an advertiser to a new company, first disable the old membership, then create or
-attach the new company. The product has no screen for this yet (tracked as
-NX-13 in `issues/planning/current-state-reconciliation-2026-09-23.md`), so record
-the change in the operations log.
+The baseline unique partial index permits at most one active advertiser
+membership per login. To move an advertiser to a new company, first disable the
+old membership, then create or attach the new company; preserve the old row as
+history. An unexpected conflicting membership indicates an invalid database or
+operator procedure, not a reason to rerun a removed migration. Record the
+operator-authorized change in the operations log. The product has no transfer
+screen yet (NX-13 in `issues/planning/current-state-reconciliation-2026-09-23.md`).
 
 ## Sessions, password changes, and logout
 
@@ -393,13 +384,18 @@ Positive current-formula payout calculations missing ledger entries are money-in
 
 Each trip run reads one timestamp from the database clock and injects it through analytics, impression, and payout services. This keeps the worker path frozen-time testable and prevents stages in one run from acquiring unrelated application-clock timestamps.
 
-**Money model.** The automated payout stage dispatches per the governing rule row's model: `payout_v2` (the approved hourly-pay engine, S1/D9 — Q4/Q5 adopted and delivered) or frozen `payout_v1` history. Since S4 the worker also owns the location-ping data lifecycle (partition premake, coverage alarm, retention purge), so running it in every deployed environment is mandatory, not optional.
+**Money model.** The payout stage uses the accepted, frozen `payout_v4`
+daily-rate binding and signed v2 evidence. Legacy hourly/distance engines were
+removed under D80; current corrections use the governed recompute-day authority
+and never silently rewrite accepted money. The worker also owns location-ping
+partition premake, coverage alarms and audited retention, so it is mandatory in
+every deployed environment.
 
 ## Location-ping data lifecycle (S4)
 
 `location_pings` is range-partitioned by UTC month on `recorded_at`
-(migration `0014`; the pre-conversion table survives as the bounded
-partition `location_pings_legacy`). Three daily worker crons own the
+(baseline `0106_development_baseline`, including the bounded partition
+`location_pings_legacy`). Three daily worker crons own the
 lifecycle — **running the worker is mandatory in production from S4
 onward** (`docker compose --profile worker up -d worker` in the production
 topology): retention enforcement is a legal obligation, and partition
@@ -563,16 +559,17 @@ prove an earlier request cannot still write. The worker reports the unresolved c
 and continues safe cleanup of later generations. Restore storage for definitively
 settled calls and verify deletion of every version and marker of both exact keys.
 
-After migration 0088, inventory `report_publication_writes` where state is not
-`settled`, joined to `report_publication_intents`. `legacy_untracked_write` explicitly
-covers historical non-complete generations, even old `cleaned` claims; those claims
-are not verified absence. Preserve these receipts and the original publication
-history. Obtain provider request/transport settlement evidence and an independently
-reviewed reconciliation procedure before resolving any uncertainty. Do not edit
-receipt state, infer settlement from object absence, broaden bucket permissions or
-silently drop the receipt table. Populated downgrade is refused. Quiesce previous
-publishers during rollout: an older image does not implement the 0088 write contract
-and cannot insert the required, default-free write-protocol marker.
+Inventory `report_publication_writes` where state is not `settled`, joined to
+`report_publication_intents`. The baseline enforces durable write receipts and
+a default-free write-protocol marker. An unresolved receipt, including any
+`legacy_untracked_write` recovered from an archived dataset, is not verified
+absence. Preserve receipts and publication history. Obtain provider
+request/transport settlement evidence and an independently reviewed
+reconciliation procedure before resolving uncertainty. Never edit receipt state,
+infer settlement from object absence, broaden bucket permissions or drop the
+receipt table. An image without the current write contract is not a compatible
+publisher. Disposable pre-baseline databases are recreated as described above;
+there is no historical rollout/backfill step to execute.
 Production versioning/IAM/CORS and real provider fault evidence remain release gates.
 
 ## Secret rotation

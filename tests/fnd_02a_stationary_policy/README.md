@@ -2,7 +2,7 @@
 
 This directory records the owner-selected Option A fixture contract adapted
 from candidate `40f73026eaf49bd04ce4f75a0cd620fb434f64c8`. Production proofs live in
-`tests/test_payout_eligibility.py`, `tests/test_payouts_v3.py`, and
+`tests/test_payout_eligibility.py`, `tests/test_payouts_v4.py`, and
 `tests/test_payout_corrections.py`; this file is evidence context, not runtime
 configuration.
 
@@ -16,6 +16,6 @@ holds an active stationary state. Rolling and legacy 200m/300s stationary
 ranges share one chronological 240-second trip grace.
 
 The complete accepted snapshot also freezes 75m maximum accuracy, 180km/h
-teleport threshold, and 120-second maximum ping gap. `payout_v2` remains on the
-legacy classifier. Only a complete frozen `payout_v3` binding carrying this
-marker activates the rolling detector; old or incomplete markers fail closed.
+teleport threshold, and 120-second maximum ping gap. D80 retires payout v1-v3. Current `payout_v4` daily-rate eligibility uses the
+complete frozen stationary policy; missing or incomplete accepted authority
+fails closed. Historical hourly-engine comparisons above are fixture context.
