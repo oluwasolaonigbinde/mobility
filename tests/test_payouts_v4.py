@@ -61,8 +61,7 @@ from app.models.trip import LocationPing, TripSession
 from app.schemas.payouts import (
     CampaignPayoutV4RevisionCreate,
 )
-from app.services import payouts
-from app.services.billing import _assignment_liability_calculation
+from app.services.billing.authority import _assignment_liability_calculation
 from app.services.campaign_changes import _additional_window_liability
 from app.services.payout_corrections import project_campaign_day
 from app.services.payout_eligibility import (
@@ -73,15 +72,13 @@ from app.services.payout_eligibility import (
     classify_session,
     credited_distance_m_by_day,
 )
-from app.services.payouts import (
-    PAYOUT_V4,
-    DailyRateTerms,
-    day_credited_distance_m,
-    day_pay_naira,
-    driver_trip_earnings_breakdown,
-    publish_payout_v4_revision,
-    v4_calculation_is_stale,
-)
+from app.services.payouts import engine as payouts_engine
+from app.services.payouts.breakdown import driver_trip_earnings_breakdown
+from app.services.payouts.common import PAYOUT_V4
+from app.services.payouts.daily import DailyRateTerms, day_pay_naira
+from app.services.payouts.engine import v4_calculation_is_stale
+from app.services.payouts.ledger import day_credited_distance_m
+from app.services.payouts.rules import publish_payout_v4_revision
 from app.services.trip_processing import find_unprocessed_trips
 
 MILE = Fraction("1609.344")
@@ -567,14 +564,14 @@ def test_blocked_trip_credits_no_distance_and_later_trips_start_from_zero(
     graph = build_v4_graph(db, settings, "v4-blocked")
     later = add_trip(db, settings, graph, started_at=TRIP_START + timedelta(hours=1))
     # The first trip's evidence is blocked (as a fraud/exclusion decision would).
-    original_status = payouts._payout_status
+    original_status = payouts_engine._payout_status
 
     def blocked_for_first(analytics, estimate):
         if analytics.trip_session_id == graph.trip.id:
             return PayoutCalculationStatus.BLOCKED.value
         return original_status(analytics, estimate)
 
-    monkeypatch.setattr(payouts, "_payout_status", blocked_for_first)
+    monkeypatch.setattr(payouts_engine, "_payout_status", blocked_for_first)
     drive(db, settings, graph.trip)
     added = metres_along(drive(db, settings, later))
     calcs = calculations_by_trip(db)
@@ -1150,7 +1147,8 @@ def test_zero_delta_correction_still_records_the_new_distance_for_later_trips(
 
 def test_incomplete_or_malformed_daily_rate_data_fails_closed() -> None:
     from app.services.campaign_assignments import _daily_rate_offer_terms
-    from app.services.payouts import _daily_rate_days, daily_rate_terms
+    from app.services.payouts.breakdown import _daily_rate_days
+    from app.services.payouts.daily import daily_rate_terms
 
     complete = {
         "daily_rate_naira": Decimal("10000.00"),
@@ -1194,7 +1192,7 @@ def test_incomplete_or_malformed_daily_rate_data_fails_closed() -> None:
 
 
 def test_payout_status_maps_insufficient_blocked_and_excluded() -> None:
-    from app.services.payouts import _payout_status
+    from app.services.payouts.engine import _payout_status
 
     def status(analytics: str, estimate: str) -> str:
         return _payout_status(SimpleNamespace(status=analytics), SimpleNamespace(status=estimate))

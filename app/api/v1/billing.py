@@ -72,36 +72,48 @@ from app.schemas.billing import (
     WaiverCreate,
     WaiverRead,
 )
-from app.services.billing import (
+from app.services.billing.authority import (
+    record_approved_credit_authorization,
+    record_expedited_production_waiver,
+    record_prepaid_cash_authorization,
+    record_production_start,
+    record_subsidy_authorization,
+)
+from app.services.billing.budget import (
+    evaluate_campaign_budget_policy,
+    resume_campaign_after_budget_pause,
+)
+from app.services.billing.checkout import (
+    get_advertiser_payment_checkout,
+    initialize_invoice_payment_checkout,
+    prepare_invoice_payment_checkout,
+)
+from app.services.billing.common import (
     EXPEDITED_WAIVER_WORDING,
     EXPEDITED_WAIVER_WORDING_HASH,
     EXPEDITED_WAIVER_WORDING_VERSION,
-    accept_quotation_revision,
-    adjusted_invoice_obligation,
-    billing_history,
-    create_invoice_draft,
-    evaluate_campaign_budget_policy,
-    get_advertiser_payment_checkout,
+)
+from app.services.billing.gateway import (
     ingest_payment_gateway_webhook,
     ingest_verified_payment_event,
-    initialize_invoice_payment_checkout,
+)
+from app.services.billing.invoices import (
+    create_invoice_draft,
     invoice_payment_status,
     issue_invoice,
-    prepare_invoice_payment_checkout,
-    process_manual_bank_transfer,
-    record_approved_credit_authorization,
-    record_credit_contract_settlement,
-    record_expedited_production_waiver,
-    record_invoice_correction,
     record_invoice_issuer_profile,
-    record_prepaid_cash_authorization,
-    record_production_start,
+)
+from app.services.billing.queries import adjusted_invoice_obligation, billing_history
+from app.services.billing.quotes import (
+    accept_quotation_revision,
     record_quotation_revision,
-    record_refund_settlement,
-    record_subsidy_authorization,
     request_custom_quote,
-    resume_campaign_after_budget_pause,
-    reverse_payment_receipt,
+)
+from app.services.billing.receipts import process_manual_bank_transfer, reverse_payment_receipt
+from app.services.billing.settlements import (
+    record_credit_contract_settlement,
+    record_invoice_correction,
+    record_refund_settlement,
 )
 from app.services.organizations import (
     get_advertiser_organization_for_user,
@@ -130,9 +142,7 @@ async def _invoice_read(session: SessionDependency, invoice: Invoice) -> Invoice
     )
     return InvoiceRead.model_validate(invoice).model_copy(
         update={
-            "effective_obligation_amount": await adjusted_invoice_obligation(
-                session, invoice.id
-            ),
+            "effective_obligation_amount": await adjusted_invoice_obligation(session, invoice.id),
             "funded_amount": funded_amount,
             "payment_status": payment_status,
             "corrections": [

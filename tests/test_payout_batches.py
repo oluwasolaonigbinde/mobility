@@ -192,9 +192,7 @@ def test_batch_submission_commits_frozen_intent_without_provider_io(db_sessionma
             await session.commit()
             return batch, lines[0], frozen, submitted_audits, queued_audits, intents
 
-    batch, line, frozen, submitted_audits, queued_audits, intents = asyncio.run(
-        exercise()
-    )
+    batch, line, frozen, submitted_audits, queued_audits, intents = asyncio.run(exercise())
     assert batch.status == "reserved"
     assert batch.total_amount == Decimal("100.00")
     assert line.instruction == frozen[0]
@@ -639,12 +637,11 @@ def test_postgres_duplicate_provider_reference_preserves_outer_write(
                 for intent_id, batch_id in (
                     await session.execute(
                         select(PayoutSubmissionIntent.id, PayoutBatchLine.batch_id)
-                    .join(
-                        PayoutBatchLine,
-                        PayoutBatchLine.id
-                        == PayoutSubmissionIntent.payout_batch_line_id,
-                    )
-                    .where(PayoutBatchLine.batch_id.in_([batch.id for batch in batches]))
+                        .join(
+                            PayoutBatchLine,
+                            PayoutBatchLine.id == PayoutSubmissionIntent.payout_batch_line_id,
+                        )
+                        .where(PayoutBatchLine.batch_id.in_([batch.id for batch in batches]))
                     )
                 )
             }
@@ -682,9 +679,7 @@ def test_postgres_duplicate_provider_reference_preserves_outer_write(
             lines = tuple(
                 (
                     await session.scalars(
-                        select(PayoutBatchLine).where(
-                            PayoutBatchLine.batch_id == batches[1].id
-                        )
+                        select(PayoutBatchLine).where(PayoutBatchLine.batch_id == batches[1].id)
                     )
                 ).all()
             )
@@ -765,3 +760,27 @@ def test_postgres_hold_creation_serializes_before_reservation(
     result, line_count = asyncio.run(exercise())
     assert result == "PAYOUT_ENTRY_HELD"
     assert line_count == 0
+
+
+def test_submit_draft_batch_always_refuses_before_provider_or_intent(db_sessionmaker):
+    graph = build_graph(db_sessionmaker, f"draft-refusal-{uuid4().hex[:6]}")
+    adapter = FakeDisbursementAdapter()
+
+    async def exercise():
+        async with db_sessionmaker() as session:
+            batch = await create_payout_batch_draft(
+                session, currency="NGN", actor_user_id=graph.admin.id
+            )
+            await session.commit()
+            with pytest.raises(AppError) as refused:
+                await submit_payout_batch(
+                    session, batch_id=batch.id, actor_user_id=graph.admin.id, adapter=adapter
+                )
+            assert refused.value.code == "PAYOUT_BATCH_NOT_RESERVED"
+            assert (
+                await session.scalar(select(func.count()).select_from(PayoutSubmissionIntent)) == 0
+            )
+            assert batch.status == "draft"
+            assert adapter.calls == []
+
+    asyncio.run(exercise())

@@ -58,13 +58,15 @@ from app.schemas.campaign_assignments import (
     CampaignAssignmentCreate,
     CampaignAssignmentTransition,
 )
-from app.services.billing import (
-    accept_quotation_revision,
+from app.services.billing.authority import (
     record_approved_credit_authorization,
     record_production_start,
+    reserve_assignment_liability,
+)
+from app.services.billing.quotes import (
+    accept_quotation_revision,
     record_quotation_revision,
     request_custom_quote,
-    reserve_assignment_liability,
 )
 
 PASSWORD = "long-secure-password"

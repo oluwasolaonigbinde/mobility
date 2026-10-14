@@ -26,7 +26,7 @@ from app.services.automatic_payouts import (
     resolve_automatic_payout_alert,
     set_automatic_payouts_paused,
 )
-from app.services.payouts import lagos_day_for
+from app.services.payouts.common import lagos_day_for
 
 router = APIRouter(prefix="/admin/payouts/automatic", tags=["Admin automatic payouts"])
 

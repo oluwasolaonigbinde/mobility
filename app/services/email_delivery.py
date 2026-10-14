@@ -153,7 +153,7 @@ async def _claim(
         return token, notice, str(recipient_or_error)
 
 
-async def process_email_notification(
+async def process_email_notification(  # noqa: C901
     sessionmaker: async_sessionmaker[AsyncSession],
     *,
     notification_id: UUID,

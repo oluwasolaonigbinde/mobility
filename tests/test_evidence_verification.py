@@ -4,7 +4,7 @@ from decimal import Decimal
 from uuid import uuid4
 
 import pytest
-from conftest import auth_headers, create_test_display_proof
+from conftest import auth_headers, create_test_display_proof, sign_test_trip_manifest
 from sqlalchemy import func, select
 from test_fraud_assessments import build_graph
 
@@ -173,9 +173,10 @@ def test_concurrent_sessions_create_one_authoritative_day_hold(db_sessionmaker, 
                 started_at=source.started_at + timedelta(minutes=30),
                 ended_at=source.ended_at + timedelta(minutes=30),
                 sealed_at=source.ended_at + timedelta(minutes=40),
-                seal_reason="migration_backfill",
+                seal_reason="client_complete",
                 trip_metadata={"synthetic_overlap": True},
             )
+            sign_test_trip_manifest(overlap)
             session.add(overlap)
             await session.commit()
         async with db_sessionmaker() as session:

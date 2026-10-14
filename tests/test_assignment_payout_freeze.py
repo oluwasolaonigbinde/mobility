@@ -37,10 +37,8 @@ from app.services.payout_eligibility import (
     STATIONARY_POLICY_D39,
 )
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
-from app.services.payouts import (
-    PAYOUT_V4,
-    publish_payout_v4_revision,
-)
+from app.services.payouts.common import PAYOUT_V4
+from app.services.payouts.rules import publish_payout_v4_revision
 
 
 def test_accept_freezes_effective_revision_with_zone_snapshot(

@@ -18,7 +18,8 @@ from test_trip_processing import add_pings, run_pipeline
 
 from app.core.errors import AppError
 from app.models.trip import TripSession
-from app.services import payouts
+from app.services.payouts import common as payouts_common
+from app.services.payouts import engine as payouts_engine
 
 
 def build_daily_pair(db, settings, tag, *, trip2_started_at=None):
@@ -64,7 +65,7 @@ def test_direct_calculation_refuses_equal_start_higher_id_before_lower_id(
                 settings=settings,
             )
             with pytest.raises(AppError) as error:
-                await payouts.calculate_trip_payout(
+                await payouts_engine.calculate_trip_payout(
                     session,
                     trip_id=current_id,
                     payout_rule_id=None,
@@ -153,10 +154,10 @@ def test_predecessor_ending_at_lagos_midnight_does_not_occupy_next_day(
                     )
                 )
             day = (midnight + timedelta(hours=1)).date()
-            await payouts.acquire_paycap_lock(
-                session, payouts.paycap_lock_key(graph.profile.id, graph.campaign.id, day)
+            await payouts_common.acquire_paycap_lock(
+                session, payouts_common.paycap_lock_key(graph.profile.id, graph.campaign.id, day)
             )
-            await payouts.require_paycap_predecessors_processed(
+            await payouts_common.require_paycap_predecessors_processed(
                 session,
                 trip=current,
                 lagos_days=[day],

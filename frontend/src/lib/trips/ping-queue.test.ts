@@ -153,18 +153,6 @@ describe("cutBatch", () => {
 });
 
 describe("ACK semantics", () => {
-  it("keeps the bounded legacy acknowledgement path for active v1 recovery", async () => {
-    await queue.addPing(TRIP, ping(0));
-    const batch = await queue.cutBatch(TRIP);
-    await queue.acknowledgeLegacyBatch(batch!.key);
-    expect(await queue.listBatches(TRIP)).toHaveLength(0);
-    expect(await queue.unsyncedCount(TRIP)).toBe(0);
-    // Cumulative counters survive the ACK — they back the end watermark.
-    const meta = await queue.meta(TRIP);
-    expect(meta.batchesCut).toBe(1);
-    expect(meta.pingsRecorded).toBe(1);
-  });
-
   it("terminal rejection retains the exact batch as durable diagnostic evidence", async () => {
     await queue.addPing(TRIP, ping(0));
     const dead = await queue.cutBatch(TRIP);
@@ -556,16 +544,6 @@ describe("durable End boundary", () => {
     expect((await queue.meta(TRIP)).endManifest).toEqual(frozen);
     await expect(queue.addPing(TRIP, ping(3))).rejects.toThrow(/End/);
   });
-});
-
-it("freezes a legacy End watermark before retry and forbids later capture", async () => {
-  await queue.addPing(TRIP, ping(0));
-  const request = await queue.freezeLegacyEnd(TRIP, false);
-  expect(request).toEqual({ clientBatchCount: 1, clientPingCount: 1, clientComplete: false });
-  queue.close();
-  queue = await openPingQueue(dbName);
-  expect(await queue.freezeLegacyEnd(TRIP, true)).toEqual(request);
-  await expect(queue.addPing(TRIP, ping(1))).rejects.toThrow(/End/);
 });
 
 it("retains complete signed per-sample disposition atomically without resending settled peers", async () => {

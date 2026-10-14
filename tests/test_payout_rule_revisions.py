@@ -12,7 +12,8 @@ from app.core.errors import AppError
 from app.models.payout import CampaignPayoutRuleRevision
 from app.schemas.payouts import CampaignPayoutV4RevisionCreate
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
-from app.services.payouts import publish_payout_v4_revision, validate_currency_code
+from app.services.payouts.common import validate_currency_code
+from app.services.payouts.rules import publish_payout_v4_revision
 
 
 def payload(effective_from, rate="8000"):

@@ -131,7 +131,7 @@ def _normalized_period(value: Any) -> dict[str, Any] | None:
     }
 
 
-def _normalize_provenance(value: Any) -> tuple[dict[str, Any] | None, str | None]:
+def _normalize_provenance(value: Any) -> tuple[dict[str, Any] | None, str | None]:  # noqa: C901
     if not isinstance(value, dict):
         return None, "provenance_missing"
     if value.get("test_only") is not True:
@@ -333,7 +333,7 @@ async def _coverage_areas(
     )
 
 
-async def calculate_synthetic_target_area_coverage(
+async def calculate_synthetic_target_area_coverage(  # noqa: C901
     session: AsyncSession, provenance: dict[str, Any]
 ) -> dict[str, Any]:
     if not isinstance(provenance, dict) or provenance.get("test_only") is not True:

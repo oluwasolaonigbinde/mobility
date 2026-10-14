@@ -78,7 +78,7 @@ def _u32(value: int) -> bytes:
     return struct.pack(">I", value)
 
 
-def canonical_bytes(value: Any) -> bytes:
+def canonical_bytes(value: Any) -> bytes:  # noqa: C901
     if value is None:
         return b"n"
     if value is False:
@@ -103,8 +103,10 @@ def canonical_bytes(value: Any) -> bytes:
         items = sorted(value.items(), key=lambda item: item[0].encode("utf-8"))
         if any(not isinstance(key, str) for key, _ in items):
             raise ValueError("canonical object keys must be strings")
-        return b"o" + _u32(len(items)) + b"".join(
-            canonical_bytes(key) + canonical_bytes(item) for key, item in items
+        return (
+            b"o"
+            + _u32(len(items))
+            + b"".join(canonical_bytes(key) + canonical_bytes(item) for key, item in items)
         )
     raise TypeError(f"unsupported canonical value: {type(value).__name__}")
 
@@ -197,11 +199,14 @@ def validate_manifest(trip_id: UUID, manifest: TripEvidenceManifestCreate) -> No
             "Evidence manifest ping count does not match its entries",
             status_code=status.HTTP_409_CONFLICT,
         )
-    if manifest_root(
-        trip_id=trip_id,
-        entries=manifest.entries,
-        ping_count=manifest.ping_count,
-    ) != manifest.root_sha256:
+    if (
+        manifest_root(
+            trip_id=trip_id,
+            entries=manifest.entries,
+            ping_count=manifest.ping_count,
+        )
+        != manifest.root_sha256
+    ):
         raise AppError(
             "TRIP_EVIDENCE_MANIFEST_INVALID",
             "Evidence manifest root does not match its content",
@@ -255,9 +260,7 @@ def rejection_manifest_document(
 
 
 def rejection_manifest_digest(document: dict[str, Any]) -> str:
-    return hashlib.sha256(
-        REJECTION_MANIFEST_DOMAIN + canonical_bytes(document)
-    ).hexdigest()
+    return hashlib.sha256(REJECTION_MANIFEST_DOMAIN + canonical_bytes(document)).hexdigest()
 
 
 def manifest_sample_results(document: dict[str, Any] | None) -> list[dict[str, Any]]:
@@ -308,17 +311,13 @@ def sign_batch_receipt(batch: LocationPingBatch, settings: Settings) -> SignedRe
     return SignedReceipt(RECEIPT_FORMAT_VERSION, key_version, batch.receipt_signature, outcome)
 
 
-def sign_quarantine_receipt(
-    batch: QuarantinedPingBatch, settings: Settings
-) -> SignedReceipt:
+def sign_quarantine_receipt(batch: QuarantinedPingBatch, settings: Settings) -> SignedReceipt:
     key_version, key = signing_key(settings)
     outcome = "quarantined"
     batch.receipt_format_version = RECEIPT_FORMAT_VERSION
     batch.receipt_key_version = key_version
     batch.receipt_outcome = outcome
-    batch.receipt_signature = _signature(
-        BATCH_RECEIPT_DOMAIN, quarantine_receipt_value(batch), key
-    )
+    batch.receipt_signature = _signature(BATCH_RECEIPT_DOMAIN, quarantine_receipt_value(batch), key)
     return SignedReceipt(RECEIPT_FORMAT_VERSION, key_version, batch.receipt_signature, outcome)
 
 

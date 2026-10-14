@@ -237,7 +237,7 @@ async def get_advertiser_campaign(
     return campaign
 
 
-async def update_advertiser_campaign(
+async def update_advertiser_campaign(  # noqa: C901
     session: AsyncSession,
     *,
     user_id: UUID,
@@ -860,7 +860,7 @@ async def get_campaign_creative(
     return creative
 
 
-async def update_campaign_creative(
+async def update_campaign_creative(  # noqa: C901
     session: AsyncSession,
     *,
     user_id: UUID,

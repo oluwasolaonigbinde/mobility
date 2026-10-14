@@ -17,6 +17,16 @@ async def acquire_campaign_terms_lock(session: AsyncSession, campaign_id: UUID) 
     await session.execute(select(func.pg_advisory_xact_lock(campaign_terms_lock_key(campaign_id))))
 
 
+async def acquire_campaign_terms_shared_lock(session: AsyncSession, campaign_id: UUID) -> None:
+    """Allow concurrent evidence readers while excluding terms/cancellation writers.
+
+    Acquire before any trip row lock; callers must never upgrade to exclusive.
+    """
+    await session.execute(
+        select(func.pg_advisory_xact_lock_shared(campaign_terms_lock_key(campaign_id)))
+    )
+
+
 async def database_clock(session: AsyncSession) -> datetime:
     """Return wall-clock database time, with an aware UTC local fallback."""
     value = await session.scalar(select(func.clock_timestamp()))

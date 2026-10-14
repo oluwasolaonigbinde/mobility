@@ -44,7 +44,7 @@ from app.schemas.impressions import TrafficDensityProfileUpdate
 from app.services import fraud_assessments, route_replay, trip_processing
 from app.services.fraud_holds import acknowledge_fraud_flag, resolve_fraud_flag
 from app.services.impressions import update_traffic_density_profile
-from app.services.payouts import calculate_trip_payout
+from app.services.payouts.engine import calculate_trip_payout
 from app.services.trip_evidence import sign_manifest_receipt
 from app.services.trip_processing import (
     AUDIT_ACTION_TRIP_PROCESSING,

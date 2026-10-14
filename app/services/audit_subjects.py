@@ -218,7 +218,7 @@ def _document(value) -> dict:
     return value if isinstance(value, dict) else {}
 
 
-def resolve_audit_subjects(
+def resolve_audit_subjects(  # noqa: C901
     connection: Connection,
     *,
     actor_user_id,

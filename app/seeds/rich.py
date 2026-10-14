@@ -59,7 +59,7 @@ from app.schemas.trips import (
 )
 from app.services.campaign_zones import geometry_expression, validate_geometry_with_postgis
 from app.services.impressions import estimate_trip_impressions
-from app.services.payouts import calculate_trip_payout
+from app.services.payouts.engine import calculate_trip_payout
 from app.services.trip_analytics import recompute_trip_analytics
 from app.services.trip_evidence import (
     batch_payload_hash,
@@ -1492,7 +1492,8 @@ async def _seed_cancelled_campaign(session, *, graph, staff, campaign, state):
     name = campaign.name
     from app.models.billing import CommercialTerms, PaymentReceipt, ReceiptAllocation
     from app.schemas.campaign_cancellations import CampaignCancellationCreate
-    from app.services.billing import record_refund_settlement, reverse_payment_receipt
+    from app.services.billing.receipts import reverse_payment_receipt
+    from app.services.billing.settlements import record_refund_settlement
     from app.services.campaign_cancellations import request_campaign_cancellation
 
     reason = (
@@ -1666,7 +1667,7 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
                     )
             if state == "draft":
                 from app.models.billing import QuoteRequestSource
-                from app.services.billing import request_custom_quote
+                from app.services.billing.quotes import request_custom_quote
 
                 await request_custom_quote(
                     session,

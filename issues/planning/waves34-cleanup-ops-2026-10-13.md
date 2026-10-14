@@ -183,3 +183,19 @@ frozen acceptance, publication, ordering and API batch passed 67 tests. Four
 payout UI files passed 14 tests. Additional worker/trip/privacy/seed verification
 is still running after fixture corrections; this is not final verification or
 review acceptance. No coverage measurement, branch CI, push or merge has run.
+
+W3b planned source-file replacements (functions move into domain packages):
+- `app/services/payouts.py`
+- `app/services/billing.py`
+
+W3b checkpoint (14 October): payout and billing domain packages replace the
+monoliths; application C901 exceptions are per-function. Shared-reader and
+exclusive-cancellation interleavings pass, including different and same trips.
+The 37 coverage-policy tests pass without measuring local coverage. The focused
+refinement batch passed seven checks, and its remaining exact-millisecond
+fixture correction passed separately. Evidence UI: 100/100 tests across the
+three touched actions/tracker/queue files. Fresh database upgraded to 0104;
+Alembic reports no model differences. Ruff and formatting pass. Final integrated
+CI and reviews remain required. The evidence-v1 follow-up removes driver legacy
+end/ACK branches and unused trip watermark columns; signed v2 recovery and
+encrypted queue ownership protection remain.

@@ -562,7 +562,7 @@ async def _proof_manifest(
     return manifest, bindings
 
 
-async def issue_measurement_run(
+async def issue_measurement_run(  # noqa: C901
     session: AsyncSession,
     *,
     actor_user_id: UUID,

@@ -20,30 +20,42 @@ from app.models.billing import (
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.user import UserRole
 from app.schemas.campaign_cancellations import CampaignCancellationCreate
-from app.services import billing, campaign_cancellations
-from app.services.billing import (
+from app.services import campaign_cancellations
+from app.services.billing import authority as billing_authority
+from app.services.billing import settlements as billing_settlements
+from app.services.billing.authority import (
+    assert_campaign_production_authorized,
+    record_expedited_production_waiver,
+    record_prepaid_cash_authorization,
+    record_production_start,
+)
+from app.services.billing.common import (
     EXPEDITED_WAIVER_WORDING,
     EXPEDITED_WAIVER_WORDING_HASH,
     EXPEDITED_WAIVER_WORDING_VERSION,
-    accept_quotation_revision,
-    adjusted_invoice_obligation,
-    allocate_payment_receipt,
-    assert_campaign_production_authorized,
-    confirm_payment_receipt,
+)
+from app.services.billing.invoices import (
     create_invoice_draft,
     invoice_payment_status,
     issue_invoice,
-    reconcile_payment_receipt,
-    record_credit_contract_settlement,
-    record_expedited_production_waiver,
-    record_invoice_correction,
-    record_payment_receipt,
-    record_prepaid_cash_authorization,
-    record_production_start,
+)
+from app.services.billing.queries import adjusted_invoice_obligation
+from app.services.billing.quotes import (
+    accept_quotation_revision,
     record_quotation_revision,
-    record_refund_settlement,
     request_custom_quote,
+)
+from app.services.billing.receipts import (
+    allocate_payment_receipt,
+    confirm_payment_receipt,
+    reconcile_payment_receipt,
+    record_payment_receipt,
     reverse_payment_receipt,
+)
+from app.services.billing.settlements import (
+    record_credit_contract_settlement,
+    record_invoice_correction,
+    record_refund_settlement,
 )
 from app.services.campaign_cancellations import request_campaign_cancellation
 
@@ -212,9 +224,7 @@ def test_effective_invoice_obligation_drives_allocation_status_and_production(
                 expected_amount="100.00",
                 expected_currency="NGN",
             )
-            await confirm_payment_receipt(
-                session, receipt_id=receipt.id, actor_user_id=admin.id
-            )
+            await confirm_payment_receipt(session, receipt_id=receipt.id, actor_user_id=admin.id)
             with pytest.raises(AppError) as overfunding:
                 await allocate_payment_receipt(
                     session,
@@ -246,7 +256,7 @@ def test_effective_invoice_obligation_drives_allocation_status_and_production(
             async def at_boundary(_session):
                 return allocation.allocated_at + timedelta(hours=24)
 
-            monkeypatch.setattr(billing, "database_clock", at_boundary)
+            monkeypatch.setattr(billing_authority, "database_clock", at_boundary)
             production = await record_production_start(
                 session, campaign_id=campaign.id, actor_user_id=admin.id
             )
@@ -262,9 +272,7 @@ def test_effective_invoice_obligation_drives_allocation_status_and_production(
                 reason="approved scope increase",
             )
             with pytest.raises(AppError) as underfunded:
-                await assert_campaign_production_authorized(
-                    session, campaign_id=campaign.id
-                )
+                await assert_campaign_production_authorized(session, campaign_id=campaign.id)
             assert underfunded.value.code == "NEW_WORK_NOT_FINANCIALLY_AUTHORIZED"
             await session.commit()
 
@@ -307,7 +315,7 @@ def test_standard_production_and_later_debit_cannot_reopen_refund_eligibility(
             async def at_standard_boundary(_session):
                 return first_allocation.allocated_at + timedelta(hours=24)
 
-            monkeypatch.setattr(billing, "database_clock", at_standard_boundary)
+            monkeypatch.setattr(billing_authority, "database_clock", at_standard_boundary)
             production = await record_production_start(
                 session, campaign_id=campaign.id, actor_user_id=admin.id
             )
@@ -327,7 +335,7 @@ def test_standard_production_and_later_debit_cannot_reopen_refund_eligibility(
             async def after_debit(_session):
                 return first_allocation.allocated_at + timedelta(hours=25)
 
-            monkeypatch.setattr(billing, "database_clock", after_debit)
+            monkeypatch.setattr(billing_settlements, "database_clock", after_debit)
             receipt = await record_payment_receipt(
                 session,
                 organization_id=organization.id,
@@ -468,7 +476,7 @@ def test_late_refund_booking_uses_frozen_cancellation_and_exact_retry_identity(
             async def after_wall_clock_expiry(_session):
                 return allocation.allocated_at + timedelta(hours=26)
 
-            monkeypatch.setattr(billing, "database_clock", after_wall_clock_expiry)
+            monkeypatch.setattr(billing_settlements, "database_clock", after_wall_clock_expiry)
             kwargs = {
                 "commercial_terms_id": terms.id,
                 "receipt_id": allocation.receipt_id,
@@ -618,7 +626,7 @@ def test_corrected_obligation_reanchors_window_without_rewriting_cash_authority(
             async def before_boundary(_session):
                 return allocation.allocated_at + timedelta(hours=23)
 
-            monkeypatch.setattr(billing, "database_clock", before_boundary)
+            monkeypatch.setattr(billing_settlements, "database_clock", before_boundary)
             settlement = await record_refund_settlement(
                 session,
                 commercial_terms_id=terms.id,
@@ -677,7 +685,7 @@ def test_frozen_refund_survives_wall_clock_and_waiver_acceptance_alone_does_not_
             async def before_boundary(_session):
                 return allocation.allocated_at + timedelta(hours=23)
 
-            monkeypatch.setattr(billing, "database_clock", before_boundary)
+            monkeypatch.setattr(billing_settlements, "database_clock", before_boundary)
             settlement = await record_refund_settlement(
                 session,
                 commercial_terms_id=terms.id,
@@ -706,7 +714,7 @@ def test_frozen_refund_survives_wall_clock_and_waiver_acceptance_alone_does_not_
             async def at_boundary(_session):
                 return allocation.allocated_at + timedelta(hours=24)
 
-            monkeypatch.setattr(billing, "database_clock", at_boundary)
+            monkeypatch.setattr(billing_settlements, "database_clock", at_boundary)
             later = await record_refund_settlement(
                 session,
                 commercial_terms_id=terms.id,
@@ -823,7 +831,7 @@ def test_actual_expedited_start_closes_refund_eligibility(db_sessionmaker, monke
                 reason="post-start correction",
             )
 
-            monkeypatch.setattr(billing, "database_clock", after_start)
+            monkeypatch.setattr(billing_settlements, "database_clock", after_start)
             with pytest.raises(AppError) as closed:
                 await record_refund_settlement(
                     session,

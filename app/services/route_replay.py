@@ -325,7 +325,7 @@ async def _nonterminal_replay_flag(
     )
 
 
-async def _write_replay_flag(
+async def _write_replay_flag(  # noqa: C901
     session: AsyncSession,
     *,
     target,

@@ -8,7 +8,6 @@ import pytest
 from conftest import create_test_campaign, create_test_organization, create_test_user
 from sqlalchemy import func, select
 
-import app.services.billing as billing_service
 from app.adapters.budget import BudgetPolicyContext, FixedBudgetPolicyAdapter
 from app.core.errors import AppError
 from app.models.audit import AuditEvent
@@ -23,16 +22,24 @@ from app.models.billing import (
 from app.models.campaign import Campaign, CampaignStatus
 from app.models.notification import Notification, NotificationType
 from app.models.user import UserRole
-from app.services.billing import (
-    accept_quotation_revision,
-    allocate_payment_receipt,
-    confirm_payment_receipt,
+from app.services.billing import budget as billing_budget
+from app.services.billing import common as billing_common
+from app.services.billing import invoices as billing_invoices
+from app.services.billing import settlements as billing_settlements
+from app.services.billing.budget import (
     evaluate_campaign_budget_policy,
-    reconcile_payment_receipt,
-    record_payment_receipt,
+    resume_campaign_after_budget_pause,
+)
+from app.services.billing.quotes import (
+    accept_quotation_revision,
     record_quotation_revision,
     request_custom_quote,
-    resume_campaign_after_budget_pause,
+)
+from app.services.billing.receipts import (
+    allocate_payment_receipt,
+    confirm_payment_receipt,
+    reconcile_payment_receipt,
+    record_payment_receipt,
     reverse_payment_receipt,
 )
 
@@ -390,7 +397,7 @@ def test_resume_epoch_uses_causal_time_not_uuid_or_later_pause(
                 instance.id = transition_id
 
         with monkeypatch.context() as patch:
-            patch.setattr(billing_service, "database_clock", fixed_clock)
+            patch.setattr(billing_budget, "database_clock", fixed_clock)
             patch.setattr(BudgetCampaignTransition, "__init__", transition_init)
             return await resume_campaign_after_budget_pause(
                 session,
@@ -482,7 +489,7 @@ def test_resume_epoch_uses_causal_time_not_uuid_or_later_pause(
                 return later_pause_time
 
             with monkeypatch.context() as patch:
-                patch.setattr(billing_service, "database_clock", later_clock)
+                patch.setattr(billing_budget, "database_clock", later_clock)
                 latest_pause = await evaluate_campaign_budget_policy(
                     session,
                     campaign_id=campaign.id,
@@ -499,9 +506,9 @@ def test_resume_epoch_uses_causal_time_not_uuid_or_later_pause(
                 )
             )
             assert latest_pause_transition is not None
-            assert billing_service._stored_aware_utc(
+            assert billing_common._stored_aware_utc(
                 latest_pause_transition.created_at
-            ) > billing_service._stored_aware_utc(second_resume.created_at)
+            ) > billing_common._stored_aware_utc(second_resume.created_at)
             assert blocked_after.state == "blocked_external_policy"
             await session.commit()
 
@@ -603,7 +610,7 @@ def test_postgres_resume_evaluation_overlap_applies_one_new_epoch_pause(
             )
             await session.commit()
 
-        original_lock = billing_service.acquire_campaign_terms_lock
+        original_lock = billing_budget.acquire_campaign_terms_lock
         resume_has_lock = asyncio.Event()
         evaluation_attempted_lock = asyncio.Event()
         release_resume = asyncio.Event()
@@ -618,7 +625,7 @@ def test_postgres_resume_evaluation_overlap_applies_one_new_epoch_pause(
                 resume_has_lock.set()
                 await release_resume.wait()
 
-        monkeypatch.setattr(billing_service, "acquire_campaign_terms_lock", controlled_lock)
+        monkeypatch.setattr(billing_budget, "acquire_campaign_terms_lock", controlled_lock)
 
         async def resume() -> UUID:
             async with postgis_db_sessionmaker() as session:
@@ -902,7 +909,7 @@ def test_two_level_decisions_keep_their_evaluation_key() -> None:
     )
     decision = asyncio.run(policy().evaluate(context))
     assert decision.urgent_threshold_amount is None
-    key = billing_service._budget_evaluation_key(
+    key = billing_budget._budget_evaluation_key(
         campaign,
         evaluation_epoch_id=None,
         decision=decision,
@@ -956,7 +963,7 @@ def test_three_level_thresholds_are_ordered_and_tiny_budgets_fail_closed() -> No
     )
     decision = asyncio.run(three_level_policy().evaluate(context))
     with pytest.raises(AppError) as invalid:
-        billing_service._validate_budget_decision(decision, synthetic_test_authority=True)
+        billing_budget._validate_budget_decision(decision, synthetic_test_authority=True)
     assert invalid.value.code == "INVALID_BUDGET_POLICY_DECISION"
 
 
@@ -1134,13 +1141,15 @@ def test_full_fixed_quote_production_obligation_and_lagos_day(
 ):
     from datetime import timedelta
 
-    from app.services.billing import (
-        EXPEDITED_WAIVER_WORDING,
-        EXPEDITED_WAIVER_WORDING_HASH,
-        EXPEDITED_WAIVER_WORDING_VERSION,
+    from app.services.billing.authority import (
         record_expedited_production_waiver,
         record_prepaid_cash_authorization,
         record_production_start,
+    )
+    from app.services.billing.common import (
+        EXPEDITED_WAIVER_WORDING,
+        EXPEDITED_WAIVER_WORDING_HASH,
+        EXPEDITED_WAIVER_WORDING_VERSION,
     )
 
     admin = create_test_user(db_sessionmaker, email=f"fixed-prod-admin-{state}@example.com")
@@ -1194,9 +1203,9 @@ def test_full_fixed_quote_production_obligation_and_lagos_day(
             production = await record_production_start(
                 session, campaign_id=campaign.id, actor_user_id=admin.id, waiver_id=waiver.id
             )
-            start = billing_service._stored_aware_utc(production.started_at)
+            start = billing_common._stored_aware_utc(production.started_at)
             # The full accepted obligation already includes fixed charges and VAT.
-            total, daily, source = await billing_service._campaign_billing_spend(
+            total, daily, source = await billing_budget._campaign_billing_spend(
                 session, campaign_id=campaign.id, now=start
             )
             assert (total, daily, source) == (
@@ -1221,10 +1230,10 @@ def test_full_fixed_quote_production_obligation_and_lagos_day(
                 if start.hour < 23
                 else midnight
             )
-            _, just_before, _ = await billing_service._campaign_billing_spend(
+            _, just_before, _ = await billing_budget._campaign_billing_spend(
                 session, campaign_id=campaign.id, now=midnight - timedelta(microseconds=1)
             )
-            _, at_midnight, _ = await billing_service._campaign_billing_spend(
+            _, at_midnight, _ = await billing_budget._campaign_billing_spend(
                 session, campaign_id=campaign.id, now=midnight
             )
             assert just_before == Decimal("1075.00")
@@ -1233,20 +1242,20 @@ def test_full_fixed_quote_production_obligation_and_lagos_day(
 
             from app.models.billing import InvoiceCorrectionType, IssuerVerificationStatus
 
-            draft = await billing_service.create_invoice_draft(
+            draft = await billing_invoices.create_invoice_draft(
                 session, commercial_terms_id=terms.id, actor_user_id=admin.id
             )
             issuer = await _issuer(
                 session, admin, IssuerVerificationStatus.SYNTHETIC, "FIXED-TEST", settings
             )
-            await billing_service.issue_invoice(
+            await billing_invoices.issue_invoice(
                 session,
                 invoice_id=draft.id,
                 issuer_profile_id=issuer.id,
                 actor_user_id=admin.id,
                 settings=settings,
             )
-            await billing_service.record_invoice_correction(
+            await billing_settlements.record_invoice_correction(
                 session,
                 invoice_id=draft.id,
                 actor_user_id=admin.id,
@@ -1257,11 +1266,11 @@ def test_full_fixed_quote_production_obligation_and_lagos_day(
                 reason="synthetic accepted correction",
             )
             # 1075 - (100 + 7.50), without mutating the accepted quote.
-            total, daily, _ = await billing_service._campaign_billing_spend(
+            total, daily, _ = await billing_budget._campaign_billing_spend(
                 session, campaign_id=campaign.id, now=start
             )
             assert (total, daily) == (Decimal("967.50"), Decimal("967.50"))
-            _, later_daily, _ = await billing_service._campaign_billing_spend(
+            _, later_daily, _ = await billing_budget._campaign_billing_spend(
                 session, campaign_id=campaign.id, now=midnight
             )
             assert later_daily == Decimal("0.00")

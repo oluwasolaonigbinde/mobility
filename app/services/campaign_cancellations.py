@@ -30,7 +30,8 @@ from app.models.campaign_cancellation import (
 from app.models.campaign_change import CampaignChangeRequest, CampaignChangeStatus
 from app.schemas.campaign_cancellations import CampaignCancellationCreate
 from app.services.audit import create_audit_event
-from app.services.billing import _commercial_terms_for_campaign, _refund_window
+from app.services.billing.queries import _commercial_terms_for_campaign
+from app.services.billing.settlements import _refund_window
 from app.services.campaign_assignments import create_activation_event
 from app.services.campaigns import get_required_advertiser_context
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
@@ -49,9 +50,7 @@ def _error(code: str, message: str, status_code: int = 409) -> AppError:
     return AppError(code, message, status_code=status_code)
 
 
-async def campaign_financial_cutoff(
-    session: AsyncSession, campaign_id: UUID
-) -> datetime | None:
+async def campaign_financial_cutoff(session: AsyncSession, campaign_id: UUID) -> datetime | None:
     value = await session.scalar(
         select(CampaignCancellation.cutoff_at).where(
             CampaignCancellation.campaign_id == campaign_id
@@ -71,9 +70,7 @@ async def effective_trip_end(
     return min(end, cutoff) if cutoff is not None else end
 
 
-async def _cash_remaining_for_terms(
-    session: AsyncSession, commercial_terms_id: UUID
-) -> Decimal:
+async def _cash_remaining_for_terms(session: AsyncSession, commercial_terms_id: UUID) -> Decimal:
     allocated = Decimal(
         await session.scalar(
             select(func.coalesce(func.sum(ReceiptAllocation.amount), 0)).where(
@@ -119,9 +116,7 @@ async def request_campaign_cancellation(
         }
     )
     existing = await session.scalar(
-        select(CampaignCancellation).where(
-            CampaignCancellation.campaign_id == campaign_id
-        )
+        select(CampaignCancellation).where(CampaignCancellation.campaign_id == campaign_id)
     )
     if existing is not None:
         if (
@@ -273,14 +268,10 @@ async def request_campaign_cancellation(
         "refundable_amount": str(refundable_amount),
         "currency": campaign.currency,
         "funding_authorized_at": (
-            _aware(funding_authorized_at).isoformat()
-            if funding_authorized_at is not None
-            else None
+            _aware(funding_authorized_at).isoformat() if funding_authorized_at is not None else None
         ),
         "refund_eligibility_ends_at": (
-            _aware(eligibility_ends_at).isoformat()
-            if eligibility_ends_at is not None
-            else None
+            _aware(eligibility_ends_at).isoformat() if eligibility_ends_at is not None else None
         ),
         "production_start_id": str(production.id) if production is not None else None,
         "released_assignment_liability_amount": str(assignment_liability),

@@ -561,6 +561,17 @@ aggregate runtime provenance and all coverage gates remain unchanged.
 - **Before 2026-10-05** — The frontend audit rejected every high or critical advisory without exceptions.
 - **2026-10-05** — Owner approved this one expiring advisory exception while finishing REQ-106, preserving all other high/critical checks and prohibiting npm's forced lint-package downgrade (D59, REQ-107). Built in `69655e2`.
 
+### Money and privacy verification
+
+**Current rule:** D81 adds separate 85% branch-coverage floors for the money
+and privacy modules. Existing changed-code and backend/frontend/global gates
+remain. D33 refreshes require independent review; this batch uses an approved
+measurement run, receipt commit and final green verification run before merge
+(REQ-163/170). The shared bank picker remains one implementation under D78.
+
+**History:**
+- **2026-10-13, implemented 14 October** - Owner approved Waves 3/4 and the two-run D33/D41 sequence. The earlier policy had no separate 85% money/privacy floor. Verification and merge are pending.
+
 ### Demo and staging external-input placeholders
 
 **Current rule:** Use realistic seed-backed content for missing external inputs

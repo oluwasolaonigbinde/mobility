@@ -28,7 +28,7 @@ from app.models.trip import TripSession
 from app.schemas.campaign_cancellations import CampaignCancellationCreate
 from app.schemas.trips import TripStartRequest
 from app.services import campaign_cancellations
-from app.services.billing import reverse_payment_receipt
+from app.services.billing.receipts import reverse_payment_receipt
 from app.services.campaign_cancellations import request_campaign_cancellation
 from app.services.trips import start_driver_trip
 

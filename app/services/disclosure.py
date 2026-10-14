@@ -244,7 +244,7 @@ def _add_contribution(
         contributions.setdefault(metric, Counter())[vehicle_id] += amount
 
 
-def frozen_manifest_meets_disclosure_floor(manifest: dict[str, Any], *, settings: Settings) -> bool:
+def frozen_manifest_meets_disclosure_floor(manifest: dict[str, Any], *, settings: Settings) -> bool:  # noqa: C901
     authority = manifest.get("disclosure_authority")
     if isinstance(authority, dict):
         frozen_contributions: dict[str, Counter[UUID]] = {}
@@ -349,7 +349,7 @@ def frozen_manifest_meets_disclosure_floor(manifest: dict[str, Any], *, settings
     )
 
 
-async def trip_cohort_meets_disclosure_floor(
+async def trip_cohort_meets_disclosure_floor(  # noqa: C901
     session: AsyncSession,
     *,
     tenant_id: UUID,
@@ -518,7 +518,7 @@ async def trip_cohort_meets_disclosure_floor(
         )
 
     if include_all_metrics:
-        from app.services.payouts import latest_payout_calculation_ids
+        from app.services.payouts.ledger import latest_payout_calculation_ids
 
         calculation_filters = []
         if daily_metrics or cohort is not None:

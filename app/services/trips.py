@@ -41,7 +41,7 @@ from app.schemas.trips import (
     TripStartRequest,
 )
 from app.services.audit import create_audit_event
-from app.services.billing import assert_new_work_authorized
+from app.services.billing.authority import assert_new_work_authorized
 from app.services.campaign_assignments import (
     as_aware_utc,
     ensure_active_driver_profile,
@@ -52,7 +52,11 @@ from app.services.campaign_assignments import (
 )
 from app.services.campaign_cancellations import campaign_financial_cutoff
 from app.services.installation_evidence import ensure_current_display_proof
-from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
+from app.services.payout_rule_serialization import (
+    acquire_campaign_terms_lock,
+    acquire_campaign_terms_shared_lock,
+    database_clock,
+)
 from app.services.trip_evidence import (
     BATCH_HASH_VERSION,
     ManifestCompleteness,
@@ -523,9 +527,9 @@ async def try_seal_trip(
             entity_id=str(trip.id),
             metadata={
                 "seal_reason": reason.value,
-                "client_batch_count": trip.client_batch_count,
-                "client_ping_count": trip.client_ping_count,
-                "client_complete": trip.client_complete,
+                "evidence_manifest_batch_count": trip.evidence_manifest_batch_count,
+                "evidence_manifest_ping_count": trip.evidence_manifest_ping_count,
+                "evidence_manifest_complete": trip.evidence_manifest_complete,
             },
         )
     return sealed
@@ -626,20 +630,11 @@ async def end_driver_trip(
             status=TripSessionStatus.ENDED.value,
             ended_at=now,
             end_reason=payload.end_reason,
-            client_batch_count=(
-                len(manifest.entries) if manifest is not None else payload.client_batch_count
-            ),
-            client_ping_count=(
-                manifest.ping_count if manifest is not None else payload.client_ping_count
-            ),
-            client_complete=(
-                manifest.complete if manifest is not None else payload.client_complete
-            ),
-            evidence_manifest_version=(manifest.version if manifest else None),
-            evidence_manifest_root_sha256=(manifest.root_sha256 if manifest else None),
-            evidence_manifest_batch_count=(len(manifest.entries) if manifest else None),
-            evidence_manifest_ping_count=(manifest.ping_count if manifest else None),
-            evidence_manifest_committed_at=(now if manifest else None),
+            evidence_manifest_version=manifest.version,
+            evidence_manifest_root_sha256=manifest.root_sha256,
+            evidence_manifest_batch_count=len(manifest.entries),
+            evidence_manifest_ping_count=manifest.ping_count,
+            evidence_manifest_committed_at=now,
             updated_at=now,
         )
     )
@@ -790,7 +785,7 @@ async def capture_authority_lapses(
     return [(fallback_start, fallback_end)]
 
 
-def classify_ping(
+def classify_ping(  # noqa: C901
     *,
     trip: TripSession,
     ping: LocationPingCreate,
@@ -866,7 +861,7 @@ def point_value(session: AsyncSession, *, lon: float, lat: float):
     return func.ST_SetSRID(func.ST_MakePoint(lon, lat), 4326)
 
 
-async def ingest_location_ping_batch(
+async def ingest_location_ping_batch(  # noqa: C901
     session: AsyncSession,
     *,
     user_id: UUID,
@@ -875,9 +870,9 @@ async def ingest_location_ping_batch(
     settings: Settings,
 ) -> PingBatchResult:
     trip = await get_driver_trip(session, user_id=user_id, trip_id=trip_id)
-    # Cancellation owns this same campaign authority. Whichever transaction
-    # wins establishes whether this batch is pre- or post-cutoff evidence.
-    await acquire_campaign_terms_lock(session, trip.campaign_id)
+    # Readers share campaign authority; cancellation and terms writers remain
+    # exclusive. Campaign-before-trip ordering forbids lock upgrades.
+    await acquire_campaign_terms_shared_lock(session, trip.campaign_id)
     # Lock the trip row and re-read status before deciding live vs quarantine:
     # under READ COMMITTED a concurrent seal (reconcile or a racing end
     # request) must not land while this insert is mid-flight, or live pings

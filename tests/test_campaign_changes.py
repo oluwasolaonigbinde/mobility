@@ -27,12 +27,14 @@ from app.models.payout import AssignmentRuleBinding
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
 from app.schemas.campaign_changes import CampaignChangeCreate, CampaignChangePreviewCreate
-from app.services.billing import (
-    accept_quotation_revision,
+from app.services.billing.authority import (
     record_approved_credit_authorization,
+    reserved_campaign_liability_total,
+)
+from app.services.billing.quotes import (
+    accept_quotation_revision,
     record_quotation_revision,
     request_custom_quote,
-    reserved_campaign_liability_total,
 )
 from app.services.campaign_changes import (
     decide_campaign_change,

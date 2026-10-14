@@ -32,7 +32,7 @@ from app.models.vehicle import VehicleStatus
 from app.schemas.campaign_assignments import CampaignAssignmentTransition
 from app.schemas.campaign_changes import CampaignChangeCreate, CampaignChangePreviewCreate
 from app.schemas.trips import TripStartRequest
-from app.services.billing import reserve_assignment_liability
+from app.services.billing.authority import reserve_assignment_liability
 from app.services.payout_rule_serialization import database_clock
 from app.services.trips import start_driver_trip
 

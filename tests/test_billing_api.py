@@ -26,11 +26,8 @@ from app.models.billing import (
     PaymentReceipt,
 )
 from app.models.user import UserRole
-from app.services.billing import (
-    create_invoice_draft,
-    issue_invoice,
-    record_invoice_correction,
-)
+from app.services.billing.invoices import create_invoice_draft, issue_invoice
+from app.services.billing.settlements import record_invoice_correction
 
 
 def _fixture(db_sessionmaker, suffix: str):

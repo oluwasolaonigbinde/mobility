@@ -28,21 +28,24 @@ from app.models.campaign import CampaignReviewEvent, CampaignStatus
 from app.models.user import UserRole
 from app.schemas.campaign_cancellations import CampaignCancellationCreate
 from app.schemas.campaigns import CampaignUpdate
-from app.services.billing import (
-    accept_quotation_revision,
-    allocate_payment_receipt,
-    confirm_payment_receipt,
+from app.services.billing.invoices import (
     create_invoice_draft,
     issue_invoice,
-    reconcile_payment_receipt,
-    record_invoice_correction,
     record_invoice_issuer_profile,
-    record_payment_receipt,
+)
+from app.services.billing.quotes import (
+    accept_quotation_revision,
     record_quotation_revision,
-    record_refund_settlement,
     request_custom_quote,
+)
+from app.services.billing.receipts import (
+    allocate_payment_receipt,
+    confirm_payment_receipt,
+    reconcile_payment_receipt,
+    record_payment_receipt,
     reverse_payment_receipt,
 )
+from app.services.billing.settlements import record_invoice_correction, record_refund_settlement
 from app.services.campaign_cancellations import request_campaign_cancellation
 from app.services.campaigns import submit_campaign_for_review, update_advertiser_campaign
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock
@@ -122,9 +125,9 @@ def test_invoice_correction_reference_replays_conflicts_and_appends(
             assert replay.id == first.id
             assert (
                 await session.scalar(
-                    select(func.count()).select_from(InvoiceCorrection).where(
-                        InvoiceCorrection.invoice_id == invoice.id
-                    )
+                    select(func.count())
+                    .select_from(InvoiceCorrection)
+                    .where(InvoiceCorrection.invoice_id == invoice.id)
                 )
                 == 1
             )
@@ -196,9 +199,7 @@ def test_concurrent_same_correction_reference_creates_one_delta(
     assert first == second
 
 
-def test_invoice_sequence_is_shared_by_rendered_prefix_and_year(
-    db_sessionmaker, settings
-) -> None:
+def test_invoice_sequence_is_shared_by_rendered_prefix_and_year(db_sessionmaker, settings) -> None:
     admin, owner, organization = _fixture(db_sessionmaker, "sequence")
     campaigns = [
         create_test_campaign(
@@ -409,9 +410,7 @@ def test_max_length_synthetic_and_verified_rendered_prefixes_are_distinct(
 
 
 @pytest.mark.parametrize("refund_order", [("first", "second"), ("second", "first")])
-def test_split_receipt_refunds_conserve_each_allocation(
-    db_sessionmaker, refund_order
-) -> None:
+def test_split_receipt_refunds_conserve_each_allocation(db_sessionmaker, refund_order) -> None:
     admin, owner, organization = _fixture(db_sessionmaker, f"refund-{refund_order[0]}")
     campaigns = {
         key: create_test_campaign(

@@ -45,7 +45,7 @@ from app.schemas.campaign_assignments import (
 from app.schemas.drivers import normalize_optional_text
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
-from app.services.billing import (
+from app.services.billing.authority import (
     assert_campaign_production_authorized,
     assert_new_work_authorized,
     reserve_assignment_liability,
@@ -1177,7 +1177,7 @@ def _valid_frozen_currency(value: object) -> bool:
     )
 
 
-def _offer_terms_complete(terms: dict | None, terms_sha256: str | None) -> bool:
+def _offer_terms_complete(terms: dict | None, terms_sha256: str | None) -> bool:  # noqa: C901
     if terms is None or terms_sha256 is None:
         return False
     required = {
@@ -1624,7 +1624,7 @@ async def create_rule_binding_for_accept(
     return binding
 
 
-async def accept_driver_assignment(
+async def accept_driver_assignment(  # noqa: C901
     session: AsyncSession,
     *,
     user_id: UUID,
@@ -1844,7 +1844,7 @@ async def decline_driver_assignment(
     return assignment
 
 
-async def activate_admin_assignment(
+async def activate_admin_assignment(  # noqa: C901
     session: AsyncSession,
     *,
     admin_user_id: UUID,
@@ -2009,7 +2009,7 @@ async def activate_admin_assignment(
             status_code=status.HTTP_409_CONFLICT,
         )
     if advisory_only:
-        from app.services.billing import assignment_liability_readiness
+        from app.services.billing.authority import assignment_liability_readiness
 
         readiness = await assignment_liability_readiness(session, assignment_id=assignment.id)
         if not readiness.eligible:

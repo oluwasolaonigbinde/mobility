@@ -51,13 +51,10 @@ from app.services.payout_eligibility import (
 from app.services.payout_rule_serialization import (
     database_clock,
 )
-from app.services.payouts import (
-    PAYOUT_V4,
-    calculate_trip_payout,
-    driver_earnings_summary,
-    lagos_day_for,
-    recompute_payout_day,
-)
+from app.services.payouts.common import PAYOUT_V4, lagos_day_for
+from app.services.payouts.corrections import recompute_payout_day
+from app.services.payouts.engine import calculate_trip_payout
+from app.services.payouts.read import driver_earnings_summary
 from app.services.trip_evidence import sign_manifest_receipt
 
 TRIP_START = datetime(2026, 7, 20, 8, 0, tzinfo=UTC)

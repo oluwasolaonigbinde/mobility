@@ -35,8 +35,6 @@ class TripSessionStatus(StrEnum):
 class TripSealReason(StrEnum):
     CLIENT_COMPLETE = "client_complete"
     LATE_DATA_COMPLETE = "late_data_complete"
-    GRACE_EXPIRED = "grace_expired"
-    MIGRATION_BACKFILL = "migration_backfill"
 
 
 class TripSession(Base):
@@ -48,8 +46,7 @@ class TripSession(Base):
             name="ck_trip_sessions_sealed_fields",
         ),
         CheckConstraint(
-            "seal_reason IS NULL OR seal_reason IN "
-            "('client_complete', 'late_data_complete', 'grace_expired', 'migration_backfill')",
+            "seal_reason IS NULL OR seal_reason IN ('client_complete', 'late_data_complete')",
             name="ck_trip_sessions_seal_reason",
         ),
         CheckConstraint(
@@ -166,11 +163,6 @@ class TripSession(Base):
     evidence_protocol_version: Mapped[int] = mapped_column(
         Integer, nullable=False, default=2, server_default=text("2")
     )
-    # Legacy v1 finalization watermark retained for readable history. New v2
-    # trips use the immutable manifest fields below as their seal authority.
-    client_batch_count: Mapped[int | None] = mapped_column(Integer)
-    client_ping_count: Mapped[int | None] = mapped_column(Integer)
-    client_complete: Mapped[bool | None] = mapped_column(Boolean)
     evidence_manifest_version: Mapped[int | None] = mapped_column(Integer)
     evidence_manifest_root_sha256: Mapped[str | None] = mapped_column(String(64))
     evidence_manifest_batch_count: Mapped[int | None] = mapped_column(Integer)

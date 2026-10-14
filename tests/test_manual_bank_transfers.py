@@ -8,7 +8,8 @@ from test_receipt_allocations import _accepted_terms
 
 from app.core.errors import AppError
 from app.models.user import UserRole
-from app.services.billing import billing_history, process_manual_bank_transfer
+from app.services.billing.queries import billing_history
+from app.services.billing.receipts import process_manual_bank_transfer
 
 
 def _fixture(db_sessionmaker):

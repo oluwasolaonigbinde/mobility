@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import type { DriverTrackerAssignment, DriverTrackerTrip } from "@/lib/driver/campaign-journey";
 import {
   endTripAction,
-  endLegacyTripAction,
   getCurrentTripAction,
   getTripEvidenceAuthorityAction,
   reconcileTripEvidenceAction,
@@ -235,7 +234,7 @@ export function TripTracker({
   const startUncertainRef = useRef(false);
   const authorityUncertainRef = useRef(false);
   const pendingEndCompleteRef = useRef<boolean | null>(null);
-  const protocolByTripRef = useRef(new Map<string, 1 | 2>());
+  const protocolByTripRef = useRef(new Map<string, 2>());
   const tripRef = useRef<DriverTrackerTrip | null>(initialTrip);
   const reconciledTripRef = useRef<string | null>(null);
   const terminalLeftoversRef = useRef(new Set<string>());
@@ -573,9 +572,7 @@ export function TripTracker({
                 );
               break;
             }
-            if (protocolVersion === 1) {
-              await queue.acknowledgeLegacyBatch(batch.key);
-            } else if (!result.receipt) {
+            if (!result.receipt) {
               if (mountedRef.current)
                 setError(
                   "Cardvert could not confirm these location updates were saved. Keep the app open while it checks.",
@@ -801,8 +798,6 @@ export function TripTracker({
                   "Some earlier location updates could not be sent. This trip's record is still incomplete.",
                 );
             }
-          } else if (authority?.protocolVersion === 1 && authority.status === "sealed") {
-            await queue.forgetTrip(leftoverTripId);
           }
         }
       }
@@ -912,11 +907,10 @@ export function TripTracker({
           if (current.trip.id !== trip.id) setTrip(current.trip);
         }
         const meta = await queueRef.current?.meta(tripRef.current?.id ?? trip.id);
-        if (meta?.endManifest || meta?.legacyEnd) {
+        if (meta?.endManifest) {
           endPhaseRef.current = "submitted";
           authorityUncertainRef.current = true;
-          pendingEndCompleteRef.current =
-            meta.endManifest?.complete ?? meta.legacyEnd!.clientComplete;
+          pendingEndCompleteRef.current = meta.endManifest.complete;
           setAuthorityUncertain(true);
           stopWatch();
           return;
@@ -1140,12 +1134,6 @@ export function TripTracker({
             await finishEndedTrip(complete);
             return;
           }
-        } else if (endedTripId && protocolVersion === 1) {
-          const authority = await getTripEvidenceAuthorityAction(endedTripId);
-          if (authority?.status === "sealed") {
-            await finishEndedTrip(complete);
-            return;
-          }
         }
       }
       stopWatch();
@@ -1175,17 +1163,10 @@ export function TripTracker({
     void (async () => {
       if (authorityUncertainRef.current) {
         const meta = await queueRef.current?.meta(activeTrip.id);
-        if (meta?.endManifest || meta?.legacyEnd) {
+        if (meta?.endManifest) {
           endPhaseRef.current = "submitted";
-          let result;
-          let complete;
-          if (meta.endManifest) {
-            complete = meta.endManifest.complete;
-            result = await endTripAction(activeTrip.id, meta.endManifest);
-          } else {
-            complete = meta.legacyEnd!.clientComplete;
-            result = await endLegacyTripAction(activeTrip.id, meta.legacyEnd!);
-          }
+          const complete = meta.endManifest.complete;
+          const result = await endTripAction(activeTrip.id, meta.endManifest);
           if (result.outcome === "ended" && result.status === "sealed") {
             await finishEndedTrip(complete);
             return;
@@ -1233,16 +1214,9 @@ export function TripTracker({
           setError("Cardvert couldn't check how this trip's locations should be saved. Try again.");
         return;
       }
-      const manifest =
-        protocolVersion === 2 ? await queue.freezeEnd(activeTrip.id, complete) : null;
+      const manifest = await queue.freezeEnd(activeTrip.id, complete);
       endPhaseRef.current = "submitted";
-      const result =
-        protocolVersion === 1
-          ? await endLegacyTripAction(
-              activeTrip.id,
-              await queue.freezeLegacyEnd(activeTrip.id, complete),
-            )
-          : await endTripAction(activeTrip.id, manifest!);
+      const result = await endTripAction(activeTrip.id, manifest);
       if (result.outcome !== "ended") {
         if (mountedRef.current)
           setError(result.error ?? "Cardvert could not confirm whether the trip ended.");

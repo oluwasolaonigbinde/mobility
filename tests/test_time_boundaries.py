@@ -40,8 +40,8 @@ from app.services.account_recovery import (
     request_password_reset,
     synthetic_password_reset_token,
 )
-from app.services.billing import record_payment_receipt
-from app.services.payouts import lagos_day_for, lagos_day_utc_range
+from app.services.billing.receipts import record_payment_receipt
+from app.services.payouts.common import lagos_day_for, lagos_day_utc_range
 from scripts.release_contract import (
     COMPATIBILITY_RECEIPT_MAX_AGE,
     ContractError,

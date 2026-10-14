@@ -764,6 +764,25 @@ def create_test_display_proof(
     return proof
 
 
+def sign_test_trip_manifest(trip: TripSession) -> None:
+    """Give non-pricing sealed fixtures an explicit signed v2 manifest."""
+    from app.services.trip_evidence import manifest_root, sign_manifest_receipt
+
+    trip.id = trip.id or uuid4()
+    trip.evidence_protocol_version = 2
+    trip.evidence_manifest_version = 2
+    trip.evidence_manifest_root_sha256 = manifest_root(trip_id=trip.id, entries=[], ping_count=0)
+    trip.evidence_manifest_batch_count = 0
+    trip.evidence_manifest_ping_count = 0
+    trip.evidence_manifest_committed_at = trip.ended_at
+    trip.evidence_manifest_complete = True
+    assert trip.ended_at is not None
+    trip.evidence_manifest_verified_at = trip.ended_at.replace(
+        microsecond=(trip.ended_at.microsecond // 1000) * 1000
+    )
+    sign_manifest_receipt(trip, Settings(environment="test"))
+
+
 def create_test_trip_session(
     db_sessionmaker: async_sessionmaker[AsyncSession],
     *,
@@ -807,16 +826,7 @@ def create_test_trip_session(
                 trip_metadata=metadata or {},
             )
             if trip_status == TripSessionStatus.SEALED:
-                from app.services.trip_evidence import sign_manifest_receipt
-
-                trip.evidence_manifest_version = 2
-                trip.evidence_manifest_root_sha256 = "0" * 64
-                trip.evidence_manifest_batch_count = 0
-                trip.evidence_manifest_ping_count = 0
-                trip.evidence_manifest_committed_at = ended_at
-                trip.evidence_manifest_complete = True
-                trip.evidence_manifest_verified_at = ended_at
-                sign_manifest_receipt(trip, Settings(environment="test"))
+                sign_test_trip_manifest(trip)
             session.add(trip)
             await session.commit()
             await session.refresh(trip)

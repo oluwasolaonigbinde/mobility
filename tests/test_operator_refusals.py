@@ -20,7 +20,7 @@ from app.models.campaign import CampaignCreative, CampaignStatus, CreativeStatus
 from app.models.user import UserRole
 from app.schemas.campaign_changes import CampaignChangePreviewCreate
 from app.schemas.campaigns import CampaignCreate, CreativeUpdate
-from app.services import billing
+from app.services.billing import authority as billing_authority
 from app.services.campaign_assignments import list_admin_assignments
 from app.services.campaign_changes import preview_campaign_change
 from app.services.campaigns import (
@@ -251,7 +251,9 @@ def test_assignment_readiness_refuses_an_unknown_assignment(db_sessionmaker) -> 
     async def exercise():
         async with db_sessionmaker() as session:
             with pytest.raises(AppError) as missing:
-                await billing.assignment_liability_readiness(session, assignment_id=uuid4())
+                await billing_authority.assignment_liability_readiness(
+                    session, assignment_id=uuid4()
+                )
             return missing.value
 
     error = asyncio.run(exercise())

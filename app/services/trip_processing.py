@@ -45,10 +45,8 @@ from app.services.impressions import (
     estimate_trip_impressions,
 )
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock
-from app.services.payouts import (
-    calculate_trip_payout,
-    repair_missing_ledger_entries,
-)
+from app.services.payouts.engine import calculate_trip_payout
+from app.services.payouts.ledger import repair_missing_ledger_entries
 from app.services.route_replay import detect_route_replay, route_replay_config_fingerprint
 from app.services.trip_analytics import (
     is_valid_ping,
@@ -132,7 +130,7 @@ async def _audit_processing_writes(
     )
 
 
-async def process_ended_trip(
+async def process_ended_trip(  # noqa: C901
     session: AsyncSession,
     *,
     trip_id: UUID,

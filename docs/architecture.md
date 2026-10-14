@@ -334,6 +334,15 @@ app/
 `app/services/*`. Follow this split for new endpoints. (Target-state additions to
 this tree: §29.1.)
 
+W3b (D81/REQ-162/163) places payout rules, evidence, daily terms, engine,
+ledger, corrections and read projections in `services/payouts/`; billing
+checkout, quotations, receipts, invoices, authority, gateway, settlements and
+budget operations live in `services/billing/`. Shared primitives and read
+queries have explicit imports; callers import their owning domain directly.
+Existing complexity exceptions are attached to individual functions. Ping
+ingestion shares the campaign lock before locking its trip; cancellation and
+terms writers stay exclusive, with no reader-to-writer upgrades.
+
 ### 6.2 API surface **[BUILT]**
 
 The generated current-state inventory above is the count and prefix-group
@@ -798,6 +807,14 @@ regenerates. See §9 for the drift gate.
   not physical-device, live-provider or store-distribution validation.
 
 ## 9. API contract discipline
+
+D81 adds separately aggregated 85% branch floors for money and privacy to CI,
+using the exact source groups in `check_changed_coverage.py`. Missing required
+modules or executable LCOV fails closed; empty package files add no branches.
+D32/D36 frontend and backend ratchets remain. Any scope or policy change uses
+D33's independently reviewed receipt and two end-of-batch full CI runs under
+REQ-170; only final green verification permits the D41 non-squash merge.
+
 
 **[BUILT]** Three baselines exist and must move together on any contract change:
 
@@ -3580,6 +3597,7 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 ## 34. Doc changelog
 
+- **v1.136 - 14 October 2026 (D81/REQ-162/163):** Domain service packages, localized complexity exceptions, shared campaign ingestion locks and separate money/privacy 85% branch floors. Integrated verification and reviews remain pending.
 - **v1.135 ? 13 October 2026 (D80/REQ-161):** Owner-approved development removal of payout v1?v3, evidence v1 and SQLite paths; current v4/v2 and PostgreSQL protection contracts retained. Implementation verification is pending.
 
 

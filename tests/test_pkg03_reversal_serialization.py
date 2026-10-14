@@ -19,16 +19,18 @@ from app.models.payout import CampaignPayoutRuleRevision
 from app.models.trip import TripSession
 from app.schemas.campaign_assignments import CampaignAssignmentTransition
 from app.schemas.trips import TripStartRequest
-from app.services.billing import (
-    EXPEDITED_WAIVER_WORDING,
-    EXPEDITED_WAIVER_WORDING_HASH,
-    EXPEDITED_WAIVER_WORDING_VERSION,
+from app.services.billing.authority import (
     assert_new_work_authorized,
     record_expedited_production_waiver,
     record_production_start,
     reserve_assignment_liability,
-    reverse_payment_receipt,
 )
+from app.services.billing.common import (
+    EXPEDITED_WAIVER_WORDING,
+    EXPEDITED_WAIVER_WORDING_HASH,
+    EXPEDITED_WAIVER_WORDING_VERSION,
+)
+from app.services.billing.receipts import reverse_payment_receipt
 from app.services.campaign_assignments import (
     accept_driver_assignment,
     activate_admin_assignment,

@@ -11,8 +11,8 @@ from sqlalchemy import func, select
 
 from app.core.errors import AppError
 from app.models.user import User, UserRole, UserStatus
-from app.services import billing
 from app.services.admin_authorization import require_active_admin
+from app.services.billing import authority as billing_authority
 from tests.test_r08_admin_authorization import (
     MIGRATED_CALL_SITES,
     _module,
@@ -326,7 +326,7 @@ def test_approved_credit_locks_equal_and_swapped_admins_sorted_unique(
             calls.setdefault(task.get_name(), []).append(actor_user_id)
             await real_authority(session, actor_user_id)
 
-        monkeypatch.setattr(billing, "require_active_admin", tracked_authority)
+        monkeypatch.setattr(billing_authority, "require_active_admin", tracked_authority)
 
         async def attempt(name: str, actor_user_id: UUID, approver_user_id: UUID) -> str:
             task = asyncio.current_task()
@@ -335,7 +335,7 @@ def test_approved_credit_locks_equal_and_swapped_admins_sorted_unique(
             async with postgis_db_sessionmaker() as session:
                 with pytest.raises(AppError) as caught:
                     async with session.begin():
-                        await billing.record_approved_credit_authorization(
+                        await billing_authority.record_approved_credit_authorization(
                             session,
                             campaign_id=uuid4(),
                             actor_user_id=actor_user_id,

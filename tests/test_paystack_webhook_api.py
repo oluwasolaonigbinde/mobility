@@ -58,7 +58,7 @@ from app.models.disbursement import (
 )
 from app.models.payout import EarningsLedgerEntry
 from app.models.user import UserRole
-from app.services.billing import create_invoice_draft, issue_invoice
+from app.services.billing.invoices import create_invoice_draft, issue_invoice
 from app.services.data_subject_requests import (
     create_data_subject_request,
     data_subject_inventory,
@@ -424,9 +424,7 @@ def _ledger_status(db_sessionmaker, entry_id) -> str:
     return str(asyncio.run(run()))
 
 
-def test_paystack_transfer_webhook_queues_before_reconciliation(
-    db_client, db_sessionmaker
-) -> None:
+def test_paystack_transfer_webhook_queues_before_reconciliation(db_client, db_sessionmaker) -> None:
     _, transport, line, reference, entry_id, enqueuer = _submitted_paystack_line(
         db_client, db_sessionmaker, "success"
     )
@@ -499,12 +497,15 @@ def test_paystack_transfer_webhook_queues_before_reconciliation(
         )
     except Exception:
         pass
-    assert _count(
-        db_sessionmaker,
-        PayoutProviderEventProcessingAttempt,
-        PayoutProviderEventProcessingAttempt.provider_event_id == unknown_event_id,
-        PayoutProviderEventProcessingAttempt.outcome == "failed",
-    ) == 1
+    assert (
+        _count(
+            db_sessionmaker,
+            PayoutProviderEventProcessingAttempt,
+            PayoutProviderEventProcessingAttempt.provider_event_id == unknown_event_id,
+            PayoutProviderEventProcessingAttempt.outcome == "failed",
+        )
+        == 1
+    )
     assert asyncio.run(sweep_payout_provider_events({"sessionmaker": db_sessionmaker})) == {
         "selected": 1,
         "processed": 0,
@@ -552,9 +553,7 @@ def test_paystack_reversal_then_late_success_never_marks_the_ledger_paid(
     assert late.status_code == 200, late.text
     for event_id in enqueuer.payout_ids:
         asyncio.run(
-            process_payout_provider_event_job(
-                {"sessionmaker": db_sessionmaker}, str(event_id)
-            )
+            process_payout_provider_event_job({"sessionmaker": db_sessionmaker}, str(event_id))
         )
     assert "paid" not in _ledger_status(db_sessionmaker, entry_id).lower()
 
@@ -635,9 +634,7 @@ def test_paystack_transfer_evidence_must_match_the_frozen_amount(
     event_id = enqueuer.payout_ids[-1]
     with pytest.raises(AppError) as rejected:
         asyncio.run(
-            process_payout_provider_event_job(
-                {"sessionmaker": db_sessionmaker}, str(event_id)
-            )
+            process_payout_provider_event_job({"sessionmaker": db_sessionmaker}, str(event_id))
         )
     assert rejected.value.code == "PAYOUT_PROVIDER_EVIDENCE_MISMATCH"
     assert "paid" not in _ledger_status(db_sessionmaker, entry_id).lower()
@@ -660,9 +657,7 @@ def test_provider_events_and_failed_attempts_are_in_driver_inventory(
         )
     )
 
-    mismatch = payload(
-        transfer_event("transfer.failed", reference=reference, amount=9999)
-    )
+    mismatch = payload(transfer_event("transfer.failed", reference=reference, amount=9999))
     response = db_client.post(
         WEBHOOK, content=mismatch, headers={"X-Paystack-Signature": sign(mismatch)}
     )
@@ -683,9 +678,7 @@ def test_provider_events_and_failed_attempts_are_in_driver_inventory(
     async def inventory() -> int:
         async with db_sessionmaker() as session:
             subject_user_id = await session.scalar(
-                select(EarningsLedgerEntry.driver_user_id).where(
-                    EarningsLedgerEntry.id == entry_id
-                )
+                select(EarningsLedgerEntry.driver_user_id).where(EarningsLedgerEntry.id == entry_id)
             )
             assert subject_user_id is not None
             case = await create_data_subject_request(
@@ -696,9 +689,7 @@ def test_provider_events_and_failed_attempts_are_in_driver_inventory(
                 client_request_id=uuid4(),
                 requested_at=datetime.now(UTC),
             )
-            await verify_data_subject_identity(
-                session, actor_user_id=admin.id, request_id=case.id
-            )
+            await verify_data_subject_identity(session, actor_user_id=admin.id, request_id=case.id)
             result = await data_subject_inventory(
                 session, actor_user_id=admin.id, request_id=case.id
             )

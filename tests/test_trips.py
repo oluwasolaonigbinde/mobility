@@ -42,13 +42,15 @@ from app.schemas.trips import (
     LocationPingBatchCreate,
     TripEvidenceManifestEntryCreate,
 )
-from app.services.billing import (
-    accept_quotation_revision,
+from app.services.billing.authority import (
     record_approved_credit_authorization,
     record_production_start,
+    reserve_assignment_liability,
+)
+from app.services.billing.quotes import (
+    accept_quotation_revision,
     record_quotation_revision,
     request_custom_quote,
-    reserve_assignment_liability,
 )
 from app.services.campaign_assignments import resolved_eligibility_snapshot
 from app.services.trip_evidence import batch_payload_hash, manifest_root
@@ -1043,3 +1045,28 @@ def test_driver_records_gps_with_no_legal_collection_reference(
     )
     assert recorded.status_code == 200, recorded.text
     assert recorded.json()["accepted_count"] == 1
+
+
+@pytest.mark.parametrize(
+    ("field", "value", "code"),
+    [("speed_mps", 121, "INVALID_SPEED"), ("accuracy_m", 10001, "INVALID_ACCURACY")],
+)
+def test_ping_rejection_uses_fixed_time_and_independent_invalid_field(settings, field, value, code):
+    # The time checks must always pass, so neither a slow runner nor midnight
+    # can short-circuit the intended speed/accuracy rejection branch.
+    from app.schemas.trips import LocationPingCreate
+
+    now = datetime(2026, 10, 13, 12, tzinfo=UTC)
+    trip = TripSession(started_at=now - timedelta(minutes=1), ended_at=None)
+    ping = LocationPingCreate.model_validate(
+        {
+            "recorded_at": now,
+            "lat": 6.45,
+            "lon": 3.39,
+            "sequence_number": 0,
+            field: value,
+        }
+    )
+    rejection = trips_service.classify_ping(trip=trip, ping=ping, now=now, settings=settings)
+    assert rejection is not None
+    assert rejection.code == code

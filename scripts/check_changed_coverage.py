@@ -41,6 +41,42 @@ POLICY_FILES = (
 )
 
 
+# Separately aggregated absolute branch floors; D32/D36 ratchets still apply.
+SENSITIVE_BRANCH_FLOOR = 85
+SENSITIVE_SCOPES = {
+    "money": (
+        "app/services/payouts/",
+        "app/services/billing/",
+        "app/services/payout_corrections.py",
+        "app/services/payout_debt.py",
+        "app/services/payout_eligibility.py",
+        "app/services/payout_operations.py",
+        "app/services/payout_rule_serialization.py",
+        "app/services/automatic_payouts.py",
+        "app/services/disbursements.py",
+        "app/services/paystack_disbursements.py",
+        "app/services/earnings_release.py",
+        "app/services/payees.py",
+        "app/services/campaign_cancellations.py",
+        "app/adapters/payments/",
+        "app/adapters/disbursement/",
+        "app/adapters/budget/",
+    ),
+    "privacy": (
+        "app/services/disclosure.py",
+        "app/services/data_subject_inventory.py",
+        "app/services/data_subject_requests.py",
+        "app/services/data_lifecycle.py",
+        "app/services/file_kyc_lifecycle.py",
+        "app/services/stored_files.py",
+        "app/services/stored_object_deletions.py",
+        "app/services/kyc.py",
+        "app/core/observability.py",
+        "app/adapters/crypto/",
+    ),
+}
+
+
 class PolicyError(ValueError):
     """A coverage input cannot support a trustworthy policy decision."""
 
@@ -517,9 +553,7 @@ def _hash_git_files(repo_root: Path, revision: str, paths: Iterable[str]) -> str
     return digest.hexdigest()
 
 
-def _assert_attested_source_identity(
-    repo_root: Path, revision: str, inventory: list[str]
-) -> None:
+def _assert_attested_source_identity(repo_root: Path, revision: str, inventory: list[str]) -> None:
     previous = sorted(
         path
         for path in _run_git(repo_root, "ls-tree", "-r", "--name-only", revision).splitlines()
@@ -809,8 +843,12 @@ def _trusted_baseline(
             for label, measured, adopted, prior in (
                 ("global", actual, candidate.get("global"), trusted["global"]),
                 *(
-                    (f"critical.{name}", critical[name], candidate["critical"].get(name),
-                     trusted["critical"][name])
+                    (
+                        f"critical.{name}",
+                        critical[name],
+                        candidate["critical"].get(name),
+                        trusted["critical"][name],
+                    )
                     for name in groups
                 ),
             ):
@@ -819,7 +857,8 @@ def _trusted_baseline(
                 for metric in ("line", "branch"):
                     covered, total = adopted[f"{metric}_covered"], adopted[f"{metric}_total"]
                     if (
-                        type(covered) is not int or type(total) is not int
+                        type(covered) is not int
+                        or type(total) is not int
                         or not 0 <= covered <= total
                         or total != measured[f"{metric}_total"]
                         or type(adopted[f"{metric}_percent"]) not in (int, float)
@@ -845,17 +884,45 @@ def _trusted_baseline(
         **(snapshot if runtime_migration else trusted),
         "critical": {
             name: {
-                **(
-                    critical[name]
-                    if runtime_migration
-                    else trusted["critical"][name]
-                ),
+                **(critical[name] if runtime_migration else trusted["critical"][name]),
                 "paths": paths,
             }
             for name, paths in groups.items()
         },
     }
     return floors, snapshot
+
+
+def _sensitive_coverage(repo_root: Path, records: dict[str, CoverageRecord]) -> dict:
+    records = {path: record for path, record in records.items() if _eligible(path)}
+    inventory = _complete_inventory(repo_root, records)
+    results = {}
+    for name, specifications in SENSITIVE_SCOPES.items():
+        paths = set()
+        for specification in specifications:
+            selected = (
+                {
+                    path
+                    for path in inventory
+                    if path.startswith(specification) and path.endswith(".py")
+                }
+                if specification.endswith("/")
+                else {specification} & set(inventory)
+            )
+            if not selected:
+                raise PolicyError(f"sensitive.{name} required source is missing: {specification}")
+            paths.update(selected)
+        metrics = _metrics(records[path] for path in sorted(paths))
+        total = metrics["branch_total"]
+        if not total:
+            raise PolicyError(f"sensitive.{name} has no executable branches")
+        if Fraction(metrics["branch_covered"], total) < Fraction(SENSITIVE_BRANCH_FLOOR, 100):
+            raise PolicyError(
+                f"sensitive.{name} branch coverage {metrics['branch_percent']}% "
+                f"is below {SENSITIVE_BRANCH_FLOOR}%"
+            )
+        results[name] = {**metrics, "paths": sorted(paths)}
+    return results
 
 
 def _evaluate(args: argparse.Namespace) -> dict[str, object]:
@@ -869,6 +936,11 @@ def _evaluate(args: argparse.Namespace) -> dict[str, object]:
     if overlap:
         raise PolicyError(f"conflicting backend/frontend LCOV source: {sorted(overlap)[0]}")
     records = backend | frontend
+    sensitive_metrics = (
+        _sensitive_coverage(repo_root, records)
+        if getattr(args, "sensitive_branches", False)
+        else {}
+    )
     baseline = _load_baseline(Path(args.baseline))
     snapshot = None
     reconcile_reason = getattr(args, "reconcile_unprovenanced_runtime", None)
@@ -980,6 +1052,7 @@ def _evaluate(args: argparse.Namespace) -> dict[str, object]:
 
     result = {
         "base": args.base,
+        "sensitive": sensitive_metrics,
         "changed": {
             **changed_metrics,
             "added": sorted(added),
@@ -1009,6 +1082,11 @@ def main() -> int:
     parser.add_argument("--frontend-lcov", required=True)
     parser.add_argument("--baseline", required=True)
     parser.add_argument("--verify-baseline-provenance", action="store_true")
+    parser.add_argument(
+        "--sensitive-branches",
+        action="store_true",
+        help="enforce separate 85% money/privacy branch floors over complete source inventory",
+    )
     refresh = parser.add_mutually_exclusive_group()
     refresh.add_argument(
         "--refresh-baseline",

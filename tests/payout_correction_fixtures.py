@@ -23,7 +23,7 @@ from app.services.payout_corrections import (
     execute_correction_order,
     submit_correction_order,
 )
-from app.services.payouts import lagos_day_for
+from app.services.payouts.common import lagos_day_for
 
 RELEASE_AT = datetime(2026, 9, 1, 12, 0, tzinfo=UTC)
 

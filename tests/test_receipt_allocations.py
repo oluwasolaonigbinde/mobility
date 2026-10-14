@@ -15,14 +15,16 @@ from app.models.billing import (
     ReceiptMethod,
 )
 from app.models.user import UserRole
-from app.services.billing import (
+from app.services.billing.quotes import (
     accept_quotation_revision,
+    record_quotation_revision,
+    request_custom_quote,
+)
+from app.services.billing.receipts import (
     allocate_payment_receipt,
     confirm_payment_receipt,
     reconcile_payment_receipt,
     record_payment_receipt,
-    record_quotation_revision,
-    request_custom_quote,
     reverse_payment_receipt,
 )
 

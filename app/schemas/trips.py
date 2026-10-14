@@ -47,13 +47,6 @@ class TripEndRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     end_reason: str | None = None
-    # Client finalization watermark (RM3): how many batches the client has cut
-    # for this trip and how many pings it recorded. The trip fast-seals when
-    # the server holds >= client_batch_count batches; client_complete is the
-    # client's own completeness claim (False = ended with unsynced data).
-    client_batch_count: int | None = Field(default=None, ge=0)
-    client_ping_count: int | None = Field(default=None, ge=0)
-    client_complete: bool | None = None
     evidence_manifest: TripEvidenceManifestCreate | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -161,7 +154,7 @@ class LocationPingBatchResponse(BaseModel):
     # The client must treat this as an ACK and drop the batch from its queue.
     quarantined: bool = False
     # Ordered per-sample disposition replayed from the batch's immutable
-    # rejection manifest. Empty for legacy-v1 and quarantined batches, which
+    # rejection manifest. Empty for quarantined batches, which
     # carry no per-sample adjudication.
     sample_results: list[PingSampleResult] = Field(default_factory=list)
 

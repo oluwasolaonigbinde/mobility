@@ -24063,41 +24063,6 @@
       "TripEndRequest": {
         "additionalProperties": false,
         "properties": {
-          "client_batch_count": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Client Batch Count"
-          },
-          "client_complete": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Client Complete"
-          },
-          "client_ping_count": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Client Ping Count"
-          },
           "end_reason": {
             "anyOf": [
               {

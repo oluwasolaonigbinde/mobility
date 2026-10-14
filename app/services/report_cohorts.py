@@ -15,7 +15,7 @@ from app.models.payout import EarningsLedgerEntry, PayoutCalculation
 from app.models.trip import TripSession
 from app.models.trip_analytics import TripAnalytics
 from app.services.impressions import current_authoritative_estimates
-from app.services.payouts import latest_payout_calculation_ids
+from app.services.payouts.ledger import latest_payout_calculation_ids
 
 
 @dataclass(frozen=True)

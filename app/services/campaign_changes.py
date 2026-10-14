@@ -26,7 +26,7 @@ from app.schemas.campaign_changes import (
 )
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
-from app.services.billing import (
+from app.services.billing.authority import (
     _authorization_usable_liability,
     effective_financial_authorization,
     reserved_campaign_liability_total,
@@ -291,7 +291,7 @@ async def preview_campaign_change(
     )
 
 
-async def _apply_if_funded(
+async def _apply_if_funded(  # noqa: C901
     session: AsyncSession,
     *,
     request: CampaignChangeRequest,

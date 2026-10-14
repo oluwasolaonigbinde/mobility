@@ -53,7 +53,7 @@ from app.services.disclosure import (
     require_governed_advertiser_output,
 )
 from app.services.impressions import current_authoritative_estimates
-from app.services.payouts import latest_payout_calculation_ids
+from app.services.payouts.ledger import latest_payout_calculation_ids
 from app.services.report_cohorts import ReportCohort, select_report_cohort
 
 ZERO_2 = Decimal("0.00")

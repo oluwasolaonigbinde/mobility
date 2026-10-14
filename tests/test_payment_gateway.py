@@ -21,13 +21,15 @@ from app.models.billing import (
     ReceiptMethod,
 )
 from app.models.user import UserRole
-from app.services.billing import (
-    allocate_payment_receipt,
-    confirm_payment_receipt,
+from app.services.billing.gateway import (
     ingest_payment_gateway_webhook,
     process_payment_gateway_event,
-    reconcile_payment_receipt,
     record_payment_gateway_failure,
+)
+from app.services.billing.receipts import (
+    allocate_payment_receipt,
+    confirm_payment_receipt,
+    reconcile_payment_receipt,
     record_payment_receipt,
 )
 
@@ -254,9 +256,7 @@ def test_manual_payment_before_gateway_confirmation_preserves_unallocated_cash(
                 expected_amount="100.00",
                 expected_currency="NGN",
             )
-            await confirm_payment_receipt(
-                session, receipt_id=manual.id, actor_user_id=admin.id
-            )
+            await confirm_payment_receipt(session, receipt_id=manual.id, actor_user_id=admin.id)
             await allocate_payment_receipt(
                 session,
                 receipt_id=manual.id,

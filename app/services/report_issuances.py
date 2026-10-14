@@ -1082,7 +1082,7 @@ def _unsettled_publication_writes():
     )
 
 
-async def _complete_publication(
+async def _complete_publication(  # noqa: C901
     sessionmaker: async_sessionmaker[AsyncSession],
     *,
     storage: StorageProvider,
@@ -1250,7 +1250,7 @@ async def _complete_publication(
         await session.commit()
 
 
-async def _generate_and_publish(
+async def _generate_and_publish(  # noqa: C901
     sessionmaker: async_sessionmaker[AsyncSession],
     *,
     storage: StorageProvider,
@@ -1366,7 +1366,7 @@ async def _generate_and_publish(
         )
 
 
-async def sweep_report_publications(
+async def sweep_report_publications(  # noqa: C901
     sessionmaker: async_sessionmaker[AsyncSession],
     *,
     storage: StorageProvider,

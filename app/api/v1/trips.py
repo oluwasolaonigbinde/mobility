@@ -219,9 +219,9 @@ async def driver_end_trip(
         entity_id=str(trip.id),
         metadata={
             "end_reason": trip.end_reason,
-            "client_batch_count": trip.client_batch_count,
-            "client_ping_count": trip.client_ping_count,
-            "client_complete": trip.client_complete,
+            "evidence_manifest_batch_count": trip.evidence_manifest_batch_count,
+            "evidence_manifest_ping_count": trip.evidence_manifest_ping_count,
+            "evidence_manifest_complete": trip.evidence_manifest_complete,
             "sealed_now": result.sealed_now,
         },
     )

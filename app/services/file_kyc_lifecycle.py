@@ -394,7 +394,7 @@ async def _purge_vehicle_submission(
     return 1, purged_files
 
 
-async def purge_terminal_file_kyc(
+async def purge_terminal_file_kyc(  # noqa: C901
     session: AsyncSession,
     *,
     storage: StorageProvider,

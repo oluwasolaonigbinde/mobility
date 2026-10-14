@@ -1118,7 +1118,7 @@ async def _derive_authoritative_cells(
     return cells
 
 
-async def materialize_exposure_segment(
+async def materialize_exposure_segment(  # noqa: C901
     session: AsyncSession,
     *,
     settings: Settings,
@@ -1451,7 +1451,7 @@ def _zone_insight_uncertainty(run: MeasurementRun, score: ExposureScore) -> str:
     return f"{contact_uncertainty} {score_statement.strip()}"
 
 
-async def high_exposure_zone_insights(
+async def high_exposure_zone_insights(  # noqa: C901
     session: AsyncSession,
     *,
     settings: Settings,

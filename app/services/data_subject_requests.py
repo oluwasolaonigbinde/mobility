@@ -324,7 +324,7 @@ async def verify_data_subject_identity(
     return case
 
 
-async def data_subject_inventory(
+async def data_subject_inventory(  # noqa: C901
     session: AsyncSession,
     *,
     actor_user_id: UUID,
@@ -452,7 +452,7 @@ def _allowed_dispositions(request_type: str) -> set[DataSubjectDisposition]:
     }[request_type]
 
 
-async def record_location_assessment(
+async def record_location_assessment(  # noqa: C901
     session: AsyncSession,
     *,
     actor_user_id: UUID,

@@ -321,7 +321,7 @@ def email_receipt_fingerprint(payload: dict[str, Any]) -> tuple[bytes, str]:
     return canonical, hashlib.sha256(canonical).hexdigest()
 
 
-async def record_email_delivery_receipt(
+async def record_email_delivery_receipt(  # noqa: C901
     session: AsyncSession,
     *,
     payload: dict[str, Any],

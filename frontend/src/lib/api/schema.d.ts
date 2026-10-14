@@ -14218,12 +14218,6 @@ export interface components {
         TripAnalyticsStatus: "computed" | "insufficient_data" | "blocked";
         /** TripEndRequest */
         TripEndRequest: {
-            /** Client Batch Count */
-            client_batch_count?: number | null;
-            /** Client Complete */
-            client_complete?: boolean | null;
-            /** Client Ping Count */
-            client_ping_count?: number | null;
             /** End Reason */
             end_reason?: string | null;
             evidence_manifest?: components["schemas"]["TripEvidenceManifestCreate"] | null;

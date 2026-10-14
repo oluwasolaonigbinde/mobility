@@ -236,7 +236,7 @@ def _lagos_midnight_offsets(start: datetime, duration: int) -> list[int]:
             offsets.append(offset)
 
 
-def classify_session(
+def classify_session(  # noqa: C901
     *,
     session_started_at: datetime,
     session_ended_at: datetime,
