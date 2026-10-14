@@ -287,20 +287,26 @@ async def record_refund_settlement(  # noqa: C901
         await acquire_campaign_terms_lock(session, campaign_id)
     await require_active_admin(session, actor_user_id)
     if campaign_id is None:
-        raise AppError("COMMERCIAL_TERMS_NOT_FOUND", "Commercial terms were not found", 404)
+        raise AppError(
+            "COMMERCIAL_TERMS_NOT_FOUND", "Commercial terms were not found", status_code=404
+        )
     await _campaign(session, campaign_id, lock=True)
     terms = await session.scalar(
         select(CommercialTerms).where(CommercialTerms.id == commercial_terms_id).with_for_update()
     )
     if terms is None:
-        raise AppError("COMMERCIAL_TERMS_NOT_FOUND", "Commercial terms were not found", 404)
+        raise AppError(
+            "COMMERCIAL_TERMS_NOT_FOUND", "Commercial terms were not found", status_code=404
+        )
     cancellation = await session.scalar(
         select(CampaignCancellation)
         .where(CampaignCancellation.campaign_id == terms.campaign_id)
         .with_for_update()
     )
     if receipt is None or receipt.organization_id != terms.organization_id:
-        raise AppError("REFUND_AUTHORITY_NOT_FOUND", "Refund authority was not found", 404)
+        raise AppError(
+            "REFUND_AUTHORITY_NOT_FOUND", "Refund authority was not found", status_code=404
+        )
     if terms.payment_class == PaymentClass.APPROVED_CORPORATE_CREDIT:
         raise AppError(
             "CASH_REFUND_NOT_APPLICABLE",
@@ -413,6 +419,8 @@ async def record_refund_settlement(  # noqa: C901
         if cancellation.production_start_id is not None
         else None
     )
+    assert cancellation.funding_authorized_at is not None
+    assert cancellation.refund_eligibility_ends_at is not None
     funded_at = _stored_aware_utc(cancellation.funding_authorized_at)
     eligibility_ends_at = _stored_aware_utc(cancellation.refund_eligibility_ends_at)
     eligibility_evaluated_at = _stored_aware_utc(cancellation.cutoff_at)

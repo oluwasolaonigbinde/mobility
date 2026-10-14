@@ -34,6 +34,7 @@ from app.services.impressions import (
 )
 from app.services.payout_eligibility import (
     METRES_PER_MILE,
+    EligibilityBreakdown,
     EligibilityParams,
     classify_session,
     credited_distance_m_by_day,
@@ -95,7 +96,7 @@ class DailyRateClassification:
     terms: DailyRateTerms
     params: EligibilityParams
     governing_values: dict
-    breakdown: object
+    breakdown: EligibilityBreakdown
     distance_m_by_day: dict[str, int]
     ping_fingerprint: str
     inputs_fingerprint: str
@@ -220,6 +221,9 @@ async def calculate_trip_payout_v4(
         )
     )
 
+    if revision_rule_id is None:
+        raise rule_not_found()
+    assert trip.ended_at is not None
     lagos_day = lagos_day_for(trip.started_at)
     day_keys = sorted(
         set(breakdown.eligible_seconds_by_day) | set(classified.distance_m_by_day)

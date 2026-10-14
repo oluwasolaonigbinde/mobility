@@ -459,7 +459,7 @@ async def _assignment_liability_calculation(
     start_date = _stored_aware_utc(binding.campaign_window_start_at).astimezone(LAGOS_TZ).date()
     end_date = _stored_aware_utc(binding.campaign_window_end_at).astimezone(LAGOS_TZ).date()
     covered_days = max(1, (end_date - start_date).days + 1)
-    rate, cap = Decimal(binding.daily_rate_naira), Decimal("1")
+    rate, cap = Decimal(frozen_ceiling), Decimal("1")
     requested = (rate * cap * covered_days).quantize(MONEY_QUANTUM, rounding=ROUND_HALF_UP)
     if requested <= 0:
         raise AppError(
@@ -560,6 +560,7 @@ async def reserve_assignment_liability(
     await _campaign(session, assignment.campaign_id, lock=True)
     calculation = await _assignment_liability_calculation(session, assignment)
     binding, authorization = calculation.binding, calculation.authorization
+    authorization_id = authorization.id if authorization is not None else None
     requested, now, can_reserve = calculation.requested, calculation.now, calculation.can_reserve
     covered_days, rate, cap = calculation.covered_days, calculation.rate, calculation.cap
     assignment = await session.scalar(
@@ -583,7 +584,7 @@ async def reserve_assignment_liability(
             campaign_id=assignment.campaign_id,
             assignment_id=assignment.id,
             assignment_rule_binding_id=binding.id,
-            authorization_id=authorization.id if can_reserve else None,
+            authorization_id=authorization_id if can_reserve else None,
             status="reserved" if can_reserve else "pending_funding",
             covered_vehicle_days=covered_days,
             hourly_rate=rate,
@@ -596,7 +597,7 @@ async def reserve_assignment_liability(
         )
         session.add(existing)
     elif existing.status == "pending_funding" and can_reserve:
-        existing.authorization_id = authorization.id
+        existing.authorization_id = authorization_id
         existing.status = "reserved"
         existing.reserved_amount = requested
         existing.reserved_at = now

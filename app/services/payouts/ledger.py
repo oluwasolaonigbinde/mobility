@@ -175,6 +175,7 @@ async def latest_daily_rate_position(
         )
     )
     for order in orders.scalars().all():
+        assert order.executed_at is not None
         at = _aware_utc(order.executed_at)
         if best_at is not None and at <= best_at:
             continue

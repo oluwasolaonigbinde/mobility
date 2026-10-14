@@ -2,6 +2,7 @@ import hashlib
 import json
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
+from typing import cast
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -77,8 +78,14 @@ def _classify(before: dict[str, object], changes: dict[str, object]) -> list[str
         current = before[field]
         if field in {"start_at", "end_at"}:
             classifications.add("date_change")
-            is_expansion = (field == "end_at" and current is not None and proposed > current) or (
-                field == "start_at" and current is not None and proposed < current
+            is_expansion = (
+                field == "end_at"
+                and current is not None
+                and cast(str, proposed) > cast(str, current)
+            ) or (
+                field == "start_at"
+                and current is not None
+                and cast(str, proposed) < cast(str, current)
             )
             if is_expansion:
                 classifications.add("expansion")
@@ -139,6 +146,8 @@ async def _additional_window_liability(
     bindings = list(await session.scalars(binding_statement))
     requested = Decimal("0.00")
     for binding in bindings:
+        if binding.daily_rate_naira is None:
+            raise _error("FROZEN_PAYOUT_BINDING_REQUIRED", "A frozen daily rate is required")
         requested += Decimal(binding.daily_rate_naira) * extra_days
     return requested.quantize(MONEY, rounding=ROUND_HALF_UP)
 

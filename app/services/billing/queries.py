@@ -188,7 +188,9 @@ async def effective_invoice_obligation(
 ) -> Decimal:
     terms = await session.get(CommercialTerms, commercial_terms_id)
     if terms is None:
-        raise AppError("COMMERCIAL_TERMS_NOT_FOUND", "Commercial terms were not found", 404)
+        raise AppError(
+            "COMMERCIAL_TERMS_NOT_FOUND", "Commercial terms were not found", status_code=404
+        )
     invoice = await session.scalar(
         select(Invoice).where(Invoice.commercial_terms_id == commercial_terms_id)
     )

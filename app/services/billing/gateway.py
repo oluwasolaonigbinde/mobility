@@ -223,11 +223,12 @@ async def _reconcile_verified_gateway_receipt(
     receipt: PaymentReceipt,
     event: PaymentGatewayEvent,
 ) -> None:
-    receipt = await session.scalar(
+    locked_receipt = await session.scalar(
         select(PaymentReceipt).where(PaymentReceipt.id == receipt.id).with_for_update()
     )
-    if receipt is None:
+    if locked_receipt is None:
         raise AppError("RECEIPT_NOT_FOUND", "Receipt was not found", status_code=404)
+    receipt = locked_receipt
     reconciliation = await session.scalar(
         select(ReceiptReconciliation).where(ReceiptReconciliation.receipt_id == receipt.id)
     )

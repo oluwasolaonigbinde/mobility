@@ -76,6 +76,10 @@ def daily_rate_terms(binding: AssignmentRuleBinding) -> DailyRateTerms:
             " terms; resolve manually",
             status_code=status.HTTP_409_CONFLICT,
         )
+    assert binding.daily_rate_naira is not None
+    assert binding.daily_target_miles is not None
+    assert binding.minimum_miles is not None
+    assert binding.outside_area_weight is not None
     return DailyRateTerms(
         daily_rate_naira=Decimal(binding.daily_rate_naira),
         daily_target_miles=Decimal(binding.daily_target_miles),
@@ -120,6 +124,7 @@ def day_pay_naira(distance_m: int, terms: DailyRateTerms) -> Decimal:
         return _half_up_naira(rate)
     if terms.shortfall_strategy == SHORTFALL_PROPORTIONAL:
         return _half_up_naira(rate * miles / target)
+    assert terms.deduction_per_mile_naira is not None
     deduction = Fraction(terms.deduction_per_mile_naira)
     return _half_up_naira(max(Fraction(0), rate - deduction * (target - miles)))
 

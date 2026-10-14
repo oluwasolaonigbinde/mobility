@@ -75,7 +75,7 @@ async def record_invoice_issuer_profile(
         "bank_account_name": bank_account_name,
         "bank_account_number": bank_account_number,
     }
-    if not all(values.values()) or len(values["country_code"]) != 2:
+    if not all(values.values()) or len(country_code.strip()) != 2:
         raise AppError(
             "INCOMPLETE_ISSUER_FACTS",
             "Complete issuer facts and their external provenance are required",
@@ -278,7 +278,7 @@ async def issue_invoice(
         and issuer.external_input_reference == settings.invoice_issuer_external_input_reference
         and all(getattr(issuer, field) for field in ISSUER_VERIFIED_FACT_FIELDS)
     )
-    if not synthetic_test_authority and not configured_verified_authority:
+    if issuer is None or (not synthetic_test_authority and not configured_verified_authority):
         raise AppError(
             "VERIFIED_ISSUER_FACTS_REQUIRED",
             "Real invoice issuance requires externally verified statutory issuer facts",

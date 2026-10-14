@@ -138,6 +138,8 @@ def _campaign_period(production_scope: dict) -> None:
     if start is None and end is None:
         return
     try:
+        if not isinstance(start, str) or not isinstance(end, str):
+            raise ValueError("dates must be strings")
         start_date = date.fromisoformat(start)
         end_date = date.fromisoformat(end)
         # Only YYYY-MM-DD: fromisoformat also takes compact and week forms the invoice can't show.

@@ -5,6 +5,7 @@ import logging
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import ROUND_HALF_UP, Decimal
+from typing import overload
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -110,6 +111,7 @@ async def payout_time_bounds(
 ) -> tuple[datetime, datetime | None, datetime | None]:
     """Return the economic trip end, effective campaign end and frozen cutoff."""
     cutoff = await campaign_financial_cutoff(session, trip.campaign_id)
+    assert trip.ended_at is not None
     trip_end = _aware_utc(trip.ended_at)
     economic_end = min(trip_end, cutoff) if cutoff is not None else trip_end
     economic_end = max(_aware_utc(trip.started_at), economic_end)
@@ -355,6 +357,14 @@ def payout_calculation_stale() -> AppError:
         "The payout calculation predates the current analytics or impression source",
         status_code=status.HTTP_409_CONFLICT,
     )
+
+
+@overload
+def validate_currency_code(value: str | None, *, fallback: str) -> str: ...
+
+
+@overload
+def validate_currency_code(value: str | None, *, fallback: None = None) -> str | None: ...
 
 
 def validate_currency_code(value: str | None, *, fallback: str | None = None) -> str | None:

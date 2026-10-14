@@ -904,3 +904,35 @@ def test_concurrent_refunds_cannot_exceed_allocated_cash(postgis_db_sessionmaker
         assert sorted(outcomes) == ["REFUND_EXCEEDS_CASH_AUTHORITY", "recorded"]
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize(
+    "operation, expected_code",
+    [
+        ("invoice", "INVOICE_NOT_FOUND"),
+        ("refund", "COMMERCIAL_TERMS_NOT_FOUND"),
+    ],
+)
+def test_missing_billing_authority_returns_not_found(db_sessionmaker, operation, expected_code):
+    admin = create_test_user(db_sessionmaker, email=f"missing-{operation}@example.test")
+
+    async def exercise():
+        async with db_sessionmaker() as session:
+            with pytest.raises(AppError) as caught:
+                if operation == "invoice":
+                    await adjusted_invoice_obligation(session, uuid4())
+                else:
+                    await billing_settlements.record_refund_settlement(
+                        session,
+                        commercial_terms_id=uuid4(),
+                        receipt_id=uuid4(),
+                        actor_user_id=admin.id,
+                        amount="10.00",
+                        settlement_provider="manual",
+                        external_reference="missing-authority",
+                        reason="Synthetic missing authority",
+                    )
+            assert caught.value.code == expected_code
+            assert caught.value.status_code == 404
+
+    asyncio.run(exercise())

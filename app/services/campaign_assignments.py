@@ -1559,6 +1559,8 @@ async def create_rule_binding_for_accept(
         window_end = datetime.fromisoformat(terms["campaign_window_end_at"])
         revision_id = UUID(payout["revision_id"])
         pay_terms = _daily_rate_offer_terms(payout)
+        if pay_terms is None:
+            raise ValueError("incomplete frozen daily-rate terms")
         currency = payout["currency"] if "currency" in payout else terms["currency"]
     except (KeyError, TypeError, ValueError, ArithmeticError) as exc:
         raise AppError(
