@@ -19,6 +19,7 @@ from paystack_fixtures import (
     transfer_event,
 )
 from sqlalchemy import func, select
+from starlette.requests import Request
 from test_billing_api import _fixture
 from test_invoices import _issuer
 from test_mny03a_earnings_release import build_graph
@@ -67,6 +68,60 @@ from app.services.data_subject_requests import (
 from app.services.disbursements import process_payout_submission_intent
 
 WEBHOOK = "/api/v1/webhooks/paystack"
+
+
+@pytest.mark.parametrize("declared", [None, "1", str(1024 * 1024 + 1)])
+@pytest.mark.parametrize("endpoint", ["paystack", "payments"])
+def test_webhook_rejects_oversize_before_authentication_or_persistence(
+    monkeypatch, declared, endpoint
+):
+    from app.api.v1.billing import payment_webhook
+    from app.api.v1.webhooks import paystack_webhook
+
+    adapter = PaystackPaymentGatewayAdapter(PaystackClient(SYNTHETIC_TEST_KEY))
+    authenticate = []
+    monkeypatch.setattr(adapter, "classify_webhook", lambda *_args: authenticate.append(True))
+    received = []
+    chunks = [b"x" * (1024 * 1024), b"x", b"must not read this"]
+
+    async def receive():
+        received.append(True)
+        if declared == str(1024 * 1024 + 1):
+            raise AssertionError("Declared oversize must be rejected without reading")
+        return {"type": "http.request", "body": chunks.pop(0), "more_body": bool(chunks)}
+
+    headers = [] if declared is None else [(b"content-length", declared.encode())]
+    request = Request({"type": "http", "headers": headers}, receive)
+    with pytest.raises(AppError) as refused:
+        if endpoint == "paystack":
+            asyncio.run(paystack_webhook(request, None, adapter, None, None, None, "arbitrary"))
+        else:
+            asyncio.run(payment_webhook(request, None, adapter, None, "arbitrary"))
+    assert refused.value.status_code == 413
+    assert authenticate == []
+    assert len(received) == (0 if declared == str(1024 * 1024 + 1) else 2)
+
+
+def test_webhook_authenticates_original_stream_bytes_at_exact_cap():
+    from app.api.v1.webhooks import paystack_webhook
+
+    adapter = PaystackPaymentGatewayAdapter(PaystackClient(SYNTHETIC_TEST_KEY))
+    raw = b'{ "event": "refund.processed", "data": {} }'
+    raw += b" " * (1024 * 1024 - len(raw))
+
+    def request():
+        chunks = [raw[:17], raw[17:]]
+
+        async def receive():
+            return {"type": "http.request", "body": chunks.pop(0), "more_body": bool(chunks)}
+
+        return Request({"type": "http", "headers": []}, receive)
+
+    receipt = asyncio.run(paystack_webhook(request(), None, adapter, None, None, None, sign(raw)))
+    assert receipt.event == "refund.processed" and receipt.accepted is False
+    with pytest.raises(AppError) as refused:
+        asyncio.run(paystack_webhook(request(), None, adapter, None, None, None, sign(raw.strip())))
+    assert refused.value.status_code == 401
 
 
 class RecordingEnqueuer:

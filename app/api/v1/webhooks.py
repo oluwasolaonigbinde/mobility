@@ -23,6 +23,7 @@ from app.api.v1.dependencies import (
     SettingsDependency,
 )
 from app.core.errors import AppError
+from app.core.webhook_body import read_webhook_body
 from app.schemas.billing import PaystackWebhookReceipt
 from app.services.billing.gateway import ingest_payment_gateway_webhook
 from app.services.disbursements import ingest_payout_provider_webhook
@@ -77,7 +78,7 @@ async def paystack_webhook(
             "Payment webhook verification is not configured",
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
-    payload = await request.body()
+    payload = await read_webhook_body(request)
     try:
         event_name, is_payment = adapter.classify_webhook(payload, signature)
     except PaymentWebhookAuthenticationError as exc:

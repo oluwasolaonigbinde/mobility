@@ -93,6 +93,14 @@ security review approves a replacement. It overwrites inbound client identity
 with the accepted socket peer and a generated request ID, rejects framing, and
 keeps only the PWA-required geolocation, wake-lock and clipboard capabilities.
 
+Public payment webhooks have a 1 MiB (1,048,576 bytes) body limit at Caddy and
+in the application's streaming reader. Both payment callback routes reject
+oversize bodies before signature verification or event persistence; chunked
+requests receive the same limit. The signed original bytes are unchanged.
+This is ample room for charge/transfer JSON and metadata while bounding public
+unauthenticated buffering. A 413 is not a provider/payment confirmation. Public
+provider delivery and deployment remain separate launch gates.
+
 ## Database backups
 
 Create a custom-format `pg_dump`:

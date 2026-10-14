@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.138 — 2026-10-13. Canonical source of truth: current state AND target state.**
+**Version 1.139 — 2026-10-14. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -1356,6 +1356,12 @@ delivery/replay, transfer evidence and production approval remain
 `PKG-03 / W2-01C` gates.
 
 ### 15.4 Webhooks — new endpoint namespace
+
+**[BUILT locally — D84 / REQ-171]:** Caddy caps public webhook bodies at
+1,048,576 bytes. Both app payment callback routes check declared length and
+count streamed bytes before appending, authentication or persistence; absent
+or false length cannot bypass the cap. Adapters authenticate the original bytes.
+Public delivery/deployment evidence remains the existing external gate.
 
 `/api/v1/webhooks/{provider}` (POST): the only **machine-caller** endpoints
 (the JWT-less surface otherwise remains `/auth/*` and the health checks).
@@ -3635,6 +3641,8 @@ within one hour. Simultaneous Redis/database failure can only emit the fixed
 failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
+
+- **v1.139 — 14 October 2026 (D84/REQ-171):** Bounds both public payment webhook readers and Caddy to 1 MiB before authentication. Declared/chunked oversize and exact original-byte regressions pass; Caddy 2.8.4 configuration validation passes. Full batch CI and security review remain pending.
 
 - **v1.138 ? 14 October 2026 (D83/REQ-169):** Owner-approved single development database baseline; full PostgreSQL schema parity established, remaining integrated gates pending.
 - **v1.137 ? 14 October 2026 (D82/REQ-164):** Scheduled-job check-ins and read-only Finance business-health alerts; verification pending.

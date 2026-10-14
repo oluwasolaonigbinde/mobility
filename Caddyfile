@@ -30,6 +30,10 @@
 
 	@public_api path /health /api/v1/health* /api/v1/webhooks/*
 	handle @public_api {
+		@webhooks path /api/v1/webhooks/*
+		request_body @webhooks {
+			max_size 1048576
+		}
 		reverse_proxy api:8000 {
 			header_up -Forwarded
 			header_up -X-Forwarded-For

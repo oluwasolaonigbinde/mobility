@@ -19,6 +19,7 @@ from app.api.v1.dependencies import (
     SettingsDependency,
 )
 from app.core.errors import AppError
+from app.core.webhook_body import read_webhook_body
 from app.models.billing import (
     BudgetPolicyEvaluation,
     CampaignFinancialAuthorization,
@@ -804,7 +805,7 @@ async def payment_webhook(
     event, created = await ingest_payment_gateway_webhook(
         session,
         adapter=adapter,
-        payload=await request.body(),
+        payload=await read_webhook_body(request),
         signature=signature,
     )
     await session.commit()
