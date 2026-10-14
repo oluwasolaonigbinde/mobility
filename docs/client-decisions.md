@@ -288,8 +288,9 @@ the driver after admin authorisation (D28). Required: licence, vehicle
 registration, insurance, NIN, vehicle photos, a verified bank account and a
 legally approved driver agreement and consent (Q26). The driver reads the agreement and gives one required in-app acceptance, replacing the signed-file upload (D77, REQ-158). The application records its version and acceptance time; staff see the version/date. The displayed version-1 wording is internally a draft awaiting Terrax's lawyer under REQ-032; screens use normal agreement wording. Apply and renewals share one searchable bank picker, with popular banks first and provider bank codes or a built-in fallback (D78, REQ-159). Apply checks the account name through the adapter and asks the driver to confirm it; an unavailable provider permits a typed name. Staff bank verification and the first-payout-to-a-new-account rule (D40b) remain. In the pilot the vehicle
 is registered to its driver, who is the payee; no fleet owners (Q23). Vehicle
-approval ends on an admin-entered date (D31). Pilot vehicles: roadworthy cars
-(Q19) **and motorcycles** (D43h).
+approval ends on an admin-entered date (D31). The **pilot is car-only;
+motorcycles deferred** until the owner or client raises them again (Q19, D88,
+REQ-179). Existing roadworthiness and documentation requirements remain.
 
 Signed-in active driver accounts can renew rejected or expired identity, bank
 and vehicle documents in Profile, with the same scanned uploads and audited
@@ -298,6 +299,8 @@ renewal periods stay unset (D69, REQ-137). Mark expired retains the recorded out
 
 **History:**
 - **2026-10-12** - Owner chose in-app versioned agreement/privacy acceptance in place of a signed-file upload, plus the shared searchable bank picker and confirmed adapter account-name check with unavailable-provider typed-name fallback (D77/D78, REQ-158/159). The previous signed agreement was a required KYC file and Apply asked for a typed 3-digit bank code and account name. Legal wording remains a draft internally (REQ-032); existing payout authority remains. Built in `a349c2e5`, with final repairs/evidence in `9e7f6147`; non-squash master merge `f77870fd`. Final local verification and independent reviews PASS. Under the one-off REQ-160/D79 exception, full CI/source-bound coverage evaluation is deferred until after Waves 3/4; the accepted integrated run failed, not green.
+
+- **2026-10-14** — Owner chose a car-only pilot; motorcycles are deferred until the owner or client raises them again (D88, REQ-179). The previous current rule permitted roadworthy cars and motorcycles under D43(h)/REQ-034. This supersedes that motorcycle permission for the pilot; current car-only code and vehicle_type plumbing are unchanged.
 
 - **2026-10-12** — Owner-delegated orchestrator requires correction of the wave staff-expiry bug: retain original document facts/history and append the expiry event, refuse reuse of an actually expired file, and restore eligibility only after new upload approval (D76, REQ-152). This implements the existing rule; prior staff expiry incorrectly replaced document facts with empty values. Built in `7f374c39`; integrated verification and accepted master CI [38376171034](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38376171034) pass.
 

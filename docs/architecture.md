@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.142 — 2026-10-14. Canonical source of truth: current state AND target state.**
+**Version 1.143 — 2026-10-14. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -2341,6 +2341,13 @@ records the status each message left behind).
 
 ## 21. Matching & assignment evolution
 
+**[CONFIRMED — D88 / REQ-179 / Q19]:** The pilot is car-only; motorcycles
+are deferred until the owner or client raises them again. This owner decision
+supersedes D43(h)'s pilot motorcycle permission. Existing car-only Apply and
+matching behavior already implements the current direction; this amendment is
+docs only. Keep vehicle_type plumbing and all other eligibility, documentation
+and approval requirements unchanged.
+
 **[BUILT — Cardvert Phase II operator readiness]:** paginated named campaign,
 driver, vehicle and creative selectors preserve immutable selected IDs. The
 activation advisory reuses `billing.assignment_liability_readiness`, extracting
@@ -2354,7 +2361,7 @@ policy; it does not block the recommendation/offer/assignment architecture.
 
 - **Preserve:** admin-driven assignment through
   `app/services/campaign_assignments.py`; recommendation reads never assign.
-- **Built (W3-03A):** `matching_v1` is a **recommender inside the existing
+- **Built (W3-03A; car-only pilot D88):** `matching_v1` is a **recommender inside the existing
   service**, not an auto-assigner. It ranks current-assignment-ready active
   driver-owned cars by normalized city, lower vehicle/driver non-terminal load,
   computed-only activity and stable UUID ties for the admin to confirm. The
@@ -3682,6 +3689,8 @@ within one hour. Simultaneous Redis/database failure can only emit the fixed
 failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
+
+- **v1.143 — 14 October 2026 (D88/REQ-179):** Owner confirms the pilot is car-only and defers motorcycles until the owner or client raises them again. Supersedes D43(h)'s eligibility permission and reconciles Q19 with current car-only behavior. Docs-only record; vehicle_type plumbing and code are unchanged.
 
 - **v1.142 — 14 October 2026 (D87/REQ-177):** Independent resumable upload progress for Apply person/vehicle and signed-in renewals, coalesced siblings, exact context/generation fencing and scan-only recovery. Focused 59 tests and integrated driver identity typecheck pass; privacy/security/consolidated review and full batch CI pending.
 
