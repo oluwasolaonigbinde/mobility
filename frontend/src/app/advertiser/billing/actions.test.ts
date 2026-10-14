@@ -59,11 +59,23 @@ describe("startInvoicePayment", () => {
     );
   });
 
+  it.each(["confirmed", "failed"])(
+    "shows reconciled %s status without reopening an old payment URL",
+    async (status) => {
+      mocks.post.mockResolvedValueOnce({
+        data: { status, checkout_url: "https://checkout.paystack.com/old" },
+      });
+      await expect(startInvoicePayment(paymentForm())).rejects.toThrow(
+        `redirect:/advertiser/billing?payment=${status}`,
+      );
+    },
+  );
+
   it("uses a safe message when checkout creation fails", async () => {
     mocks.post.mockRejectedValueOnce(new Error("private upstream detail"));
 
     await expect(startInvoicePayment(paymentForm())).rejects.toThrow(
-      "redirect:/advertiser/billing?payment=error&message=Cardvert%20could%20not%20open%20Paystack.%20No%20payment%20was%20taken.",
+      "redirect:/advertiser/billing?payment=error&message=Cardvert%20could%20not%20open%20Paystack.%20Check%20your%20payment%20status%20before%20trying%20again.",
     );
   });
 });

@@ -20,7 +20,10 @@ export async function startInvoicePayment(formData: FormData): Promise<never> {
     const { data } = await api.POST("/api/v1/advertiser/invoices/{invoice_id}/checkout", {
       params: { path: { invoice_id: parsed.data.invoiceId } },
     });
-    destination = data?.checkout_url ?? null;
+    destination =
+      data?.status === "confirmed" || data?.status === "failed"
+        ? `/advertiser/billing?payment=${data.status}`
+        : (data?.checkout_url ?? null);
     if (!destination) {
       error = "Paystack is still preparing this checkout. Please try again.";
     }
@@ -28,7 +31,7 @@ export async function startInvoicePayment(formData: FormData): Promise<never> {
     error = publicActionError(
       caught,
       {},
-      "Cardvert could not open Paystack. No payment was taken.",
+      "Cardvert could not open Paystack. Check your payment status before trying again.",
     );
   }
   if (destination) redirect(destination);

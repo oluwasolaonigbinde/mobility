@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.139 — 2026-10-14. Canonical source of truth: current state AND target state.**
+**Version 1.140 — 2026-10-14. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -1305,6 +1305,17 @@ but acceptance and any real currency update serialize on the same campaign lock;
 accepted terms and campaign currency must thereafter match exactly.
 
 ### 15.3 Provider adapter (P5)
+
+**[BUILT locally — D85 / REQ-173]:** Unknown checkout recovery verifies the
+saved reference and audits the outcome. Not-found permits only redispatch of
+that identical reference; ambiguous/duplicate/malformed recovery keeps UNKNOWN
+and never allows replacement. Initialization and explicit verification share a
+PostgreSQL session lock held by a connection-bound recovery session across
+commits and I/O. Caller read transactions end before waiting, and owners use the
+same connection for domain writes to avoid pool starvation. Unlock or connection
+invalidation releases ownership on failure. Canonical reference/tenant/terms/
+amount/currency verification remains binding; webhook confirmation wins over a
+later URL save. Provider evidence and live-use gates remain unchanged.
 
 `app/adapters/payments/` defines one interface (`create_checkout`,
 `verify_transaction`, `parse_webhook(payload, signature) → event`) with
@@ -3641,6 +3652,8 @@ within one hour. Simultaneous Redis/database failure can only emit the fixed
 failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
+
+- **v1.140 — 14 October 2026 (D85/REQ-173):** Audited same-reference uncertain checkout recovery, connection-owned serialization across commits, explicit verification and intervening webhook protection. Fake-I/O and separate-session tests pass; money review and full batch CI pending.
 
 - **v1.139 — 14 October 2026 (D84/REQ-171):** Bounds both public payment webhook readers and Caddy to 1 MiB before authentication. Declared/chunked oversize and exact original-byte regressions pass; Caddy 2.8.4 configuration validation passes. Full batch CI and security review remain pending.
 

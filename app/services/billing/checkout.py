@@ -1,10 +1,13 @@
 """Billing: checkout domain operations."""
 
+import hashlib
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from sqlalchemy import exists, select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import exists, func, select
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 from starlette import status
 
 from app.adapters.payments import (
@@ -13,7 +16,11 @@ from app.adapters.payments import (
     PaymentGatewayAdapter,
     PaymentGatewayUnavailableError,
 )
-from app.adapters.payments.paystack import PaystackOutcomeUnknownError, PaystackRejectedError
+from app.adapters.payments.paystack import (
+    PaystackNotFoundError,
+    PaystackOutcomeUnknownError,
+    PaystackRejectedError,
+)
 from app.core.errors import AppError
 from app.models.billing import (
     CommercialTerms,
@@ -212,12 +219,115 @@ def require_initialization_unknown(committed: PaymentCheckoutIntent) -> None:
         )
 
 
-async def initialize_invoice_payment_checkout(  # noqa: C901
+@asynccontextmanager
+async def checkout_reference_lock(
+    session: AsyncSession, checkout_id: UUID
+) -> AsyncIterator[AsyncSession]:
+    """Bind recovery to its owned connection across commits and provider I/O."""
+    bind = session.bind
+    if bind is None:
+        raise RuntimeError("Checkout recovery requires a database connection")
+    engine = bind.engine if isinstance(bind, AsyncConnection) else bind
+    # Release the caller's read transaction before waiting. The lock owner uses
+    # this same connection for its domain work, so waiters cannot exhaust the
+    # pool while an owner needs a second connection to publish its result.
+    await session.rollback()
+    key = int.from_bytes(
+        hashlib.sha256(f"payment-checkout:{checkout_id}".encode()).digest()[:8],
+        "big",
+        signed=True,
+    )
+    async with engine.connect() as connection:
+        try:
+            await connection.execute(select(func.pg_advisory_lock(key)))
+            await connection.rollback()  # session locks survive rollback
+            async with AsyncSession(bind=connection, expire_on_commit=False) as locked_session:
+                yield locked_session
+        finally:
+            try:
+                await connection.execute(select(func.pg_advisory_unlock(key)))
+                await connection.rollback()
+            except BaseException:
+                # Never return a connection carrying a session lock to its pool.
+                await connection.invalidate()
+                raise
+
+
+async def _reconcile_unknown_checkout(
+    session: AsyncSession,
+    *,
+    checkout: PaymentCheckoutIntent,
+    adapter: PaymentGatewayAdapter,
+    actor_user_id: UUID,
+) -> bool:
+    """Return True only for same-reference dispatch; never authorize replacement."""
+    from app.services.billing.gateway import ingest_verified_payment_event
+
+    verified = None
+    error = None
+    try:
+        verified = await adapter.verify_transaction(checkout.reference)
+        outcome = "verified"
+    except PaystackNotFoundError:
+        outcome = "not_found_same_reference_retry"
+    except (PaystackOutcomeUnknownError, PaystackRejectedError, ValueError) as exc:
+        outcome = "unknown"
+        error = exc
+    except PaymentGatewayUnavailableError as exc:
+        raise AppError(
+            "PAYMENT_PROVIDER_NOT_CONFIGURED", "Online payment is not configured", status_code=503
+        ) from exc
+    if verified is not None:
+        await ingest_verified_payment_event(session, adapter=adapter, verified=verified)
+    await create_audit_event(
+        session,
+        actor_user_id=actor_user_id,
+        action="advertiser.payment_checkout.reconciled",
+        entity_type="payment_checkout_intent",
+        entity_id=str(checkout.id),
+        metadata={"reference": checkout.reference, "outcome": outcome},
+    )
+    if error is not None:
+        raise AppError(
+            "PAYMENT_CHECKOUT_INITIALIZATION_UNKNOWN",
+            "The saved payment reference is still uncertain. No replacement has been created.",
+            status_code=502,
+        ) from error
+    return verified is None
+
+
+async def initialize_invoice_payment_checkout(
     session: AsyncSession,
     *,
     checkout_id: UUID,
     adapter: PaymentGatewayAdapter,
     return_url: str,
+    actor_user_id: UUID | None = None,
+) -> tuple[PaymentCheckoutIntent, CheckoutSession | None]:
+    async with checkout_reference_lock(session, checkout_id) as locked_session:
+        try:
+            result = await _initialize_invoice_payment_checkout(
+                locked_session,
+                checkout_id=checkout_id,
+                adapter=adapter,
+                return_url=return_url,
+                actor_user_id=actor_user_id,
+            )
+        except AppError:
+            await locked_session.commit()
+            raise
+        # Publish the final state before another initializer/verifier owns the lock.
+        await locked_session.commit()
+        return result
+
+
+async def _initialize_invoice_payment_checkout(  # noqa: C901
+    session: AsyncSession,
+    *,
+    checkout_id: UUID,
+    adapter: PaymentGatewayAdapter,
+    return_url: str,
+    actor_user_id: UUID | None,
 ) -> tuple[PaymentCheckoutIntent, CheckoutSession | None]:
     """Initialize a previously committed intent and retain the provider URL."""
 
@@ -232,6 +342,7 @@ async def initialize_invoice_payment_checkout(  # noqa: C901
         select(PaymentCheckoutIntent)
         .where(PaymentCheckoutIntent.id == checkout_id)
         .with_for_update()
+        .execution_options(populate_existing=True)
     )
     if checkout is None:
         raise AppError(
@@ -243,15 +354,22 @@ async def initialize_invoice_payment_checkout(  # noqa: C901
             "Payment checkout provider configuration changed",
             status_code=status.HTTP_409_CONFLICT,
         )
-    if checkout.status == PaymentCheckoutStatus.INITIALIZED.value:
+    if checkout.status in {
+        PaymentCheckoutStatus.INITIALIZED.value,
+        PaymentCheckoutStatus.CONFIRMED.value,
+    }:
         return checkout, None
-    if checkout.status == PaymentCheckoutStatus.INITIALIZATION_UNKNOWN.value:
-        raise AppError(
-            "PAYMENT_CHECKOUT_INITIALIZATION_UNKNOWN",
-            "Paystack may already hold this checkout. Verify the saved reference before retrying.",
-            status_code=status.HTTP_409_CONFLICT,
+    recovering = checkout.status == PaymentCheckoutStatus.INITIALIZATION_UNKNOWN.value
+    if recovering:
+        dispatch = await _reconcile_unknown_checkout(
+            session,
+            checkout=checkout,
+            adapter=adapter,
+            actor_user_id=actor_user_id or checkout.requested_by_user_id,
         )
-    if checkout.status != PaymentCheckoutStatus.PENDING.value:
+        if not dispatch:
+            return checkout, None
+    elif checkout.status != PaymentCheckoutStatus.PENDING.value:
         raise AppError(
             "PAYMENT_CHECKOUT_NOT_INITIALIZABLE",
             "This payment checkout cannot be initialized",
@@ -275,7 +393,8 @@ async def initialize_invoice_payment_checkout(  # noqa: C901
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         ) from exc
     except ValueError as exc:
-        checkout.status = PaymentCheckoutStatus.FAILED.value
+        if not recovering:
+            checkout.status = PaymentCheckoutStatus.FAILED.value
         checkout.failure_code = type(exc).__name__
         await session.flush()
         raise AppError(
@@ -304,7 +423,10 @@ async def initialize_invoice_payment_checkout(  # noqa: C901
         if checkout.status == PaymentCheckoutStatus.CONFIRMED.value:
             return checkout, None
         require_initialization_unknown(checkout)
-        if isinstance(exc, PaystackRejectedError):
+        if recovering:
+            code = "PAYMENT_CHECKOUT_INITIALIZATION_UNKNOWN"
+            message = "The saved payment reference is still uncertain. Please verify it again."
+        elif isinstance(exc, PaystackRejectedError):
             checkout.status = PaymentCheckoutStatus.FAILED.value
             code = "PAYMENT_CHECKOUT_REJECTED"
             message = "Paystack rejected this checkout. Please start a new payment attempt."
@@ -339,10 +461,12 @@ async def get_advertiser_payment_checkout(
 ) -> PaymentCheckoutIntent:
     organization, _ = await get_required_advertiser_context(session, actor_user_id)
     checkout = await session.scalar(
-        select(PaymentCheckoutIntent).where(
+        select(PaymentCheckoutIntent)
+        .where(
             PaymentCheckoutIntent.reference == reference,
             PaymentCheckoutIntent.organization_id == organization.id,
         )
+        .execution_options(populate_existing=True)
     )
     if checkout is None:
         raise AppError(

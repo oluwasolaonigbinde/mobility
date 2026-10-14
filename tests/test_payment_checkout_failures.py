@@ -1,6 +1,7 @@
 """Checkout failure and retry boundaries that protect invoice and payment state."""
 
 import asyncio
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
 from types import SimpleNamespace
@@ -18,6 +19,22 @@ from app.api.v1 import billing as billing_api
 from app.core.errors import AppError
 from app.models.billing import InvoiceStatus, PaymentCheckoutStatus, PaymentClass
 from app.services.billing import checkout as billing_checkout
+
+
+@pytest.fixture(autouse=True)
+def fake_reference_lock_and_audit(monkeypatch):
+    # These are domain unit tests with fake sessions; PostgreSQL lock ownership
+    # and persisted audit are exercised with separate sessions in checkout tests.
+    @asynccontextmanager
+    async def lock(session, _identity):
+        yield session
+
+    async def audit(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(billing_checkout, "checkout_reference_lock", lock)
+    monkeypatch.setattr(billing_api, "checkout_reference_lock", lock)
+    monkeypatch.setattr(billing_checkout, "create_audit_event", audit)
 
 
 class Session:
@@ -54,6 +71,7 @@ class Adapter:
             checkout_url="https://checkout.paystack.com/synthetic",
         )
         self.create_calls = 0
+        self.requests = []
 
     def validate_checkout(self, _request):
         if self.validate_error is not None:
@@ -61,9 +79,13 @@ class Adapter:
 
     async def create_checkout(self, _request):
         self.create_calls += 1
+        self.requests.append(_request)
         if isinstance(self.create_result, Exception):
             raise self.create_result
         return self.create_result
+
+    async def verify_transaction(self, _reference):
+        raise PaystackOutcomeUnknownError("synthetic ambiguous reference")
 
 
 def payable_graph(*, invoice_status=InvoiceStatus.ISSUED.value, payment_class=None, currency="NGN"):
@@ -207,6 +229,7 @@ def checkout(status=PaymentCheckoutStatus.PENDING.value):
         commercial_terms_id=uuid4(),
         organization_id=uuid4(),
         invoice_id=uuid4(),
+        requested_by_user_id=uuid4(),
         amount=Decimal("100.00"),
         currency="NGN",
         customer_email="owner@example.test",
@@ -310,6 +333,40 @@ def test_initialize_checkout_returns_existing_initialized_intent_without_provide
     assert result is saved
     assert provider_session is None
     assert adapter.create_calls == 0
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [
+        PaystackRejectedError("duplicate reference"),
+        PaystackOutcomeUnknownError("response lost"),
+        ValueError("malformed recovery response"),
+    ],
+)
+def test_one_not_found_then_rejected_recovery_never_enables_a_replacement(monkeypatch, reply):
+    saved = checkout(PaymentCheckoutStatus.INITIALIZATION_UNKNOWN.value)
+    adapter = Adapter(create_result=reply)
+
+    async def absent(reference):
+        assert reference == saved.reference
+        raise PaystackNotFoundError("synthetic single ambiguous absence")
+
+    monkeypatch.setattr(adapter, "verify_transaction", absent)
+    session = Session(scalars=[saved, saved])
+    with pytest.raises(AppError) as error:
+        asyncio.run(
+            billing_checkout.initialize_invoice_payment_checkout(
+                session,
+                checkout_id=saved.id,
+                adapter=adapter,
+                return_url="https://cardvert.example/advertiser/billing/paystack/return",
+            )
+        )
+    assert error.value.code == "PAYMENT_CHECKOUT_INITIALIZATION_UNKNOWN"
+    assert saved.status == "initialization_unknown"
+    assert len(adapter.requests) == 1
+    assert adapter.requests[0].idempotency_key == saved.reference
+    assert session.added == []
 
 
 def test_prepare_checkout_reuses_the_same_active_amount(monkeypatch):
@@ -472,7 +529,7 @@ def test_checkout_routes_commit_failed_initialization_and_enqueue_verified_evide
     pending = checkout()
     confirmed = checkout(PaymentCheckoutStatus.CONFIRMED.value)
     event = SimpleNamespace(id=uuid4())
-    reads = iter((pending, confirmed))
+    reads = iter((pending, pending, confirmed))
     verified = object()
 
     async def get_checkout(*_args, **_kwargs):

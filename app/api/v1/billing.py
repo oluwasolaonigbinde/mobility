@@ -85,6 +85,7 @@ from app.services.billing.budget import (
     resume_campaign_after_budget_pause,
 )
 from app.services.billing.checkout import (
+    checkout_reference_lock,
     get_advertiser_payment_checkout,
     initialize_invoice_payment_checkout,
     prepare_invoice_payment_checkout,
@@ -469,6 +470,7 @@ async def advertiser_create_invoice_checkout(
             checkout_id=checkout.id,
             adapter=adapter,
             return_url=settings.paystack_checkout_return_url,
+            actor_user_id=user.id,
         )
         await session.commit()
     except AppError:
@@ -494,40 +496,47 @@ async def advertiser_verify_payment_checkout(
     )
     if checkout.status == "confirmed":
         return PaymentCheckoutRead.model_validate(checkout)
+    checkout_id = checkout.id
     await session.rollback()
-    try:
-        verified = await adapter.verify_transaction(reference)
-    except PaymentGatewayUnavailableError as exc:
-        raise AppError(
-            "PAYMENT_PROVIDER_NOT_CONFIGURED",
-            "Online payment is not configured",
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        ) from exc
-    except PaystackNotFoundError as exc:
-        raise AppError(
-            "PAYMENT_NOT_FINAL",
-            "Paystack has not confirmed this payment yet",
-            status_code=status.HTTP_409_CONFLICT,
-        ) from exc
-    except PaystackOutcomeUnknownError as exc:
-        raise AppError(
-            "PAYMENT_VERIFICATION_UNAVAILABLE",
-            "Paystack could not confirm the payment yet. Please try again.",
-            status_code=status.HTTP_502_BAD_GATEWAY,
-        ) from exc
-    except ValueError as exc:
-        raise AppError(
-            "PAYMENT_VERIFICATION_FAILED",
-            "Paystack returned payment evidence Cardvert could not verify",
-            status_code=status.HTTP_502_BAD_GATEWAY,
-        ) from exc
-    event, _ = await ingest_verified_payment_event(session, adapter=adapter, verified=verified)
-    await session.commit()
-    await enqueuer.enqueue_payment_event(event.id)
-    checkout = await get_advertiser_payment_checkout(
-        session, reference=reference, actor_user_id=actor_user_id
-    )
-    return PaymentCheckoutRead.model_validate(checkout)
+    async with checkout_reference_lock(session, checkout_id) as session:
+        checkout = await get_advertiser_payment_checkout(
+            session, reference=reference, actor_user_id=actor_user_id
+        )
+        if checkout.status == "confirmed":
+            return PaymentCheckoutRead.model_validate(checkout)
+        try:
+            verified = await adapter.verify_transaction(reference)
+        except PaymentGatewayUnavailableError as exc:
+            raise AppError(
+                "PAYMENT_PROVIDER_NOT_CONFIGURED",
+                "Online payment is not configured",
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            ) from exc
+        except PaystackNotFoundError as exc:
+            raise AppError(
+                "PAYMENT_NOT_FINAL",
+                "Paystack has not confirmed this payment yet",
+                status_code=status.HTTP_409_CONFLICT,
+            ) from exc
+        except PaystackOutcomeUnknownError as exc:
+            raise AppError(
+                "PAYMENT_VERIFICATION_UNAVAILABLE",
+                "Paystack could not confirm the payment yet. Please try again.",
+                status_code=status.HTTP_502_BAD_GATEWAY,
+            ) from exc
+        except ValueError as exc:
+            raise AppError(
+                "PAYMENT_VERIFICATION_FAILED",
+                "Paystack returned payment evidence Cardvert could not verify",
+                status_code=status.HTTP_502_BAD_GATEWAY,
+            ) from exc
+        event, _ = await ingest_verified_payment_event(session, adapter=adapter, verified=verified)
+        await session.commit()
+        await enqueuer.enqueue_payment_event(event.id)
+        checkout = await get_advertiser_payment_checkout(
+            session, reference=reference, actor_user_id=actor_user_id
+        )
+        return PaymentCheckoutRead.model_validate(checkout)
 
 
 @router.get("/admin/billing", response_model=list[BillingHistoryEntry])

@@ -106,7 +106,8 @@ increase or unresolved product decision is needed.
   container (binary in the runner), and test exact-cap/cap+1, absent/false length,
   pre-auth/persistence refusal and unchanged-byte signatures.
 - A02 uses a PostgreSQL session advisory lock on a separately owned connection
-  across the main session's commits and provider I/O, with guaranteed unlock or
+  with a recovery session bound to that same connection across commits and
+  provider I/O, with guaranteed unlock or
   connection invalidation on failure. Initializer and explicit verification use
   that same saved-checkout lock before checkout row locking; prepare's invoice
   lock ends before acquiring it. Webhook confirmation remains an independently
@@ -114,6 +115,8 @@ increase or unresolved product decision is needed.
   barrier-controlled separate-session initialize/recover/verify, release after
   failure and intervening webhook confirmation. Recovery duplicate/malformed or
   ambiguous replies never set FAILED or permit a new reference.
+  The caller's read transaction ends before waiting; owners need no second
+  pooled connection to publish, avoiding pool starvation from blocked waiters.
 - A03 selects non-superseded reproducible runs and checks supersession at BOTH
   worker and recommendation-reader boundaries. Delayed older jobs cannot make
   old output current. Durable discovery/dispatch isolates each pair's failures

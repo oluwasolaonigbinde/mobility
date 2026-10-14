@@ -157,6 +157,9 @@ public webhook, transfer and production-provider gates pass (REQ-035).
 Public payment callbacks are bounded to 1 MiB at the edge and during app
 streaming before authentication; original signed bytes remain unchanged (D84,
 REQ-171). Payment confirmation still requires canonical verified evidence.
+An interrupted online checkout is reconciled using its saved reference under
+serialized audited recovery; one ambiguous not-found reply never permits a new
+reference (D85, REQ-173).
 
 **Still open:** [REQ-051](requests.md) Paystack activation and developer admin
 access, [REQ-025](requests.md) password and two-step verification,
@@ -165,6 +168,7 @@ access, [REQ-025](requests.md) password and two-step verification,
 **History:**
 - **2026-08-14** — Client confirmed payment timing and methods (Q2, Q3, D18).
 - **2026-10-14** — Owner approved bounded public callback buffering (D84/REQ-171); earlier callbacks authenticated only after an unbounded body read. Local declared/chunked/exact-byte regressions pass; batch delivery gates remain pending.
+- **2026-10-14** — D85/REQ-173 recovers saved uncertain checkouts; the earlier implementation refused all initialization retries even after a pre-dispatch interruption. Recovery reuses the exact reference and canonical verification, retaining uncertainty after ambiguous/duplicate responses. Fake-I/O and separate-session checks pass; money review and full batch CI remain pending.
 - **2026-09-24** — Client chose Paystack with OPay settlement (client answers item 7).
 - **2026-09-28** — Paystack adapters built from the public docs, disabled without keys. Built in `dbd41e1` (REQ-004).
 - **2026-09-29** — Existing test-key access was established and one real ₦101 Test Mode checkout completed, verified and applied once by Cardvert; public webhook, transfer and production approval gates remain open (REQ-027, REQ-035).
