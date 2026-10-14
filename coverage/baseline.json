@@ -6,12 +6,12 @@
   },
   "critical": {
     "backend": {
-      "branch_covered": 6595,
-      "branch_percent": 82.6027,
-      "branch_total": 7984,
-      "line_covered": 31688,
-      "line_percent": 94.052,
-      "line_total": 33692,
+      "branch_covered": 6666,
+      "branch_percent": 82.7252,
+      "branch_total": 8058,
+      "line_covered": 31907,
+      "line_percent": 94.0821,
+      "line_total": 33914,
       "paths": [
         "app/__init__.py",
         "app/adapters/ad_platforms/__init__.py",
@@ -91,6 +91,7 @@
         "app/core/rate_limit.py",
         "app/core/security.py",
         "app/core/trip_enqueue.py",
+        "app/core/webhook_body.py",
         "app/db/__init__.py",
         "app/db/base.py",
         "app/db/integrity.py",
@@ -120,6 +121,7 @@
         "app/models/__init__.py",
         "app/models/assignment_activity.py",
         "app/models/audience_delivery.py",
+        "app/models/audience_work.py",
         "app/models/audit.py",
         "app/models/billing.py",
         "app/models/campaign.py",
@@ -309,12 +311,12 @@
       ]
     },
     "frontend": {
-      "branch_covered": 6867,
-      "branch_percent": 77.0188,
-      "branch_total": 8916,
-      "line_covered": 6636,
-      "line_percent": 85.3834,
-      "line_total": 7772,
+      "branch_covered": 6961,
+      "branch_percent": 77.2929,
+      "branch_total": 9006,
+      "line_covered": 6761,
+      "line_percent": 85.756,
+      "line_total": 7884,
       "paths": [
         "frontend/src/app/admin/advertisers/[organizationId]/company/actions.ts",
         "frontend/src/app/admin/advertisers/[organizationId]/page.tsx",
@@ -661,6 +663,7 @@
         "frontend/src/lib/files/creative-upload.ts",
         "frontend/src/lib/files/installation-evidence-upload.ts",
         "frontend/src/lib/files/onboarding-upload.ts",
+        "frontend/src/lib/files/use-document-uploads.ts",
         "frontend/src/lib/fonts.ts",
         "frontend/src/lib/format.ts",
         "frontend/src/lib/map/config.ts",
@@ -683,67 +686,29 @@
       ]
     }
   },
-  "eligible_inventory_sha256": "903270d02168f56351ecdc189470cb17282dfd60172775f27f7989d4b3f5eeff",
+  "eligible_inventory_sha256": "d8cc9556ea948b76b4b3227223248c969e5dbb0e628031af9010fca244389828",
   "global": {
-    "branch_covered": 13462,
-    "branch_percent": 79.6568,
-    "branch_total": 16900,
-    "line_covered": 38324,
-    "line_percent": 92.4272,
-    "line_total": 41464
+    "branch_covered": 13627,
+    "branch_percent": 79.8582,
+    "branch_total": 17064,
+    "line_covered": 38668,
+    "line_percent": 92.5116,
+    "line_total": 41798
   },
   "policy_sha256": "3dc2898f7e7a09232866464ca276146711f5cd72d626e869f1e829ce79c64f95",
   "refresh": {
     "inventory_changes": {
       "added": [
-        "app/adapters/banks.py",
-        "app/core/gps_health.py",
-        "app/jobs/business_health.py",
-        "app/jobs/monitoring.py",
-        "app/schemas/banks.py",
-        "app/services/bank_capture.py",
-        "app/services/billing/__init__.py",
-        "app/services/billing/authority.py",
-        "app/services/billing/budget.py",
-        "app/services/billing/checkout.py",
-        "app/services/billing/common.py",
-        "app/services/billing/gateway.py",
-        "app/services/billing/invoices.py",
-        "app/services/billing/queries.py",
-        "app/services/billing/quotes.py",
-        "app/services/billing/receipts.py",
-        "app/services/billing/settlements.py",
-        "app/services/business_health.py",
-        "app/services/driver_agreement.py",
-        "app/services/payouts/__init__.py",
-        "app/services/payouts/breakdown.py",
-        "app/services/payouts/common.py",
-        "app/services/payouts/corrections.py",
-        "app/services/payouts/daily.py",
-        "app/services/payouts/engine.py",
-        "app/services/payouts/evidence.py",
-        "app/services/payouts/ledger.py",
-        "app/services/payouts/read.py",
-        "app/services/payouts/rules.py",
-        "frontend/src/app/api/apply/onboarding/account-name/route.ts",
-        "frontend/src/app/api/apply/onboarding/banks/route.ts",
-        "frontend/src/app/apply/agreement/[version]/page.tsx",
-        "frontend/src/components/driver/application-bank-details.tsx",
-        "frontend/src/components/driver/bank-picker.tsx",
-        "frontend/src/components/driver/driver-agreement.tsx",
-        "frontend/src/lib/driver-agreement.ts"
+        "app/core/webhook_body.py",
+        "app/models/audience_work.py",
+        "frontend/src/lib/files/use-document-uploads.ts"
       ],
-      "removed": [
-        "app/services/billing.py",
-        "app/services/payouts.py",
-        "frontend/src/app/admin/payouts/rules/revisions-panel.tsx",
-        "frontend/src/app/admin/payouts/rules/rule-form.tsx"
-      ]
+      "removed": []
     },
-    "previous_baseline_sha256": "b8d97416cae62122a1b7cd28dece6f7107caaa2072824d5f9d5ff58ae51b869c",
-    "reason": "D33 Waves 3/4 controlled refresh from complete CI 38534616984 on 6a1c8e6e; full range from 48e4ab51 including REQ-158/159 qualified separately; new domain inventory and separate 85% money/privacy floors preserve existing eligibility, changed-code thresholds and exact adopted ratchets."
+    "previous_baseline_sha256": "4d5a9d8f8ceb86ad931fabcee098677d8778c4ad16cd008ac91ba7d5b468e3ff",
+    "reason": "REQ-171-177 final in-house governed inventory; complete CI 38566895593 after real batch behavior tests; preserve all exact adopted floors"
   },
-  "source_parent_sha": "6a1c8e6e0c47bf84b583b66f79263226073f7012",
-  "source_sha256": "89d3ec51a063992b5f43ae425657e70e35e79418df6a60d63545aa69b69f1948",
+  "source_parent_sha": "4f41e8958c1f769fe5aafbc7e1949a0cb5a73183",
+  "source_sha256": "ad87ca9fdd6ad817e523e41bdbde165a2b7ba1fde53a00e0fb7744cff71108b9",
   "version": 3
 }
