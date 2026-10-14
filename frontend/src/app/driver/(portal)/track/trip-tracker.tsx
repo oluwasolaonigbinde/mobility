@@ -512,7 +512,7 @@ export function TripTracker({
         try {
           let protocolVersion = protocolByTripRef.current.get(tripId);
           if (!protocolVersion) {
-            const authority = await getTripEvidenceAuthorityAction(tripId);
+            const authority = await getTripEvidenceAuthorityAction(tripId).catch(() => null);
             if (!authority) {
               if (mountedRef.current)
                 setError(
@@ -534,7 +534,12 @@ export function TripTracker({
               batchSequence: batch.cutSeq,
               evidenceProtocolVersion: protocolVersion,
               pings: batch.pings,
-            });
+            }).catch((): Awaited<ReturnType<typeof sendPingBatchAction>> => ({
+              error:
+                "Cardvert couldn't receive these updates. They are saved on this phone and will be tried again.",
+              retryable: true,
+              acknowledged: false,
+            }));
             if (result.error) {
               if (result.deferred) {
                 // OFF-006: already captured evidence refused only because the
@@ -1086,7 +1091,9 @@ export function TripTracker({
     async (complete: boolean | null) => {
       const endingTripId = tripRef.current?.id;
       if (endingTripId && endPhaseRef.current === "submitted") await flush(endingTripId);
-      const current = await getCurrentTripAction();
+      const current = await getCurrentTripAction().catch(
+        (): Awaited<ReturnType<typeof getCurrentTripAction>> => ({ outcome: "unknown" }),
+      );
       if (!mountedRef.current || !identityValidRef.current || !releaseWriterRef.current) return;
       if (current.trip && endPhaseRef.current === "submitted") {
         stopWatch();
@@ -1124,7 +1131,9 @@ export function TripTracker({
           ? protocolByTripRef.current.get(endedTripId)
           : undefined;
         if (endedTripId && protocolVersion === 2) {
-          const reconciled = await reconcileTripEvidenceAction(endedTripId);
+          const reconciled = await reconcileTripEvidenceAction(endedTripId).catch(
+            (): Awaited<ReturnType<typeof reconcileTripEvidenceAction>> => ({ outcome: "unknown" }),
+          );
           if (reconciled.outcome === "ended" && reconciled.adjudication) {
             terminalLeftoversRef.current.add(endedTripId);
             await finishEndedTrip(false);
@@ -1166,7 +1175,9 @@ export function TripTracker({
         if (meta?.endManifest) {
           endPhaseRef.current = "submitted";
           const complete = meta.endManifest.complete;
-          const result = await endTripAction(activeTrip.id, meta.endManifest);
+          const result = await endTripAction(activeTrip.id, meta.endManifest).catch(
+            (): Awaited<ReturnType<typeof endTripAction>> => ({ outcome: "unknown" }),
+          );
           if (result.outcome === "ended" && result.status === "sealed") {
             await finishEndedTrip(complete);
             return;
@@ -1216,7 +1227,9 @@ export function TripTracker({
       }
       const manifest = await queue.freezeEnd(activeTrip.id, complete);
       endPhaseRef.current = "submitted";
-      const result = await endTripAction(activeTrip.id, manifest);
+      const result = await endTripAction(activeTrip.id, manifest).catch(
+        (): Awaited<ReturnType<typeof endTripAction>> => ({ outcome: "unknown" }),
+      );
       if (result.outcome !== "ended") {
         if (mountedRef.current)
           setError(result.error ?? "Cardvert could not confirm whether the trip ended.");

@@ -253,6 +253,77 @@ describe("assignment activation authority", () => {
 });
 
 describe("storage fail-closed (finding 5)", () => {
+  it("keeps capture and the same batch retry after a rejected Flush transport", async () => {
+    const runtime = installRuntime();
+    const queue = fakeQueue({
+      listBatches: vi.fn().mockImplementation(async () => [BATCH]),
+      unsyncedCount: vi.fn().mockResolvedValue(1),
+      pendingCount: vi.fn().mockResolvedValue(20),
+    });
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    actions.sendPingBatchAction.mockRejectedValue(new Error("server-action transport lost"));
+    render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+    await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+    const capture = runtime.watchPosition.mock.calls[0]![0] as PositionCallback;
+    const fix = {
+      timestamp: Date.now(),
+      coords: { latitude: 9.06, longitude: 7.49, accuracy: 10, speed: 5, heading: 90 },
+    } as GeolocationPosition;
+    await act(async () => capture(fix));
+    await waitFor(() => expect(actions.sendPingBatchAction).toHaveBeenCalled());
+    expect(screen.getByRole("button", { name: /End trip/ })).toBeEnabled();
+    expect(queue.dropBatch).not.toHaveBeenCalled();
+    expect(queue.acknowledgeBatch).not.toHaveBeenCalled();
+    expect(screen.getByTestId("tracking-health")).toHaveAttribute("data-runtime-health", "active");
+    await act(async () => capture(fix));
+    await waitFor(() => expect(queue.addPing).toHaveBeenCalledTimes(2));
+    actions.sendPingBatchAction.mockResolvedValue({ acknowledged: true, receipt: RECEIPT });
+    queue.listBatches.mockResolvedValue([BATCH]);
+    await act(async () => capture(fix));
+    await waitFor(() => expect(queue.acknowledgeBatch).toHaveBeenCalled());
+    expect(
+      actions.sendPingBatchAction.mock.calls.every(
+        ([request]) => request.idempotencyKey === BATCH.key,
+      ),
+    ).toBe(true);
+  });
+
+  it.each(["end", "authority"])(
+    "reconciles rejected %s transport and retries its frozen manifest without storage failure",
+    async (failure) => {
+      const runtime = installRuntime();
+      const queue = fakeQueue();
+      pingQueue.openPingQueue.mockResolvedValue(queue);
+      if (failure === "end")
+        actions.endTripAction.mockRejectedValueOnce(new Error("server-action response lost"));
+      else {
+        actions.endTripAction.mockResolvedValueOnce({ outcome: "unknown" });
+        actions.getCurrentTripAction
+          .mockResolvedValueOnce({ trip: TRIP, outcome: "started" })
+          .mockRejectedValueOnce(new Error("authority transport lost"));
+      }
+      render(<TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />);
+      await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+      await userEvent.click(screen.getByRole("button", { name: /End trip/ }));
+      const retry = await screen.findByRole("button", { name: /Check trip status/ });
+      await waitFor(() => expect(retry).toBeEnabled());
+      expect(queue.forgetTrip).not.toHaveBeenCalled();
+      expect(runtime.watchPosition).toHaveBeenCalledTimes(1);
+      const manifest = actions.endTripAction.mock.calls[0]![1];
+      queue.meta.mockResolvedValue({
+        nextSeq: 3,
+        batchesCut: 2,
+        pingsRecorded: 3,
+        endManifest: manifest,
+      });
+      await userEvent.click(retry);
+      await waitFor(() => expect(actions.endTripAction).toHaveBeenCalledTimes(2));
+      expect(actions.endTripAction.mock.calls[1]![1]).toEqual(manifest);
+      await waitFor(() => expect(queue.forgetTrip).toHaveBeenCalledWith(TRIP_ID));
+      expect(queue.freezeEnd).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it("blocks starting a trip when IndexedDB cannot open", async () => {
     pingQueue.openPingQueue.mockRejectedValue(new Error("idb unavailable"));
     render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);

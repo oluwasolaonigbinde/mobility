@@ -331,6 +331,7 @@ continuous stop adds no distance (D39b, D43d).
 
 **History:**
 - **2026-08-14** — Client confirmed screen-on tracking with driver Start/End (Q10, D18).
+- **2026-10-14** — REQ-172 corrects browser-to-server transport failures being mistaken for durable-storage failure. Healthy Flush capture retains current session/offline authority and exact v2 batches; End uncertainty retains its frozen manifest and pauses capture until server reconciliation. Existing genuine queue, identity, visibility and writer-lock failures remain closed. Local tracker tests pass; independent money/consolidated review and batch CI remain pending.
 - **2026-08-20** — Owner chose a parked-time detector for hourly pay (120-second windows, 25-metre threshold; D22).
 - **2026-09-25** — Client set the 5-minute stop rule (D39b). Built for daily-rate pay in `e14149d` (REQ-002). Hourly (v1–v3) work keeps D22.
 - **2026-09-30** — Client confirmed the 5 minutes apply to **each** stop, not the whole trip or day (D43d).

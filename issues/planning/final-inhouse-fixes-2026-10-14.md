@@ -140,3 +140,14 @@ increase or unresolved product decision is needed.
 The amended contract implements the owner's already-approved behavior and scope;
 implementation proceeds under that approval. Consolidated post-build and named
 specialist reviews remain pending, with every criterion still requiring evidence.
+
+Temporary writer capacity is three (controller plus audience worker plus upload
+worker) while audience verification runs. Disjoint ownership: controller owns
+webhooks/tracker/billing and all delivery/product docs; audience worker owns only
+audience/measurement/report/worker/migration0107 and their named tests; upload
+worker owns only onboarding-upload helper, Apply person/vehicle forms and upload
+retry tests, renewal form and renewal tests. Only audience owns the DB test window;
+controller/upload frontend runs use separate local source copies with read-only
+shared dependencies. No concurrent writes to any file or shared verification
+source tree, no worker commits. Controller preserves the ordered commits.
+Capacity returns to controller plus one reviewer after implementations complete.
