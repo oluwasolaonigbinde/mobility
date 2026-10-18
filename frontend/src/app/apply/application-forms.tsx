@@ -66,9 +66,11 @@ export function DriverApplicationForms() {
                 error={applicationState.fieldErrors?.phone}
               />
               <Field
-                label="City you drive in (optional)"
+                label="City you drive in"
                 name="service_city"
                 autoComplete="address-level2"
+                required
+                maxLength={128}
                 error={applicationState.fieldErrors?.service_city}
               />
             </div>

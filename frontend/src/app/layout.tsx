@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import { productFontVariables } from "@/lib/fonts";
-import { THEME_BOOT_SCRIPT } from "@/lib/themes";
-import { ThemeSwitcher } from "@/components/ui/theme-switcher";
 import { Providers } from "./providers";
 import "./globals.css";
 
@@ -20,17 +18,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      suppressHydrationWarning
-      className="h-full antialiased"
-      data-theme="ivory-ledger"
-      style={productFontVariables}
-    >
+    <html lang="en" className="h-full antialiased" style={productFontVariables}>
       <body className="flex min-h-full flex-col">
-        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
         <Providers>{children}</Providers>
-        <ThemeSwitcher />
       </body>
     </html>
   );

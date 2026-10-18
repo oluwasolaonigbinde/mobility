@@ -1,114 +1,232 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
-import { requireRole } from "@/lib/auth/current-user";
+import { requireRole, isAdvertiserViewer } from "@/lib/auth/current-user";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
-import { formatCount, formatMoney } from "@/lib/format";
-import { Stat } from "@/components/ui/stat";
+import { formatCount, formatDateRange, formatDateTime, formatMoney } from "@/lib/format";
 import { Panel } from "@/components/ui/panel";
-import { StatusChip } from "@/components/ui/status-chip";
 import { DataUnavailable } from "@/components/ui/data-unavailable";
 import { loadAdvertiserPageData } from "@/lib/advertiser/page-data";
-import { statusLabel, statusTone } from "@/lib/campaigns/status";
+import { loadCampaignVisuals, previewFile } from "@/lib/advertiser/campaign-visuals";
+import { combineBudgets, minorDecimal, recordedBudget } from "@/lib/advertiser/budget-display";
+import { CampaignArtwork } from "@/components/campaigns/campaign-artwork";
+import { AreaGraphic } from "@/components/campaigns/area-graphic";
 
-export const metadata: Metadata = { title: "Overview" };
+export const metadata: Metadata = { title: "Home" };
 
 export default async function AdvertiserOverviewPage() {
   const me = await requireRole("advertiser");
   const api = createApiClient(await getSessionToken());
-  const [summaryResult, campaignsResult] = await Promise.all([
+  const [summary, first] = await Promise.all([
     loadAdvertiserPageData(() => api.GET("/api/v1/advertiser/dashboard/summary")),
     loadAdvertiserPageData(() =>
       api.GET("/api/v1/advertiser/campaigns", {
-        params: { query: { limit: 5, offset: 0 } },
+        params: { query: { status: "active", limit: 100, offset: 0 } },
       }),
     ),
   ]);
-  const summary = summaryResult.available ? summaryResult.data : undefined;
-
-  const greeting = new Date().getHours() < 12 ? "Good morning" : "Good evening";
-  const costTotal = summary?.costs.totals_by_currency[0];
-
+  let inventory = first;
+  if (first.available) {
+    const items = [...first.data.items];
+    while (items.length < first.data.total) {
+      const page = await loadAdvertiserPageData(() =>
+        api.GET("/api/v1/advertiser/campaigns", {
+          params: { query: { status: "active", limit: 100, offset: items.length } },
+        }),
+      );
+      if (!page.available) {
+        inventory = page;
+        break;
+      }
+      if (
+        !page.data.items.length ||
+        page.data.total !== first.data.total ||
+        page.data.items.some((next) => items.some((item) => item.id === next.id))
+      ) {
+        inventory = { available: false, reason: "protocol" };
+        break;
+      }
+      items.push(...page.data.items);
+    }
+    if (inventory.available) inventory = { available: true, data: { ...first.data, items } };
+  }
+  const running = inventory.available ? inventory.data.items : [];
+  const cards = await Promise.all(
+    running.map(async (campaign) => {
+      const [visuals, commercial] = await Promise.all([
+        loadCampaignVisuals(api, campaign.id),
+        loadAdvertiserPageData(() =>
+          api.GET("/api/v1/advertiser/campaigns/{campaign_id}/commercial", {
+            params: { path: { campaign_id: campaign.id } },
+          }),
+        ),
+      ]);
+      return {
+        campaign,
+        ...visuals,
+        budget: recordedBudget(
+          campaign,
+          commercial.available ? commercial.data.budget_evaluations : undefined,
+        ),
+      };
+    }),
+  );
+  const spending = inventory.available ? combineBudgets(cards.map((card) => card.budget)) : null;
+  const canWrite = !isAdvertiserViewer(me);
+  const start = canWrite ? (
+    <Link href="/advertiser/campaigns/new" className="brand-action w-full sm:w-auto">
+      Start a new campaign <span aria-hidden="true">↗</span>
+    </Link>
+  ) : null;
   return (
     <div className="animate-rise mx-auto max-w-6xl">
-      <h1 className="font-display text-3xl font-semibold tracking-tight">
-        {greeting}, {me.advertiser_organization?.name ?? me.user.full_name}
-      </h1>
-      <p className="micro text-muted mt-1 mb-8">Campaign overview</p>
-
-      {summaryResult.available ? (
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <Stat
-            label="Active campaigns"
-            value={formatCount(summary?.campaigns.active)}
-            hint={`${formatCount(summary?.campaigns.total)} total`}
-          />
-          <Stat
-            label="Active vehicles"
-            value={formatCount(summary?.assignments.active)}
-            tone="amber"
-            hint={`${formatCount(summary?.trips.total)} trips recorded`}
-          />
-          <Stat
-            label="Estimated ad exposure"
-            value={formatCount(summary?.impressions.estimated_impressions)}
-            tone="cyan"
-            hint="Estimated opportunities to see the ad, based on routes and traffic. This is not a count of people or measured views."
-          />
-          <Stat
-            label="Driver pay to date"
-            className="max-sm:[&>p:nth-child(2)]:text-2xl"
-            value={costTotal ? formatMoney(costTotal.final_payout_total, costTotal.currency) : "—"}
-            tone="green"
-            hint="Calculated driver pay; your invoice is shown in Billing."
-          />
+      <div className="mb-7 flex flex-wrap items-end justify-between gap-5">
+        <div>
+          <p className="text-muted mb-2 text-sm">
+            Hello, {me.advertiser_organization?.name ?? me.user.full_name}
+          </p>
+          <h1 className="font-display max-w-xl text-3xl font-semibold md:text-[2.5rem]">
+            Your brand, on the move.
+          </h1>
+          <p className="text-muted mt-3 text-sm md:text-base">
+            A little look at how your campaigns are doing.
+          </p>
         </div>
-      ) : (
+        {start}
+      </div>
+      <Panel
+        className="mb-9 grid grid-cols-2 gap-y-5 p-5 md:grid-cols-3 md:p-7"
+        aria-label="Running campaign figures"
+      >
+        <div className="pr-4">
+          <p className="text-muted text-sm">Running campaigns</p>
+          <p className="font-display mt-2 text-3xl font-semibold">
+            {inventory.available ? formatCount(inventory.data.total) : "—"}
+          </p>
+        </div>
+        <div className="border-edge order-3 col-span-2 border-t pt-5 md:order-2 md:col-span-1 md:border-t-0 md:border-l md:px-7 md:pt-0">
+          <p className="text-muted text-sm">Spent so far</p>
+          {spending ? (
+            <>
+              <p className="font-display mt-2 text-2xl font-semibold">
+                {formatMoney(minorDecimal(spending.spent), spending.currency)}
+              </p>
+              <p className="text-muted mt-1 text-xs">
+                of {formatMoney(minorDecimal(spending.budget), spending.currency)} budget
+              </p>
+              <p className="text-muted mt-1 text-xs">
+                As at {formatDateTime(spending.evaluatedAt)} · Nigeria time (WAT)
+              </p>
+            </>
+          ) : (
+            <p className="text-muted mt-3 text-sm">Spending is being updated.</p>
+          )}
+          <p className="text-muted mt-2 text-xs">Across your running campaigns</p>
+        </div>
+        <div className="border-edge order-2 border-l pl-5 md:order-3 md:pl-7">
+          <p className="text-muted text-sm">Cars on the road</p>
+          <p className="font-display mt-2 text-3xl font-semibold">
+            {summary.available ? formatCount(summary.data.assignments.active) : "—"}
+          </p>
+        </div>
+      </Panel>
+      {!summary.available ? (
         <DataUnavailable
           title="Campaign results unavailable"
-          reason={summaryResult.reason}
+          reason={summary.reason}
+          retryHref="/advertiser"
+          className="mb-5"
+        />
+      ) : null}
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="font-display text-xl font-semibold">On the road now</h2>
+        <Link href="/advertiser/campaigns" className="text-green text-sm font-semibold">
+          All campaigns →
+        </Link>
+      </div>
+      {!inventory.available ? (
+        <DataUnavailable
+          title="Campaigns unavailable"
+          reason={inventory.reason}
           retryHref="/advertiser"
         />
-      )}
-
-      {campaignsResult.available ? (
-        <Panel className="mt-6 overflow-hidden" aria-label="Recent campaigns">
-          <div className="border-edge flex flex-wrap items-center justify-between gap-3 border-b px-6 py-4">
-            <h2 className="font-display text-xl font-semibold">Recent campaigns</h2>
-            <Link href="/advertiser/campaigns" className="micro text-amber hover:underline">
-              View all {formatCount(campaignsResult.data.total)} campaigns →
-            </Link>
-          </div>
-          {campaignsResult.data.items.length ? (
-            <ul className="divide-edge divide-y">
-              {campaignsResult.data.items.map((campaign) => (
-                <li
-                  key={campaign.id}
-                  className="flex flex-wrap items-center justify-between gap-3 px-6 py-4"
-                >
-                  <Link
-                    href={`/advertiser/campaigns/${campaign.id}`}
-                    className="hover:text-amber font-medium"
-                  >
-                    {campaign.name}
-                  </Link>
-                  <StatusChip tone={statusTone[campaign.status]}>
-                    {statusLabel[campaign.status]}
-                  </StatusChip>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-muted px-6 py-6 text-sm">No campaigns yet.</p>
-          )}
+      ) : !cards.length ? (
+        <Panel className="flex flex-col items-center p-8 text-center">
+          <Image
+            src="/marketing/terrax/fleet-corridor-placeholder.svg"
+            width={1280}
+            height={720}
+            alt="Illustration of cars carrying adverts through a city"
+            className="mb-6 h-40 w-full max-w-sm rounded-2xl object-cover"
+          />
+          <h3 className="font-display text-2xl font-semibold">Your next big idea starts here.</h3>
+          <p className="text-muted mt-3 max-w-md text-sm">
+            No campaigns are running yet. Put your brand on the road and reach people as they go
+            about their day.
+          </p>
+          {canWrite ? <div className="mt-6">{start}</div> : null}
         </Panel>
       ) : (
-        <DataUnavailable
-          className="mt-6"
-          title="Campaigns unavailable"
-          reason={campaignsResult.reason}
-          retryHref="/advertiser"
-        />
+        <div className="grid gap-6">
+          {cards.map(({ campaign, artwork, areas }) => (
+            <Panel key={campaign.id} className="overflow-hidden">
+              <div className="grid md:grid-cols-[1.15fr_0.85fr]">
+                <div className="h-48 md:h-56">
+                  <CampaignArtwork
+                    name={campaign.name}
+                    fileId={artwork.available ? previewFile(artwork.data.items) : null}
+                  />
+                </div>
+                <div className="border-edge hidden overflow-hidden border-l md:block">
+                  {areas.available ? (
+                    <AreaGraphic areas={areas.data.items} />
+                  ) : (
+                    <p className="text-muted p-6 text-sm">
+                      The campaign area couldn&apos;t be loaded.
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-5 p-5 md:p-6">
+                <div>
+                  <p className="text-green mb-2 flex items-center gap-2 text-xs font-semibold">
+                    <span className="bg-green size-1.5 rounded-full" />
+                    Running
+                  </p>
+                  <h3 className="font-display text-lg font-semibold">
+                    <Link
+                      href={`/advertiser/campaigns/${campaign.id}`}
+                      className="hover:text-green"
+                    >
+                      {campaign.name}
+                    </Link>
+                  </h3>
+                  <p className="text-muted mt-2 text-sm">
+                    {formatDateRange(campaign.start_at, campaign.end_at)}
+                  </p>
+                  {areas.available ? (
+                    <p className="text-muted mt-1 text-sm">
+                      {areas.data.items.map((area) => area.name).join(" · ")}
+                    </p>
+                  ) : null}
+                </div>
+                <Link href={`/advertiser/campaigns/${campaign.id}`} className="brand-secondary">
+                  View campaign →
+                </Link>
+              </div>
+              <div className="border-edge h-32 border-t md:hidden">
+                {areas.available ? (
+                  <AreaGraphic areas={areas.data.items} />
+                ) : (
+                  <p className="text-muted p-5 text-sm">
+                    The campaign area couldn&apos;t be loaded.
+                  </p>
+                )}
+              </div>
+            </Panel>
+          ))}
+        </div>
       )}
     </div>
   );

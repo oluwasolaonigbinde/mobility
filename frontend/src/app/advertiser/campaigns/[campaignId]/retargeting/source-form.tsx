@@ -21,9 +21,12 @@ function Options({ values }: { values: string[] }) {
   );
 }
 
-export function SourceForm() {
+export function SourceForm({ campaignId }: { campaignId: string }) {
   const [sourceType, setSourceType] = useState("website-traffic");
-  const [state, action, pending] = useActionState(createSourceAction, initialState);
+  const [state, action, pending] = useActionState(
+    createSourceAction.bind(null, campaignId),
+    initialState,
+  );
   const operation = stableOperationKey(state);
   const website = sourceType === "website-traffic";
   const digital = sourceType === "digital-campaign-audience";

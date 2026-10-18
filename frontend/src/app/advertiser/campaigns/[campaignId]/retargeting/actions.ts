@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createApiClient } from "@/lib/api/client";
+import { z } from "zod";
+import { createApiClient, type ApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
 import { toApiDatetime } from "@/lib/campaigns/schema";
@@ -23,7 +24,8 @@ function nigeriaTime(formData: FormData, field: string): Date | null {
   const value = text(formData, field);
   if (!DATETIME_LOCAL.test(value)) return null;
   try {
-    return new Date(toApiDatetime(value) ?? "");
+    const instant = new Date(toApiDatetime(value) ?? "");
+    return Number.isFinite(instant.getTime()) ? instant : null;
   } catch {
     return null;
   }
@@ -31,12 +33,32 @@ function nigeriaTime(formData: FormData, field: string): Date | null {
 
 const OPERATION_KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+const campaignHref = (campaignId: string) => `/advertiser/campaigns/${campaignId}/retargeting`;
+async function currentCampaign(api: ApiClient, campaignId: string) {
+  if (!z.string().uuid().safeParse(campaignId).success) throw new Error("Invalid campaign");
+  const { data } = await api.GET("/api/v1/advertiser/campaigns/{campaign_id}", {
+    params: { path: { campaign_id: campaignId } },
+  });
+  if (data?.id !== campaignId) throw new Error("Campaign unavailable");
+}
+
 function operationKey(formData: FormData): string | null {
   const value = text(formData, "operation_key");
   return OPERATION_KEY.test(value) ? value : null;
 }
 
+function planningError(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 401) return "Please sign in again.";
+    if (error.status === 403) return "You don’t have permission to change this campaign.";
+    if (error.status === 404) return "This campaign or audience is no longer available.";
+    if (error.status === 409) return "The campaign or audience changed. Refresh and try again.";
+  }
+  return "That change couldn’t be saved. Please try again.";
+}
+
 export async function createSourceAction(
+  campaignId: string,
   _previous: SourceActionState,
   formData: FormData,
 ): Promise<SourceActionState> {
@@ -99,49 +121,23 @@ export async function createSourceAction(
   }
   try {
     const api = createApiClient(await getSessionToken());
+    await currentCampaign(api, campaignId);
     await api.POST("/api/v1/advertiser/retargeting-sources", {
       params: { header: { "Idempotency-Key": idempotencyKey } },
       body: body as never,
     });
   } catch (error) {
     return {
-      error: error instanceof ApiError ? error.message : "Could not reach the server.",
+      error: planningError(error),
       operationKey: idempotencyKey,
     };
   }
-  revalidatePath("/advertiser/planning-sources");
+  revalidatePath(campaignHref(campaignId));
   return { success: "Audience saved.", operationKey: idempotencyKey };
 }
 
-export async function deactivateSourceAction(
-  sourceId: string,
-  _previous: SourceActionState,
-  formData: FormData,
-): Promise<SourceActionState> {
-  const idempotencyKey = operationKey(formData);
-  if (idempotencyKey === null) {
-    return { error: "Refresh this page before retrying the operation." };
-  }
-  try {
-    const api = createApiClient(await getSessionToken());
-    await api.POST("/api/v1/advertiser/retargeting-sources/{source_id}/deactivate", {
-      params: {
-        path: { source_id: sourceId },
-        header: { "Idempotency-Key": idempotencyKey },
-      },
-    });
-  } catch (error) {
-    return {
-      error: error instanceof ApiError ? error.message : "Could not reach the server.",
-      operationKey: idempotencyKey,
-    };
-  }
-  revalidatePath("/advertiser/planning-sources");
-  revalidatePath("/admin/settings/audiences");
-  return { success: "Audience no longer used.", operationKey: idempotencyKey };
-}
-
 export async function createSourceLinkAction(
+  campaignId: string,
   _previous: SourceActionState,
   formData: FormData,
 ): Promise<SourceActionState> {
@@ -159,11 +155,28 @@ export async function createSourceLinkAction(
   }
   try {
     const api = createApiClient(await getSessionToken());
+    await currentCampaign(api, campaignId);
+    if (text(formData, "campaign_id") !== campaignId)
+      return { error: "Choose an area from this campaign.", operationKey: idempotencyKey };
+    const zoneId = text(formData, "zone_id");
+    if (!z.string().uuid().safeParse(zoneId).success)
+      return { error: "Choose an area from this campaign.", operationKey: idempotencyKey };
+    const { data: zone } = await api.GET(
+      "/api/v1/advertiser/campaigns/{campaign_id}/zones/{zone_id}",
+      { params: { path: { campaign_id: campaignId, zone_id: zoneId } } },
+    );
+    if (
+      !zone ||
+      zone.campaign_id !== campaignId ||
+      zone.id !== zoneId ||
+      zone.zone_type !== "target"
+    )
+      return { error: "Choose an area from this campaign.", operationKey: idempotencyKey };
     await api.POST("/api/v1/advertiser/retargeting-source-links", {
       params: { header: { "Idempotency-Key": idempotencyKey } },
       body: {
         source_id: text(formData, "source_id"),
-        campaign_id: text(formData, "campaign_id"),
+        campaign_id: campaignId,
         zone_id: text(formData, "zone_id"),
         start_at: startAt.toISOString(),
         end_at: endAt.toISOString(),
@@ -171,11 +184,11 @@ export async function createSourceLinkAction(
     });
   } catch (error) {
     return {
-      error: error instanceof ApiError ? error.message : "Could not reach the server.",
+      error: planningError(error),
       operationKey: idempotencyKey,
     };
   }
-  revalidatePath("/advertiser/planning-sources");
+  revalidatePath(campaignHref(campaignId));
   revalidatePath("/admin/settings/audiences");
   return {
     success: "Audience linked to the campaign area.",
@@ -184,6 +197,7 @@ export async function createSourceLinkAction(
 }
 
 export async function removeSourceLinkAction(
+  campaignId: string,
   linkId: string,
   _previous: SourceActionState,
   formData: FormData,
@@ -194,6 +208,14 @@ export async function removeSourceLinkAction(
   }
   try {
     const api = createApiClient(await getSessionToken());
+    await currentCampaign(api, campaignId);
+    if (!z.string().uuid().safeParse(linkId).success)
+      return { error: "Choose a link from this campaign.", operationKey: idempotencyKey };
+    const { data: link } = await api.GET("/api/v1/advertiser/retargeting-source-links/{link_id}", {
+      params: { path: { link_id: linkId } },
+    });
+    if (!link || link.id !== linkId || link.campaign_id !== campaignId)
+      return { error: "Choose a link from this campaign.", operationKey: idempotencyKey };
     await api.POST("/api/v1/advertiser/retargeting-source-links/{link_id}/remove", {
       params: {
         path: { link_id: linkId },
@@ -202,11 +224,11 @@ export async function removeSourceLinkAction(
     });
   } catch (error) {
     return {
-      error: error instanceof ApiError ? error.message : "Could not reach the server.",
+      error: planningError(error),
       operationKey: idempotencyKey,
     };
   }
-  revalidatePath("/advertiser/planning-sources");
+  revalidatePath(campaignHref(campaignId));
   revalidatePath("/admin/settings/audiences");
   return { success: "Audience unlinked from the campaign area.", operationKey: idempotencyKey };
 }

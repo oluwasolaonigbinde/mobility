@@ -14,6 +14,8 @@ import { loadDailyEarnings } from "@/lib/driver/load-daily-earnings";
 import { watDay } from "@/lib/driver/daily-earnings";
 import { TripTracker } from "./track/trip-tracker";
 import { InstallationEvidenceActions } from "./assignments/installation-evidence-actions";
+import { readDriverApi } from "@/lib/driver/api-read";
+import { JobVisual } from "@/components/driver/job-visual";
 
 export const metadata: Metadata = { title: "Home" };
 const actionClass =
@@ -22,7 +24,11 @@ const actionClass =
 export default async function DriverHomePage() {
   const me = await requireRole("driver");
   const api = createApiClient(await getSessionToken());
-  const [work, earnings] = await Promise.all([loadDriverCampaignJourney(), loadDailyEarnings(api)]);
+  const [work, earnings, visual] = await Promise.all([
+    loadDriverCampaignJourney(),
+    loadDailyEarnings(api),
+    readDriverApi(() => api.GET("/api/v1/driver/campaign-assignments/active")),
+  ]);
   if (earnings.state === "auth") redirect("/login");
   const assignment = work.activationAssignment;
   const next =
@@ -42,6 +48,7 @@ export default async function DriverHomePage() {
       : lastPaid?.status;
   const photoDue =
     work.photoStatus === "display_required" && work.journey.canStart && !work.currentTrip;
+  const noOffer = next?.id === "offer" && /^No (current|campaign) offer/.test(next.title);
   return (
     <FreshDriverAuthority
       refreshKey={crypto.randomUUID()}
@@ -50,13 +57,31 @@ export default async function DriverHomePage() {
       retryHref="/driver"
     >
       <div className="animate-rise flex flex-col gap-4">
-        <h1 className="font-display text-2xl font-semibold">Today</h1>
+        <div>
+          <p className="text-muted mb-1 text-sm">Hello, {me.user.full_name.split(" ")[0]}</p>
+          <h1 className="font-display text-2xl font-semibold">Let’s make today count.</h1>
+        </div>
         <Panel className="p-5">
           <h2 className="font-display text-xl font-semibold">
             {assignment?.campaignName ?? "Your next job"}
           </h2>
           {assignment ? (
             <p className="text-muted mt-1 text-sm">Car {assignment.plateNumber}</p>
+          ) : null}
+          {noOffer ? (
+            <p className="text-muted mt-3 text-sm leading-6">
+              You’re all set. We’ll message you when a job is ready.
+            </p>
+          ) : null}
+          {assignment ? (
+            <JobVisual
+              compact
+              terms={
+                visual.state === "ready" && visual.data.assignment?.id === assignment.id
+                  ? visual.data.assignment.offer_terms
+                  : undefined
+              }
+            />
           ) : null}
           <div className="mt-5">
             {work.currentTrip ? (
@@ -92,7 +117,9 @@ export default async function DriverHomePage() {
                   ? "Check photo status"
                   : work.photoStatus === "installation_required"
                     ? "Send installation photos"
-                    : (next?.title ?? "See jobs")}
+                    : noOffer
+                      ? "See jobs"
+                      : (next?.title ?? "See jobs")}
               </Link>
             )}
           </div>

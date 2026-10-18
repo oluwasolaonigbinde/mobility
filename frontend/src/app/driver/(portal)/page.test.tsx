@@ -1,8 +1,14 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { watDay } from "@/lib/driver/daily-earnings";
-const mocks = vi.hoisted(() => ({ earnings: vi.fn(), journey: vi.fn(), tracker: vi.fn() }));
-vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({}) }));
+import { ApiError } from "@/lib/api/errors";
+const mocks = vi.hoisted(() => ({
+  earnings: vi.fn(),
+  journey: vi.fn(),
+  tracker: vi.fn(),
+  visual: vi.fn(),
+}));
+vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: mocks.visual }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
 vi.mock("@/lib/auth/current-user", () => ({
   requireRole: async () => ({ user: { id: "driver", full_name: "Ada Driver" } }),
@@ -41,6 +47,14 @@ beforeEach(() => {
   localStorage.setItem("cardvert-phone-intro:driver", "seen");
   mocks.earnings.mockResolvedValue({ state: "ready", data: [] });
   mocks.journey.mockResolvedValue(ready);
+  mocks.visual.mockResolvedValue({
+    data: {
+      assignment: {
+        id: "job",
+        offer_terms: { zones: { target: [{ name: "Wuse II" }], exclusion: [] } },
+      },
+    },
+  });
 });
 it("places the existing safe Start control under today's job and car", async () => {
   render(await Home());
@@ -52,11 +66,46 @@ it("places the existing safe Start control under today's job and car", async () 
   );
   expect(screen.queryByText("Go to Start")).not.toBeInTheDocument();
 });
+
+it("adds only the matching authoritative job's frozen areas", async () => {
+  render(await Home());
+  expect(screen.getByText("Wuse II")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Start trip" })).toBeVisible();
+});
+it("never borrows areas from a different job or lets visual failure remove safe Start", async () => {
+  mocks.visual.mockResolvedValue({
+    data: {
+      assignment: {
+        id: "different-job",
+        offer_terms: { zones: { target: [{ name: "Wrong area" }] } },
+      },
+    },
+  });
+  render(await Home());
+  expect(screen.queryByText("Wrong area")).toBeNull();
+  expect(
+    screen.getByText(/Your job areas couldn’t be loaded|Your job areas couldn't be loaded/),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Start trip" })).toBeVisible();
+});
 it("opens just the photo task when proof is due", async () => {
   mocks.journey.mockResolvedValue({ ...ready, photoStatus: "display_required" });
   render(await Home());
   expect(screen.getByRole("button", { name: "Take today’s photo" })).toBeVisible();
   expect(screen.queryByRole("button", { name: "Start trip" })).not.toBeInTheDocument();
+});
+it.each([
+  ["Start trip", ready, "button"],
+  ["Take today’s photo", { ...ready, photoStatus: "display_required" }, "button"],
+  ["View live trip", { ...ready, currentTrip: { id: "trip" } }, "link"],
+] as const)("keeps %s when the optional visual read is unauthorised", async (name, work, role) => {
+  mocks.visual.mockRejectedValue(
+    new ApiError(401, { code: "UNAUTHENTICATED", message: "Expired session" }),
+  );
+  mocks.journey.mockResolvedValue(work);
+  render(await Home());
+  expect(screen.getByRole(role, { name })).toBeVisible();
+  expect(screen.getByText(/Areas to avoid couldn't be loaded/)).toBeInTheDocument();
 });
 it("keeps an active trip on Track", async () => {
   mocks.journey.mockResolvedValue({ ...ready, currentTrip: { id: "trip" } });

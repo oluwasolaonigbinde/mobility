@@ -159,6 +159,8 @@ describe("CommercialPanel copy", () => {
 
     expect(screen.getByRole("button", { name: "Accept these exact terms" })).toBeInTheDocument();
     expect(screen.getByText("Vehicle wrap production")).toBeInTheDocument();
+    expect(screen.queryByText("PRINT")).not.toBeInTheDocument();
+    expect(screen.getByText("Production")).toBeInTheDocument();
     expect(screen.getAllByText("₦100,000.00")).toHaveLength(3);
     expect(screen.getByText(/VAT 7.5% · ₦7,500.00/)).toBeInTheDocument();
     expect(screen.getByText("₦107,500.00")).toBeInTheDocument();

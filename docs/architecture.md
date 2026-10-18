@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.144 — 2026-10-18. Canonical source of truth: current state AND target state.**
+**Version 1.145 — 2026-10-18. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -756,13 +756,14 @@ regenerates. See §9 for the drift gate.
 
 ### 8.5 Design system **[BUILT]**
 
-- Tokens are Tailwind v4 `@theme` variables in `src/app/globals.css`. Four
-  retained product directions use scoped overrides: Ivory Ledger (default),
-  Broadside, Dispatch and Ledger. The picker labels them Directions 1–4 and
-  rejects obsolete stored selections. Use tokens, never raw hex in components.
+- Tokens are Tailwind v4 `@theme` variables in `src/app/globals.css`. D98
+  replaces selectable product directions with one white/brand-green palette;
+  theme registry, picker and stored-choice bootstrap are removed. Advertiser
+  and driver typography/surfaces use their portal scope; admin keeps its
+  existing typography, geometry, navigation, side panels and behaviour.
 - Fonts (`src/lib/fonts.ts`): Fraunces, Inter, Big Shoulders, Poppins, Archivo
   and IBM Plex Mono are self-hosted. Public Terrax styling is namespaced apart
-  from the product directions.
+  from the product palette.
 
 ### 8.6 Cardvert Driver PWA **[BUILT]**
 
@@ -3380,6 +3381,40 @@ financial decision/release authority remain unchanged.
 
 **[BUILT locally — D58 / REQ-105] Driver-application and vehicle staff review:** the person/bank and vehicle document rows use direct View submission as the acknowledgment. Every click uses the existing purpose-scoped, individually audited read: NIN/bank map to `person_payee_approval`; person files use `kyc_review` with `person_payee_approval:<submission_id>` reason; vehicle files use `kyc_review` with `vehicle_approval:<submission_id>` reason. The UI describes the respective purposes as Driver application review and Vehicle review. Keep Show NIN as its distinct reveal, at-most-60-second hiding, pagehide/hidden-visibility clearing and record-bound state resets. There is no separate need checkbox or purpose selection on these rows. Both consumers use the same direct-read lifecycle; the obsolete confirmation path is removed. Vehicle approval/expiry/rejection and eligibility rules are unchanged. No backend/API acknowledgment field or access rule is removed. Local focused verification is recorded in `issues/testing/client-polish-2026-10-04.md`; Person/bank and the owner-approved vehicle extension have passed focused verification, consolidated minimal-change review and the bounded implemented privacy/security review. Owner authorization covers the resulting local commit; it does not authorize merge or live use.
 
+### 27.8 Brand and simpler portal screens (D95–D99, REQ-181–186) **[TARGET — Phase 1 in progress]**
+
+One white/brand-green palette applies to signed-in screens; advertiser/driver
+headers pair the official Terrax mark with Cardvert. Admin is palette-only.
+Advertiser Home has running campaigns, recorded spending against budget and
+cars on the road, a new-campaign action and visual running-campaign cards.
+Authorised artwork uses the existing audited advertiser download authority
+through a bounded same-origin image response; missing/inaccessible images use
+a local illustration. Area graphics draw authorised GeoJSON without tile sources.
+The advertiser left side list becomes a native modal left drawer on phones.
+Account reuses company details, current sign-in, password and sign-out controls.
+Campaign sub-pages are tabs; overview leads with status/one next step and budget
+progress, with quotation/history behind Details and changes behind Manage.
+Retargeting moves to each campaign, with campaign-local reads/link mutations;
+company-wide audience deactivation is omitted. Invoices gets a campaign landing.
+
+D95 displays only complete recorded total-basis billing evaluations matching
+current campaign budget/currency, with as-at time. Home aggregates running
+campaigns only, without currency mixing or payout-derived spending. Missing,
+blocked, daily or mismatched evaluations remain unavailable; a live spending
+projection can follow Worker A's Phase 2 contract. Driver visuals use frozen
+job dates/rate/currency and target/exclusion names; a matching read supplies
+Home context without changing Start/photo/trip authority. A local vehicle
+illustration is explicitly approved for Phase 1; real driver artwork is Phase 2.
+
+D97 Phase 1 removes the advertiser permanent-cancel screen/action and prepares
+the reason form against category `campaign_cancellation`, own campaign reference,
+first message and idempotency identity. It sends no unsupported request and
+claims no success. Worker A Batch 2 supplies category create/list/detail support
+and removes the old endpoint; Phase 2 connects it with Cancellation request
+labels and the confirmation that work continues until Terrax confirms. D7 is
+incomplete until then. Existing cutoff, earnings, refund and staff authority stay.
+No provider calls, backend edits, deployment or merge are authorised in Phase 1.
+
 ### 27.7 Driver presentation (D65, REQ-127) **[TARGET — local verification]**
 
 Home embeds the existing tracker for direct Start after current journey and
@@ -3785,6 +3820,7 @@ failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
 
+- **v1.145 — 18 October 2026 (D95–D99/REQ-181–186):** Owner directs real implementation of Terrax's white/green brand look and simpler advertiser/driver screens. Single palette, advertiser drawer/tabs/visual campaign overview, recorded budget spending, campaign-local follow-up, frozen driver area names. Admin behaviour and geometry stay. Phase 1 is in progress; D7 request integration, scoped real driver artwork and live spending projection remain Phase 2. No merge, CI or deployment claimed.
 - **v1.144 — 19 October 2026 (REQ-188–192 / D90–D94 and REQ-180 additions, Batch 2 verification pending):** Coarse campaign results and protected frozen areas; durable weekly/end reports and staff rerun; default fixed budget policy and controller-delegated prerequisite removal; saved staff enquiries/conversion; 24-hour applicant continuation links; assigned-driver frozen artwork preview; D7 cancellation requests and staff-only whole-campaign cancellation through the existing financial engine, with a per-campaign request read (REQ-194); D103 booked amount on advertiser campaign reads; D104 acceptance raises the budget to the accepted gross (max), notices and pause only beyond the agreed total, pause above 100 %, daily budgets no longer enforced (REQ-193, REQ-196 open); applicant continuation state and reason (REQ-195); D105 three-car-only areas, removing the area reservation that blocked other outputs (REQ-197). Backend/API-client scope; screens belong to Worker B. [Delivery contract and evidence](req180-backend-batch2-delivery.md).
 
 - **v1.144 — 18 October 2026 (REQ-180 Worker A / D89):** Prompt postcommit file/email jobs with sweep recovery; byte-based empty BFF commands; current review/job-offer emails and plain clickable copy; required application city; staff badge/current-job summaries and grouped list counts. D89 replaces entropy syntax with normalized bank test-transfer references. All three API baselines move together. Scoped backend/frontend/native and real scanner/storage/arq verification pass; plan, security, money and consolidated reviews PASS. Worker B must integrate required city into Apply before the combined frontend typecheck is green. [Evidence and exact API contracts](req180-backend-delivery.md). No push, provider or deployment claim.

@@ -193,7 +193,7 @@ describe("DriverAssignmentsPage history availability", () => {
       },
     ]);
     render(await DriverAssignmentsPage({}));
-    expect(screen.getByText("— / day")).toBeInTheDocument();
+    expect(screen.getByText("Pay terms unavailable")).toBeInTheDocument();
     expect(screen.queryByText("₦0.00 / day")).not.toBeInTheDocument();
   });
 
@@ -273,7 +273,11 @@ describe("DriverAssignmentsPage history availability", () => {
           },
           eligibility: { stationary_window_seconds: 300, max_ping_gap_seconds: 120 },
         },
-        campaign: { name: "Abuja daily" },
+        campaign: {
+          name: "Abuja daily",
+          start_at: "2027-01-01T08:00:00Z",
+          end_at: "2027-02-01T08:00:00Z",
+        },
         vehicle: { plate_number: "ABC-125", vehicle_type: "sedan" },
       },
     ]);
@@ -284,6 +288,9 @@ describe("DriverAssignmentsPage history availability", () => {
       screen.queryByText("₦10,000.00 a day for 70 miles; shorter days pay a share."),
     ).not.toBeInTheDocument();
     expect(screen.getByText("₦10,000.00 / day")).toBeVisible();
+    expect(screen.getByText("Wuse II")).toBeVisible();
+    expect(screen.getByText(/1 Oct 2026.*1 Dec 2026/)).toBeVisible();
+    expect(screen.queryByText(/1 Jan 2027|1 Feb 2027/)).toBeNull();
     expect(screen.queryByText(/Answer by|How pay works|full day of 70/)).not.toBeInTheDocument();
     expect(screen.queryByText("Currency: NGN")).not.toBeInTheDocument();
     expect(screen.queryByText(/target · \d+ exclusion/)).not.toBeInTheDocument();

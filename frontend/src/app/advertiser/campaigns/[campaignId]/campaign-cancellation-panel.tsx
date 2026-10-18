@@ -1,72 +1,61 @@
 "use client";
+import { useState } from "react";
 
-import { useActionState, useState } from "react";
-import { Button } from "@/components/ui/button";
-import { Panel } from "@/components/ui/panel";
-import { requestCampaignCancellationAction, type CampaignReviewActionState } from "./actions";
-
-const initialState: CampaignReviewActionState = {};
+/** Agreed Worker A contract. Submission is connected in Phase 2. */
+export interface CampaignCancellationRequest {
+  category: "campaign_cancellation";
+  reference_type: "campaign";
+  reference_id: string;
+  message: string;
+  client_request_id: string;
+}
 
 export function CampaignCancellationPanel({
   campaignId,
-  clientRequestId,
+  campaignName,
 }: {
   campaignId: string;
-  clientRequestId: string;
+  campaignName: string;
 }) {
-  const [confirmed, setConfirmed] = useState(false);
-  const [state, formAction, pending] = useActionState(
-    requestCampaignCancellationAction,
-    initialState,
-  );
-
+  const [reason, setReason] = useState("");
+  const [touched, setTouched] = useState(false);
+  const reasonError = touched && !reason.trim() ? "Please add a short reason." : undefined;
+  const subject = encodeURIComponent(`Cancellation request: ${campaignName}`);
   return (
-    <Panel className="border-coral/30 mt-6 p-6" aria-label="Cancel campaign">
-      <h2 className="font-display text-xl font-semibold">Cancel campaign</h2>
-      <p className="text-muted mt-2 max-w-3xl text-sm">
-        Cancellation is permanent. New assignments and trip starts stop at one server-recorded
-        cutoff. Verified driver earnings before that cutoff remain payable. Refund eligibility is
-        determined from accepted terms and records of campaign preparation; cancellation does not
-        itself prove that money was transferred.
+    <section aria-label="Ask Terrax to cancel" className="border-edge mt-6 border-t pt-6">
+      <h2 className="font-display text-xl font-semibold">Ask Terrax to cancel this campaign</h2>
+      <label className="mt-4 grid gap-2 text-sm">
+        <span>Why would you like to cancel?</span>
+        <textarea
+          value={reason}
+          onChange={(event) => setReason(event.target.value)}
+          onBlur={() => setTouched(true)}
+          name="reason"
+          required
+          minLength={1}
+          maxLength={2000}
+          aria-invalid={Boolean(reasonError)}
+          aria-describedby={reasonError ? "cancel-reason-error" : undefined}
+          className="border-edge min-h-24 w-full rounded-xl border bg-white p-3"
+        />
+      </label>
+      {reasonError ? (
+        <p id="cancel-reason-error" role="alert" className="text-coral mt-2 text-sm">
+          {reasonError}
+        </p>
+      ) : null}
+      <button type="button" disabled className="brand-action mt-4" data-campaign-id={campaignId}>
+        Ask Terrax to cancel
+      </button>
+      <p className="text-muted mt-3 text-sm">
+        Contact Terrax Media to arrange cancellation.{" "}
+        <a
+          className="text-green underline"
+          href={`mailto:terraxmediacompany@gmail.com?subject=${subject}&body=${encodeURIComponent(reason.trim())}`}
+        >
+          Email Terrax Media
+        </a>
       </p>
-      <form action={formAction} className="mt-5 grid gap-4">
-        <input type="hidden" name="campaign_id" value={campaignId} />
-        <input type="hidden" name="client_request_id" value={clientRequestId} />
-        <label className="text-sm">
-          <span className="micro text-muted">Reason</span>
-          <textarea
-            name="reason"
-            required
-            maxLength={1000}
-            className="border-edge bg-raised mt-1 min-h-20 w-full rounded-lg border px-3.5 py-2"
-            placeholder="Explain why the campaign must stop"
-          />
-        </label>
-        <label className="flex items-start gap-3 text-sm">
-          <input
-            type="checkbox"
-            name="confirmed"
-            required
-            checked={confirmed}
-            onChange={(event) => setConfirmed(event.target.checked)}
-            className="mt-0.5 h-4 w-4"
-          />
-          <span>I understand this records a permanent cancellation cutoff.</span>
-        </label>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div aria-live="polite" className="text-sm">
-            {state.error ? (
-              <p role="alert" className="text-coral">
-                {state.error}
-              </p>
-            ) : null}
-            {state.done && !state.error ? <p className="text-green">✓ {state.done}</p> : null}
-          </div>
-          <Button type="submit" variant="danger" disabled={pending || !confirmed}>
-            {pending ? "Cancelling…" : "Cancel campaign permanently"}
-          </Button>
-        </div>
-      </form>
-    </Panel>
+    </section>
   );
 }

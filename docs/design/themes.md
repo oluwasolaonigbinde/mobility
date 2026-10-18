@@ -1,30 +1,20 @@
-# Visual directions
+# Cardvert brand look
 
-The client kept four switchable product designs (D37), and two new candidates
-were added for review (REQ-071). The floating picker labels them Directions
-1–6. The public Terrax landing page has its own namespaced styling and does not
-take part in product theme selection.
+D98 (18 October 2026, REQ-181/185) replaces the selectable visual directions
+with one white and brand-green signed-in design. The registry, picker,
+per-direction CSS and stored-choice bootstrap are removed.
 
-| Direction | Name | Slug | Design language |
-| --- | --- | --- | --- |
-| 1 | Ivory Ledger | `ivory-ledger` | Warm paper, Fraunces display type, ruled panels, terracotta accents |
-| 2 | Broadside | `broadside` | Poster typography, pill controls, bone canvas and forest navigation |
-| 3 | Dispatch | `dispatch` | Deep forest navigation around a calm paper workspace, Poppins and gold |
-| 4 | Ledger | `ledger` | Flat light surfaces, restrained rules, Archivo and deep teal |
-| 5 | Route | `route` | The current public site: Poppins headlines, pill eyebrows and ink pill buttons, soft cards, gold dashed route line, crimson accent, light shell |
-| 6 | Wrap | `wrap` | Vehicle-wrap blocks: wide clay shell, Archivo capitals at a larger scale, 2px ink outlines, hard offset shadows, square corners |
+- White surfaces and very dark green text (`#0a1c09`). Green actions use
+  `#256f1a` with white text; danger and information retain readable colours.
+- The official Terrax symbol sits beside Cardvert on advertiser/driver headers.
+  Its original green-to-red gradient is preserved; it is not redrawn or recoloured.
+- Advertiser and driver surfaces use Poppins headings, readable sans labels and
+  soft cards. Admin gets palette changes only, with its type, control geometry,
+  navigation and side panels retained.
+- Public marketing keeps its namespaced palette and established styling.
+- Tokens live in `frontend/src/app/globals.css`; there is no saved theme choice.
 
-Menu labels in the desktop sidebar and the mobile menu are one size step above
-other small labels in every direction (13px; Broadside 16px because its face is
-condensed; Wrap 14px in Archivo).
-
-Ivory Ledger is the default for first visits and for obsolete or invalid saved
-theme choices. All six choices use `html[data-theme="<slug>"]` with CSS token
-overrides in `frontend/src/app/globals.css`. The registry and pre-paint
-localStorage bootstrap live in `frontend/src/lib/themes.ts`; registry tests
-check that every choice has a token block and scoped design rules.
-
-The full retained palette specifications and measured contrast pairs are in
-[theme-specs.json](theme-specs.json). Product font binaries are self-hosted.
-Maps use the configured provider style or a local schematic background; no
-retained direction requires a separate basemap tint.
+Phase 1 delivery and verification are recorded under REQ-181–186. Cancellation
+request sending, real driver artwork and the live spending projection remain
+Phase 2 integrations. Earlier visual directions are historical decisions, not
+selectable application implementations.

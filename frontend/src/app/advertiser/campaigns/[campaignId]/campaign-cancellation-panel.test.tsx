@@ -1,33 +1,36 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 import { CampaignCancellationPanel } from "./campaign-cancellation-panel";
-
-vi.mock("./actions", () => ({
-  requestCampaignCancellationAction: vi.fn(),
-}));
-
-describe("CampaignCancellationPanel", () => {
-  it("requires an explicit permanent-cutoff confirmation before enabling cancellation", async () => {
-    const user = userEvent.setup();
-    render(
-      <CampaignCancellationPanel
-        campaignId="00000000-0000-4000-8000-00000000000a"
-        clientRequestId="00000000-0000-4000-8000-00000000000d"
-      />,
-    );
-
-    const button = screen.getByRole("button", { name: "Cancel campaign permanently" });
-    expect(button).toBeDisabled();
-    expect(
-      screen.getByText(/verified driver earnings before that cutoff remain payable/i),
-    ).toBeInTheDocument();
-
-    await user.click(
-      screen.getByRole("checkbox", {
-        name: "I understand this records a permanent cancellation cutoff.",
-      }),
-    );
-    expect(button).toBeEnabled();
-  });
+it("prepares a reason without submitting or claiming cancellation before Phase 2", async () => {
+  const user = userEvent.setup();
+  const { container } = render(
+    <CampaignCancellationPanel campaignId="campaign" campaignName="Wuse lunch rush" />,
+  );
+  await user.type(
+    screen.getByRole("textbox", { name: "Why would you like to cancel?" }),
+    "Our opening date changed.",
+  );
+  expect(screen.getByRole("button", { name: "Ask Terrax to cancel" })).toBeDisabled();
+  expect(container.querySelector("form")).toBeNull();
+  expect(screen.getByRole("link", { name: "Email Terrax Media" }).getAttribute("href")).toContain(
+    "Our%20opening%20date%20changed.",
+  );
+  expect(container).not.toHaveTextContent(
+    /cancel permanently|campaign cancelled|request sent|complaint/i,
+  );
+});
+it("requires a trimmed short reason without enabling unsupported submission", async () => {
+  const user = userEvent.setup();
+  render(<CampaignCancellationPanel campaignId="campaign" campaignName="Wuse lunch rush" />);
+  const reason = screen.getByRole("textbox", { name: "Why would you like to cancel?" });
+  expect(reason).toBeRequired();
+  expect(reason).toHaveAttribute("maxlength", "2000");
+  await user.type(reason, "   ");
+  await user.tab();
+  expect(screen.getByRole("alert")).toHaveTextContent("Please add a short reason.");
+  expect(reason).toHaveAttribute("aria-invalid", "true");
+  await user.type(reason, "Dates changed");
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.getByRole("button", { name: "Ask Terrax to cancel" })).toBeDisabled();
 });

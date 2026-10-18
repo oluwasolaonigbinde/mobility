@@ -5,7 +5,7 @@ vi.mock("./actions", () => ({ createSourceAction: vi.fn(async () => ({})) }));
 import { SourceForm } from "./source-form";
 
 it("explains the allowed categories without internal approval wording", () => {
-  render(<SourceForm />);
+  render(<SourceForm campaignId="campaign" />);
   expect(screen.getByText(/Choose categories only/)).toBeInTheDocument();
   expect(
     screen.getByText(/Names, emails, phone numbers, links, notes and files/),

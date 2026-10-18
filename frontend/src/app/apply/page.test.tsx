@@ -23,6 +23,11 @@ describe("public driver application page", () => {
       "/apply?step=apply",
     );
     expect(screen.getByRole("heading", { name: "Your contact details" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "City you drive in" })).toBeRequired();
+    expect(screen.getByRole("textbox", { name: "City you drive in" })).toHaveAttribute(
+      "maxlength",
+      "128",
+    );
     expect(screen.getByRole("heading", { name: "Check application status" })).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Code not working? Get a new one" }),

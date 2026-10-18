@@ -2,7 +2,6 @@ import { fireEvent, render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("./actions", () => ({
-  deactivateSourceAction: vi.fn(async () => ({})),
   removeSourceLinkAction: vi.fn(async () => ({})),
 }));
 

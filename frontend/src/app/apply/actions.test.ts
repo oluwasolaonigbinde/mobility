@@ -68,11 +68,25 @@ describe("driver application actions", () => {
     const form = new FormData();
     form.set("email", "driver@example.com");
     form.set("full_name", "Driver Name");
+    form.set("service_city", "Lagos");
 
     await expect(submitDriverApplicationAction({}, form)).resolves.toEqual({
       error: "We couldn't send your application right now. Please try again later.",
     });
   });
+
+  it.each([null, "", "   ", "a".repeat(129)])(
+    "refuses missing, blank or oversized city before calling the API: %s",
+    async (city) => {
+      const form = new FormData();
+      form.set("email", "driver@example.com");
+      form.set("full_name", "Driver Name");
+      if (city !== null) form.set("service_city", city);
+      const result = await submitDriverApplicationAction({}, form);
+      expect(result.fieldErrors?.service_city).toBeTruthy();
+      expect(mocks.post).not.toHaveBeenCalled();
+    },
+  );
 
   it("shows one pending status envelope for a reference", async () => {
     mocks.get.mockResolvedValue({

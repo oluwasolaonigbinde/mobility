@@ -19,7 +19,7 @@ const LOCAL_SCHEMATIC_STYLE: StyleSpecification = {
     {
       id: "local-background",
       type: "background",
-      paint: { "background-color": "#efe9d8" },
+      paint: { "background-color": "#f3f7f1" },
     },
   ],
 };
@@ -46,9 +46,9 @@ export const DEFAULT_CENTER: [number, number] = [7.4913, 9.0643];
 export const DEFAULT_ZOOM = 11;
 
 export const ZONE_COLORS = {
-  target: "#a63d17", // accent
-  bonus: "#1e5f5a", // secondary
-  exclusion: "#a3271c", // danger
+  target: "#256f1a", // accent
+  bonus: "#286961", // secondary
+  exclusion: "#b02030", // danger
 } as const satisfies Record<string, string>;
 
 /** CSS-var forms for DOM elements (legend chips) — track the active theme. */
@@ -63,7 +63,7 @@ export const ZONE_COLOR_VARS = {
  * variables). Falls back to the static palette during SSR.
  */
 export function zoneColors(): Record<keyof typeof ZONE_COLORS, string> & { neutral: string } {
-  const fallback = { ...ZONE_COLORS, neutral: "#5c5449" };
+  const fallback = { ...ZONE_COLORS, neutral: "#46543f" };
   if (typeof document === "undefined") return fallback;
   const styles = getComputedStyle(document.documentElement);
   const read = (name: string, fb: string) => styles.getPropertyValue(name).trim() || fb;

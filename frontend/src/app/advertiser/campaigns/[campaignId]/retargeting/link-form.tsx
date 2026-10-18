@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useMemo } from "react";
 import { createSourceLinkAction, type SourceActionState } from "./actions";
 import { ensureOperationKey, stableOperationKey } from "./operation-form";
 
@@ -35,24 +35,29 @@ function missingPrerequisite(
   if (targetZones.length === 0) {
     return zonesIncomplete
       ? "Campaign areas couldn't be loaded. Refresh the page to try again."
-      : "This campaign has no areas yet. Add one from the campaign's Zones page.";
+      : "This campaign has no areas yet. Add one from the campaign's Areas tab.";
   }
   return null;
 }
 
 export function LinkForm({
+  scopeCampaignId,
   sources,
   campaigns,
   zones,
   zonesIncomplete = false,
 }: {
+  scopeCampaignId: string;
   sources: SourceOption[];
   campaigns: CampaignOption[];
   zones: ZoneOption[];
   zonesIncomplete?: boolean;
 }) {
-  const [campaignId, setCampaignId] = useState(campaigns[0]?.id ?? "");
-  const [state, action, pending] = useActionState(createSourceLinkAction, initialState);
+  const campaignId = scopeCampaignId;
+  const [state, action, pending] = useActionState(
+    createSourceLinkAction.bind(null, scopeCampaignId),
+    initialState,
+  );
   const operation = stableOperationKey(state);
   const targetZones = useMemo(
     () => zones.filter((zone) => zone.campaignId === campaignId),
@@ -83,22 +88,10 @@ export function LinkForm({
           ))}
         </select>
       </label>
-      <label className="grid gap-1 text-sm">
-        <span className="text-ink font-medium">Campaign</span>
-        <select
-          name="campaign_id"
-          required
-          value={campaignId}
-          onChange={(event) => setCampaignId(event.target.value)}
-          className={fieldClass}
-        >
-          {campaigns.map((campaign) => (
-            <option key={campaign.id} value={campaign.id}>
-              {campaign.label}
-            </option>
-          ))}
-        </select>
-      </label>
+      <input type="hidden" name="campaign_id" value={campaignId} />
+      <p className="text-muted text-sm">
+        Campaign: {campaigns.find((campaign) => campaign.id === campaignId)?.label}
+      </p>
       <label className="grid gap-1 text-sm">
         <span className="text-ink font-medium">Campaign area</span>
         <select name="zone_id" required className={fieldClass}>

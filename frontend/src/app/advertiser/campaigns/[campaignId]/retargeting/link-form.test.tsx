@@ -19,21 +19,23 @@ describe("LinkForm prerequisites", () => {
     [{ sources: [source], campaigns: [], zones: [] }, "Create a campaign first."],
     [
       { sources: [source], campaigns: [campaign], zones: [] },
-      "This campaign has no areas yet. Add one from the campaign's Zones page.",
+      "This campaign has no areas yet. Add one from the campaign's Areas tab.",
     ],
     [
       { sources: [source], campaigns: [campaign], zones: [], zonesIncomplete: true },
       "Campaign areas couldn't be loaded. Refresh the page to try again.",
     ],
   ])("names the missing step and ties it to the disabled button", (props, message) => {
-    render(<LinkForm {...props} />);
+    render(<LinkForm scopeCampaignId="c1" {...props} />);
     expect(screen.getByText(message)).toBeInTheDocument();
     expect(connect()).toBeDisabled();
     expect(connect()).toHaveAccessibleDescription(message);
   });
 
   it("enables linking once an audience, campaign and area exist", () => {
-    render(<LinkForm sources={[source]} campaigns={[campaign]} zones={[zone]} />);
+    render(
+      <LinkForm scopeCampaignId="c1" sources={[source]} campaigns={[campaign]} zones={[zone]} />,
+    );
     expect(connect()).toBeEnabled();
     expect(screen.getByRole("option", { name: "Wuse II core" })).toBeInTheDocument();
   });

@@ -4,6 +4,7 @@ import { TabBar } from "@/components/driver/tab-bar";
 import { ServiceWorkerRegister } from "@/components/driver/sw-register";
 import { requireRole } from "@/lib/auth/current-user";
 import { NotificationCenter } from "@/components/notifications/notification-center";
+import { BrandWordmark } from "@/components/shell/brand-wordmark";
 
 export default async function DriverPortalLayout({ children }: { children: ReactNode }) {
   const me = await requireRole("driver");
@@ -16,8 +17,7 @@ export default async function DriverPortalLayout({ children }: { children: React
         style={{ paddingTop: "max(env(safe-area-inset-top), 0.75rem)" }}
       >
         <Link href="/driver" className="font-display shrink-0 text-lg font-semibold tracking-tight">
-          Cardvert<span className="text-amber">.</span>{" "}
-          <span className="text-muted font-sans text-sm font-medium">Driver</span>
+          <BrandWordmark />
         </Link>
         <div className="flex shrink-0 items-center gap-1 whitespace-nowrap sm:gap-3">
           <Link

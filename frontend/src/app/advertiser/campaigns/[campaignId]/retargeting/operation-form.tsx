@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, type FormEvent } from "react";
-import { deactivateSourceAction, removeSourceLinkAction, type SourceActionState } from "./actions";
+import { removeSourceLinkAction, type SourceActionState } from "./actions";
 
 const initialState: SourceActionState = {};
 
@@ -22,18 +22,15 @@ export function ensureOperationKey(event: FormEvent<HTMLFormElement>) {
 }
 
 export function TerminalPlanningActionForm({
-  kind,
+  campaignId,
   resourceId,
   label,
 }: {
-  kind: "deactivate-source" | "remove-link";
+  campaignId: string;
   resourceId: string;
   label: string;
 }) {
-  const serverAction =
-    kind === "deactivate-source"
-      ? deactivateSourceAction.bind(null, resourceId)
-      : removeSourceLinkAction.bind(null, resourceId);
+  const serverAction = removeSourceLinkAction.bind(null, campaignId, resourceId);
   const [state, action, pending] = useActionState(serverAction, initialState);
   const operation = stableOperationKey(state);
 

@@ -28,7 +28,9 @@ const sources = sourceFiles(SRC).filter((f) => f !== __filename);
 
 describe("no build-time or runtime Google Fonts dependency", () => {
   it("imports no font from next/font/google", () => {
-    const offenders = sources.filter((f) => /from\s+["']next\/font\/google["']/.test(readFileSync(f, "utf8")));
+    const offenders = sources.filter((f) =>
+      /from\s+["']next\/font\/google["']/.test(readFileSync(f, "utf8")),
+    );
     expect(offenders.map((f) => relative(SRC, f))).toEqual([]);
   });
 
@@ -37,7 +39,9 @@ describe("no build-time or runtime Google Fonts dependency", () => {
     // requesting one at build time or in the browser is.
     const offenders = sources.filter((f) =>
       /fonts\.(googleapis|gstatic)\.com/.test(
-        readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*/g, ""),
+        readFileSync(f, "utf8")
+          .replace(/\/\*[\s\S]*?\*\//g, "")
+          .replace(/\/\/.*/g, ""),
       ),
     );
     expect(offenders.map((f) => relative(SRC, f))).toEqual([]);
@@ -59,9 +63,9 @@ describe("retained font variables stay wired", () => {
     expect(productFonts).toContain(variable);
   });
 
-  it("the root layout applies the retained font variables and default direction", () => {
+  it("the root layout applies local font variables without a selectable direction", () => {
     expect(rootLayout).toMatch(/style=\{productFontVariables\}/);
-    expect(rootLayout).toMatch(/data-theme="ivory-ledger"/);
+    expect(rootLayout).not.toMatch(/data-theme|THEME_BOOT_SCRIPT/);
   });
 });
 
@@ -84,12 +88,17 @@ describe("vendored asset provenance", () => {
   // that they are the approved build's bytes is external: they were taken from
   // `coverage/correction-sep8/cached-fonts` and compared face-by-face against
   // the Google baseline in `coverage/correction-fonts/face-tuple-comparison.log`.
-  it.each(declared.map((f) => [f.file, f] as const))("%s matches its recorded hash and source", (_name, file) => {
-    const digest = createHash("sha256").update(readFileSync(join(ASSETS, file.file))).digest("hex");
-    expect(digest).toBe(file.sha256);
-    expect(file.source).toMatch(/^https:\/\/fonts\.gstatic\.com\//);
-    expect(file.unicodeRange).toMatch(/^U\+/);
-  });
+  it.each(declared.map((f) => [f.file, f] as const))(
+    "%s matches its recorded hash and source",
+    (_name, file) => {
+      const digest = createHash("sha256")
+        .update(readFileSync(join(ASSETS, file.file)))
+        .digest("hex");
+      expect(digest).toBe(file.sha256);
+      expect(file.source).toMatch(/^https:\/\/fonts\.gstatic\.com\//);
+      expect(file.unicodeRange).toMatch(/^U\+/);
+    },
+  );
 });
 
 describe("family declarations keep the approved fallback and preload shape", () => {

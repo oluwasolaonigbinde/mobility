@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { requireRole, isAdvertiserViewer } from "@/lib/auth/current-user";
 import { createApiClient } from "@/lib/api/client";
 import { loadAdvertiserPageData } from "@/lib/advertiser/page-data";
+import { loadCampaignAreas } from "@/lib/advertiser/campaign-visuals";
 import { getSessionToken } from "@/lib/auth/session";
 import { formatDateTime } from "@/lib/format";
 import { DataUnavailable } from "@/components/ui/data-unavailable";
@@ -13,9 +16,7 @@ import { LinkForm } from "./link-form";
 import { TerminalPlanningActionForm } from "./operation-form";
 import { SourceForm } from "./source-form";
 
-export const metadata: Metadata = { title: "Retargeting" };
-
-const RETRY_HREF = "/advertiser/planning-sources";
+export const metadata: Metadata = { title: "Reach these people again" };
 
 const suggestionState: Record<string, string> = {
   suppressed:
@@ -23,24 +24,36 @@ const suggestionState: Record<string, string> = {
   stale: "These suggestions are out of date, so they can't be downloaded.",
 };
 
-export default async function PlanningSourcesPage() {
+export default async function PlanningSourcesPage({
+  params,
+}: {
+  params: Promise<{ campaignId: string }>;
+}) {
+  const { campaignId } = await params;
+  const me = await requireRole("advertiser");
+  const canWrite = !isAdvertiserViewer(me);
+  const RETRY_HREF = `/advertiser/campaigns/${campaignId}/retargeting`;
   const api = createApiClient(await getSessionToken());
-  const [sourcesResult, linksResult, campaignsResult] = await Promise.all([
+  const [sourcesResult, linksResult, campaignResult] = await Promise.all([
     loadAdvertiserPageData(() => api.GET("/api/v1/advertiser/retargeting-sources")),
     loadAdvertiserPageData(() => api.GET("/api/v1/advertiser/retargeting-source-links")),
     loadAdvertiserPageData(() =>
-      api.GET("/api/v1/advertiser/campaigns", { params: { query: { limit: 100, offset: 0 } } }),
+      api.GET("/api/v1/advertiser/campaigns/{campaign_id}", {
+        params: { path: { campaign_id: campaignId } },
+      }),
     ),
   ]);
 
   const header = (
     <PageHeader
-      title="Retargeting"
-      eyebrow="Plan online follow-up around the areas and times your campaign covered. Ads are not sent automatically."
+      title="Reach these people again"
+      eyebrow="Plan your online follow-up around this campaign’s areas and times."
     />
   );
 
-  const unavailable = [sourcesResult, linksResult, campaignsResult].find(
+  if (!campaignResult.available && campaignResult.reason === "missing") notFound();
+  if (campaignResult.available && campaignResult.data.id !== campaignId) notFound();
+  const unavailable = [sourcesResult, linksResult, campaignResult].find(
     (result) => !result.available,
   );
   if (unavailable && !unavailable.available) {
@@ -56,8 +69,10 @@ export default async function PlanningSourcesPage() {
     );
   }
   const items = sourcesResult.available ? sourcesResult.data.items : [];
-  const links = linksResult.available ? linksResult.data.items : [];
-  const campaigns = campaignsResult.available ? campaignsResult.data.items : [];
+  const links = linksResult.available
+    ? linksResult.data.items.filter((link) => link.campaign_id === campaignId)
+    : [];
+  const campaigns = campaignResult.available ? [campaignResult.data] : [];
 
   const recommendations = new Map(
     await Promise.all(
@@ -73,14 +88,7 @@ export default async function PlanningSourcesPage() {
   );
   const zoneResults = await Promise.all(
     campaigns.map(async (campaign) => {
-      const zones = await loadAdvertiserPageData(() =>
-        api.GET("/api/v1/advertiser/campaigns/{campaign_id}/zones", {
-          params: {
-            path: { campaign_id: campaign.id },
-            query: { limit: 100, offset: 0, zone_type: "target" },
-          },
-        }),
-      );
+      const zones = await loadCampaignAreas(api, campaign.id);
       return zones.available
         ? zones.data.items.map((zone) => ({
             id: zone.id,
@@ -133,13 +141,6 @@ export default async function PlanningSourcesPage() {
                           time (WAT)
                         </p>
                       </div>
-                      {source.status === "active" ? (
-                        <TerminalPlanningActionForm
-                          kind="deactivate-source"
-                          resourceId={source.id}
-                          label="Stop using"
-                        />
-                      ) : null}
                     </div>
                   </article>
                 ))}
@@ -164,7 +165,8 @@ export default async function PlanningSourcesPage() {
                 {links.map((link) => {
                   const loaded = recommendations.get(link.id);
                   const recommendation = loaded?.available ? loaded.data : undefined;
-                  const ready = recommendation?.state === "ready";
+                  const ready =
+                    recommendation?.state === "ready" && recommendation.campaign_id === campaignId;
                   return (
                     <article key={link.id} className="p-5">
                       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -191,10 +193,10 @@ export default async function PlanningSourcesPage() {
                             Nigeria time (WAT)
                           </p>
                         </div>
-                        {link.status === "active" ? (
+                        {canWrite && link.status === "active" ? (
                           <div className="max-w-56 text-right">
                             <TerminalPlanningActionForm
-                              kind="remove-link"
+                              campaignId={campaignId}
                               resourceId={link.id}
                               label="Unlink"
                             />
@@ -239,7 +241,6 @@ export default async function PlanningSourcesPage() {
                                   Suggestion {item.rank} ·{" "}
                                   {zoneNames.get(link.zone_id) ?? "Area name unavailable"}
                                 </p>
-                                <p className="text-muted">Coarse cell: {item.coverage_cell}</p>
                                 <p>
                                   {formatDateTime(item.window_start_at)} →{" "}
                                   {formatDateTime(item.window_end_at)} · Nigeria time (WAT)
@@ -251,8 +252,8 @@ export default async function PlanningSourcesPage() {
                         {ready ? (
                           <div className="text-faint mt-3 space-y-2 text-sm">
                             <p>
-                              Based on governed aggregate vehicle movement from this campaign,
-                              matched to the linked audience and area.
+                              Based on where cars travelled for this campaign, matched to this
+                              audience and area.
                             </p>
                             {recommendation.uncertainty ? (
                               <p>{recommendation.uncertainty}</p>
@@ -268,30 +269,33 @@ export default async function PlanningSourcesPage() {
             )}
           </section>
         </div>
-        <div className="grid h-fit min-w-0 gap-5">
-          <Panel className="p-5">
-            <h2 className="mb-4 font-medium">Describe an audience</h2>
-            <SourceForm />
-          </Panel>
-          <Panel className="p-5">
-            <h2 className="font-medium">Link an audience to a campaign area</h2>
-            <p className="text-muted mt-1 mb-4 text-sm">
-              Linking doesn&apos;t change the campaign or send ads. It lets Cardvert suggest areas
-              and times from that campaign&apos;s routes for your own online follow-up.
-            </p>
-            <LinkForm
-              sources={items
-                .filter((source) => source.status === "active")
-                .map((source) => ({
-                  id: source.id,
-                  label: sourceDisplayLabel(source),
-                }))}
-              campaigns={campaigns.map((campaign) => ({ id: campaign.id, label: campaign.name }))}
-              zones={zoneOptions}
-              zonesIncomplete={zonesIncomplete}
-            />
-          </Panel>
-        </div>
+        {canWrite ? (
+          <div className="grid h-fit min-w-0 gap-5">
+            <Panel className="p-5">
+              <h2 className="mb-4 font-medium">Describe an audience</h2>
+              <SourceForm campaignId={campaignId} />
+            </Panel>
+            <Panel className="p-5">
+              <h2 className="font-medium">Link an audience to a campaign area</h2>
+              <p className="text-muted mt-1 mb-4 text-sm">
+                Linking doesn&apos;t change the campaign or send ads. It lets Cardvert suggest areas
+                and times from that campaign&apos;s routes for your own online follow-up.
+              </p>
+              <LinkForm
+                scopeCampaignId={campaignId}
+                sources={items
+                  .filter((source) => source.status === "active")
+                  .map((source) => ({
+                    id: source.id,
+                    label: sourceDisplayLabel(source),
+                  }))}
+                campaigns={campaigns.map((campaign) => ({ id: campaign.id, label: campaign.name }))}
+                zones={zoneOptions}
+                zonesIncomplete={zonesIncomplete}
+              />
+            </Panel>
+          </div>
+        ) : null}
       </div>
     </div>
   );

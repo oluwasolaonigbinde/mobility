@@ -17,7 +17,11 @@ const applicationSchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email address"),
   full_name: z.string().trim().min(1, "Enter your full name").max(255),
   phone: optionalText(32),
-  service_city: optionalText(128),
+  service_city: z
+    .string({ error: "Enter the city you drive in" })
+    .trim()
+    .min(1, "Enter the city you drive in")
+    .max(128, "Use 128 characters or fewer for your city"),
   country_code: optionalText(2).transform((value) => value?.toUpperCase()),
 });
 

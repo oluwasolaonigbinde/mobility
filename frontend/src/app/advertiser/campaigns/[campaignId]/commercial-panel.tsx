@@ -102,8 +102,8 @@ function QuotationFacts({ quotation, accepted }: { quotation: Quotation; accepte
           <thead className="micro text-muted">
             <tr>
               <th className="pb-2 font-normal">Item</th>
-              <th className="pb-2 font-normal">Kind</th>
-              <th className="pb-2 text-right font-normal">Exact amount</th>
+              <th className="pb-2 font-normal">Type</th>
+              <th className="pb-2 text-right font-normal">Amount</th>
             </tr>
           </thead>
           <tbody className="divide-edge/60 divide-y">
@@ -111,9 +111,8 @@ function QuotationFacts({ quotation, accepted }: { quotation: Quotation; accepte
               <tr key={`${String(item.code)}:${index}`}>
                 <td className="py-2 pr-3">
                   <span className="font-medium">{String(item.description)}</span>
-                  <span className="text-faint ml-2 font-mono text-xs">{String(item.code)}</span>
                 </td>
-                <td className="py-2 pr-3">{String(item.kind)}</td>
+                <td className="py-2 pr-3">{termLabel(String(item.kind))}</td>
                 <td className="py-2 text-right font-mono text-xs">
                   {exactMoney(quotation.currency, String(item.amount))}
                 </td>
@@ -166,7 +165,7 @@ function QuotationFacts({ quotation, accepted }: { quotation: Quotation; accepte
             {Object.keys(quotation.payment_terms).length ? (
               <TermsValue value={quotation.payment_terms} />
             ) : (
-              "No additional conditions recorded"
+              "No additional conditions"
             )}
           </div>
         </div>
@@ -202,7 +201,7 @@ export function CommercialPanel({
       <Panel className="mt-6 p-6">
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="font-display text-xl font-semibold">Commercial terms</h2>
+            <h2 className="font-display text-xl font-semibold">Quotation and payments</h2>
             <p className="micro text-muted mt-1">Your quotation, payment and production status</p>
           </div>
           <StatusChip tone={acceptedTerms ? "green" : latest ? "amber" : "default"}>
@@ -319,7 +318,7 @@ export function CommercialPanel({
               value={commercial.expedited_waiver_copy.accepted_wording_hash}
             />
             <Button type="submit" variant="ghost" className="mt-3" disabled={waiving}>
-              {waiving ? "Recording…" : "Record expedited waiver"}
+              {waiving ? "Saving…" : "Agree to an earlier production start"}
             </Button>
           </form>
         ) : null}

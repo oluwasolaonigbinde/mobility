@@ -35,7 +35,7 @@ export function AppShell({
     (org?.membership_role === "owner" || org?.membership_role === "manager");
 
   return (
-    <div className="flex min-h-dvh flex-1">
+    <div className={`flex min-h-dvh flex-1 ${me.user.role === "admin" ? "admin-portal" : ""}`}>
       <a
         href="#main"
         className="focus:bg-amber focus:text-bg sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-lg focus:px-3 focus:py-2 focus:text-sm"

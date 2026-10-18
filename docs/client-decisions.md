@@ -82,9 +82,12 @@ reviews pass, with full branch verification `38539599622` green.
 **Cardvert** (Q29). Signed-in screens say "Terrax Media" when a person acts
 (reviews, approvals, payments) and "Cardvert" for automatic actions; times read
 "Nigeria time (WAT)" (D38a). Advertiser and driver screens never show hashes,
-run IDs or fingerprints; staff screens and downloads may (D38c). Four visual
-directions remain, with Ivory Ledger as the default (D37); two new candidates,
-Directions 5 and 6, are offered for the client's review (REQ-071).
+run IDs or fingerprints; staff screens and downloads may (D38c). One white and
+brand-green signed-in design replaces the switchable directions and picker
+(D98/REQ-181/185). Advertiser and driver screens use friendly sans type and the
+Terrax mark beside Cardvert. Advertisers use a side list and a left phone drawer;
+campaign sub-pages are tabs. Admin receives the palette only, retaining its
+layout, side panels and behaviour. The public site's separate styling stays.
 The public website uses **Request a Quote** for its on-site advertiser
 enquiry, **Apply to drive** for `/apply`, and **Sign in** for `/login` (D52,
 REQ-070). Advertiser account setup remains operator-led; the enquiry creates
@@ -110,6 +113,7 @@ work days use realistic qualifying mileage and separate next-day payments.
 
 **History:**
 - **2026-10-18** — D93 / REQ-191 replaces email-only website enquiries with saved staff New enquiries and explicit advertiser-company conversion; public submission creates no account.
+- **2026-10-18** — Terrax's feedback asks for more white, brand colours, graphics and simpler advertiser/driver navigation; the owner directs implementation now without a further client approval step (REQ-181/185, D98). This supersedes D37's Ivory Ledger default and REQ-071's six switchable candidates. Phase 1 is being implemented on `design/brand-look-mockup`; rollout/merge is not yet claimed.
 - **2026-10-10** — Owner review replaces D65's seeded live trip with idle Start and the zero Today headline with latest payment; requires realistic daily amounts and next-day reconciliations, sans labels and nonrepeated job status (REQ-128–132, D66). Earlier D65 demo history had small trips paid together. Built in `b807d341`, with API projections in `affa641c`; final verification in `8f64cdb8` and full branch CI passed on 2026-10-12.
 - **2026-10-10** — Owner replaced the text-heavy driver screens with one job per screen (REQ-127, D65), direct safe Start, honest daily payment labels and settled demo history. D39/D40/D43 money and eligibility rules remain. Built in `b807d341`, with API projections in `affa641c`; final verification in `8f64cdb8` and full branch CI passed on 2026-10-12.
 - **2026-10-08** — Owner approved one consolidated portal clarity pass (REQ-120–REQ-125), including "Request a Quote", the contact-use notice without the separate ID/bank warning, and simpler sign-in/onboarding copy (D64). Built in `b807d341`, with API projections in `affa641c`; final verification in `8f64cdb8` and full branch CI passed on 2026-10-12.
@@ -225,7 +229,10 @@ every applicable 100% limit; it is never automatic. The client
 also wants fixed costs (printing, installation, permits, design and any other
 quoted fixed line) to count towards the budget together with media, for the
 80 %, 95 % and 100 % levels (REQ-037). This already worked; W1-B added tests
-that prove it. Accepted prices never change.
+that prove it. Accepted prices never change. Advertiser Home and campaign
+overview show spending against budget rather than driver pay (D95/REQ-182).
+Home covers running campaigns. Only matching total-budget billing evaluations
+are shown, with their recorded date; unavailable spending stays unavailable.
 
 
 
@@ -233,6 +240,7 @@ that prove it. Accepted prices never change.
 - **Before 2026-09-24** — One alert level (`budget_alert_ratio`) before the pause.
 - **2026-10-19** — Campaigns are fixed price, so warnings only cover charges beyond the agreed price. Owner's choice (D104, REQ-193). Previously a fully paid normal campaign reached 100 % of its budget and paused, and a daily budget paused a prepaid campaign. Advertisers now also see the booked amount against their budget (D103). The 80 %/95 % warnings cannot follow campaign progress until the client gives a rule for how spend builds up (REQ-196).
 - **2026-10-18** — D92 replaces deployment-configured blank ratios and external policy approval with default 80/95/100 enforcement. Controller delegates removal of that obsolete prerequisite (REQ-190); other gates and programme states remain unchanged.
+- **2026-10-18** — Owner accepts audit D5: replace advertiser driver-pay figures with spent so far of the budget (D95/REQ-182). Previous overview/detail screens led with calculated driver payouts. This changes presentation, not prices, financial authority or payout calculation; Phase 2 can add the live spend projection.
 - **2026-10-05** — W1-B added tests proving that printing, installation, permits, design and any other quoted fixed line already count towards the budget together with media, for the 80 %, 95 % and 100 % levels. Accepted prices never change (REQ-037). Owner review requested this plain wording (REQ-116 (renumbered at merge from wording REQ-112)). Built in `308f04a8`, with wording in `81de2f54`.
 - **2026-09-24** — Client asked for 80 % and 95 % warnings and a pause at 100 %; recipients "everybody" (read as all company members plus Terrax admins); fixed costs to count. The three levels and admin recipients were built in `7a9ceb0` (REQ-001); fixed costs were deferred to a money batch.
 
@@ -264,10 +272,16 @@ payment that authorises production; standard production waits until it
 closes. An advertiser may ask for earlier production through a recorded
 waiver, which ends refund eligibility once production starts. Cancelling stops
 new work at a fixed cutoff, and drivers are paid their verified earnings up to
-that moment (Q24, D20b).
+that moment (Q24, D20b). Advertisers ask Terrax Media to cancel instead of
+performing permanent self-service cancellation (D97/REQ-184). A cancellation
+request requires their own campaign and a reason; sending or resolving it does
+not itself cancel the campaign. Phase 1 removes the old screen control and
+prepares the request form; Phase 2 connects the `campaign_cancellation` support
+category and removes the old endpoint through Worker A. D7 is not complete yet.
 
 **History:**
 - **2026-08-14** — Client confirmed the window and waiver (Q24, D18, D20).
+- **2026-10-18** — Owner accepts audit D7: Ask Terrax to cancel, with recognisable cancellation-request labels and confirmation that the campaign continues until Terrax confirms (D97/REQ-184). Earlier advertiser UI directly executed permanent cancellation. Cutoff, earnings and refund authority remain unchanged; backend/category integration is Phase 2.
 
 ### Artwork
 
@@ -318,6 +332,9 @@ is registered to its driver, who is the payee; no fleet owners (Q23). Vehicle
 approval ends on an admin-entered date (D31). The **pilot is car-only;
 motorcycles deferred** until the owner or client raises them again (Q19, D88,
 REQ-179). Existing roadworthiness and documentation requirements remain.
+Driver Home and Jobs list the agreed job's frozen paying-area names, with
+exclusions separate, until the map account exists (D99/REQ-186/REQ-050). Phase 1
+uses a local vehicle illustration; scoped real artwork follows in Phase 2.
 
 Application emails use a 24-hour continuation link to the current details/car
 step, replacing the pasted code. Expiry, revocation, current approval and
@@ -336,6 +353,7 @@ renewal periods stay unset (D69, REQ-137). Mark expired retains the recorded out
 - **2026-10-18** — Owner accepts audit D9: staff may confirm an account by a small test transfer and type any bank reference (D89, REQ-187). Previously the backend demanded 32–512 bytes with no spaces/high-entropy syntax, and the form required 16 characters. New normalized 1–512-character references retain exact-version verification and first manual payout. Local implementation and specialist verification are in progress; no transfer or provider action authorized.
 
 - **2026-10-12** - Owner chose in-app versioned agreement/privacy acceptance in place of a signed-file upload, plus the shared searchable bank picker and confirmed adapter account-name check with unavailable-provider typed-name fallback (D77/D78, REQ-158/159). The previous signed agreement was a required KYC file and Apply asked for a typed 3-digit bank code and account name. Legal wording remains a draft internally (REQ-032); existing payout authority remains. Built in `a349c2e5`, with final repairs/evidence in `9e7f6147`; non-squash master merge `f77870fd`. Final local verification and independent reviews PASS. Under the one-off REQ-160/D79 exception, full CI/source-bound coverage evaluation is deferred until after Waves 3/4; the accepted integrated run failed, not green.
+- **2026-10-18** — Owner accepts audit D11: named paying areas from frozen offers replace the proposed driver map until REQ-050 (D99/REQ-186). The earlier Home and Jobs did not show the job geography. Frozen dates/rate/car and existing safe Start/photo blockers remain; no map-provider request is authorised.
 
 - **2026-10-14** — Owner chose a car-only pilot; motorcycles are deferred until the owner or client raises them again (D88, REQ-179). The previous current rule permitted roadworthy cars and motorcycles under D43(h)/REQ-034. This supersedes that motorcycle permission for the pilot; current car-only code and vehicle_type plumbing are unchanged. Built in `e2fdef5b`.
 
@@ -537,9 +555,13 @@ through a retry-safe monitored sweep with durable fair catch-up. Screens show
 governed area/cell, Nigeria-time hours, rationale, uncertainty, provenance and
 disclosure without fingerprints; superseded/stale authority is withheld (D86,
 REQ-174–176). Live activation remains off under the existing account/legal gates.
+Advertisers reach this feature inside each campaign as “Reach these people
+again”, rather than a main-menu Retargeting page (D96/REQ-183). Links and
+mutations stay within the selected campaign; saved audiences remain company-wide.
 
 **History:**
 - **2026-07** — Retargeting entered the MVP (D6); shape confirmed 2026-08-14 (Q11, D18, D20).
+- **2026-10-18** — Owner accepts audit D6: move the advanced feature inside the campaign and use plain wording (D96/REQ-183). The previous top-level page combined links for every company campaign. The local view omits company-wide audience deactivation; provider and privacy gates are unchanged.
 - **2026-10-14** — D86/REQ-174/176 fixes the missing normal segment producer and host-timezone-dependent planning instants. The earlier ready screen showed ranks/dates without usable area/time context. Unseeded worker, fairness/reissue and midnight tests pass; privacy review and full batch CI passed. Built in `9bd21ecb` (current-head test correction `7e9f18d8`).
 - **2026-09-24** — Client: off for the pilot (client answers item 18).
 
