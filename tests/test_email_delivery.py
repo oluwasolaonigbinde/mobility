@@ -58,6 +58,80 @@ class RecordingEmailAdapter:
         return EmailSubmission(provider_message_id=f"provider-{message.idempotency_key}")
 
 
+def test_driver_offer_email_rechecks_ownership_and_deduplicates(db_sessionmaker):
+    from conftest import (
+        create_test_campaign,
+        create_test_campaign_assignment,
+        create_test_driver_profile,
+        create_test_organization,
+        create_test_user,
+        create_test_vehicle,
+    )
+
+    from app.services.notifications import create_driver_business_notification, create_notification
+
+    admin = create_test_user(db_sessionmaker, email="offer-admin@example.test")
+    driver = create_test_user(db_sessionmaker, email="offered@example.test", role=UserRole.DRIVER)
+    other = create_test_user(
+        db_sessionmaker, email="other-offer@example.test", role=UserRole.DRIVER
+    )
+    profile = create_test_driver_profile(db_sessionmaker, user_id=driver.id)
+    car = create_test_vehicle(db_sessionmaker, driver_profile_id=profile.id)
+    org, _ = create_test_organization(db_sessionmaker)
+    campaign = create_test_campaign(
+        db_sessionmaker, organization_id=org.id, created_by_user_id=admin.id, name="Own offer"
+    )
+    assignment = create_test_campaign_assignment(
+        db_sessionmaker,
+        campaign_id=campaign.id,
+        driver_profile_id=profile.id,
+        vehicle_id=car.id,
+        assigned_by_user_id=admin.id,
+    )
+
+    async def run():
+        async with db_sessionmaker() as session:
+            for _ in range(2):
+                await create_driver_business_notification(
+                    session,
+                    driver_profile_id=profile.id,
+                    type_key=NotificationType.ASSIGNMENT_OFFERED,
+                    event_key=f"offer:{assignment.id}",
+                    payload={"assignment_id": str(assignment.id), "campaign_id": str(campaign.id)},
+                )
+            forged = await create_notification(
+                session,
+                recipient_user_id=other.id,
+                type_key=NotificationType.ASSIGNMENT_OFFERED,
+                channel=NotificationChannel.TRANSACTIONAL_EMAIL,
+                dedupe_key="forged-offer",
+                payload={"assignment_id": str(assignment.id), "campaign_id": str(campaign.id)},
+            )
+            await session.commit()
+            notices = list(
+                await session.scalars(
+                    select(Notification).where(Notification.recipient_user_id == driver.id)
+                )
+            )
+            assert len(notices) == 2
+            email = next(n for n in notices if n.channel == "transactional_email")
+        adapter = RecordingEmailAdapter()
+        for notice_id in (email.id, email.id, forged.id):
+            await process_email_notification(
+                db_sessionmaker,
+                notification_id=notice_id,
+                settings=_settings(),
+                email_adapter=adapter,
+                now=datetime.now(UTC),
+            )
+        assert len(adapter.messages) == 1
+        assert adapter.messages[0].recipient == driver.email
+        assert "Own offer" in adapter.messages[0].text_body
+        assert f"/driver/assignments?assignment_id={assignment.id}" in adapter.messages[0].html_body
+
+    asyncio.run(run())
+
+
 async def _seed_advertiser(sessionmaker, *, enabled: bool | None = True):
     async with sessionmaker() as session:
         user = User(
@@ -277,6 +351,7 @@ def test_driver_onboarding_email_is_not_delivered_after_terminal_application(
             submission = await submit_driver_application(
                 session,
                 DriverApplicationCreate(
+                    service_city="Abuja",
                     email=f"terminal-email-{terminal_status.value}@example.test",
                     full_name="Terminal Email Applicant",
                 ),

@@ -275,6 +275,13 @@ flagged after seven inactive days (Q20).
 
 ### Drivers and vehicles
 
+**Bank verification update (D89, REQ-187, 18 October):** When automatic account-name
+checking is unavailable, staff confirm the new driver's account with a small test
+transfer and type its bank reference. Any trimmed nonempty reference up to 512
+characters is accepted, with internal spaces/Unicode and no entropy rule;
+control characters are refused. Only the normalized hash is retained. Exact
+bank-version verification, audited staff approval and first manual payout remain.
+
 **7 Oct owner correction (D72, REQ-144):** Renewals show each document’s own result and ask only for replacements; retained NIN/bank details and accepted documents are reused. Bank choice uses names, uploads match the app, and copy describes the actual new-trip pause while existing trips may finish.
 
 
@@ -298,6 +305,8 @@ staff review. Work remains blocked until the current reviews pass. Unknown
 renewal periods stay unset (D69, REQ-137). Mark expired retains the recorded outcomes, dates and review history. Actually expired driver or vehicle documents require new clean uploads and audited current approval before work resumes; accepted retained documents remain reusable (D76, REQ-152).
 
 **History:**
+- **2026-10-18** — Owner accepts audit D9: staff may confirm an account by a small test transfer and type any bank reference (D89, REQ-187). Previously the backend demanded 32–512 bytes with no spaces/high-entropy syntax, and the form required 16 characters. New normalized 1–512-character references retain exact-version verification and first manual payout. Local implementation and specialist verification are in progress; no transfer or provider action authorized.
+
 - **2026-10-12** - Owner chose in-app versioned agreement/privacy acceptance in place of a signed-file upload, plus the shared searchable bank picker and confirmed adapter account-name check with unavailable-provider typed-name fallback (D77/D78, REQ-158/159). The previous signed agreement was a required KYC file and Apply asked for a typed 3-digit bank code and account name. Legal wording remains a draft internally (REQ-032); existing payout authority remains. Built in `a349c2e5`, with final repairs/evidence in `9e7f6147`; non-squash master merge `f77870fd`. Final local verification and independent reviews PASS. Under the one-off REQ-160/D79 exception, full CI/source-bound coverage evaluation is deferred until after Waves 3/4; the accepted integrated run failed, not green.
 
 - **2026-10-14** — Owner chose a car-only pilot; motorcycles are deferred until the owner or client raises them again (D88, REQ-179). The previous current rule permitted roadworthy cars and motorcycles under D43(h)/REQ-034. This supersedes that motorcycle permission for the pilot; current car-only code and vehicle_type plumbing are unchanged. Built in `e2fdef5b`.

@@ -87,7 +87,7 @@ class CampaignCreate(BaseModel):
         ):
             raise ValueError("Daily budget must not exceed total budget")
         if self.start_at is not None and self.end_at is not None and self.start_at >= self.end_at:
-            raise ValueError("Campaign start_at must be before end_at")
+            raise ValueError("The start date must be before the end date")
         return self
 
 
@@ -137,7 +137,7 @@ class CampaignUpdate(BaseModel):
         ):
             raise ValueError("Daily budget must not exceed total budget")
         if self.start_at is not None and self.end_at is not None and self.start_at >= self.end_at:
-            raise ValueError("Campaign start_at must be before end_at")
+            raise ValueError("The start date must be before the end date")
         return self
 
 
@@ -159,8 +159,13 @@ class CampaignRead(DecimalStringMixin):
     updated_at: datetime
 
 
+class CampaignListItemRead(CampaignRead):
+    assignment_count: int = Field(ge=0)
+    target_zone_count: int = Field(ge=0)
+
+
 class CampaignListResponse(BaseModel):
-    items: list[CampaignRead]
+    items: list[CampaignListItemRead]
     total: int
     limit: int
     offset: int
@@ -201,8 +206,13 @@ class AdminCampaignRead(CampaignRead):
     organization: AdminCampaignOrganizationSummary
 
 
+class AdminCampaignListItemRead(AdminCampaignRead):
+    assignment_count: int = Field(ge=0)
+    target_zone_count: int = Field(ge=0)
+
+
 class AdminCampaignListResponse(BaseModel):
-    items: list[AdminCampaignRead]
+    items: list[AdminCampaignListItemRead]
     total: int
     limit: int
     offset: int

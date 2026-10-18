@@ -42,8 +42,16 @@ class OrganizationMembershipRead(BaseModel):
     status: MembershipStatus
 
 
+class AdminOrganizationListItemRead(AdvertiserOrganizationRead):
+    member_count: int = Field(ge=0)
+    live_campaign_count: int = Field(ge=0)
+    billing_contact_name: str | None
+    operational_contact_name: str | None
+    operational_contact_email: str | None
+
+
 class AdminOrganizationListResponse(BaseModel):
-    items: list[AdvertiserOrganizationRead]
+    items: list[AdminOrganizationListItemRead]
     total: int
     limit: int
     offset: int

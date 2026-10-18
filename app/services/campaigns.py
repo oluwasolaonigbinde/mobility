@@ -89,7 +89,7 @@ def ensure_campaign_rules(
     ):
         raise AppError(
             "INVALID_CAMPAIGN_DATES",
-            "Campaign start_at must be before end_at",
+            "The start date must be before the end date",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 

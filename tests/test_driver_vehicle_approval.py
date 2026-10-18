@@ -354,7 +354,11 @@ def test_complete_approval_terminalizes_application_and_revokes_access(
     )
     duplicate = db_client.post(
         "/api/v1/auth/register-driver",
-        json={"email": application.email, "full_name": "Generic Duplicate"},
+        json={
+            "service_city": "Abuja",
+            "email": application.email,
+            "full_name": "Generic Duplicate",
+        },
     )
     invalid_mutation = db_client.post(
         f"/api/v1/auth/driver-onboarding/files/{uuid4()}/status",

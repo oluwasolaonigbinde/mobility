@@ -13,6 +13,7 @@ from app.schemas.retargeting_sources import (
     RetargetingSourceCreate,
     RetargetingSourceEventRead,
     RetargetingSourceHistoryRead,
+    RetargetingSourceListItemRead,
     RetargetingSourceListRead,
     RetargetingSourceRead,
 )
@@ -42,6 +43,39 @@ async def source_response(session: SessionDependency, source) -> RetargetingSour
         expires_at=source.expires_at,
         created_at=source.created_at,
         deactivated_at=source.deactivated_at,
+    )
+
+
+async def source_list_response(session: SessionDependency, sources) -> RetargetingSourceListRead:
+    from app.models.retargeting_source_link import RetargetingSourceLink
+    from app.services.audience import _source_status
+    from app.services.list_counts import grouped_counts
+    from app.services.payout_rule_serialization import database_clock
+
+    counts = await grouped_counts(
+        session,
+        RetargetingSourceLink.source_id,
+        [row.id for row in sources],
+        RetargetingSourceLink.status != "removed",
+    )
+    now = await database_clock(session)
+    return RetargetingSourceListRead(
+        items=[
+            RetargetingSourceListItemRead(
+                id=row.id,
+                organization_id=row.organization_id,
+                source_type=row.source_type,
+                snapshot=row.snapshot,
+                snapshot_sha256=row.snapshot_sha256,
+                status=_source_status(row, now),
+                expires_at=row.expires_at,
+                created_at=row.created_at,
+                deactivated_at=row.deactivated_at,
+                link_count=counts.get(row.id, 0),
+            )
+            for row in sources
+        ],
+        total=len(sources),
     )
 
 
@@ -85,9 +119,7 @@ async def list_advertiser_sources(
     sources = await list_advertiser_retargeting_sources(
         session, settings=settings, actor_user_id=user.id
     )
-    return RetargetingSourceListRead(
-        items=[await source_response(session, source) for source in sources], total=len(sources)
-    )
+    return await source_list_response(session, sources)
 
 
 @router.get("/advertiser/retargeting-sources/{source_id}", response_model=RetargetingSourceRead)
@@ -151,9 +183,7 @@ async def list_admin_sources(
     sources = await list_admin_retargeting_sources(
         session, settings=settings, actor_user_id=user.id
     )
-    return RetargetingSourceListRead(
-        items=[await source_response(session, source) for source in sources], total=len(sources)
-    )
+    return await source_list_response(session, sources)
 
 
 @router.get("/admin/retargeting-sources/{source_id}", response_model=RetargetingSourceRead)

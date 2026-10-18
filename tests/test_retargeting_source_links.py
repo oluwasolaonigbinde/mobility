@@ -368,6 +368,17 @@ def test_link_lifecycle_compatibility_retry_staleness_and_isolation(
 
     asyncio.run(service_admin_boundary())
 
+    source_page = db_client.get(
+        "/api/v1/advertiser/retargeting-sources", headers=owner_headers
+    ).json()
+    assert source_page["total"] == 1 and source_page["items"][0]["link_count"] == 1
+    assert (
+        db_client.get("/api/v1/advertiser/retargeting-sources", headers=other_headers).json()[
+            "items"
+        ]
+        == []
+    )
+
     async def change_zone() -> None:
         async with db_sessionmaker() as session:
             zone = await session.get(CampaignZone, target_id)
@@ -389,6 +400,12 @@ def test_link_lifecycle_compatibility_retry_staleness_and_isolation(
     )
     assert removed.status_code == 200
     assert removed.json()["status"] == "removed"
+    assert (
+        db_client.get("/api/v1/advertiser/retargeting-sources", headers=owner_headers).json()[
+            "items"
+        ][0]["link_count"]
+        == 0
+    )
     assert (
         db_client.post(
             f"/api/v1/advertiser/retargeting-source-links/{link['id']}/remove",

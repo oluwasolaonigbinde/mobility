@@ -624,6 +624,9 @@ async def _confirm_upload(
         select(StoredFile).where(StoredFile.upload_intent_id == intent.id)
     )
     if existing is not None:
+        from app.core.outbox_enqueue import pending_job
+
+        pending_job(session, "scan_file", existing.id)
         return existing
     if intent.status == UploadIntentStatus.EXPIRED or _aware(intent.expires_at) <= datetime.now(
         UTC
@@ -670,6 +673,9 @@ async def _confirm_upload(
     session.add(stored_file)
     intent.status = UploadIntentStatus.CONFIRMED
     await session.flush()
+    from app.core.outbox_enqueue import pending_job
+
+    pending_job(session, "scan_file", stored_file.id)
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,
@@ -798,7 +804,10 @@ async def scan_stored_file(
         FileScanStatus.CLEAN,
         FileScanStatus.INFECTED,
         FileScanStatus.REJECTED,
-    }:
+    } or (
+        stored_file.next_scan_at is not None
+        and _aware(stored_file.next_scan_at) > datetime.now(UTC)
+    ):
         return current_status
 
     prefix = bytearray()

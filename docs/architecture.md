@@ -2251,6 +2251,18 @@ No payload URL/display text is trusted and persisted notices remain immutable.
   contact task. Budget warning, urgent and pause notices also create in-app rows for
   every active admin (v1.97). No business service contacts a provider inline.
 
+**[TARGET — REQ-180 batch 1 verification]** Confirmation and transactional-email
+creation record typed outbox hints. API and worker sessions await bounded arq
+enqueue only after the outer commit; rolled-back savepoint IDs are filtered out.
+Immediate file/email jobs reuse the same scanner quarantine, due-time backoff,
+delivery claim and recipient checks as sweeps. Sweeps remain durable catch-up.
+Review outcomes add recipient-owned current-decision messages; invited applicants
+retain the existing separate application code until D8 is built. Staff badge and
+own-driver job summaries consolidate existing read authority; page-scoped grouped
+counts extend organization/campaign/source lists. D89 accepts trimmed bank
+transfer references of 1–512 characters without entropy syntax, storing only the
+hash; exact-version admin verification and first-manual-payout authority remain.
+
 ### 20.3 Pilot phone verification and WhatsApp consent
 
 **[BUILT locally — D70/REQ-138; owner merge/combined CI pending]** Automated WhatsApp/SMS
@@ -3689,6 +3701,8 @@ within one hour. Simultaneous Redis/database failure can only emit the fixed
 failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
+
+- **v1.144 — 18 October 2026 (REQ-180 Worker A / D89):** Prompt postcommit file/email jobs with sweep recovery; byte-based empty BFF commands; current review/job-offer emails and plain clickable copy; required application city; staff badge/current-job summaries and grouped list counts. D89 replaces entropy syntax with normalized bank test-transfer references. All three API baselines move together. Scoped backend/frontend/native and real scanner/storage/arq verification pass; plan, security, money and consolidated reviews PASS. Worker B must integrate required city into Apply before the combined frontend typecheck is green. [Evidence and exact API contracts](req180-backend-delivery.md). No push, provider or deployment claim.
 
 - **v1.143 — 14 October 2026 (D88/REQ-179):** Owner confirms the pilot is car-only and defers motorcycles until the owner or client raises them again. Supersedes D43(h)'s eligibility permission and reconciles Q19 with current car-only behavior. Docs-only record; vehicle_type plumbing and code are unchanged. Built in `e2fdef5b`; full batch CI 38571889225 PASS.
 

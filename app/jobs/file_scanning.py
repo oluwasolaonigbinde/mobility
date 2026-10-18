@@ -11,6 +11,21 @@ from app.services.stored_files import scan_stored_file
 logger = logging.getLogger(__name__)
 
 
+async def scan_file(ctx: dict[str, Any], file_id: str) -> str | None:
+    from uuid import UUID
+
+    settings = ctx["settings"]
+    async with ctx["sessionmaker"]() as session:
+        outcome = await scan_stored_file(
+            session,
+            file_id=UUID(file_id),
+            storage=build_storage_provider(settings),
+            scanner=build_malware_scanner(settings),
+        )
+        await session.commit()
+    return outcome.value if outcome is not None else None
+
+
 async def scan_pending_files(ctx: dict[str, Any]) -> dict[str, int]:
     settings = ctx["settings"]
     storage = build_storage_provider(settings)

@@ -8,6 +8,7 @@ from app.adapters.disbursement.paystack import build_disbursement_adapter
 from app.adapters.storage import build_storage_provider
 from app.core.config import Settings, get_settings
 from app.core.observability import configure_logging, init_error_tracking
+from app.db.outbox_session import OutboxSession
 from app.jobs.assignment_activity import sweep_assignment_activity_flags
 from app.jobs.automatic_payouts import sweep_automatic_payouts
 from app.jobs.budget_enforcement import sweep_campaign_budget_enforcement
@@ -26,7 +27,7 @@ from app.jobs.disbursements import (
 )
 from app.jobs.disclosure_retention import purge_expired_disclosure_query_history
 from app.jobs.earnings_release import sweep_earnings_release_reviews
-from app.jobs.email_delivery import sweep_email_notifications
+from app.jobs.email_delivery import deliver_email, sweep_email_notifications
 from app.jobs.evidence_verification import sweep_evidence_verifications
 from app.jobs.exposure_segments import materialize_exposure_segment_job, sweep_exposure_segments
 from app.jobs.file_lifecycle import (
@@ -34,7 +35,7 @@ from app.jobs.file_lifecycle import (
     purge_orphaned_file_uploads,
     recover_stored_object_deletions,
 )
-from app.jobs.file_scanning import scan_pending_files
+from app.jobs.file_scanning import scan_file, scan_pending_files
 from app.jobs.monitoring import monitored_cron as cron
 from app.jobs.payment_gateway import (
     process_payment_gateway_event_job,
@@ -78,7 +79,12 @@ async def on_startup(ctx: dict[str, Any]) -> None:
     engine = create_async_engine(settings.database_url, pool_pre_ping=True)
     ctx["settings"] = settings
     ctx["engine"] = engine
-    ctx["sessionmaker"] = async_sessionmaker(engine, expire_on_commit=False)
+    ctx["sessionmaker"] = async_sessionmaker(
+        engine,
+        class_=OutboxSession,
+        expire_on_commit=False,
+        info={"enqueue_settings": settings},
+    )
     ctx["disbursement_adapter"] = build_disbursement_adapter(
         settings,
         destination_resolver=build_paystack_destination_resolver(settings, ctx["sessionmaker"]),
@@ -101,6 +107,8 @@ class WorkerSettings:
     # keep_result=0: a deterministic job id must never suppress catch-up via a
     # stale result key — dedup applies only while queued/running (D4).
     functions: list = [
+        func(scan_file, name="scan_file", keep_result=0),
+        func(deliver_email, name="deliver_email", keep_result=0),
         func(process_trip, name="process_trip", keep_result=0),
         func(
             materialize_exposure_segment_job,

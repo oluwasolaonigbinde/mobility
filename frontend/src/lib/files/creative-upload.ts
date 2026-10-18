@@ -8,6 +8,12 @@ const ACCEPTED_TYPES = new Set([
 ]);
 
 export type CreativeUploadPhase = "hashing" | "uploading" | "scanning" | "clean";
+export const CREATIVE_UPLOAD_PHASE_LABELS: Record<CreativeUploadPhase, string> = {
+  hashing: "Preparing file…",
+  uploading: "Uploading…",
+  scanning: "Checking file…",
+  clean: "File ready",
+};
 
 type UploadIntent = {
   upload_id: string;
@@ -144,7 +150,7 @@ export async function uploadCreativeFile(
     );
   }
   if (stored.scan_status === "pending") {
-    throw new Error("The security scan is still pending. Retry this upload in a moment.");
+    throw new Error("We are still checking your file. Please try again in a moment.");
   }
   if (stored.scan_status !== "clean") throw scanFailure(stored.scan_status);
   forgetConfirmableUpload(clientRequestId);

@@ -83,10 +83,14 @@ class RetargetingSourceRead(BaseModel):
     deactivated_at: datetime | None
 
 
+class RetargetingSourceListItemRead(RetargetingSourceRead):
+    link_count: int = Field(ge=0)
+
+
 class RetargetingSourceListRead(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    items: list[RetargetingSourceRead]
+    items: list[RetargetingSourceListItemRead]
     total: int
 
 

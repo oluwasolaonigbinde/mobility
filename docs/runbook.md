@@ -380,6 +380,23 @@ docker compose stop worker
 
 The worker publishes no host port. Settings: `WORKER_SWEEP_INTERVAL_MINUTES` (default `5`; must be a divisor of 60 between 1 and 60 — anything else fails Settings validation at startup), `WORKER_SWEEP_BATCH_SIZE` (default `25` trips per sweep), and `TRIP_SEAL_GRACE_SECONDS` (default `600` — how long an incomplete/legacy trip end waits for late GPS batches before the seal sweep finalizes it).
 
+REQ-180 adds immediate `scan_file` and `deliver_email` jobs after successful outer
+database commits. Enqueue is bounded to one second per commit and fails open to
+the durable sweep; no provider runs in the API process. Files remain quarantined
+until clean, and early scan replays respect `next_scan_at`. Email claims, retries
+and current recipient permissions remain authoritative. Deterministic job IDs
+deduplicate queued/running work; `keep_result=0` permits later catch-up.
+
+Set `PUBLIC_ORIGIN`, `PASSWORD_RESET_PUBLIC_URL` and
+`DRIVER_ACCOUNT_SETUP_PUBLIC_URL` to the actual browser origin and corresponding
+`/reset-password` and `/driver-account-setup` pages. Local compose defaults use
+`http://localhost:3000`; when using a demo tunnel, override all three together.
+If the setup URL is missing, the email asks the recipient to contact Terrax for
+a replacement link and never includes a bare token. An account-name lookup does
+not verify a payout account: when it is unavailable, D89 permits staff to make a
+small test transfer and record its bank reference. Only the trimmed reference's
+hash is retained; the exact bank version and first-manual-payout rules still apply.
+
 | Failure | Effect | Recovery |
 |---|---|---|
 | Redis down at trip end | Trip end still returns 200; API logs a `event=trip_enqueue_failed` warning | Sweep completes the trip within one interval |

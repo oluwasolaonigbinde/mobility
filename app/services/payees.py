@@ -750,14 +750,21 @@ def _validate_details(details: VerifiedBankAccountDetails) -> VerifiedBankAccoun
 
 
 def verification_reference_hash(reference: str) -> str:
+    import unicodedata
+
+    normalized = reference.strip() if isinstance(reference, str) else ""
     try:
-        encoded = reference.encode("utf-8")
-    except (AttributeError, UnicodeError):
+        encoded = normalized.encode("utf-8")
+    except UnicodeError:
         encoded = b""
-    if not 32 <= len(encoded) <= 512 or any(character.isspace() for character in reference):
+    if (
+        not encoded
+        or len(normalized) > 512
+        or any(unicodedata.category(character) in {"Cc", "Cf"} for character in reference)
+    ):
         raise AppError(
             "VERIFICATION_REFERENCE_INVALID",
-            "Verification evidence must be an opaque high-entropy reference",
+            "Enter the bank test-transfer reference, from 1 to 512 characters",
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
     return hashlib.sha256(encoded).hexdigest()

@@ -33,7 +33,11 @@ it("returns the private installation file only after its pending scan becomes cl
     .mockResolvedValueOnce(json({ id: "file", scan_status: "pending" }))
     .mockResolvedValueOnce(json({ id: "file", scan_status: "clean" }));
   vi.stubGlobal("fetch", fetchMock);
-  await expect(uploadInstallationImage(photo(), { pollDelayMs: 0 })).resolves.toBe("file");
+  const onStatus = vi.fn();
+  await expect(uploadInstallationImage(photo(), { pollDelayMs: 0, onStatus })).resolves.toBe(
+    "file",
+  );
+  expect(onStatus).toHaveBeenCalledWith("Checking file…");
   expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toMatchObject({
     purpose: "installation_evidence",
     filename: "left-side.png",

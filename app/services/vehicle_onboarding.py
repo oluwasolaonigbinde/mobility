@@ -892,6 +892,15 @@ async def review_application_vehicle(  # noqa: C901
     session.add(decision)
     submission.status = payload.decision.value
     await session.flush()
+    from app.services.driver_review_notifications import create_driver_review_notices
+
+    await create_driver_review_notices(
+        session,
+        profile=profile,
+        decision_id=decision.id,
+        vehicle=True,
+        decision=payload.decision,
+    )
     await _reconcile_review_eligibility(
         session,
         application=application,

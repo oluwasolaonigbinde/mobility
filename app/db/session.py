@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.core.config import Settings, get_settings
+from app.db.outbox_session import OutboxSession
 
 _engine: AsyncEngine | None = None
 _sessionmaker: async_sessionmaker[AsyncSession] | None = None
@@ -21,7 +22,12 @@ def get_engine(settings: Settings | None = None) -> AsyncEngine:
         raise RuntimeError("DATABASE_URL is not configured")
     if _engine is None:
         _engine = create_async_engine(settings.database_url, pool_pre_ping=True)
-        _sessionmaker = async_sessionmaker(_engine, expire_on_commit=False)
+        _sessionmaker = async_sessionmaker(
+            _engine,
+            class_=OutboxSession,
+            expire_on_commit=False,
+            info={"enqueue_settings": settings},
+        )
     return _engine
 
 

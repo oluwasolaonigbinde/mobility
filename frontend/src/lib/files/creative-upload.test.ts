@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { uploadCreativeFile } from "./creative-upload";
+import { CREATIVE_UPLOAD_PHASE_LABELS, uploadCreativeFile } from "./creative-upload";
+
+it("labels the scan wait as checking the file", () => {
+  expect(CREATIVE_UPLOAD_PHASE_LABELS.scanning).toBe("Checking file…");
+});
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {

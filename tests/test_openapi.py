@@ -23,6 +23,15 @@ def test_openapi_schema_generates(client) -> None:
     assert "/api/v1/health" in schema["paths"]
     assert "/api/v1/health/ready" in schema["paths"]
     components = schema["components"]["schemas"]
+    assert "/api/v1/admin/badge-summary" in schema["paths"]
+    assert "/api/v1/driver/current-job" in schema["paths"]
+    assert "service_city" in components["DriverApplicationCreate"]["required"]
+    assert (
+        components["BankAccountPayoutVerificationCreate"]["properties"]["verification_reference"][
+            "maxLength"
+        ]
+        == 512
+    )
     user_update = components["UserUpdate"]
     assert "current_password" in user_update["properties"]
     assert user_update["properties"]["current_password"]["writeOnly"] is True

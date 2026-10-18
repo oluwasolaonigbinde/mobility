@@ -666,7 +666,8 @@ def _public_applicant(db_client, db_sessionmaker, settings, email: str):
         InMemoryRegistrationRateLimiter()
     )
     response = db_client.post(
-        "/api/v1/auth/register-driver", json={"email": email, "full_name": "Public Applicant"}
+        "/api/v1/auth/register-driver",
+        json={"service_city": "Abuja", "email": email, "full_name": "Public Applicant"},
     )
     assert response.status_code == http_status.HTTP_202_ACCEPTED
     applicant = fetch_user_by_email(db_sessionmaker, email)

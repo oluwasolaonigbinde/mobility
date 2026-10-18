@@ -24,6 +24,10 @@ from app.db.base import Base
 
 
 class NotificationType(StrEnum):
+    DRIVER_ID_APPROVED = "driver_id_approved"
+    DRIVER_ID_REJECTED = "driver_id_rejected"
+    DRIVER_CAR_APPROVED = "driver_car_approved"
+    DRIVER_CAR_REJECTED = "driver_car_rejected"
     ASSIGNMENT_OFFERED = "assignment_offered"
     ASSIGNMENT_ACCEPTED = "assignment_accepted"
     CAMPAIGN_APPROVED = "campaign_approved"

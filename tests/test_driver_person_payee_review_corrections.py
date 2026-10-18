@@ -571,6 +571,7 @@ def test_status_references_are_indistinguishable_across_every_mutation_probe(
     duplicate = db_client.post(
         "/api/v1/auth/register-driver",
         json={
+            "service_city": "Abuja",
             "email": "person-payee-probe-red@example.com",
             "full_name": "Duplicate probe",
         },
@@ -640,6 +641,7 @@ def test_fresh_and_duplicate_driver_probes_deliver_separate_non_enumerating_auth
     duplicate = db_client.post(
         "/api/v1/auth/register-driver",
         json={
+            "service_city": "Abuja",
             "email": "person-payee-access-delivery@example.com",
             "full_name": "Probe must remain generic",
         },

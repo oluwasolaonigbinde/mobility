@@ -18,6 +18,7 @@ from app.models.campaign import (
 )
 from app.models.organization import AdvertiserOrganization
 from app.schemas.campaigns import (
+    AdminCampaignListItemRead,
     AdminCampaignListResponse,
     AdminCampaignOrganizationSummary,
     AdminCampaignPauseRead,
@@ -25,6 +26,7 @@ from app.schemas.campaigns import (
     AdminCreativeReviewItem,
     AdminCreativeReviewListResponse,
     CampaignCreate,
+    CampaignListItemRead,
     CampaignListResponse,
     CampaignRead,
     CampaignResumeRequest,
@@ -235,8 +237,14 @@ async def advertiser_list_campaigns(
         start_at_from=start_at_from,
         start_at_to=start_at_to,
     )
+    from app.services.list_counts import campaign_list_counts
+
+    counts = await campaign_list_counts(session, [row.id for row in campaigns])
     return CampaignListResponse(
-        items=[campaign_response(campaign) for campaign in campaigns],
+        items=[
+            CampaignListItemRead(**campaign_response(row).model_dump(), **counts[row.id])
+            for row in campaigns
+        ],
         total=total,
         limit=limit,
         offset=offset,
@@ -626,9 +634,15 @@ async def admin_list_campaigns_endpoint(
         campaign_status=status,
         q=q,
     )
+    from app.services.list_counts import campaign_list_counts
+
+    counts = await campaign_list_counts(session, [row.id for row, _org in campaigns])
     return AdminCampaignListResponse(
         items=[
-            admin_campaign_response(campaign, organization) for campaign, organization in campaigns
+            AdminCampaignListItemRead(
+                **admin_campaign_response(row, org).model_dump(), **counts[row.id]
+            )
+            for row, org in campaigns
         ],
         total=total,
         limit=limit,
@@ -684,9 +698,15 @@ async def admin_list_pending_campaign_reviews(
         campaign_status=CampaignStatus.PENDING_REVIEW.value,
         lock_campaigns=True,
     )
+    from app.services.list_counts import campaign_list_counts
+
+    counts = await campaign_list_counts(session, [row.id for row, _org in campaigns])
     return AdminCampaignListResponse(
         items=[
-            admin_campaign_response(campaign, organization) for campaign, organization in campaigns
+            AdminCampaignListItemRead(
+                **admin_campaign_response(row, org).model_dump(), **counts[row.id]
+            )
+            for row, org in campaigns
         ],
         total=total,
         limit=limit,

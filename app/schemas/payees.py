@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, SecretStr
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
 from app.models.payee import PayeeType
 
@@ -24,7 +24,16 @@ class BankAccountRevealRequest(BaseModel):
 class BankAccountPayoutVerificationCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    verification_reference: SecretStr = Field(repr=False, min_length=16, max_length=512)
+    verification_reference: SecretStr = Field(repr=False, min_length=1, max_length=512)
+
+    @field_validator("verification_reference", mode="before")
+    @classmethod
+    def normalize_transfer_reference(cls, value):
+        from app.services.payees import verification_reference_hash
+
+        raw = value.get_secret_value() if isinstance(value, SecretStr) else value
+        verification_reference_hash(raw)
+        return raw.strip()
 
 
 class PayeeRead(BaseModel):

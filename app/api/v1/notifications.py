@@ -231,6 +231,27 @@ def notification_feed_response(
     )
 
 
+async def current_feed_item(session, notice, user) -> NotificationFeedItemRead:
+    from app.core.errors import AppError
+    from app.services.driver_review_notifications import REVIEW_TYPES, review_notice_context
+
+    review = await review_notice_context(session, notice, user)
+    if notice.type_key in REVIEW_TYPES and review is None:
+        raise AppError("NOTIFICATION_NOT_FOUND", "Notification was not found", status_code=404)
+    item = notification_feed_response(
+        notice, await notification_campaign_context(session, notice=notice, user=user)
+    )
+    if review:
+        return item.model_copy(
+            update={
+                "title": review["title"],
+                "body": review["body"],
+                "action_url": review["action_path"],
+            }
+        )
+    return item
+
+
 @router.get("/notifications", response_model=NotificationFeedListRead)
 async def current_user_notifications(
     user: CurrentUserDependency,
@@ -245,12 +266,7 @@ async def current_user_notifications(
         offset=offset,
     )
     return NotificationFeedListRead(
-        items=[
-            notification_feed_response(
-                notice, await notification_campaign_context(session, notice=notice, user=user)
-            )
-            for notice in notices
-        ],
+        items=[await current_feed_item(session, notice, user) for notice in notices],
         total=total,
         limit=limit,
         offset=offset,
@@ -278,9 +294,7 @@ async def read_notification(
         notification_id=notification_id,
     )
     await session.commit()
-    return notification_feed_response(
-        notice, await notification_campaign_context(session, notice=notice, user=user)
-    )
+    return await current_feed_item(session, notice, user)
 
 
 @router.post("/notifications/read-all", response_model=NotificationUnreadCountRead)

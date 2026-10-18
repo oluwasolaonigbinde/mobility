@@ -74,6 +74,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/badge-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Staff Badges */
+        get: operations["staff_badges_api_v1_admin_badge_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/billing": {
         parameters: {
             query?: never;
@@ -4252,6 +4269,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/driver/current-job": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current Job */
+        get: operations["current_job_api_v1_driver_current_job_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/driver/documents": {
         parameters: {
             query?: never;
@@ -4998,10 +5032,77 @@ export interface components {
              */
             user_id: string;
         };
+        /** AdminBadgeSummary */
+        AdminBadgeSummary: {
+            /** Campaigns */
+            campaigns: number;
+            /** Drivers */
+            drivers: number;
+            /** Money */
+            money: number;
+            /** Source Counts */
+            source_counts: {
+                [key: string]: number;
+            };
+            /** Support */
+            support: number;
+            /** Total */
+            total: number;
+            /** Trips */
+            trips: number;
+        };
+        /** AdminCampaignListItemRead */
+        AdminCampaignListItemRead: {
+            /** Assignment Count */
+            assignment_count: number;
+            /** Budget Amount */
+            budget_amount: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Currency */
+            currency: string;
+            /** Daily Budget Amount */
+            daily_budget_amount: string | null;
+            /** Description */
+            description: string | null;
+            /** End At */
+            end_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Name */
+            name: string;
+            organization: components["schemas"]["AdminCampaignOrganizationSummary"];
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            pause?: components["schemas"]["AdminCampaignPauseRead"] | null;
+            /** Start At */
+            start_at: string | null;
+            status: components["schemas"]["CampaignStatus"];
+            /** Target Zone Count */
+            target_zone_count: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /** AdminCampaignListResponse */
         AdminCampaignListResponse: {
             /** Items */
-            items: components["schemas"]["AdminCampaignRead"][];
+            items: components["schemas"]["AdminCampaignListItemRead"][];
             /** Limit */
             limit: number;
             /** Offset */
@@ -5522,10 +5623,37 @@ export interface components {
             organization: components["schemas"]["AdvertiserOrganizationRead"];
             owner_membership: components["schemas"]["OrganizationMembershipRead"] | null;
         };
+        /** AdminOrganizationListItemRead */
+        AdminOrganizationListItemRead: {
+            /** Billing Contact Name */
+            billing_contact_name: string | null;
+            /** Billing Email */
+            billing_email: string | null;
+            /** Country Code */
+            country_code: string | null;
+            /** Currency */
+            currency: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Live Campaign Count */
+            live_campaign_count: number;
+            /** Member Count */
+            member_count: number;
+            /** Name */
+            name: string;
+            /** Operational Contact Email */
+            operational_contact_email: string | null;
+            /** Operational Contact Name */
+            operational_contact_name: string | null;
+            status: components["schemas"]["OrganizationStatus"];
+        };
         /** AdminOrganizationListResponse */
         AdminOrganizationListResponse: {
             /** Items */
-            items: components["schemas"]["AdvertiserOrganizationRead"][];
+            items: components["schemas"]["AdminOrganizationListItemRead"][];
             /** Limit */
             limit: number;
             /** Offset */
@@ -7551,10 +7679,56 @@ export interface components {
             /** Trip Count */
             trip_count: number;
         };
+        /** CampaignListItemRead */
+        CampaignListItemRead: {
+            /** Assignment Count */
+            assignment_count: number;
+            /** Budget Amount */
+            budget_amount: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Currency */
+            currency: string;
+            /** Daily Budget Amount */
+            daily_budget_amount: string | null;
+            /** Description */
+            description: string | null;
+            /** End At */
+            end_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Name */
+            name: string;
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /** Start At */
+            start_at: string | null;
+            status: components["schemas"]["CampaignStatus"];
+            /** Target Zone Count */
+            target_zone_count: number;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /** CampaignListResponse */
         CampaignListResponse: {
             /** Items */
-            items: components["schemas"]["CampaignRead"][];
+            items: components["schemas"]["CampaignListItemRead"][];
             /** Limit */
             limit: number;
             /** Offset */
@@ -9165,7 +9339,7 @@ export interface components {
             /** Phone */
             phone?: string | null;
             /** Service City */
-            service_city?: string | null;
+            service_city: string;
         };
         /**
          * DriverApplicationStatus
@@ -9229,6 +9403,20 @@ export interface components {
              */
             verification_available: boolean;
             whatsapp_consent: components["schemas"]["WhatsappConsentRead"] | null;
+        };
+        /** DriverCurrentJob */
+        DriverCurrentJob: {
+            assignment: components["schemas"]["CampaignAssignmentRead"] | null;
+            /** Counts */
+            counts: {
+                [key: string]: number;
+            };
+            /**
+             * Photo Status
+             * @default unavailable
+             * @enum {string}
+             */
+            photo_status: "ready" | "display_required" | "installation_required" | "unavailable";
         };
         /** DriverDocumentsRead */
         DriverDocumentsRead: {
@@ -11841,7 +12029,7 @@ export interface components {
          * NotificationType
          * @enum {string}
          */
-        NotificationType: "assignment_offered" | "assignment_accepted" | "campaign_approved" | "campaign_rejected" | "creative_approved" | "creative_rejected" | "quotation_ready" | "funding_confirmed" | "budget_alert" | "budget_urgent_alert" | "campaign_budget_paused" | "campaign_budget_resumed" | "campaign_cancelled" | "evidence_challenge_created" | "evidence_verified" | "payout_released" | "password_reset_requested" | "driver_onboarding_access_requested" | "driver_account_setup_requested" | "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied" | "activity_floor_breached" | "activity_floor_recovered" | "assignment_inactive" | "assignment_activity_recovered" | "payout_automatic_alert" | "payout_automatic_paused" | "payout_automatic_resumed" | "complaint_received" | "complaint_replied" | "complaint_resolved" | "complaint_assigned";
+        NotificationType: "driver_id_approved" | "driver_id_rejected" | "driver_car_approved" | "driver_car_rejected" | "assignment_offered" | "assignment_accepted" | "campaign_approved" | "campaign_rejected" | "creative_approved" | "creative_rejected" | "quotation_ready" | "funding_confirmed" | "budget_alert" | "budget_urgent_alert" | "campaign_budget_paused" | "campaign_budget_resumed" | "campaign_cancelled" | "evidence_challenge_created" | "evidence_verified" | "payout_released" | "password_reset_requested" | "driver_onboarding_access_requested" | "driver_account_setup_requested" | "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied" | "activity_floor_breached" | "activity_floor_recovered" | "assignment_inactive" | "assignment_activity_recovered" | "payout_automatic_alert" | "payout_automatic_paused" | "payout_automatic_resumed" | "complaint_received" | "complaint_replied" | "complaint_resolved" | "complaint_assigned";
         /** NotificationUnreadCountRead */
         NotificationUnreadCountRead: {
             /** Unread Count */
@@ -13559,10 +13747,48 @@ export interface components {
              */
             zone_id: string;
         };
+        /** RetargetingSourceListItemRead */
+        RetargetingSourceListItemRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Deactivated At */
+            deactivated_at: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Link Count */
+            link_count: number;
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /** Snapshot */
+            snapshot: components["schemas"]["WebsiteTrafficSourceCreate"] | components["schemas"]["DigitalCampaignAudienceSourceCreate"] | components["schemas"]["CrmUploadReferenceSourceCreate"] | components["schemas"]["UtmSourceCreate"] | components["schemas"]["ManualInsightSourceCreate"];
+            /** Snapshot Sha256 */
+            snapshot_sha256: string;
+            /** Source Type */
+            source_type: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "active" | "expired" | "deactivated";
+        };
         /** RetargetingSourceListRead */
         RetargetingSourceListRead: {
             /** Items */
-            items: components["schemas"]["RetargetingSourceRead"][];
+            items: components["schemas"]["RetargetingSourceListItemRead"][];
             /** Total */
             total: number;
         };
@@ -15258,6 +15484,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditEventListResponse"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    staff_badges_api_v1_admin_badge_summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBadgeSummary"];
                 };
             };
             /** @description Request validation failed */
@@ -24236,6 +24491,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WhatsappConsentRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    current_job_api_v1_driver_current_job_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverCurrentJob"];
                 };
             };
             /** @description Request validation failed */

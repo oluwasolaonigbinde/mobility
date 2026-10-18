@@ -53,7 +53,11 @@ def enable_registration(db_client, settings) -> None:
 def test_public_registration_is_closed_by_default_and_does_not_write(db_client, db_sessionmaker):
     response = db_client.post(
         "/api/v1/auth/register-driver",
-        json={"email": "new-driver@example.com", "full_name": "New Driver"},
+        json={
+            "service_city": "Abuja",
+            "email": "new-driver@example.com",
+            "full_name": "New Driver",
+        },
     )
 
     assert response.status_code == http_status.HTTP_404_NOT_FOUND
@@ -73,7 +77,11 @@ def test_public_registration_rate_limit_is_stable_and_does_not_write(
     try:
         response = db_client.post(
             "/api/v1/auth/register-driver",
-            json={"email": "limited-driver@example.com", "full_name": "Limited Driver"},
+            json={
+                "service_city": "Abuja",
+                "email": "limited-driver@example.com",
+                "full_name": "Limited Driver",
+            },
         )
     finally:
         db_client.app.dependency_overrides.pop(get_registration_rate_limiter, None)
@@ -94,7 +102,11 @@ def test_repeated_registration_blocks_emit_one_transition_audit(
     db_client.app.dependency_overrides[get_settings] = lambda: enabled
     db_client.app.dependency_overrides[get_registration_rate_limiter] = lambda: limiter
 
-    payload = {"email": "audit-limited@example.com", "full_name": "Limited Driver"}
+    payload = {
+        "service_city": "Abuja",
+        "email": "audit-limited@example.com",
+        "full_name": "Limited Driver",
+    }
     assert db_client.post("/api/v1/auth/register-driver", json=payload).status_code == 202
     assert db_client.post("/api/v1/auth/register-driver", json=payload).status_code == 429
     assert db_client.post("/api/v1/auth/register-driver", json=payload).status_code == 429
@@ -122,7 +134,11 @@ def test_enabled_registration_fails_closed_without_rate_limit_storage(
 
     response = db_client.post(
         "/api/v1/auth/register-driver",
-        json={"email": "unavailable-driver@example.com", "full_name": "Unavailable Driver"},
+        json={
+            "service_city": "Abuja",
+            "email": "unavailable-driver@example.com",
+            "full_name": "Unavailable Driver",
+        },
     )
 
     assert response.status_code == http_status.HTTP_503_SERVICE_UNAVAILABLE
@@ -219,11 +235,15 @@ def test_duplicate_normalized_email_is_generic_and_does_not_mutate_existing_user
 
     first = db_client.post(
         "/api/v1/auth/register-driver",
-        json={"email": "new@example.com", "full_name": "New Driver"},
+        json={"service_city": "Abuja", "email": "new@example.com", "full_name": "New Driver"},
     )
     duplicate = db_client.post(
         "/api/v1/auth/register-driver",
-        json={"email": " EXISTING@Example.com ", "full_name": "Attacker Name"},
+        json={
+            "service_city": "Abuja",
+            "email": " EXISTING@Example.com ",
+            "full_name": "Attacker Name",
+        },
     )
 
     assert first.status_code == duplicate.status_code == http_status.HTTP_202_ACCEPTED
@@ -292,6 +312,7 @@ def test_postgres_same_email_race_creates_one_pending_graph_and_generic_results(
 
 def test_non_email_integrity_error_is_not_hidden_as_duplicate(db_sessionmaker):
     payload = DriverApplicationCreate(
+        service_city="Abuja",
         email="integrity-driver@example.com",
         full_name="Integrity Driver",
     )
@@ -336,7 +357,7 @@ def test_postgres_http_same_email_race_has_generic_responses_and_one_graph(
         return result
 
     monkeypatch.setattr(application_service, "get_user_by_email", synchronized_lookup)
-    payload = {"email": "http-race@example.com", "full_name": "HTTP Race"}
+    payload = {"service_city": "Abuja", "email": "http-race@example.com", "full_name": "HTTP Race"}
     with ThreadPoolExecutor(max_workers=2) as executor:
         responses = list(
             executor.map(
@@ -485,7 +506,11 @@ def test_explicit_public_applicant_rejection_is_terminal_and_revokes_access(
     enable_registration(db_client, settings)
     registration = db_client.post(
         "/api/v1/auth/register-driver",
-        json={"email": "rejected-applicant@example.com", "full_name": "Rejected Applicant"},
+        json={
+            "service_city": "Abuja",
+            "email": "rejected-applicant@example.com",
+            "full_name": "Rejected Applicant",
+        },
     )
     assert registration.status_code == http_status.HTTP_202_ACCEPTED
     admin = create_test_user(
@@ -533,7 +558,11 @@ def test_explicit_public_applicant_rejection_is_terminal_and_revokes_access(
 
     duplicate = db_client.post(
         "/api/v1/auth/register-driver",
-        json={"email": application.email, "full_name": "Generic Duplicate"},
+        json={
+            "service_city": "Abuja",
+            "email": application.email,
+            "full_name": "Generic Duplicate",
+        },
     )
     invalid_mutation = db_client.post(
         f"/api/v1/auth/driver-onboarding/files/{uuid4()}/status",
@@ -593,7 +622,11 @@ def test_onboarding_access_renewal_is_non_enumerating_and_uses_stored_recipient(
     enable_registration(db_client, settings)
     registered = db_client.post(
         "/api/v1/auth/register-driver",
-        json={"email": "renew-driver@example.com", "full_name": "Stored Recipient"},
+        json={
+            "service_city": "Abuja",
+            "email": "renew-driver@example.com",
+            "full_name": "Stored Recipient",
+        },
     )
     assert registered.status_code == http_status.HTTP_202_ACCEPTED
 
@@ -651,7 +684,11 @@ def test_onboarding_access_renewal_obeys_rate_limit_and_terminal_denial(
     assert (
         db_client.post(
             "/api/v1/auth/register-driver",
-            json={"email": "terminal-renew@example.com", "full_name": "Terminal Driver"},
+            json={
+                "service_city": "Abuja",
+                "email": "terminal-renew@example.com",
+                "full_name": "Terminal Driver",
+            },
         ).status_code
         == http_status.HTTP_202_ACCEPTED
     )

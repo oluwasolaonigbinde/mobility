@@ -103,6 +103,9 @@ def test_group_before_count_and_limit_and_hold_once(db_client, db_sessionmaker):
     assert page.status_code == 200, page.text
     data = page.json()
     assert data["total"] == 2 and len(data["items"]) == 1
+    badges = db_client.get("/api/v1/admin/badge-summary", headers=headers)
+    assert badges.status_code == 200
+    assert badges.json()["source_counts"]["trips"] == data["total"]
     row = data["items"][0]
     assert row["id"] == str(first.id) and row["problem_count"] == 2
     assert row["driver_name"] and row["campaign_name"] and row["trip_started_at"]

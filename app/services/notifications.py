@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from app.core.errors import AppError
+from app.core.outbox_enqueue import pending_job
 from app.models.assignment_activity import (
     AssignmentActivityFlag,
     AssignmentActivityFlagEventType,
@@ -259,6 +260,8 @@ async def create_notification(
         if existing.dedupe_fingerprint != fingerprint:
             raise _dedupe_conflict() from None
         return existing
+    if not is_in_app:
+        pending_job(session, "deliver_email", notice.id)
     return notice
 
 
@@ -532,6 +535,15 @@ async def create_driver_business_notification(
             event_key=event_key,
             purpose=manual_contact_purpose,
         )
+    if type_key == NotificationType.ASSIGNMENT_OFFERED:
+        await create_notification(
+            session,
+            recipient_user_id=recipient_user_id,
+            type_key=type_key,
+            payload=payload,
+            dedupe_key=f"{event_key}:transactional_email",
+            channel=NotificationChannel.TRANSACTIONAL_EMAIL,
+        )
     return notice
 
 
@@ -750,7 +762,11 @@ async def create_activity_flag_notice(
 async def list_current_user_notifications(
     session: AsyncSession, *, recipient_user_id: UUID, limit: int, offset: int
 ) -> tuple[list[Notification], int]:
+    from app.services.driver_review_notifications import review_notification_visibility
+
+    visible = await review_notification_visibility(session, recipient_user_id)
     query = select(Notification).where(
+        visible,
         Notification.recipient_user_id == recipient_user_id,
         Notification.channel == NotificationChannel.IN_APP.value,
         Notification.read_at.is_(None),
@@ -769,11 +785,15 @@ async def list_current_user_notifications(
 
 
 async def unread_notification_count(session: AsyncSession, *, recipient_user_id: UUID) -> int:
+    from app.services.driver_review_notifications import review_notification_visibility
+
+    visible = await review_notification_visibility(session, recipient_user_id)
     return int(
         await session.scalar(
             select(func.count())
             .select_from(Notification)
             .where(
+                visible,
                 Notification.recipient_user_id == recipient_user_id,
                 Notification.channel == NotificationChannel.IN_APP.value,
                 Notification.read_at.is_(None),
@@ -786,10 +806,14 @@ async def unread_notification_count(session: AsyncSession, *, recipient_user_id:
 async def mark_notification_read(
     session: AsyncSession, *, recipient_user_id: UUID, notification_id: UUID
 ) -> Notification:
+    from app.services.driver_review_notifications import review_notification_visibility
+
+    visible = await review_notification_visibility(session, recipient_user_id)
     read_at = func.statement_timestamp()
     notice = await session.scalar(
         update(Notification)
         .where(
+            visible,
             Notification.id == notification_id,
             Notification.recipient_user_id == recipient_user_id,
             Notification.channel == NotificationChannel.IN_APP.value,
@@ -802,6 +826,7 @@ async def mark_notification_read(
         return notice
     notice = await session.scalar(
         select(Notification).where(
+            visible,
             Notification.id == notification_id,
             Notification.recipient_user_id == recipient_user_id,
             Notification.channel == NotificationChannel.IN_APP.value,
@@ -813,10 +838,14 @@ async def mark_notification_read(
 
 
 async def mark_all_notifications_read(session: AsyncSession, *, recipient_user_id: UUID) -> int:
+    from app.services.driver_review_notifications import review_notification_visibility
+
+    visible = await review_notification_visibility(session, recipient_user_id)
     read_at = func.statement_timestamp()
     result = await session.execute(
         update(Notification)
         .where(
+            visible,
             Notification.recipient_user_id == recipient_user_id,
             Notification.channel == NotificationChannel.IN_APP.value,
             Notification.read_at.is_(None),

@@ -18,6 +18,28 @@ from app.services.email_delivery import (
 )
 
 
+async def deliver_email(ctx: dict[str, Any], notification_id: str) -> str:
+    from uuid import UUID
+
+    settings = ctx["settings"]
+    identity = UUID(notification_id)
+    try:
+        return await process_email_notification(
+            ctx["sessionmaker"],
+            notification_id=identity,
+            settings=settings,
+            email_adapter=ctx.get("email_adapter") or build_email_adapter(settings),
+            now=datetime.now(UTC),
+        )
+    except Exception as exc:
+        await record_unexpected_email_failure(
+            ctx["sessionmaker"],
+            notification_id=identity,
+            error=exc,
+        )
+        return "unexpected_failure"
+
+
 async def sweep_email_notifications(
     ctx: dict[str, Any], *, now: datetime | None = None
 ) -> dict[str, int]:

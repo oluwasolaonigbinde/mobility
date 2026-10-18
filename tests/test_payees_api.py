@@ -54,7 +54,7 @@ def test_admin_payee_api_encrypts_reveals_with_no_store_and_audits(
         "account_name": "Ada Protected",
         "account_number": "0123456789",
         "bank_code": "058",
-        "verification_reference": "provider-evidence-api-00000000000000000001",
+        "verification_reference": "TX 1",
         "ignored_secret": "must-not-be-reflected",
     }
     verified = db_client.post(

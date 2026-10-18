@@ -13,13 +13,23 @@ class RenderedEmail:
     html_body: str
 
 
+def _linked(subject: str, body: str, action: str | None, label: str) -> RenderedEmail:
+    text = body + (f"\n{label}: {action}" if action else "")
+    html = f"<p>{escape(body)}</p>"
+    if action:
+        from urllib.parse import urlsplit
+
+        if urlsplit(action).scheme not in {"https", "http"}:
+            raise ValueError("email_action_url_invalid")
+        html += f'<p><a href="{escape(action, quote=True)}">{escape(label)}</a></p>'
+    return RenderedEmail(subject=subject, text_body=text, html_body=html)
+
+
 def _static(subject: str, body: str) -> Callable[[dict[str, Any]], RenderedEmail]:
-    def render(_payload: dict[str, Any]) -> RenderedEmail:
-        return RenderedEmail(
-            subject=subject,
-            text_body=body,
-            html_body=f"<p>{body}</p>",
-        )
+    def render(payload: dict[str, Any]) -> RenderedEmail:
+        name = payload.get("campaign_name")
+        content = f"{name}: {body}" if name else body
+        return _linked(subject, content, payload.get("action_url"), "Open Cardvert")
 
     return render
 
@@ -28,42 +38,55 @@ def _password_reset(payload: dict[str, Any]) -> RenderedEmail:
     action = payload.get("reset_action")
     if not isinstance(action, str) or not action:
         raise ValueError("password_reset_action_missing")
-    body = f"Use this single-use password reset action before it expires: {action}"
-    return RenderedEmail(
-        subject="Reset your Cardvert password",
-        text_body=body,
-        html_body=f"<p>{escape(body)}</p>",
+    return _linked(
+        "Reset your Cardvert password",
+        "Choose a new password. This link works once, for 30 minutes.",
+        action,
+        "Choose password",
     )
 
 
 def _driver_onboarding_access(payload: dict[str, Any]) -> RenderedEmail:
-    access_code = payload.get("access_code")
-    if not isinstance(access_code, str) or not access_code:
+    code = payload.get("access_code")
+    if not isinstance(code, str) or not code:
         raise ValueError("driver_onboarding_access_code_missing")
-    body = (
-        "Use this expiring Cardvert driver-onboarding access code to submit protected "
-        f"person and payee evidence: {access_code}"
-    )
-    return RenderedEmail(
-        subject="Continue your Cardvert driver application",
-        text_body=body,
-        html_body=f"<p>{escape(body)}</p>",
+    minutes = payload.get("expiry_minutes", "30")
+    return _linked(
+        "Continue your Terrax Media driver application",
+        "Thanks for applying to drive with Terrax Media. Open your application and enter "
+        f"this code: {code}. The code works for {minutes} minutes.",
+        payload.get("action_url"),
+        "Continue your application",
     )
 
 
 def _driver_account_setup(payload: dict[str, Any]) -> RenderedEmail:
     action = payload.get("setup_action")
-    if not isinstance(action, str) or not action:
-        raise ValueError("driver_account_setup_action_missing")
-    body = f"Use this single-use action before it expires to set your Cardvert password: {action}"
-    return RenderedEmail(
-        subject="Set up your Cardvert driver account",
-        text_body=body,
-        html_body=f"<p>{escape(body)}</p>",
+    return _linked(
+        "Set up your Terrax Media driver account",
+        (
+            "Choose a password to finish setting up your driver account. "
+            "This link works once, for 30 minutes."
+        )
+        if action
+        else "Ask Terrax Media to resend your account setup link.",
+        action,
+        "Choose password",
     )
 
 
+def _driver_review(payload: dict[str, Any]) -> RenderedEmail:
+    return _linked(payload["title"], payload["body"], payload["action_url"], "Continue")
+
+
 _TEMPLATES: dict[NotificationType, Callable[[dict[str, Any]], RenderedEmail]] = {
+    NotificationType.DRIVER_ID_APPROVED: _driver_review,
+    NotificationType.DRIVER_ID_REJECTED: _driver_review,
+    NotificationType.DRIVER_CAR_APPROVED: _driver_review,
+    NotificationType.DRIVER_CAR_REJECTED: _driver_review,
+    NotificationType.ASSIGNMENT_OFFERED: _static(
+        "A new job offer", "You have a new job offer. Open Jobs to accept or decline."
+    ),
     NotificationType.PASSWORD_RESET_REQUESTED: _password_reset,
     NotificationType.DRIVER_ONBOARDING_ACCESS_REQUESTED: _driver_onboarding_access,
     NotificationType.DRIVER_ACCOUNT_SETUP_REQUESTED: _driver_account_setup,
@@ -107,21 +130,25 @@ _TEMPLATES: dict[NotificationType, Callable[[dict[str, Any]], RenderedEmail]] = 
         "Trip payment on hold", "A trip payment is on hold while it is reviewed."
     ),
     NotificationType.FRAUD_REVIEW_RESOLVED: _static(
-        "Fraud review resolved", "Your fraud review has been resolved."
+        "Your trip check is finished",
+        "Terrax Media has finished checking your trip. Open Earnings to see the result.",
     ),
     NotificationType.FRAUD_DISPUTE_REPLIED: _static(
-        "Fraud dispute update", "Your fraud dispute has received a reply."
+        "Reply about your trip",
+        "Terrax Media has replied about your trip. Open Earnings to read it.",
     ),
     NotificationType.ACTIVITY_FLOOR_BREACHED: _static(
-        "Verified activity below floor",
-        "Verified activity was below the configured weekly floor.",
+        "Not enough driving this week",
+        "We have not seen enough trips for this job this week. "
+        "Terrax Media will check in with you.",
     ),
     NotificationType.ACTIVITY_FLOOR_RECOVERED: _static(
         "Verified activity recovered",
         "Verified activity recovered to the configured weekly floor.",
     ),
     NotificationType.ASSIGNMENT_INACTIVE: _static(
-        "Assignment inactive", "No verified activity was recorded for this assignment."
+        "No recent trips",
+        "We have not seen any trips for this job recently. Open Jobs to check it.",
     ),
     NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED: _static(
         "Assignment activity resumed", "Verified activity resumed for this assignment."

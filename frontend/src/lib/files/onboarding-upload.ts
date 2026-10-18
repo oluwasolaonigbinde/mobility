@@ -15,6 +15,7 @@ export type DocumentUploadProgress = {
   scanStatus?: string;
   running?: Promise<string>;
   cancelled?: boolean;
+  onStatus?: (message: string) => void;
 };
 
 const UNSAFE_FILE =
@@ -225,6 +226,7 @@ async function resumeDocumentFile(
     progress.fileId = confirmed.id;
     progress.scanStatus = confirmed.scan_status;
   }
+  progress.onStatus?.("Checking file…");
   await waitForClean(accessToken, progress);
   return progress.fileId!;
 }

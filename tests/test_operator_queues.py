@@ -42,10 +42,7 @@ def _renew_person(client, *, admin, profile, driver_headers, first, files):
             "expected_submission_id": first["id"],
             "client_request_id": str(uuid4()),
             "nin": NIN,
-            **{
-                f"{kind}_file_id": str(files[kind])
-                for kind in ("driver_license", "driver_photo")
-            },
+            **{f"{kind}_file_id": str(files[kind]) for kind in ("driver_license", "driver_photo")},
         },
     )
     assert current.status_code == 201, current.text
@@ -220,6 +217,7 @@ def test_driver_application_history_and_detail_serialize_terminal_rows_without_w
         response = db_client.post(
             "/api/v1/auth/register-driver",
             json={
+                "service_city": "Abuja",
                 "email": f"{suffix}@example.test",
                 "full_name": f"{suffix} driver",
             },

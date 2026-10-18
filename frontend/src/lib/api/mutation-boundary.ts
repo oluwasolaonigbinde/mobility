@@ -49,17 +49,11 @@ export async function mutationBoundary(request: NextRequest): Promise<NextRespon
     ].some((pattern) => pattern.test(path));
   const mediaType = request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
   if (bodyless) {
-    if (
-      mediaType ||
-      request.headers.has("transfer-encoding") ||
-      ![null, "0"].includes(request.headers.get("content-length"))
-    ) {
-      return deny(415, "BFF_MEDIA_TYPE_DENIED", "This command does not accept a request body");
-    }
     // Next supplies a stream even for an empty POST. Inspect bytes, not stream presence.
     if (request.body) {
-      const reader = request.body.getReader();
+      let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
       try {
+        reader = request.body.getReader();
         while (true) {
           const chunk = await reader.read();
           if (chunk.done) break;
@@ -67,14 +61,14 @@ export async function mutationBoundary(request: NextRequest): Promise<NextRespon
             return deny(
               415,
               "BFF_MEDIA_TYPE_DENIED",
-              "This command does not accept a request body",
+              "Please retry this action without sending extra data",
             );
           }
         }
       } catch {
         return deny(400, "BFF_BODY_UNREADABLE", "The request body could not be read");
       } finally {
-        reader.releaseLock();
+        reader?.releaseLock();
       }
     }
   } else if (exportForm) {

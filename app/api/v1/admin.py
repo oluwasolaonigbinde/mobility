@@ -29,6 +29,7 @@ from app.schemas.driver_onboarding import (
 )
 from app.schemas.organizations import (
     AdminOrganizationCreateResponse,
+    AdminOrganizationListItemRead,
     AdminOrganizationListResponse,
     AdminOrganizationMemberListResponse,
     AdminOrganizationMemberRead,
@@ -168,8 +169,20 @@ async def admin_list_advertiser_organizations(
     organizations, total = await list_advertiser_organizations(
         session, q=q, limit=limit, offset=offset
     )
+    from app.services.list_counts import organization_list_counts
+
+    counts = await organization_list_counts(session, [org.id for org in organizations])
     return AdminOrganizationListResponse(
-        items=[AdvertiserOrganizationRead.model_validate(org) for org in organizations],
+        items=[
+            AdminOrganizationListItemRead(
+                **AdvertiserOrganizationRead.model_validate(org).model_dump(),
+                **counts[org.id],
+                billing_contact_name=org.billing_contact_name,
+                operational_contact_name=org.operational_contact_name,
+                operational_contact_email=org.operational_contact_email,
+            )
+            for org in organizations
+        ],
         total=total,
         limit=limit,
         offset=offset,

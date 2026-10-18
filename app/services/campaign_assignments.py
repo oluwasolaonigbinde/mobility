@@ -140,7 +140,7 @@ def ensure_not_expired(campaign: Campaign, now: datetime, *, code: str) -> None:
     if campaign.end_at is not None and as_aware_utc(campaign.end_at) < now:
         raise AppError(
             code,
-            "Campaign end_at is in the past",
+            "This campaign has already ended",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -394,7 +394,7 @@ def ensure_campaign_activatable(campaign: Campaign, now: datetime) -> None:
     if campaign.start_at is not None and as_aware_utc(campaign.start_at) > now:
         raise AppError(
             "CAMPAIGN_NOT_STARTED",
-            "Campaign start_at is in the future",
+            "This campaign has not started yet",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     ensure_not_expired(campaign, now, code="CAMPAIGN_EXPIRED")
@@ -1367,8 +1367,8 @@ async def build_offer_terms(
         normalized_city = normalized_service_city(driver_profile.service_city or "")
     except ValueError as exc:
         raise AppError(
-            "SERVICE_AREA_REQUIRED",
-            "A normalized driver service area is required before offering",
+            "DRIVER_SERVICE_AREA_REQUIRED",
+            "Add the driver's city before sending a job offer",
             status_code=status.HTTP_409_CONFLICT,
         ) from exc
     creative_snapshot = _creative_snapshot(creative)

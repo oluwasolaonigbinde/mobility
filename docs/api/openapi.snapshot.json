@@ -190,11 +190,202 @@
         "title": "AdminApplicantRead",
         "type": "object"
       },
+      "AdminBadgeSummary": {
+        "properties": {
+          "campaigns": {
+            "minimum": 0.0,
+            "title": "Campaigns",
+            "type": "integer"
+          },
+          "drivers": {
+            "minimum": 0.0,
+            "title": "Drivers",
+            "type": "integer"
+          },
+          "money": {
+            "minimum": 0.0,
+            "title": "Money",
+            "type": "integer"
+          },
+          "source_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Source Counts",
+            "type": "object"
+          },
+          "support": {
+            "minimum": 0.0,
+            "title": "Support",
+            "type": "integer"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          },
+          "trips": {
+            "minimum": 0.0,
+            "title": "Trips",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "drivers",
+          "campaigns",
+          "trips",
+          "money",
+          "support",
+          "source_counts"
+        ],
+        "title": "AdminBadgeSummary",
+        "type": "object"
+      },
+      "AdminCampaignListItemRead": {
+        "properties": {
+          "assignment_count": {
+            "minimum": 0.0,
+            "title": "Assignment Count",
+            "type": "integer"
+          },
+          "budget_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Amount"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "daily_budget_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Budget Amount"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "end_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "organization": {
+            "$ref": "#/components/schemas/AdminCampaignOrganizationSummary"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "pause": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AdminCampaignPauseRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "start_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CampaignStatus"
+          },
+          "target_zone_count": {
+            "minimum": 0.0,
+            "title": "Target Zone Count",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "organization_id",
+          "name",
+          "description",
+          "status",
+          "start_at",
+          "end_at",
+          "budget_amount",
+          "daily_budget_amount",
+          "currency",
+          "created_at",
+          "updated_at",
+          "organization",
+          "assignment_count",
+          "target_zone_count"
+        ],
+        "title": "AdminCampaignListItemRead",
+        "type": "object"
+      },
       "AdminCampaignListResponse": {
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/AdminCampaignRead"
+              "$ref": "#/components/schemas/AdminCampaignListItemRead"
             },
             "title": "Items",
             "type": "array"
@@ -1570,11 +1761,111 @@
         "title": "AdminOrganizationCreateResponse",
         "type": "object"
       },
+      "AdminOrganizationListItemRead": {
+        "properties": {
+          "billing_contact_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billing Contact Name"
+          },
+          "billing_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billing Email"
+          },
+          "country_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Country Code"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "live_campaign_count": {
+            "minimum": 0.0,
+            "title": "Live Campaign Count",
+            "type": "integer"
+          },
+          "member_count": {
+            "minimum": 0.0,
+            "title": "Member Count",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "operational_contact_email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operational Contact Email"
+          },
+          "operational_contact_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operational Contact Name"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrganizationStatus"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "billing_email",
+          "country_code",
+          "currency",
+          "status",
+          "member_count",
+          "live_campaign_count",
+          "billing_contact_name",
+          "operational_contact_name",
+          "operational_contact_email"
+        ],
+        "title": "AdminOrganizationListItemRead",
+        "type": "object"
+      },
       "AdminOrganizationListResponse": {
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/AdvertiserOrganizationRead"
+              "$ref": "#/components/schemas/AdminOrganizationListItemRead"
             },
             "title": "Items",
             "type": "array"
@@ -4645,7 +4936,7 @@
           "verification_reference": {
             "format": "password",
             "maxLength": 512,
-            "minLength": 16,
+            "minLength": 1,
             "title": "Verification Reference",
             "type": "string",
             "writeOnly": true
@@ -6975,11 +7266,136 @@
         "title": "CampaignImpressionSummary",
         "type": "object"
       },
+      "CampaignListItemRead": {
+        "properties": {
+          "assignment_count": {
+            "minimum": 0.0,
+            "title": "Assignment Count",
+            "type": "integer"
+          },
+          "budget_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Amount"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "daily_budget_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Budget Amount"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "end_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "start_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CampaignStatus"
+          },
+          "target_zone_count": {
+            "minimum": 0.0,
+            "title": "Target Zone Count",
+            "type": "integer"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "organization_id",
+          "name",
+          "description",
+          "status",
+          "start_at",
+          "end_at",
+          "budget_amount",
+          "daily_budget_amount",
+          "currency",
+          "created_at",
+          "updated_at",
+          "assignment_count",
+          "target_zone_count"
+        ],
+        "title": "CampaignListItemRead",
+        "type": "object"
+      },
       "CampaignListResponse": {
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/CampaignRead"
+              "$ref": "#/components/schemas/CampaignListItemRead"
             },
             "title": "Items",
             "type": "array"
@@ -11245,21 +11661,16 @@
             "title": "Phone"
           },
           "service_city": {
-            "anyOf": [
-              {
-                "maxLength": 128,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Service City"
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Service City",
+            "type": "string"
           }
         },
         "required": [
           "email",
-          "full_name"
+          "full_name",
+          "service_city"
         ],
         "title": "DriverApplicationCreate",
         "type": "object"
@@ -11403,6 +11814,47 @@
           "whatsapp_consent"
         ],
         "title": "DriverContactStateRead",
+        "type": "object"
+      },
+      "DriverCurrentJob": {
+        "properties": {
+          "assignment": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CampaignAssignmentRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "propertyNames": {
+              "$ref": "#/components/schemas/CampaignAssignmentStatus"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "photo_status": {
+            "default": "unavailable",
+            "enum": [
+              "ready",
+              "display_required",
+              "installation_required",
+              "unavailable"
+            ],
+            "title": "Photo Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "assignment",
+          "counts"
+        ],
+        "title": "DriverCurrentJob",
         "type": "object"
       },
       "DriverDocumentsRead": {
@@ -17890,6 +18342,10 @@
       },
       "NotificationType": {
         "enum": [
+          "driver_id_approved",
+          "driver_id_rejected",
+          "driver_car_approved",
+          "driver_car_rejected",
           "assignment_offered",
           "assignment_accepted",
           "campaign_approved",
@@ -22001,12 +22457,115 @@
         "title": "RetargetingSourceLinkSnapshot",
         "type": "object"
       },
+      "RetargetingSourceListItemRead": {
+        "additionalProperties": false,
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "deactivated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Deactivated At"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "link_count": {
+            "minimum": 0.0,
+            "title": "Link Count",
+            "type": "integer"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "snapshot": {
+            "discriminator": {
+              "mapping": {
+                "CRM-upload-reference": "#/components/schemas/CrmUploadReferenceSourceCreate",
+                "UTM-source": "#/components/schemas/UtmSourceCreate",
+                "digital-campaign-audience": "#/components/schemas/DigitalCampaignAudienceSourceCreate",
+                "manual-insight": "#/components/schemas/ManualInsightSourceCreate",
+                "website-traffic": "#/components/schemas/WebsiteTrafficSourceCreate"
+              },
+              "propertyName": "source_type"
+            },
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/WebsiteTrafficSourceCreate"
+              },
+              {
+                "$ref": "#/components/schemas/DigitalCampaignAudienceSourceCreate"
+              },
+              {
+                "$ref": "#/components/schemas/CrmUploadReferenceSourceCreate"
+              },
+              {
+                "$ref": "#/components/schemas/UtmSourceCreate"
+              },
+              {
+                "$ref": "#/components/schemas/ManualInsightSourceCreate"
+              }
+            ],
+            "title": "Snapshot"
+          },
+          "snapshot_sha256": {
+            "title": "Snapshot Sha256",
+            "type": "string"
+          },
+          "source_type": {
+            "title": "Source Type",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "active",
+              "expired",
+              "deactivated"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "organization_id",
+          "source_type",
+          "snapshot",
+          "snapshot_sha256",
+          "status",
+          "expires_at",
+          "created_at",
+          "deactivated_at",
+          "link_count"
+        ],
+        "title": "RetargetingSourceListItemRead",
+        "type": "object"
+      },
       "RetargetingSourceListRead": {
         "additionalProperties": false,
         "properties": {
           "items": {
             "items": {
-              "$ref": "#/components/schemas/RetargetingSourceRead"
+              "$ref": "#/components/schemas/RetargetingSourceListItemRead"
             },
             "title": "Items",
             "type": "array"
@@ -26787,6 +27346,42 @@
         "summary": "List audit events",
         "tags": [
           "Admin Audit"
+        ]
+      }
+    },
+    "/api/v1/admin/badge-summary": {
+      "get": {
+        "operationId": "staff_badges_api_v1_admin_badge_summary_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminBadgeSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Staff Badges",
+        "tags": [
+          "Navigation summaries"
         ]
       }
     },
@@ -43220,6 +43815,42 @@
         "summary": "Driver Withdraw Whatsapp Consent",
         "tags": [
           "Verified contacts"
+        ]
+      }
+    },
+    "/api/v1/driver/current-job": {
+      "get": {
+        "operationId": "current_job_api_v1_driver_current_job_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverCurrentJob"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Current Job",
+        "tags": [
+          "Navigation summaries"
         ]
       }
     },
