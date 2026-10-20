@@ -26,7 +26,6 @@ from app.models.measurement import MeasurementRun, MeasurementRunProofBinding
 from app.models.organization import OrganizationMembership
 from app.models.user import User, UserRole, UserStatus
 from app.schemas.measurement import MeasurementRunCreate, MeasurementRunRead
-from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.campaign_assignments import activation_snapshot_digest
 from app.services.disclosure import (
@@ -570,7 +569,9 @@ async def issue_measurement_run(  # noqa: C901
     settings: Settings,
 ) -> MeasurementRun:
     await acquire_campaign_terms_lock(session, payload.campaign_id)
-    await require_active_admin(session, actor_user_id)
+    from app.services.report_authorization import require_report_operator
+
+    await require_report_operator(session, actor_user_id)
     _validate_issuance(payload, settings)
     await _lock_request(session, actor_user_id, payload.client_request_id)
     request_body = payload.model_dump(mode="json", exclude={"client_request_id"})
@@ -780,6 +781,19 @@ async def issue_measurement_run(  # noqa: C901
         "roi": _json_value(payload.roi.model_dump()) if payload.roi is not None else None,
     }
     result_manifest = calculate_measurement_result(input_manifest)
+    from app.services.campaign_performance import PERFORMANCE_POLICY, performance_from_manifest
+
+    labels = dict(
+        (
+            await session.execute(
+                select(CampaignZone.id, CampaignZone.name).where(
+                    CampaignZone.campaign_id == campaign.id
+                )
+            )
+        ).all()
+    )
+    input_manifest["campaign_area_labels"] = {str(key): name for key, name in labels.items()}
+    input_manifest["campaign_performance_policy"] = PERFORMANCE_POLICY
     report_user_id = await session.scalar(
         select(OrganizationMembership.user_id)
         .join(User, User.id == OrganizationMembership.user_id)
@@ -816,6 +830,9 @@ async def issue_measurement_run(  # noqa: C901
             "high_exposure_zone_insights",
         },
     )
+    report_snapshot["performance"] = performance_from_manifest(
+        input_manifest, campaign_id=campaign.id, labels=input_manifest["campaign_area_labels"]
+    ).model_dump(mode="json")
     latest = await session.scalar(
         select(MeasurementRun)
         .where(

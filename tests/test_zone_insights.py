@@ -111,8 +111,11 @@ def test_zone_insights_are_governed_authorized_and_frozen_into_segment_history(
         headers=auth_headers(db_client, advertiser.email, PASSWORD),
     )
     assert report.status_code == 200, report.text
-    assert report.json()["high_exposure_zone_insights"] == first
-    assert report.json()["measurement_result"]["roi"] is None
+    # D90: the advertiser report is the coarse projection; zone insights stay on
+    # their own governed route above.
+    assert {"totals", "areas"} <= report.json().keys()
+    assert "high_exposure_zone_insights" not in report.json()
+    assert "measurement_result" not in report.json()
 
     async def replay_and_suppress_fixed() -> tuple[dict, dict]:
         async with db_sessionmaker() as session:

@@ -374,9 +374,11 @@ def test_correlated_synthetic_pilot_journey(
         headers=advertiser_headers,
     )
     assert report.status_code == 200, report.text
-    assert report.json()["measurement_result"]["title"] == "Campaign Performance Analysis"
+    # The advertiser sees the coarse projection; title and ROI live on the frozen run.
+    assert report.json()["measurement_run_id"] == run.json()["id"]
+    assert run.json()["result_manifest"]["title"] == "Campaign Performance Analysis"
     completed.append("Campaign Performance Analysis")
-    assert report.json()["measurement_result"]["roi"]["ratio"] == "1"
+    assert run.json()["result_manifest"]["roi"]["ratio"] == "1"
     completed.append("qualified synthetic conditional ROI")
 
     outsider = create_test_user(

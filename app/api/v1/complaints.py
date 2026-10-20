@@ -78,8 +78,10 @@ def _sender(message: ComplaintMessage, owner: ComplaintOwner) -> str:
     return "you" if message.author_user_id == owner.user_id else "your_team"
 
 
-async def _owned_list(session: AsyncSession, owner: ComplaintOwner) -> ComplaintList:
-    complaints = await list_owned_complaints(session, owner)
+async def _owned_list(
+    session: AsyncSession, owner: ComplaintOwner, *, campaign_id: UUID | None = None
+) -> ComplaintList:
+    complaints = await list_owned_complaints(session, owner, campaign_id=campaign_id)
     labels = await reference_labels(session, complaints)
     return ComplaintList(items=[_summary(item, labels.get(item.id)) for item in complaints])
 
@@ -187,9 +189,13 @@ async def driver_add_complaint_message(
 
 @router.get("/advertiser/complaints", response_model=ComplaintList)
 async def advertiser_list_complaints(
-    current_user: AdvertiserUserDependency, session: SessionDependency
+    current_user: AdvertiserUserDependency,
+    session: SessionDependency,
+    campaign_id: UUID | None = None,
 ) -> ComplaintList:
-    return await _owned_list(session, await advertiser_owner(session, current_user))
+    return await _owned_list(
+        session, await advertiser_owner(session, current_user), campaign_id=campaign_id
+    )
 
 
 @router.get("/advertiser/complaints/reference-options", response_model=ComplaintReferenceOptions)

@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
 
-def test_budget_transition_is_append_only(monkeypatch) -> None:
+def test_budget_evaluation_and_transition_are_append_only(monkeypatch) -> None:
     migration_url = asyncio.run(create_database_from_url(configured_postgres_url()))
 
     async def seed_and_mutate() -> None:
@@ -27,7 +27,7 @@ def test_budget_transition_is_append_only(monkeypatch) -> None:
                     text(
                         """
                         INSERT INTO budget_policy_evaluations
-                          (id, campaign_id, evaluation_key, state, external_gate,
+                          (id, campaign_id, evaluation_key, state,
                            campaign_budget_amount, campaign_daily_budget_amount, currency,
                            policy_id, policy_revision, policy_source, budget_basis,
                            billing_fact_source, billing_spend_amount, alert_threshold_amount,
@@ -36,7 +36,7 @@ def test_budget_transition_is_append_only(monkeypatch) -> None:
                         VALUES
                           ('64000000-0000-0000-0000-000000000001',
                            '64000000-0000-0000-0000-000000000002', repeat('a', 64),
-                           'pause_threshold', NULL, 1000, NULL, 'NGN',
+                           'pause_threshold', 1000, NULL, 'NGN',
                            'synthetic-policy', 'synthetic-r1', 'synthetic_test', 'total',
                            'confirmed_funding', 1000, 800, 1000, 700, true, true, false, now())
                         """
@@ -56,14 +56,15 @@ def test_budget_transition_is_append_only(monkeypatch) -> None:
                         """
                     )
                 )
-            with pytest.raises(DBAPIError, match="append-only"):
-                async with engine.begin() as connection:
-                    await connection.execute(
-                        text(
-                            "UPDATE budget_campaign_transitions SET reason = reason WHERE id = "
-                            "'64000000-0000-0000-0000-000000000003'"
-                        )
-                    )
+            for statement in (
+                "UPDATE budget_campaign_transitions SET reason = reason WHERE id = "
+                "'64000000-0000-0000-0000-000000000003'",
+                "UPDATE budget_policy_evaluations SET state = state WHERE id = "
+                "'64000000-0000-0000-0000-000000000001'",
+            ):
+                with pytest.raises(DBAPIError, match="append-only"):
+                    async with engine.begin() as connection:
+                        await connection.execute(text(statement))
         finally:
             await engine.dispose()
 

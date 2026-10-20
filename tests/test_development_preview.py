@@ -149,8 +149,8 @@ def test_default_aggregation_supports_navigation_frozen_reports_maps_and_export(
         f"/api/v1/advertiser/campaigns/{campaign.id}/report", headers=headers, params=dates
     )
     assert report.status_code == 200, report.text
-    assert report.json()["measurement_run"]["id"] == run.json()["id"]
-    assert report.json()["trip_summary"]["total"] == 13
+    assert report.json()["measurement_run_id"] == run.json()["id"]
+    assert report.json()["totals"]["trip_count"] == 13
     heatmap = postgis_db_client.get(
         f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",
         headers=headers,

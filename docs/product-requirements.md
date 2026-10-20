@@ -168,7 +168,7 @@ gate families are:
   thresholds for advertiser outputs, retargeting and export approval.
 - **Company, bank and commercial facts:** registered issuer details and tax
   identification for invoices, settlement bank details, quotation components,
-  commissions, driver base and premium rates, budget policy values, evidence
+  commissions, driver base and premium rates, evidence
   and upload policy values, approved message copy.
 - **Measurement method:** client approval of the estimate methodology and
   labels; any financial return-on-investment method.
@@ -351,10 +351,12 @@ training and handover.
   records and confirms received transfers. **Implemented.** The account
   details advertisers pay into are client facts (G-19); the online gateway is
   gated (G-01).
-- **A-31** Budget alerts, automatic pause and resume evaluate advertiser
-  billing facts, never driver earnings. Without approved policy values, no
-  threshold is applied and the product records that the policy is missing.
-  Alerts come in two levels, a warning and an urgent alert, before the pause, and reach every member of the advertiser company plus Terrax Media admins. The client answered warning 80 %, urgent 95 % and pause 100 %. **Implemented · Gated (G-20)** until the policy revision and resume threshold are also supplied. Whether printing and fixed costs consume the
+- **A-31** Budget alerts, automatic pause and guarded staff resume evaluate advertiser
+  billing facts, never driver earnings. D92 / REQ-190 supplies fixed warning 80%,
+  urgent 95% and pause 100% defaults; external policy approval is no longer a gate.
+  Alerts reach every member of the advertiser company plus Terrax Media admins.
+  Resume requires confirmed changed funding/budget facts and fresh spend below
+  every applicable 100% limit. Whether printing and fixed costs consume the
   campaign budget is a client decision (G-21).
 
 ### 4.8 Reports, maps and planning sources
@@ -1122,7 +1124,6 @@ numbers (G-03, G-04, G-07, G-13) are intentionally left unassigned.
 | G-17 | Registered issuer name, tax identification number, billing address, invoice wording and numbering, accountant confirmation | Real invoice issuance | Terrax Media |
 | G-18 | Quotation components, commissions, driver base and premium rates, production and vendor values | Real commercial and payout use | Terrax Media |
 | G-19 | Settlement bank-account details with secure intake and verification; approved advertiser payment instructions | Live settlement; payment instructions shown to advertisers | Terrax Media |
-| G-20 | Budget alert, pause and resume values | Live budget policy | Terrax Media |
 | G-21 | Whether printing and fixed costs consume the campaign budget | Production commercial configuration | Terrax Media |
 | G-21a | Evidence and activity policy: installation photo views, uploader roles, validity and renewal, display-check and spot-check thresholds, weekly verified-hours floor | Pilot evidence and activity enforcement | Terrax Media operations |
 | G-22 | Approved file types and maximum sizes per upload | Live upload policy | Terrax Media |
@@ -1251,7 +1252,6 @@ external prerequisite register. It is for reviewers; it adds no requirements.
 | G-17 | EXT-Q28-COMPANY |
 | G-18 | EXT-COMMERCIAL-VALUES |
 | G-19 | EXT-SETTLEMENT-BANK |
-| G-20 | EXT-BUDGET-POLICY |
 | G-21 | EXT-CAMPAIGN-BUDGET-SCOPE |
 | G-21a | EXT-EVIDENCE-POLICY (plus the weekly verified-hours floor operations parameter) |
 | G-22 | EXT-UPLOAD-POLICY |

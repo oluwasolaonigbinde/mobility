@@ -49,6 +49,7 @@ from app.jobs.trip_processing import (
 from app.jobs.vehicle_approvals import sweep_vehicle_approval_expiries
 from app.services.paystack_disbursements import build_paystack_destination_resolver
 from app.services.report_issuances import sweep_report_issuances
+from app.services.report_scheduling import sweep_scheduled_reports
 
 
 def sweep_cron_minutes(interval_minutes: int) -> set[int]:
@@ -197,6 +198,11 @@ class WorkerSettings:
         ),
         cron(
             sweep_report_issuances,
+            minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
+            unique=True,
+        ),
+        cron(
+            sweep_scheduled_reports,
             minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
             unique=True,
         ),

@@ -1491,20 +1491,37 @@ async def _seed_cancelled_campaign(session, *, graph, staff, campaign, state):
         return
     name = campaign.name
     from app.models.billing import CommercialTerms, PaymentReceipt, ReceiptAllocation
+    from app.models.complaint import ComplaintReferenceType
+    from app.models.user import User
     from app.schemas.campaign_cancellations import CampaignCancellationCreate
+    from app.schemas.complaints import ComplaintCategory
     from app.services.billing.receipts import reverse_payment_receipt
     from app.services.billing.settlements import record_refund_settlement
     from app.services.campaign_cancellations import request_campaign_cancellation
+    from app.services.complaints import advertiser_owner, raise_complaint
 
     reason = (
         "Please cancel the collection campaign; the van delivery has been delayed."
         if "Home" in name
         else "Please cancel the Asokoro launch until the new branch is ready."
     )
+    # D7: the advertiser asks Terrax, then staff cancel with the request linked.
+    advertiser = await session.get(User, campaign.created_by_user_id)
+    request = await raise_complaint(
+        session,
+        owner=await advertiser_owner(session, advertiser),
+        category=ComplaintCategory.CAMPAIGN_CANCELLATION,
+        message=reason,
+        reference_type=ComplaintReferenceType.CAMPAIGN,
+        reference_id=campaign.id,
+        client_request_id=uuid5(campaign.id, "cancellation-request"),
+    )
     cancellation = await request_campaign_cancellation(
         session,
-        actor_user_id=campaign.created_by_user_id,
+        actor_user_id=staff[0].id,
+        actor_session_version=staff[0].session_version,
         campaign_id=campaign.id,
+        complaint_id=request.complaint.id,
         payload=CampaignCancellationCreate(
             client_request_id=uuid5(campaign.id, "cancellation"), reason=reason
         ),

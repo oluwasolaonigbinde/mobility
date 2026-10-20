@@ -99,7 +99,6 @@ class SettlementDisposition(StrEnum):
 
 
 class BudgetPolicyEvaluationState(StrEnum):
-    BLOCKED_EXTERNAL_POLICY = "blocked_external_policy"
     WITHIN_BUDGET = "within_budget"
     ALERT_THRESHOLD = "alert_threshold"
     URGENT_THRESHOLD = "urgent_threshold"
@@ -1014,23 +1013,15 @@ class BudgetPolicyEvaluation(Base):
     __tablename__ = "budget_policy_evaluations"
     __table_args__ = (
         CheckConstraint(
-            "state IN ('blocked_external_policy', 'within_budget', "
-            "'alert_threshold', 'urgent_threshold', 'pause_threshold')",
+            "state IN ('within_budget', 'alert_threshold', 'urgent_threshold', 'pause_threshold')",
             name="ck_budget_policy_evaluations_state",
         ),
         CheckConstraint(
-            "(state = 'blocked_external_policy' AND urgent_threshold_amount IS NULL) OR "
-            "(state NOT IN ('blocked_external_policy', 'urgent_threshold') "
-            "AND urgent_threshold_amount IS NULL) OR "
-            "(state <> 'blocked_external_policy' AND urgent_threshold_amount IS NOT NULL "
+            "(state <> 'urgent_threshold' AND urgent_threshold_amount IS NULL) OR "
+            "(urgent_threshold_amount IS NOT NULL "
             "AND urgent_threshold_amount > alert_threshold_amount "
             "AND urgent_threshold_amount < pause_threshold_amount)",
             name="ck_budget_policy_evaluations_urgent",
-        ),
-        CheckConstraint(
-            "(state = 'blocked_external_policy' AND external_gate = 'EXT-BUDGET-POLICY') OR "
-            "(state <> 'blocked_external_policy' AND external_gate IS NULL)",
-            name="ck_budget_policy_evaluations_external_gate",
         ),
         CheckConstraint(
             "(campaign_budget_amount IS NOT NULL OR campaign_daily_budget_amount IS NOT NULL) "
@@ -1040,20 +1031,13 @@ class BudgetPolicyEvaluation(Base):
         ),
         CheckConstraint("length(currency) = 3", name="ck_budget_policy_evaluations_currency"),
         CheckConstraint(
-            "(state = 'blocked_external_policy' AND policy_id IS NULL "
-            "AND policy_revision IS NULL AND policy_source IS NULL AND budget_basis IS NULL "
-            "AND billing_fact_source IS NULL "
-            "AND billing_spend_amount IS NULL AND alert_threshold_amount IS NULL "
-            "AND pause_threshold_amount IS NULL AND resume_threshold_amount IS NULL "
-            "AND alert_applied = false AND pause_applied = false AND resume_allowed = false) OR "
-            "(state <> 'blocked_external_policy' AND policy_id IS NOT NULL "
-            "AND policy_revision IS NOT NULL "
+            "policy_id IS NOT NULL AND policy_revision IS NOT NULL "
             "AND policy_source IN ('external_approved', 'synthetic_test') "
-            "AND budget_basis IN ('total', 'daily') "
+            "AND budget_basis = 'total' "
             "AND billing_fact_source IN ('confirmed_funding', 'production_obligation') "
             "AND billing_spend_amount >= 0 "
             "AND alert_threshold_amount >= 0 AND pause_threshold_amount > alert_threshold_amount "
-            "AND resume_threshold_amount <= alert_threshold_amount)",
+            "AND resume_threshold_amount <= pause_threshold_amount",
             name="ck_budget_policy_evaluations_authority_fields",
         ),
         UniqueConstraint("campaign_id", "evaluation_key", name="uq_budget_policy_evaluation_key"),
@@ -1065,7 +1049,6 @@ class BudgetPolicyEvaluation(Base):
     )
     evaluation_key: Mapped[str] = mapped_column(String(64), nullable=False)
     state: Mapped[str] = mapped_column(String(40), nullable=False)
-    external_gate: Mapped[str | None] = mapped_column(String(64))
     campaign_budget_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     campaign_daily_budget_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
@@ -1074,11 +1057,12 @@ class BudgetPolicyEvaluation(Base):
     policy_source: Mapped[str | None] = mapped_column(String(32))
     budget_basis: Mapped[str | None] = mapped_column(String(16))
     billing_fact_source: Mapped[str | None] = mapped_column(String(32))
+    funding_fingerprint: Mapped[str | None] = mapped_column(String(64))
     billing_spend_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
-    alert_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
-    urgent_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
-    pause_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
-    resume_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    alert_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(16, 4))
+    urgent_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(16, 4))
+    pause_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(16, 4))
+    resume_threshold_amount: Mapped[Decimal | None] = mapped_column(Numeric(16, 4))
     alert_applied: Mapped[bool] = mapped_column(
         nullable=False, default=False, server_default=text("false")
     )

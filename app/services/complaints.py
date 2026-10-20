@@ -52,7 +52,11 @@ OPTIONS_LIMIT = 50
 COMPLAINANT_LIST_LIMIT = 100
 
 PARTY_CATEGORIES: dict[ComplaintParty, frozenset[ComplaintCategory]] = {
-    ComplaintParty.DRIVER: frozenset(ComplaintCategory) - {ComplaintCategory.BILLING_OR_INVOICE},
+    ComplaintParty.DRIVER: frozenset(ComplaintCategory)
+    - {
+        ComplaintCategory.BILLING_OR_INVOICE,
+        ComplaintCategory.CAMPAIGN_CANCELLATION,
+    },
     ComplaintParty.ADVERTISER: frozenset(ComplaintCategory)
     - {ComplaintCategory.PAY_OR_PAYOUT, ComplaintCategory.TRIP_OR_TRACKING},
 }
@@ -366,6 +370,13 @@ async def raise_complaint(  # noqa: C901
         raise _unprocessable(
             "COMPLAINT_REFERENCE_INCOMPLETE", "Choose both the kind of record and the record"
         )
+    if (
+        category is ComplaintCategory.CAMPAIGN_CANCELLATION
+        and reference_type is not ComplaintReferenceType.CAMPAIGN
+    ):
+        raise _unprocessable(
+            "COMPLAINT_CAMPAIGN_REQUIRED", "Choose the campaign you want Terrax to cancel"
+        )
     if reference_type is not None and reference_type not in PARTY_REFERENCES[owner.party]:
         raise _unprocessable(
             "COMPLAINT_REFERENCE_NOT_ALLOWED", "This kind of record is not available here"
@@ -678,12 +689,18 @@ async def reference_labels(session: AsyncSession, complaints: list[Complaint]) -
     return labels
 
 
-async def list_owned_complaints(session: AsyncSession, owner: ComplaintOwner) -> list[Complaint]:
+async def list_owned_complaints(
+    session: AsyncSession, owner: ComplaintOwner, *, campaign_id: UUID | None = None
+) -> list[Complaint]:
+    query = _owned(select(Complaint), owner)
+    if campaign_id is not None:
+        # Filtered before the limit so an old request on this campaign is still found.
+        query = query.where(Complaint.campaign_id == campaign_id)
     return list(
         await session.scalars(
-            _owned(select(Complaint), owner)
-            .order_by(Complaint.last_message_at.desc(), Complaint.id.desc())
-            .limit(COMPLAINANT_LIST_LIMIT)
+            query.order_by(Complaint.last_message_at.desc(), Complaint.id.desc()).limit(
+                COMPLAINANT_LIST_LIMIT
+            )
         )
     )
 

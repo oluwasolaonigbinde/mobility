@@ -28,6 +28,27 @@ from app.services.report_issuances import (
 router = APIRouter(tags=["Report Issuances"])
 
 
+@router.post(
+    "/admin/campaigns/{campaign_id}/reports/re-run",
+    response_model=ReportIssuanceRead,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+async def admin_rerun_campaign_report(
+    campaign_id: UUID,
+    user: AdminUserDependency,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> ReportIssuanceRead:
+    from app.services.report_scheduling import rerun_campaign_report
+
+    issuance = await rerun_campaign_report(
+        session, actor_user_id=user.id, campaign_id=campaign_id, settings=settings
+    )
+    response = await report_issuance_read(session, issuance)
+    await session.commit()
+    return response
+
+
 @router.get(
     "/advertiser/measurement-runs/{run_id}/report-issuances",
     response_model=ReportIssuanceCurrentRead | None,

@@ -163,7 +163,7 @@ class Settings(BaseSettings):
     driver_registration_rate_limit_ip_window_seconds: int = 3600
     driver_registration_rate_limit_email_max_attempts: int = 3
     driver_registration_rate_limit_email_window_seconds: int = 3600
-    driver_onboarding_access_ttl_seconds: int = 1800
+    driver_onboarding_access_ttl_seconds: int = 86400
     driver_account_setup_ttl_seconds: int = 1800
     driver_account_setup_public_url: str = ""
     driver_registration_rate_limit_trust_client_ip_header: bool = False
@@ -228,15 +228,6 @@ class Settings(BaseSettings):
     email_delivery_max_attempts: int = 5
     email_delivery_retry_base_seconds: int = 60
     email_delivery_claim_seconds: int = 120
-    # Live budget enforcement remains disabled until an approved external
-    # identity, revision, and complete threshold set are configured together.
-    budget_policy_external_approved: bool = False
-    budget_policy_id: str | None = None
-    budget_policy_revision: str | None = None
-    budget_alert_ratio: OptionalFloat = None
-    budget_urgent_ratio: OptionalFloat = None
-    budget_pause_ratio: OptionalFloat = None
-    budget_resume_ratio: OptionalFloat = None
     # EXT-PAYMENT-PROVIDER: blank keeps every Paystack path on the disabled adapters.
     paystack_secret_key: OptionalSecret = None
     paystack_checkout_return_url: str = ""
@@ -409,33 +400,6 @@ class Settings(BaseSettings):
         if value <= 0:
             raise ValueError("Login rate-limit settings must be positive")
         return value
-
-    @model_validator(mode="after")
-    def validate_budget_policy_configuration(self):
-        values = (
-            self.budget_policy_id,
-            self.budget_policy_revision,
-            self.budget_alert_ratio,
-            self.budget_urgent_ratio,
-            self.budget_pause_ratio,
-            self.budget_resume_ratio,
-        )
-        configured = [value is not None and value != "" for value in values]
-        if any(configured) and not all(configured):
-            raise ValueError("Budget policy configuration must be complete")
-        if self.budget_policy_external_approved and not all(configured):
-            raise ValueError("Approved budget policy requires a complete revision")
-        if all(configured) and not (
-            0
-            < self.budget_resume_ratio
-            <= self.budget_alert_ratio
-            < self.budget_urgent_ratio
-            < self.budget_pause_ratio
-        ):
-            raise ValueError(
-                "Budget policy thresholds must satisfy resume <= alert < urgent < pause"
-            )
-        return self
 
     @model_validator(mode="after")
     def validate_automatic_payout_configuration(self):

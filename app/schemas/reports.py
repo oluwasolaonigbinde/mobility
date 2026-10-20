@@ -2,7 +2,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel, Field, field_serializer
 
 from app.models.campaign import CampaignStatus, CreativeStatus
 from app.models.campaign_assignment import CampaignAssignmentStatus
@@ -223,6 +223,33 @@ class CampaignReportResponse(BaseModel):
     measurement_result: MeasurementResultRead | None = None
     exposure_score: AdvertiserExposureScoreRead | None = None
     high_exposure_zone_insights: HighExposureZoneInsightsRead | None = None
+
+
+class CampaignPerformanceTotals(BaseModel):
+    distance_m: str
+    trip_count: int = Field(ge=0)
+    driving_days: int = Field(ge=0)
+    estimated_views: str | None
+
+
+class CampaignPerformanceArea(BaseModel):
+    area_id: UUID
+    name: str
+    trip_count: int = Field(ge=0)
+    modelled_potential_contacts: str | None
+
+
+class CampaignPerformanceRead(BaseModel):
+    campaign_id: UUID
+    start_at: datetime | None
+    end_at: datetime | None
+    totals: CampaignPerformanceTotals
+    areas: list[CampaignPerformanceArea]
+    completeness: str
+    uncertainty: str
+    measurement_run_id: UUID | None = None
+    report_issuance_id: UUID | None = None
+    report_status: str | None = None
 
 
 CAMPAIGN_STATUSES = [status.value for status in CampaignStatus]

@@ -254,7 +254,9 @@ def test_fresh_report_disclosures_hold_parent_and_access_locks_until_commit(
                 "source": (RetargetingSource, link.source_id, {"status": "deactivated"}),
                 "user": (User, advertiser.id, {"status": "disabled"}),
                 "organization": (
-                    AdvertiserOrganization, link.organization_id, {"status": "disabled"}
+                    AdvertiserOrganization,
+                    link.organization_id,
+                    {"status": "disabled"},
                 ),
                 "membership": (OrganizationMembership, membership_id, {"status": "disabled"}),
                 "campaign": (Campaign, link.campaign_id, {"name": "Concurrent campaign edit"}),
@@ -286,10 +288,9 @@ def test_fresh_report_disclosures_hold_parent_and_access_locks_until_commit(
             async def record_and_check(session, **kwargs):
                 await record(session, **kwargs)
                 await assert_edit_blocked(kwargs["query"].route_id)
-                assert (
-                    await session.scalar(select(func.count()).select_from(DisclosureQueryDecision))
-                    == len(checkpoints)
-                )
+                assert await session.scalar(
+                    select(func.count()).select_from(DisclosureQueryDecision)
+                ) == len(checkpoints)
 
             monkeypatch.setattr(audience, "record_disclosure", record_and_check)
             monkeypatch.setattr(audience_delivery, "record_disclosure", record_and_check)
@@ -301,11 +302,10 @@ def test_fresh_report_disclosures_hold_parent_and_access_locks_until_commit(
                 settings=settings,
                 admin=False,
             )
-            assert issuance.snapshot["exposure"]["state"] == "ready"
+            assert issuance.snapshot["exposure"]["state"] == "unavailable"
             assert issuance.snapshot["linked_source_recommendations"][0]["state"] == "ready"
             await assert_edit_blocked("snapshot_frozen")
             assert checkpoints == [
-                "advertiser.campaign.zone_insights",
                 "advertiser.audience.recommendations",
                 "snapshot_frozen",
             ]
@@ -315,9 +315,10 @@ def test_fresh_report_disclosures_hold_parent_and_access_locks_until_commit(
             await writer.commit()
             assert await writer.get(ReportIssuance, issuance.id) is not None
             decisions = list(await writer.scalars(select(DisclosureQueryDecision)))
-            assert {row.output_class for row in decisions} == set(checkpoints[:2])
-            assert len(decisions) == 2
-            assert all(row.decision == "served" for row in decisions)
+            # D105: freezing area rows records no separate area reservation.
+            assert [(row.output_class, row.decision) for row in decisions] == [
+                ("advertiser.audience.recommendations", "served")
+            ]
             changed = await writer.get(model, identity, populate_existing=True)
             assert all(getattr(changed, field) == value for field, value in values.items())
 
@@ -684,7 +685,7 @@ def test_v1_request_replay_keeps_snapshot_bytes_and_new_reissue_uses_v2_wording(
     newer = request_issuance(db_client, advertiser, run["id"], reissue_of_id=old_id)
     assert newer.status_code == 202, newer.text
     new_snapshot, _, new_pair = asyncio.run(inspect(UUID(newer.json()["id"])))
-    assert new_snapshot["schema_version"] == "campaign-performance-export-v3"
+    assert new_snapshot["schema_version"] == "campaign-performance-export-v4"
     assert old_snapshot["schema_version"] == "campaign-performance-export-v1"
     assert [item.content for item in asyncio.run(inspect(old_id))[2]] == [
         item.content for item in old_pair
@@ -725,25 +726,16 @@ def test_performance_issuance_replay_worker_download_and_tamper_fail_closed(
     assert b"roi" not in rendered_pdf_bytes(pdf_content).lower()
     assert first.json()["id"].encode() in csv_content
     assert first.json()["id"].encode() in rendered_pdf_bytes(pdf_content)
-    assert b"campaign-performance-export-v3" in csv_content
+    assert b"campaign-performance-export-v4" in csv_content
     assert b"campaign-report-renderer-v1" in rendered_pdf_bytes(pdf_content)
-    from app.services.measurement import (
-        DENSITY_PARAMETER_CALIBRATION,
-        DENSITY_PARAMETER_SOURCE,
-        VERIFIED_MOVEMENT_CAVEAT,
-    )
-
-    frozen_metrics = {metric["id"]: metric for metric in run["result_manifest"]["metrics"]}
-    density_profile = frozen_metrics["modelled_potential_contacts"]["density_provenance"][
-        "profiles"
-    ][0]
     for fact in (
-        VERIFIED_MOVEMENT_CAVEAT.encode(),
-        DENSITY_PARAMETER_SOURCE.encode(),
-        DENSITY_PARAMETER_CALIBRATION.encode(),
-        density_profile["value_fingerprint"].encode(),
-        density_profile["traffic_density_per_km"].encode(),
-        b"completed trips covered",
+        b"Distance",
+        b"Completed trips",
+        b"Driving days",
+        b"Estimated views",
+        b"10000.00",
+        b"500.00",
+        b"not measured people or guaranteed views",
     ):
         # The wrapped PDF is searched through its drawn text, not its raw bytes.
         assert fact in b" ".join(csv_content.split()), fact
@@ -751,9 +743,6 @@ def test_performance_issuance_replay_worker_download_and_tamper_fail_closed(
         if re.fullmatch(rb"[0-9a-f]{64}", fact):
             pdf_text = pdf_text.replace(b" ", b"")
         assert fact in pdf_text, fact
-    movement = frozen_metrics["verified_vehicle_movement"]["completeness"]
-    assert movement["denominator_trip_count"] >= movement["covered_trip_count"]
-    assert movement["suppressed"] is False
     for source_group in run["input_manifest"]["sources"].values():
         for source in source_group:
             assert str(source["trip_session_id"]).encode() not in csv_content

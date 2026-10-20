@@ -215,9 +215,15 @@ def test_measurement_run_replays_reproduces_reissues_and_drives_report(
         headers=advertiser_headers,
     )
     assert report.status_code == 200, report.text
-    assert report.json()["measurement_run"]["id"] == second_body["id"]
-    assert report.json()["measurement_result"]["title"] == "Campaign Performance Analysis"
-    assert report.json()["measurement_result"]["roi"] is None
+    assert report.json()["measurement_run_id"] == second_body["id"]
+    assert report.json()["totals"] == {
+        "distance_m": "10000.00",
+        "trip_count": 1,
+        "driving_days": 1,
+        "estimated_views": "500.00",
+    }
+    assert report.json()["areas"] == []
+    assert "measurement_result" not in report.json()
 
     live_settings = settings.model_copy(
         update={
@@ -234,7 +240,7 @@ def test_measurement_run_replays_reproduces_reissues_and_drives_report(
         headers=advertiser_headers,
     )
     assert blocked_live.status_code == 200, blocked_live.text
-    assert blocked_live.json()["measurement_run"]["id"] == second_body["id"]
+    assert blocked_live.json()["measurement_run_id"] == second_body["id"]
 
     async def count_runs() -> int:
         async with db_sessionmaker() as session:
@@ -293,8 +299,8 @@ def test_measurement_and_screen_share_terminal_cohort_when_sources_arrive_late(
         },
         headers=auth_headers(db_client, advertiser.email, PASSWORD),
     ).json()
-    assert report["impression_summary"]["estimated_impressions"] == "500.00"
-    assert report["cost_summary"]["totals_by_currency"][0]["final_payout_total"] == "1200.00"
+    assert report["totals"]["estimated_views"] == "500.00"
+    assert "cost_summary" not in report
     assert len(run["input_manifest"]["cohort"]) == 1
     assert run["input_manifest"]["cohort"][0]["trip_fingerprint"]
     for source_rows in run["input_manifest"]["sources"].values():

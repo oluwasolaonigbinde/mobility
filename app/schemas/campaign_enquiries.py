@@ -1,4 +1,7 @@
 import re
+from datetime import datetime
+from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -29,3 +32,28 @@ class CampaignEnquiryCreate(BaseModel):
 
 class CampaignEnquiryRead(BaseModel):
     status: str = "submitted"
+
+
+class StaffCampaignEnquiryRead(CampaignEnquiryCreate):
+    id: UUID
+    created_at: datetime
+    status: Literal["new", "converted"]
+    organization_id: UUID | None
+    converted_at: datetime | None
+
+
+class StaffCampaignEnquiryList(BaseModel):
+    items: list[StaffCampaignEnquiryRead]
+    total: int
+    limit: int
+    offset: int
+
+
+class CampaignEnquiryConversion(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    owner_user_id: UUID | None = None
+
+
+class CampaignEnquiryConverted(BaseModel):
+    organization_id: UUID
+    status: Literal["converted"] = "converted"

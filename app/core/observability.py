@@ -10,6 +10,11 @@ from app.core.config import Settings
 from app.core.middleware import get_request_id
 
 _REDACTED = "[REDACTED]"
+_APPLICATION_LINK = re.compile(r"https?://[^\s<>\"']*#application_access_token=[^\s<>\"']*")
+_ONBOARDING_CAPABILITY = re.compile(
+    r"(?<![\w-])[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+    r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\.[A-Za-z0-9_-]{43}(?![\w-])"
+)
 _CANONICAL_UUID_TOKEN = re.compile(
     r"(?<![\w-])[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
     r"[0-9a-fA-F]{4}-[0-9a-fA-F]{12}(?![\w-])"
@@ -578,7 +583,9 @@ def _redact_phone_values(message: str) -> str:
 
 
 def redact_log_message(message: str) -> str:
-    redacted = _EMAIL_VALUE.sub(_REDACTED, message)
+    redacted = _APPLICATION_LINK.sub(_REDACTED, message)
+    redacted = _ONBOARDING_CAPABILITY.sub(_REDACTED, redacted)
+    redacted = _EMAIL_VALUE.sub(_REDACTED, redacted)
     redacted = _redact_phone_values(redacted)
     redacted = _IPV4_VALUE.sub(_redact_ip_value, redacted)
     redacted = _IPV6_VALUE.sub(_redact_ip_value, redacted)

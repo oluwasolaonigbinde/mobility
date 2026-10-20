@@ -1,7 +1,6 @@
 import csv
 import hashlib
 import io
-from types import SimpleNamespace
 
 import pytest
 
@@ -248,26 +247,30 @@ def test_historical_v1_suppression_bytes_keep_pre_change_golden_hashes() -> None
 
 
 def test_new_export_snapshot_freezes_plain_suppression_text_in_csv_and_pdf() -> None:
-    from app.services.report_issuances import REPORT_SCHEMA_VERSION, _metric_snapshot
+    from app.services.report_issuances import REPORT_SCHEMA_VERSION
 
     snapshot = export_snapshot()
-    movement = snapshot["metrics"][0]
-    metric = SimpleNamespace(
-        id="verified_vehicle_movement",
-        label=movement["label"],
-        metric_class=movement["class"],
-        trip_count=0,
-        distance_m=None,
-        active_tracking_seconds=None,
-        completeness=SimpleNamespace(**completeness(covered=0)),
-    )
     snapshot["schema_version"] = REPORT_SCHEMA_VERSION
     snapshot["issuance"]["schema_version"] = REPORT_SCHEMA_VERSION
     snapshot["linked_source_recommendations"] = []
-    snapshot["metrics"] = _metric_snapshot(SimpleNamespace(metrics=[metric]))
+    snapshot["metrics"] = [
+        {
+            "id": "views",
+            "label": "Estimated views",
+            "class": "modelled_measure",
+            "values": [
+                {
+                    "label": "Estimated views",
+                    "value": "Not enough data",
+                    "unit": "potential contacts",
+                }
+            ],
+            "uncertainty": "Views are estimates, not measured people.",
+        }
+    ]
     csv_bytes = render_report_csv(snapshot)
     pdf_lines = " ".join(_pdf_report_lines(snapshot))
-    assert REPORT_SCHEMA_VERSION == "campaign-performance-export-v3"
+    assert REPORT_SCHEMA_VERSION == "campaign-performance-export-v4"
     assert b"Not enough data" in csv_bytes
     assert "Not enough data" in pdf_lines
     assert b"insufficient frozen evidence" not in csv_bytes

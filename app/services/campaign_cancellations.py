@@ -2,7 +2,7 @@ import hashlib
 import json
 from datetime import UTC, datetime
 from decimal import Decimal
-from uuid import UUID, uuid4
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -33,7 +33,6 @@ from app.services.audit import create_audit_event
 from app.services.billing.queries import _commercial_terms_for_campaign
 from app.services.billing.settlements import _refund_window
 from app.services.campaign_assignments import create_activation_event
-from app.services.campaigns import get_required_advertiser_context
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
 
 
@@ -91,30 +90,59 @@ async def _cash_remaining_for_terms(session: AsyncSession, commercial_terms_id: 
     return max(Decimal("0.00"), allocated - refunded)
 
 
+async def _lock_cancellation_campaign(
+    session: AsyncSession,
+    *,
+    actor_user_id: UUID,
+    campaign_id: UUID,
+    actor_session_version: int,
+) -> Campaign:
+    from app.services.admin_authorization import require_active_admin
+
+    await acquire_campaign_terms_lock(session, campaign_id)
+    await require_active_admin(
+        session, actor_user_id, share_lock=True, expected_session_version=actor_session_version
+    )
+    campaign = await session.scalar(
+        select(Campaign)
+        .where(Campaign.id == campaign_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if campaign is None:
+        raise _error("CAMPAIGN_NOT_FOUND", "Campaign was not found", 404)
+
+    return campaign
+
+
+def _request_fingerprint(campaign_id, payload, *, complaint_id):
+    return _digest(
+        {
+            "campaign_id": str(campaign_id),
+            "client_request_id": str(payload.client_request_id),
+            "reason": payload.reason,
+            "complaint_id": str(complaint_id) if complaint_id else None,
+        }
+    )
+
+
 async def request_campaign_cancellation(
     session: AsyncSession,
     *,
     actor_user_id: UUID,
     campaign_id: UUID,
     payload: CampaignCancellationCreate,
+    actor_session_version: int,
+    complaint_id: UUID | None = None,
 ) -> CampaignCancellation:
-    organization, _ = await get_required_advertiser_context(
-        session, actor_user_id, require_write=True
+    """D7: only Terrax staff cancel a whole campaign, on the advertiser's request."""
+    campaign = await _lock_cancellation_campaign(
+        session,
+        actor_user_id=actor_user_id,
+        campaign_id=campaign_id,
+        actor_session_version=actor_session_version,
     )
-    await acquire_campaign_terms_lock(session, campaign_id)
-    campaign = await session.scalar(
-        select(Campaign).where(Campaign.id == campaign_id).with_for_update()
-    )
-    if campaign is None or campaign.organization_id != organization.id:
-        raise _error("CAMPAIGN_NOT_FOUND", "Campaign was not found", 404)
-
-    fingerprint = _digest(
-        {
-            "campaign_id": str(campaign_id),
-            "client_request_id": str(payload.client_request_id),
-            "reason": payload.reason,
-        }
-    )
+    fingerprint = _request_fingerprint(campaign_id, payload, complaint_id=complaint_id)
     existing = await session.scalar(
         select(CampaignCancellation).where(CampaignCancellation.campaign_id == campaign_id)
     )
@@ -129,6 +157,8 @@ async def request_campaign_cancellation(
             "CAMPAIGN_CANCELLATION_CONFLICT",
             "This campaign already has a different immutable cancellation",
         )
+    if complaint_id is not None:
+        await _validate_cancellation_complaint(session, campaign, complaint_id)
     if campaign.status not in {
         CampaignStatus.APPROVED.value,
         CampaignStatus.SCHEDULED.value,
@@ -292,7 +322,7 @@ async def request_campaign_cancellation(
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,
-        action="advertiser.campaign.cancelled",
+        action="admin.campaign.cancelled",
         entity_type="campaign_cancellation",
         entity_id=str(cancellation.id),
         metadata={
@@ -318,4 +348,44 @@ async def request_campaign_cancellation(
             "disposition": disposition.value,
         },
     )
+    await _reply_to_cancellation(session, cancellation, complaint_id)
     return cancellation
+
+
+async def _reply_to_cancellation(session, cancellation, complaint_id):
+    if complaint_id is None:
+        return
+    from app.services.complaints import reply_as_staff
+
+    await reply_as_staff(
+        session,
+        actor_user_id=cancellation.requested_by_user_id,
+        complaint_id=complaint_id,
+        message="The campaign has been cancelled.",
+        resolve=False,
+        client_request_id=uuid5(NAMESPACE_URL, f"cardvert:campaign-cancelled:{cancellation.id}"),
+    )
+
+
+async def _validate_cancellation_complaint(session, campaign, complaint_id):
+    from app.models.complaint import Complaint, ComplaintParty, ComplaintReferenceType
+    from app.schemas.complaints import ComplaintCategory
+
+    complaint = await session.scalar(
+        select(Complaint)
+        .where(
+            Complaint.id == complaint_id,
+            Complaint.party == ComplaintParty.ADVERTISER.value,
+            Complaint.category == ComplaintCategory.CAMPAIGN_CANCELLATION.value,
+            Complaint.reference_type == ComplaintReferenceType.CAMPAIGN.value,
+            Complaint.campaign_id == campaign.id,
+            Complaint.advertiser_organization_id == campaign.organization_id,
+        )
+        .with_for_update()
+    )
+    if complaint is None:
+        raise _error(
+            "CAMPAIGN_CANCELLATION_REQUEST_NOT_FOUND",
+            "The cancellation request was not found for this campaign",
+            404,
+        )

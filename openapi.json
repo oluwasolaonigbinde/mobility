@@ -2847,6 +2847,123 @@
         "title": "AdminVehicleStageRead",
         "type": "object"
       },
+      "AdvertiserCampaignRead": {
+        "properties": {
+          "budget_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Amount"
+          },
+          "budget_used": {
+            "$ref": "#/components/schemas/BudgetUsedRead"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "daily_budget_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Daily Budget Amount"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "end_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "start_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CampaignStatus"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "organization_id",
+          "name",
+          "description",
+          "status",
+          "start_at",
+          "end_at",
+          "budget_amount",
+          "daily_budget_amount",
+          "currency",
+          "created_at",
+          "updated_at",
+          "budget_used"
+        ],
+        "title": "AdvertiserCampaignRead",
+        "type": "object"
+      },
       "AdvertiserDashboardSummary": {
         "properties": {
           "assignments": {
@@ -2914,164 +3031,6 @@
           "quality"
         ],
         "title": "AdvertiserDashboardSummary",
-        "type": "object"
-      },
-      "AdvertiserExposureScoreRead": {
-        "properties": {
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "formula_fingerprint": {
-            "title": "Formula Fingerprint",
-            "type": "string"
-          },
-          "formula_version": {
-            "title": "Formula Version",
-            "type": "string"
-          },
-          "input_fingerprint": {
-            "title": "Input Fingerprint",
-            "type": "string"
-          },
-          "measurement_input_sha256": {
-            "title": "Measurement Input Sha256",
-            "type": "string"
-          },
-          "measurement_proof_sha256": {
-            "title": "Measurement Proof Sha256",
-            "type": "string"
-          },
-          "measurement_result_sha256": {
-            "title": "Measurement Result Sha256",
-            "type": "string"
-          },
-          "reproducible": {
-            "title": "Reproducible",
-            "type": "boolean"
-          },
-          "result": {
-            "$ref": "#/components/schemas/AdvertiserExposureScoreResultRead"
-          },
-          "result_fingerprint": {
-            "title": "Result Fingerprint",
-            "type": "string"
-          },
-          "stale": {
-            "title": "Stale",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "formula_version",
-          "formula_fingerprint",
-          "input_fingerprint",
-          "result_fingerprint",
-          "measurement_input_sha256",
-          "measurement_result_sha256",
-          "measurement_proof_sha256",
-          "result",
-          "reproducible",
-          "stale",
-          "created_at"
-        ],
-        "title": "AdvertiserExposureScoreRead",
-        "type": "object"
-      },
-      "AdvertiserExposureScoreResultRead": {
-        "properties": {
-          "formula": {
-            "$ref": "#/components/schemas/ExposureScoreFormulaRead"
-          },
-          "formula_fingerprint": {
-            "title": "Formula Fingerprint",
-            "type": "string"
-          },
-          "formula_version": {
-            "const": "exposure_v1",
-            "title": "Formula Version",
-            "type": "string"
-          },
-          "input_fingerprint": {
-            "title": "Input Fingerprint",
-            "type": "string"
-          },
-          "label": {
-            "const": "Exposure score",
-            "title": "Label",
-            "type": "string"
-          },
-          "metric_class": {
-            "const": "operational_composite_index",
-            "title": "Metric Class",
-            "type": "string"
-          },
-          "missing_route_count": {
-            "title": "Missing Route Count",
-            "type": "integer"
-          },
-          "provenance": {
-            "$ref": "#/components/schemas/ExposureScoreProvenanceRead"
-          },
-          "range": {
-            "$ref": "#/components/schemas/ExposureScoreRangeRead"
-          },
-          "route_count": {
-            "title": "Route Count",
-            "type": "integer"
-          },
-          "schema_version": {
-            "const": "exposure-score-result-v1",
-            "title": "Schema Version",
-            "type": "string"
-          },
-          "score": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Score"
-          },
-          "status": {
-            "enum": [
-              "scored",
-              "insufficient_data"
-            ],
-            "title": "Status",
-            "type": "string"
-          },
-          "uncertainty": {
-            "$ref": "#/components/schemas/ExposureScoreUncertaintyRead"
-          },
-          "unit": {
-            "const": "points",
-            "title": "Unit",
-            "type": "string"
-          }
-        },
-        "required": [
-          "schema_version",
-          "label",
-          "metric_class",
-          "formula_version",
-          "formula_fingerprint",
-          "input_fingerprint",
-          "unit",
-          "range",
-          "status",
-          "score",
-          "route_count",
-          "missing_route_count",
-          "formula",
-          "uncertainty",
-          "provenance"
-        ],
-        "title": "AdvertiserExposureScoreResultRead",
         "type": "object"
       },
       "AdvertiserNotificationPreferenceRead": {
@@ -3534,6 +3493,54 @@
           "vehicle_photo_file_id"
         ],
         "title": "ApplicantVehicleSubmissionCreate",
+        "type": "object"
+      },
+      "ApplicationContinuationRead": {
+        "properties": {
+          "changes_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Changes Reason"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "details_needed",
+              "details_in_review",
+              "details_changes_needed",
+              "car_needed",
+              "car_in_review",
+              "car_changes_needed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "step": {
+            "enum": [
+              "details",
+              "car"
+            ],
+            "title": "Step",
+            "type": "string"
+          }
+        },
+        "required": [
+          "step",
+          "state",
+          "changes_reason",
+          "expires_at"
+        ],
+        "title": "ApplicationContinuationRead",
         "type": "object"
       },
       "AssignmentActivityFlagRead": {
@@ -5206,17 +5213,6 @@
             "title": "Evaluated At",
             "type": "string"
           },
-          "external_gate": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "External Gate"
-          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -5308,7 +5304,6 @@
           "id",
           "campaign_id",
           "state",
-          "external_gate",
           "campaign_budget_amount",
           "campaign_daily_budget_amount",
           "currency",
@@ -5416,6 +5411,59 @@
           "created_at"
         ],
         "title": "BudgetTransitionRead",
+        "type": "object"
+      },
+      "BudgetUsedRead": {
+        "description": "D103: the booked total behind the budget alerts.",
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amount"
+          },
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "basis": {
+            "enum": [
+              "funding",
+              "invoice"
+            ],
+            "title": "Basis",
+            "type": "string"
+          },
+          "budget_amount": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Budget Amount"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount",
+          "budget_amount",
+          "currency",
+          "basis",
+          "as_of"
+        ],
+        "title": "BudgetUsedRead",
         "type": "object"
       },
       "CalculatePayoutRequest": {
@@ -6250,28 +6298,6 @@
         "title": "CampaignAssignmentTransition",
         "type": "object"
       },
-      "CampaignCancellationCreate": {
-        "additionalProperties": false,
-        "properties": {
-          "client_request_id": {
-            "format": "uuid",
-            "title": "Client Request Id",
-            "type": "string"
-          },
-          "reason": {
-            "maxLength": 1000,
-            "minLength": 1,
-            "title": "Reason",
-            "type": "string"
-          }
-        },
-        "required": [
-          "client_request_id",
-          "reason"
-        ],
-        "title": "CampaignCancellationCreate",
-        "type": "object"
-      },
       "CampaignCancellationRead": {
         "properties": {
           "campaign_id": {
@@ -6964,24 +6990,6 @@
         "title": "CampaignCommercialRead",
         "type": "object"
       },
-      "CampaignCostTotalRead": {
-        "properties": {
-          "currency": {
-            "title": "Currency",
-            "type": "string"
-          },
-          "value": {
-            "title": "Value",
-            "type": "string"
-          }
-        },
-        "required": [
-          "currency",
-          "value"
-        ],
-        "title": "CampaignCostTotalRead",
-        "type": "object"
-      },
       "CampaignCreate": {
         "additionalProperties": false,
         "properties": {
@@ -7166,6 +7174,45 @@
         "title": "CampaignDriverMoneyRead",
         "type": "object"
       },
+      "CampaignEnquiryConversion": {
+        "additionalProperties": false,
+        "properties": {
+          "owner_user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner User Id"
+          }
+        },
+        "title": "CampaignEnquiryConversion",
+        "type": "object"
+      },
+      "CampaignEnquiryConverted": {
+        "properties": {
+          "organization_id": {
+            "format": "uuid",
+            "title": "Organization Id",
+            "type": "string"
+          },
+          "status": {
+            "const": "converted",
+            "default": "converted",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "organization_id"
+        ],
+        "title": "CampaignEnquiryConverted",
+        "type": "object"
+      },
       "CampaignEnquiryRead": {
         "properties": {
           "status": {
@@ -7284,6 +7331,9 @@
             ],
             "title": "Budget Amount"
           },
+          "budget_used": {
+            "$ref": "#/components/schemas/BudgetUsedRead"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -7385,6 +7435,7 @@
           "currency",
           "created_at",
           "updated_at",
+          "budget_used",
           "assignment_count",
           "target_zone_count"
         ],
@@ -7875,49 +7926,60 @@
         "title": "CampaignPayoutV4RevisionCreate",
         "type": "object"
       },
-      "CampaignRead": {
+      "CampaignPerformanceArea": {
         "properties": {
-          "budget_amount": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Budget Amount"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
+          "area_id": {
+            "format": "uuid",
+            "title": "Area Id",
             "type": "string"
           },
-          "currency": {
-            "title": "Currency",
+          "modelled_potential_contacts": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modelled Potential Contacts"
+          },
+          "name": {
+            "title": "Name",
             "type": "string"
           },
-          "daily_budget_amount": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Daily Budget Amount"
+          "trip_count": {
+            "minimum": 0.0,
+            "title": "Trip Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "area_id",
+          "name",
+          "trip_count",
+          "modelled_potential_contacts"
+        ],
+        "title": "CampaignPerformanceArea",
+        "type": "object"
+      },
+      "CampaignPerformanceRead": {
+        "properties": {
+          "areas": {
+            "items": {
+              "$ref": "#/components/schemas/CampaignPerformanceArea"
+            },
+            "title": "Areas",
+            "type": "array"
           },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "completeness": {
+            "title": "Completeness",
+            "type": "string"
           },
           "end_at": {
             "anyOf": [
@@ -7931,24 +7993,40 @@
             ],
             "title": "End At"
           },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
+          "measurement_run_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measurement Run Id"
           },
-          "metadata": {
-            "additionalProperties": true,
-            "title": "Metadata",
-            "type": "object"
+          "report_issuance_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Report Issuance Id"
           },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "organization_id": {
-            "format": "uuid",
-            "title": "Organization Id",
-            "type": "string"
+          "report_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Report Status"
           },
           "start_at": {
             "anyOf": [
@@ -7962,30 +8040,61 @@
             ],
             "title": "Start At"
           },
-          "status": {
-            "$ref": "#/components/schemas/CampaignStatus"
+          "totals": {
+            "$ref": "#/components/schemas/CampaignPerformanceTotals"
           },
-          "updated_at": {
-            "format": "date-time",
-            "title": "Updated At",
+          "uncertainty": {
+            "title": "Uncertainty",
             "type": "string"
           }
         },
         "required": [
-          "id",
-          "organization_id",
-          "name",
-          "description",
-          "status",
+          "campaign_id",
           "start_at",
           "end_at",
-          "budget_amount",
-          "daily_budget_amount",
-          "currency",
-          "created_at",
-          "updated_at"
+          "totals",
+          "areas",
+          "completeness",
+          "uncertainty"
         ],
-        "title": "CampaignRead",
+        "title": "CampaignPerformanceRead",
+        "type": "object"
+      },
+      "CampaignPerformanceTotals": {
+        "properties": {
+          "distance_m": {
+            "title": "Distance M",
+            "type": "string"
+          },
+          "driving_days": {
+            "minimum": 0.0,
+            "title": "Driving Days",
+            "type": "integer"
+          },
+          "estimated_views": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimated Views"
+          },
+          "trip_count": {
+            "minimum": 0.0,
+            "title": "Trip Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "distance_m",
+          "trip_count",
+          "driving_days",
+          "estimated_views"
+        ],
+        "title": "CampaignPerformanceTotals",
         "type": "object"
       },
       "CampaignReadSummary": {
@@ -8064,126 +8173,6 @@
           "currency"
         ],
         "title": "CampaignReadSummary",
-        "type": "object"
-      },
-      "CampaignReportResponse": {
-        "properties": {
-          "assignment_summary": {
-            "$ref": "#/components/schemas/AssignmentStatusCounts"
-          },
-          "campaign_id": {
-            "format": "uuid",
-            "title": "Campaign Id",
-            "type": "string"
-          },
-          "cost_summary": {
-            "$ref": "#/components/schemas/app__schemas__reports__CampaignCostSummary"
-          },
-          "creative_summary": {
-            "$ref": "#/components/schemas/CreativeStatusCounts"
-          },
-          "daily_metrics": {
-            "items": {
-              "$ref": "#/components/schemas/DailyMetricItem"
-            },
-            "title": "Daily Metrics",
-            "type": "array"
-          },
-          "end_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "End At"
-          },
-          "exposure_score": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/AdvertiserExposureScoreRead"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "fraud_summary": {
-            "$ref": "#/components/schemas/FraudFlagCounts"
-          },
-          "high_exposure_zone_insights": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/HighExposureZoneInsightsRead"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "impression_summary": {
-            "$ref": "#/components/schemas/ImpressionSummary"
-          },
-          "measurement_result": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/MeasurementResultRead"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "measurement_run": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/MeasurementRunSummary"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "start_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Start At"
-          },
-          "summary": {
-            "$ref": "#/components/schemas/CampaignReadSummary"
-          },
-          "trip_summary": {
-            "$ref": "#/components/schemas/TripStatusCounts"
-          },
-          "zone_summary": {
-            "$ref": "#/components/schemas/ZoneTypeCounts"
-          }
-        },
-        "required": [
-          "campaign_id",
-          "start_at",
-          "end_at",
-          "summary",
-          "daily_metrics",
-          "creative_summary",
-          "zone_summary",
-          "assignment_summary",
-          "trip_summary",
-          "impression_summary",
-          "cost_summary",
-          "fraud_summary"
-        ],
-        "title": "CampaignReportResponse",
         "type": "object"
       },
       "CampaignResumeRequest": {
@@ -9438,11 +9427,12 @@
         "type": "object"
       },
       "ComplaintCategory": {
-        "description": "Neutral default categories (Batch E); the client has not supplied a list.",
+        "description": "Support categories, including the owner's D7 campaign cancellation request.",
         "enum": [
           "pay_or_payout",
           "trip_or_tracking",
           "campaign_or_job",
+          "campaign_cancellation",
           "billing_or_invoice",
           "account",
           "other"
@@ -11033,80 +11023,6 @@
         "title": "DataSubjectRequestType",
         "type": "string"
       },
-      "DensityProfileProvenanceRead": {
-        "properties": {
-          "dwell_impressions_per_minute": {
-            "title": "Dwell Impressions Per Minute",
-            "type": "string"
-          },
-          "effective_from": {
-            "title": "Effective From",
-            "type": "string"
-          },
-          "lineage_id": {
-            "title": "Lineage Id",
-            "type": "string"
-          },
-          "profile_id": {
-            "title": "Profile Id",
-            "type": "string"
-          },
-          "revision": {
-            "title": "Revision",
-            "type": "string"
-          },
-          "road_category_method": {
-            "title": "Road Category Method",
-            "type": "string"
-          },
-          "traffic_density_per_km": {
-            "title": "Traffic Density Per Km",
-            "type": "string"
-          },
-          "value_fingerprint": {
-            "title": "Value Fingerprint",
-            "type": "string"
-          }
-        },
-        "required": [
-          "profile_id",
-          "lineage_id",
-          "revision",
-          "effective_from",
-          "value_fingerprint",
-          "traffic_density_per_km",
-          "dwell_impressions_per_minute",
-          "road_category_method"
-        ],
-        "title": "DensityProfileProvenanceRead",
-        "type": "object"
-      },
-      "DensityProvenanceRead": {
-        "properties": {
-          "calibration": {
-            "title": "Calibration",
-            "type": "string"
-          },
-          "profiles": {
-            "items": {
-              "$ref": "#/components/schemas/DensityProfileProvenanceRead"
-            },
-            "title": "Profiles",
-            "type": "array"
-          },
-          "source": {
-            "title": "Source",
-            "type": "string"
-          }
-        },
-        "required": [
-          "source",
-          "calibration",
-          "profiles"
-        ],
-        "title": "DensityProvenanceRead",
-        "type": "object"
-      },
       "DigitalCampaignAudienceSourceCreate": {
         "additionalProperties": false,
         "properties": {
@@ -11731,44 +11647,6 @@
           "application_reference"
         ],
         "title": "DriverApplicationSubmitResponse",
-        "type": "object"
-      },
-      "DriverCampaignCostMetricRead": {
-        "properties": {
-          "class": {
-            "const": "measured_financial_fact",
-            "title": "Class",
-            "type": "string"
-          },
-          "completeness": {
-            "$ref": "#/components/schemas/MeasurementCompletenessRead"
-          },
-          "id": {
-            "const": "driver_campaign_cost",
-            "title": "Id",
-            "type": "string"
-          },
-          "label": {
-            "const": "Driver campaign cost",
-            "title": "Label",
-            "type": "string"
-          },
-          "totals_by_currency": {
-            "items": {
-              "$ref": "#/components/schemas/CampaignCostTotalRead"
-            },
-            "title": "Totals By Currency",
-            "type": "array"
-          }
-        },
-        "required": [
-          "id",
-          "label",
-          "class",
-          "totals_by_currency",
-          "completeness"
-        ],
-        "title": "DriverCampaignCostMetricRead",
         "type": "object"
       },
       "DriverContactStateRead": {
@@ -17459,75 +17337,6 @@
         "title": "MeResponse",
         "type": "object"
       },
-      "MeasurementCompletenessRead": {
-        "description": "The frozen completeness/denominator disclosure carried by every metric.",
-        "properties": {
-          "cohort_trip_count": {
-            "title": "Cohort Trip Count",
-            "type": "integer"
-          },
-          "complete": {
-            "title": "Complete",
-            "type": "boolean"
-          },
-          "covered_trip_count": {
-            "title": "Covered Trip Count",
-            "type": "integer"
-          },
-          "denominator_trip_count": {
-            "title": "Denominator Trip Count",
-            "type": "integer"
-          },
-          "excluded_trip_count": {
-            "title": "Excluded Trip Count",
-            "type": "integer"
-          },
-          "in_progress_trip_count": {
-            "title": "In Progress Trip Count",
-            "type": "integer"
-          },
-          "insufficient_data_trip_count": {
-            "title": "Insufficient Data Trip Count",
-            "type": "integer"
-          },
-          "suppressed": {
-            "title": "Suppressed",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "cohort_trip_count",
-          "denominator_trip_count",
-          "in_progress_trip_count",
-          "covered_trip_count",
-          "insufficient_data_trip_count",
-          "excluded_trip_count",
-          "complete",
-          "suppressed"
-        ],
-        "title": "MeasurementCompletenessRead",
-        "type": "object"
-      },
-      "MeasurementPeriodRead": {
-        "properties": {
-          "end_at": {
-            "format": "date-time",
-            "title": "End At",
-            "type": "string"
-          },
-          "start_at": {
-            "format": "date-time",
-            "title": "Start At",
-            "type": "string"
-          }
-        },
-        "required": [
-          "start_at",
-          "end_at"
-        ],
-        "title": "MeasurementPeriodRead",
-        "type": "object"
-      },
       "MeasurementProofBindingRead": {
         "properties": {
           "activation_event_id": {
@@ -17568,263 +17377,6 @@
           "binding_fingerprint"
         ],
         "title": "MeasurementProofBindingRead",
-        "type": "object"
-      },
-      "MeasurementResultRead": {
-        "properties": {
-          "formula_version": {
-            "title": "Formula Version",
-            "type": "string"
-          },
-          "method_revision": {
-            "title": "Method Revision",
-            "type": "string"
-          },
-          "metrics": {
-            "items": {
-              "discriminator": {
-                "mapping": {
-                  "driver_campaign_cost": "#/components/schemas/DriverCampaignCostMetricRead",
-                  "modelled_potential_contacts": "#/components/schemas/ModelledContactsMetricRead",
-                  "verified_vehicle_movement": "#/components/schemas/VerifiedMovementMetricRead"
-                },
-                "propertyName": "id"
-              },
-              "oneOf": [
-                {
-                  "$ref": "#/components/schemas/VerifiedMovementMetricRead"
-                },
-                {
-                  "$ref": "#/components/schemas/ModelledContactsMetricRead"
-                },
-                {
-                  "$ref": "#/components/schemas/DriverCampaignCostMetricRead"
-                }
-              ]
-            },
-            "title": "Metrics",
-            "type": "array"
-          },
-          "mode": {
-            "$ref": "#/components/schemas/MeasurementRunMode"
-          },
-          "period": {
-            "$ref": "#/components/schemas/MeasurementPeriodRead"
-          },
-          "proof_manifest_sha256": {
-            "title": "Proof Manifest Sha256",
-            "type": "string"
-          },
-          "roi": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/MeasurementRoiRead"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "roi_gate": {
-            "discriminator": {
-              "mapping": {
-                "INCLUDE": "#/components/schemas/MeasurementRoiIncludedRead",
-                "OMIT": "#/components/schemas/MeasurementRoiOmittedRead"
-              },
-              "propertyName": "decision"
-            },
-            "oneOf": [
-              {
-                "$ref": "#/components/schemas/MeasurementRoiOmittedRead"
-              },
-              {
-                "$ref": "#/components/schemas/MeasurementRoiIncludedRead"
-              }
-            ],
-            "title": "Roi Gate"
-          },
-          "schema_version": {
-            "const": "measurement-result-v1",
-            "title": "Schema Version",
-            "type": "string"
-          },
-          "title": {
-            "const": "Campaign Performance Analysis",
-            "title": "Title",
-            "type": "string"
-          }
-        },
-        "required": [
-          "schema_version",
-          "title",
-          "mode",
-          "formula_version",
-          "method_revision",
-          "period",
-          "metrics",
-          "proof_manifest_sha256",
-          "roi",
-          "roi_gate"
-        ],
-        "title": "MeasurementResultRead",
-        "type": "object"
-      },
-      "MeasurementRoiIncludedRead": {
-        "properties": {
-          "decision": {
-            "const": "INCLUDE",
-            "title": "Decision",
-            "type": "string"
-          },
-          "test_only": {
-            "title": "Test Only",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "decision",
-          "test_only"
-        ],
-        "title": "MeasurementRoiIncludedRead",
-        "type": "object"
-      },
-      "MeasurementRoiMethodRead": {
-        "description": "Every ROI method fact the methodology contract requires beside a result.",
-        "properties": {
-          "approval_reference": {
-            "title": "Approval Reference",
-            "type": "string"
-          },
-          "attribution_rule": {
-            "title": "Attribution Rule",
-            "type": "string"
-          },
-          "attribution_window": {
-            "title": "Attribution Window",
-            "type": "string"
-          },
-          "corrections": {
-            "title": "Corrections",
-            "type": "string"
-          },
-          "cost_basis": {
-            "title": "Cost Basis",
-            "type": "string"
-          },
-          "exclusions": {
-            "title": "Exclusions",
-            "type": "string"
-          },
-          "late_data": {
-            "title": "Late Data",
-            "type": "string"
-          },
-          "limitations": {
-            "title": "Limitations",
-            "type": "string"
-          }
-        },
-        "required": [
-          "approval_reference",
-          "attribution_rule",
-          "attribution_window",
-          "cost_basis",
-          "exclusions",
-          "corrections",
-          "late_data",
-          "limitations"
-        ],
-        "title": "MeasurementRoiMethodRead",
-        "type": "object"
-      },
-      "MeasurementRoiOmittedRead": {
-        "properties": {
-          "decision": {
-            "const": "OMIT",
-            "title": "Decision",
-            "type": "string"
-          }
-        },
-        "required": [
-          "decision"
-        ],
-        "title": "MeasurementRoiOmittedRead",
-        "type": "object"
-      },
-      "MeasurementRoiProvenanceRead": {
-        "properties": {
-          "conversion_provenance": {
-            "title": "Conversion Provenance",
-            "type": "string"
-          },
-          "reporting_cutoff": {
-            "title": "Reporting Cutoff",
-            "type": "string"
-          },
-          "revenue_provenance": {
-            "title": "Revenue Provenance",
-            "type": "string"
-          },
-          "synthetic": {
-            "title": "Synthetic",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "conversion_provenance",
-          "revenue_provenance",
-          "reporting_cutoff",
-          "synthetic"
-        ],
-        "title": "MeasurementRoiProvenanceRead",
-        "type": "object"
-      },
-      "MeasurementRoiRead": {
-        "properties": {
-          "class": {
-            "const": "conditional_financial_measure",
-            "title": "Class",
-            "type": "string"
-          },
-          "currency": {
-            "title": "Currency",
-            "type": "string"
-          },
-          "label": {
-            "const": "Return on investment",
-            "title": "Label",
-            "type": "string"
-          },
-          "method": {
-            "$ref": "#/components/schemas/MeasurementRoiMethodRead"
-          },
-          "method_revision": {
-            "title": "Method Revision",
-            "type": "string"
-          },
-          "percent": {
-            "title": "Percent",
-            "type": "string"
-          },
-          "provenance": {
-            "$ref": "#/components/schemas/MeasurementRoiProvenanceRead"
-          },
-          "ratio": {
-            "title": "Ratio",
-            "type": "string"
-          }
-        },
-        "required": [
-          "label",
-          "class",
-          "ratio",
-          "percent",
-          "currency",
-          "method_revision",
-          "method",
-          "provenance"
-        ],
-        "title": "MeasurementRoiRead",
         "type": "object"
       },
       "MeasurementRunCreate": {
@@ -18047,97 +17599,6 @@
         "title": "MeasurementRunRead",
         "type": "object"
       },
-      "MeasurementRunSummary": {
-        "properties": {
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "formula_version": {
-            "title": "Formula Version",
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "input_manifest_sha256": {
-            "title": "Input Manifest Sha256",
-            "type": "string"
-          },
-          "method_revision": {
-            "title": "Method Revision",
-            "type": "string"
-          },
-          "mode": {
-            "$ref": "#/components/schemas/MeasurementRunMode"
-          },
-          "period_end_at": {
-            "format": "date-time",
-            "title": "Period End At",
-            "type": "string"
-          },
-          "period_start_at": {
-            "format": "date-time",
-            "title": "Period Start At",
-            "type": "string"
-          },
-          "proof_manifest_sha256": {
-            "title": "Proof Manifest Sha256",
-            "type": "string"
-          },
-          "reissue_of_run_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reissue Of Run Id"
-          },
-          "report_snapshot_sha256": {
-            "title": "Report Snapshot Sha256",
-            "type": "string"
-          },
-          "result_manifest_sha256": {
-            "title": "Result Manifest Sha256",
-            "type": "string"
-          },
-          "roi_method_revision": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Roi Method Revision"
-          }
-        },
-        "required": [
-          "id",
-          "mode",
-          "formula_version",
-          "method_revision",
-          "roi_method_revision",
-          "period_start_at",
-          "period_end_at",
-          "input_manifest_sha256",
-          "result_manifest_sha256",
-          "proof_manifest_sha256",
-          "report_snapshot_sha256",
-          "reissue_of_run_id",
-          "created_at"
-        ],
-        "title": "MeasurementRunSummary",
-        "type": "object"
-      },
       "MembershipRole": {
         "enum": [
           "owner",
@@ -18155,65 +17616,6 @@
         ],
         "title": "MembershipStatus",
         "type": "string"
-      },
-      "ModelledContactsMetricRead": {
-        "properties": {
-          "class": {
-            "const": "modelled_measure",
-            "title": "Class",
-            "type": "string"
-          },
-          "completeness": {
-            "$ref": "#/components/schemas/MeasurementCompletenessRead"
-          },
-          "density_provenance": {
-            "$ref": "#/components/schemas/DensityProvenanceRead"
-          },
-          "formula_versions": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Formula Versions",
-            "type": "array"
-          },
-          "id": {
-            "const": "modelled_potential_contacts",
-            "title": "Id",
-            "type": "string"
-          },
-          "label": {
-            "const": "Modelled potential contacts",
-            "title": "Label",
-            "type": "string"
-          },
-          "uncertainty": {
-            "title": "Uncertainty",
-            "type": "string"
-          },
-          "value": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Value"
-          }
-        },
-        "required": [
-          "id",
-          "label",
-          "class",
-          "value",
-          "formula_versions",
-          "completeness",
-          "density_provenance",
-          "uncertainty"
-        ],
-        "title": "ModelledContactsMetricRead",
-        "type": "object"
       },
       "NinRevealRead": {
         "properties": {
@@ -23057,6 +22459,161 @@
         "title": "SettlementRead",
         "type": "object"
       },
+      "StaffCampaignCancellationCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "client_request_id": {
+            "format": "uuid",
+            "title": "Client Request Id",
+            "type": "string"
+          },
+          "complaint_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Complaint Id"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_request_id",
+          "reason"
+        ],
+        "title": "StaffCampaignCancellationCreate",
+        "type": "object"
+      },
+      "StaffCampaignEnquiryList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StaffCampaignEnquiryRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "StaffCampaignEnquiryList",
+        "type": "object"
+      },
+      "StaffCampaignEnquiryRead": {
+        "additionalProperties": false,
+        "properties": {
+          "brief": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Brief",
+            "type": "string"
+          },
+          "company": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Company",
+            "type": "string"
+          },
+          "contact_name": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Contact Name",
+            "type": "string"
+          },
+          "converted_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Converted At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 254,
+            "minLength": 3,
+            "title": "Email",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "organization_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organization Id"
+          },
+          "phone": {
+            "default": "",
+            "maxLength": 32,
+            "title": "Phone",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "new",
+              "converted"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "company",
+          "contact_name",
+          "email",
+          "brief",
+          "id",
+          "created_at",
+          "status",
+          "organization_id",
+          "converted_at"
+        ],
+        "title": "StaffCampaignEnquiryRead",
+        "type": "object"
+      },
       "StaffComplaintDetailRead": {
         "properties": {
           "advertiser_organization_id": {
@@ -26289,70 +25846,6 @@
         "title": "VerifiedBankAccountCreate",
         "type": "object"
       },
-      "VerifiedMovementMetricRead": {
-        "properties": {
-          "active_tracking_seconds": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Active Tracking Seconds"
-          },
-          "class": {
-            "const": "measured_operational_fact",
-            "title": "Class",
-            "type": "string"
-          },
-          "completeness": {
-            "$ref": "#/components/schemas/MeasurementCompletenessRead"
-          },
-          "distance_m": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Distance M"
-          },
-          "id": {
-            "const": "verified_vehicle_movement",
-            "title": "Id",
-            "type": "string"
-          },
-          "label": {
-            "const": "Verified vehicle movement",
-            "title": "Label",
-            "type": "string"
-          },
-          "trip_count": {
-            "title": "Trip Count",
-            "type": "integer"
-          },
-          "uncertainty": {
-            "title": "Uncertainty",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "label",
-          "class",
-          "trip_count",
-          "distance_m",
-          "active_tracking_seconds",
-          "completeness",
-          "uncertainty"
-        ],
-        "title": "VerifiedMovementMetricRead",
-        "type": "object"
-      },
       "WaiverCopyRead": {
         "properties": {
           "accepted_wording": {
@@ -28396,6 +27889,204 @@
         "summary": "Admin Reject Campaign Change Request"
       }
     },
+    "/api/v1/admin/campaign-enquiries": {
+      "get": {
+        "operationId": "list_staff_enquiries_api_v1_admin_campaign_enquiries_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "new",
+              "enum": [
+                "new",
+                "converted"
+              ],
+              "title": "Status",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 128,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffCampaignEnquiryList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "List Staff Enquiries",
+        "tags": [
+          "Campaign enquiries"
+        ]
+      }
+    },
+    "/api/v1/admin/campaign-enquiries/{enquiry_id}": {
+      "get": {
+        "operationId": "read_staff_enquiry_api_v1_admin_campaign_enquiries__enquiry_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "enquiry_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Enquiry Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StaffCampaignEnquiryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Read Staff Enquiry",
+        "tags": [
+          "Campaign enquiries"
+        ]
+      }
+    },
+    "/api/v1/admin/campaign-enquiries/{enquiry_id}/create-advertiser": {
+      "post": {
+        "operationId": "convert_staff_enquiry_api_v1_admin_campaign_enquiries__enquiry_id__create_advertiser_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "enquiry_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Enquiry Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampaignEnquiryConversion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignEnquiryConverted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Convert Staff Enquiry",
+        "tags": [
+          "Campaign enquiries"
+        ]
+      }
+    },
     "/api/v1/admin/campaigns": {
       "get": {
         "operationId": "admin_list_campaigns_endpoint_api_v1_admin_campaigns_get",
@@ -28684,54 +28375,6 @@
         ]
       }
     },
-    "/api/v1/admin/campaigns/{campaign_id}/budget-policy-evaluation": {
-      "post": {
-        "operationId": "admin_record_budget_evaluation_api_v1_admin_campaigns__campaign_id__budget_policy_evaluation_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "campaign_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Campaign Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/BudgetEvaluationRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Admin Record Budget Evaluation",
-        "tags": [
-          "Commercial billing"
-        ]
-      }
-    },
     "/api/v1/admin/campaigns/{campaign_id}/budget-policy-resume": {
       "post": {
         "operationId": "admin_resume_budget_paused_campaign_api_v1_admin_campaigns__campaign_id__budget_policy_resume_post",
@@ -28787,6 +28430,64 @@
         "summary": "Admin Resume Budget Paused Campaign",
         "tags": [
           "Commercial billing"
+        ]
+      }
+    },
+    "/api/v1/admin/campaigns/{campaign_id}/cancel": {
+      "post": {
+        "operationId": "admin_cancel_campaign_api_v1_admin_campaigns__campaign_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaffCampaignCancellationCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignCancellationRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Cancel Campaign",
+        "tags": [
+          "Campaign cancellation"
         ]
       }
     },
@@ -29439,6 +29140,54 @@
         "summary": "Reject a pending campaign review",
         "tags": [
           "Campaigns"
+        ]
+      }
+    },
+    "/api/v1/admin/campaigns/{campaign_id}/reports/re-run": {
+      "post": {
+        "operationId": "admin_rerun_campaign_report_api_v1_admin_campaigns__campaign_id__reports_re_run_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportIssuanceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Rerun Campaign Report",
+        "tags": [
+          "Report Issuances"
         ]
       }
     },
@@ -38290,7 +38039,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CampaignRead"
+                  "$ref": "#/components/schemas/AdvertiserCampaignRead"
                 }
               }
             },
@@ -38338,7 +38087,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CampaignRead"
+                  "$ref": "#/components/schemas/AdvertiserCampaignRead"
                 }
               }
             },
@@ -38394,7 +38143,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CampaignRead"
+                  "$ref": "#/components/schemas/AdvertiserCampaignRead"
                 }
               }
             },
@@ -38420,61 +38169,6 @@
         "tags": [
           "Campaigns"
         ]
-      }
-    },
-    "/api/v1/advertiser/campaigns/{campaign_id}/cancel": {
-      "post": {
-        "operationId": "advertiser_cancel_campaign_api_v1_advertiser_campaigns__campaign_id__cancel_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "campaign_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Campaign Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CampaignCancellationCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CampaignCancellationRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Advertiser Cancel Campaign"
       }
     },
     "/api/v1/advertiser/campaigns/{campaign_id}/change-preview": {
@@ -39636,7 +39330,7 @@
     },
     "/api/v1/advertiser/campaigns/{campaign_id}/report": {
       "get": {
-        "description": "Return compact dashboard, daily, creative, zone, assignment, and cost sections.",
+        "description": "Return campaign-wide distance, trips, Nigeria driving days, estimated views and privacy-safe areas.",
         "operationId": "advertiser_get_campaign_report_api_v1_advertiser_campaigns__campaign_id__report_get",
         "parameters": [
           {
@@ -39689,7 +39383,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CampaignReportResponse"
+                  "$ref": "#/components/schemas/CampaignPerformanceRead"
                 }
               }
             },
@@ -39711,7 +39405,7 @@
             "OAuth2PasswordBearer": []
           }
         ],
-        "summary": "Read bundled advertiser campaign report",
+        "summary": "Read campaign results",
         "tags": [
           "Advertiser Reports"
         ]
@@ -39808,7 +39502,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CampaignRead"
+                  "$ref": "#/components/schemas/AdvertiserCampaignRead"
                 }
               }
             },
@@ -40415,6 +40109,25 @@
     "/api/v1/advertiser/complaints": {
       "get": {
         "operationId": "advertiser_list_complaints_api_v1_advertiser_complaints_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campaign_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campaign Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -42288,6 +42001,47 @@
         ]
       }
     },
+    "/api/v1/auth/driver-onboarding/continue": {
+      "post": {
+        "operationId": "continue_application_api_v1_auth_driver_onboarding_continue_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplicantFileUploadConfirm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApplicationContinuationRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "summary": "Continue Application",
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/v1/auth/driver-onboarding/files/uploads": {
       "post": {
         "operationId": "create_driver_onboarding_upload_api_v1_auth_driver_onboarding_files_uploads_post",
@@ -43055,6 +42809,54 @@
           }
         ],
         "summary": "Accept a campaign assignment",
+        "tags": [
+          "Campaign Assignments"
+        ]
+      }
+    },
+    "/api/v1/driver/campaign-assignments/{assignment_id}/artwork/download": {
+      "post": {
+        "operationId": "driver_job_artwork_api_v1_driver_campaign_assignments__assignment_id__artwork_download_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Assignment Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileDownloadRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Preview the artwork frozen in the driver's current job",
         "tags": [
           "Campaign Assignments"
         ]

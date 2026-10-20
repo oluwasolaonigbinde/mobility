@@ -60,6 +60,7 @@ from app.services.measurement import (
     measurement_run_reproducible,
 )
 from app.services.payout_rule_serialization import database_clock
+from app.services.report_authorization import REPORT_ACTOR_ID, is_report_automation_user
 from app.services.report_rendering import (
     ReportRenderLimitError,
     render_report_csv,
@@ -67,7 +68,7 @@ from app.services.report_rendering import (
 )
 from app.services.stored_files import _issue_download
 
-REPORT_SCHEMA_VERSION = "campaign-performance-export-v3"
+REPORT_SCHEMA_VERSION = "campaign-performance-export-v4"
 REPORT_RENDERER_VERSION = "campaign-report-renderer-v1"
 REPORT_LEASE_SECONDS = 120
 REPORT_MAX_ATTEMPTS = 3
@@ -231,7 +232,11 @@ async def _authorize_scope(
     )
     if (
         user is None
-        or user.status != UserStatus.ACTIVE
+        or (
+            not is_report_automation_user(user)
+            if user.id == REPORT_ACTOR_ID
+            else user.status != UserStatus.ACTIVE
+        )
         or organization is None
         or organization.status != OrganizationStatus.ACTIVE
         or campaign is None
@@ -292,85 +297,6 @@ async def _lock_key(session: AsyncSession, label: str) -> None:
     )
 
 
-def _completeness_snapshot(completeness) -> dict[str, object]:
-    return {
-        "cohort_trip_count": completeness.cohort_trip_count,
-        "denominator_trip_count": completeness.denominator_trip_count,
-        "in_progress_trip_count": completeness.in_progress_trip_count,
-        "covered_trip_count": completeness.covered_trip_count,
-        "insufficient_data_trip_count": completeness.insufficient_data_trip_count,
-        "excluded_trip_count": completeness.excluded_trip_count,
-        "complete": completeness.complete,
-        "suppressed": completeness.suppressed,
-        "statement": (
-            f"{completeness.covered_trip_count} of {completeness.denominator_trip_count} "
-            f"completed trips covered; {completeness.insufficient_data_trip_count} "
-            f"insufficient-data and {completeness.excluded_trip_count} excluded trips are not "
-            f"zero-filled; {completeness.in_progress_trip_count} trips were still in progress."
-        ),
-    }
-
-
-def _metric_snapshot(result: MeasurementResultRead) -> list[dict[str, object]]:
-    metrics: list[dict[str, object]] = []
-    for metric in result.metrics:
-        density_provenance = None
-        if metric.id == "verified_vehicle_movement":
-            values = [
-                {"label": "Trip count", "value": str(metric.trip_count), "unit": "trips"},
-                {
-                    "label": "Distance",
-                    "value": (
-                        SUPPRESSED_TOTAL_LABEL if metric.distance_m is None else metric.distance_m
-                    ),
-                    "unit": "metres",
-                },
-                {
-                    "label": "Active tracking time",
-                    "value": (
-                        SUPPRESSED_TOTAL_LABEL
-                        if metric.active_tracking_seconds is None
-                        else str(metric.active_tracking_seconds)
-                    ),
-                    "unit": "seconds",
-                },
-            ]
-        elif metric.id == "modelled_potential_contacts":
-            values = [
-                {
-                    "label": "Value",
-                    "value": SUPPRESSED_TOTAL_LABEL if metric.value is None else metric.value,
-                    "unit": "modelled contacts",
-                }
-            ]
-            density_provenance = {
-                "source": metric.density_provenance.source,
-                "calibration": metric.density_provenance.calibration,
-                "profiles": [
-                    profile.model_dump() for profile in metric.density_provenance.profiles
-                ],
-            }
-        else:
-            values = [
-                {"label": total.currency, "value": total.value, "unit": total.currency}
-                for total in metric.totals_by_currency
-            ]
-        item: dict[str, object] = {
-            "id": metric.id,
-            "label": metric.label,
-            "class": metric.metric_class,
-            "values": values,
-            "completeness": _completeness_snapshot(metric.completeness),
-        }
-        uncertainty = getattr(metric, "uncertainty", None)
-        if uncertainty:
-            item["uncertainty"] = uncertainty
-        if density_provenance is not None:
-            item["density_provenance"] = density_provenance
-        metrics.append(item)
-    return metrics
-
-
 async def _compose_snapshot(
     session: AsyncSession,
     *,
@@ -379,81 +305,76 @@ async def _compose_snapshot(
     settings: Settings,
     admin: bool,
 ) -> dict[str, object]:
+    from app.schemas.reports import CampaignPerformanceRead
+    from app.services.audience_delivery import frozen_recommendations_for_run
+    from app.services.campaign_performance import PERFORMANCE_POLICY
+    from app.services.exposure_scores import exposure_score_is_stale
+    from app.services.report_authorization import REPORT_ACTOR_ID
+
     result = _validate_frozen_run(run)
-    authority_fingerprint = canonical_sha256(_authority_document(run, settings))
-    score = await session.scalar(
-        select(ExposureScore)
-        .where(ExposureScore.measurement_run_id == run.id)
-        .order_by(ExposureScore.created_at.desc(), ExposureScore.id.desc())
-        .limit(1)
-    )
-    if score is None:
-        raise _error(
-            "REPORT_EXPOSURE_AUTHORITY_UNAVAILABLE",
-            "The frozen report has no exposure-score authority",
-            status.HTTP_409_CONFLICT,
-        )
-    from app.services.exposure_scores import (
-        advertiser_exposure_score_read,
-        exposure_score_is_stale,
-    )
-
-    if await exposure_score_is_stale(session, score):
-        raise _error(
-            "REPORT_EXPOSURE_AUTHORITY_UNAVAILABLE",
-            "The frozen exposure score no longer matches the measurement run",
-            status.HTTP_409_CONFLICT,
-        )
-    advertiser_score = await advertiser_exposure_score_read(session, score)
-    from app.services.audience import high_exposure_zone_insights
-
-    insights = await high_exposure_zone_insights(
+    if "performance" not in run.report_snapshot:
+        raise _error("REPORT_RECALCULATION_REQUIRED", "Prepare a new campaign report", 409)
+    performance = CampaignPerformanceRead.model_validate(run.report_snapshot["performance"])
+    recommendations = await frozen_recommendations_for_run(
         session,
         settings=settings,
         actor_user_id=actor_user_id,
-        campaign_id=run.campaign_id,
-        measurement_run_id=run.id,
+        run=run,
         admin=admin,
         commit_served=False,
     )
-    if insights.state == "unavailable":
+    score = await session.scalar(
+        select(ExposureScore)
+        .where(ExposureScore.measurement_run_id == run.id)
+        .order_by(ExposureScore.created_at.desc())
+        .limit(1)
+    )
+    if score is not None and await exposure_score_is_stale(session, score):
         raise _error(
-            "REPORT_DISCLOSURE_AUTHORITY_UNAVAILABLE",
-            "The governed disclosure projection is unavailable",
-            status.HTTP_409_CONFLICT,
+            "REPORT_EXPOSURE_AUTHORITY_UNAVAILABLE",
+            "The frozen exposure score could not be verified",
+            409,
         )
-    provenance = insights.provenance
-    exposure = {
-        "state": insights.state,
-        "score": advertiser_score.result.score,
-        "zones": [
-            {
-                "rank": item.rank,
-                "label": item.zone_name,
-                "modelled_potential_contacts": str(item.modelled_potential_contacts),
-                "trip_count": item.trip_count,
-            }
-            for item in insights.items
-        ]
-        if insights.state == "ready"
-        else [],
-        "formula_version": advertiser_score.formula_version,
-        "formula_fingerprint": advertiser_score.formula_fingerprint,
-        "input_fingerprint": advertiser_score.input_fingerprint,
-        "segment_snapshot_hashes": sorted(
-            item.segment_snapshot_sha256 for item in provenance.source_segments
-        )
-        if provenance is not None
-        else [],
-        "disclaimer": insights.disclaimer,
-        "uncertainty": insights.uncertainty,
-        "authority_fingerprint": authority_fingerprint,
-    }
-    snapshot: dict[str, object] = {
+    authority_fingerprint = canonical_sha256(_authority_document(run, settings))
+    measures = [
+        (
+            "distance",
+            "Distance",
+            "measured_operational_fact",
+            performance.totals.distance_m,
+            "metres",
+        ),
+        (
+            "trips",
+            "Completed trips",
+            "measured_operational_fact",
+            str(performance.totals.trip_count),
+            "trips",
+        ),
+        (
+            "days",
+            "Driving days",
+            "measured_operational_fact",
+            str(performance.totals.driving_days),
+            "days (Nigeria time)",
+        ),
+        (
+            "views",
+            "Estimated views",
+            "modelled_measure",
+            performance.totals.estimated_views or SUPPRESSED_TOTAL_LABEL,
+            "potential contacts",
+        ),
+    ]
+    snapshot = {
         "schema_version": REPORT_SCHEMA_VERSION,
         "title": result.title,
         "synthetic": run.test_only,
-        "creation_authority": "administrator" if admin else "advertiser_owner_or_manager",
+        "creation_authority": "report_automation"
+        if actor_user_id == REPORT_ACTOR_ID
+        else "administrator"
+        if admin
+        else "advertiser_owner_or_manager",
         "measurement": {
             "run_id": str(run.id),
             "input_sha256": run.input_manifest_sha256,
@@ -465,20 +386,42 @@ async def _compose_snapshot(
             "period_start_at": _as_utc(run.period_start_at).isoformat(),
             "period_end_at": _as_utc(run.period_end_at).isoformat(),
         },
-        "metrics": _metric_snapshot(result),
-        "exposure": exposure,
+        "performance_policy": PERFORMANCE_POLICY,
+        "metrics": [
+            {
+                "id": key,
+                "label": label,
+                "class": category,
+                "values": [{"label": label, "value": value, "unit": unit}],
+                "uncertainty": performance.uncertainty
+                if key == "views"
+                else performance.completeness,
+            }
+            for key, label, category, value, unit in measures
+        ],
+        "exposure": {
+            "state": "ready" if performance.areas else "unavailable",
+            "score": None,
+            "zones": [
+                {
+                    "rank": index,
+                    "label": area.name,
+                    "modelled_potential_contacts": area.modelled_potential_contacts
+                    or SUPPRESSED_TOTAL_LABEL,
+                    "trip_count": area.trip_count,
+                }
+                for index, area in enumerate(performance.areas, 1)
+            ],
+            "formula_version": PERFORMANCE_POLICY,
+            "formula_fingerprint": canonical_sha256({"policy": PERFORMANCE_POLICY}),
+            "input_fingerprint": run.input_manifest_sha256,
+            "segment_snapshot_hashes": [],
+            "disclaimer": performance.uncertainty,
+            "uncertainty": performance.uncertainty,
+            "authority_fingerprint": authority_fingerprint,
+        },
+        "linked_source_recommendations": recommendations,
     }
-    if REPORT_SCHEMA_VERSION == "campaign-performance-export-v3":
-        from app.services.audience_delivery import frozen_recommendations_for_run
-
-        snapshot["linked_source_recommendations"] = await frozen_recommendations_for_run(
-            session,
-            settings=settings,
-            actor_user_id=actor_user_id,
-            run=run,
-            admin=admin,
-            commit_served=False,
-        )
     if result.roi_gate.decision == "INCLUDE" and result.roi is not None:
         snapshot["financial_result"] = {
             "label": result.roi.label,

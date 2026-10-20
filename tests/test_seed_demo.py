@@ -1749,6 +1749,34 @@ def test_seed_business_ownership_and_applicant_financial_separation(
                 assert terms.organization_id == campaign.organization_id
                 assert terms.accepted_by_user_id == campaign.created_by_user_id
                 assert campaign.created_at <= terms.accepted_at
+            # D103/D104: running demo campaigns show real booked money and stay running.
+            from app.models.billing import BudgetCampaignTransition
+            from app.services.billing.budget import (
+                campaign_budget_used,
+                sweep_budget_policy_evaluations,
+            )
+
+            now = datetime.now(UTC)
+            running = [row for row in campaigns if row.status in {"scheduled", "active"}]
+            assert running
+            for campaign in running:
+                used = await campaign_budget_used(session, campaign=campaign, now=now)
+                assert used["amount"] > 0, campaign.name
+                assert used["amount"] <= used["budget_amount"], campaign.name
+            statuses = {row.id: row.status for row in campaigns}
+            async with postgis_db_sessionmaker() as sweep:
+                evaluated = await sweep_budget_policy_evaluations(sweep)
+                # Every budgeted campaign was actually evaluated, not skipped by an error.
+                assert len(evaluated) == sum(
+                    (row.budget_amount or 0) > 0 for row in await sweep.scalars(select(Campaign))
+                )
+                assert (
+                    await sweep.scalar(select(func.count()).select_from(BudgetCampaignTransition))
+                    == 0
+                )
+                swept = {row.id: row.status for row in await sweep.scalars(select(Campaign))}
+                assert swept == statuses
+                await sweep.rollback()
             for model in (CommercialQuotationRevision, MeasurementRun, ReportIssuance):
                 for row in await session.scalars(select(model)):
                     campaign = await session.get(Campaign, row.campaign_id)
@@ -2000,9 +2028,12 @@ def test_seed_business_ownership_and_applicant_financial_separation(
                     f"/api/v1/advertiser/campaigns/{item['id']}/report", headers=own_headers
                 )
                 assert report.status_code == 200
-                assert report.json()["daily_metrics"]
-                assert all(row["trip_count"] >= 5 for row in report.json()["daily_metrics"])
-                assert Decimal(report.json()["impression_summary"]["estimated_impressions"]) > 0
+                assert Decimal(report.json()["totals"]["estimated_views"]) > 0
+                daily = postgis_db_client.get(
+                    f"/api/v1/advertiser/campaigns/{item['id']}/daily-metrics", headers=own_headers
+                )
+                assert daily.json()["items"]
+                assert all(row["trip_count"] >= 5 for row in daily.json()["items"])
         assert (
             postgis_db_client.get(
                 f"/api/v1/advertiser/campaigns/{graph.campaign.id}", headers=own_headers
@@ -2015,9 +2046,12 @@ def test_seed_business_ownership_and_applicant_financial_separation(
                 f"/api/v1/advertiser/campaigns/{campaign.id}/report", headers=headers
             )
             assert report.status_code == 200
-            assert report.json()["daily_metrics"]
-            assert all(row["trip_count"] >= 5 for row in report.json()["daily_metrics"])
-            assert Decimal(report.json()["impression_summary"]["estimated_impressions"]) > 0
+            assert Decimal(report.json()["totals"]["estimated_views"]) > 0
+            daily = postgis_db_client.get(
+                f"/api/v1/advertiser/campaigns/{campaign.id}/daily-metrics", headers=headers
+            )
+            assert daily.json()["items"]
+            assert all(row["trip_count"] >= 5 for row in daily.json()["items"])
         if campaign.organization_id != graph.organization.id:
             assert (
                 postgis_db_client.get(

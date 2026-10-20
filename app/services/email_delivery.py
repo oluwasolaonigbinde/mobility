@@ -278,6 +278,13 @@ async def process_email_notification(  # noqa: C901
                     else None
                 )
                 user = await session.get(User, notice.recipient_user_id)
+                from app.services.driver_applications import current_application_step
+
+                step = (
+                    await current_application_step(session, application)
+                    if application
+                    else "details"
+                )
             if (
                 access is None
                 or application is None
@@ -293,12 +300,9 @@ async def process_email_notification(  # noqa: C901
             )
 
             try:
-                runtime_payload["access_code"] = driver_application_access_token_for_delivery(
-                    access, settings
-                )
-                runtime_payload["action_url"] = public_action_url(settings, "/apply?step=details")
-                runtime_payload["expiry_minutes"] = str(
-                    settings.driver_onboarding_access_ttl_seconds // 60
+                access_token = driver_application_access_token_for_delivery(access, settings)
+                runtime_payload["action_url"] = public_action_url(
+                    settings, f"/apply?step={step}#application_access_token={quote(access_token)}"
                 )
             except RuntimeError:
                 raise ValueError("driver_onboarding_access_evidence_mismatch") from None

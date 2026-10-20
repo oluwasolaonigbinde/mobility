@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, Response, status
 from sqlalchemy import func, select
 
 from app.api.v1.dependencies import (
@@ -9,6 +9,7 @@ from app.api.v1.dependencies import (
     DriverUserDependency,
     SessionDependency,
     SettingsDependency,
+    StorageDependency,
 )
 from app.core.errors import AppError
 from app.models.assignment_activity import AssignmentActivityFlag, AssignmentActivityFlagEvent
@@ -36,6 +37,7 @@ from app.schemas.campaign_assignments import (
     CampaignAssignmentRecommendationListResponse,
     CampaignAssignmentTransition,
 )
+from app.schemas.stored_files import FileDownloadRead
 from app.services.assignment_activity import list_assignment_activity_flags
 from app.services.audit import create_audit_event
 from app.services.campaign_assignments import (
@@ -59,6 +61,34 @@ from app.services.campaign_assignments import (
 )
 
 router = APIRouter(tags=["Campaign Assignments"])
+
+
+@router.post(
+    "/driver/campaign-assignments/{assignment_id}/artwork/download",
+    response_model=FileDownloadRead,
+    summary="Preview the artwork frozen in the driver's current job",
+)
+async def driver_job_artwork(
+    assignment_id: UUID,
+    current_user: DriverUserDependency,
+    session: SessionDependency,
+    storage: StorageDependency,
+    settings: SettingsDependency,
+    response: Response,
+) -> FileDownloadRead:
+    from app.services.assignment_artwork import issue_driver_job_artwork
+
+    download = await issue_driver_job_artwork(
+        session,
+        actor_user_id=current_user.id,
+        actor_session_version=current_user.session_version,
+        assignment_id=assignment_id,
+        storage=storage,
+        settings=settings,
+    )
+    await session.commit()
+    response.headers["Cache-Control"] = "private, no-store"
+    return FileDownloadRead(url=download.url, expires_in_seconds=download.expires_in_seconds)
 
 
 def campaign_summary(campaign: Campaign | None) -> AssignmentCampaignSummary | None:

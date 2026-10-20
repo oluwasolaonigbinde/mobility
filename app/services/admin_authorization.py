@@ -10,7 +10,13 @@ from app.core.errors import AppError
 from app.models.user import User, UserRole, UserStatus
 
 
-async def require_active_admin(session: AsyncSession, actor_user_id: UUID) -> None:
+async def require_active_admin(
+    session: AsyncSession,
+    actor_user_id: UUID,
+    *,
+    share_lock: bool = False,
+    expected_session_version: int | None = None,
+) -> None:
     """Require and lock an active admin before reading or mutating a domain row.
 
     The row lock keeps the authorization decision in the caller's transaction;
@@ -23,8 +29,13 @@ async def require_active_admin(session: AsyncSession, actor_user_id: UUID) -> No
             User.id == actor_user_id,
             User.role == UserRole.ADMIN,
             User.status == UserStatus.ACTIVE,
+            *(
+                [User.session_version == expected_session_version]
+                if expected_session_version is not None
+                else []
+            ),
         )
-        .with_for_update()
+        .with_for_update(read=share_lock)
     )
     if admin_id is None:
         raise AppError(

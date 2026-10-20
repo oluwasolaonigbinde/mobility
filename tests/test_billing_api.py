@@ -240,9 +240,7 @@ def test_commercial_api_journey_is_tenant_scoped_and_uses_canonical_cash(
         f"/api/v1/admin/campaigns/{campaign.id}/budget-policy-evaluation",
         headers=admin_headers,
     )
-    assert blocked.status_code == 200, blocked.text
-    assert blocked.json()["state"] == "blocked_external_policy"
-    assert blocked.json()["billing_spend_amount"] is None
+    assert blocked.status_code == 404
 
 
 def test_payment_webhook_commits_then_enqueues_and_duplicate_reenqueues(

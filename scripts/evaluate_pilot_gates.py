@@ -121,7 +121,6 @@ GATES = (
             "EXT-PAYMENT-PROVIDER",
             "EXT-STORAGE-PROVIDER",
             "EXT-MALWARE-SCANNER",
-            "EXT-BUDGET-POLICY",
             "EXT-Q28-COMPANY",
             "EXT-COMMERCIAL-VALUES",
             "EXT-EVIDENCE-POLICY",
@@ -179,7 +178,6 @@ GATES = (
             "EXT-PRIVACY-RESTORATION",
             "EXT-UPLOAD-POLICY",
             "EXT-PAYMENT-PROVIDER",
-            "EXT-BUDGET-POLICY",
             "EXT-Q28-COMPANY",
             "EXT-COMMERCIAL-VALUES",
             "EXT-CAMPAIGN-BUDGET-SCOPE",
@@ -205,7 +203,6 @@ CONTROLLED_CHECKLISTS: Mapping[str, tuple[str, ...]] = {
 
 
 BOOLEAN_RUNTIME_CLAIMS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("BUDGET_POLICY_EXTERNAL_APPROVED", ("EXT-BUDGET-POLICY",)),
     ("PHONE_OPERATOR_EXTERNAL_APPROVED", ("EXT-PHONE-OPERATOR",)),
 )
 

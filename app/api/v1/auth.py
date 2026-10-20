@@ -44,6 +44,7 @@ from app.schemas.driver_onboarding import (
     ApplicantVehicleListRead,
     ApplicantVehicleOption,
     ApplicantVehicleSubmissionCreate,
+    ApplicationContinuationRead,
     PersonPayeeStageRead,
     PersonPayeeSubmissionCreate,
     VehicleStageRead,
@@ -71,6 +72,7 @@ from app.services.driver_applications import (
     PUBLIC_STATUS_MESSAGE,
     application_from_access_token,
     application_status_exists,
+    continue_driver_application,
     issue_driver_application_access,
     renew_driver_application_access,
     submit_driver_application,
@@ -92,6 +94,19 @@ from app.services.vehicle_onboarding import (
 )
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
+
+
+@router.post("/driver-onboarding/continue", response_model=ApplicationContinuationRead)
+async def continue_application(
+    payload: ApplicantFileUploadConfirm,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> ApplicationContinuationRead:
+    require_driver_registration_enabled(settings)
+    result = await continue_driver_application(
+        session, token=payload.application_access_token.get_secret_value(), settings=settings
+    )
+    return ApplicationContinuationRead(**result)
 
 
 @router.get("/driver-onboarding/banks", response_model=list[BankRead])

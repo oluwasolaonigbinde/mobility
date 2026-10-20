@@ -317,5 +317,76 @@ def test_subject_link_registry_counts_recovery_contact_and_trip_manifest_rows(
         "campaign_liability_reservations",
         "complaints",
         "complaint_messages",
+        "campaign_enquiries",
         "payout_automatic_alerts",
     }
+
+
+def test_enquiry_contact_counts_matching_email_and_converted_owner_once(
+    postgis_db_sessionmaker,
+) -> None:
+    from app.models.campaign_enquiry import CampaignEnquiry
+
+    maker = postgis_db_sessionmaker
+    admin = create_test_user(maker, email="enquiry-dsr-admin@example.test", role=UserRole.ADMIN)
+    subject = create_test_user(
+        maker, email="Enquiry.Subject@Example.test", role=UserRole.ADVERTISER
+    )
+    organization, _ = create_test_organization(maker, owner_user_id=admin.id)
+
+    def enquiry(email, **conversion):
+        return CampaignEnquiry(
+            company="Aster Vale Foods",
+            contact_name="Enquiry Contact",
+            email=email,
+            phone="+2348000000000",
+            brief="Launch in Wuse",
+            **conversion,
+        )
+
+    async def run() -> int:
+        now = datetime.now(UTC)
+        converted = {"organization_id": organization.id, "converted_at": now}
+        async with maker() as session:
+            session.add_all(
+                [
+                    # Matching email after trimming and case folding.
+                    enquiry("  enquiry.subject@EXAMPLE.TEST "),
+                    # Converted owner, and also matching: still one row.
+                    enquiry(
+                        "enquiry.subject@example.test",
+                        **converted,
+                        converted_by_user_id=admin.id,
+                        converted_owner_user_id=subject.id,
+                    ),
+                    # Converted owner with a different contact email.
+                    enquiry(
+                        "someone.else@example.test",
+                        **converted,
+                        converted_by_user_id=admin.id,
+                        converted_owner_user_id=subject.id,
+                    ),
+                    # Unrelated contact.
+                    enquiry("unrelated@example.test"),
+                ]
+            )
+            # Staff conversion attribution alone is not the subject's data.
+            session.add(
+                enquiry("staff-only@example.test", **converted, converted_by_user_id=subject.id)
+            )
+            case = await create_data_subject_request(
+                session,
+                actor_user_id=admin.id,
+                subject_user_id=subject.id,
+                request_type=DataSubjectRequestType.ACCESS,
+                client_request_id=uuid4(),
+                requested_at=now,
+            )
+            await verify_data_subject_identity(session, actor_user_id=admin.id, request_id=case.id)
+            await session.flush()
+            result = await data_subject_inventory(
+                session, actor_user_id=admin.id, request_id=case.id
+            )
+            return result["database"]["campaign_enquiry_contact"]
+
+    assert asyncio.run(run()) == 3

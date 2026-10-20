@@ -331,6 +331,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/campaign-enquiries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Staff Enquiries */
+        get: operations["list_staff_enquiries_api_v1_admin_campaign_enquiries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaign-enquiries/{enquiry_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Staff Enquiry */
+        get: operations["read_staff_enquiry_api_v1_admin_campaign_enquiries__enquiry_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaign-enquiries/{enquiry_id}/create-advertiser": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Convert Staff Enquiry */
+        post: operations["convert_staff_enquiry_api_v1_admin_campaign_enquiries__enquiry_id__create_advertiser_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/campaigns": {
         parameters: {
             query?: never;
@@ -399,23 +450,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/campaigns/{campaign_id}/budget-policy-evaluation": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Admin Record Budget Evaluation */
-        post: operations["admin_record_budget_evaluation_api_v1_admin_campaigns__campaign_id__budget_policy_evaluation_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/admin/campaigns/{campaign_id}/budget-policy-resume": {
         parameters: {
             query?: never;
@@ -427,6 +461,23 @@ export interface paths {
         put?: never;
         /** Admin Resume Budget Paused Campaign */
         post: operations["admin_resume_budget_paused_campaign_api_v1_admin_campaigns__campaign_id__budget_policy_resume_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaigns/{campaign_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Cancel Campaign */
+        post: operations["admin_cancel_campaign_api_v1_admin_campaigns__campaign_id__cancel_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -597,6 +648,23 @@ export interface paths {
         put?: never;
         /** Reject a pending campaign review */
         post: operations["admin_reject_campaign_review_api_v1_admin_campaigns__campaign_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/campaigns/{campaign_id}/reports/re-run": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Rerun Campaign Report */
+        post: operations["admin_rerun_campaign_report_api_v1_admin_campaigns__campaign_id__reports_re_run_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2769,23 +2837,6 @@ export interface paths {
         patch: operations["advertiser_update_campaign_api_v1_advertiser_campaigns__campaign_id__patch"];
         trace?: never;
     };
-    "/api/v1/advertiser/campaigns/{campaign_id}/cancel": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Advertiser Cancel Campaign */
-        post: operations["advertiser_cancel_campaign_api_v1_advertiser_campaigns__campaign_id__cancel_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/advertiser/campaigns/{campaign_id}/change-preview": {
         parameters: {
             query?: never;
@@ -3024,8 +3075,8 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Read bundled advertiser campaign report
-         * @description Return compact dashboard, daily, creative, zone, assignment, and cost sections.
+         * Read campaign results
+         * @description Return campaign-wide distance, trips, Nigeria driving days, estimated views and privacy-safe areas.
          */
         get: operations["advertiser_get_campaign_report_api_v1_advertiser_campaigns__campaign_id__report_get"];
         put?: never;
@@ -3751,6 +3802,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/driver-onboarding/continue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Continue Application */
+        post: operations["continue_application_api_v1_auth_driver_onboarding_continue_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/driver-onboarding/files/uploads": {
         parameters: {
             query?: never;
@@ -4023,6 +4091,23 @@ export interface paths {
         put?: never;
         /** Accept a campaign assignment */
         post: operations["driver_accept_campaign_assignment_api_v1_driver_campaign_assignments__assignment_id__accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/driver/campaign-assignments/{assignment_id}/artwork/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview the artwork frozen in the driver's current job */
+        post: operations["driver_job_artwork_api_v1_driver_campaign_assignments__assignment_id__artwork_download_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6006,6 +6091,49 @@ export interface components {
             /** Year */
             year?: number | null;
         };
+        /** AdvertiserCampaignRead */
+        AdvertiserCampaignRead: {
+            /** Budget Amount */
+            budget_amount: string | null;
+            budget_used: components["schemas"]["BudgetUsedRead"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Currency */
+            currency: string;
+            /** Daily Budget Amount */
+            daily_budget_amount: string | null;
+            /** Description */
+            description: string | null;
+            /** End At */
+            end_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Name */
+            name: string;
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /** Start At */
+            start_at: string | null;
+            status: components["schemas"]["CampaignStatus"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /** AdvertiserDashboardSummary */
         AdvertiserDashboardSummary: {
             assignments: components["schemas"]["AssignmentStatusCounts"];
@@ -6025,80 +6153,6 @@ export interface components {
             /** Start At */
             start_at: string | null;
             trips: components["schemas"]["TripStatusCounts"];
-        };
-        /** AdvertiserExposureScoreRead */
-        AdvertiserExposureScoreRead: {
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Formula Fingerprint */
-            formula_fingerprint: string;
-            /** Formula Version */
-            formula_version: string;
-            /** Input Fingerprint */
-            input_fingerprint: string;
-            /** Measurement Input Sha256 */
-            measurement_input_sha256: string;
-            /** Measurement Proof Sha256 */
-            measurement_proof_sha256: string;
-            /** Measurement Result Sha256 */
-            measurement_result_sha256: string;
-            /** Reproducible */
-            reproducible: boolean;
-            result: components["schemas"]["AdvertiserExposureScoreResultRead"];
-            /** Result Fingerprint */
-            result_fingerprint: string;
-            /** Stale */
-            stale: boolean;
-        };
-        /** AdvertiserExposureScoreResultRead */
-        AdvertiserExposureScoreResultRead: {
-            formula: components["schemas"]["ExposureScoreFormulaRead"];
-            /** Formula Fingerprint */
-            formula_fingerprint: string;
-            /**
-             * Formula Version
-             * @constant
-             */
-            formula_version: "exposure_v1";
-            /** Input Fingerprint */
-            input_fingerprint: string;
-            /**
-             * Label
-             * @constant
-             */
-            label: "Exposure score";
-            /**
-             * Metric Class
-             * @constant
-             */
-            metric_class: "operational_composite_index";
-            /** Missing Route Count */
-            missing_route_count: number;
-            provenance: components["schemas"]["ExposureScoreProvenanceRead"];
-            range: components["schemas"]["ExposureScoreRangeRead"];
-            /** Route Count */
-            route_count: number;
-            /**
-             * Schema Version
-             * @constant
-             */
-            schema_version: "exposure-score-result-v1";
-            /** Score */
-            score: string | null;
-            /**
-             * Status
-             * @enum {string}
-             */
-            status: "scored" | "insufficient_data";
-            uncertainty: components["schemas"]["ExposureScoreUncertaintyRead"];
-            /**
-             * Unit
-             * @constant
-             */
-            unit: "points";
         };
         /** AdvertiserNotificationPreferenceRead */
         AdvertiserNotificationPreferenceRead: {
@@ -6289,6 +6343,26 @@ export interface components {
             vehicle_type: components["schemas"]["VehicleType"];
             /** Year */
             year?: number | null;
+        };
+        /** ApplicationContinuationRead */
+        ApplicationContinuationRead: {
+            /** Changes Reason */
+            changes_reason: string | null;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "details_needed" | "details_in_review" | "details_changes_needed" | "car_needed" | "car_in_review" | "car_changes_needed";
+            /**
+             * Step
+             * @enum {string}
+             */
+            step: "details" | "car";
         };
         /**
          * AssignmentActivityFlagRead
@@ -6980,8 +7054,6 @@ export interface components {
              * Format: date-time
              */
             evaluated_at: string;
-            /** External Gate */
-            external_gate: string | null;
             /**
              * Id
              * Format: uuid
@@ -7043,6 +7115,28 @@ export interface components {
             prior_status: string;
             /** Reason */
             reason: string | null;
+        };
+        /**
+         * BudgetUsedRead
+         * @description D103: the booked total behind the budget alerts.
+         */
+        BudgetUsedRead: {
+            /** Amount */
+            amount: string | null;
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /**
+             * Basis
+             * @enum {string}
+             */
+            basis: "funding" | "invoice";
+            /** Budget Amount */
+            budget_amount: string | null;
+            /** Currency */
+            currency: string;
         };
         /** CalculatePayoutRequest */
         CalculatePayoutRequest: {
@@ -7349,16 +7443,6 @@ export interface components {
                 [key: string]: unknown;
             };
         };
-        /** CampaignCancellationCreate */
-        CampaignCancellationCreate: {
-            /**
-             * Client Request Id
-             * Format: uuid
-             */
-            client_request_id: string;
-            /** Reason */
-            reason: string;
-        };
         /** CampaignCancellationRead */
         CampaignCancellationRead: {
             /**
@@ -7573,13 +7657,6 @@ export interface components {
             terms: components["schemas"]["CommercialTermsRead"] | null;
             waiver: components["schemas"]["WaiverRead"] | null;
         };
-        /** CampaignCostTotalRead */
-        CampaignCostTotalRead: {
-            /** Currency */
-            currency: string;
-            /** Value */
-            value: string;
-        };
         /** CampaignCreate */
         CampaignCreate: {
             /** Budget Amount */
@@ -7645,6 +7722,25 @@ export interface components {
             /** Unbatched Available */
             unbatched_available: string;
         };
+        /** CampaignEnquiryConversion */
+        CampaignEnquiryConversion: {
+            /** Owner User Id */
+            owner_user_id?: string | null;
+        };
+        /** CampaignEnquiryConverted */
+        CampaignEnquiryConverted: {
+            /**
+             * Organization Id
+             * Format: uuid
+             */
+            organization_id: string;
+            /**
+             * Status
+             * @default converted
+             * @constant
+             */
+            status: "converted";
+        };
         /** CampaignEnquiryRead */
         CampaignEnquiryRead: {
             /**
@@ -7685,6 +7781,7 @@ export interface components {
             assignment_count: number;
             /** Budget Amount */
             budget_amount: string | null;
+            budget_used: components["schemas"]["BudgetUsedRead"];
             /**
              * Created At
              * Format: date-time
@@ -7914,47 +8011,55 @@ export interface components {
              */
             shortfall_strategy: "proportional" | "per_mile_deduction";
         };
-        /** CampaignRead */
-        CampaignRead: {
-            /** Budget Amount */
-            budget_amount: string | null;
+        /** CampaignPerformanceArea */
+        CampaignPerformanceArea: {
             /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Currency */
-            currency: string;
-            /** Daily Budget Amount */
-            daily_budget_amount: string | null;
-            /** Description */
-            description: string | null;
-            /** End At */
-            end_at: string | null;
-            /**
-             * Id
+             * Area Id
              * Format: uuid
              */
-            id: string;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            };
+            area_id: string;
+            /** Modelled Potential Contacts */
+            modelled_potential_contacts: string | null;
             /** Name */
             name: string;
+            /** Trip Count */
+            trip_count: number;
+        };
+        /** CampaignPerformanceRead */
+        CampaignPerformanceRead: {
+            /** Areas */
+            areas: components["schemas"]["CampaignPerformanceArea"][];
             /**
-             * Organization Id
+             * Campaign Id
              * Format: uuid
              */
-            organization_id: string;
+            campaign_id: string;
+            /** Completeness */
+            completeness: string;
+            /** End At */
+            end_at: string | null;
+            /** Measurement Run Id */
+            measurement_run_id?: string | null;
+            /** Report Issuance Id */
+            report_issuance_id?: string | null;
+            /** Report Status */
+            report_status?: string | null;
             /** Start At */
             start_at: string | null;
-            status: components["schemas"]["CampaignStatus"];
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
+            totals: components["schemas"]["CampaignPerformanceTotals"];
+            /** Uncertainty */
+            uncertainty: string;
+        };
+        /** CampaignPerformanceTotals */
+        CampaignPerformanceTotals: {
+            /** Distance M */
+            distance_m: string;
+            /** Driving Days */
+            driving_days: number;
+            /** Estimated Views */
+            estimated_views: string | null;
+            /** Trip Count */
+            trip_count: number;
         };
         /** CampaignReadSummary */
         CampaignReadSummary: {
@@ -7976,32 +8081,6 @@ export interface components {
             /** Start At */
             start_at: string | null;
             status: components["schemas"]["CampaignStatus"];
-        };
-        /** CampaignReportResponse */
-        CampaignReportResponse: {
-            assignment_summary: components["schemas"]["AssignmentStatusCounts"];
-            /**
-             * Campaign Id
-             * Format: uuid
-             */
-            campaign_id: string;
-            cost_summary: components["schemas"]["app__schemas__reports__CampaignCostSummary"];
-            creative_summary: components["schemas"]["CreativeStatusCounts"];
-            /** Daily Metrics */
-            daily_metrics: components["schemas"]["DailyMetricItem"][];
-            /** End At */
-            end_at: string | null;
-            exposure_score?: components["schemas"]["AdvertiserExposureScoreRead"] | null;
-            fraud_summary: components["schemas"]["FraudFlagCounts"];
-            high_exposure_zone_insights?: components["schemas"]["HighExposureZoneInsightsRead"] | null;
-            impression_summary: components["schemas"]["ImpressionSummary"];
-            measurement_result?: components["schemas"]["MeasurementResultRead"] | null;
-            measurement_run?: components["schemas"]["MeasurementRunSummary"] | null;
-            /** Start At */
-            start_at: string | null;
-            summary: components["schemas"]["CampaignReadSummary"];
-            trip_summary: components["schemas"]["TripStatusCounts"];
-            zone_summary: components["schemas"]["ZoneTypeCounts"];
         };
         /** CampaignResumeRequest */
         CampaignResumeRequest: {
@@ -8427,10 +8506,10 @@ export interface components {
         };
         /**
          * ComplaintCategory
-         * @description Neutral default categories (Batch E); the client has not supplied a list.
+         * @description Support categories, including the owner's D7 campaign cancellation request.
          * @enum {string}
          */
-        ComplaintCategory: "pay_or_payout" | "trip_or_tracking" | "campaign_or_job" | "billing_or_invoice" | "account" | "other";
+        ComplaintCategory: "pay_or_payout" | "trip_or_tracking" | "campaign_or_job" | "campaign_cancellation" | "billing_or_invoice" | "account" | "other";
         /** ComplaintCreate */
         ComplaintCreate: {
             category: components["schemas"]["ComplaintCategory"];
@@ -9032,34 +9111,6 @@ export interface components {
          * @enum {string}
          */
         DataSubjectRequestType: "access" | "rectification" | "erasure";
-        /** DensityProfileProvenanceRead */
-        DensityProfileProvenanceRead: {
-            /** Dwell Impressions Per Minute */
-            dwell_impressions_per_minute: string;
-            /** Effective From */
-            effective_from: string;
-            /** Lineage Id */
-            lineage_id: string;
-            /** Profile Id */
-            profile_id: string;
-            /** Revision */
-            revision: string;
-            /** Road Category Method */
-            road_category_method: string;
-            /** Traffic Density Per Km */
-            traffic_density_per_km: string;
-            /** Value Fingerprint */
-            value_fingerprint: string;
-        };
-        /** DensityProvenanceRead */
-        DensityProvenanceRead: {
-            /** Calibration */
-            calibration: string;
-            /** Profiles */
-            profiles: components["schemas"]["DensityProfileProvenanceRead"][];
-            /** Source */
-            source: string;
-        };
         /** DigitalCampaignAudienceSourceCreate */
         DigitalCampaignAudienceSourceCreate: {
             /** Aggregation Window Days */
@@ -9371,27 +9422,6 @@ export interface components {
              * @constant
              */
             status: "pending";
-        };
-        /** DriverCampaignCostMetricRead */
-        DriverCampaignCostMetricRead: {
-            /**
-             * Class
-             * @constant
-             */
-            class: "measured_financial_fact";
-            completeness: components["schemas"]["MeasurementCompletenessRead"];
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            id: "driver_campaign_cost";
-            /**
-             * Label
-             * @constant
-             */
-            label: "Driver campaign cost";
-            /** Totals By Currency */
-            totals_by_currency: components["schemas"]["CampaignCostTotalRead"][];
         };
         /** DriverContactStateRead */
         DriverContactStateRead: {
@@ -11626,41 +11656,6 @@ export interface components {
             advertiser_organization: components["schemas"]["MeAdvertiserOrganization"] | null;
             user: components["schemas"]["UserRead"];
         };
-        /**
-         * MeasurementCompletenessRead
-         * @description The frozen completeness/denominator disclosure carried by every metric.
-         */
-        MeasurementCompletenessRead: {
-            /** Cohort Trip Count */
-            cohort_trip_count: number;
-            /** Complete */
-            complete: boolean;
-            /** Covered Trip Count */
-            covered_trip_count: number;
-            /** Denominator Trip Count */
-            denominator_trip_count: number;
-            /** Excluded Trip Count */
-            excluded_trip_count: number;
-            /** In Progress Trip Count */
-            in_progress_trip_count: number;
-            /** Insufficient Data Trip Count */
-            insufficient_data_trip_count: number;
-            /** Suppressed */
-            suppressed: boolean;
-        };
-        /** MeasurementPeriodRead */
-        MeasurementPeriodRead: {
-            /**
-             * End At
-             * Format: date-time
-             */
-            end_at: string;
-            /**
-             * Start At
-             * Format: date-time
-             */
-            start_at: string;
-        };
         /** MeasurementProofBindingRead */
         MeasurementProofBindingRead: {
             /**
@@ -11687,106 +11682,6 @@ export interface components {
              * Format: uuid
              */
             installation_evidence_submission_id: string;
-        };
-        /** MeasurementResultRead */
-        MeasurementResultRead: {
-            /** Formula Version */
-            formula_version: string;
-            /** Method Revision */
-            method_revision: string;
-            /** Metrics */
-            metrics: (components["schemas"]["VerifiedMovementMetricRead"] | components["schemas"]["ModelledContactsMetricRead"] | components["schemas"]["DriverCampaignCostMetricRead"])[];
-            mode: components["schemas"]["MeasurementRunMode"];
-            period: components["schemas"]["MeasurementPeriodRead"];
-            /** Proof Manifest Sha256 */
-            proof_manifest_sha256: string;
-            roi: components["schemas"]["MeasurementRoiRead"] | null;
-            /** Roi Gate */
-            roi_gate: components["schemas"]["MeasurementRoiOmittedRead"] | components["schemas"]["MeasurementRoiIncludedRead"];
-            /**
-             * Schema Version
-             * @constant
-             */
-            schema_version: "measurement-result-v1";
-            /**
-             * Title
-             * @constant
-             */
-            title: "Campaign Performance Analysis";
-        };
-        /** MeasurementRoiIncludedRead */
-        MeasurementRoiIncludedRead: {
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            decision: "INCLUDE";
-            /** Test Only */
-            test_only: boolean;
-        };
-        /**
-         * MeasurementRoiMethodRead
-         * @description Every ROI method fact the methodology contract requires beside a result.
-         */
-        MeasurementRoiMethodRead: {
-            /** Approval Reference */
-            approval_reference: string;
-            /** Attribution Rule */
-            attribution_rule: string;
-            /** Attribution Window */
-            attribution_window: string;
-            /** Corrections */
-            corrections: string;
-            /** Cost Basis */
-            cost_basis: string;
-            /** Exclusions */
-            exclusions: string;
-            /** Late Data */
-            late_data: string;
-            /** Limitations */
-            limitations: string;
-        };
-        /** MeasurementRoiOmittedRead */
-        MeasurementRoiOmittedRead: {
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            decision: "OMIT";
-        };
-        /** MeasurementRoiProvenanceRead */
-        MeasurementRoiProvenanceRead: {
-            /** Conversion Provenance */
-            conversion_provenance: string;
-            /** Reporting Cutoff */
-            reporting_cutoff: string;
-            /** Revenue Provenance */
-            revenue_provenance: string;
-            /** Synthetic */
-            synthetic: boolean;
-        };
-        /** MeasurementRoiRead */
-        MeasurementRoiRead: {
-            /**
-             * Class
-             * @constant
-             */
-            class: "conditional_financial_measure";
-            /** Currency */
-            currency: string;
-            /**
-             * Label
-             * @constant
-             */
-            label: "Return on investment";
-            method: components["schemas"]["MeasurementRoiMethodRead"];
-            /** Method Revision */
-            method_revision: string;
-            /** Percent */
-            percent: string;
-            provenance: components["schemas"]["MeasurementRoiProvenanceRead"];
-            /** Ratio */
-            ratio: string;
         };
         /** MeasurementRunCreate */
         MeasurementRunCreate: {
@@ -11903,46 +11798,6 @@ export interface components {
             /** Test Only */
             test_only: boolean;
         };
-        /** MeasurementRunSummary */
-        MeasurementRunSummary: {
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Formula Version */
-            formula_version: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Input Manifest Sha256 */
-            input_manifest_sha256: string;
-            /** Method Revision */
-            method_revision: string;
-            mode: components["schemas"]["MeasurementRunMode"];
-            /**
-             * Period End At
-             * Format: date-time
-             */
-            period_end_at: string;
-            /**
-             * Period Start At
-             * Format: date-time
-             */
-            period_start_at: string;
-            /** Proof Manifest Sha256 */
-            proof_manifest_sha256: string;
-            /** Reissue Of Run Id */
-            reissue_of_run_id: string | null;
-            /** Report Snapshot Sha256 */
-            report_snapshot_sha256: string;
-            /** Result Manifest Sha256 */
-            result_manifest_sha256: string;
-            /** Roi Method Revision */
-            roi_method_revision: string | null;
-        };
         /**
          * MembershipRole
          * @enum {string}
@@ -11953,32 +11808,6 @@ export interface components {
          * @enum {string}
          */
         MembershipStatus: "active" | "invited" | "disabled";
-        /** ModelledContactsMetricRead */
-        ModelledContactsMetricRead: {
-            /**
-             * Class
-             * @constant
-             */
-            class: "modelled_measure";
-            completeness: components["schemas"]["MeasurementCompletenessRead"];
-            density_provenance: components["schemas"]["DensityProvenanceRead"];
-            /** Formula Versions */
-            formula_versions: string[];
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            id: "modelled_potential_contacts";
-            /**
-             * Label
-             * @constant
-             */
-            label: "Modelled potential contacts";
-            /** Uncertainty */
-            uncertainty: string;
-            /** Value */
-            value: string | null;
-        };
         /** NinRevealRead */
         NinRevealRead: {
             /** Nin */
@@ -13951,6 +13780,64 @@ export interface components {
             /** Settlement Provider */
             settlement_provider: string;
         };
+        /** StaffCampaignCancellationCreate */
+        StaffCampaignCancellationCreate: {
+            /**
+             * Client Request Id
+             * Format: uuid
+             */
+            client_request_id: string;
+            /** Complaint Id */
+            complaint_id?: string | null;
+            /** Reason */
+            reason: string;
+        };
+        /** StaffCampaignEnquiryList */
+        StaffCampaignEnquiryList: {
+            /** Items */
+            items: components["schemas"]["StaffCampaignEnquiryRead"][];
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Total */
+            total: number;
+        };
+        /** StaffCampaignEnquiryRead */
+        StaffCampaignEnquiryRead: {
+            /** Brief */
+            brief: string;
+            /** Company */
+            company: string;
+            /** Contact Name */
+            contact_name: string;
+            /** Converted At */
+            converted_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Email */
+            email: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Organization Id */
+            organization_id: string | null;
+            /**
+             * Phone
+             * @default
+             */
+            phone: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "new" | "converted";
+        };
         /** StaffComplaintDetailRead */
         StaffComplaintDetailRead: {
             /** Advertiser Organization Id */
@@ -15033,33 +14920,6 @@ export interface components {
              */
             verification_reference: string;
         };
-        /** VerifiedMovementMetricRead */
-        VerifiedMovementMetricRead: {
-            /** Active Tracking Seconds */
-            active_tracking_seconds: number | null;
-            /**
-             * Class
-             * @constant
-             */
-            class: "measured_operational_fact";
-            completeness: components["schemas"]["MeasurementCompletenessRead"];
-            /** Distance M */
-            distance_m: string | null;
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            id: "verified_vehicle_movement";
-            /**
-             * Label
-             * @constant
-             */
-            label: "Verified vehicle movement";
-            /** Trip Count */
-            trip_count: number;
-            /** Uncertainty */
-            uncertainty: string;
-        };
         /** WaiverCopyRead */
         WaiverCopyRead: {
             /** Accepted Wording */
@@ -16064,6 +15924,106 @@ export interface operations {
             };
         };
     };
+    list_staff_enquiries_api_v1_admin_campaign_enquiries_get: {
+        parameters: {
+            query?: {
+                status?: "new" | "converted";
+                q?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffCampaignEnquiryList"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    read_staff_enquiry_api_v1_admin_campaign_enquiries__enquiry_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                enquiry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StaffCampaignEnquiryRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    convert_staff_enquiry_api_v1_admin_campaign_enquiries__enquiry_id__create_advertiser_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                enquiry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CampaignEnquiryConversion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignEnquiryConverted"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     admin_list_campaigns_endpoint_api_v1_admin_campaigns_get: {
         parameters: {
             query?: {
@@ -16195,37 +16155,6 @@ export interface operations {
             };
         };
     };
-    admin_record_budget_evaluation_api_v1_admin_campaigns__campaign_id__budget_policy_evaluation_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                campaign_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BudgetEvaluationRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     admin_resume_budget_paused_campaign_api_v1_admin_campaigns__campaign_id__budget_policy_resume_post: {
         parameters: {
             query?: never;
@@ -16248,6 +16177,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BudgetTransitionRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_cancel_campaign_api_v1_admin_campaigns__campaign_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaffCampaignCancellationCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignCancellationRead"];
                 };
             };
             /** @description Request validation failed */
@@ -16591,6 +16555,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminCampaignRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_rerun_campaign_report_api_v1_admin_campaigns__campaign_id__reports_re_run_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReportIssuanceRead"];
                 };
             };
             /** @description Request validation failed */
@@ -21139,7 +21134,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CampaignRead"];
+                    "application/json": components["schemas"]["AdvertiserCampaignRead"];
                 };
             };
             /** @description Request validation failed */
@@ -21170,7 +21165,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CampaignRead"];
+                    "application/json": components["schemas"]["AdvertiserCampaignRead"];
                 };
             };
             /** @description Request validation failed */
@@ -21205,42 +21200,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CampaignRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    advertiser_cancel_campaign_api_v1_advertiser_campaigns__campaign_id__cancel_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                campaign_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CampaignCancellationCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CampaignCancellationRead"];
+                    "application/json": components["schemas"]["AdvertiserCampaignRead"];
                 };
             };
             /** @description Request validation failed */
@@ -21827,7 +21787,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CampaignReportResponse"];
+                    "application/json": components["schemas"]["CampaignPerformanceRead"];
                 };
             };
             /** @description Request validation failed */
@@ -21892,7 +21852,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CampaignRead"];
+                    "application/json": components["schemas"]["AdvertiserCampaignRead"];
                 };
             };
             /** @description Request validation failed */
@@ -22234,7 +22194,9 @@ export interface operations {
     };
     advertiser_list_complaints_api_v1_advertiser_complaints_get: {
         parameters: {
-            query?: never;
+            query?: {
+                campaign_id?: string | null;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -23450,6 +23412,39 @@ export interface operations {
             };
         };
     };
+    continue_application_api_v1_auth_driver_onboarding_continue_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplicantFileUploadConfirm"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApplicationContinuationRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     create_driver_onboarding_upload_api_v1_auth_driver_onboarding_files_uploads_post: {
         parameters: {
             query?: never;
@@ -23975,6 +23970,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CampaignAssignmentRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    driver_job_artwork_api_v1_driver_campaign_assignments__assignment_id__artwork_download_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                assignment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileDownloadRead"];
                 };
             };
             /** @description Request validation failed */

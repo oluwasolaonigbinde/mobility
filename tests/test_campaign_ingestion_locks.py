@@ -10,11 +10,12 @@ from conftest import (
     create_test_user,
     create_test_vehicle,
 )
-from sqlalchemy import text
+from sqlalchemy import select, text
 from test_trips import create_trip_ready_graph, ping_payload
 
 from app.core.errors import AppError
 from app.models.campaign_assignment import CampaignAssignmentStatus
+from app.models.user import User, UserRole
 from app.schemas.campaign_cancellations import CampaignCancellationCreate
 from app.schemas.trips import LocationPingBatchCreate
 from app.services import campaign_cancellations, trips
@@ -191,9 +192,13 @@ def test_cancellation_and_ingestion_observe_lock_order(
         async def cancel():
             async with db_sessionmaker() as session:
                 pids["cancel"] = await session.scalar(text("SELECT pg_backend_pid()"))
+                staff = await session.scalar(
+                    select(User).where(User.role == UserRole.ADMIN).order_by(User.id).limit(1)
+                )
                 await campaign_cancellations.request_campaign_cancellation(
                     session,
-                    actor_user_id=campaign.created_by_user_id,
+                    actor_user_id=staff.id,
+                    actor_session_version=staff.session_version,
                     campaign_id=campaign.id,
                     payload=CampaignCancellationCreate(
                         client_request_id=uuid4(), reason="Lock ordering"

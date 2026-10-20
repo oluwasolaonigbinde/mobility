@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 from uuid import uuid4
 
+import pytest
 from conftest import (
     auth_headers,
     create_test_campaign_assignment,
@@ -25,7 +26,8 @@ from app.models.campaign_cancellation import (
     CampaignCancellationSettlementRevision,
 )
 from app.models.trip import TripSession
-from app.schemas.campaign_cancellations import CampaignCancellationCreate
+from app.models.user import User, UserRole
+from app.schemas.campaign_cancellations import CampaignCancellationCreate, CampaignCancellationRead
 from app.schemas.trips import TripStartRequest
 from app.services import campaign_cancellations
 from app.services.billing.receipts import reverse_payment_receipt
@@ -33,8 +35,35 @@ from app.services.campaign_cancellations import request_campaign_cancellation
 from app.services.trips import start_driver_trip
 
 
-def test_advertiser_cancellation_is_tenant_scoped_idempotent_and_stops_assignments(
-    db_client,
+async def _staff_cancel(session, *, campaign_id, payload: CampaignCancellationCreate):
+    """D7: Terrax staff cancel on the advertiser's behalf; the graph's admin acts."""
+    staff = await session.scalar(
+        select(User).where(User.role == UserRole.ADMIN).order_by(User.created_at, User.id).limit(1)
+    )
+    return await request_campaign_cancellation(
+        session,
+        actor_user_id=staff.id,
+        actor_session_version=staff.session_version,
+        campaign_id=campaign_id,
+        payload=payload,
+    )
+
+
+def _cancel_internal(maker, *, campaign, payload):
+    async def cancel():
+        async with maker() as session:
+            row = await _staff_cancel(
+                session,
+                campaign_id=campaign.id,
+                payload=CampaignCancellationCreate.model_validate(payload),
+            )
+            await session.commit()
+            return CampaignCancellationRead.model_validate(row).model_dump(mode="json")
+
+    return asyncio.run(cancel())
+
+
+def test_internal_financial_cancellation_is_idempotent_and_stops_assignments(
     db_sessionmaker,
 ) -> None:
     admin, campaign, _, profile, vehicle = create_assignment_ready_graph(
@@ -57,31 +86,26 @@ def test_advertiser_cancellation_is_tenant_scoped_idempotent_and_stops_assignmen
         "client_request_id": str(request_id),
         "reason": "Advertiser ended the campaign",
     }
-    headers = auth_headers(db_client, "cancel-owner@example.com")
-
-    created = db_client.post(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/cancel",
-        headers=headers,
-        json=payload,
+    created = _cancel_internal(
+        db_sessionmaker,
+        campaign=campaign,
+        payload=payload,
     )
-    replay = db_client.post(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/cancel",
-        headers=headers,
-        json=payload,
+    replay = _cancel_internal(
+        db_sessionmaker,
+        campaign=campaign,
+        payload=payload,
     )
-    conflict = db_client.post(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/cancel",
-        headers=headers,
-        json={**payload, "reason": "Changed retry"},
-    )
-
-    assert created.status_code == 201, created.text
-    assert replay.status_code == 201
-    assert replay.json()["id"] == created.json()["id"]
-    assert created.json()["disposition"] == "no_settlement"
-    assert created.json()["cancelled_assignment_count"] == 1
-    assert conflict.status_code == 409
-    assert conflict.json()["error"]["code"] == "CAMPAIGN_CANCELLATION_CONFLICT"
+    with pytest.raises(AppError) as conflict:
+        _cancel_internal(
+            db_sessionmaker,
+            campaign=campaign,
+            payload={**payload, "reason": "Changed retry"},
+        )
+    assert replay["id"] == created["id"]
+    assert created["disposition"] == "no_settlement"
+    assert created["cancelled_assignment_count"] == 1
+    assert conflict.value.code == "CAMPAIGN_CANCELLATION_CONFLICT"
 
     async def inspect() -> tuple[str, str, int, int, int]:
         async with db_sessionmaker() as session:
@@ -108,7 +132,7 @@ def test_advertiser_cancellation_is_tenant_scoped_idempotent_and_stops_assignmen
 
     assert asyncio.run(inspect()) == ("cancelled", "cancelled", 1, 1, 1)
     assert [event.action for event in fetch_audit_events(db_sessionmaker)].count(
-        "advertiser.campaign.cancelled"
+        "admin.campaign.cancelled"
     ) == 1
 
 
@@ -140,20 +164,22 @@ def test_cash_cancellation_freezes_refund_due_before_exact_boundary(
         return allocation.allocated_at + timedelta(hours=23)
 
     monkeypatch.setattr(campaign_cancellations, "database_clock", before_boundary)
-    response = db_client.post(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/cancel",
-        headers=auth_headers(db_client, owner.email),
+    staff_response = db_client.post(
+        f"/api/v1/admin/campaigns/{campaign.id}/cancel",
+        headers=auth_headers(db_client, admin.email),
         json={
             "client_request_id": str(uuid4()),
             "reason": "Cancel inside the standard refund window",
         },
     )
+    assert staff_response.status_code == 201, staff_response.text
+    response = staff_response.json()
+    assert response["requested_by_user_id"] == str(admin.id)
 
-    assert response.status_code == 201, response.text
-    assert response.json()["commercial_terms_id"] == str(terms.id)
-    assert response.json()["disposition"] == "cash_refund_due"
-    assert response.json()["refundable_amount"] == "100.00"
-    assert response.json()["cutoff_at"] == (
+    assert response["commercial_terms_id"] == str(terms.id)
+    assert response["disposition"] == "cash_refund_due"
+    assert response["refundable_amount"] == "100.00"
+    assert response["cutoff_at"] == (
         allocation.allocated_at + timedelta(hours=23)
     ).isoformat().replace("+00:00", "Z")
 
@@ -181,8 +207,8 @@ def test_cash_cancellation_freezes_refund_due_before_exact_boundary(
         },
     )
     assert settlement.status_code == 200, settlement.text
-    assert settlement.json()["cancellation_id"] == response.json()["id"]
-    assert settlement.json()["eligibility_evaluated_at"] == response.json()["cutoff_at"]
+    assert settlement.json()["cancellation_id"] == response["id"]
+    assert settlement.json()["eligibility_evaluated_at"] == response["cutoff_at"]
 
 
 def test_cash_cancellation_at_exact_standard_boundary_records_no_refund_due(
@@ -213,19 +239,20 @@ def test_cash_cancellation_at_exact_standard_boundary_records_no_refund_due(
         return allocation.allocated_at + timedelta(hours=24)
 
     monkeypatch.setattr(campaign_cancellations, "database_clock", at_boundary)
-    response = db_client.post(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/cancel",
-        headers=auth_headers(db_client, owner.email),
+    staff_response = db_client.post(
+        f"/api/v1/admin/campaigns/{campaign.id}/cancel",
+        headers=auth_headers(db_client, admin.email),
         json={
             "client_request_id": str(uuid4()),
             "reason": "Cancel at the exact standard boundary",
         },
     )
+    assert staff_response.status_code == 201, staff_response.text
+    response = staff_response.json()
 
-    assert response.status_code == 201, response.text
-    assert response.json()["commercial_terms_id"] == str(terms.id)
-    assert response.json()["disposition"] == "cash_refund_not_due"
-    assert response.json()["refundable_amount"] == "0.00"
+    assert response["commercial_terms_id"] == str(terms.id)
+    assert response["disposition"] == "cash_refund_not_due"
+    assert response["refundable_amount"] == "0.00"
 
 
 def test_cancellation_rejects_new_capture_and_retains_signed_batch_disposition(
@@ -250,16 +277,15 @@ def test_cancellation_rejects_new_capture_and_retains_signed_batch_disposition(
     )
     assert started.status_code == 201, started.text
 
-    cancelled = db_client.post(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/cancel",
-        headers=auth_headers(db_client, "cancel-track-owner@example.com"),
-        json={
+    cancelled = _cancel_internal(
+        db_sessionmaker,
+        campaign=campaign,
+        payload={
             "client_request_id": str(uuid4()),
             "reason": "Stop new work but retain tracking evidence",
         },
     )
-    assert cancelled.status_code == 201, cancelled.text
-    cutoff = datetime.fromisoformat(cancelled.json()["cutoff_at"].replace("Z", "+00:00"))
+    cutoff = datetime.fromisoformat(cancelled["cutoff_at"].replace("Z", "+00:00"))
 
     payload = ping_payload(
         recorded_at=cutoff - timedelta(milliseconds=1),
@@ -325,10 +351,10 @@ def test_analytics_recompute_clips_at_the_same_immutable_cutoff(
         return cutoff
 
     monkeypatch.setattr(campaign_cancellations, "database_clock", fixed_cutoff)
-    cancelled = postgis_db_client.post(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/cancel",
-        headers=auth_headers(postgis_db_client, "cancel-analytics-owner@example.com"),
-        json={"client_request_id": str(uuid4()), "reason": "Clip route analytics"},
+    _cancel_internal(
+        postgis_db_sessionmaker,
+        campaign=campaign,
+        payload={"client_request_id": str(uuid4()), "reason": "Clip route analytics"},
     )
     recomputed = postgis_db_client.post(
         f"/api/v1/admin/trips/{trip.id}/recompute-analytics",
@@ -336,7 +362,6 @@ def test_analytics_recompute_clips_at_the_same_immutable_cutoff(
         json={"metadata": {"source": "cancellation-regression"}},
     )
 
-    assert cancelled.status_code == 201, cancelled.text
     assert recomputed.status_code == 200, recomputed.text
     assert recomputed.json()["ping_count"] == 3
     assert recomputed.json()["duration_seconds"] == 600
@@ -363,9 +388,8 @@ def test_pre_cutoff_time_pays_and_post_cutoff_time_never_enters_payout(
 
     async def cancel() -> None:
         async with postgis_db_sessionmaker() as session:
-            await request_campaign_cancellation(
+            await _staff_cancel(
                 session,
-                actor_user_id=graph.campaign.created_by_user_id,
                 campaign_id=graph.campaign.id,
                 payload=CampaignCancellationCreate(
                     client_request_id=uuid4(),
@@ -405,9 +429,8 @@ def test_cancellation_and_trip_start_race_never_creates_post_cutoff_work(
 
     async def cancel() -> str:
         async with postgis_db_sessionmaker() as session:
-            await request_campaign_cancellation(
+            await _staff_cancel(
                 session,
-                actor_user_id=campaign.created_by_user_id,
                 campaign_id=campaign.id,
                 payload=CampaignCancellationCreate(
                     client_request_id=uuid4(),

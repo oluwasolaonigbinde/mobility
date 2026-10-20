@@ -32,6 +32,20 @@ from app.services.audit import create_audit_event
 from app.services.trip_evidence import manifest_root
 
 AUDITED = {
+    ("POST", "/api/v1/admin/campaigns/{campaign_id}/cancel"): "admin.campaign.cancelled",
+    (
+        "POST",
+        "/api/v1/driver/campaign-assignments/{assignment_id}/artwork/download",
+    ): "stored_file.read",
+    ("POST", "/api/v1/campaign-enquiries"): "campaign_enquiry.received",
+    (
+        "POST",
+        "/api/v1/admin/campaign-enquiries/{enquiry_id}/create-advertiser",
+    ): "campaign_enquiry.converted",
+    (
+        "POST",
+        "/api/v1/admin/campaigns/{campaign_id}/reports/re-run",
+    ): "measurement_run.issued|report_issuance.requested",
     ("POST", "/api/v1/admin/campaigns/{campaign_id}/resume"): "admin.campaign.resumed",
     ("POST", "/api/v1/auth/login"): "auth.login.*",
     ("POST", "/api/v1/auth/change-password"): "auth.password.*",
@@ -75,10 +89,6 @@ AUDITED = {
         "POST",
         "/api/v1/admin/campaign-change-requests/{request_id}/reject",
     ): "admin.campaign_change.rejected",
-    (
-        "POST",
-        "/api/v1/advertiser/campaigns/{campaign_id}/cancel",
-    ): "advertiser.campaign.cancelled",
     ("POST", "/api/v1/advertiser/retargeting-sources"): "retargeting_source.created",
     (
         "POST",
@@ -344,9 +354,6 @@ AUDITED = {
     ("POST", "/api/v1/admin/invoices/{invoice_id}/corrections"): ("billing.invoice.corrected"),
     ("POST", "/api/v1/admin/refunds"): "billing.refund.recorded",
     ("POST", "/api/v1/admin/credit-settlements"): ("billing.credit_settlement.recorded"),
-    ("POST", "/api/v1/admin/campaigns/{campaign_id}/budget-policy-evaluation"): (
-        "billing.budget_policy.*"
-    ),
     ("POST", "/api/v1/admin/campaigns/{campaign_id}/budget-policy-resume"): (
         "billing.budget_policy.resumed"
     ),
@@ -434,17 +441,15 @@ AUDITED = {
 }
 
 EXEMPT = {
+    ("POST", "/api/v1/auth/driver-onboarding/continue"): (
+        "D94/REQ-192: body-only capability validation returns current step and expiry, "
+        "without consuming/extending access or changing application authority."
+    ),
     ("POST", "/api/v1/auth/driver-onboarding/account-name"): (
         "D78, architecture section 23: capability-scoped account-name lookup keeps "
         "bank details in the body, performs no database mutation and returns a short-lived "
         "signed capture receipt. It cannot approve a bank account or authorize payment; "
         "the separately submitted person/payee capture and staff review are audited."
-    ),
-    ("POST", "/api/v1/campaign-enquiries"): (
-        "D52/REQ-070, architecture §27.3: bounded public campaign enquiries send only to the "
-        "official inbox, with expiring Redis rate-limit counters and an SMTP side effect. "
-        "This path creates no database authority records and does not log form content; "
-        "contact details are used only to answer the enquiry."
     ),
     ("POST", "/api/v1/admin/payout-batches/selection-preview"): (
         "Read-only exact selection preview: immutable credit IDs remain in the request body; "

@@ -43,7 +43,13 @@ from app.models.trip import TripSessionStatus
 from app.models.trip_analytics import FraudFlag, TripAnalytics
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
-from app.services import audience, audience_delivery, heatmaps, impressions, reports
+from app.services import (
+    audience,
+    audience_delivery,
+    heatmaps,
+    impressions,
+    reports,
+)
 from app.services.disclosure import (
     DISCLOSURE_ROUTE_INVENTORY,
     DisclosureQuery,
@@ -173,6 +179,7 @@ def test_route_inventory_covers_every_current_output_at_the_service_boundary() -
         "advertiser.campaign.daily_metrics",
         "advertiser.campaign.trips",
         "advertiser.campaign.report",
+        "advertiser.campaign.performance",
         "advertiser.campaign.impressions_summary",
         "advertiser.campaign.heatmap",
         "admin.heatmap",
@@ -192,6 +199,7 @@ def test_route_inventory_covers_every_current_output_at_the_service_boundary() -
             inspect.getsource(reports.daily_metrics_for_campaign),
             inspect.getsource(reports.advertiser_campaign_trips),
             inspect.getsource(reports.advertiser_campaign_report),
+            inspect.getsource(reports.build_measurement_report_snapshot),
             inspect.getsource(impressions.advertiser_campaign_impression_summary),
             inspect.getsource(heatmaps.advertiser_campaign_heatmap),
             inspect.getsource(heatmaps.admin_heatmap),
@@ -317,14 +325,15 @@ def test_advertiser_reads_keep_the_disclosure_authorized_tenant(
         assert {
             name: (response.status_code, response.text)
             for name, response in responses.items()
-            if response.status_code != (409 if name == "report" else status.HTTP_200_OK)
+            if response.status_code != status.HTTP_200_OK
             and not (
                 name == "heatmap"
                 and response.status_code == status.HTTP_400_BAD_REQUEST
                 and response.json()["error"]["code"] == "POSTGIS_REQUIRED"
             )
         } == {}
-        assert responses["report"].json()["error"]["code"] == "CAMPAIGN_REPORT_PENDING"
+        # D90: before the first run the report shows current coarse totals.
+        assert responses["report"].json()["campaign_id"] == str(campaign.id)
         assert responses["dashboard"].json()["organization_id"] == str(authorized_org.id)
         assert responses["summary"].json()["campaign"]["id"] == str(campaign.id)
         for name in ("daily_metrics", "trips", "score", "impressions"):

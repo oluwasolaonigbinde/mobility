@@ -16,6 +16,8 @@ class CampaignCancellationCreate(BaseModel):
     @classmethod
     def trim_reason(cls, value: str) -> str:
         normalized = value.strip()
+        if "\x00" in normalized:
+            raise ValueError("reason must not contain a NUL character")
         if not normalized:
             raise ValueError("reason must not be empty")
         return normalized
@@ -42,6 +44,10 @@ class CampaignCancellationRead(BaseModel):
     released_liability_amount: Decimal
     cancelled_assignment_count: int
     created_at: datetime
+
+
+class StaffCampaignCancellationCreate(CampaignCancellationCreate):
+    complaint_id: UUID | None = None
 
 
 class CampaignCancellationSettlementRevisionRead(BaseModel):

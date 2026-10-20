@@ -17,7 +17,6 @@ completed handover. Every `MISSING` item remains unresolved.
 | EXT-MALWARE-SCANNER | MISSING | Direct security/live gate | Select approved fail-closed scanner/provider. |
 | EXT-KMS-CUSTODY | MISSING | Direct credential/live gate | Assign production key/vault custody and rotation authority. |
 | EXT-EMAIL-PROVIDER | MISSING | Adjacent communications gate | Select provider and approved sending identity before live email. |
-| EXT-BUDGET-POLICY | MISSING | Direct money/live gate | Approve production alert/pause/resume values. |
 | EXT-PHONE-OPERATOR | MISSING | Direct pilot/live gate | Select approved verification/manual messaging operator and account. |
 | EXT-BASEMAP | MISSING | Direct report/live gate | Select production basemap licence/account and protected key custody. |
 | EXT-STORE-ASSETS | MISSING | Post-MVP distribution input | Native signing/listing assets remain Phase 2, not PWA-pilot authority. |

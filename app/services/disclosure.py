@@ -34,6 +34,7 @@ DISCLOSURE_ROUTE_INVENTORY = frozenset(
         "advertiser.campaign.daily_metrics",
         "advertiser.campaign.trips",
         "advertiser.campaign.report",
+        "advertiser.campaign.performance",
         "advertiser.campaign.impressions_summary",
         "advertiser.campaign.heatmap",
         "admin.heatmap",

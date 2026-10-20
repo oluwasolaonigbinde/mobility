@@ -127,6 +127,20 @@ ADDITIONAL_SUBJECT_LINK_RULES = (
         ),
     ),
     SubjectLinkRule(
+        # D93: a matching email is a candidate contact link, not proof of who sent
+        # the public form; disclosure still needs staff verification.
+        data_class="campaign_enquiry_contact",
+        counted_tables=frozenset({"campaign_enquiries"}),
+        path_tables=frozenset({"users"}),
+        subject_path="enquiry contact email matching the user's email, or converted owner",
+        count_query=(
+            "SELECT count(*) FROM campaign_enquiries e "
+            "WHERE e.converted_owner_user_id = :subject_user_id "
+            "OR lower(btrim(e.email)) = (SELECT lower(btrim(u.email)) FROM users u "
+            "WHERE u.id = :subject_user_id)"
+        ),
+    ),
+    SubjectLinkRule(
         data_class="automatic_payout_alerts",
         counted_tables=frozenset({"payout_automatic_alerts"}),
         path_tables=frozenset({"driver_profiles"}),
@@ -227,6 +241,7 @@ OPERATOR_AUTHORITY_EXCLUSIONS = frozenset(
         "report_issuances",
         "report_publication_intents",
         "report_publication_writes",
+        "report_schedules",
         "retargeting_source_idempotency",
         "retargeting_source_link_events",
         "retargeting_source_link_idempotency",

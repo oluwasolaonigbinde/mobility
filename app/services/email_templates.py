@@ -47,15 +47,14 @@ def _password_reset(payload: dict[str, Any]) -> RenderedEmail:
 
 
 def _driver_onboarding_access(payload: dict[str, Any]) -> RenderedEmail:
-    code = payload.get("access_code")
-    if not isinstance(code, str) or not code:
-        raise ValueError("driver_onboarding_access_code_missing")
-    minutes = payload.get("expiry_minutes", "30")
+    action = payload.get("action_url")
+    if not isinstance(action, str) or not action:
+        raise ValueError("driver_onboarding_link_missing")
     return _linked(
         "Continue your Terrax Media driver application",
-        "Thanks for applying to drive with Terrax Media. Open your application and enter "
-        f"this code: {code}. The code works for {minutes} minutes.",
-        payload.get("action_url"),
+        "Thanks for applying to drive with Terrax Media. Use this link to continue your "
+        "application. It is valid for 24 hours. If it has expired, request a new link on Apply.",
+        action,
         "Continue your application",
     )
 

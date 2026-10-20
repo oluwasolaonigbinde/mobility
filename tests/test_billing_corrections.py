@@ -80,7 +80,7 @@ async def _cancel_for_refund(
     session,
     *,
     campaign,
-    owner,
+    admin,
     cutoff,
     monkeypatch,
     reason: str,
@@ -94,7 +94,8 @@ async def _cancel_for_refund(
     monkeypatch.setattr(campaign_cancellations, "database_clock", fixed_cutoff)
     return await request_campaign_cancellation(
         session,
-        actor_user_id=owner.id,
+        actor_user_id=admin.id,
+        actor_session_version=admin.session_version,
         campaign_id=campaign.id,
         payload=CampaignCancellationCreate(client_request_id=uuid4(), reason=reason),
     )
@@ -368,7 +369,7 @@ def test_standard_production_and_later_debit_cannot_reopen_refund_eligibility(
             cancellation = await _cancel_for_refund(
                 session,
                 campaign=campaign,
-                owner=owner,
+                admin=admin,
                 cutoff=first_allocation.allocated_at + timedelta(hours=26),
                 monkeypatch=monkeypatch,
                 reason="Cancel after standard production started",
@@ -414,7 +415,7 @@ def test_late_refund_booking_uses_frozen_cancellation_and_exact_retry_identity(
             cancellation = await _cancel_for_refund(
                 session,
                 campaign=campaign,
-                owner=owner,
+                admin=admin,
                 cutoff=allocation.allocated_at + timedelta(hours=2),
                 monkeypatch=monkeypatch,
                 reason="Cancel inside the refund window",
@@ -552,7 +553,7 @@ def test_refund_rejects_missing_and_mismatched_cancellation_authority(
             cancellation = await _cancel_for_refund(
                 session,
                 campaign=campaign,
-                owner=owner,
+                admin=admin,
                 cutoff=allocation.allocated_at + timedelta(hours=1),
                 monkeypatch=monkeypatch,
                 reason="create matching immutable authority",
@@ -610,7 +611,7 @@ def test_corrected_obligation_reanchors_window_without_rewriting_cash_authority(
             cancellation = await _cancel_for_refund(
                 session,
                 campaign=campaign,
-                owner=owner,
+                admin=admin,
                 cutoff=allocation.allocated_at + timedelta(hours=23),
                 monkeypatch=monkeypatch,
                 reason="cancel after approved scope reduction",
@@ -669,7 +670,7 @@ def test_frozen_refund_survives_wall_clock_and_waiver_acceptance_alone_does_not_
             cancellation = await _cancel_for_refund(
                 session,
                 campaign=campaign,
-                owner=owner,
+                admin=admin,
                 cutoff=allocation.allocated_at + timedelta(hours=23),
                 monkeypatch=monkeypatch,
                 reason="cancel before the refund boundary",
@@ -818,7 +819,7 @@ def test_actual_expedited_start_closes_refund_eligibility(db_sessionmaker, monke
             cancellation = await _cancel_for_refund(
                 session,
                 campaign=campaign,
-                owner=owner,
+                admin=admin,
                 cutoff=production.started_at + timedelta(microseconds=1),
                 monkeypatch=monkeypatch,
                 reason="cancel after production started",
@@ -865,7 +866,8 @@ def test_concurrent_refunds_cannot_exceed_allocated_cash(postgis_db_sessionmaker
             current.status = CampaignStatus.ACTIVE.value
             cancellation = await request_campaign_cancellation(
                 session,
-                actor_user_id=owner.id,
+                actor_user_id=admin.id,
+                actor_session_version=admin.session_version,
                 campaign_id=campaign.id,
                 payload=CampaignCancellationCreate(
                     client_request_id=uuid4(),
@@ -1014,7 +1016,7 @@ def test_refund_requires_reversed_allocated_receipt_and_complete_record(
             cancellation = await _cancel_for_refund(
                 session,
                 campaign=campaign,
-                owner=owner,
+                admin=admin,
                 cutoff=allocation.allocated_at + timedelta(hours=1),
                 monkeypatch=monkeypatch,
                 reason="refund due",

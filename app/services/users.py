@@ -17,6 +17,7 @@ from app.models.driver_application import DriverAccountSetupToken, DriverApplica
 from app.models.user import User, UserRole, UserStatus
 from app.schemas.users import UserCreate, UserUpdate
 from app.services.operator_search import operator_search
+from app.services.report_authorization import REPORT_ACTOR_ID
 
 if TYPE_CHECKING:
     from app.core.rate_limit import LoginRateLimiter
@@ -184,7 +185,7 @@ async def list_users(
     user_status: str | None,
     q: str | None = None,
 ) -> tuple[list[User], int]:
-    human_account = User.id != CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID
+    human_account = User.id.not_in([CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID, REPORT_ACTOR_ID])
     statement: Select[tuple[User]] = select(User).where(human_account)
     count_statement = select(func.count()).select_from(User).where(human_account)
     if q and q.strip():
@@ -249,11 +250,11 @@ async def update_user(
     actor = None
     if actor_user_id is not None:
         actor = _require_admin_actor(locked.get(actor_user_id), actor_session_version)
-    if user.id == CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID:
-        # Any edit would only halt automatic payouts (actor_integrity_problem).
+    if user.id in {CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID, REPORT_ACTOR_ID}:
+        # Reserved automation identities cannot be activated or repurposed.
         raise AppError(
             "SYSTEM_ACCOUNT_READ_ONLY",
-            "Cardvert's automatic payouts account can't be edited",
+            "Cardvert's automatic account can't be edited",
             status_code=status.HTTP_409_CONFLICT,
         )
 

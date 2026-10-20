@@ -1,6 +1,6 @@
 import asyncio
 import json
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
@@ -8,11 +8,10 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 from redis.asyncio import Redis
 from redis.exceptions import ConnectionError as RedisConnectionError
+from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.requests import Request
 
-from app.adapters.messaging.email import DisabledEmailAdapter, EmailSendError, EmailSubmission
 from app.api.v1.campaign_enquiries import (
-    get_enquiry_email_adapter,
     get_enquiry_limiter,
     read_enquiry,
 )
@@ -20,6 +19,7 @@ from app.core.campaign_enquiry_rate_limit import RedisEnquiryRateLimiter
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.core.rate_limit import RateLimitDecision
+from app.db.session import get_session
 from app.main import create_app
 
 PAYLOAD = {
@@ -31,34 +31,27 @@ PAYLOAD = {
 }
 
 
-def make_client(*, enabled=True, adapter=None, decision=None, **settings_values):
-    adapter = adapter or AsyncMock()
-    if isinstance(adapter, AsyncMock):
-        adapter.send.return_value = EmailSubmission(provider_message_id="local-message")
+def make_client(*, enabled=True, session=None, decision=None, **settings_values):
+    session = session or MagicMock(spec=AsyncSession)
     limiter = AsyncMock()
     limiter.reserve.return_value = decision or RateLimitDecision(allowed=True)
     app = create_app(Settings(campaign_enquiry_enabled=enabled, **settings_values))
-    app.dependency_overrides[get_enquiry_email_adapter] = lambda: adapter
+
+    async def store():
+        yield session
+
+    app.dependency_overrides[get_session] = store
     app.dependency_overrides[get_enquiry_limiter] = lambda: limiter
-    return TestClient(app), adapter, limiter
+    return TestClient(app, raise_server_exceptions=False), session, limiter
 
 
-def test_valid_enquiry_uses_fixed_recipient_and_escaped_body(caplog):
-    client, adapter, limiter = make_client()
-    response = client.post(
-        "/api/v1/campaign-enquiries", json={**PAYLOAD, "company": " <b>Brand</b> "}
-    )
+def test_valid_enquiry_has_non_sensitive_reply(caplog):
+    client, session, limiter = make_client()
+    response = client.post("/api/v1/campaign-enquiries", json=PAYLOAD)
     assert response.status_code == 200
     assert response.json() == {"status": "submitted"}
-    message = adapter.send.call_args.args[0]
-    assert message.recipient == "terraxmediacompany@gmail.com"
-    assert message.subject == "Campaign quote enquiry — Terrax Media"
-    assert "Company: <b>Brand</b>" in message.text_body
-    assert "&lt;b&gt;Brand&lt;/b&gt;" in message.html_body
-    assert "<b>Brand</b>" not in message.html_body
-    assert PAYLOAD["email"] in message.text_body
-    assert message.idempotency_key.startswith("campaign-enquiry-")
     assert PAYLOAD["email"] not in response.text + caplog.text
+    session.commit.assert_awaited_once()
     assert limiter.reserve.call_args.args[0] == "testclient"
 
 
@@ -81,12 +74,12 @@ def test_valid_enquiry_uses_fixed_recipient_and_escaped_body(caplog):
     ],
 )
 def test_invalid_input_is_rejected_without_send_or_input_echo(patch):
-    client, adapter, limiter = make_client()
+    client, session, limiter = make_client()
     response = client.post("/api/v1/campaign-enquiries", json={**PAYLOAD, **patch})
     assert response.status_code == 422
     assert response.json()["error"]["details"] == {}
     assert PAYLOAD["email"] not in response.text
-    adapter.send.assert_not_called()
+    session.commit.assert_not_called()
     limiter.reserve.assert_not_called()
 
 
@@ -100,12 +93,12 @@ def test_invalid_input_is_rejected_without_send_or_input_echo(patch):
     ],
 )
 def test_request_parsing_fails_safely(body, content_type, expected):
-    client, adapter, _ = make_client()
+    client, session, _ = make_client()
     response = client.post(
         "/api/v1/campaign-enquiries", content=body, headers={"Content-Type": content_type}
     )
     assert response.status_code == expected
-    adapter.send.assert_not_called()
+    session.commit.assert_not_called()
 
 
 def test_stream_limit_does_not_require_content_length():
@@ -134,21 +127,20 @@ def test_stream_limit_does_not_require_content_length():
     ],
 )
 def test_gates_never_send(enabled, decision, expected):
-    client, adapter, _ = make_client(enabled=enabled, decision=decision)
+    client, session, _ = make_client(enabled=enabled, decision=decision)
     response = client.post("/api/v1/campaign-enquiries", json=PAYLOAD)
     assert response.status_code == expected
     if expected == 429:
         assert response.headers["Retry-After"] == "12"
-    adapter.send.assert_not_called()
+    session.commit.assert_not_called()
 
 
-@pytest.mark.parametrize("adapter", [DisabledEmailAdapter(), AsyncMock()])
-def test_unavailable_transport_never_reports_success(adapter):
-    client, adapter, _ = make_client(adapter=adapter)
-    if isinstance(adapter, AsyncMock):
-        adapter.send.side_effect = EmailSendError("email_provider_unavailable", retryable=True)
+def test_storage_failure_never_reports_success():
+    session = MagicMock(spec=AsyncSession)
+    session.commit.side_effect = RuntimeError("synthetic database failure")
+    client, _, _ = make_client(session=session)
     response = client.post("/api/v1/campaign-enquiries", json=PAYLOAD)
-    assert response.status_code == 503
+    assert response.status_code == 500
     assert "submitted" not in response.text
     assert PAYLOAD["email"] not in response.text
 
@@ -207,39 +199,23 @@ def test_invalid_rate_policy_is_not_accepted():
 @pytest.mark.parametrize("enabled", [False, True])
 def test_no_redis_configuration_returns_safe_unavailable(enabled):
     app = create_app(Settings(campaign_enquiry_enabled=enabled, redis_url=None))
-    adapter = AsyncMock()
-    app.dependency_overrides[get_enquiry_email_adapter] = lambda: adapter
+    session = MagicMock(spec=AsyncSession)
+
+    async def store():
+        yield session
+
+    app.dependency_overrides[get_session] = store
     response = TestClient(app).post("/api/v1/campaign-enquiries", json=PAYLOAD)
     assert response.status_code == 503
-    adapter.send.assert_not_called()
+    session.commit.assert_not_called()
 
 
 def test_deep_json_fails_with_safe_validation_error():
-    client, adapter, _ = make_client()
+    client, session, _ = make_client()
     response = client.post(
         "/api/v1/campaign-enquiries",
         content="[" * 4000 + "]" * 4000,
         headers={"Content-Type": "application/json"},
     )
     assert response.status_code == 422
-    adapter.send.assert_not_called()
-
-
-def test_real_dependencies_without_email_configuration_return_unavailable(monkeypatch):
-    prefix = f"test:campaign-enquiry:{uuid4()}"
-    monkeypatch.setattr(
-        RedisEnquiryRateLimiter, "keys", lambda self, ip: [f"{prefix}:ip", f"{prefix}:global"]
-    )
-    app = create_app(
-        Settings(
-            campaign_enquiry_enabled=True,
-            redis_url="redis://127.0.0.1:6379/0",
-            email_provider="",
-            email_smtp_host="",
-            email_sender_address="",
-            campaign_enquiry_rate_limit_window_seconds=1,
-        )
-    )
-    response = TestClient(app).post("/api/v1/campaign-enquiries", json=PAYLOAD)
-    assert response.status_code == 503
-    assert "submitted" not in response.text
+    session.commit.assert_not_called()

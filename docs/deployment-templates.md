@@ -7,7 +7,7 @@ accounts (REQ-050); app address remains REQ-033/043 and legal residency REQ-032.
 
 | Artifact | Purpose |
 | --- | --- |
-| `production.env.example`, `staging.env.example` | Complete release settings; secrets, map key and budget ratios blank |
+| `production.env.example`, `staging.env.example` | Complete release settings; secrets and map key blank; D92 budget alerts use fixed 80/95/100 defaults |
 | `docker-compose.production.yml`, `Caddyfile` | Standalone pinned-image release; sole public TLS edge, private API/worker/PostGIS/Redis/ClamAV |
 | [Hetzner notes](../deploy/hetzner/README.md) | Provider binding and operational gates |
 | [Hetzner S3 CORS](../deploy/hetzner/s3-cors.json) | Exact approved browser origin, GET/POST presigned access |
@@ -122,7 +122,8 @@ externally. Key rings map positive versions to base64 32-byte keys; retain
 required versions for existing ciphertext/evidence. No rotation or account
 reconnection is authorized here.
 
-Budget ratios/approval, publishing/automatic payout switches, invoice issuer
+Budget alerts use the client's fixed 80/95/100 rule (D92); no budget policy or
+ratio environment knobs are needed. Publishing/automatic payout switches, invoice issuer
 sign-off, retention and unresolved evidence policies stay blank/off. Never
 substitute template values for client/legal answers. D43 supplied TIN
 2521515778093 and RC 8688553; real issuance still needs OPay bank details and

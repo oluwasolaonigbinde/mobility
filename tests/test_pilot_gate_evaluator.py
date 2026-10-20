@@ -85,7 +85,7 @@ def test_current_authority_has_exact_ordered_honest_blockers(
         "EXT-LEGAL-PRIVACY, EXT-PRIVACY-RESTORATION, EXT-UPLOAD-POLICY, DV-PWA-PHYSICAL-MATRIX, "
         "DV-PWA-ROUTE-BATTERY",
         "G-commercial: BLOCKED — EXT-PAYMENT-PROVIDER, EXT-STORAGE-PROVIDER, "
-        "EXT-MALWARE-SCANNER, EXT-BUDGET-POLICY, EXT-Q28-COMPANY, "
+        "EXT-MALWARE-SCANNER, EXT-Q28-COMPANY, "
         "EXT-COMMERCIAL-VALUES, EXT-EVIDENCE-POLICY, "
         "EXT-CAMPAIGN-BUDGET-SCOPE, EXT-UPLOAD-POLICY",
         "G-advertiser: BLOCKED — EXT-BASEMAP, EXT-REPORT-METHOD, "
@@ -95,7 +95,7 @@ def test_current_authority_has_exact_ordered_honest_blockers(
         "G-pilot: BLOCKED — EXT-DISBURSEMENT-PROVIDER, EXT-SETTLEMENT-BANK, "
         "EXT-STORAGE-PROVIDER, EXT-MALWARE-SCANNER, EXT-KMS-CUSTODY, "
         "EXT-PHONE-OPERATOR, EXT-EVIDENCE-POLICY, EXT-LEGAL-PRIVACY, EXT-PRIVACY-RESTORATION, "
-        "EXT-UPLOAD-POLICY, EXT-PAYMENT-PROVIDER, EXT-BUDGET-POLICY, "
+        "EXT-UPLOAD-POLICY, EXT-PAYMENT-PROVIDER, "
         "EXT-Q28-COMPANY, EXT-COMMERCIAL-VALUES, EXT-CAMPAIGN-BUDGET-SCOPE, "
         "EXT-BASEMAP, EXT-REPORT-METHOD, EXT-AD-PLATFORM, EXT-RELEASE-ENV, "
         "EXT-STAGING-APPROVAL, EXT-PILOT-PERMITS, DV-PWA-PHYSICAL-MATRIX, "
@@ -282,7 +282,7 @@ def test_cli_malformed_input_returns_one_sanitized_diagnostic(
         )
         environment = {}
     else:
-        environment = {"BUDGET_POLICY_EXTERNAL_APPROVED": "CANARY-MALFORMED-SECRET"}
+        environment = {"PHONE_OPERATOR_EXTERNAL_APPROVED": "CANARY-MALFORMED-SECRET"}
     returned = iter((progress, architecture, decisions))
 
     def fake_run(command, **kwargs):

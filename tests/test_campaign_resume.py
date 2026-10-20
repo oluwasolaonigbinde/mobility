@@ -516,6 +516,24 @@ def test_real_funded_active_job_guards_and_atomic_resume(
     )
 
 
+PAUSE_EVALUATION = {
+    "state": "pause_threshold",
+    "campaign_budget_amount": "10000",
+    "currency": "NGN",
+    "policy_id": "synthetic-policy",
+    "policy_revision": "synthetic-r1",
+    "policy_source": "synthetic_test",
+    "budget_basis": "total",
+    "billing_fact_source": "confirmed_funding",
+    "billing_spend_amount": "10000.01",
+    "alert_threshold_amount": "8000",
+    "pause_threshold_amount": "10000",
+    "resume_threshold_amount": "10000",
+    "alert_applied": True,
+    "pause_applied": True,
+}
+
+
 def test_budget_pause_chronology_and_unknown_current_record(db_sessionmaker):
     from sqlalchemy import select
 
@@ -531,11 +549,7 @@ def test_budget_pause_chronology_and_unknown_current_record(db_sessionmaker):
             evaluation = BudgetPolicyEvaluation(
                 campaign_id=c.id,
                 evaluation_key="a" * 64,
-                state="blocked_external_policy",
-                external_gate="EXT-BUDGET-POLICY",
-                campaign_budget_amount="10000",
-                currency="NGN",
-                pause_applied=False,
+                **PAUSE_EVALUATION,
                 evaluated_at=earlier,
             )
             session.add(evaluation)
@@ -568,11 +582,7 @@ def test_budget_pause_chronology_and_unknown_current_record(db_sessionmaker):
             later = BudgetPolicyEvaluation(
                 campaign_id=c.id,
                 evaluation_key="b" * 64,
-                state="blocked_external_policy",
-                external_gate="EXT-BUDGET-POLICY",
-                campaign_budget_amount="10000",
-                currency="NGN",
-                pause_applied=False,
+                **PAUSE_EVALUATION,
                 evaluated_at=pause.created_at + timedelta(minutes=1),
             )
             session.add(later)

@@ -123,7 +123,7 @@ states unless the active implementation proves one is necessary.
   fraud-held earnings never create funding headroom.
 - Treat legacy `payments` wording as a projection, not a second cash model.
 
-`EXT-BUDGET-POLICY` remains the major registered product input.
+Budget policy is supplied by D92 / REQ-190: fixed 80/95/100 levels; no external policy prerequisite.
 
 ## Package 4 files, evidence, and communications
 

@@ -548,7 +548,11 @@ async def create_driver_business_notification(
 
 
 async def create_budget_policy_notices(
-    session: AsyncSession, *, campaign: Campaign, evaluation: BudgetPolicyEvaluation
+    session: AsyncSession,
+    *,
+    campaign: Campaign,
+    evaluation: BudgetPolicyEvaluation,
+    epoch_id: UUID | None = None,
 ) -> list[Notification]:
     type_key = {
         "alert_threshold": NotificationType.BUDGET_ALERT,
@@ -557,10 +561,24 @@ async def create_budget_policy_notices(
     }.get(evaluation.state)
     if type_key is None:
         return []
-    event_key = f"budget:{evaluation.state}:v1:{evaluation.id}"
+    if evaluation.state == "pause_threshold" and not evaluation.pause_applied:
+        # A funded approved draft is not a running campaign that was paused.
+        return []
+    # One notice at each threshold per confirmed budget/resume epoch, rather than
+    # another warning for every spend change while within the same level.
+    identity = {
+        "campaign": str(campaign.id),
+        "epoch": str(epoch_id),
+        "state": evaluation.state,
+        "budget": str(evaluation.campaign_budget_amount),
+        "currency": evaluation.currency,
+        "basis": evaluation.budget_basis,
+    }
+    event_key = (
+        "budget:" + hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+    )
     payload = {
         "campaign_id": str(campaign.id),
-        "budget_evaluation_id": str(evaluation.id),
         "budget_state": evaluation.state,
         "currency": evaluation.currency,
     }

@@ -9,11 +9,12 @@ from app.models.complaint import ComplaintParty, ComplaintReferenceType, Complai
 
 
 class ComplaintCategory(StrEnum):
-    """Neutral default categories (Batch E); the client has not supplied a list."""
+    """Support categories, including the owner's D7 campaign cancellation request."""
 
     PAY_OR_PAYOUT = "pay_or_payout"
     TRIP_OR_TRACKING = "trip_or_tracking"
     CAMPAIGN_OR_JOB = "campaign_or_job"
+    CAMPAIGN_CANCELLATION = "campaign_cancellation"
     BILLING_OR_INVOICE = "billing_or_invoice"
     ACCOUNT = "account"
     OTHER = "other"

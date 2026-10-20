@@ -39,6 +39,10 @@ REASONS = {
 }
 
 
+def applicant_reason(reason_code: str | None) -> str:
+    return REASONS.get(reason_code, "Please check your documents and try again.")
+
+
 async def create_driver_review_notices(
     session: AsyncSession,
     *,
@@ -164,7 +168,7 @@ async def review_notice_context(
         if vehicle and approved
         else "You can now add your car and its documents."
         if approved
-        else REASONS.get(decision.reason_code, "Please check your documents and try again.")
+        else applicant_reason(decision.reason_code)
     )
     path = (
         "/driver/profile"
@@ -172,7 +176,7 @@ async def review_notice_context(
         else ("/apply?step=car" if vehicle or approved else "/apply?step=details")
     )
     if user.status == UserStatus.INVITED:
-        body += " If you need a new code, request one on the application page."
+        body += " If you need a new link, request one on the application page."
     return {"title": title, "body": body, "action_path": path}
 
 

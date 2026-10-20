@@ -16,7 +16,6 @@ from app.models.measurement import MeasurementRun
 from app.models.payout import EarningsLedgerEntry, PayoutCalculation, PayoutCalculationStatus
 from app.models.trip import TripSession, TripSessionStatus
 from app.models.trip_analytics import FraudFlag, FraudFlagStatus, TripAnalytics
-from app.schemas.measurement import MeasurementResultRead, MeasurementRunSummary
 from app.schemas.reports import (
     ASSIGNMENT_STATUSES,
     CAMPAIGN_STATUSES,
@@ -1149,19 +1148,19 @@ async def advertiser_campaign_report(
     start_at: datetime | None,
     end_at: datetime | None,
     settings: Settings,
-) -> CampaignReportResponse:
+):
+    from app.models.report_issuance import ReportIssuance
+    from app.schemas.reports import CampaignPerformanceRead
+    from app.services.campaign_performance import PERFORMANCE_POLICY, live_campaign_performance
+    from app.services.disclosure import DisclosureQuery, record_disclosure
+    from app.services.measurement import canonical_sha256, measurement_run_reproducible
+    from app.services.payout_rule_serialization import database_clock
+
     organization_id = await require_governed_advertiser_output(
-        session,
-        settings=settings,
-        route_id="advertiser.campaign.report",
-        user_id=user_id,
+        session, settings=settings, route_id="advertiser.campaign.performance", user_id=user_id
     )
-    await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
-    await lock_trip_disclosure_snapshot(
-        session,
-        tenant_id=organization_id,
-        campaign_id=campaign_id,
-    )
+    campaign = await get_advertiser_campaign(session, user_id=user_id, campaign_id=campaign_id)
+    await lock_trip_disclosure_snapshot(session, tenant_id=organization_id, campaign_id=campaign_id)
     filters = [MeasurementRun.campaign_id == campaign_id]
     if start_at is not None:
         filters.append(MeasurementRun.period_start_at == start_at)
@@ -1169,92 +1168,54 @@ async def advertiser_campaign_report(
         filters.append(MeasurementRun.period_end_at == end_at)
     run = await session.scalar(
         select(MeasurementRun)
-        .where(
-            *filters,
-            ~MeasurementRun.id.in_(
-                select(MeasurementRun.reissue_of_run_id).where(
-                    MeasurementRun.reissue_of_run_id.is_not(None)
-                )
-            ),
-        )
+        .where(*filters)
         .order_by(MeasurementRun.created_at.desc(), MeasurementRun.id.desc())
         .limit(1)
     )
     if run is None:
-        raise AppError(
-            "CAMPAIGN_REPORT_PENDING",
-            "Your campaign report is being prepared",
-            status_code=409,
-        )
-    from app.services.measurement import measurement_run_reproducible
-
-    if not measurement_run_reproducible(run):
-        raise AppError(
-            "MEASUREMENT_RUN_INTEGRITY_FAILURE",
-            "The frozen measurement run failed reproducibility verification",
-            status_code=409,
-        )
-    report = CampaignReportResponse.model_validate(run.report_snapshot)
-    report.measurement_run = MeasurementRunSummary(
-        id=run.id,
-        mode=run.mode,
-        formula_version=run.formula_version,
-        method_revision=run.method_revision,
-        roi_method_revision=run.roi_method_revision,
-        period_start_at=run.period_start_at,
-        period_end_at=run.period_end_at,
-        input_manifest_sha256=run.input_manifest_sha256,
-        result_manifest_sha256=run.result_manifest_sha256,
-        proof_manifest_sha256=run.proof_manifest_sha256,
-        report_snapshot_sha256=run.report_snapshot_sha256,
-        reissue_of_run_id=run.reissue_of_run_id,
-        created_at=run.created_at,
-    )
-    report.measurement_result = MeasurementResultRead.model_validate(run.result_manifest)
-    from app.models.exposure_score import ExposureScore
-    from app.services.exposure_scores import (
-        advertiser_exposure_score_read,
-        exposure_score_is_stale,
-    )
-
-    score = await session.scalar(
-        select(ExposureScore)
-        .where(ExposureScore.measurement_run_id == run.id)
-        .order_by(ExposureScore.created_at.desc(), ExposureScore.id.desc())
-        .limit(1)
-    )
-    if score is not None:
-        if await exposure_score_is_stale(session, score):
+        if start_at is not None or end_at is not None:
             raise AppError(
-                "EXPOSURE_SCORE_INTEGRITY_FAILURE",
-                "The issued exposure score no longer matches its immutable measurement run",
+                "CAMPAIGN_REPORT_PENDING",
+                "Results for this period are being prepared",
                 status_code=409,
             )
-        report.exposure_score = await advertiser_exposure_score_read(session, score)
-    from app.services.audience import high_exposure_zone_insights
-
-    report.high_exposure_zone_insights = await high_exposure_zone_insights(
+        result = await live_campaign_performance(
+            session, campaign=campaign, settings=settings, now=await database_clock(session)
+        )
+    else:
+        if not measurement_run_reproducible(run) or "performance" not in run.report_snapshot:
+            raise AppError(
+                "MEASUREMENT_RUN_INTEGRITY_FAILURE",
+                "Please prepare a new campaign report",
+                status_code=409,
+            )
+        result = CampaignPerformanceRead.model_validate(run.report_snapshot["performance"])
+        result.measurement_run_id = run.id
+        issuance = await session.scalar(
+            select(ReportIssuance)
+            .where(ReportIssuance.measurement_run_id == run.id)
+            .order_by(ReportIssuance.version.desc())
+            .limit(1)
+        )
+        if issuance:
+            result.report_issuance_id, result.report_status = issuance.id, issuance.status
+    # D90 permits only this allowlisted coarse projection, never the rich snapshot.
+    await record_disclosure(
         session,
+        query=DisclosureQuery(
+            route_id="advertiser.campaign.performance",
+            principal_id=user_id,
+            tenant_id=organization_id,
+            campaign_id=campaign_id,
+            start_at=result.start_at,
+            end_at=result.end_at,
+            filters={"policy": PERFORMANCE_POLICY},
+        ),
         settings=settings,
-        actor_user_id=user_id,
-        campaign_id=campaign_id,
-        measurement_run_id=run.id,
-        record_history=False,
+        has_releasable_cells=True,
+        result_hash=canonical_sha256(result.model_dump(mode="json")),
     )
-    await record_governed_trip_output(
-        session,
-        settings=settings,
-        route_id="advertiser.campaign.report",
-        principal_id=user_id,
-        tenant_id=organization_id,
-        campaign_id=campaign_id,
-        start_at=run.period_start_at,
-        end_at=run.period_end_at,
-        filters={"measurement_run_id": str(run.id)},
-        result=report,
-        contribution_manifest=run.input_manifest,
-    )
-    return report
+    return result
 
 
 async def build_measurement_report_snapshot(

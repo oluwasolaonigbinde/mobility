@@ -891,6 +891,7 @@ async def _issue_download(
     reason: str,
     storage: StorageProvider,
     settings: Settings,
+    access_expires_at: datetime | None = None,
 ) -> PresignedGet:
     _require_cleared(stored_file)
     try:
@@ -915,10 +916,20 @@ async def _issue_download(
             "The private file object no longer matches its verified record",
             status.HTTP_409_CONFLICT,
         )
+    expires_in_seconds = settings.object_storage_download_ttl_seconds
+    if access_expires_at is not None:
+        from app.services.payout_rule_serialization import database_clock
+
+        remaining = int((access_expires_at - await database_clock(session)).total_seconds())
+        expires_in_seconds = min(60, expires_in_seconds, remaining)
+        if expires_in_seconds < 1:
+            raise _error(
+                "FILE_ACCESS_EXPIRED", "Job artwork is unavailable", status.HTTP_404_NOT_FOUND
+            )
     try:
         download = await storage.presign_get(
             object_key=stored_file.storage_key,
-            expires_in_seconds=settings.object_storage_download_ttl_seconds,
+            expires_in_seconds=expires_in_seconds,
         )
     except StorageObjectNotFound:
         raise _error(
@@ -928,6 +939,12 @@ async def _issue_download(
         ) from None
     except StorageUnavailable:
         raise _storage_unavailable() from None
+    if access_expires_at is not None:
+        completed_at = await database_clock(session)
+        if completed_at + timedelta(seconds=download.expires_in_seconds) > access_expires_at:
+            raise _error(
+                "FILE_ACCESS_EXPIRED", "Job artwork is unavailable", status.HTTP_404_NOT_FOUND
+            )
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,

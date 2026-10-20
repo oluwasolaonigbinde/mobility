@@ -494,7 +494,8 @@ def test_concurrent_refund_reference_conflict_is_stable_across_campaigns(
                 current.status = CampaignStatus.ACTIVE.value
                 cancellation = await request_campaign_cancellation(
                     session,
-                    actor_user_id=owner.id,
+                    actor_user_id=admin.id,
+                    actor_session_version=admin.session_version,
                     campaign_id=campaign.id,
                     payload=CampaignCancellationCreate(
                         client_request_id=uuid4(),

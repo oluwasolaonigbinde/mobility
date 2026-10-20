@@ -38,7 +38,9 @@ def _campaign(
     return campaign
 
 
-def test_missing_policy_is_visible_idempotent_and_never_pauses(db_sessionmaker) -> None:
+def test_default_client_policy_is_idempotent_without_deployment_configuration(
+    db_sessionmaker,
+) -> None:
     campaign = _campaign(db_sessionmaker, "blocked")
 
     async def scenario() -> None:
@@ -46,12 +48,12 @@ def test_missing_policy_is_visible_idempotent_and_never_pauses(db_sessionmaker) 
             first = await evaluate_campaign_budget_policy(session, campaign_id=campaign.id)
             second = await evaluate_campaign_budget_policy(session, campaign_id=campaign.id)
             assert first.id == second.id
-            assert first.state == "blocked_external_policy"
-            assert first.external_gate == "EXT-BUDGET-POLICY"
+            assert first.state == "within_budget"
             assert first.campaign_budget_amount == Decimal("1000.00")
-            assert first.billing_spend_amount is None
-            assert first.alert_threshold_amount is None
-            assert first.pause_threshold_amount is None
+            assert first.billing_spend_amount == Decimal("0.00")
+            assert first.alert_threshold_amount == Decimal("800.00")
+            assert first.urgent_threshold_amount == Decimal("950.00")
+            assert first.pause_threshold_amount == Decimal("1000.00")
             assert first.pause_applied is False
             reloaded_campaign = await session.get(Campaign, campaign.id)
             assert reloaded_campaign.status == CampaignStatus.ACTIVE
@@ -80,21 +82,15 @@ def test_sweep_skips_campaigns_without_configured_budget(db_sessionmaker) -> Non
     async def scenario() -> None:
         async with db_sessionmaker() as session:
             evaluations = await sweep_budget_policy_evaluations(session)
-            assert {evaluation.campaign_id for evaluation in evaluations} == {
-                budgeted.id,
-                daily_only.id,
-            }
-            daily_evaluation = next(
-                evaluation for evaluation in evaluations if evaluation.campaign_id == daily_only.id
-            )
-            assert daily_evaluation.campaign_budget_amount is None
-            assert daily_evaluation.campaign_daily_budget_amount == Decimal("100.00")
-            with pytest.raises(AppError) as missing:
-                await evaluate_campaign_budget_policy(
-                    session,
-                    campaign_id=unbudgeted.id,
-                )
-            assert missing.value.code == "CAMPAIGN_BUDGET_REQUIRED"
+            # D104: only a total budget is enforced, so a daily-only campaign is skipped.
+            assert {evaluation.campaign_id for evaluation in evaluations} == {budgeted.id}
+            for campaign_id in (daily_only.id, unbudgeted.id):
+                with pytest.raises(AppError) as missing:
+                    await evaluate_campaign_budget_policy(
+                        session,
+                        campaign_id=campaign_id,
+                    )
+                assert missing.value.code == "CAMPAIGN_BUDGET_REQUIRED"
 
     asyncio.run(scenario())
 
@@ -106,7 +102,6 @@ def test_nonblocked_policy_decision_is_rejected_while_gate_is_missing(db_session
         async def evaluate(self, context: BudgetPolicyContext) -> BudgetPolicyDecision:
             return BudgetPolicyDecision(
                 state="pause_threshold",
-                external_gate="",
                 policy_id="invented",
                 policy_revision="invented-v1",
                 policy_source="invented",

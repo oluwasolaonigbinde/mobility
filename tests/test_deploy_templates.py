@@ -35,10 +35,6 @@ def test_secrets_are_blank_and_unapproved_policies_stay_unset(name: str) -> None
     environment = read_env_file(ROOT / name)
     assert {key: environment[key] for key in SECRET_NAMES} == dict.fromkeys(SECRET_NAMES, "")
     for key in (
-        "BUDGET_ALERT_RATIO",
-        "BUDGET_URGENT_RATIO",
-        "BUDGET_PAUSE_RATIO",
-        "BUDGET_RESUME_RATIO",
         "FILE_KYC_RETENTION_DAYS",
         "INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE",
     ):
@@ -46,13 +42,17 @@ def test_secrets_are_blank_and_unapproved_policies_stay_unset(name: str) -> None
     for key in (
         "ALLOW_DEMO_SEED",
         "DEMO_LOGIN_ENABLED",
-        "BUDGET_POLICY_EXTERNAL_APPROVED",
         "PAYOUT_V4_PUBLISHING_ENABLED",
         "PAYOUT_AUTOMATIC_APPROVAL_ENABLED",
     ):
         assert environment[key] == "false"
     assert environment["MALWARE_SCANNER_HOST"] == "clamav"
     assert environment["WEB_CONCURRENCY"] == "2"
+    assert environment["DRIVER_ONBOARDING_ACCESS_TTL_SECONDS"] == "86400"
+    assert not any(
+        key.startswith("BUDGET_POLICY_") or (key.startswith("BUDGET_") and key.endswith("_RATIO"))
+        for key in environment
+    )
     model = production_model(env_file=ROOT / name, profiles=("release",))
     validate_compose_model(model)
 

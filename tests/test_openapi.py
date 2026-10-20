@@ -25,6 +25,31 @@ def test_openapi_schema_generates(client) -> None:
     components = schema["components"]["schemas"]
     assert "/api/v1/admin/badge-summary" in schema["paths"]
     assert "/api/v1/driver/current-job" in schema["paths"]
+    assert "/api/v1/admin/campaigns/{campaign_id}/budget-policy-evaluation" not in schema["paths"]
+    assert "/api/v1/advertiser/campaigns/{campaign_id}/cancel" not in schema["paths"]
+    assert "campaign_cancellation" in components["ComplaintCategory"]["enum"]
+    assert "/api/v1/admin/campaigns/{campaign_id}/reports/re-run" in schema["paths"]
+    assert "/api/v1/admin/campaign-enquiries/{enquiry_id}/create-advertiser" in schema["paths"]
+    assert "/api/v1/auth/driver-onboarding/continue" in schema["paths"]
+    artwork = schema["paths"][
+        "/api/v1/driver/campaign-assignments/{assignment_id}/artwork/download"
+    ]["post"]
+    assert "requestBody" not in artwork
+    assert artwork["responses"]["200"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/FileDownloadRead"
+    }
+    assert set(components["CampaignPerformanceTotals"]["properties"]) == {
+        "distance_m",
+        "trip_count",
+        "driving_days",
+        "estimated_views",
+    }
+    assert set(components["CampaignPerformanceArea"]["properties"]) == {
+        "area_id",
+        "name",
+        "trip_count",
+        "modelled_potential_contacts",
+    }
     assert "service_city" in components["DriverApplicationCreate"]["required"]
     assert (
         components["BankAccountPayoutVerificationCreate"]["properties"]["verification_reference"][

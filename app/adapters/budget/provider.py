@@ -3,24 +3,20 @@ from decimal import Decimal
 from typing import Protocol
 from uuid import UUID
 
-MISSING_BUDGET_POLICY_GATE = "EXT-BUDGET-POLICY"
-BLOCKED_BUDGET_POLICY_STATE = "blocked_external_policy"
-
 
 @dataclass(frozen=True, slots=True)
 class BudgetPolicyContext:
     campaign_id: UUID
     currency: str
     configured_budget_amount: Decimal | None
-    configured_daily_budget_amount: Decimal | None
     total_billing_spend_amount: Decimal
-    daily_billing_spend_amount: Decimal
+    # D104: the accepted gross; booked amounts up to it never warn or pause.
+    agreed_total_amount: Decimal | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class BudgetPolicyDecision:
     state: str
-    external_gate: str | None
     policy_id: str | None
     policy_revision: str | None
     policy_source: str | None
@@ -39,27 +35,6 @@ class BudgetPolicyAdapter(Protocol):
     async def evaluate(self, context: BudgetPolicyContext) -> BudgetPolicyDecision: ...
 
 
-class DisabledBudgetPolicyAdapter:
-    """Fail-closed policy seam while the owner-controlled rule is missing."""
-
-    async def evaluate(self, context: BudgetPolicyContext) -> BudgetPolicyDecision:
-        del context
-        return BudgetPolicyDecision(
-            state=BLOCKED_BUDGET_POLICY_STATE,
-            external_gate=MISSING_BUDGET_POLICY_GATE,
-            policy_id=None,
-            policy_revision=None,
-            policy_source=None,
-            budget_basis=None,
-            billing_spend_amount=None,
-            alert_threshold_amount=None,
-            pause_threshold_amount=None,
-            resume_threshold_amount=None,
-            should_pause=False,
-            resume_allowed=False,
-        )
-
-
 class FixedBudgetPolicyAdapter:
     """Explicit policy input; synthetic values are accepted only by test-authorized callers."""
 
@@ -76,7 +51,9 @@ class FixedBudgetPolicyAdapter:
     ) -> None:
         if policy_source not in {"external_approved", "synthetic_test"}:
             raise ValueError("invalid_budget_policy_source")
-        if not (Decimal("0") < resume_ratio <= alert_ratio < pause_ratio):
+        if not (
+            Decimal("0") < resume_ratio <= pause_ratio and Decimal("0") < alert_ratio < pause_ratio
+        ):
             raise ValueError("invalid_budget_policy_threshold_order")
         if urgent_ratio is not None and not (alert_ratio < urgent_ratio < pause_ratio):
             raise ValueError("invalid_budget_policy_threshold_order")
@@ -89,36 +66,25 @@ class FixedBudgetPolicyAdapter:
         self.resume_ratio = resume_ratio
 
     async def evaluate(self, context: BudgetPolicyContext) -> BudgetPolicyDecision:
-        candidates: list[tuple[str, Decimal, Decimal]] = []
-        if context.configured_budget_amount is not None:
-            candidates.append(
-                ("total", context.configured_budget_amount, context.total_billing_spend_amount)
-            )
-        if context.configured_daily_budget_amount is not None:
-            candidates.append(
-                (
-                    "daily",
-                    context.configured_daily_budget_amount,
-                    context.daily_billing_spend_amount,
-                )
-            )
-        if not candidates:
+        # D104: only the total budget is enforced.
+        if not context.configured_budget_amount:
             raise ValueError("budget_policy_requires_budget")
-        basis, budget, spend = max(
-            candidates,
-            key=lambda item: item[2] / item[1] if item[1] else Decimal("Infinity"),
-        )
-        alert = (budget * self.alert_ratio).quantize(Decimal("0.01"))
+        budget, spend = context.configured_budget_amount, context.total_billing_spend_amount
+        alert = (budget * self.alert_ratio).quantize(Decimal("0.0001"))
         urgent = (
-            (budget * self.urgent_ratio).quantize(Decimal("0.01"))
+            (budget * self.urgent_ratio).quantize(Decimal("0.0001"))
             if self.urgent_ratio is not None
             else None
         )
-        pause = (budget * self.pause_ratio).quantize(Decimal("0.01"))
-        resume = (budget * self.resume_ratio).quantize(Decimal("0.01"))
+        pause = (budget * self.pause_ratio).quantize(Decimal("0.0001"))
+        resume = (budget * self.resume_ratio).quantize(Decimal("0.0001"))
+        # D104: campaigns are fixed price, so only charges beyond the agreed total warn, and
+        # spend equal to the budget is within it.
         state = (
-            "pause_threshold"
-            if spend >= pause
+            "within_budget"
+            if context.agreed_total_amount is not None and spend <= context.agreed_total_amount
+            else "pause_threshold"
+            if spend > pause
             else "urgent_threshold"
             if urgent is not None and spend >= urgent
             else "alert_threshold"
@@ -127,11 +93,10 @@ class FixedBudgetPolicyAdapter:
         )
         return BudgetPolicyDecision(
             state=state,
-            external_gate=None,
             policy_id=self.policy_id,
             policy_revision=self.policy_revision,
             policy_source=self.policy_source,
-            budget_basis=basis,
+            budget_basis="total",
             billing_spend_amount=spend,
             alert_threshold_amount=alert,
             pause_threshold_amount=pause,
@@ -142,23 +107,14 @@ class FixedBudgetPolicyAdapter:
         )
 
 
-def build_budget_policy_adapter(settings) -> BudgetPolicyAdapter:
-    values = (
-        settings.budget_policy_id,
-        settings.budget_policy_revision,
-        settings.budget_alert_ratio,
-        settings.budget_urgent_ratio,
-        settings.budget_pause_ratio,
-        settings.budget_resume_ratio,
-    )
-    if not settings.budget_policy_external_approved or any(value is None for value in values):
-        return DisabledBudgetPolicyAdapter()
+def build_budget_policy_adapter() -> FixedBudgetPolicyAdapter:
+    """D92: the client's fixed 80/95/100 rule, with no deployment-policy gate."""
     return FixedBudgetPolicyAdapter(
-        policy_id=settings.budget_policy_id,
-        policy_revision=settings.budget_policy_revision,
+        policy_id="cardvert-client-budget",
+        policy_revision="D92",
         policy_source="external_approved",
-        alert_ratio=Decimal(str(settings.budget_alert_ratio)),
-        urgent_ratio=Decimal(str(settings.budget_urgent_ratio)),
-        pause_ratio=Decimal(str(settings.budget_pause_ratio)),
-        resume_ratio=Decimal(str(settings.budget_resume_ratio)),
+        alert_ratio=Decimal("0.80"),
+        urgent_ratio=Decimal("0.95"),
+        pause_ratio=Decimal("1"),
+        resume_ratio=Decimal("1"),
     )

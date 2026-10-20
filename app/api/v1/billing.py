@@ -4,7 +4,6 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Header, Query, Request, status
 from sqlalchemy import select
 
-from app.adapters.budget import build_budget_policy_adapter
 from app.adapters.payments import PaymentGatewayAdapter, PaymentGatewayUnavailableError
 from app.adapters.payments.paystack import (
     PaystackNotFoundError,
@@ -37,7 +36,6 @@ from app.models.billing import (
 from app.models.campaign import Campaign
 from app.schemas.billing import (
     BillingHistoryEntry,
-    BudgetEvaluationRead,
     BudgetResumeCreate,
     BudgetTransitionRead,
     CampaignCommercialRead,
@@ -81,7 +79,6 @@ from app.services.billing.authority import (
     record_subsidy_authorization,
 )
 from app.services.billing.budget import (
-    evaluate_campaign_budget_policy,
     resume_campaign_after_budget_pause,
 )
 from app.services.billing.checkout import (
@@ -762,25 +759,6 @@ async def admin_record_credit_settlement(
     )
     await session.commit()
     return SettlementRead.model_validate(settlement)
-
-
-@router.post(
-    "/admin/campaigns/{campaign_id}/budget-policy-evaluation",
-    response_model=BudgetEvaluationRead,
-)
-async def admin_record_budget_evaluation(
-    campaign_id: UUID,
-    _: AdminUserDependency,
-    session: SessionDependency,
-    settings: SettingsDependency,
-) -> BudgetEvaluationRead:
-    evaluation = await evaluate_campaign_budget_policy(
-        session,
-        campaign_id=campaign_id,
-        adapter=build_budget_policy_adapter(settings),
-    )
-    await session.commit()
-    return BudgetEvaluationRead.model_validate(evaluation)
 
 
 @router.post(

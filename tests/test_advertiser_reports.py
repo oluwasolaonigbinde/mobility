@@ -492,8 +492,15 @@ def test_advertiser_dashboard_campaign_summary_daily_metrics_and_report(
     assert daily_data["items"][0]["trip_count"] == 1
     assert daily_data["items"][0]["average_confidence_score"] == "0.1000"
 
-    assert report.status_code == http_status.HTTP_409_CONFLICT
-    assert report.json()["error"]["code"] == "CAMPAIGN_REPORT_PENDING"
+    assert report.status_code == http_status.HTTP_200_OK, report.text
+    assert report.json()["totals"] == {
+        "distance_m": "10000.00",
+        "trip_count": 1,
+        "driving_days": 1,
+        "estimated_views": "500.00",
+    }
+    assert report.json()["areas"] == []
+    assert "daily_metrics" not in report.json()
 
     async def snapshot():
         async with db_sessionmaker() as session:

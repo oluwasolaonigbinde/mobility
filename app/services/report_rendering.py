@@ -370,6 +370,18 @@ def build_frozen_report_projection(snapshot: dict) -> FrozenReportProjection:  #
                 f"{exposure_provenance};rank={zone['rank']}",
             )
         )
+        if snapshot["schema_version"] == "campaign-performance-export-v4":
+            rows.append(
+                FrozenReportRow(
+                    "exposure",
+                    "area_trip_count",
+                    zone["label"],
+                    "measured_operational_fact",
+                    str(zone["trip_count"]),
+                    "trips",
+                    exposure_provenance,
+                )
+            )
     rows.append(
         FrozenReportRow(
             "exposure",
@@ -381,7 +393,10 @@ def build_frozen_report_projection(snapshot: dict) -> FrozenReportProjection:  #
             exposure_provenance,
         )
     )
-    if snapshot["schema_version"] == "campaign-performance-export-v3":
+    if snapshot["schema_version"] in {
+        "campaign-performance-export-v3",
+        "campaign-performance-export-v4",
+    }:
         rows.extend(_planning_rows(snapshot))
     financial_result = snapshot.get("financial_result")
     if financial_result is not None:

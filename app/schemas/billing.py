@@ -417,7 +417,6 @@ class BudgetEvaluationRead(ORMRead):
     id: UUID
     campaign_id: UUID
     state: str
-    external_gate: str | None
     campaign_budget_amount: Decimal | None
     campaign_daily_budget_amount: Decimal | None
     currency: str

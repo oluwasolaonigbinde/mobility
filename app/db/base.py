@@ -54,6 +54,7 @@ import app.models.campaign  # noqa: E402,F401
 import app.models.campaign_assignment  # noqa: E402,F401
 import app.models.campaign_cancellation  # noqa: E402,F401
 import app.models.campaign_change  # noqa: E402,F401
+import app.models.campaign_enquiry  # noqa: E402,F401
 import app.models.campaign_zone  # noqa: E402,F401
 import app.models.complaint  # noqa: E402,F401
 import app.models.contact  # noqa: E402,F401
@@ -77,6 +78,7 @@ import app.models.organization  # noqa: E402,F401
 import app.models.payee  # noqa: E402,F401
 import app.models.payout  # noqa: E402,F401
 import app.models.report_issuance  # noqa: E402,F401
+import app.models.report_schedule  # noqa: E402,F401
 import app.models.retargeting_source  # noqa: E402,F401
 import app.models.retargeting_source_link  # noqa: E402,F401
 import app.models.route_replay  # noqa: E402,F401

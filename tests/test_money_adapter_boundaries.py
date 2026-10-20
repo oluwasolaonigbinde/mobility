@@ -36,7 +36,7 @@ def budget(**changes):
     [
         ({"policy_source": "unapproved"}, "invalid_budget_policy_source"),
         ({"resume_ratio": Decimal("0")}, "invalid_budget_policy_threshold_order"),
-        ({"resume_ratio": Decimal("0.9")}, "invalid_budget_policy_threshold_order"),
+        ({"resume_ratio": Decimal("1.1")}, "invalid_budget_policy_threshold_order"),
         ({"pause_ratio": Decimal("0.8")}, "invalid_budget_policy_threshold_order"),
         ({"urgent_ratio": Decimal("0.8")}, "invalid_budget_policy_threshold_order"),
         ({"urgent_ratio": Decimal("1")}, "invalid_budget_policy_threshold_order"),
@@ -47,16 +47,14 @@ def test_unapproved_or_unordered_budget_policy_is_rejected(changes, message):
         budget(**changes)
 
 
-def test_daily_only_budget_and_missing_budget_fail_closed():
+def test_total_budget_is_the_only_basis_and_missing_budget_fails_closed():
     async def run():
-        context = BudgetPolicyContext(
-            uuid4(), "NGN", None, Decimal("100"), Decimal("0"), Decimal("100")
-        )
+        context = BudgetPolicyContext(uuid4(), "NGN", Decimal("100"), Decimal("100.01"))
         decision = await budget().evaluate(context)
-        assert decision.budget_basis == "daily"
+        assert decision.budget_basis == "total"
         assert decision.should_pause and not decision.resume_allowed
         with pytest.raises(ValueError, match="requires_budget"):
-            await budget().evaluate(replace(context, configured_daily_budget_amount=None))
+            await budget().evaluate(replace(context, configured_budget_amount=None))
 
     asyncio.run(run())
 

@@ -11,6 +11,7 @@ from decimal import Decimal
 from pathlib import Path
 from typing import NamedTuple, Protocol
 from uuid import NAMESPACE_URL, uuid4, uuid5
+from zoneinfo import ZoneInfo
 
 from pydantic import SecretStr
 from sqlalchemy import func, select
@@ -804,6 +805,8 @@ async def ensure_primary_demo_documents(session, *, driver, profile, vehicle, re
         keys=settings.payout_crypto_keys, active_key_version=settings.payout_crypto_key_version
     )
     valid_until = datetime.now(UTC) + timedelta(days=90)
+    # Document expiry dates are Nigeria dates; a UTC date can end before valid_until.
+    expires_on = valid_until.astimezone(ZoneInfo("Africa/Lagos")).date()
 
     async def documents(kinds, purpose):
         return {
@@ -887,7 +890,7 @@ async def ensure_primary_demo_documents(session, *, driver, profile, vehicle, re
                 document_reviews={
                     kind: DocumentReviewRead(
                         status="accepted",
-                        expires_on=valid_until.date() if kind == "driver_license" else None,
+                        expires_on=expires_on if kind == "driver_license" else None,
                     )
                     for kind in files
                 },
@@ -929,7 +932,7 @@ async def ensure_primary_demo_documents(session, *, driver, profile, vehicle, re
                 document_reviews={
                     kind: DocumentReviewRead(
                         status="accepted",
-                        expires_on=valid_until.date() if kind == "insurance" else None,
+                        expires_on=expires_on if kind == "insurance" else None,
                     )
                     for kind in files
                 },

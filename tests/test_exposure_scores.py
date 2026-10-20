@@ -148,23 +148,24 @@ def test_score_retries_reissue_without_rescoring_history_and_drives_report(
     assert frozen.status_code == 200
     assert frozen.json()["exposure_score"]["result"]["score"] == "84.00"
 
+    admin_second = db_client.get(
+        f"/api/v1/admin/measurement-runs/{second.json()['id']}", headers=admin_headers
+    )
+    assert admin_second.status_code == 200
+    score_body = admin_second.json()["exposure_score"]
+    assert score_body["result"]["label"] == "Exposure score"
+    assert score_body["result"]["score"] == "46.67"
+    assert score_body["result"]["route_count"] == 1
+    assert score_body["result"]["missing_route_count"] == 0
+    assert score_body["reproducible"] is True
+
+    # The advertiser report is the coarse performance projection; scores stay staff-side.
     report = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/report",
-        params={
-            "start_at": DAY_1.isoformat(),
-            "end_at": (DAY_1 + timedelta(days=1)).isoformat(),
-        },
-        headers=advertiser_headers,
+        f"/api/v1/advertiser/campaigns/{campaign.id}/report", headers=advertiser_headers
     )
     assert report.status_code == 200, report.text
     body = report.json()
-    assert body["exposure_score"]["result"]["label"] == "Exposure score"
-    assert body["exposure_score"]["result"]["score"] == "46.67"
-    assert body["exposure_score"]["result"]["route_count"] == 1
-    assert body["exposure_score"]["result"]["missing_route_count"] == 0
-    assert body["exposure_score"]["reproducible"] is True
-    assert body["measurement_result"]["metrics"][1]["label"] == "Modelled potential contacts"
-    assert body["measurement_result"]["roi"] is None
+    assert {"totals", "areas"} <= body.keys()
 
     def recursive_keys(value):
         if isinstance(value, dict):
@@ -176,21 +177,16 @@ def test_score_retries_reissue_without_rescoring_history_and_drives_report(
                 yield from recursive_keys(child)
 
     forbidden = {
+        "exposure_score",
+        "measurement_result",
         "trip_analytics_id",
         "trip_session_id",
         "route_scores",
         "issued_by_user_id",
     }
-    assert forbidden.isdisjoint(recursive_keys(body["exposure_score"]))
+    assert forbidden.isdisjoint(recursive_keys(body))
 
-    schema = db_client.get("/openapi.json").json()
-    report_schema = schema["components"]["schemas"]["CampaignReportResponse"]
-    exposure_schema = report_schema["properties"]["exposure_score"]
-    exposure_ref = next(
-        item["$ref"] for item in exposure_schema["anyOf"] if "$ref" in item
-    )
-    assert exposure_ref.endswith("/AdvertiserExposureScoreRead")
-    components = schema["components"]["schemas"]
+    components = db_client.get("/openapi.json").json()["components"]["schemas"]
 
     def recursive_schema_keys(value, seen=frozenset()):
         if isinstance(value, dict):
@@ -206,9 +202,7 @@ def test_score_retries_reissue_without_rescoring_history_and_drives_report(
             for child in value:
                 yield from recursive_schema_keys(child, seen)
 
-    assert forbidden.isdisjoint(
-        recursive_schema_keys(components["AdvertiserExposureScoreRead"])
-    )
+    assert forbidden.isdisjoint(recursive_schema_keys(components["CampaignPerformanceRead"]))
 
 
 def test_score_authorization_tenant_and_stale_parent_fail_closed(
@@ -261,11 +255,12 @@ def test_score_authorization_tenant_and_stale_parent_fail_closed(
             return await exposure_score_is_stale(session, score)
 
     assert asyncio.run(tamper_parent_binding()) is True
-    stale_report = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/report", headers=advertiser_headers
+    stale_run = db_client.get(
+        f"/api/v1/admin/measurement-runs/{issued.json()['id']}",
+        headers=auth_headers(db_client, admin.email, PASSWORD),
     )
-    assert stale_report.status_code == 409
-    assert stale_report.json()["error"]["code"] == "EXPOSURE_SCORE_INTEGRITY_FAILURE"
+    assert stale_run.status_code == 200
+    assert stale_run.json()["exposure_score"]["stale"] is True
 
 
 def test_concurrent_measurement_retry_creates_one_score_on_postgres(

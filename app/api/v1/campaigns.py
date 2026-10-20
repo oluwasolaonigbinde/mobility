@@ -25,6 +25,7 @@ from app.schemas.campaigns import (
     AdminCampaignRead,
     AdminCreativeReviewItem,
     AdminCreativeReviewListResponse,
+    AdvertiserCampaignRead,
     CampaignCreate,
     CampaignListItemRead,
     CampaignListResponse,
@@ -44,6 +45,7 @@ from app.schemas.campaigns import (
     ensure_timezone_aware,
 )
 from app.services.audit import create_audit_event
+from app.services.billing.budget import campaign_budget_used
 from app.services.campaigns import (
     create_campaign,
     create_campaign_creative,
@@ -65,6 +67,7 @@ from app.services.campaigns import (
     update_advertiser_campaign,
     update_campaign_creative,
 )
+from app.services.payout_rule_serialization import database_clock
 
 router = APIRouter(tags=["Campaigns"])
 
@@ -111,6 +114,17 @@ def campaign_response(campaign: Campaign) -> CampaignRead:
         metadata=campaign.campaign_metadata,
         created_at=campaign.created_at,
         updated_at=campaign.updated_at,
+    )
+
+
+async def advertiser_campaign_response(
+    session, campaign: Campaign, *, now: datetime | None = None
+) -> AdvertiserCampaignRead:
+    if now is None:
+        now = await database_clock(session)
+    return AdvertiserCampaignRead(
+        **campaign_response(campaign).model_dump(),
+        budget_used=await campaign_budget_used(session, campaign=campaign, now=now),
     )
 
 
@@ -190,7 +204,7 @@ def creative_review_event_response(event: CreativeReviewEvent) -> CreativeReview
 
 @router.post(
     "/advertiser/campaigns",
-    response_model=CampaignRead,
+    response_model=AdvertiserCampaignRead,
     status_code=status.HTTP_201_CREATED,
     summary="Create a campaign",
 )
@@ -198,7 +212,7 @@ async def advertiser_create_campaign(
     payload: CampaignCreate,
     current_user: AdvertiserUserDependency,
     session: SessionDependency,
-) -> CampaignRead:
+) -> AdvertiserCampaignRead:
     campaign, created = await create_campaign(session, user_id=current_user.id, payload=payload)
     if created:
         await create_audit_event(
@@ -210,7 +224,7 @@ async def advertiser_create_campaign(
             metadata={"organization_id": str(campaign.organization_id), "status": campaign.status},
         )
     await session.commit()
-    return campaign_response(campaign)
+    return await advertiser_campaign_response(session, campaign)
 
 
 @router.get(
@@ -240,9 +254,13 @@ async def advertiser_list_campaigns(
     from app.services.list_counts import campaign_list_counts
 
     counts = await campaign_list_counts(session, [row.id for row in campaigns])
+    now = await database_clock(session)
     return CampaignListResponse(
         items=[
-            CampaignListItemRead(**campaign_response(row).model_dump(), **counts[row.id])
+            CampaignListItemRead(
+                **(await advertiser_campaign_response(session, row, now=now)).model_dump(),
+                **counts[row.id],
+            )
             for row in campaigns
         ],
         total=total,
@@ -253,25 +271,25 @@ async def advertiser_list_campaigns(
 
 @router.get(
     "/advertiser/campaigns/{campaign_id}",
-    response_model=CampaignRead,
+    response_model=AdvertiserCampaignRead,
     summary="Get current advertiser campaign",
 )
 async def advertiser_get_campaign(
     campaign_id: UUID,
     current_user: AdvertiserUserDependency,
     session: SessionDependency,
-) -> CampaignRead:
+) -> AdvertiserCampaignRead:
     campaign = await get_advertiser_campaign(
         session,
         user_id=current_user.id,
         campaign_id=campaign_id,
     )
-    return campaign_response(campaign)
+    return await advertiser_campaign_response(session, campaign)
 
 
 @router.patch(
     "/advertiser/campaigns/{campaign_id}",
-    response_model=CampaignRead,
+    response_model=AdvertiserCampaignRead,
     summary="Update current advertiser campaign",
 )
 async def advertiser_update_campaign(
@@ -279,7 +297,7 @@ async def advertiser_update_campaign(
     payload: CampaignUpdate,
     current_user: AdvertiserUserDependency,
     session: SessionDependency,
-) -> CampaignRead:
+) -> AdvertiserCampaignRead:
     campaign, changed_fields = await update_advertiser_campaign(
         session,
         user_id=current_user.id,
@@ -296,26 +314,26 @@ async def advertiser_update_campaign(
             metadata={"changed_fields": changed_fields},
         )
     await session.commit()
-    return campaign_response(campaign)
+    return await advertiser_campaign_response(session, campaign)
 
 
 @router.post(
     "/advertiser/campaigns/{campaign_id}/submit",
-    response_model=CampaignRead,
+    response_model=AdvertiserCampaignRead,
     summary="Submit a campaign for admin review",
 )
 async def advertiser_submit_campaign_for_review(
     campaign_id: UUID,
     current_user: AdvertiserUserDependency,
     session: SessionDependency,
-) -> CampaignRead:
+) -> AdvertiserCampaignRead:
     campaign = await submit_campaign_for_review(
         session,
         user_id=current_user.id,
         campaign_id=campaign_id,
     )
     await session.commit()
-    return campaign_response(campaign)
+    return await advertiser_campaign_response(session, campaign)
 
 
 @router.get(
