@@ -823,9 +823,7 @@ def test_reporting_empty_cohort_suppression_cross_org_date_validation_and_no_aut
     for response in (summary, dashboard, daily, trips):
         assert response.status_code == http_status.HTTP_409_CONFLICT
         assert response.json()["error"]["code"] == "DISCLOSURE_SUPPRESSED"
-        assert response.json()["error"]["details"] == {
-            "reason": "minimum_counts_or_contributor_cap"
-        }
+        assert response.json()["error"]["details"] == {"reason": "minimum_cars"}
     assert cross_org.status_code == http_status.HTTP_404_NOT_FOUND
     assert cross_org_trips.status_code == http_status.HTTP_404_NOT_FOUND
     assert invalid_range.status_code == http_status.HTTP_400_BAD_REQUEST

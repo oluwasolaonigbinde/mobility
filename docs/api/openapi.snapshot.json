@@ -1841,6 +1841,13 @@
             ],
             "title": "Operational Contact Name"
           },
+          "outstanding": {
+            "items": {
+              "$ref": "#/components/schemas/OutstandingInvoiceAmountRead"
+            },
+            "title": "Outstanding",
+            "type": "array"
+          },
           "status": {
             "$ref": "#/components/schemas/OrganizationStatus"
           }
@@ -1854,6 +1861,7 @@
           "status",
           "member_count",
           "live_campaign_count",
+          "outstanding",
           "billing_contact_name",
           "operational_contact_name",
           "operational_contact_email"
@@ -7396,6 +7404,18 @@
             "title": "Organization Id",
             "type": "string"
           },
+          "preview_file_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview File Id"
+          },
           "start_at": {
             "anyOf": [
               {
@@ -7437,7 +7457,8 @@
           "updated_at",
           "budget_used",
           "assignment_count",
-          "target_zone_count"
+          "target_zone_count",
+          "preview_file_id"
         ],
         "title": "CampaignListItemRead",
         "type": "object"
@@ -11880,6 +11901,88 @@
         "title": "DriverEarningsCurrencySummary",
         "type": "object"
       },
+      "DriverEarningsDayRead": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "paid_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paid At"
+          },
+          "status": {
+            "enum": [
+              "on_hold",
+              "paid",
+              "paying_tonight",
+              "being_checked"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "trip_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Trip Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "day",
+          "currency",
+          "amount",
+          "status",
+          "paid_at",
+          "trip_ids"
+        ],
+        "title": "DriverEarningsDayRead",
+        "type": "object"
+      },
+      "DriverEarningsDaysRead": {
+        "description": "REQ-208: the driver's daily earnings and headline totals in one read.",
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/DriverEarningsDayRead"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "totals": {
+            "items": {
+              "$ref": "#/components/schemas/DriverEarningsTotalsRead"
+            },
+            "title": "Totals",
+            "type": "array"
+          }
+        },
+        "required": [
+          "totals",
+          "days"
+        ],
+        "title": "DriverEarningsDaysRead",
+        "type": "object"
+      },
       "DriverEarningsSummary": {
         "properties": {
           "driver_profile_id": {
@@ -11900,6 +12003,39 @@
           "totals_by_currency"
         ],
         "title": "DriverEarningsSummary",
+        "type": "object"
+      },
+      "DriverEarningsTotalsRead": {
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "on_hold": {
+            "title": "On Hold",
+            "type": "string"
+          },
+          "this_week": {
+            "title": "This Week",
+            "type": "string"
+          },
+          "today": {
+            "title": "Today",
+            "type": "string"
+          },
+          "total": {
+            "title": "Total",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "today",
+          "this_week",
+          "total",
+          "on_hold"
+        ],
+        "title": "DriverEarningsTotalsRead",
         "type": "object"
       },
       "DriverFraudDisputeRead": {
@@ -15713,14 +15849,6 @@
       },
       "InstallationEvidencePolicyRead": {
         "properties": {
-          "can_upload": {
-            "title": "Can Upload",
-            "type": "boolean"
-          },
-          "configured": {
-            "title": "Configured",
-            "type": "boolean"
-          },
           "display_proof_challenge_ttl_seconds": {
             "anyOf": [
               {
@@ -15744,15 +15872,8 @@
             "title": "Display Proof Validity Seconds"
           },
           "evidence_validity_hours": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Evidence Validity Hours"
+            "title": "Evidence Validity Hours",
+            "type": "integer"
           },
           "required_views": {
             "items": {
@@ -15763,8 +15884,6 @@
           }
         },
         "required": [
-          "configured",
-          "can_upload",
           "required_views",
           "evidence_validity_hours",
           "display_proof_challenge_ttl_seconds",
@@ -17822,6 +17941,24 @@
         ],
         "title": "OrganizationStatus",
         "type": "string"
+      },
+      "OutstandingInvoiceAmountRead": {
+        "properties": {
+          "amount": {
+            "title": "Amount",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "amount"
+        ],
+        "title": "OutstandingInvoiceAmountRead",
+        "type": "object"
       },
       "PasswordResetComplete": {
         "additionalProperties": false,
@@ -43735,6 +43872,42 @@
         "summary": "Renew Person Payee",
         "tags": [
           "Driver document renewals"
+        ]
+      }
+    },
+    "/api/v1/driver/earnings/days": {
+      "get": {
+        "operationId": "driver_get_earnings_days_api_v1_driver_earnings_days_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverEarningsDaysRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Read current driver daily earnings and totals",
+        "tags": [
+          "Payouts"
         ]
       }
     },

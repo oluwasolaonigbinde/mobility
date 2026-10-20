@@ -199,6 +199,36 @@ class EarningsLedgerEntryRead(PayoutLedgerEntrySummary):
     payment_on_hold: bool = False
 
 
+class DriverMoneyMixin(BaseModel):
+    @field_serializer("amount", "today", "this_week", "total", "on_hold", check_fields=False)
+    def serialize_money(self, value: Decimal) -> str:
+        return str(value.quantize(Decimal("0.01")))
+
+
+class DriverEarningsDayRead(DriverMoneyMixin):
+    day: date
+    currency: str
+    amount: Decimal
+    status: Literal["on_hold", "paid", "paying_tonight", "being_checked"]
+    paid_at: datetime | None
+    trip_ids: list[UUID]
+
+
+class DriverEarningsTotalsRead(DriverMoneyMixin):
+    currency: str
+    today: Decimal
+    this_week: Decimal
+    total: Decimal
+    on_hold: Decimal
+
+
+class DriverEarningsDaysRead(BaseModel):
+    """REQ-208: the driver's daily earnings and headline totals in one read."""
+
+    totals: list[DriverEarningsTotalsRead]
+    days: list[DriverEarningsDayRead]
+
+
 class PayoutCalculationRead(DecimalStringMixin):
     id: UUID
     trip_session_id: UUID

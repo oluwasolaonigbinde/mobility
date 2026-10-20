@@ -1824,17 +1824,13 @@ async def ensure_offer_review_work(session, *, graph, staff, settings):
         accept_driver_assignment,
         create_campaign_assignment,
     )
-    from app.services.installation_evidence import submit_installation_evidence
+    from app.services.installation_evidence import (
+        INSTALLATION_EVIDENCE_VIEWS,
+        submit_installation_evidence,
+    )
 
     campaign = await session.scalar(
         select(Campaign).where(Campaign.name == "Marula Kitchens — Wuse Weekend Catering")
-    )
-    seed_settings = settings.model_copy(
-        update={
-            "installation_evidence_uploader_roles": "driver,admin",
-            "installation_evidence_required_views": "front,back,left,right,close_up",
-            "installation_evidence_validity_hours": 168,
-        }
     )
     for email, accept in (
         ("driver@demo.mobility.local", False),
@@ -1864,7 +1860,7 @@ async def ensure_offer_review_work(session, *, graph, staff, settings):
                 profile=profile,
                 admin=staff[3],
                 advertiser=await session.get(User, campaign.created_by_user_id),
-                settings=seed_settings,
+                settings=settings,
                 offered_at=offered_at,
             )
             creative = await session.scalar(
@@ -1873,7 +1869,7 @@ async def ensure_offer_review_work(session, *, graph, staff, settings):
             assignment = await create_campaign_assignment(
                 session,
                 admin_user_id=staff[3].id,
-                settings=seed_settings,
+                settings=settings,
                 payload=CampaignAssignmentCreate(
                     campaign_id=campaign.id,
                     driver_profile_id=profile.id,
@@ -1888,7 +1884,7 @@ async def ensure_offer_review_work(session, *, graph, staff, settings):
                     session,
                     user_id=person.id,
                     assignment_id=assignment.id,
-                    settings=seed_settings,
+                    settings=settings,
                     payload=CampaignAssignmentTransition(),
                 )
         if not accept or await session.scalar(
@@ -1899,10 +1895,10 @@ async def ensure_offer_review_work(session, *, graph, staff, settings):
             continue
         captured_at = datetime.now(UTC)
         photos = []
-        for view in seed_settings.installation_evidence_views:
+        for view in INSTALLATION_EVIDENCE_VIEWS:
             stored = await managed_seed_image(
                 session,
-                settings=seed_settings,
+                settings=settings,
                 subject=person,
                 label=view,
                 purpose=FilePurpose.INSTALLATION_EVIDENCE.value,
@@ -1914,7 +1910,7 @@ async def ensure_offer_review_work(session, *, graph, staff, settings):
             actor_user_id=person.id,
             actor_role="driver",
             assignment_id=assignment.id,
-            settings=seed_settings,
+            settings=settings,
             payload=InstallationEvidenceCreate(
                 client_request_id=uuid5(assignment.id, "installation"),
                 device_id=uuid5(assignment.id, "phone"),

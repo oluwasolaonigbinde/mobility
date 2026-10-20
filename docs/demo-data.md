@@ -7,7 +7,7 @@ Identical repeat views reveal nothing new. Narrowly differing date windows are t
 
 Removed controls: legal display/collection authorization and synthetic switches, disclosure/configuration/history approval references, live measurement authorization and report-method approval setting; dynamic advertiser report fallback; legal approval for aggregate CSV export. Reports display a frozen measurement snapshot; CSV/PDF publication uses that same snapshot.
 
-Retained controls: organization membership and roles; aggregation vehicle/trip/day floors, contributor caps and resolution limits; disclosure query recording; report reproducibility, file integrity and conditional ROI inputs/method authority; person-level export rejection; storage/scanning/encryption; payment, payout and email provider controls; blocked live Meta/Google activation. `PRIVACY_LEGAL_APPROVAL_REFERENCE` remains only for actual ad-platform approval and DSR retention exceptions. `MEASUREMENT_ROI_METHOD_REFERENCE` remains for financial ROI, and the calculation method revision stays recorded on each run. Synthetic lineage fields remain where they describe source provenance and protect provider activation, without legal display authority switches.
+Retained controls: organization membership and roles; aggregation distinct-vehicle floor and resolution limits (D107 removed the trip/day floors and contributor caps); disclosure query recording; report reproducibility, file integrity and conditional ROI inputs/method authority; person-level export rejection; storage/scanning/encryption; payment, payout and email provider controls; blocked live Meta/Google activation. `PRIVACY_LEGAL_APPROVAL_REFERENCE` remains only for actual ad-platform approval and DSR retention exceptions. `MEASUREMENT_ROI_METHOD_REFERENCE` remains for financial ROI, and the calculation method revision stays recorded on each run. Synthetic lineage fields remain where they describe source provenance and protect provider activation, without legal display authority switches.
 
 Owner Batch 2 seed review corrections (REQ-097–REQ-103) were committed in `6879c95` after review and integrated into master. [Full CI](https://github.com/oluwasolaonigbinde/mobility/actions/runs/37433319087) on `b77945d` passed on 6 October 2026, including production build and the controlled coverage receipt. The earlier dated seed and preview receipts below remain historical evidence; this closure includes no application deployment.
 
@@ -38,9 +38,6 @@ No missing client answer is recorded as approved. These records are fictional an
 
 | Temporary input | Current value and location | Replacing answer |
 | --- | --- | --- |
-| Installation upload roles | `driver,admin` in development compose and local/client-preview API and seed environment files | REQ-039 |
-| Required installation photos | `front,back,left,right,close_up` in those files | REQ-039 |
-| Installation evidence lifetime | `INSTALLATION_EVIDENCE_VALIDITY_HOURS=168` in those files | REQ-039 |
 | Display challenge lifetime | `DISPLAY_PROOF_CHALLENGE_TTL_SECONDS=600` in those files | REQ-039 |
 | Display proof lifetime | `DISPLAY_PROOF_VALIDITY_SECONDS=86400` in those files | REQ-039 |
 | Higher-earner spot-check threshold | `EVIDENCE_HIGH_EARNER_THRESHOLD_NGN=50000` in those files | REQ-039 |

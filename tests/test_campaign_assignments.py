@@ -1089,6 +1089,7 @@ def test_admin_can_create_list_read_and_cancel_assignment_with_events_and_audit(
                     select(Notification)
                     .where(
                         Notification.recipient_user_id == profile.user_id,
+                        Notification.channel == "in_app",
                         Notification.type_key.in_(
                             [
                                 NotificationType.ASSIGNMENT_OFFERED.value,

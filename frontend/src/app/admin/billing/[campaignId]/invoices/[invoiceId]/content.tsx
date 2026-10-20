@@ -1,11 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { requireRole } from "@/lib/auth/current-user";
-import { getSessionToken } from "@/lib/auth/session";
 import { InvoiceDocument } from "@/lib/billing/invoice-document";
 import { QueueUnavailable } from "../../../../queue-search";
+import { readCampaign, readCampaignCommercial } from "../../../../entity-reads";
 
 export default async function AdminInvoicePage({
   params,
@@ -14,16 +13,11 @@ export default async function AdminInvoicePage({
 }) {
   const { campaignId, invoiceId } = await params;
   await requireRole("admin");
-  const api = createApiClient(await getSessionToken());
   let campaign, commercial;
   try {
     [{ data: campaign }, { data: commercial }] = await Promise.all([
-      api.GET("/api/v1/admin/campaigns/{campaign_id}", {
-        params: { path: { campaign_id: campaignId } },
-      }),
-      api.GET("/api/v1/admin/campaigns/{campaign_id}/commercial", {
-        params: { path: { campaign_id: campaignId } },
-      }),
+      readCampaign(campaignId),
+      readCampaignCommercial(campaignId),
     ]);
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) notFound();

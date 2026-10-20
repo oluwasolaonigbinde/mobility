@@ -6,7 +6,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Pagination } from "@/components/ui/pagination";
 import { QueueSearch, QueueUnavailable } from "../queue-search";
 import { adminStatus } from "@/lib/status/admin";
-import { exactCompanyMoney, readCompanyInvoices } from "./company-reads";
+import { exactCompanyMoney } from "./company-reads";
 import { readAdminAdvertiserOrganizations } from "@/lib/api/navigation";
 
 export default async function AdvertisersPage({
@@ -20,24 +20,15 @@ export default async function AdvertisersPage({
   const { data } = await readAdminAdvertiserOrganizations(api, { q: p.q, limit: 25, offset }).catch(
     () => ({ data: undefined }),
   );
-  const summaries = new Map<string, Awaited<ReturnType<typeof readCompanyInvoices>>>();
-  let failed = false;
-  if (data) {
-    for (let offset = 0; offset < data.items.length; offset += 1) {
-      const company = data.items[offset]!;
-      try {
-        if (
-          ![company.member_count, company.live_campaign_count].every(
-            (count) => Number.isSafeInteger(count) && count >= 0,
-          )
-        )
-          throw new Error("Incomplete company counts");
-        summaries.set(company.id, await readCompanyInvoices(api, company.id));
-      } catch {
-        failed = true;
-      }
-    }
-  }
+  // The list read already carries each company's outstanding invoice money (REQ-208).
+  const failed = Boolean(
+    data?.items.some(
+      (company) =>
+        ![company.member_count, company.live_campaign_count].every(
+          (count) => Number.isSafeInteger(count) && count >= 0,
+        ),
+    ),
+  );
   return (
     <div className="mx-auto max-w-5xl">
       <PageHeader
@@ -64,7 +55,6 @@ export default async function AdvertisersPage({
           ) : (
             <div className="grid gap-3">
               {data.items.map((c) => {
-                const detail = summaries.get(c.id)!;
                 return (
                   <Link
                     key={c.id}
@@ -84,8 +74,8 @@ export default async function AdvertisersPage({
                     </p>
                     <p className="text-sm">
                       Outstanding:{" "}
-                      {detail.outstanding.length
-                        ? detail.outstanding
+                      {c.outstanding.length
+                        ? c.outstanding
                             .map(({ currency, amount }) => exactCompanyMoney(amount, currency))
                             .join(" · ")
                         : "No issued invoices"}

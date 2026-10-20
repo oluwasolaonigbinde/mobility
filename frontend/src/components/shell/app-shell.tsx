@@ -15,8 +15,8 @@ const roleLabel: Record<string, string> = {
 };
 
 /**
- * Shared authenticated shell: icon-free sidebar rail, sticky topbar with identity context,
- * content well.
+ * Staff (admin) shell: icon-free sidebar rail, sticky topbar with identity context,
+ * content well. Advertisers and drivers have their own shells.
  */
 export function AppShell({
   me,
@@ -29,11 +29,6 @@ export function AppShell({
   children: ReactNode;
   search?: ReactNode;
 }) {
-  const org = me.advertiser_organization;
-  const canManageAdvertiserPreferences =
-    me.user.role === "advertiser" &&
-    (org?.membership_role === "owner" || org?.membership_role === "manager");
-
   return (
     <div className={`flex min-h-dvh flex-1 ${me.user.role === "admin" ? "admin-portal" : ""}`}>
       <a
@@ -78,17 +73,7 @@ export function AppShell({
               search ? "text-ink text-sm font-medium" : "text-muted hidden text-sm md:block"
             }
           >
-            {org ? (
-              <>
-                {org.name} · <span className="text-amber">{org.currency}</span>
-              </>
-            ) : (
-              <>
-                {me.user.role === "admin"
-                  ? "Terrax Media operations"
-                  : `Network · ${roleLabel[me.user.role] ?? me.user.role}`}
-              </>
-            )}
+            Terrax Media operations
           </div>
           {search ? (
             <div className="order-last w-full md:order-none md:w-auto md:min-w-64 md:flex-1">
@@ -96,12 +81,9 @@ export function AppShell({
             </div>
           ) : null}
           <div className="text-muted flex items-center gap-3 text-sm">
-            <NotificationCenter
-              canManageAdvertiserPreferences={canManageAdvertiserPreferences}
-              sessionScope={me.user.id}
-            />
+            <NotificationCenter canManageAdvertiserPreferences={false} sessionScope={me.user.id} />
             <span aria-label="Account context" className="hidden md:inline">
-              {me.advertiser_organization?.name ?? me.user.full_name}
+              {me.user.full_name}
             </span>
             <details className="relative">
               <summary className="hover:text-ink cursor-pointer list-none transition-colors">

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { readCampaign } from "../../entity-reads";
+import { readCampaign, readCampaignCommercial } from "../../entity-reads";
 import { readPayTerms } from "../pay-terms-read";
 import { notFound, redirect } from "next/navigation";
 import { isRedirectError } from "next/dist/client/components/redirect-error";
@@ -106,11 +106,7 @@ export default async function CampaignHub({
     Number.isFinite(Number(value)) ? Math.max(0, Math.floor(Number(value))) : 0;
   const [commercial, artwork, jobs, history, changes, results, reviews, activity, terms] =
     await Promise.all([
-      api
-        .GET("/api/v1/admin/campaigns/{campaign_id}/commercial", {
-          params: { path: { campaign_id: campaignId } },
-        })
-        .catch(sectionFailure),
+      readCampaignCommercial(campaignId).catch(sectionFailure),
       api
         .GET("/api/v1/admin/campaigns/{campaign_id}/creatives", {
           params: {

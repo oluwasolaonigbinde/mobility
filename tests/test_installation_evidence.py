@@ -39,7 +39,11 @@ from app.models.trip import TripSession
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
 from app.schemas.installation_evidence import DisplayProofCreate, InstallationEvidenceCreate
-from app.services.installation_evidence import submit_display_proof, submit_installation_evidence
+from app.services.installation_evidence import (
+    INSTALLATION_EVIDENCE_VIEWS,
+    submit_display_proof,
+    submit_installation_evidence,
+)
 
 
 def create_clean_evidence_file(db_sessionmaker, *, user_id: UUID) -> UUID:
@@ -88,9 +92,6 @@ def create_clean_evidence_file(db_sessionmaker, *, user_id: UUID) -> UUID:
 
 
 def configure_evidence_policy(settings) -> None:
-    settings.installation_evidence_uploader_roles = "driver,admin"
-    settings.installation_evidence_required_views = "front,close_up"
-    settings.installation_evidence_validity_hours = 24
     settings.display_proof_challenge_ttl_seconds = 120
     settings.display_proof_validity_seconds = 3600
 
@@ -121,17 +122,12 @@ def evidence_payload(db_sessionmaker, *, driver_id: UUID) -> dict:
         "captured_at": (datetime.now(UTC) - timedelta(minutes=1)).isoformat(),
         "photos": [
             {
-                "view": "front",
+                "view": view,
                 "stored_file_id": str(
                     create_clean_evidence_file(db_sessionmaker, user_id=driver_id)
                 ),
-            },
-            {
-                "view": "close_up",
-                "stored_file_id": str(
-                    create_clean_evidence_file(db_sessionmaker, user_id=driver_id)
-                ),
-            },
+            }
+            for view in INSTALLATION_EVIDENCE_VIEWS
         ],
         "metadata": {"source": "synthetic-test"},
     }
@@ -272,7 +268,7 @@ def test_driver_admin_evidence_flow_is_bound_and_idempotent(
     assert body["vehicle_id"] == str(vehicle.id)
     assert body["device_id"] == payload["device_id"]
     assert body["status"] == "pending_review"
-    assert {photo["view"] for photo in body["photos"]} == {"front", "close_up"}
+    assert {photo["view"] for photo in body["photos"]} == set(INSTALLATION_EVIDENCE_VIEWS)
 
     duplicate = db_client.post(
         f"/api/v1/driver/campaign-assignments/{assignment_id}/installation-evidence",
@@ -410,40 +406,46 @@ def test_future_capture_is_rejected_without_persisting_submission_or_audit(
     assert asyncio.run(exercise()) == (0, 0)
 
 
-def test_evidence_policy_absence_and_cross_driver_file_fail_closed(
+def test_built_in_photo_rule_needs_no_settings_and_still_fails_closed(
     db_client,
     db_sessionmaker,
     settings,
 ) -> None:
-    settings.installation_evidence_uploader_roles = ""
-    settings.installation_evidence_required_views = ""
-    settings.installation_evidence_validity_hours = None
+    """REQ-208: five views, driver or admin, 7 days; no deployment switch to set first."""
     settings.display_proof_challenge_ttl_seconds = None
     settings.display_proof_validity_seconds = None
     admin, driver, vehicle, assignment_id = accepted_assignment(
         db_client, db_sessionmaker, suffix="policy"
     )
-    payload = evidence_payload(db_sessionmaker, driver_id=driver.id)
-    unavailable = db_client.post(
-        f"/api/v1/driver/campaign-assignments/{assignment_id}/installation-evidence",
-        headers=auth_headers(db_client, driver.email, PASSWORD),
-        json=payload,
-    )
-    assert unavailable.status_code == 503
-    assert unavailable.json()["error"]["code"] == "INSTALLATION_EVIDENCE_POLICY_UNAVAILABLE"
+    url = f"/api/v1/driver/campaign-assignments/{assignment_id}/installation-evidence"
+    headers = auth_headers(db_client, driver.email, PASSWORD)
 
-    configure_evidence_policy(settings)
-    payload["client_request_id"] = str(uuid4())
+    short = evidence_payload(db_sessionmaker, driver_id=driver.id)
+    short["photos"] = short["photos"][:4]
+    missing_view = db_client.post(url, headers=headers, json=short)
+    assert missing_view.status_code == 422, missing_view.text
+    assert missing_view.json()["error"]["code"] == "INSTALLATION_EVIDENCE_VIEWS_INVALID"
+
+    payload = evidence_payload(db_sessionmaker, driver_id=driver.id)
     payload["photos"][0]["stored_file_id"] = str(
         create_clean_evidence_file(db_sessionmaker, user_id=admin.id)
     )
-    invalid = db_client.post(
-        f"/api/v1/driver/campaign-assignments/{assignment_id}/installation-evidence",
-        headers=auth_headers(db_client, driver.email, PASSWORD),
-        json=payload,
-    )
+    invalid = db_client.post(url, headers=headers, json=payload)
     assert invalid.status_code == 409
     assert invalid.json()["error"]["code"] == "INSTALLATION_EVIDENCE_FILE_INVALID"
+
+    payload = evidence_payload(db_sessionmaker, driver_id=driver.id)
+    submitted = db_client.post(url, headers=headers, json=payload)
+    assert submitted.status_code == 201, submitted.text
+    approved = db_client.post(
+        f"/api/v1/admin/installation-evidence/{submitted.json()['id']}/approve",
+        headers=auth_headers(db_client, admin.email, PASSWORD),
+        json={"reason": "Synthetic review passed"},
+    )
+    assert approved.status_code == 200, approved.text
+    approved_at = datetime.fromisoformat(approved.json()["reviewed_at"])
+    approved_until = datetime.fromisoformat(approved.json()["approved_until"])
+    assert approved_until - approved_at == timedelta(days=7)
 
 
 def test_display_proof_nonce_is_device_bound_fresh_and_one_use(
@@ -636,13 +638,10 @@ def test_trip_start_fails_closed_without_current_bound_display_proof(
     assert response.json()["error"]["code"] == "CURRENT_DISPLAY_PROOF_REQUIRED"
 
 
-def test_photo_policy_enables_driver_uploads_before_display_proof_windows_exist(
+def test_photo_policy_is_built_in_before_display_proof_windows_exist(
     db_client, db_sessionmaker, settings
 ) -> None:
-    """Client answer #4 photo rules stand alone; display-proof windows are still open inputs."""
-    settings.installation_evidence_uploader_roles = "driver,admin"
-    settings.installation_evidence_required_views = "front,back,left,right,close_up"
-    settings.installation_evidence_validity_hours = 168
+    """Client answer #4 photo rules are code (REQ-208); display-proof windows are still inputs."""
     settings.display_proof_challenge_ttl_seconds = None
     settings.display_proof_validity_seconds = None
     driver = create_test_user(
@@ -657,8 +656,6 @@ def test_photo_policy_enables_driver_uploads_before_display_proof_windows_exist(
     policy = db_client.get("/api/v1/driver/installation-evidence/policy", headers=headers)
     assert policy.status_code == 200, policy.text
     assert policy.json() == {
-        "configured": True,
-        "can_upload": True,
         "required_views": ["front", "back", "left", "right", "close_up"],
         "evidence_validity_hours": 168,
         "display_proof_challenge_ttl_seconds": None,
@@ -670,8 +667,3 @@ def test_photo_policy_enables_driver_uploads_before_display_proof_windows_exist(
     with_proof = db_client.get("/api/v1/driver/installation-evidence/policy", headers=headers)
     assert with_proof.json()["display_proof_challenge_ttl_seconds"] == 120
     assert with_proof.json()["display_proof_validity_seconds"] == 3600
-
-    settings.installation_evidence_validity_hours = None
-    unset = db_client.get("/api/v1/driver/installation-evidence/policy", headers=headers).json()
-    assert unset["configured"] is False and unset["can_upload"] is False
-    assert unset["display_proof_challenge_ttl_seconds"] is None

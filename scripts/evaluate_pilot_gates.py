@@ -213,9 +213,6 @@ REFERENCE_RUNTIME_CLAIMS: tuple[tuple[str, tuple[str, ...]], ...] = (
 GROUP_RUNTIME_CLAIMS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (
         (
-            "INSTALLATION_EVIDENCE_UPLOADER_ROLES",
-            "INSTALLATION_EVIDENCE_REQUIRED_VIEWS",
-            "INSTALLATION_EVIDENCE_VALIDITY_HOURS",
             "DISPLAY_PROOF_CHALLENGE_TTL_SECONDS",
             "DISPLAY_PROOF_VALIDITY_SECONDS",
         ),

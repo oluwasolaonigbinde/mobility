@@ -68,7 +68,6 @@ from app.services.bank_capture import check_account_name
 from app.services.driver_account_setup import complete_driver_account_setup
 from app.services.driver_applications import (
     PUBLIC_APPLICATION_MESSAGE,
-    PUBLIC_NOT_FOUND_MESSAGE,
     PUBLIC_STATUS_MESSAGE,
     application_from_access_token,
     application_status_exists,
@@ -102,7 +101,6 @@ async def continue_application(
     session: SessionDependency,
     settings: SettingsDependency,
 ) -> ApplicationContinuationRead:
-    require_driver_registration_enabled(settings)
     result = await continue_driver_application(
         session, token=payload.application_access_token.get_secret_value(), settings=settings
     )
@@ -207,15 +205,6 @@ def _vehicle_status_response(view: VehicleStageView) -> VehicleStageRead:
     if view.submission is None:
         return VehicleStageRead()
     return VehicleStageRead(status=view.submission.status)
-
-
-def require_driver_registration_enabled(settings: Settings) -> None:
-    if not settings.driver_registration_enabled:
-        raise AppError(
-            "APPLICATION_UNAVAILABLE",
-            PUBLIC_NOT_FOUND_MESSAGE,
-            status_code=status.HTTP_404_NOT_FOUND,
-        )
 
 
 async def reserve_driver_registration(
@@ -418,7 +407,6 @@ async def register_driver(
     request: Request,
     limiter: RegistrationRateLimiterDependency,
 ) -> DriverApplicationSubmitResponse:
-    require_driver_registration_enabled(settings)
     await reserve_driver_registration(
         session=session,
         limiter=limiter,
@@ -463,7 +451,6 @@ async def request_driver_onboarding_access(
     request: Request,
     limiter: RegistrationRateLimiterDependency,
 ) -> DriverPublicCommandResponse:
-    require_driver_registration_enabled(settings)
     await reserve_onboarding_access_request(
         session=session,
         limiter=limiter,
@@ -513,7 +500,6 @@ async def driver_application_status(
     session: SessionDependency,
     settings: SettingsDependency,
 ) -> DriverApplicationStatusResponse:
-    require_driver_registration_enabled(settings)
     await application_status_exists(session, reference)
     person_payee = await person_payee_status_by_reference(session, reference=reference)
     vehicle = await vehicle_status_by_reference(session, reference=reference)
@@ -537,7 +523,6 @@ async def create_driver_onboarding_upload(
     settings: SettingsDependency,
     storage: StorageDependency,
 ) -> ApplicantFileUploadRead:
-    require_driver_registration_enabled(settings)
     application = await application_from_access_token(
         session,
         token=payload.application_access_token.get_secret_value(),
@@ -571,7 +556,6 @@ async def confirm_driver_onboarding_upload(
     settings: SettingsDependency,
     storage: StorageDependency,
 ) -> ApplicantStoredFileRead:
-    require_driver_registration_enabled(settings)
     application = await application_from_access_token(
         session,
         token=payload.application_access_token.get_secret_value(),
@@ -599,7 +583,6 @@ async def get_driver_onboarding_file_status(
     session: SessionDependency,
     settings: SettingsDependency,
 ) -> ApplicantStoredFileRead:
-    require_driver_registration_enabled(settings)
     application = await application_from_access_token(
         session,
         token=payload.application_access_token.get_secret_value(),
@@ -624,7 +607,6 @@ async def submit_driver_onboarding_person_payee(
     session: SessionDependency,
     settings: SettingsDependency,
 ) -> PersonPayeeStageRead:
-    require_driver_registration_enabled(settings)
     try:
         view = await submit_application_person_payee(
             session,
@@ -652,7 +634,6 @@ async def submit_driver_onboarding_vehicle(
     session: SessionDependency,
     settings: SettingsDependency,
 ) -> VehicleStageRead:
-    require_driver_registration_enabled(settings)
     view = await submit_application_vehicle(session, payload=payload, settings=settings)
     await session.commit()
     return _vehicle_stage_response(view)
@@ -668,7 +649,6 @@ async def list_driver_onboarding_vehicles(
     session: SessionDependency,
     settings: SettingsDependency,
 ) -> ApplicantVehicleListRead:
-    require_driver_registration_enabled(settings)
     rows = await applicant_vehicles(
         session, token=payload.application_access_token.get_secret_value(), settings=settings
     )

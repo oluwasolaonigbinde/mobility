@@ -351,9 +351,6 @@ async def build_heatmap(
         "impression_formula_version": settings.impression_formula_version,
         "min_trips_per_cell": settings.heatmap_min_trips_per_cell,
         "privacy_min_vehicles_per_cell": settings.privacy_min_vehicles_per_cell,
-        "privacy_min_trips_per_cell": settings.privacy_min_trips_per_cell,
-        "privacy_min_days_per_cell": settings.privacy_min_days_per_cell,
-        "privacy_max_contributor_share": settings.privacy_max_contributor_share,
         "max_cells": settings.heatmap_max_cells,
     }
     filters = [
@@ -422,7 +419,6 @@ def aggregation_sql(
             SELECT
                 lp.trip_session_id,
                 ts.vehicle_id,
-                date_trunc('day', lp.recorded_at) AS recorded_day,
                 floor(ST_X(ST_Transform(lp.geom, 3857)) / :resolution_m) * :resolution_m AS grid_x,
                 floor(ST_Y(ST_Transform(lp.geom, 3857)) / :resolution_m) * :resolution_m AS grid_y
             FROM location_pings lp
@@ -446,10 +442,7 @@ def aggregation_sql(
             SELECT
                 grid_x,
                 grid_y,
-                count(DISTINCT vehicle_id)::integer AS vehicle_count,
-                count(DISTINCT trip_session_id)::integer AS privacy_trip_count,
-                count(DISTINCT recorded_day)::integer AS day_count,
-                count(*)::numeric AS total_ping_count
+                count(DISTINCT vehicle_id)::integer AS vehicle_count
             FROM eligible_pings
             GROUP BY grid_x, grid_y
         ),
@@ -521,52 +514,6 @@ def aggregation_sql(
               )
             ORDER BY ie.trip_session_id, ie.estimated_at DESC, ie.id DESC
         ),
-        vehicle_cell_metrics AS (
-            SELECT
-                tcc.grid_x,
-                tcc.grid_y,
-                tcc.vehicle_id,
-                sum(tcc.cell_ping_count)::numeric AS ping_count,
-                count(DISTINCT tcc.trip_session_id)::numeric AS trip_count,
-                coalesce(
-                    sum(
-                        coalesce(ta.distance_m, 0)
-                        * (tcc.cell_ping_count::numeric / nullif(tac.total_ping_count, 0))
-                    ),
-                    0
-                ) AS distance_m,
-                coalesce(
-                    sum(
-                        coalesce(le.estimated_impressions, 0)
-                        * (tcc.cell_ping_count::numeric / nullif(tac.total_ping_count, 0))
-                    ),
-                    0
-                ) AS estimated_impressions
-            FROM trip_cell_counts tcc
-            JOIN trip_authority_counts tac ON tac.trip_session_id = tcc.trip_session_id
-            LEFT JOIN trip_analytics ta
-                ON ta.trip_session_id = tcc.trip_session_id
-                AND ta.formula_version = :route_analytics_formula_version
-            LEFT JOIN latest_estimates le ON le.trip_session_id = tcc.trip_session_id
-            GROUP BY tcc.grid_x, tcc.grid_y, tcc.vehicle_id
-        ),
-        cell_contributor_caps AS (
-            SELECT
-                grid_x,
-                grid_y,
-                greatest(
-                    coalesce(max(ping_count) / nullif(sum(ping_count), 0), 0),
-                    coalesce(max(trip_count) / nullif(sum(trip_count), 0), 0),
-                    coalesce(max(distance_m) / nullif(sum(distance_m), 0), 0),
-                    coalesce(
-                        max(estimated_impressions)
-                        / nullif(sum(estimated_impressions), 0),
-                        0
-                    )
-                ) AS max_share
-            FROM vehicle_cell_metrics
-            GROUP BY grid_x, grid_y
-        ),
         cell_metrics AS (
             SELECT
                 tcc.grid_x,
@@ -618,11 +565,7 @@ def aggregation_sql(
             average_quality_score
         FROM cell_metrics cm
         JOIN cell_privacy_counts pc USING (grid_x, grid_y)
-        JOIN cell_contributor_caps cc USING (grid_x, grid_y)
         WHERE pc.vehicle_count >= :privacy_min_vehicles_per_cell
-          AND pc.privacy_trip_count >= :privacy_min_trips_per_cell
-          AND pc.day_count >= :privacy_min_days_per_cell
-          AND cc.max_share <= :privacy_max_contributor_share
         ORDER BY grid_y, grid_x
         LIMIT :max_cells
     """

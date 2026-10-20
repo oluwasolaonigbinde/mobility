@@ -270,7 +270,7 @@
     },
     {
       "risk": "Re-identification or differencing of sparse exposure cells",
-      "controls": "Central disclosure service with coarse buckets, vehicle/trip/day floors, contributor caps, complementary suppression and query history in W3-00C",
+      "controls": "Central disclosure service with coarse buckets, a three-distinct-car floor (D107), complementary suppression and query history in W3-00C",
       "residual": "OPEN — W3-00C and density evidence incomplete"
     },
     {

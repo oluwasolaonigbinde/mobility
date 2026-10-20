@@ -463,8 +463,9 @@ training and handover.
   administrator must approve them before the campaign hours can earn.
   **Implemented · Pilot values supplied** — front, back, left side, right side
   and close-up; the driver or a Terrax Media admin uploads; photos are renewed
-  weekly (client answer #4, 24 Sep 2026). Display-check windows remain gated
-  (G-21a).
+  weekly (client answer #4, 24 Sep 2026). This rule is built into the product,
+  so no deployment setting is needed (REQ-208). Display-check windows remain
+  gated (G-21a).
 - **D-17** Recurring display checks and physical spot checks may be issued to
   confirm the branding is still on the vehicle; missed or failed checks feed
   fraud review. **Implemented · Gated (G-21a)** for thresholds and
@@ -891,8 +892,8 @@ payouts follow M-31 and M-32.
 ### 8.3 Disclosure protection
 
 - **R-12** Every advertiser-visible or exportable location output is
-  aggregated. Cells are suppressed when they fall below minimum distinct
-  vehicles, trips or days, or when one contributor dominates, and repeated or
+  aggregated. Cells are suppressed when fewer than three distinct cars
+  contributed (D107; D105 for the area rule), and repeated or
   overlapping requests cannot be combined to reveal a suppressed value.
   **Implemented · Gated (G-14)** — current thresholds are test values, not
   approved values, and meeting them is not described as anonymity.
@@ -1125,7 +1126,7 @@ numbers (G-03, G-04, G-07, G-13) are intentionally left unassigned.
 | G-18 | Quotation components, commissions, driver base and premium rates, production and vendor values | Real commercial and payout use | Terrax Media |
 | G-19 | Settlement bank-account details with secure intake and verification; approved advertiser payment instructions | Live settlement; payment instructions shown to advertisers | Terrax Media |
 | G-21 | Whether printing and fixed costs consume the campaign budget | Production commercial configuration | Terrax Media |
-| G-21a | Evidence and activity policy: installation photo views, uploader roles, validity and renewal, display-check and spot-check thresholds, weekly verified-hours floor | Pilot evidence and activity enforcement | Terrax Media operations |
+| G-21a | Evidence and activity policy: display-check windows and spot-check thresholds, weekly verified-hours floor (installation photo views, uploaders and 7-day renewal are built in, REQ-208) | Pilot evidence and activity enforcement | Terrax Media operations |
 | G-22 | Approved file types and maximum sizes per upload | Live upload policy | Terrax Media |
 | G-23 | Approved sender name and email/WhatsApp/voice message copy | Live communications | Terrax Media |
 | G-24 | Approved expedited-production waiver wording | Live waiver use | Terrax Media's legal adviser |

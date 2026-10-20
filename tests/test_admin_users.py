@@ -660,8 +660,7 @@ def _public_applicant(db_client, db_sessionmaker, settings, email: str):
     from app.core.config import get_settings
     from app.core.rate_limit import InMemoryRegistrationRateLimiter
 
-    enabled = settings.model_copy(update={"driver_registration_enabled": True})
-    db_client.app.dependency_overrides[get_settings] = lambda: enabled
+    db_client.app.dependency_overrides[get_settings] = lambda: settings
     db_client.app.dependency_overrides[get_registration_rate_limiter] = lambda: (
         InMemoryRegistrationRateLimiter()
     )

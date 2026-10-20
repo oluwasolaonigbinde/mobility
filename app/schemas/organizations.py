@@ -42,9 +42,16 @@ class OrganizationMembershipRead(BaseModel):
     status: MembershipStatus
 
 
+class OutstandingInvoiceAmountRead(BaseModel):
+    currency: str
+    amount: str
+
+
 class AdminOrganizationListItemRead(AdvertiserOrganizationRead):
     member_count: int = Field(ge=0)
     live_campaign_count: int = Field(ge=0)
+    # Unpaid balance of issued invoices per currency; empty when none are issued.
+    outstanding: list[OutstandingInvoiceAmountRead]
     billing_contact_name: str | None
     operational_contact_name: str | None
     operational_contact_email: str | None

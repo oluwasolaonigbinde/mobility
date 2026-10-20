@@ -23,6 +23,8 @@ const campaign = {
   budget_amount: "1000.00",
   start_at: null,
   end_at: null,
+  preview_file_id: "file-one",
+  target_zone_count: 2,
   budget_used: {
     amount: "200.00",
     budget_amount: "1000.00",
@@ -74,6 +76,15 @@ it("shows the two running figures, no booked total and one running card", async 
   expect(document.body).not.toHaveTextContent(
     /driver pay|123,456|estimated ad exposure|fraud flags/i,
   );
+});
+it("builds each card from the list read alone", async () => {
+  const { container } = render(await Home());
+  expect(screen.getByText("2 target areas")).toBeInTheDocument();
+  expect(container.querySelector("img[src*='/api/advertiser/artwork/file-one']")).not.toBeNull();
+  expect(mocks.get.mock.calls.map(([path]) => path).sort()).toEqual([
+    "/api/v1/advertiser/campaigns",
+    "/api/v1/advertiser/dashboard/summary",
+  ]);
 });
 it("retains campaign inventory when aggregate metrics fail", async () => {
   mocks.get.mockImplementation(async (path: string) => {

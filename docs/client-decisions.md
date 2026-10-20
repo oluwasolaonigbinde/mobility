@@ -95,6 +95,8 @@ neither an account nor a campaign. `/` is the only public landing route.
 Accepted enquiries are saved for staff in New enquiries. Staff can create an
 advertiser company from one, with an explicitly selected existing owner; the
 submission itself creates no login or membership (D93, REQ-191).
+The enquiry form is always on: there is no deployment switch, and its rate
+limits still apply (REQ-208).
 The enquiry keeps the notice explaining use of contact details and that no
 account or campaign is created; the separate ID/bank warning is removed under
 the owner's 8 October review brief (D64, REQ-122). Sign-in welcomes people with
@@ -112,6 +114,7 @@ small labels use sans, and past jobs do not repeat their dated status. Demo
 work days use realistic qualifying mileage and separate next-day payments.
 
 **History:**
+- **2026-10-20** — Owner-approved pre-push fix (REQ-208): the website enquiry form no longer needs the `CAMPAIGN_ENQUIRY_ENABLED` switch, which a fresh deployment left off. The staff header reads Terrax Media operations instead of an empty company and currency.
 - **2026-10-18** — D93 / REQ-191 replaces email-only website enquiries with saved staff New enquiries and explicit advertiser-company conversion; public submission creates no account.
 - **2026-10-18** — Terrax's feedback asks for more white, brand colours, graphics and simpler advertiser/driver navigation; the owner directs implementation now without a further client approval step (REQ-181/185, D98). This supersedes D37's Ivory Ledger default and REQ-071's six switchable candidates. Phase 1 is being implemented on `design/brand-look-mockup`; rollout/merge is not yet claimed.
 - **2026-10-10** — Owner review replaces D65's seeded live trip with idle Start and the zero Today headline with latest payment; requires realistic daily amounts and next-day reconciliations, sans labels and nonrepeated job status (REQ-128–132, D66). Earlier D65 demo history had small trips paid together. Built in `b807d341`, with API projections in `affa641c`; final verification in `8f64cdb8` and full branch CI passed on 2026-10-12.
@@ -133,12 +136,16 @@ Compliance, Finance, Customer Service, Admin) are sections of the admin
 driver approval checks; advertiser logins belong to one company (D29).
 For now, set up one advertiser login per company; do not add invitations for
 additional company staff (D47, REQ-060).
+The first staff account on a fresh deployment is created from the server shell
+(`python -m app.operations.create_staff`); it is an active admin with a one-time
+temporary password that must be changed at first sign-in (REQ-208).
 
 **History:**
 - **2026-09-02** — Owner decision on single-company advertiser logins and one admin for driver checks (D29).
 - **2026-09-24** — Client named its departments; owner mapped them to work-queue sections (D38e). Built in `7a9ceb0` (REQ-001).
 - **2026-09-30** — Owner: no named people per department; everyone uses the one admin role (REQ-031).
 - **2026-10-01** — Owner kept one advertiser login per company for the admin redesign; the proposed additional-person invitation is omitted (D47, REQ-060). Existing membership history and access constraints remain.
+- **2026-10-20** — Owner-approved pre-push fix (REQ-208): a shell command creates the first staff admin, refusing an email that already has an account. Previously a fresh deployment had no way to create its first staff login.
 
 ### Pricing and quotations
 
@@ -352,6 +359,9 @@ step, replacing the pasted code. Expiry, revocation, current approval and
 application ownership remain authoritative (D94, REQ-192). The link also tells
 the applicant whether that step is needed, in review or needs changes, with a
 plain reason when changes are needed (REQ-195).
+Apply is always open: there is no deployment switch, and the existing rate
+limits still apply (REQ-208). An approved driver's account set-up link works
+once, for 24 hours (D106).
 
 Signed-in active driver accounts can renew rejected or expired identity, bank
 and vehicle documents in Profile, with the same scanned uploads and audited
@@ -359,6 +369,7 @@ staff review. Work remains blocked until the current reviews pass. Unknown
 renewal periods stay unset (D69, REQ-137). Mark expired retains the recorded outcomes, dates and review history. Actually expired driver or vehicle documents require new clean uploads and audited current approval before work resumes; accepted retained documents remain reusable (D76, REQ-152).
 
 **History:**
+- **2026-10-20** — Owner-approved pre-push fixes (REQ-208): the approved-driver account set-up link lasts 24 hours instead of 30 minutes (D106), and Apply no longer needs the `DRIVER_REGISTRATION_ENABLED` switch, which a fresh deployment left off. Rate limits, expiry and single use are unchanged.
 - **2026-10-19** — Owner follow-up to audit D8 (REQ-195): the continuation link now returns the step's state (needed, in review or changes needed) and a plain reason from the existing applicant wording. Previously it returned only the step, so a rejected or expired applicant saw no reason. Authority and expiry are unchanged.
 - **2026-10-18** — D94 / REQ-192 replaces the pasted application code with a 24-hour link to the current step, preserving capability authority and renewal behavior.
 - **2026-10-18** — Owner accepts audit D9: staff may confirm an account by a small test transfer and type any bank reference (D89, REQ-187). Previously the backend demanded 32–512 bytes with no spaces/high-entropy syntax, and the form required 16 characters. New normalized 1–512-character references retain exact-version verification and first manual payout. Local implementation and specialist verification are in progress; no transfer or provider action authorized.
@@ -383,12 +394,14 @@ renewal periods stay unset (D69, REQ-137). Mark expired retains the recorded out
 approved by an admin (Q17). Views: **front, back, left, right and close-up**.
 The driver or an admin uploads them (there is no installer login); Compliance
 reviews; new photos are required **weekly**; Terrax's inspector makes spot
-checks on top (client answers item 4). Set in configuration
-(`INSTALLATION_EVIDENCE_*`).
+checks on top (client answers item 4). This rule is built into Cardvert, so a
+fresh deployment needs no photo settings (REQ-208). The daily display-photo
+windows remain deployment values (REQ-039); trips need them.
 
 **Still open:** [REQ-039](requests.md) — spot-check and display-proof values.
 
 **History:**
+- **2026-10-20** — Owner-approved pre-push fix (REQ-208): the installation-photo rule (five views, driver or admin, 7 days) is built into the code instead of three `INSTALLATION_EVIDENCE_*` settings that a fresh deployment left empty, which blocked every photo upload. Display-proof windows are unchanged.
 - **2026-10-06** — The registered temporary development installation/proof values (REQ-094) are integrated. Built in `6879c95`; unanswered client replacement inputs remain REQ-039.
 - **2026-10-02** — Owner authorized temporary installation/proof values in development and preview configuration only (REQ-094); unanswered client values remain REQ-039, with the inventory in `demo-data.md`.
 - **2026-08-14** — Client confirmed approved installation evidence (Q17, D18).
@@ -419,8 +432,12 @@ count**. Covering more than the expected miles earns no more than the day rate.
 Rates are set per campaign on an audited revision and frozen when the driver
 accepts; "on request" areas may have their own rate (D39a, D43a–c). D80 removes the obsolete hourly engines: there is no live accepted hourly work. Switching daily-rate pay
 on for real campaigns: [REQ-048](requests.md).
+Driver Home shows today's and this week's earnings (Monday to Sunday, Nigeria
+time). Earnings shows this week, total earned and money on hold: the unpaid part
+of days on hold. Paid money is never counted as on hold (REQ-208).
 
 **History:**
+- **2026-10-20** — Owner-approved pre-push speed fix (REQ-208): one server read now totals each day and the headline figures, replacing the screens' 2,000-entry paging. Amounts and day statuses are unchanged; Home adds this week and Earnings adds this week, total earned and on hold.
 - **2026-10-13, completed 14 October** - Owner approved removal of obsolete development payout v1-v3/evidence v1 and SQLite paths, with no live data; current daily-rate and frozen-evidence protections remain (D80, REQ-161). Built in `18192019`, with daily-rate Jobs completion in `8840fc10`.
 - **2026-07 to 2026-08-04** — Fixed naira amount **per hour** of verified time, with a daily cap on payable hours (D2, D4); built as `payout_v1` and `payout_v2` (D9, 30 Jul); reconfirmed against the proposal (D12, 4 Aug).
 - **2026-08-14** — Client set one platform hourly rate with an admin campaign override, and a higher (premium) hourly rate inside the primary zone (Q4, Q5, D18). Built as `payout_v3`.
@@ -540,6 +557,9 @@ Under D90/D91 (REQ-188/189), every campaign shows distance, completed trips,
 Nigeria driving days and estimated views, including small campaigns. An area
 row needs at least three cars; that is the only area rule, and showing areas
 never blocks the dashboard, summaries, trips, maps or audience exports (D105).
+Three distinct cars is the whole rule for every result, including heatmap and
+audience cells: there are no extra trip, day or largest-contributor conditions,
+so a three-car campaign shows its areas from its first day (D107, REQ-208).
 Reports are prepared weekly and at campaign end; staff can re-run them. New v4
 exports freeze the same coarse totals and three-car areas, retaining governed optional
 recommendations and the existing conditional ROI authority.
@@ -547,6 +567,7 @@ recommendations and the existing conditional ROI authority.
 **Still open:** [REQ-018](requests.md) — confirm no driver identity in reports.
 
 **History:**
+- **2026-10-20** — Owner-approved pre-push fix (REQ-208): three distinct cars now governs every result (D107). Previously areas and map cells also needed several trips, more than one day and no car above a share of the total, so a three-car, one-day campaign showed no areas despite D105.
 - **2026-10-19** — Owner decision: area results need only three cars (D105, REQ-197). Previously areas also needed "safe composition with other released detail", which hid areas in common cases and, once a report showed areas, made the advertiser dashboard and other results unavailable. The owner keeps rules simple until the client or legal sets real privacy requirements.
 - **2026-10-18** — D90/D91 / REQ-188/189 replace the blanket campaign-total floor with coarse totals for all campaigns and protected three-car areas, plus weekly/final automatic reports and a staff rerun. Earlier reports required manual preparation and small campaigns could have no totals.
 - **2026-10-07** — Owner W2-D brief replaces "Omitted - insufficient frozen evidence" in new export snapshots only; old issuance content and verification remain unchanged (D71, REQ-141). Built in `78ad5580` and real integration `21239a6d`.

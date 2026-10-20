@@ -486,9 +486,11 @@ def test_applicant_capability_routes_reject_invalid_capability_without_audit_eff
 ) -> None:
     db_client = postgis_db_client
     db_sessionmaker = postgis_db_sessionmaker
-    settings.driver_registration_enabled = True
     route = next(route for route in authorization_inventory() if route.key == route_key)
     payloads = {
+        "/api/v1/auth/driver-onboarding/continue": {
+            "application_access_token": "invalid-capability"
+        },
         "/api/v1/auth/driver-onboarding/account-name": {
             "application_access_token": "invalid-capability",
             "bank_code": "058",

@@ -352,7 +352,7 @@ def test_converting_an_enquiry_never_links_an_existing_user_by_email(
     from app.core.config import get_settings
     from app.core.rate_limit import RateLimitDecision
 
-    enabled = settings.model_copy(update={"campaign_enquiry_enabled": True, "email_provider": ""})
+    enabled = settings.model_copy(update={"email_provider": ""})
     db_client.app.dependency_overrides[get_settings] = lambda: enabled
     limiter = AsyncMock()
     limiter.reserve.return_value = RateLimitDecision(allowed=True)

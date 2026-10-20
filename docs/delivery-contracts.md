@@ -528,9 +528,10 @@ This is the binding detail for the package and checklist entries in [progress.md
   retries, cross-driver files, stale approval, device mismatch, pre-challenge
   photos and nonce replay fail closed. Trip start requires and stores the exact
   current proof. Driver capture/proof actions and the combined admin approvals
-  queue use same-origin BFFs and audited, purpose-scoped photo reads. Uploader,
-  view, renewal and challenge/proof windows have no production defaults; absent
-  policy remains visibly unavailable under `EXT-EVIDENCE-POLICY`. The initial
+  queue use same-origin BFFs and audited, purpose-scoped photo reads. REQ-208
+  builds the client's uploader, view and 7-day renewal rule into the code; only
+  the challenge/proof windows have no production defaults and remain under
+  `EXT-EVIDENCE-POLICY` (trips need them). The initial
   route 404 and absent-policy 503 were observed before the implementation.
   Thirty-three focused evidence/file/trip/migration checks pass; real
   PostgreSQL proves one winner under concurrent nonce consumption and populated
@@ -746,9 +747,9 @@ This is the binding detail for the package and checklist entries in [progress.md
   reads and requires non-placeholder legal, disclosure-configuration and
   retention references; numeric thresholds alone cannot enable it. Reports
   remain additionally denied until W3-00E safe runs. The grandfathered
-  heatmap reader now releases only coarse cells meeting distinct vehicle,
-  trip and day floors plus one contributor cap applied to every serialized
-  ping, trip, distance and impression metric. Atomic history
+  heatmap reader now releases only coarse cells meeting the distinct-vehicle
+  floor (D107/REQ-208 removed the trip, day and contributor-cap conditions).
+  Atomic history
   binds principal, tenant, campaign, endpoint, window, filters and result
   fingerprint; one global spatial-history lock plus hierarchical global/org/
   campaign overlap checks prevents cross-endpoint, cross-principal,
@@ -1966,8 +1967,8 @@ names never authorize work or replace the package queue.
 #### W3-00C — central disclosure-control service
 
 - **Scope / authority:** one service gates existing heatmap, future audience
-  queries, reports and exports with coarse buckets, minimum vehicles/trips/
-  days, contributor caps, complementary suppression, restricted filters,
+  queries, reports and exports with coarse buckets, minimum distinct
+  vehicles (D107 removed the trip/day/contributor-cap floors), restricted filters,
   query history and differencing defense (§22.2, RM15).
 - **Acceptance:** no caller bypass; current advertiser heatmap remains disabled
   until migrated; thresholds remain config pending pilot-density evidence.

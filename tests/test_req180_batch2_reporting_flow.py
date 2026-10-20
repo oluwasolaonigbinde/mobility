@@ -1,5 +1,6 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from uuid import UUID, uuid4
 
 from conftest import auth_headers, create_test_display_proof
@@ -23,9 +24,9 @@ from app.services.campaign_assignments import activation_snapshot_digest
 from app.services.report_issuances import sweep_report_issuances
 
 
-def three_car_run(db_client, maker):
+def three_car_run(db_client, maker, *, vehicle_count=3, dominant=False):
     admin, advertiser, campaign = create_measurement_graph(maker)
-    for index in (2, 3):
+    for index in range(2, vehicle_count + 1):
         *_, assignment, _, _, _ = create_report_graph(
             maker,
             admin=admin,
@@ -34,6 +35,11 @@ def three_car_run(db_client, maker):
             driver_email=f"area-driver-{index}@example.test",
             plate_number=f"AREA-{index}",
             started_at=DAY_1,
+            **(
+                {"distance_m": Decimal("1.00"), "estimated_impressions": Decimal("1.00")}
+                if dominant
+                else {}
+            ),
         )
         proof = create_test_display_proof(
             maker, assignment_id=assignment.id, reviewed_by_user_id=admin.id

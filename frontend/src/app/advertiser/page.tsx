@@ -8,9 +8,7 @@ import { formatCount, formatDateRange } from "@/lib/format";
 import { Panel } from "@/components/ui/panel";
 import { DataUnavailable } from "@/components/ui/data-unavailable";
 import { loadAdvertiserPageData } from "@/lib/advertiser/page-data";
-import { loadCampaignVisuals, previewFile } from "@/lib/advertiser/campaign-visuals";
 import { CampaignArtwork } from "@/components/campaigns/campaign-artwork";
-import { AreaGraphic } from "@/components/campaigns/area-graphic";
 
 export const metadata: Metadata = { title: "Home" };
 
@@ -50,13 +48,8 @@ export default async function AdvertiserOverviewPage() {
     }
     if (inventory.available) inventory = { available: true, data: { ...first.data, items } };
   }
-  const running = inventory.available ? inventory.data.items : [];
-  const cards = await Promise.all(
-    running.map(async (campaign) => ({
-      campaign,
-      ...(await loadCampaignVisuals(api, campaign.id)),
-    })),
-  );
+  // The list read carries each card's picture and area count, so cards need no more reads (REQ-208).
+  const cards = inventory.available ? inventory.data.items : [];
   const canWrite = !isAdvertiserViewer(me);
   const start = canWrite ? (
     <Link href="/advertiser/campaigns/new" className="brand-action w-full sm:w-auto">
@@ -133,24 +126,10 @@ export default async function AdvertiserOverviewPage() {
         </Panel>
       ) : (
         <div className="grid gap-6">
-          {cards.map(({ campaign, artwork, areas }) => (
+          {cards.map((campaign) => (
             <Panel key={campaign.id} className="overflow-hidden">
-              <div className="grid md:grid-cols-[1.15fr_0.85fr]">
-                <div className="h-48 md:h-56">
-                  <CampaignArtwork
-                    name={campaign.name}
-                    fileId={artwork.available ? previewFile(artwork.data.items) : null}
-                  />
-                </div>
-                <div className="border-edge hidden overflow-hidden border-l md:block">
-                  {areas.available ? (
-                    <AreaGraphic areas={areas.data.items} />
-                  ) : (
-                    <p className="text-ink p-6 text-base">
-                      The campaign area couldn&apos;t be loaded.
-                    </p>
-                  )}
-                </div>
+              <div className="h-48 md:h-56">
+                <CampaignArtwork name={campaign.name} fileId={campaign.preview_file_id} />
               </div>
               <div className="flex flex-wrap items-center justify-between gap-5 p-5 md:p-6">
                 <div>
@@ -169,24 +148,15 @@ export default async function AdvertiserOverviewPage() {
                   <p className="text-muted mt-2 text-base">
                     {formatDateRange(campaign.start_at, campaign.end_at)}
                   </p>
-                  {areas.available ? (
-                    <p className="text-muted mt-1 text-base">
-                      {areas.data.items.map((area) => area.name).join(" · ")}
-                    </p>
-                  ) : null}
+                  <p className="text-muted mt-1 text-base">
+                    {campaign.target_zone_count === 1
+                      ? "1 target area"
+                      : `${formatCount(campaign.target_zone_count)} target areas`}
+                  </p>
                 </div>
                 <Link href={`/advertiser/campaigns/${campaign.id}`} className="brand-secondary">
                   View campaign →
                 </Link>
-              </div>
-              <div className="border-edge h-32 border-t md:hidden">
-                {areas.available ? (
-                  <AreaGraphic areas={areas.data.items} />
-                ) : (
-                  <p className="text-ink p-5 text-base">
-                    The campaign area couldn&apos;t be loaded.
-                  </p>
-                )}
               </div>
             </Panel>
           ))}

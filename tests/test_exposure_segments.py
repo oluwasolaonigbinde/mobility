@@ -554,9 +554,6 @@ def test_concurrent_worker_materialization_converges_on_postgres(
     governed = Settings(
         environment="test",
         privacy_min_vehicles_per_cell=1,
-        privacy_min_trips_per_cell=1,
-        privacy_min_days_per_cell=1,
-        privacy_max_contributor_share=1,
     )
 
     async def spatial_trip_id():

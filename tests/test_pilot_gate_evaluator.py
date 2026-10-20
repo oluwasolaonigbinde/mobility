@@ -126,9 +126,6 @@ def test_gate_manifest_matches_architecture_once_and_controls_live_adapter(
         ),
         (
             {
-                "INSTALLATION_EVIDENCE_UPLOADER_ROLES": "driver",
-                "INSTALLATION_EVIDENCE_REQUIRED_VIEWS": "front",
-                "INSTALLATION_EVIDENCE_VALIDITY_HOURS": "24",
                 "DISPLAY_PROOF_CHALLENGE_TTL_SECONDS": "300",
                 "DISPLAY_PROOF_VALIDITY_SECONDS": "600",
             },

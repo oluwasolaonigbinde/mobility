@@ -20,7 +20,7 @@ from conftest import (
     create_test_user,
     create_test_vehicle,
 )
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from starlette import status
 from test_heatmaps import BBOX, PASSWORD, RECORDED_AT, add_ping_batch, create_heatmap_graph
@@ -32,6 +32,7 @@ from app.jobs.disclosure_retention import purge_expired_disclosure_query_history
 from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.disclosure import DisclosureQueryDecision
 from app.models.driver import DriverOnboardingStatus
+from app.models.impression import ImpressionEstimate
 from app.models.organization import (
     AdvertiserOrganization,
     MembershipStatus,
@@ -81,8 +82,9 @@ def query(*, route_id: str = "advertiser.campaign.heatmap", metric: str = "ping_
     )
 
 
-def test_frozen_measurement_manifest_caps_each_released_metric() -> None:
-    first_vehicle, second_vehicle = uuid4(), uuid4()
+def test_frozen_measurement_manifest_releases_on_distinct_cars_alone() -> None:
+    """D107: lopsided contributions no longer suppress; only the car count does."""
+    first_vehicle, second_vehicle, third_vehicle = uuid4(), uuid4(), uuid4()
 
     def analytics(vehicle_id, trip_id, distance):
         return {
@@ -121,24 +123,32 @@ def test_frozen_measurement_manifest_caps_each_released_metric() -> None:
             "payout_calculations": [],
         }
     }
-    settings = live_test_settings(
-        privacy_min_vehicles_per_cell=2,
-        privacy_min_trips_per_cell=2,
-        privacy_min_days_per_cell=1,
-        privacy_max_contributor_share=0.75,
-    )
+    settings = live_test_settings()
     assert frozen_manifest_meets_disclosure_floor(manifest, settings=settings) is False
-    manifest["sources"]["trip_analytics"].append(
-        {**analytics(second_vehicle, uuid4(), 1000), "status": "blocked"}
-    )
-    assert frozen_manifest_meets_disclosure_floor(manifest, settings=settings) is False
-    manifest["sources"]["trip_analytics"][1]["distance_m"] = 1000
-    manifest["sources"]["trip_analytics"][1]["target_zone_distance_m"] = 1000
-    manifest["sources"]["impression_estimates"][1]["estimated_impressions"] = 1000
+    third = {**analytics(third_vehicle, uuid4(), 1), "status": "computed"}
+    manifest["sources"]["trip_analytics"].append(third)
     assert frozen_manifest_meets_disclosure_floor(manifest, settings=settings) is True
+    # Three cars overall cannot release a day with only one car.
+    third["started_at"] = "2026-08-02T10:00:00+00:00"
+    assert frozen_manifest_meets_disclosure_floor(manifest, settings=settings) is False
+    third["started_at"] = "2026-08-01T10:00:00+00:00"
+    # A blocked trip never counts as a car.
+    manifest["sources"]["trip_analytics"][1]["status"] = "blocked"
+    assert frozen_manifest_meets_disclosure_floor(manifest, settings=settings) is False
+    manifest["sources"]["trip_analytics"][1]["status"] = "computed"
+    # Every released estimate must belong to a trip in the same cohort.
+    manifest["sources"]["impression_estimates"].append(
+        {
+            "trip_session_id": str(uuid4()),
+            "status": "estimated",
+            "estimated_impressions": 1,
+            "confidence_score": 1,
+        }
+    )
+    assert frozen_manifest_meets_disclosure_floor(manifest, settings=settings) is False
 
 
-def test_frozen_report_authority_rechecks_daily_and_measurement_contributions() -> None:
+def test_frozen_report_authority_rechecks_cars_per_reported_day() -> None:
     first_vehicle, second_vehicle = str(uuid4()), str(uuid4())
     authority = {
         "schema_version": "frozen-report-disclosure-v1",
@@ -156,20 +166,14 @@ def test_frozen_report_authority_rechecks_daily_and_measurement_contributions() 
             },
         },
     }
-    settings = live_test_settings(
-        privacy_min_vehicles_per_cell=2,
-        privacy_min_trips_per_cell=2,
-        privacy_min_days_per_cell=1,
-        privacy_max_contributor_share=0.75,
-    )
+    settings = live_test_settings(privacy_min_vehicles_per_cell=2)
     manifest = {"disclosure_authority": authority}
     assert frozen_manifest_meets_disclosure_floor(manifest, settings=settings) is False
+    # A lopsided measurement share no longer matters (D107); each day needs enough cars.
     authority["contributions"]["daily:trip_count:2026-08-01"][second_vehicle] = "1"
-    assert frozen_manifest_meets_disclosure_floor(manifest, settings=settings) is False
-    authority["contributions"]["measurement:analytics:active_tracking_seconds"][second_vehicle] = (
-        "1000"
-    )
     assert frozen_manifest_meets_disclosure_floor(manifest, settings=settings) is True
+    authority["vehicle_count"] = 1
+    assert frozen_manifest_meets_disclosure_floor(manifest, settings=settings) is False
 
 
 def test_route_inventory_covers_every_current_output_at_the_service_boundary() -> None:
@@ -214,15 +218,11 @@ def test_route_inventory_covers_every_current_output_at_the_service_boundary() -
         assert route_id in sources
 
     heatmap_source = inspect.getsource(heatmaps.aggregation_sql)
-    for boundary in (
-        "privacy_min_vehicles_per_cell",
-        "privacy_min_trips_per_cell",
-        "privacy_min_days_per_cell",
-        "privacy_max_contributor_share",
-        "count(DISTINCT vehicle_id)",
-        "count(DISTINCT recorded_day)",
-    ):
+    for boundary in ("privacy_min_vehicles_per_cell", "count(DISTINCT vehicle_id)"):
         assert boundary in heatmap_source
+    # D107: distinct cars are the only area rule; no trip, day or share conditions remain.
+    for removed in ("privacy_min_trips", "privacy_min_days", "contributor_share"):
+        assert removed not in heatmap_source
 
 
 def test_governed_output_resolves_the_single_active_company_membership(
@@ -467,7 +467,7 @@ def test_minimum_floor_suppression_is_sticky_on_retry(db_sessionmaker) -> None:
                         has_releasable_cells=False,
                         result_hash="0" * 64,
                     )
-                assert suppressed.value.details == {"reason": "minimum_counts_or_contributor_cap"}
+                assert suppressed.value.details == {"reason": "minimum_cars"}
         async with db_sessionmaker() as session:
             return int(
                 await session.scalar(select(func.count()).select_from(DisclosureQueryDecision)) or 0
@@ -694,7 +694,7 @@ def test_concurrent_overlapping_views_are_both_recorded(
     assert asyncio.run(run()) == ["served", "served"]
 
 
-def test_heatmap_floor_enforces_exact_vehicle_trip_day_and_metric_contributor_edges(
+def test_heatmap_area_shows_at_exactly_the_minimum_distinct_cars_on_one_day(
     postgis_db_sessionmaker,
 ) -> None:
     admin, _, _, campaign, *_ = create_heatmap_graph(postgis_db_sessionmaker)
@@ -796,24 +796,14 @@ def test_heatmap_floor_enforces_exact_vehicle_trip_day_and_metric_contributor_ed
             )
             return len(result.features)
 
-    exact = asyncio.run(
-        feature_count(
-            privacy_min_vehicles_per_cell=2,
-            privacy_min_trips_per_cell=2,
-            privacy_min_days_per_cell=1,
-            privacy_max_contributor_share=0.5,
-        )
-    )
+    # D107: one trip each, one day, uneven impressions: the car count alone decides.
+    exact = asyncio.run(feature_count(privacy_min_vehicles_per_cell=2))
     below_vehicle = asyncio.run(feature_count(privacy_min_vehicles_per_cell=3))
-    below_trip = asyncio.run(feature_count(privacy_min_trips_per_cell=3))
-    below_day = asyncio.run(feature_count(privacy_min_days_per_cell=2))
-    over_cap = asyncio.run(feature_count(privacy_max_contributor_share=0.49))
 
-    assert exact == 1
-    assert (below_vehicle, below_trip, below_day, over_cap) == (0, 0, 0, 0)
+    assert (exact, below_vehicle) == (1, 0)
 
 
-def test_non_heatmap_floor_caps_each_released_metric_by_vehicle_contribution(
+def test_trip_cohort_releases_uneven_metrics_once_enough_cars_drove(
     postgis_db_sessionmaker,
 ) -> None:
     admin, _, organization, campaign, _, _, _, first_trip, first_estimate = create_heatmap_graph(
@@ -887,12 +877,7 @@ def test_non_heatmap_floor_caps_each_released_metric_by_vehicle_contribution(
         traffic_density_profile_id=density.id,
         estimated_impressions=Decimal("1.00"),
     )
-    settings = live_test_settings(
-        privacy_min_vehicles_per_cell=2,
-        privacy_min_trips_per_cell=2,
-        privacy_min_days_per_cell=1,
-        privacy_max_contributor_share=0.75,
-    )
+    settings = live_test_settings(privacy_min_vehicles_per_cell=2)
     payout_rule = create_test_payout_rule(
         postgis_db_sessionmaker,
         campaign_id=campaign.id,
@@ -1014,10 +999,12 @@ def test_non_heatmap_floor_caps_each_released_metric_by_vehicle_contribution(
             )
             return dominated, cost_dominated, balanced, daily_out_of_detection_window
 
-    assert asyncio.run(evaluate()) == (False, False, True, False)
+    # D107: uneven distance, impressions, cost and one car's open fraud flag on the day
+    # no longer suppress once enough distinct cars drove; the car count alone decides.
+    assert asyncio.run(evaluate()) == (True, True, True, True)
 
 
-def test_heatmap_suppresses_when_an_unselected_serialized_metric_is_dominated(
+def test_heatmap_releases_a_dominated_metric_once_enough_cars_drove_there(
     postgis_db_sessionmaker,
 ) -> None:
     admin, _, _, campaign, *_ = create_heatmap_graph(
@@ -1114,12 +1101,7 @@ def test_heatmap_suppresses_when_an_unselected_serialized_metric_is_dominated(
             result = await heatmaps.build_heatmap(
                 session,
                 query=query,
-                settings=live_test_settings(
-                    privacy_min_vehicles_per_cell=2,
-                    privacy_min_trips_per_cell=2,
-                    privacy_min_days_per_cell=1,
-                    privacy_max_contributor_share=0.75,
-                ),
+                settings=live_test_settings(privacy_min_vehicles_per_cell=2),
                 campaign_id=campaign.id,
                 organization_id=None,
                 vehicle_type=None,
@@ -1128,9 +1110,8 @@ def test_heatmap_suppresses_when_an_unselected_serialized_metric_is_dominated(
             )
             return len(result.features)
 
-    # ping_count is balanced at 50/50, but estimated_impressions is dominated
-    # by the second vehicle and is serialized in the same feature.
-    assert asyncio.run(run()) == 0
+    # estimated_impressions is dominated by the second car, but two cars drove there (D107).
+    assert asyncio.run(run()) == 1
 
 
 @pytest.mark.parametrize("snapshot_first", [True, False])
@@ -1246,3 +1227,282 @@ def test_disclosure_snapshot_and_fraud_review_share_trip_lock_order(
                 assert reversals[0].amount == Decimal("125.50")
 
     asyncio.run(asyncio.wait_for(run(), 20))
+
+
+def _add_one_trip_car(sessionmaker, *, admin, campaign, number: int):
+    driver = create_test_user(
+        sessionmaker,
+        email=f"three-car-driver-{number}@example.com",
+        password=PASSWORD,
+        role=UserRole.DRIVER,
+    )
+    profile = create_test_driver_profile(
+        sessionmaker, user_id=driver.id, onboarding_status=DriverOnboardingStatus.ACTIVE
+    )
+    vehicle = create_test_vehicle(
+        sessionmaker,
+        driver_profile_id=profile.id,
+        plate_number=f"THREE-{number}",
+        vehicle_status=VehicleStatus.ACTIVE,
+    )
+    assignment = create_test_campaign_assignment(
+        sessionmaker,
+        campaign_id=campaign.id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        assigned_by_user_id=admin.id,
+        assignment_status=CampaignAssignmentStatus.ACTIVE,
+        activated_at=RECORDED_AT,
+    )
+    trip = create_test_trip_session(
+        sessionmaker,
+        assignment_id=assignment.id,
+        campaign_id=campaign.id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        started_by_user_id=driver.id,
+        trip_status=TripSessionStatus.ENDED,
+        started_at=RECORDED_AT,
+        ended_at=RECORDED_AT.replace(hour=11),
+    )
+    analytics = create_test_trip_analytics(
+        sessionmaker,
+        trip_session_id=trip.id,
+        assignment_id=assignment.id,
+        campaign_id=campaign.id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        started_at=RECORDED_AT,
+        ended_at=RECORDED_AT.replace(hour=11),
+        first_ping_at=RECORDED_AT,
+        last_ping_at=RECORDED_AT.replace(minute=5),
+        distance_m=Decimal("10.00") * number,
+    )
+    estimate = create_test_impression_estimate(
+        sessionmaker,
+        trip_session_id=trip.id,
+        trip_analytics_id=analytics.id,
+        assignment_id=assignment.id,
+        campaign_id=campaign.id,
+        driver_profile_id=profile.id,
+        vehicle_id=vehicle.id,
+        traffic_density_profile_id=create_test_traffic_density_profile(
+            sessionmaker, name=f"Three-car density {number}"
+        ).id,
+        estimated_impressions=Decimal("5000.00") * number,
+    )
+    add_ping_batch(
+        sessionmaker,
+        trip_id=trip.id,
+        idempotency_key=f"three-car-{number}",
+        points=[(RECORDED_AT, 6.45, 3.39), (RECORDED_AT.replace(minute=5), 6.45, 3.39)],
+    )
+    return trip, analytics, estimate
+
+
+def test_date_range_summaries_need_three_cars_in_each_released_set(
+    postgis_db_sessionmaker,
+) -> None:
+    """D107: estimates, costs and fraud flags are picked by their own timestamps, so three
+    cars starting trips in the range cannot release one car's figures written in it."""
+    settings = live_test_settings()
+    admin, _, organization, campaign, *_ = create_heatmap_graph(
+        postgis_db_sessionmaker,
+        advertiser_email="dated-sets-advertiser@example.com",
+        driver_email="dated-sets-driver@example.com",
+        plate_number="DATED-1",
+    )
+    trip, analytics, estimate = _add_one_trip_car(
+        postgis_db_sessionmaker, admin=admin, campaign=campaign, number=21
+    )
+    _add_one_trip_car(postgis_db_sessionmaker, admin=admin, campaign=campaign, number=22)
+    payout_rule = create_test_payout_rule(
+        postgis_db_sessionmaker, campaign_id=campaign.id, created_by_user_id=admin.id
+    )
+    start_at, end_at = RECORDED_AT - timedelta(minutes=1), RECORDED_AT.replace(hour=12)
+    outside = datetime.now(UTC)
+
+    async def date_analytics() -> None:
+        async with postgis_db_sessionmaker() as session:
+            await session.execute(
+                update(TripAnalytics)
+                .where(TripAnalytics.campaign_id == campaign.id)
+                .values(computed_at=RECORDED_AT)
+            )
+            await session.commit()
+
+    # Backdated estimates must still be newer than their source analytics.
+    asyncio.run(date_analytics())
+
+    async def floors(statement=None) -> tuple[bool, bool]:
+        async with postgis_db_sessionmaker() as session:
+            if statement is not None:
+                await session.execute(statement)
+                await session.commit()
+            return tuple(
+                [
+                    await trip_cohort_meets_disclosure_floor(
+                        session,
+                        tenant_id=organization.id,
+                        campaign_id=campaign.id,
+                        start_at=start_at,
+                        end_at=end_at,
+                        route_id=route_id,
+                        settings=settings,
+                    )
+                    for route_id in (
+                        "advertiser.campaign.impressions_summary",
+                        "advertiser.campaign.summary",
+                    )
+                ]
+            )
+
+    in_campaign = ImpressionEstimate.campaign_id == campaign.id
+    assert asyncio.run(
+        floors(update(ImpressionEstimate).where(in_campaign).values(estimated_at=outside))
+    ) == (True, True)
+    one_estimate = update(ImpressionEstimate).where(ImpressionEstimate.id == estimate.id)
+    assert asyncio.run(floors(one_estimate.values(estimated_at=RECORDED_AT))) == (False, False)
+    every_estimate = update(ImpressionEstimate).where(in_campaign)
+    assert asyncio.run(floors(every_estimate.values(estimated_at=RECORDED_AT))) == (True, True)
+
+    async def add(row) -> None:
+        async with postgis_db_sessionmaker() as session:
+            session.add(row)
+            await session.commit()
+
+    car = {
+        "trip_session_id": trip.id,
+        "trip_analytics_id": analytics.id,
+        "assignment_id": trip.assignment_id,
+        "campaign_id": campaign.id,
+        "driver_profile_id": trip.driver_profile_id,
+        "vehicle_id": trip.vehicle_id,
+    }
+    asyncio.run(
+        add(
+            PayoutCalculation(
+                **car,
+                impression_estimate_id=estimate.id,
+                payout_rule_id=payout_rule.id,
+                formula_version="payout_v4",
+                eligible_seconds=0,
+                excluded_seconds_by_reason={},
+                inputs_fingerprint="synthetic-dated-sets",
+                distance_m_by_day={},
+                amount_by_day={},
+                status="calculated",
+                currency="NGN",
+                gross_payout=Decimal("1000.00"),
+                final_payout=Decimal("1000.00"),
+                calculated_at=RECORDED_AT,
+                payout_metadata={},
+            )
+        )
+    )
+    # One car's cost in the range stays hidden; the impressions summary never shows costs.
+    assert asyncio.run(floors()) == (True, False)
+    one_cost = update(PayoutCalculation).where(PayoutCalculation.campaign_id == campaign.id)
+    assert asyncio.run(floors(one_cost.values(calculated_at=outside))) == (True, True)
+    asyncio.run(
+        add(
+            FraudFlag(
+                **car,
+                flag_type="insufficient_pings",
+                severity="low",
+                status="open",
+                description="Synthetic dated fraud flag",
+                evidence={},
+                detected_at=RECORDED_AT,
+            )
+        )
+    )
+    # Refresh the estimate's fraud authority so the last assertion isolates the
+    # one-car fraud output rather than stale-estimate suppression.
+    asyncio.run(
+        floors(
+            one_estimate.values(
+                estimate_metadata={"fraud_flag_counts": {"low": 1, "medium": 0, "high": 0}}
+            )
+        )
+    )
+    assert asyncio.run(floors()) == (True, False)
+
+
+@pytest.mark.parametrize("vehicle_count", [2, 3])
+def test_report_area_uses_three_cars_on_one_day_despite_dominant_contributions(
+    postgis_db_client, postgis_db_sessionmaker, settings, vehicle_count
+) -> None:
+    from test_req180_batch2_reporting_flow import three_car_run
+
+    settings.privacy_min_vehicles_per_cell = 3
+    settings.privacy_min_resolution_m = 500
+    _, campaign, _, headers = three_car_run(
+        postgis_db_client,
+        postgis_db_sessionmaker,
+        vehicle_count=vehicle_count,
+        dominant=True,
+    )
+    response = postgis_db_client.get(
+        f"/api/v1/advertiser/campaigns/{campaign.id}/report",
+        params={
+            "start_at": "2026-06-01T10:00:00+00:00",
+            "end_at": "2026-06-02T10:00:00+00:00",
+        },
+        headers=headers,
+    )
+    assert response.status_code == 200, response.text
+    assert len(response.json()["areas"]) == (1 if vehicle_count == 3 else 0)
+
+
+def test_three_cars_on_one_day_show_their_area_and_trips_with_default_settings(
+    postgis_db_sessionmaker,
+) -> None:
+    """REQ-208 / D105 / D107: three distinct cars is the whole rule, even on a single day."""
+    settings = live_test_settings()
+    assert settings.privacy_min_vehicles_per_cell == 3
+    admin, _, organization, campaign, *_ = create_heatmap_graph(
+        postgis_db_sessionmaker,
+        advertiser_email="three-car-advertiser@example.com",
+        driver_email="three-car-driver-1@example.com",
+        plate_number="THREE-1",
+    )
+    _add_one_trip_car(postgis_db_sessionmaker, admin=admin, campaign=campaign, number=2)
+    query = heatmaps.parse_heatmap_query(
+        bbox=BBOX,
+        resolution_m=500,
+        metric="estimated_impressions",
+        start_at=None,
+        end_at=None,
+        settings=settings,
+    )
+
+    async def outputs() -> tuple[int, bool, bool]:
+        async with postgis_db_sessionmaker() as session:
+            result = await heatmaps.build_heatmap(
+                session,
+                query=query,
+                settings=settings,
+                campaign_id=campaign.id,
+                organization_id=None,
+                vehicle_type=None,
+                metadata_campaign_id=campaign.id,
+                metadata_organization_id=None,
+            )
+            cohort = {
+                route_id: await trip_cohort_meets_disclosure_floor(
+                    session,
+                    tenant_id=organization.id,
+                    campaign_id=campaign.id,
+                    start_at=None,
+                    end_at=None,
+                    route_id=route_id,
+                    settings=settings,
+                )
+                for route_id in ("advertiser.campaign.trips", "advertiser.campaign.daily_metrics")
+            }
+            return len(result.features), *cohort.values()
+
+    assert asyncio.run(outputs()) == (0, False, False)
+    _add_one_trip_car(postgis_db_sessionmaker, admin=admin, campaign=campaign, number=3)
+    assert asyncio.run(outputs()) == (1, True, True)

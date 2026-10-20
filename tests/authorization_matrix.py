@@ -69,6 +69,7 @@ PUBLIC_ROUTES = frozenset(
 
 APPLICANT_ROUTES = frozenset(
     {
+        ("POST", "/api/v1/auth/driver-onboarding/continue"),
         ("POST", "/api/v1/auth/driver-onboarding/files/uploads"),
         ("POST", "/api/v1/auth/driver-onboarding/files/uploads/{upload_id}/confirm"),
         ("POST", "/api/v1/auth/driver-onboarding/files/{file_id}/status"),

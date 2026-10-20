@@ -36,7 +36,7 @@ MAX_BODY_BYTES = 8192
 
 
 async def get_enquiry_limiter(settings: SettingsDependency) -> AsyncIterator[EnquiryRateLimiter]:
-    if not settings.campaign_enquiry_enabled or not settings.redis_url:
+    if not settings.redis_url:
         yield UnavailableEnquiryRateLimiter()
         return
     try:
@@ -82,10 +82,6 @@ async def submit_campaign_enquiry(
     limiter: Annotated[EnquiryRateLimiter, Depends(get_enquiry_limiter)],
     session: SessionDependency,
 ) -> CampaignEnquiryRead:
-    if not settings.campaign_enquiry_enabled:
-        raise AppError(
-            "campaign_enquiry_unavailable", "Please contact Terrax by email.", status_code=503
-        )
     enquiry = await read_enquiry(request)
     decision = await limiter.reserve(login_client_ip(request, settings))
     if not decision.storage_available:

@@ -155,16 +155,14 @@ class Settings(BaseSettings):
     login_rate_limit_global_window_seconds: int = 300
     login_rate_limit_trust_client_ip_header: bool = False
     login_rate_limit_trusted_proxy_cidrs: str = ""
-    # W3-04A is a cohort-gated public surface.  Registration keeps separate
-    # buckets from login so a public applicant can never consume or refund a
-    # credential-guessing allowance.
-    driver_registration_enabled: bool = False
+    # Registration keeps separate buckets from login so a public applicant can
+    # never consume or refund a credential-guessing allowance.
     driver_registration_rate_limit_ip_max_attempts: int = 10
     driver_registration_rate_limit_ip_window_seconds: int = 3600
     driver_registration_rate_limit_email_max_attempts: int = 3
     driver_registration_rate_limit_email_window_seconds: int = 3600
     driver_onboarding_access_ttl_seconds: int = 86400
-    driver_account_setup_ttl_seconds: int = 1800
+    driver_account_setup_ttl_seconds: int = 86400
     driver_account_setup_public_url: str = ""
     driver_registration_rate_limit_trust_client_ip_header: bool = False
     driver_registration_rate_limit_trusted_proxy_cidrs: str = ""
@@ -196,12 +194,8 @@ class Settings(BaseSettings):
     # No legal retention period is assumed. Execution remains disabled until
     # an approved value is configured by the deployment environment.
     file_kyc_retention_days: OptionalInt = None
-    # Q15/Q17 implementation inputs were requested but not supplied. These
-    # remain empty in production until Terrax selects uploader roles, required
-    # views and renewal windows; the evidence/proof services fail closed.
-    installation_evidence_uploader_roles: str = ""
-    installation_evidence_required_views: str = ""
-    installation_evidence_validity_hours: OptionalInt = None
+    # The installation-photo rule is built into installation_evidence.py (REQ-208).
+    # Display-proof windows remain deployment inputs; trips need them.
     display_proof_challenge_ttl_seconds: OptionalInt = None
     display_proof_validity_seconds: OptionalInt = None
     # Q17 policy values remain deployment inputs. Recurring proof work is
@@ -212,7 +206,6 @@ class Settings(BaseSettings):
     # Production provider and verified sender identity are external inputs.
     # Empty values keep provider dispatch and receipt handling fail closed.
     email_provider: str = ""
-    campaign_enquiry_enabled: bool = False
     campaign_enquiry_rate_limit_ip_max_attempts: int = Field(default=5, ge=1)
     campaign_enquiry_rate_limit_global_max_attempts: int = Field(default=100, ge=1)
     campaign_enquiry_rate_limit_window_seconds: int = Field(default=3600, ge=1)
@@ -315,9 +308,6 @@ class Settings(BaseSettings):
     # remains restricted to local/test environments.
     measurement_roi_method_reference: str = ""
     privacy_min_vehicles_per_cell: int = 3
-    privacy_min_trips_per_cell: int = 5
-    privacy_min_days_per_cell: int = 2
-    privacy_max_contributor_share: float = 0.5
     privacy_min_resolution_m: int = 500
     allow_demo_seed: bool = False
     # RM3 seal protocol: recovery window after an incomplete/legacy trip end
@@ -491,7 +481,6 @@ class Settings(BaseSettings):
         return value
 
     @field_validator(
-        "installation_evidence_validity_hours",
         "display_proof_challenge_ttl_seconds",
         "display_proof_validity_seconds",
         "evidence_renewal_lookback_days",
@@ -502,31 +491,6 @@ class Settings(BaseSettings):
         if value is not None and value <= 0:
             raise ValueError("Installation evidence windows must be positive when configured")
         return value
-
-    @field_validator("installation_evidence_uploader_roles")
-    @classmethod
-    def validate_installation_evidence_uploader_roles(cls, value: str) -> str:
-        roles = [part.strip().lower() for part in value.split(",") if part.strip()]
-        if len(roles) != len(set(roles)) or not set(roles) <= {"driver", "admin"}:
-            raise ValueError(
-                "INSTALLATION_EVIDENCE_UPLOADER_ROLES must contain unique driver/admin values"
-            )
-        return ",".join(roles)
-
-    @field_validator("installation_evidence_required_views")
-    @classmethod
-    def validate_installation_evidence_required_views(cls, value: str) -> str:
-        views = [part.strip().lower() for part in value.split(",") if part.strip()]
-        if len(views) != len(set(views)) or any(
-            len(view) > 64
-            or not view
-            or any(character not in "abcdefghijklmnopqrstuvwxyz0123456789_-" for character in view)
-            for view in views
-        ):
-            raise ValueError(
-                "INSTALLATION_EVIDENCE_REQUIRED_VIEWS must contain unique safe view codes"
-            )
-        return ",".join(views)
 
     @field_validator(
         "max_location_pings_per_batch",
@@ -656,21 +620,12 @@ class Settings(BaseSettings):
     @field_validator(
         "privacy_query_history_retention_days",
         "privacy_min_vehicles_per_cell",
-        "privacy_min_trips_per_cell",
-        "privacy_min_days_per_cell",
         "privacy_min_resolution_m",
     )
     @classmethod
     def validate_positive_privacy_settings(cls, value: int) -> int:
         if value < 1:
             raise ValueError("Privacy disclosure settings must be positive")
-        return value
-
-    @field_validator("privacy_max_contributor_share")
-    @classmethod
-    def validate_privacy_contributor_share(cls, value: float) -> float:
-        if value <= 0 or value > 1:
-            raise ValueError("PRIVACY_MAX_CONTRIBUTOR_SHARE must be in (0, 1]")
         return value
 
     @field_validator("worker_sweep_interval_minutes")
@@ -855,16 +810,6 @@ class Settings(BaseSettings):
             int(version): base64.b64decode(encoded, validate=True)
             for version, encoded in raw.items()
         }
-
-    @property
-    def installation_evidence_uploaders(self) -> frozenset[str]:
-        return frozenset(
-            part for part in self.installation_evidence_uploader_roles.split(",") if part
-        )
-
-    @property
-    def installation_evidence_views(self) -> tuple[str, ...]:
-        return tuple(part for part in self.installation_evidence_required_views.split(",") if part)
 
     @model_validator(mode="after")
     def validate_impression_confidence_bounds(self) -> "Settings":

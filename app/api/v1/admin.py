@@ -169,14 +169,18 @@ async def admin_list_advertiser_organizations(
     organizations, total = await list_advertiser_organizations(
         session, q=q, limit=limit, offset=offset
     )
+    from app.services.billing.invoices import outstanding_invoice_totals
     from app.services.list_counts import organization_list_counts
 
-    counts = await organization_list_counts(session, [org.id for org in organizations])
+    identities = [org.id for org in organizations]
+    counts = await organization_list_counts(session, identities)
+    outstanding = await outstanding_invoice_totals(session, identities)
     return AdminOrganizationListResponse(
         items=[
             AdminOrganizationListItemRead(
                 **AdvertiserOrganizationRead.model_validate(org).model_dump(),
                 **counts[org.id],
+                outstanding=outstanding[org.id],
                 billing_contact_name=org.billing_contact_name,
                 operational_contact_name=org.operational_contact_name,
                 operational_contact_email=org.operational_contact_email,

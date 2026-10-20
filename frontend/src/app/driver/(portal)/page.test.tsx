@@ -49,7 +49,7 @@ const ready = {
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.setItem("cardvert-phone-intro:driver", "seen");
-  mocks.earnings.mockResolvedValue({ state: "ready", data: [] });
+  mocks.earnings.mockResolvedValue({ state: "ready", data: { totals: [], days: [] } });
   mocks.journey.mockResolvedValue(ready);
   mocks.visual.mockResolvedValue({
     data: {
@@ -173,16 +173,19 @@ it("fails closed for unavailable photo authority", async () => {
 it("shows compact pay without payment-operation copy or zero checks", async () => {
   mocks.earnings.mockResolvedValue({
     state: "ready",
-    data: [
-      {
-        day: "2026-09-08",
-        amount: "10000.00",
-        currency: "NGN",
-        status: "Paid 9 Sept",
-        paidAt: "2026-09-09T01:00:00Z",
-        tripIds: [],
-      },
-    ],
+    data: {
+      totals: [],
+      days: [
+        {
+          day: "2026-09-08",
+          amount: "10000.00",
+          currency: "NGN",
+          status: "Paid 9 Sept",
+          paidAt: "2026-09-09T01:00:00Z",
+          tripIds: [],
+        },
+      ],
+    },
   });
   render(await Home());
   expect(screen.getByText(/Paid 9 Sept/)).toBeVisible();
@@ -196,23 +199,26 @@ it("leads with the last actual payment when today's amount is zero", async () =>
   try {
     mocks.earnings.mockResolvedValue({
       state: "ready",
-      data: [
-        {
-          day: "2026-10-10",
-          amount: "0.00",
-          currency: "NGN",
-          status: "Being checked",
-          tripIds: [],
-        },
-        {
-          day: "2026-10-08",
-          amount: "10000.00",
-          currency: "NGN",
-          status: "Paid 9 Oct",
-          paidAt: "2026-10-09T01:00:00Z",
-          tripIds: [],
-        },
-      ],
+      data: {
+        totals: [],
+        days: [
+          {
+            day: "2026-10-10",
+            amount: "0.00",
+            currency: "NGN",
+            status: "Being checked",
+            tripIds: [],
+          },
+          {
+            day: "2026-10-08",
+            amount: "10000.00",
+            currency: "NGN",
+            status: "Paid 9 Oct",
+            paidAt: "2026-10-09T01:00:00Z",
+            tripIds: [],
+          },
+        ],
+      },
     });
     render(await Home());
     expect(screen.getByText("Paid yesterday ₦10,000.00")).toBeVisible();
@@ -224,24 +230,27 @@ it("leads with the last actual payment when today's amount is zero", async () =>
 it("orders payments by payment time rather than work day", async () => {
   mocks.earnings.mockResolvedValue({
     state: "ready",
-    data: [
-      {
-        day: "2026-09-08",
-        amount: "7000.00",
-        currency: "NGN",
-        status: "Paid 9 Sept",
-        paidAt: "2026-09-09T01:00:00Z",
-        tripIds: [],
-      },
-      {
-        day: "2026-09-06",
-        amount: "10000.00",
-        currency: "NGN",
-        status: "Paid 10 Sept",
-        paidAt: "2026-09-10T01:00:00Z",
-        tripIds: [],
-      },
-    ],
+    data: {
+      totals: [],
+      days: [
+        {
+          day: "2026-09-08",
+          amount: "7000.00",
+          currency: "NGN",
+          status: "Paid 9 Sept",
+          paidAt: "2026-09-09T01:00:00Z",
+          tripIds: [],
+        },
+        {
+          day: "2026-09-06",
+          amount: "10000.00",
+          currency: "NGN",
+          status: "Paid 10 Sept",
+          paidAt: "2026-09-10T01:00:00Z",
+          tripIds: [],
+        },
+      ],
+    },
   });
   render(await Home());
   expect(screen.getByText("Paid 10 Sept ₦10,000.00")).toBeVisible();
@@ -257,13 +266,46 @@ it.each(["Being checked", "On hold – contact support", "Paying tonight"])(
   async (status) => {
     mocks.earnings.mockResolvedValue({
       state: "ready",
-      data: [{ day: watDay(new Date()), amount: "7143.00", currency: "NGN", status, tripIds: [] }],
+      data: {
+        totals: [],
+        days: [
+          { day: watDay(new Date()), amount: "7143.00", currency: "NGN", status, tripIds: [] },
+        ],
+      },
     });
     render(await Home());
     expect(screen.getByText("Today ₦7,143.00")).toBeVisible();
     expect(screen.getByText(status)).toBeVisible();
   },
 );
+it("adds this week's earnings under today's", async () => {
+  mocks.earnings.mockResolvedValue({
+    state: "ready",
+    data: {
+      totals: [
+        {
+          currency: "NGN",
+          today: "7143.00",
+          this_week: "21429.00",
+          total: "90000.00",
+          on_hold: "0.00",
+        },
+      ],
+      days: [
+        {
+          day: watDay(new Date()),
+          amount: "7143.00",
+          currency: "NGN",
+          status: "Being checked",
+          tripIds: [],
+        },
+      ],
+    },
+  });
+  render(await Home());
+  expect(screen.getByText("Today ₦7,143.00")).toBeVisible();
+  expect(screen.getByText("This week ₦21,429.00")).toBeVisible();
+});
 it("withholds money when complete history is unavailable", async () => {
   mocks.earnings.mockResolvedValue({ state: "unavailable" });
   render(await Home());

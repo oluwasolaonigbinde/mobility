@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.146 — 2026-10-20. Canonical source of truth: current state AND target state.**
+**Version 1.147 — 2026-10-20. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -2140,9 +2140,11 @@ storage/scanner flow. Evidence photos become immutable assignment revisions;
 admin review rechecks the exact clean image set, and installation-purpose reads
 require an audited `installation_review` reason. Challenge rows retain only a
 nonce digest and allow one null-to-consumed transition; proofs and photo links
-are append-only. Deployment values for uploader roles, required views, evidence
-validity and challenge/proof validity remain empty under
-`EXT-EVIDENCE-POLICY`; local/synthetic tests inject explicit values.
+are append-only. REQ-208 builds the client's installation rule into
+`services/installation_evidence.py`: views front, back, left, right and
+close-up; the driver or an active admin uploads; approval lasts 7 days. Only the
+display-proof challenge/proof windows remain deployment values under
+`EXT-EVIDENCE-POLICY`; trips need them, and local/synthetic tests inject them.
 
 
 **[BUILT locally — D58 / REQ-105] Driver-application and vehicle staff review:** the person/bank and vehicle document rows use direct View submission as the acknowledgment. Every click uses the existing purpose-scoped, individually audited read: NIN/bank map to `person_payee_approval`; person files use `kyc_review` with `person_payee_approval:<submission_id>` reason; vehicle files use `kyc_review` with `vehicle_approval:<submission_id>` reason. The UI describes the respective purposes as Driver application review and Vehicle review. Keep Show NIN as its distinct reveal, at-most-60-second hiding, pagehide/hidden-visibility clearing and record-bound state resets. There is no separate need checkbox or purpose selection on these rows. Both consumers use the same direct-read lifecycle; the obsolete confirmation path is removed. Vehicle approval/expiry/rejection and eligibility rules are unchanged. No backend/API acknowledgment field or access rule is removed. Local focused verification is recorded in `issues/testing/client-polish-2026-10-04.md`; Person/bank and the owner-approved vehicle extension have passed focused verification, consolidated minimal-change review and the bounded implemented privacy/security review. Owner authorization covers the resulting local commit; it does not authorize merge or live use.
@@ -2538,7 +2540,11 @@ completed trips, distinct Nigeria terminal days and estimated views (null withou
 density provenance). No driver/trip identifiers, daily rows or contributor counts
 are included. D105 (REQ-197, v1.144): an area row needs at least three distinct
 cars; no coverage, overlap, residual or cross-output reservation rule withholds
-it, and released areas never block other outputs. Area contacts sum the frozen
+it, and released areas never block other outputs. D107 (REQ-208, v1.147): three
+distinct cars at or above the minimum resolution is the whole rule for every
+governed output (areas, heatmap and audience cells, trip/daily cohorts, frozen
+reports, which still need three cars on each reported day); the trip, day and
+contributor-share conditions and their settings are removed. Area contacts sum the frozen
 per-cell ping allocation and are null unless every trip in the area has an
 estimate. Inconsistent frozen area authority still fails closed. Other
 fine-output floors and legal/method/source authority remain unchanged.
@@ -2576,8 +2582,8 @@ defaults denied before membership, data, or history reads unless legal,
 threshold-configuration and history-retention references are complete and
 non-placeholder; report routes additionally require a reproducible immutable
 W3-00E measurement run. The existing heatmap is still the only grandfathered raw-ping reader and
-now filters fixed/coarse cells by distinct vehicles, trips and days plus a
-requested-metric contributor-share cap. Served and suppressed decisions bind
+now filters fixed/coarse cells by distinct vehicles only (D107; the earlier
+trip, day and contributor-share conditions are removed). Served and suppressed decisions bind
 principal, tenant, campaign, endpoint, window, filters and result fingerprint.
 A single spatial-history transaction lock plus global/organization/campaign
 overlap comparison prevents complementary, cross-principal, cross-endpoint and
@@ -3262,8 +3268,8 @@ lock. Credits less reversals determine corrected cost; voided entries and
 debt-remainder provenance contribute zero, while an original whose settlement
 status is reversed remains economic. Missing calculated-trip ledger authority
 blocks issuance; currency conflicts cannot be silently combined. Original gross
-calculation provenance remains separately named. Separate credit/reversal
-privacy contributions prevent netting from hiding contributor concentration.
+calculation provenance remains separately named. Under D107 the frozen report
+is released when its cohort, and each reported day, has three distinct cars.
 Later corrections enter newly issued reports for the original terminal period;
 issued reports, payout calculations and financial history remain immutable.
 
@@ -3387,10 +3393,14 @@ One white/brand-green palette applies to signed-in screens; advertiser/driver
 headers pair the official Terrax mark with Cardvert. Admin is palette-only.
 Advertiser Home has running campaigns and cars on the road, a new-campaign
 action and visual running-campaign cards (§27.9 replaces the earlier spending
-figure: Booked shows per campaign only, D100/D103).
+figure: Booked shows per campaign only, D100/D103). Each card shows its artwork
+and its target-area count from the campaign list read (`preview_file_id`,
+`target_zone_count`), so Home makes no per-campaign artwork or area reads
+(REQ-208).
 Authorised artwork uses the existing audited advertiser download authority
 through a bounded same-origin image response; missing/inaccessible images use
-a local illustration. Area graphics draw authorised GeoJSON without tile sources.
+a local illustration. Area graphics on campaign pages draw authorised GeoJSON
+without tile sources.
 The advertiser left side list becomes a native modal left drawer on phones.
 Account reuses company details, current sign-in, password and sign-out controls.
 Campaign sub-pages are tabs; overview leads with status/one next step and budget
@@ -3592,7 +3602,7 @@ The pre-flight table for any new work. **If your feature isn't here, add it
 | Canonical UUID phone classification | §12 | `app/core/observability.py`, existing audit and review evidence checks | Complete canonical UUID whole tokens in every context (D61, replaces D60) | sensitive-key and real-phone redaction, authorization, payout commands, current-record and denial rules | [BUILT] owner-approved REQ-111; privacy/security and money reviews, focused regressions and full CI required |
 | Expiring frontend dependency audit exception | §10.3 | `scripts/check_frontend_audit.mjs`, frontend audit step in `.github/workflows/ci.yml` | D59's exact dev-only advisory exception through 2026-11-04 UTC | other high/critical findings, production/other-root exposure, lint rules, coverage and provider gates | [BUILT] owner-approved REQ-107; automatic expiry, independent security review and full CI evidence |
 | Task-based admin search and entity hubs | §27.5 | frontend/src/app/admin/{drivers,campaigns,advertisers}/, hub drawers and src/lib/status/; existing server actions; admin organization directory | approved read projections, frontend navigation and wording | payment/activation authority, audited access, memberships, system actor, live-use gates | [TARGET] L2-1a/b; REQ-062 for additional pay-summary/area reads |
-| Public Terrax/Cardvert front door | §27 | `frontend/src/app/page.tsx`, `frontend/src/components/marketing/`, namespaced landing styles/assets; `api/v1/campaign_enquiries.py`, `services/campaign_enquiries.py`, `core/campaign_enquiry_rate_limit.py` | marketing copy, `/apply`, `/login`, bounded enquiry to fixed official inbox via email adapter | auth/role authority; public advertiser signup; product-theme tokens; live-provider claims | [BUILT] provider-neutral D52; enquiry defaults off and needs approved email setup; driver applications retain runtime/live-use gates |
+| Public Terrax/Cardvert front door | §27 | `frontend/src/app/page.tsx`, `frontend/src/components/marketing/`, namespaced landing styles/assets; `api/v1/campaign_enquiries.py`, `services/campaign_enquiries.py`, `core/campaign_enquiry_rate_limit.py` | marketing copy, `/apply`, `/login`, bounded saved staff enquiry (D93) | auth/role authority; public advertiser signup; product-theme tokens; live-provider claims | [BUILT] provider-neutral D52/D93; REQ-208 keeps enquiries and Apply always on with rate limits; driver approval and live-use gates remain |
 | Any auth change | §6.3/§12/§23 | `core/security.py`, `services/auth.py` | users | — | — (F7 landed; extend, don't fork) |
 | Rate limiting | §12 F7 | `core/rate_limit.py` + Redis | — | — | [BUILT] for login; new buckets extend the same module |
 | Payout engine v2 history + `payout_v3` target | §16.1 | `services/payouts.py` + `services/payout_eligibility.py` + `jobs/` (trip pipeline, §14.2) | payout_rules, payout_calculations, ledger | v1/v2 history rows | v2 [BUILT] S1; v3 D18/MNY-06B |
@@ -3856,6 +3866,8 @@ within one hour. Simultaneous Redis/database failure can only emit the fixed
 failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
+
+- **v1.147 — 20 October 2026 (REQ-208 / D106–D107; extends D105):** Owner-approved pre-push fixes from the read-only Fable review. D107 makes three distinct cars the whole disclosure rule for every governed output (audience policy schema v2, reason `minimum_cars`; trip/day/contributor-share settings removed). A fresh deployment needs no feature switches: Apply and the enquiry form are always on with their rate limits, and the installation-photo rule is code; display-proof windows stay deployment inputs that trips need. A shell command creates the first staff admin. D106 sets the approved-driver set-up link to 24 hours and makes `DRIVER_ACCOUNT_SETUP_PUBLIC_URL` a required release value. Plain recovery emails; staff header reads Terrax Media operations. Speed: one `GET /driver/earnings/days` read (days plus today/this week/total/on hold), company outstanding invoice money on the staff company list, card artwork on the advertiser campaign list, and one cached commercial read per staff campaign hub request. All three API baselines move together. No push, provider or deployment claim.
 
 - **v1.146 — 20 October 2026 (D100/REQ-180/182/184; consumes D103–D105/REQ-193–195 and REQ-197; REQ-196 still needs an answer):** Worker B Phase 2 screen integration and remaining audit fixes, rebased onto Worker A Batch 2 (`3279f48b`). Results screens follow D105's three-car areas and coarse reports; staff budget pages drop the removed external budget-policy gate. D100 is now the screen wording for D103's per-campaign Booked figure (campaign page and list row; ₦0/dash; never summed, so Home has no Booked tile, owner 20 October), replacing D95's display; D104 alert copy; REQ-194 pending cancellation; REQ-195 applicant waiting/changes states. D97 staff cancellation retains the financial engine. No demo-only paths; clean non-demo re-audit gate recorded. Final execution/reviews are pending. No completion, push or live-use claim.
 

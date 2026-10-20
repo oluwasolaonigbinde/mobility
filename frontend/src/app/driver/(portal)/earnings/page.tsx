@@ -28,47 +28,65 @@ export default async function DriverEarningsPage() {
             detail="Your complete daily history could not be verified."
             retryHref="/driver/earnings"
           />
-        ) : result.data.length === 0 ? (
+        ) : result.data.days.length === 0 ? (
           <Panel className="p-5 text-sm">No earnings yet.</Panel>
         ) : (
-          <Panel className="overflow-hidden">
-            <ul className="divide-edge divide-y">
-              {result.data.map((day) => (
-                <li key={`${day.day}:${day.currency}`} className="px-5 py-4">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-medium">{formatDate(day.day)}</p>
-                    <p className="font-mono">{formatMoneyExact(day.amount, day.currency)}</p>
-                  </div>
-                  <div className="mt-1 flex items-center justify-between gap-3">
-                    <p
-                      className={`text-sm ${day.status.startsWith("Paid") ? "text-green" : "text-muted"}`}
-                    >
-                      {day.status}
-                    </p>
-                    {day.status.startsWith("On hold") ? (
-                      <Link href="/driver/help" className="text-amber text-sm">
-                        Help
-                      </Link>
+          <>
+            {result.data.totals.map((total) => (
+              <Panel key={total.currency} className="grid grid-cols-3 gap-3 p-5">
+                <div>
+                  <p className="text-muted text-sm">This week</p>
+                  <p className="font-mono">{formatMoneyExact(total.this_week, total.currency)}</p>
+                </div>
+                <div>
+                  <p className="text-muted text-sm">Total</p>
+                  <p className="font-mono">{formatMoneyExact(total.total, total.currency)}</p>
+                </div>
+                <div>
+                  <p className="text-muted text-sm">On hold</p>
+                  <p className="font-mono">{formatMoneyExact(total.on_hold, total.currency)}</p>
+                </div>
+              </Panel>
+            ))}
+            <Panel className="overflow-hidden">
+              <ul className="divide-edge divide-y">
+                {result.data.days.map((day) => (
+                  <li key={`${day.day}:${day.currency}`} className="px-5 py-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-medium">{formatDate(day.day)}</p>
+                      <p className="font-mono">{formatMoneyExact(day.amount, day.currency)}</p>
+                    </div>
+                    <div className="mt-1 flex items-center justify-between gap-3">
+                      <p
+                        className={`text-sm ${day.status.startsWith("Paid") ? "text-green" : "text-muted"}`}
+                      >
+                        {day.status}
+                      </p>
+                      {day.status.startsWith("On hold") ? (
+                        <Link href="/driver/help" className="text-amber text-sm">
+                          Help
+                        </Link>
+                      ) : null}
+                    </div>
+                    {day.tripIds.length ? (
+                      <details className="mt-2 text-sm">
+                        <summary className="text-muted cursor-pointer">Trips</summary>
+                        <ul className="mt-2 grid gap-2">
+                          {day.tripIds.map((id, index) => (
+                            <li key={id}>
+                              <Link href={`/driver/earnings/trips/${id}`} className="text-amber">
+                                Trip {index + 1}
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
                     ) : null}
-                  </div>
-                  {day.tripIds.length ? (
-                    <details className="mt-2 text-sm">
-                      <summary className="text-muted cursor-pointer">Trips</summary>
-                      <ul className="mt-2 grid gap-2">
-                        {day.tripIds.map((id, index) => (
-                          <li key={id}>
-                            <Link href={`/driver/earnings/trips/${id}`} className="text-amber">
-                              Trip {index + 1}
-                            </Link>
-                          </li>
-                        ))}
-                      </ul>
-                    </details>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          </Panel>
+                  </li>
+                ))}
+              </ul>
+            </Panel>
+          </>
         )}
       </div>
     </FreshDriverAuthority>

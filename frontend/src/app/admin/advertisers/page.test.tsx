@@ -20,6 +20,7 @@ it("finds named companies beyond the first page and keeps search during paginati
                 billing_contact_name: "Accounts",
                 member_count: 1,
                 live_campaign_count: 0,
+                outstanding: [],
                 status: "active",
               },
             ],
@@ -77,6 +78,7 @@ it("uses the authorised row contact/counts without extra company/member reads", 
                 status: "active",
                 member_count: 2,
                 live_campaign_count: 0,
+                outstanding: [],
                 billing_contact_name: "Own contact",
               },
             ],
@@ -96,52 +98,37 @@ it("uses the authorised row contact/counts without extra company/member reads", 
     get.mock.calls.some((call) => call[0].endsWith("/company") || call[0].endsWith("/members")),
   ).toBe(false);
 });
-it("keeps all company detail reads within four concurrent requests", async () => {
-  let active = 0,
-    peak = 0;
-  get.mockImplementation(async (path, options) => {
-    active++;
-    peak = Math.max(peak, active);
-    await new Promise((resolve) => setTimeout(resolve, 5));
-    active--;
-    if (path === "/api/v1/admin/advertiser-organizations")
-      return {
-        data: {
-          items: [
-            {
-              id: "company",
-              name: "PalmPay",
-              status: "active",
-              member_count: 1,
-              live_campaign_count: 8,
-            },
+it("shows each company's outstanding money from the list read alone", async () => {
+  get.mockResolvedValue({
+    data: {
+      items: [
+        {
+          id: "company",
+          name: "PalmPay",
+          status: "active",
+          member_count: 1,
+          live_campaign_count: 8,
+          outstanding: [
+            { currency: "NGN", amount: "1500000.50" },
+            { currency: "USD", amount: "0.00" },
           ],
-          total: 1,
         },
-      };
-    if (path.endsWith("/company")) return { data: { id: "company" } };
-    if (path.endsWith("/members")) return { data: { items: [], total: 0 } };
-    if (path.endsWith("/campaigns"))
-      return {
-        data: {
-          items: Array.from({ length: 8 }, (_, i) => ({
-            id: `campaign${i}`,
-            organization_id: "company",
-            name: `Campaign ${i}`,
-            status: "active",
-          })),
-          total: 8,
+        {
+          id: "other",
+          name: "Quiet Co",
+          status: "active",
+          member_count: 1,
+          live_campaign_count: 0,
+          outstanding: [],
         },
-      };
-    if (path.endsWith("/commercial"))
-      return {
-        data: { campaign_id: options.params.path.campaign_id, invoices: [], settlements: [] },
-      };
-    return { data: { items: [], total: 0 } };
+      ],
+      total: 2,
+    },
   });
   render(await AdvertisersPage({ searchParams: Promise.resolve({}) }));
-  expect(screen.queryByRole("alert")).toBeNull();
-  expect(peak).toBe(4);
+  expect(screen.getByText("Outstanding: ₦1,500,000.50 · USD 0.00")).toBeInTheDocument();
+  expect(screen.getByText("Outstanding: No issued invoices")).toBeInTheDocument();
+  expect(get).toHaveBeenCalledTimes(1);
 });
 it("does not invent zero people or live campaigns when row counts are missing", async () => {
   get.mockResolvedValue({

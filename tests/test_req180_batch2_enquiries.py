@@ -25,7 +25,7 @@ PAYLOAD = {
 def test_enquiries_persist_without_email_and_conversion_is_exact(
     db_client, db_sessionmaker, settings, caplog
 ):
-    enabled = settings.model_copy(update={"campaign_enquiry_enabled": True, "email_provider": ""})
+    enabled = settings.model_copy(update={"email_provider": ""})
     db_client.app.dependency_overrides[get_settings] = lambda: enabled
     limiter = AsyncMock()
     limiter.reserve.return_value = RateLimitDecision(allowed=True)

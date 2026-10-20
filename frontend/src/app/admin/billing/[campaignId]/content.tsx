@@ -13,6 +13,7 @@ import { Panel } from "@/components/ui/panel";
 import { adminStatus } from "@/lib/status/admin";
 import { StatusChip } from "@/components/ui/status-chip";
 import { QueueUnavailable } from "../../queue-search";
+import { readCampaign, readCampaignCommercial } from "../../entity-reads";
 import { recordRevisionAction } from "./actions";
 import {
   createInvoiceAction,
@@ -40,12 +41,8 @@ export default async function AdminCampaignBillingPage({
   let campaign, commercial, history;
   try {
     [{ data: campaign }, { data: commercial }] = await Promise.all([
-      api.GET("/api/v1/admin/campaigns/{campaign_id}", {
-        params: { path: { campaign_id: campaignId } },
-      }),
-      api.GET("/api/v1/admin/campaigns/{campaign_id}/commercial", {
-        params: { path: { campaign_id: campaignId } },
-      }),
+      readCampaign(campaignId),
+      readCampaignCommercial(campaignId),
     ]);
     if (campaign) {
       ({ data: history } = await api.GET("/api/v1/admin/billing", {

@@ -884,45 +884,6 @@ async def issue_measurement_run(  # noqa: C901
         )
     else:
         disclosure_authority["passed"] = False
-    measurement_contributions: dict[str, dict[str, Decimal]] = {}
-
-    def add_measurement(metric: str, vehicle_id: UUID, value: Any) -> None:
-        amount = Decimal(str(value or 0))
-        if amount > 0:
-            by_vehicle = measurement_contributions.setdefault(metric, {})
-            key = str(vehicle_id)
-            by_vehicle[key] = by_vehicle.get(key, Decimal("0")) + amount
-
-    for row in report_cohort.analytics:
-        if row.status != "computed":
-            continue
-        add_measurement("measurement:analytics:trip_count", row.vehicle_id, 1)
-        add_measurement("measurement:analytics:distance_m", row.vehicle_id, row.distance_m)
-        add_measurement(
-            "measurement:analytics:active_tracking_seconds",
-            row.vehicle_id,
-            row.active_tracking_seconds,
-        )
-    for row in report_cohort.impressions:
-        if row.status == "estimated":
-            add_measurement(
-                "measurement:estimated_impressions",
-                row.vehicle_id,
-                row.estimated_impressions,
-            )
-    for row in report_cohort.payouts:
-        if row.status == "calculated":
-            add_measurement(
-                f"measurement:final_payout:{row.currency}",
-                row.vehicle_id,
-                abs(report_cohort.final_cost(row)),
-            )
-    disclosure_authority["contributions"].update(
-        {
-            metric: {vehicle_id: str(value) for vehicle_id, value in values.items()}
-            for metric, values in measurement_contributions.items()
-        }
-    )
     input_manifest["disclosure_authority"] = {
         **disclosure_authority,
         "schema_version": "frozen-report-disclosure-v1",

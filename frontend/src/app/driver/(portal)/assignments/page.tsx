@@ -89,10 +89,7 @@ function JobCard({
   else if (evidence?.status === "rejected" && ["accepted", "active"].includes(a.status))
     sentence = "Your photos weren’t approved. Send clear new photos of the advert on your car.";
   else if (needsInstallation)
-    sentence =
-      policy.configured && policy.can_upload
-        ? `Next, send ${policy.required_views.length || "the"} photos of the advert on your car.`
-        : "Contact Terrax Media about the next step for this job.";
+    sentence = `Next, send ${policy.required_views.length} photos of the advert on your car.`;
   else if (a.status === "accepted")
     sentence = "Your photos are approved. Terrax Media will confirm when to start.";
   else if (needsPhoto) sentence = "Next, take today’s photo of your advert.";
@@ -118,22 +115,16 @@ function JobCard({
         job={frozenJob(a.offer_terms)}
         assignmentId={["offered", "accepted", "active"].includes(a.status) ? a.id : undefined}
       />
-      {policy.configured && policy.can_upload ? (
-        <InstallationEvidenceActions
-          assignmentId={a.id}
-          status={a.status}
-          requiredViews={policy.required_views}
-          latestEvidenceStatus={evidence?.status}
-          approvedUntil={evidence?.approved_until ?? undefined}
-          pendingChallengeDueAt={pendingDueAt}
-          proofAvailable={policy.display_proof_challenge_ttl_seconds != null}
-          displayDue={a.id === activeId && photoStatus === "display_required"}
-        />
-      ) : ["accepted", "active", "deactivated"].includes(a.status) ? (
-        <p className="text-muted border-edge mt-4 border-t pt-3 text-sm">
-          Installation photos can&apos;t be sent yet.
-        </p>
-      ) : null}
+      <InstallationEvidenceActions
+        assignmentId={a.id}
+        status={a.status}
+        requiredViews={policy.required_views}
+        latestEvidenceStatus={evidence?.status}
+        approvedUntil={evidence?.approved_until ?? undefined}
+        pendingChallengeDueAt={pendingDueAt}
+        proofAvailable={policy.display_proof_challenge_ttl_seconds != null}
+        displayDue={a.id === activeId && photoStatus === "display_required"}
+      />
       {readyToDrive ? (
         <Link href="/driver" className="brand-action mt-4 w-full">
           Go to Home →
@@ -249,18 +240,16 @@ export default async function DriverAssignmentsPage({
   const pendingByAssignment = new Map(
     pendingVerifications.data.items.map((item) => [item.assignment_id, item]),
   );
-  const evidenceHistories = evidencePolicy.data.configured
-    ? await Promise.all(
-        items.map(async (assignment) => {
-          const history = await readDriverApi(() =>
-            api.GET("/api/v1/driver/campaign-assignments/{assignment_id}/installation-evidence", {
-              params: { path: { assignment_id: assignment.id } },
-            }),
-          );
-          return [assignment.id, history] as const;
+  const evidenceHistories = await Promise.all(
+    items.map(async (assignment) => {
+      const history = await readDriverApi(() =>
+        api.GET("/api/v1/driver/campaign-assignments/{assignment_id}/installation-evidence", {
+          params: { path: { assignment_id: assignment.id } },
         }),
-      )
-    : [];
+      );
+      return [assignment.id, history] as const;
+    }),
+  );
   if (evidenceHistories.some(([, history]) => history.state === "auth")) redirect("/login");
   if (evidenceHistories.some(([, history]) => history.state !== "ready")) {
     return (

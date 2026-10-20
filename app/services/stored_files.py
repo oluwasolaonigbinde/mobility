@@ -197,9 +197,11 @@ async def create_driver_upload_intent(
     storage: StorageProvider,
     settings: Settings,
 ) -> tuple[FileUploadIntent, PresignedPost]:
-    allowed_purposes = {FilePurpose.DRIVER_KYC, FilePurpose.VEHICLE_EVIDENCE}
-    if "driver" in settings.installation_evidence_uploaders:
-        allowed_purposes.add(FilePurpose.INSTALLATION_EVIDENCE)
+    allowed_purposes = {
+        FilePurpose.DRIVER_KYC,
+        FilePurpose.VEHICLE_EVIDENCE,
+        FilePurpose.INSTALLATION_EVIDENCE,
+    }
     if payload.purpose not in allowed_purposes:
         raise _error(
             "FILE_PURPOSE_FORBIDDEN",
@@ -286,10 +288,7 @@ async def create_admin_installation_upload_intent(
     settings: Settings,
 ) -> tuple[FileUploadIntent, PresignedPost]:
     await require_active_admin(session, actor_user_id)
-    if (
-        "admin" not in settings.installation_evidence_uploaders
-        or payload.purpose != FilePurpose.INSTALLATION_EVIDENCE
-    ):
+    if payload.purpose != FilePurpose.INSTALLATION_EVIDENCE:
         raise _error(
             "FILE_PURPOSE_FORBIDDEN",
             "The requested file purpose is not allowed for this role",
@@ -569,12 +568,6 @@ async def confirm_admin_installation_upload(
     settings: Settings,
 ) -> StoredFile:
     await require_active_admin(session, actor_user_id)
-    if "admin" not in settings.installation_evidence_uploaders:
-        raise _error(
-            "FILE_PURPOSE_FORBIDDEN",
-            "The requested file purpose is not allowed for this role",
-            status.HTTP_403_FORBIDDEN,
-        )
     scope = await _assignment_subject_scope(session, assignment_id=assignment_id)
     intent = await session.scalar(
         select(FileUploadIntent).where(

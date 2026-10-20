@@ -25,7 +25,7 @@ completed handover. Every `MISSING` item remains unresolved.
 | EXT-REPORT-METHOD | MISSING | Direct reporting/live gate | Approve labels/method and any qualified ROI input/attribution method. |
 | EXT-Q28-COMPANY | MISSING | Direct statutory/commercial gate | Supply approved issuer facts and accountant confirmation. |
 | EXT-COMMERCIAL-VALUES | MISSING | Direct money/commercial gate | Supply approved quotation, commission, payout, and vendor values. |
-| EXT-EVIDENCE-POLICY | MISSING | Direct pilot/privacy gate | Approve upload/view/renewal and challenge/spot-check policy. |
+| EXT-EVIDENCE-POLICY | MISSING | Direct pilot/privacy gate | Approve display-proof challenge/proof windows and the spot-check policy. Installation upload, views and 7-day renewal are built in (REQ-208). Trips need the display-proof windows. |
 | EXT-LEGAL-PRIVACY | MISSING | Direct privacy/live gate | Supply wording, privacy owner, retention/DSR decisions, and approval. |
 | EXT-PRIVACY-RESTORATION | MISSING | Direct privacy/live gate | Restore legal/privacy protections for GPS, ID collection and advertiser results, including overlap/differencing controls, before real users (D56/REQ-072/089). |
 | EXT-DISBURSEMENT-PROVIDER | MISSING | Direct money/live gate | Select approved transfer provider and protected integration custody. |

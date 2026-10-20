@@ -146,9 +146,6 @@ def _authority_document(run: MeasurementRun, settings: Settings) -> dict[str, ob
         "run_method_revision": run.method_revision,
         "run_roi_method_revision": run.roi_method_revision,
         "privacy_min_vehicles_per_cell": settings.privacy_min_vehicles_per_cell,
-        "privacy_min_trips_per_cell": settings.privacy_min_trips_per_cell,
-        "privacy_min_days_per_cell": settings.privacy_min_days_per_cell,
-        "privacy_max_contributor_share": settings.privacy_max_contributor_share,
         "privacy_min_resolution_m": settings.privacy_min_resolution_m,
         "measurement_roi_method_reference": settings.measurement_roi_method_reference,
     }

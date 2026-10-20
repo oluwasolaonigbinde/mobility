@@ -20,15 +20,18 @@ beforeEach(() => vi.clearAllMocks());
 it("shows days with one status and details reachable", async () => {
   mocks.earnings.mockResolvedValue({
     state: "ready",
-    data: [
-      {
-        day: "2026-10-09",
-        amount: "10000.00",
-        currency: "NGN",
-        status: "Paid 10 Oct",
-        tripIds: ["trip"],
-      },
-    ],
+    data: {
+      totals: [],
+      days: [
+        {
+          day: "2026-10-09",
+          amount: "10000.00",
+          currency: "NGN",
+          status: "Paid 10 Oct",
+          tripIds: ["trip"],
+        },
+      ],
+    },
   });
   render(await Earnings());
   expect(screen.getByText("₦10,000.00")).toBeVisible();
@@ -44,21 +47,53 @@ it("shows days with one status and details reachable", async () => {
 it("links a held day to support", async () => {
   mocks.earnings.mockResolvedValue({
     state: "ready",
-    data: [
-      {
-        day: "2026-10-09",
-        amount: "100",
-        currency: "NGN",
-        status: "On hold – contact support",
-        tripIds: [],
-      },
-    ],
+    data: {
+      totals: [],
+      days: [
+        {
+          day: "2026-10-09",
+          amount: "100",
+          currency: "NGN",
+          status: "On hold – contact support",
+          tripIds: [],
+        },
+      ],
+    },
   });
   render(await Earnings());
   expect(screen.getByRole("link", { name: "Help" })).toHaveAttribute("href", "/driver/help");
 });
+it("shows this week, total and on-hold money from the server", async () => {
+  mocks.earnings.mockResolvedValue({
+    state: "ready",
+    data: {
+      totals: [
+        {
+          currency: "NGN",
+          today: "0.00",
+          this_week: "2500.00",
+          total: "12500.00",
+          on_hold: "100.00",
+        },
+      ],
+      days: [
+        {
+          day: "2026-10-09",
+          amount: "100.00",
+          currency: "NGN",
+          status: "On hold – contact support",
+          tripIds: [],
+        },
+      ],
+    },
+  });
+  render(await Earnings());
+  expect(screen.getByText("This week").nextSibling).toHaveTextContent("₦2,500.00");
+  expect(screen.getByText("Total").nextSibling).toHaveTextContent("₦12,500.00");
+  expect(screen.getByText("On hold").nextSibling).toHaveTextContent("₦100.00");
+});
 it("shows successful empty history", async () => {
-  mocks.earnings.mockResolvedValue({ state: "ready", data: [] });
+  mocks.earnings.mockResolvedValue({ state: "ready", data: { totals: [], days: [] } });
   render(await Earnings());
   expect(screen.getByText("No earnings yet.")).toBeVisible();
 });

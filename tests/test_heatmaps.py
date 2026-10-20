@@ -561,9 +561,6 @@ def test_heatmap_excludes_estimate_when_active_fraud_counts_change(
                 query=query,
                 settings=Settings(
                     privacy_min_vehicles_per_cell=1,
-                    privacy_min_trips_per_cell=1,
-                    privacy_min_days_per_cell=1,
-                    privacy_max_contributor_share=1.0,
                 ),
                 campaign_id=campaign.id,
                 organization_id=None,

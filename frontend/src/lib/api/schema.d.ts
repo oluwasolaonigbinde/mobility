@@ -4405,6 +4405,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/driver/earnings/days": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read current driver daily earnings and totals */
+        get: operations["driver_get_earnings_days_api_v1_driver_earnings_days_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/driver/earnings/ledger": {
         parameters: {
             query?: never;
@@ -5733,6 +5750,8 @@ export interface components {
             operational_contact_email: string | null;
             /** Operational Contact Name */
             operational_contact_name: string | null;
+            /** Outstanding */
+            outstanding: components["schemas"]["OutstandingInvoiceAmountRead"][];
             status: components["schemas"]["OrganizationStatus"];
         };
         /** AdminOrganizationListResponse */
@@ -7811,6 +7830,8 @@ export interface components {
              * Format: uuid
              */
             organization_id: string;
+            /** Preview File Id */
+            preview_file_id: string | null;
             /** Start At */
             start_at: string | null;
             status: components["schemas"]["CampaignStatus"];
@@ -9479,6 +9500,37 @@ export interface components {
             /** Voided Amount */
             voided_amount: string | null;
         };
+        /** DriverEarningsDayRead */
+        DriverEarningsDayRead: {
+            /** Amount */
+            amount: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Paid At */
+            paid_at: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "on_hold" | "paid" | "paying_tonight" | "being_checked";
+            /** Trip Ids */
+            trip_ids: string[];
+        };
+        /**
+         * DriverEarningsDaysRead
+         * @description REQ-208: the driver's daily earnings and headline totals in one read.
+         */
+        DriverEarningsDaysRead: {
+            /** Days */
+            days: components["schemas"]["DriverEarningsDayRead"][];
+            /** Totals */
+            totals: components["schemas"]["DriverEarningsTotalsRead"][];
+        };
         /** DriverEarningsSummary */
         DriverEarningsSummary: {
             /**
@@ -9488,6 +9540,19 @@ export interface components {
             driver_profile_id: string;
             /** Totals By Currency */
             totals_by_currency: components["schemas"]["DriverEarningsCurrencySummary"][];
+        };
+        /** DriverEarningsTotalsRead */
+        DriverEarningsTotalsRead: {
+            /** Currency */
+            currency: string;
+            /** On Hold */
+            on_hold: string;
+            /** This Week */
+            this_week: string;
+            /** Today */
+            today: string;
+            /** Total */
+            total: string;
         };
         /** DriverFraudDisputeRead */
         DriverFraudDisputeRead: {
@@ -11028,16 +11093,12 @@ export interface components {
         };
         /** InstallationEvidencePolicyRead */
         InstallationEvidencePolicyRead: {
-            /** Can Upload */
-            can_upload: boolean;
-            /** Configured */
-            configured: boolean;
             /** Display Proof Challenge Ttl Seconds */
             display_proof_challenge_ttl_seconds: number | null;
             /** Display Proof Validity Seconds */
             display_proof_validity_seconds: number | null;
             /** Evidence Validity Hours */
-            evidence_validity_hours: number | null;
+            evidence_validity_hours: number;
             /** Required Views */
             required_views: string[];
         };
@@ -11874,6 +11935,13 @@ export interface components {
          * @enum {string}
          */
         OrganizationStatus: "active" | "suspended" | "disabled";
+        /** OutstandingInvoiceAmountRead */
+        OutstandingInvoiceAmountRead: {
+            /** Amount */
+            amount: string;
+            /** Currency */
+            currency: string;
+        };
         /** PasswordResetComplete */
         PasswordResetComplete: {
             /** New Password */
@@ -24608,6 +24676,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PersonPayeeStageRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    driver_get_earnings_days_api_v1_driver_earnings_days_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverEarningsDaysRead"];
                 };
             };
             /** @description Request validation failed */

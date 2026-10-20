@@ -44,9 +44,16 @@ describe("DriverAssignmentsPage history availability", () => {
         return { data: { assignment: null, photo_status: "ready" } };
       if (path === "/api/v1/driver/campaign-assignments") return { data: { items } };
       if (path === "/api/v1/driver/installation-evidence/policy") {
-        return { data: { configured: false, can_upload: false, required_views: [] } };
+        return {
+          data: {
+            required_views: ["front", "back", "left", "right", "close_up"],
+            evidence_validity_hours: 168,
+          },
+        };
       }
       if (path === "/api/v1/driver/evidence-verifications/pending") return { data: { items: [] } };
+      if (path === "/api/v1/driver/campaign-assignments/{assignment_id}/installation-evidence")
+        return { data: { items: [] } };
       throw new Error(`Unexpected request: ${path}`);
     });
   }
@@ -149,6 +156,11 @@ describe("DriverAssignmentsPage history availability", () => {
 
     expect(screen.getByText("Accepted")).toBeVisible();
     expect(screen.getByText("Running")).toBeVisible();
+    // The photo rule is built in (REQ-208): every current job can send its photos.
+    expect(screen.getAllByText("Next, send 5 photos of the advert on your car.")).toHaveLength(2);
+    expect(
+      screen.queryByText(/can't be sent yet|Contact Terrax Media about the next step/),
+    ).toBeNull();
     expect(screen.queryByText(/checks you're still ready/)).not.toBeInTheDocument();
     expect(screen.queryByText(/authority|PWA|independent admin/i)).not.toBeInTheDocument();
   });

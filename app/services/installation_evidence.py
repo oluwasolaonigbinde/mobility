@@ -3,6 +3,7 @@ import hmac
 import json
 import secrets
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -32,6 +33,11 @@ from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
 
+# Client rule (installation photos, client answers item 4): the driver or an admin uploads
+# these five views, and an approval is valid for seven days.
+INSTALLATION_EVIDENCE_VIEWS = ("front", "back", "left", "right", "close_up")
+INSTALLATION_PHOTO_VALIDITY_HOURS = 168
+
 
 def _error(code: str, message: str, status_code: int) -> AppError:
     return AppError(code, message, status_code=status_code)
@@ -39,18 +45,6 @@ def _error(code: str, message: str, status_code: int) -> AppError:
 
 def _aware(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
-
-
-def _require_evidence_policy(settings: Settings) -> tuple[tuple[str, ...], int]:
-    views = settings.installation_evidence_views
-    validity = settings.installation_evidence_validity_hours
-    if not settings.installation_evidence_uploaders or not views or validity is None:
-        raise _error(
-            "INSTALLATION_EVIDENCE_POLICY_UNAVAILABLE",
-            "Installation evidence policy is not configured",
-            status.HTTP_503_SERVICE_UNAVAILABLE,
-        )
-    return views, validity
 
 
 def _require_proof_policy(settings: Settings) -> tuple[int, int]:
@@ -119,18 +113,12 @@ async def submit_installation_evidence(  # noqa: C901
     session: AsyncSession,
     *,
     actor_user_id: UUID,
-    actor_role: str,
+    actor_role: Literal["driver", "admin"],
     assignment_id: UUID,
     payload: InstallationEvidenceCreate,
     settings: Settings,
 ) -> InstallationEvidenceSubmission:
-    views, _validity = _require_evidence_policy(settings)
-    if actor_role not in settings.installation_evidence_uploaders:
-        raise _error(
-            "INSTALLATION_EVIDENCE_UPLOAD_FORBIDDEN",
-            "This role is not configured to submit installation evidence",
-            status.HTTP_403_FORBIDDEN,
-        )
+    views = INSTALLATION_EVIDENCE_VIEWS
     campaign_id = await session.scalar(
         select(CampaignAssignment.campaign_id).where(CampaignAssignment.id == assignment_id)
     )
@@ -198,7 +186,7 @@ async def submit_installation_evidence(  # noqa: C901
     if len(submitted_views) != len(set(submitted_views)) or set(submitted_views) != set(views):
         raise _error(
             "INSTALLATION_EVIDENCE_VIEWS_INVALID",
-            "Evidence must contain exactly the configured required views",
+            "Evidence must contain exactly the required views",
             status.HTTP_422_UNPROCESSABLE_ENTITY,
         )
     now = await database_clock(session)
@@ -364,7 +352,6 @@ async def review_installation_evidence(
     reason: str | None,
     settings: Settings,
 ) -> InstallationEvidenceSubmission:
-    _views, validity_hours = _require_evidence_policy(settings)
     campaign_id = await session.scalar(
         select(InstallationEvidenceSubmission.campaign_id).where(
             InstallationEvidenceSubmission.id == submission_id
@@ -446,7 +433,7 @@ async def review_installation_evidence(
         for old_submission in prior:
             old_submission.status = InstallationEvidenceStatus.EXPIRED.value
         submission.status = InstallationEvidenceStatus.APPROVED.value
-        submission.approved_until = now + timedelta(hours=validity_hours)
+        submission.approved_until = now + timedelta(hours=INSTALLATION_PHOTO_VALIDITY_HOURS)
         action = "installation_evidence.approved"
     else:
         submission.status = InstallationEvidenceStatus.REJECTED.value
@@ -478,7 +465,6 @@ async def ensure_current_approved_installation_evidence(
     now: datetime,
     lock: bool = False,
 ) -> InstallationEvidenceSubmission:
-    _require_evidence_policy(settings)
     query = (
         select(InstallationEvidenceSubmission)
         .where(

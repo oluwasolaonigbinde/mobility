@@ -43,12 +43,7 @@ def test_default_aggregation_supports_navigation_frozen_reports_maps_and_export(
     from app.services.campaign_assignments import activation_snapshot_digest
 
     baseline = Settings(environment="test")
-    assert (
-        baseline.privacy_min_vehicles_per_cell,
-        baseline.privacy_min_trips_per_cell,
-        baseline.privacy_min_days_per_cell,
-        baseline.privacy_min_resolution_m,
-    ) == (3, 5, 2, 500)
+    assert (baseline.privacy_min_vehicles_per_cell, baseline.privacy_min_resolution_m) == (3, 500)
     assert baseline.privacy_legal_approval_reference == ""
     postgis_db_client.app.dependency_overrides[get_settings] = lambda: baseline
     admin, advertiser, campaign = create_measurement_graph(postgis_db_sessionmaker)

@@ -33,7 +33,11 @@ export default async function DriverHomePage() {
   const now = new Date();
   const today = watDay(now);
   const yesterday = watDay(new Date(now.getTime() - 86400000));
-  const days = earnings.state === "ready" ? earnings.data : null;
+  const days = earnings.state === "ready" ? earnings.data.days : null;
+  const weeks =
+    earnings.state === "ready"
+      ? earnings.data.totals.filter((total) => Number(total.this_week) !== 0)
+      : [];
   const todayDays = days?.filter((day) => day.day === today && Number(day.amount) !== 0) ?? [];
   const lastPaid = days
     ?.filter((day) => day.paidAt && Number(day.amount) > 0)
@@ -170,6 +174,11 @@ export default async function DriverHomePage() {
                 {lastPaidLabel} · {formatMoney(lastPaid.amount, lastPaid.currency)}
               </p>
             ) : null}
+            {weeks.map((total) => (
+              <p key={total.currency} className="text-muted mt-3 text-base">
+                This week {formatMoney(total.this_week, total.currency)}
+              </p>
+            ))}
             <Link
               href="/driver/earnings"
               className="text-amber mt-3 inline-block text-base font-medium"

@@ -56,10 +56,8 @@ describe("driver application actions", () => {
     });
   });
 
-  it("keeps disabled or duplicate responses generic", async () => {
-    mocks.post.mockRejectedValue(
-      new ApiError(404, { code: "APPLICATION_UNAVAILABLE", message: "hidden" }),
-    );
+  it("keeps refused responses generic", async () => {
+    mocks.post.mockRejectedValue(new ApiError(429, { code: "RATE_LIMITED", message: "hidden" }));
     const form = new FormData();
     form.set("email", "driver@example.com");
     form.set("full_name", "Driver Name");

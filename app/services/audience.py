@@ -1314,9 +1314,6 @@ async def materialize_exposure_segment(  # noqa: C901
         for item in normalized
         if exposure_cell_meets_disclosure_floor(
             distinct_vehicle_count=item["distinct_vehicle_count"],
-            trip_count=item["trip_count"],
-            distinct_day_count=item["distinct_day_count"],
-            max_contributor_share=float(item["max_contributor_share"]),
             resolution_m=int(item["coverage_cell"].split("m:", 1)[0].split("-")[1]),
             settings=settings,
         )
@@ -1618,9 +1615,6 @@ async def high_exposure_zone_insights(  # noqa: C901
         if any(
             not exposure_cell_meets_disclosure_floor(
                 distinct_vehicle_count=cell.distinct_vehicle_count,
-                trip_count=cell.trip_count,
-                distinct_day_count=cell.distinct_day_count or 0,
-                max_contributor_share=float(cell.max_contributor_share or 1),
                 resolution_m=cell.resolution_m or 0,
                 settings=settings,
             )

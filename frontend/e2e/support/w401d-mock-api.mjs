@@ -307,9 +307,7 @@ const server = createServer(async (request, response) => {
       currency: "NGN",
       eligible_seconds: 4500,
       excluded_seconds_by_reason: { gps_gap: 60 },
-      daily_rate_days: [
-        { lagos_day: "2026-08-26", distance_m: 20117, amount: "1250.00" },
-      ],
+      daily_rate_days: [{ lagos_day: "2026-08-26", distance_m: 20117, amount: "1250.00" }],
       entries: [
         ledgerEntry(
           "21000000-0000-4000-8000-000000000001",
@@ -397,7 +395,12 @@ const server = createServer(async (request, response) => {
     });
   }
   if (request.method === "GET" && url.pathname === "/api/v1/driver/installation-evidence/policy") {
-    return send(response, 200, { configured: false, can_upload: false, required_views: [] });
+    return send(response, 200, {
+      required_views: ["front", "back", "left", "right", "close_up"],
+      evidence_validity_hours: 168,
+      display_proof_challenge_ttl_seconds: null,
+      display_proof_validity_seconds: null,
+    });
   }
   if (
     request.method === "GET" &&

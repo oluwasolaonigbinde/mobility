@@ -36,6 +36,7 @@ from app.schemas.payouts import (
     CampaignPayoutRuleRevisionRead,
     CampaignPayoutV4RevisionCreate,
     DriverEarningsCurrencySummary,
+    DriverEarningsDaysRead,
     DriverEarningsSummary,
     DriverTripDailyRateDay,
     DriverTripEarningsBreakdown,
@@ -490,6 +491,25 @@ async def driver_get_earnings_summary(
             )
             for total in summary.totals_by_currency
         ],
+    )
+
+
+@router.get(
+    "/driver/earnings/days",
+    response_model=DriverEarningsDaysRead,
+    summary="Read current driver daily earnings and totals",
+)
+async def driver_get_earnings_days(
+    current_user: DriverUserDependency,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> DriverEarningsDaysRead:
+    from app.services.driver_earnings_presentation import driver_earnings_days
+
+    return DriverEarningsDaysRead.model_validate(
+        await driver_earnings_days(
+            session, user_id=current_user.id, settings=settings, respond=ledger_entry_response
+        )
     )
 
 

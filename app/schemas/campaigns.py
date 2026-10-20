@@ -180,6 +180,8 @@ class AdvertiserCampaignRead(CampaignRead):
 class CampaignListItemRead(AdvertiserCampaignRead):
     assignment_count: int = Field(ge=0)
     target_zone_count: int = Field(ge=0)
+    # Card picture: newest clean image artwork, approved first (REQ-208).
+    preview_file_id: UUID | None
 
 
 class CampaignListResponse(BaseModel):

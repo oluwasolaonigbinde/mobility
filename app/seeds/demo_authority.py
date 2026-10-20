@@ -60,6 +60,10 @@ from app.services.campaign_assignments import (
     create_rule_binding_for_accept,
     ensure_current_activation_snapshot,
 )
+from app.services.installation_evidence import (
+    INSTALLATION_EVIDENCE_VIEWS,
+    INSTALLATION_PHOTO_VALIDITY_HOURS,
+)
 
 
 async def managed_seed_image(
@@ -1110,14 +1114,10 @@ async def ensure_demo_start_authority(
             request_fingerprint="d" * 64,
             device_id=device_id,
             captured_at=captured_at,
-            required_views=list(
-                settings.installation_evidence_views
-                or ("front", "back", "left", "right", "close_up")
-            ),
+            required_views=list(INSTALLATION_EVIDENCE_VIEWS),
             status=InstallationEvidenceStatus.APPROVED.value,
             reviewed_at=reviewed_at,
-            approved_until=now
-            + timedelta(hours=settings.installation_evidence_validity_hours or 168),
+            approved_until=now + timedelta(hours=INSTALLATION_PHOTO_VALIDITY_HOURS),
             evidence_metadata={"demo_synthetic": True},
             submitted_at=submitted_at,
         )

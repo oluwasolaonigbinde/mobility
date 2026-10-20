@@ -106,8 +106,7 @@ def _current_submission_id(maker, profile_id):
 
 
 def _register(db_client, db_sessionmaker, settings, *, suffix: str) -> tuple[str, Response]:
-    enabled = settings.model_copy(update={"driver_registration_enabled": True})
-    db_client.app.dependency_overrides[get_settings] = lambda: enabled
+    db_client.app.dependency_overrides[get_settings] = lambda: settings
     db_client.app.dependency_overrides[get_registration_rate_limiter] = lambda: (
         InMemoryRegistrationRateLimiter()
     )
@@ -138,7 +137,7 @@ def _register(db_client, db_sessionmaker, settings, *, suffix: str) -> tuple[str
             assert access is not None
             return synthetic_driver_application_access_token(
                 access,
-                enabled,
+                settings,
                 synthetic_test_authority=True,
             )
 
@@ -643,7 +642,6 @@ def test_admin_approval_is_idempotent_audited_safe_and_non_work_eligible(
 
     rotated_settings = settings.model_copy(
         update={
-            "driver_registration_enabled": True,
             "payout_crypto_keyring_b64": SecretStr(
                 json.dumps(
                     {

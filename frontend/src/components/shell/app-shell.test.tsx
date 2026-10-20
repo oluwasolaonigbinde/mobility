@@ -17,14 +17,9 @@ const me = {
   user: {
     id: "user-1",
     full_name: "Avery User",
-    role: "advertiser",
+    role: "admin",
   },
-  advertiser_organization: {
-    id: "org-1",
-    name: "Acme",
-    currency: "NGN",
-    membership_role: "owner",
-  },
+  advertiser_organization: null,
 } as MeResponse;
 
 describe("AppShell account controls", () => {
@@ -32,7 +27,7 @@ describe("AppShell account controls", () => {
     const user = userEvent.setup();
     render(
       <AppShell me={me} nav={[]}>
-        <p>Advertiser content</p>
+        <p>Admin content</p>
       </AppShell>,
     );
 
@@ -72,12 +67,13 @@ describe("AppShell account controls", () => {
   });
 });
 
-it("names the signed-in company instead of a workspace", () => {
+it("names Terrax Media operations and the signed-in person, never a currency", () => {
   render(
     <AppShell me={me} nav={[]}>
       Content
     </AppShell>,
   );
-  expect(screen.getByLabelText("Account context")).toHaveTextContent("Acme");
-  expect(screen.queryByText("Workspace")).toBeNull();
+  expect(screen.getByText("Terrax Media operations")).toBeInTheDocument();
+  expect(screen.getByLabelText("Account context")).toHaveTextContent("Avery User");
+  expect(document.querySelector("header")).not.toHaveTextContent(/NGN|Network|Workspace/);
 });

@@ -5,10 +5,11 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.campaign import Campaign
+from app.models.campaign import Campaign, CampaignCreative
 from app.models.campaign_assignment import CampaignAssignment
 from app.models.campaign_zone import CampaignZone
 from app.models.organization import OrganizationMembership
+from app.models.stored_file import FileScanStatus, StoredFile
 
 
 async def grouped_counts(session: AsyncSession, column, identities: list[UUID], *filters) -> dict:
@@ -46,3 +47,29 @@ async def organization_list_counts(session: AsyncSession, identities: list[UUID]
         }
         for identity in identities
     }
+
+
+async def campaign_preview_files(session: AsyncSession, identities: list[UUID]) -> dict:
+    """Each campaign's card picture: the newest clean image file, approved artwork first."""
+    if not identities:
+        return {}
+    rows = await session.execute(
+        select(CampaignCreative.campaign_id, CampaignCreative.stored_file_id)
+        .join(StoredFile, StoredFile.id == CampaignCreative.stored_file_id)
+        .where(
+            CampaignCreative.campaign_id.in_(identities),
+            CampaignCreative.creative_type == "image",
+            CampaignCreative.status != "archived",
+            StoredFile.scan_status == FileScanStatus.CLEAN,
+        )
+        .order_by(
+            CampaignCreative.campaign_id,
+            (CampaignCreative.status == "approved").desc(),
+            CampaignCreative.created_at.desc(),
+            CampaignCreative.id,
+        )
+    )
+    previews: dict = {}
+    for campaign_id, stored_file_id in rows.all():
+        previews.setdefault(campaign_id, stored_file_id)
+    return previews

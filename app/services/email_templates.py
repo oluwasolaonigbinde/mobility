@@ -65,7 +65,7 @@ def _driver_account_setup(payload: dict[str, Any]) -> RenderedEmail:
         "Set up your Terrax Media driver account",
         (
             "Choose a password to finish setting up your driver account. "
-            "This link works once, for 30 minutes."
+            "This link works once, for 24 hours."
         )
         if action
         else "Ask Terrax Media to resend your account setup link.",
@@ -142,15 +142,15 @@ _TEMPLATES: dict[NotificationType, Callable[[dict[str, Any]], RenderedEmail]] = 
         "Terrax Media will check in with you.",
     ),
     NotificationType.ACTIVITY_FLOOR_RECOVERED: _static(
-        "Verified activity recovered",
-        "Verified activity recovered to the configured weekly floor.",
+        "Weekly driving back on track",
+        "You're back above this job's weekly minimum.",
     ),
     NotificationType.ASSIGNMENT_INACTIVE: _static(
         "No recent trips",
         "We have not seen any trips for this job recently. Open Jobs to check it.",
     ),
     NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED: _static(
-        "Assignment activity resumed", "Verified activity resumed for this assignment."
+        "Trips started again", "Trips are being recorded on your job again."
     ),
     NotificationType.COMPLAINT_REPLIED: _static(
         "Terrax Media replied to your complaint",

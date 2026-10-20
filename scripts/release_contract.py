@@ -587,9 +587,8 @@ def _validate_live_adapters(environment: Mapping[str, str]) -> None:
     _validate_https_authority("NEXT_PUBLIC_MAP_STYLE_URL", map_style)
     for name in (
         "FILE_KYC_RETENTION_DAYS",
-        "INSTALLATION_EVIDENCE_UPLOADER_ROLES",
-        "INSTALLATION_EVIDENCE_REQUIRED_VIEWS",
-        "INSTALLATION_EVIDENCE_VALIDITY_HOURS",
+        # Approved applicants get their set-up link only when this is set.
+        "DRIVER_ACCOUNT_SETUP_PUBLIC_URL",
         "DISPLAY_PROOF_CHALLENGE_TTL_SECONDS",
         "DISPLAY_PROOF_VALIDITY_SECONDS",
         "EVIDENCE_HIGH_EARNER_THRESHOLD_NGN",

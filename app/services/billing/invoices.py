@@ -373,3 +373,38 @@ async def invoice_payment_status(session: AsyncSession, invoice: Invoice) -> tup
     if funded < obligation:
         return "partially_paid", funded
     return "paid", funded
+
+
+async def outstanding_invoice_totals(
+    session: AsyncSession, organization_ids: list[UUID]
+) -> dict[UUID, list[dict[str, str]]]:
+    """Unpaid balance of each company's issued invoices, per currency (staff company list).
+
+    Same figure the company page derives from each invoice's effective obligation and
+    confirmed funding: max(obligation - funded, 0), summed per currency.
+    """
+    totals: dict[UUID, dict[str, Decimal]] = {identity: {} for identity in organization_ids}
+    invoices = await session.scalars(
+        select(Invoice)
+        .where(
+            Invoice.organization_id.in_(organization_ids),
+            Invoice.status == InvoiceStatus.ISSUED,
+        )
+        .order_by(Invoice.id)
+    )
+    for invoice in invoices:
+        obligation = await effective_invoice_obligation(
+            session, commercial_terms_id=invoice.commercial_terms_id
+        )
+        _, funded = await invoice_payment_status(session, invoice)
+        by_currency = totals[invoice.organization_id]
+        by_currency[invoice.currency] = by_currency.get(invoice.currency, Decimal(0)) + max(
+            obligation - funded, Decimal(0)
+        )
+    return {
+        identity: [
+            {"currency": currency, "amount": str(amount.quantize(MONEY_QUANTUM))}
+            for currency, amount in sorted(by_currency.items())
+        ]
+        for identity, by_currency in totals.items()
+    }

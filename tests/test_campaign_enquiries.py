@@ -31,11 +31,11 @@ PAYLOAD = {
 }
 
 
-def make_client(*, enabled=True, session=None, decision=None, **settings_values):
+def make_client(*, session=None, decision=None, **settings_values):
     session = session or MagicMock(spec=AsyncSession)
     limiter = AsyncMock()
     limiter.reserve.return_value = decision or RateLimitDecision(allowed=True)
-    app = create_app(Settings(campaign_enquiry_enabled=enabled, **settings_values))
+    app = create_app(Settings(**settings_values))
 
     async def store():
         yield session
@@ -119,15 +119,14 @@ def test_stream_limit_does_not_require_content_length():
 
 
 @pytest.mark.parametrize(
-    "enabled,decision,expected",
+    "decision,expected",
     [
-        (False, RateLimitDecision(allowed=True), 503),
-        (True, RateLimitDecision(allowed=False, retry_after_seconds=12), 429),
-        (True, RateLimitDecision(allowed=False, storage_available=False), 503),
+        (RateLimitDecision(allowed=False, retry_after_seconds=12), 429),
+        (RateLimitDecision(allowed=False, storage_available=False), 503),
     ],
 )
-def test_gates_never_send(enabled, decision, expected):
-    client, session, _ = make_client(enabled=enabled, decision=decision)
+def test_gates_never_send(decision, expected):
+    client, session, _ = make_client(decision=decision)
     response = client.post("/api/v1/campaign-enquiries", json=PAYLOAD)
     assert response.status_code == expected
     if expected == 429:
@@ -196,9 +195,8 @@ def test_invalid_rate_policy_is_not_accepted():
         Settings(campaign_enquiry_rate_limit_ip_max_attempts=0)
 
 
-@pytest.mark.parametrize("enabled", [False, True])
-def test_no_redis_configuration_returns_safe_unavailable(enabled):
-    app = create_app(Settings(campaign_enquiry_enabled=enabled, redis_url=None))
+def test_no_redis_configuration_returns_safe_unavailable():
+    app = create_app(Settings(redis_url=None))
     session = MagicMock(spec=AsyncSession)
 
     async def store():

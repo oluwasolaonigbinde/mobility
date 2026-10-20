@@ -82,10 +82,8 @@ class InstallationEvidenceList(BaseModel):
 
 
 class InstallationEvidencePolicyRead(BaseModel):
-    configured: bool
-    can_upload: bool
     required_views: list[str]
-    evidence_validity_hours: int | None
+    evidence_validity_hours: int
     display_proof_challenge_ttl_seconds: int | None
     display_proof_validity_seconds: int | None
 

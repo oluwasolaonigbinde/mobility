@@ -23,3 +23,9 @@ export const readCampaign = cache(async (id: string) =>
     params: { path: { campaign_id: id } },
   }),
 );
+// One commercial read per request, shared by the campaign hub and its Money and invoice sections.
+export const readCampaignCommercial = cache(async (id: string) =>
+  createApiClient(await getSessionToken()).GET("/api/v1/admin/campaigns/{campaign_id}/commercial", {
+    params: { path: { campaign_id: id } },
+  }),
+);

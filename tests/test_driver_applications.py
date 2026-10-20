@@ -43,26 +43,10 @@ class BlockingRegistrationLimiter:
 
 
 def enable_registration(db_client, settings) -> None:
-    enabled = settings.model_copy(update={"driver_registration_enabled": True})
-    db_client.app.dependency_overrides[get_settings] = lambda: enabled
+    db_client.app.dependency_overrides[get_settings] = lambda: settings
     db_client.app.dependency_overrides[get_registration_rate_limiter] = lambda: (
         InMemoryRegistrationRateLimiter()
     )
-
-
-def test_public_registration_is_closed_by_default_and_does_not_write(db_client, db_sessionmaker):
-    response = db_client.post(
-        "/api/v1/auth/register-driver",
-        json={
-            "service_city": "Abuja",
-            "email": "new-driver@example.com",
-            "full_name": "New Driver",
-        },
-    )
-
-    assert response.status_code == http_status.HTTP_404_NOT_FOUND
-    assert response.json()["error"]["code"] == "APPLICATION_UNAVAILABLE"
-    assert fetch_user_by_email(db_sessionmaker, "new-driver@example.com") is None
 
 
 def test_public_registration_rate_limit_is_stable_and_does_not_write(
@@ -97,9 +81,8 @@ def test_repeated_registration_blocks_emit_one_transition_audit(
     db_sessionmaker,
     settings,
 ):
-    enabled = settings.model_copy(update={"driver_registration_enabled": True})
     limiter = InMemoryRegistrationRateLimiter(ip_limit=10, email_limit=1)
-    db_client.app.dependency_overrides[get_settings] = lambda: enabled
+    db_client.app.dependency_overrides[get_settings] = lambda: settings
     db_client.app.dependency_overrides[get_registration_rate_limiter] = lambda: limiter
 
     payload = {
@@ -124,13 +107,12 @@ def test_repeated_registration_blocks_emit_one_transition_audit(
     }
 
 
-def test_enabled_registration_fails_closed_without_rate_limit_storage(
+def test_registration_fails_closed_without_rate_limit_storage(
     db_client,
     db_sessionmaker,
     settings,
 ):
-    enabled = settings.model_copy(update={"driver_registration_enabled": True})
-    db_client.app.dependency_overrides[get_settings] = lambda: enabled
+    db_client.app.dependency_overrides[get_settings] = lambda: settings
 
     response = db_client.post(
         "/api/v1/auth/register-driver",

@@ -54,6 +54,8 @@ from app.services.evidence_verification import (
     resolve_physical_spot_check,
 )
 from app.services.installation_evidence import (
+    INSTALLATION_EVIDENCE_VIEWS,
+    INSTALLATION_PHOTO_VALIDITY_HOURS,
     create_display_proof_challenge,
     list_evidence,
     list_photos,
@@ -165,24 +167,14 @@ async def driver_evidence_policy(
     _user: DriverUserDependency,
     settings: SettingsDependency,
 ) -> InstallationEvidencePolicyRead:
-    # The photo policy (client answer #4) and the display-proof windows are
-    # separate inputs: photos can be uploaded before the proof windows exist.
-    configured = bool(
-        settings.installation_evidence_uploaders
-        and settings.installation_evidence_views
-        and settings.installation_evidence_validity_hours is not None
-    )
-    proof_configured = configured and (
+    # The photo rule is built in; the display-proof windows remain deployment inputs.
+    proof_configured = (
         settings.display_proof_challenge_ttl_seconds is not None
         and settings.display_proof_validity_seconds is not None
     )
     return InstallationEvidencePolicyRead(
-        configured=configured,
-        can_upload=configured and "driver" in settings.installation_evidence_uploaders,
-        required_views=list(settings.installation_evidence_views) if configured else [],
-        evidence_validity_hours=(
-            settings.installation_evidence_validity_hours if configured else None
-        ),
+        required_views=list(INSTALLATION_EVIDENCE_VIEWS),
+        evidence_validity_hours=INSTALLATION_PHOTO_VALIDITY_HOURS,
         display_proof_challenge_ttl_seconds=(
             settings.display_proof_challenge_ttl_seconds if proof_configured else None
         ),

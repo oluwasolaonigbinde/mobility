@@ -534,9 +534,6 @@ async def _verify_segment_governance(
         for row in rows
         if exposure_cell_meets_disclosure_floor(
             distinct_vehicle_count=row.distinct_vehicle_count,
-            trip_count=row.trip_count,
-            distinct_day_count=row.distinct_day_count or 0,
-            max_contributor_share=float(row.max_contributor_share or 1),
             resolution_m=row.resolution_m or 0,
             settings=settings,
         )

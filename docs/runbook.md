@@ -310,6 +310,21 @@ COMMIT;
 
 Require exactly one returned row. The session bump immediately revokes possibly compromised sessions; the user must replace the temporary password at next login. Record the operator, reason, and timestamp in the incident record. A future admin-reset endpoint may replace this procedure, but is not part of F7.
 
+### First staff account
+
+A fresh deployment has no staff login. After migrations, create the first
+Terrax admin from the API container (REQ-208):
+
+```bash
+docker compose exec api python -m app.operations.create_staff --email ops@terrax.example --name "Ada Obi"
+```
+
+The command creates an active admin and prints a temporary password once. Give
+it to the person privately; they must choose a new password at first sign-in.
+It refuses an email that already has an account and changes nothing. The audit
+log records `admin.user.created` with source `cli`. Further staff are added
+from the admin portal.
+
 ## Driver PWA session behavior
 
 While tracking, the mounted PWA sends a lightweight GET keepalive every 10 minutes. Middleware can refresh a near-expiry session without downloading a full page. Keepalive errors are fail-open and retried: buffered pings remain client-side, and a later flush surfaces the existing error if the session ultimately expires. No refresh can cross the 12-hour absolute login cap, so a trip longer than 12 hours must reauthenticate.
@@ -391,8 +406,15 @@ Set `PUBLIC_ORIGIN`, `PASSWORD_RESET_PUBLIC_URL` and
 `DRIVER_ACCOUNT_SETUP_PUBLIC_URL` to the actual browser origin and corresponding
 `/reset-password` and `/driver-account-setup` pages. Local compose defaults use
 `http://localhost:3000`; when using a demo tunnel, override all three together.
-If the setup URL is missing, the email asks the recipient to contact Terrax for
-a replacement link and never includes a bare token. An account-name lookup does
+`DRIVER_ACCOUNT_SETUP_PUBLIC_URL` is a required release value (D106): without
+it an approved driver's email cannot carry a link. The link works once, for 24
+hours (`DRIVER_ACCOUNT_SETUP_TTL_SECONDS=86400`). If the setup URL is missing,
+the email asks the recipient to contact Terrax for a replacement link and never
+includes a bare token. Before the first trip, also set the display-proof
+windows `DISPLAY_PROOF_CHALLENGE_TTL_SECONDS` and
+`DISPLAY_PROOF_VALIDITY_SECONDS`; trips cannot start without them (REQ-039).
+Driver applications, website enquiries and installation photos need no
+deployment switch. An account-name lookup does
 not verify a payout account: when it is unavailable, D89 permits staff to make a
 small test transfer and record its bank reference. Only the trimmed reference's
 hash is retained; the exact bank version and first-manual-payout rules still apply.

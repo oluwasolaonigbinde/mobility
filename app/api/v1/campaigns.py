@@ -251,15 +251,18 @@ async def advertiser_list_campaigns(
         start_at_from=start_at_from,
         start_at_to=start_at_to,
     )
-    from app.services.list_counts import campaign_list_counts
+    from app.services.list_counts import campaign_list_counts, campaign_preview_files
 
-    counts = await campaign_list_counts(session, [row.id for row in campaigns])
+    identities = [row.id for row in campaigns]
+    counts = await campaign_list_counts(session, identities)
+    previews = await campaign_preview_files(session, identities)
     now = await database_clock(session)
     return CampaignListResponse(
         items=[
             CampaignListItemRead(
                 **(await advertiser_campaign_response(session, row, now=now)).model_dump(),
                 **counts[row.id],
+                preview_file_id=previews.get(row.id),
             )
             for row in campaigns
         ],

@@ -362,9 +362,6 @@ def _runtime_settings(
             "database_url": environment.database_url,
             "redis_url": environment.redis_url,
             "privacy_min_vehicles_per_cell": 1,
-            "privacy_min_trips_per_cell": 1,
-            "privacy_min_days_per_cell": 1,
-            "privacy_max_contributor_share": 1.0,
             "privacy_min_resolution_m": 50,
             "worker_sweep_batch_size": batch_size,
         }
