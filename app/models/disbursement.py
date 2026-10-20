@@ -108,7 +108,6 @@ class PayoutAutomaticAlertKind(StrEnum):
     FAILED_PAYMENT = "failed_payment"
     DUPLICATE_PAYMENT = "duplicate_payment"
     DAILY_LIMIT = "daily_limit"
-    BATCH_LIMIT = "batch_limit"
     RUN_FAILED = "run_failed"
     SUBMISSION_BLOCKED = "submission_blocked"
     BUSINESS_HEALTH = "business_health"
@@ -147,7 +146,7 @@ class PayoutBatch(Base):
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     total_amount: Mapped[Decimal] = mapped_column(
-        Numeric(14, 2), default=Decimal("0"), server_default=text("0"), nullable=False
+        Numeric(18, 2), default=Decimal("0"), server_default=text("0"), nullable=False
     )
     instruction_set_fingerprint: Mapped[str | None] = mapped_column(String(64))
     provider_submission_reference: Mapped[str | None] = mapped_column(Text)
@@ -960,12 +959,10 @@ class PayoutAutomaticRun(Base):
 
     __tablename__ = "payout_automatic_runs"
     __table_args__ = (
-        CheckConstraint("frequency IN ('daily', 'weekly')", name="ck_payout_automatic_runs_freq"),
         CheckConstraint("length(currency) = 3", name="ck_payout_automatic_runs_currency"),
-        CheckConstraint("batch_limit > 0", name="ck_payout_automatic_runs_limit_positive"),
         CheckConstraint(
-            "total_amount >= 0 AND total_amount <= batch_limit",
-            name="ck_payout_automatic_runs_total_within_limit",
+            "total_amount >= 0",
+            name="ck_payout_automatic_runs_total_nonnegative",
         ),
         CheckConstraint(
             "batch_count >= 0 AND line_count >= batch_count",
@@ -978,10 +975,8 @@ class PayoutAutomaticRun(Base):
         primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
     )
     period_key: Mapped[str] = mapped_column(String(16), nullable=False)
-    frequency: Mapped[str] = mapped_column(String(8), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
-    batch_limit: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
-    total_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    total_amount: Mapped[Decimal] = mapped_column(Numeric(18, 2), nullable=False)
     batch_count: Mapped[int] = mapped_column(Integer, nullable=False)
     line_count: Mapped[int] = mapped_column(Integer, nullable=False)
     # Entries kept on the maker-checker path, by reason: {"reason": {"count", "amount"}}.
@@ -1034,7 +1029,7 @@ class PayoutAutomaticAlert(Base):
     __table_args__ = (
         CheckConstraint(
             "kind IN ('failed_payment', 'duplicate_payment', 'daily_limit', "
-            "'batch_limit', 'run_failed', 'submission_blocked', 'business_health')",
+            "'run_failed', 'submission_blocked', 'business_health')",
             name="ck_payout_automatic_alerts_kind",
         ),
         CheckConstraint(

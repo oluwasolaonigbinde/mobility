@@ -4593,17 +4593,6 @@
             "title": "Batch Count",
             "type": "integer"
           },
-          "batch_limit": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Batch Limit"
-          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -4640,35 +4629,14 @@
       },
       "AutomaticPayoutStatusRead": {
         "properties": {
-          "batch_limit": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Batch Limit"
-          },
           "currency": {
             "title": "Currency",
             "type": "string"
           },
           "frequency": {
-            "anyOf": [
-              {
-                "enum": [
-                  "daily",
-                  "weekly"
-                ],
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Frequency"
+            "const": "daily",
+            "title": "Frequency",
+            "type": "string"
           },
           "identity_ready": {
             "title": "Identity Ready",
@@ -4683,13 +4651,6 @@
                 "type": "null"
               }
             ]
-          },
-          "missing_settings": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Missing Settings",
-            "type": "array"
           },
           "open_alert_count": {
             "title": "Open Alert Count",
@@ -4741,21 +4702,14 @@
             "title": "Runnable",
             "type": "boolean"
           },
-          "switched_on": {
-            "title": "Switched On",
-            "type": "boolean"
-          },
           "unsent_count": {
             "title": "Unsent Count",
             "type": "integer"
           }
         },
         "required": [
-          "switched_on",
           "frequency",
-          "batch_limit",
           "currency",
-          "missing_settings",
           "paused",
           "pause_reason",
           "pause_changed_by_name",
@@ -7818,7 +7772,7 @@
       },
       "CampaignPayoutV4RevisionCreate": {
         "additionalProperties": false,
-        "description": "A daily-rate (payout_v4, D39) revision. Every pay value is required and\nentered by Terrax Media staff; nothing is defaulted. The stop rule is fixed\nby the server and cannot be supplied.",
+        "description": "Staff set the day rate and target; D43 fixes the remaining pay rules.",
         "properties": {
           "daily_rate_naira": {
             "anyOf": [
@@ -7846,64 +7800,13 @@
             ],
             "title": "Daily Target Miles"
           },
-          "deduction_per_mile_naira": {
-            "anyOf": [
-              {
-                "exclusiveMinimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,15}0*$)\\d{0,12}\\.\\d{0,2}0*$)",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Deduction Per Mile Naira"
-          },
           "effective_from": {
             "format": "date-time",
             "title": "Effective From",
             "type": "string"
           },
-          "minimum_miles": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,7}|(?=[\\d.]{1,11}0*$)\\d{0,7}\\.\\d{0,3}0*$)",
-                "type": "string"
-              }
-            ],
-            "title": "Minimum Miles"
-          },
-          "outside_area_weight": {
-            "anyOf": [
-              {
-                "maximum": 1.0,
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,1}|(?=[\\d.]{1,6}0*$)\\d{0,1}\\.\\d{0,4}0*$)",
-                "type": "string"
-              }
-            ],
-            "title": "Outside Area Weight"
-          },
           "reason": {
             "title": "Reason",
-            "type": "string"
-          },
-          "shortfall_strategy": {
-            "enum": [
-              "proportional",
-              "per_mile_deduction"
-            ],
-            "title": "Shortfall Strategy",
             "type": "string"
           }
         },
@@ -7911,9 +7814,6 @@
           "effective_from",
           "daily_rate_naira",
           "daily_target_miles",
-          "shortfall_strategy",
-          "minimum_miles",
-          "outside_area_weight",
           "reason"
         ],
         "title": "CampaignPayoutV4RevisionCreate",
@@ -13968,32 +13868,6 @@
           "reason": {
             "title": "Reason",
             "type": "string"
-          },
-          "subsidy_amount": {
-            "anyOf": [
-              {
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Subsidy Amount"
-          },
-          "subsidy_reference": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Subsidy Reference"
           }
         },
         "required": [
@@ -14080,17 +13954,6 @@
           "revision_number": {
             "title": "Revision Number",
             "type": "integer"
-          },
-          "subsidy_reference": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Subsidy Reference"
           }
         },
         "required": [
@@ -14105,7 +13968,6 @@
           "max_driver_liability",
           "credit_limit",
           "credit_due_at",
-          "subsidy_reference",
           "effective_from",
           "reason"
         ],
@@ -14115,8 +13977,7 @@
       "FinancialAuthorityType": {
         "enum": [
           "prepaid_cash",
-          "approved_credit",
-          "subsidy"
+          "approved_credit"
         ],
         "title": "FinancialAuthorityType",
         "type": "string"
@@ -17565,7 +17426,6 @@
           "failed_payment",
           "duplicate_payment",
           "daily_limit",
-          "batch_limit",
           "run_failed",
           "submission_blocked",
           "business_health"
@@ -18933,19 +18793,6 @@
           "ledger_entry_ids"
         ],
         "title": "PayoutSelectionPreviewRead",
-        "type": "object"
-      },
-      "PayoutV4Status": {
-        "properties": {
-          "publishing_enabled": {
-            "title": "Publishing Enabled",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "publishing_enabled"
-        ],
-        "title": "PayoutV4Status",
         "type": "object"
       },
       "PaystackWebhookReceipt": {
@@ -34076,42 +33923,6 @@
           }
         ],
         "summary": "List payout calculations",
-        "tags": [
-          "Payouts"
-        ]
-      }
-    },
-    "/api/v1/admin/payout-v4/status": {
-      "get": {
-        "operationId": "admin_payout_v4_status_api_v1_admin_payout_v4_status_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PayoutV4Status"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Whether daily-rate (payout_v4) revisions can be published",
         "tags": [
           "Payouts"
         ]

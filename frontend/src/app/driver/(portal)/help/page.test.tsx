@@ -22,31 +22,28 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-it.each(["0.0000", "0.5000"])(
-  "explains the actual proportional job rate with outside-area weight %s",
-  async (outsideAreaWeight) => {
-    mocks.get.mockResolvedValue({
-      data: {
-        assignment: {
-          offer_terms: {
-            payout: {
-              formula_version: "payout_v4",
-              shortfall_strategy: "proportional",
-              daily_rate_naira: "10000.00",
-              daily_target_miles: "70",
-              outside_area_weight: outsideAreaWeight,
-            },
+it("explains the accepted proportional in-area job rate", async () => {
+  mocks.get.mockResolvedValue({
+    data: {
+      assignment: {
+        offer_terms: {
+          payout: {
+            formula_version: "payout_v4",
+            shortfall_strategy: "proportional",
+            daily_rate_naira: "10000.00",
+            daily_target_miles: "70",
+            outside_area_weight: "0.0000",
           },
         },
       },
-    });
-    render(await Help());
-    expect(screen.getByRole("region", { name: "driver help" })).toHaveTextContent(
-      `Your day rate is ₦10,000.00 for 70 miles${outsideAreaWeight === "0.0000" ? " inside the campaign area" : ""}; shorter days earn a proportional share, up to the day rate.`,
-    );
-    expect(mocks.get).toHaveBeenCalledWith("/api/v1/driver/campaign-assignments/active");
-  },
-);
+    },
+  });
+  render(await Help());
+  expect(screen.getByRole("region", { name: "driver help" })).toHaveTextContent(
+    `Your day rate is ₦10,000.00 for 70 miles inside the campaign area; shorter days earn a proportional share, up to the day rate.`,
+  );
+  expect(mocks.get).toHaveBeenCalledWith("/api/v1/driver/campaign-assignments/active");
+});
 
 it.each([
   {},
@@ -56,7 +53,7 @@ it.each([
   {
     assignment: {
       offer_terms: {
-        payout: { formula_version: "payout_v4", shortfall_strategy: "per_mile_deduction" },
+        payout: { formula_version: "payout_v4" },
       },
     },
   },

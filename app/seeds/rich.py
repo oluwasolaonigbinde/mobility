@@ -2651,13 +2651,7 @@ async def _prepare_automatic_batch(session, *, settings):
     try:
         result = await run_automatic_payouts(
             session,
-            settings=settings.model_copy(
-                update={
-                    "payout_automatic_approval_enabled": True,
-                    "payout_automatic_frequency": "daily",
-                    "payout_automatic_batch_limit_ngn": Decimal("250000.00"),
-                }
-            ),
+            settings=settings,
             adapter=adapter,
             now=moment,
         )

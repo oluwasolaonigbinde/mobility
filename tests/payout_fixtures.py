@@ -404,7 +404,7 @@ DEFAULT_TERMS = {
     "shortfall_strategy": "proportional",
     "deduction_per_mile_naira": None,
     "minimum_miles": "0.000",
-    "outside_area_weight": "1.0000",
+    "outside_area_weight": "0.0000",
 }
 
 
@@ -488,7 +488,7 @@ def insert_v4_binding(db, settings, *, assignment_id, revision, zone_ids=()):
                 outside_area_weight=revision.outside_area_weight,
                 eligibility_params=revision.eligibility_params,
                 resolved_eligibility_params=resolved_eligibility_snapshot(
-                    settings, revision.eligibility_params
+                    revision.eligibility_params
                 ),
                 formula_version=PAYOUT_V4,
                 premium_zone_ids=[str(row[0]) for row in target_rows],

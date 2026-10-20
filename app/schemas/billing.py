@@ -301,8 +301,6 @@ class FinancialAuthorityCreate(BaseModel):
     due_at: datetime | None = None
     approved_by_user_id: UUID | None = None
     credit_terms: dict[str, Any] | None = None
-    subsidy_amount: Decimal | None = None
-    subsidy_reference: str | None = None
 
 
 class FinancialAuthorityRead(ORMRead):
@@ -317,7 +315,6 @@ class FinancialAuthorityRead(ORMRead):
     max_driver_liability: Decimal
     credit_limit: Decimal | None
     credit_due_at: datetime | None
-    subsidy_reference: str | None
     effective_from: datetime
     reason: str
 

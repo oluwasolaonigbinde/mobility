@@ -76,7 +76,6 @@ from app.services.billing.authority import (
     record_expedited_production_waiver,
     record_prepaid_cash_authorization,
     record_production_start,
-    record_subsidy_authorization,
 )
 from app.services.billing.budget import (
     resume_campaign_after_budget_pause,
@@ -645,22 +644,6 @@ async def admin_record_financial_authority(
             due_at=payload.due_at,
             approved_by_user_id=payload.approved_by_user_id,
             credit_terms=payload.credit_terms or {},
-            reason=payload.reason,
-        )
-    else:
-        if payload.subsidy_amount is None or payload.subsidy_reference is None:
-            raise AppError(
-                "SUBSIDY_FIELDS_REQUIRED",
-                "Subsidy amount and reference are required",
-                status_code=status.HTTP_400_BAD_REQUEST,
-            )
-        authority = await record_subsidy_authorization(
-            session,
-            campaign_id=campaign_id,
-            actor_user_id=user.id,
-            subsidy_amount=payload.subsidy_amount,
-            max_driver_liability=payload.max_driver_liability,
-            subsidy_reference=payload.subsidy_reference,
             reason=payload.reason,
         )
     await session.commit()

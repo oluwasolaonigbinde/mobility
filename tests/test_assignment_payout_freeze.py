@@ -381,13 +381,9 @@ def test_revision_publication_before_accept_binds_from_shared_lock_and_db_clock(
                     effective_from=effective_from,
                     daily_rate_naira=Decimal("9999.00"),
                     daily_target_miles=Decimal("8.00"),
-                    shortfall_strategy="proportional",
-                    minimum_miles=Decimal("0"),
-                    outside_area_weight=Decimal("1"),
                     reason="publication wins shared serialization",
                 ),
                 actor_user_id=graph.admin.id,
-                settings=settings.model_copy(update={"payout_v4_publishing_enabled": True}),
             )
             # Keep the transaction lock through the effective boundary. The
             # waiting acceptance must then take a fresh database wall clock,
@@ -455,13 +451,9 @@ def test_offer_creation_after_revision_publication_freezes_new_revision_postgres
                     effective_from=effective_from,
                     daily_rate_naira=Decimal("9999.00"),
                     daily_target_miles=Decimal("8.00"),
-                    shortfall_strategy="proportional",
-                    minimum_miles=Decimal("0"),
-                    outside_area_weight=Decimal("1"),
                     reason="offer publication race",
                 ),
                 actor_user_id=graph.admin.id,
-                settings=settings.model_copy(update={"payout_v4_publishing_enabled": True}),
             )
             await asyncio.sleep(2.1)
             await session.commit()

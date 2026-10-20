@@ -186,8 +186,6 @@ export async function recordFinancialAuthorityAction(
         credit_terms: isCredit
           ? { notes: String(formData.get("credit_terms") ?? "").trim() }
           : null,
-        subsidy_amount: null,
-        subsidy_reference: null,
       },
     });
   } catch (error) {

@@ -3,9 +3,8 @@
 Cardvert prepares, approves and queues payouts for provably clean payout_v4
 trip earnings without a person, then the existing submission sweep, provider
 evidence and recovery paths take over unchanged. Anything not provably clean
-stays on the maker-checker path. Nothing runs until the client's settings are
-supplied (payout frequency and run limit) and the switch is on; Finance can
-pause it at any time.
+stays on the manual path. Payouts run daily without a monetary run limit;
+Finance can pause them at any time.
 
 Lock order: control row -> exclusive fraud reconciliation gate -> sorted
 fraud-hold scopes -> batches/lines/
@@ -103,11 +102,6 @@ _COUNTED_ENTRY_STATUSES = (
     EarningsLedgerEntryStatus.PAID.value,
     EarningsLedgerEntryStatus.REVERSED.value,
 )
-_SETTING_NAMES = {
-    "enabled": "PAYOUT_AUTOMATIC_APPROVAL_ENABLED",
-    "frequency": "PAYOUT_AUTOMATIC_FREQUENCY",
-    "limit": "PAYOUT_AUTOMATIC_BATCH_LIMIT_NGN",
-}
 
 
 def _error(code: str, message: str, http_status: int = status.HTTP_409_CONFLICT) -> AppError:
@@ -125,23 +119,8 @@ def _money(value: object) -> Decimal:
 # --- settings, switch and system actor ---------------------------------------
 
 
-def missing_automatic_settings(settings: Settings) -> list[str]:
-    missing = []
-    if not settings.payout_automatic_approval_enabled:
-        missing.append(_SETTING_NAMES["enabled"])
-    if not settings.payout_automatic_frequency:
-        missing.append(_SETTING_NAMES["frequency"])
-    if settings.payout_automatic_batch_limit_ngn is None:
-        missing.append(_SETTING_NAMES["limit"])
-    return missing
-
-
-def period_key_for(moment: datetime, frequency: str) -> str:
-    day = lagos_day_for(moment)
-    if frequency == "weekly":
-        year, week, _ = day.isocalendar()
-        return f"{year}-W{week:02d}"
-    return day.isoformat()
+def period_key_for(moment: datetime) -> str:
+    return lagos_day_for(moment).isoformat()
 
 
 async def load_control(
@@ -176,26 +155,21 @@ async def actor_integrity_problem(
     return None
 
 
-async def automatic_submission_blocker(
-    session: AsyncSession, settings: Settings, *, lock: bool = True
-) -> str | None:
+async def automatic_submission_blocker(session: AsyncSession, *, lock: bool = True) -> str | None:
     """Why an automatic SUBMIT claim must not happen now (control row FOR SHARE)."""
     control = await load_control(session, lock="share" if lock else None)
     if await actor_integrity_problem(session, control) is not None:
         return "actor_invalid"
-    if missing_automatic_settings(settings):
-        return "not_set_up"
     if control is not None and control.paused:
         return "paused"
     return None
 
 
-def _settings_fingerprint(settings: Settings) -> str:
+def _settings_fingerprint() -> str:
     return hashlib.sha256(
         json.dumps(
             {
-                "frequency": settings.payout_automatic_frequency,
-                "batch_limit_ngn": f"{settings.payout_automatic_batch_limit_ngn:.2f}",
+                "frequency": "daily",
                 "currency": AUTOMATIC_CURRENCY,
                 "clean_rule": "batch-c-clean-v4-v1",
             },
@@ -718,13 +692,8 @@ async def run_automatic_payouts(  # noqa: C901
     now: datetime | None = None,
 ) -> dict[str, object]:
     """One automatic payout pass. The caller commits."""
-    missing = missing_automatic_settings(settings)
-    if missing:
-        return {"outcome": "not_set_up", "missing_settings": missing}
     now = now or datetime.now(UTC)
-    frequency = str(settings.payout_automatic_frequency)
-    limit = _money(settings.payout_automatic_batch_limit_ngn)
-    period = period_key_for(now, frequency)
+    period = period_key_for(now)
     control = await load_control(session, lock="update")
     problem = await actor_integrity_problem(session, control)
     if problem is not None:
@@ -864,7 +833,6 @@ async def run_automatic_payouts(  # noqa: C901
         for stub in stubs:
             if len(included) >= MAX_CANDIDATES_PER_RUN:
                 break
-            previous_cursor = next_cursor
             next_cursor = (stub.occurred_at, stub.id)
             entry = entries[stub.id]
             if (
@@ -941,35 +909,6 @@ async def run_automatic_payouts(  # noqa: C901
             if reason is not None:
                 exclusions.add(reason, entry.amount)
                 continue
-            if entry.amount > limit:
-                exclusions.add("above_run_limit", entry.amount)
-                await raise_alert(
-                    session,
-                    kind=PayoutAutomaticAlertKind.BATCH_LIMIT,
-                    dedupe=("entry", entry.id),
-                    detail={"reason": "above_run_limit", "limit": f"{limit:.2f}"},
-                    ledger_entry_id=entry.id,
-                    driver_profile_id=entry.driver_profile_id,
-                    amount=entry.amount,
-                )
-                continue
-            if running + entry.amount > limit:
-                # Leave the first deferred entry next in the rotated window.
-                next_cursor = previous_cursor
-                waiting = [stub.id for stub in stubs[stubs.index(stub) :]]
-                await raise_alert(
-                    session,
-                    kind=PayoutAutomaticAlertKind.BATCH_LIMIT,
-                    dedupe=("run", period),
-                    detail={
-                        "reason": "run_limit_reached",
-                        "limit": f"{limit:.2f}",
-                        "waiting_candidates": len(waiting),
-                        "period": period,
-                    },
-                    amount=running,
-                )
-                break
             running += entry.amount
             for day in days:
                 cash[entry.driver_profile_id][day] = (
@@ -983,14 +922,12 @@ async def run_automatic_payouts(  # noqa: C901
     run = PayoutAutomaticRun(
         id=uuid4(),
         period_key=period,
-        frequency=frequency,
         currency=AUTOMATIC_CURRENCY,
-        batch_limit=limit,
         total_amount=running,
         batch_count=len(by_driver),
         line_count=len(included),
         exclusions=exclusions.by_reason,
-        settings_fingerprint=_settings_fingerprint(settings),
+        settings_fingerprint=_settings_fingerprint(),
     )
     batches: list[tuple[PayoutBatch, list[PayoutBatchLine]]] = []
     try:
@@ -1070,7 +1007,6 @@ async def run_automatic_payouts(  # noqa: C901
             "batch_count": run.batch_count,
             "line_count": run.line_count,
             "total_amount": f"{run.total_amount:.2f}",
-            "batch_limit": f"{limit:.2f}",
             "exclusions": exclusions.by_reason,
             "settings_fingerprint": run.settings_fingerprint,
         },
@@ -1221,13 +1157,13 @@ async def _unsent_intent_rows(session: AsyncSession) -> list[tuple[UUID, UUID]]:
 
 
 async def release_unsent_automatic_payments(
-    session: AsyncSession, *, reason: str, actor_user_id: UUID, settings: Settings
+    session: AsyncSession, *, reason: str, actor_user_id: UUID
 ) -> dict[str, object]:
     """Move never-tried automatic payments back to the maker-checker path (A8/R3)."""
     await require_active_admin(session, actor_user_id)
     reason = _reason(reason)
     control = await _locked_control(session)
-    if not control.paused and not missing_automatic_settings(settings):
+    if not control.paused:
         raise _error(
             "PAYOUT_AUTOMATIC_RELEASE_REQUIRES_PAUSE",
             "Pause automatic payouts before moving unsent payments to manual review",
@@ -1336,7 +1272,7 @@ def _page(limit: int, offset: int) -> None:
 
 
 async def automatic_payout_status(
-    session: AsyncSession, *, settings: Settings, adapter: DisbursementAdapter
+    session: AsyncSession, *, adapter: DisbursementAdapter
 ) -> dict[str, object]:
     control = await load_control(session)
     problem = await actor_integrity_problem(session, control)
@@ -1353,7 +1289,6 @@ async def automatic_payout_status(
     last_run = await session.scalar(
         select(PayoutAutomaticRun).order_by(PayoutAutomaticRun.created_at.desc()).limit(1)
     )
-    missing = missing_automatic_settings(settings)
     open_alerts = int(
         await session.scalar(
             select(func.count(PayoutAutomaticAlert.id)).where(
@@ -1364,18 +1299,15 @@ async def automatic_payout_status(
     )
     paused = bool(control and control.paused)
     return {
-        "switched_on": settings.payout_automatic_approval_enabled,
-        "frequency": settings.payout_automatic_frequency,
-        "batch_limit": settings.payout_automatic_batch_limit_ngn,
+        "frequency": "daily",
         "currency": AUTOMATIC_CURRENCY,
-        "missing_settings": missing,
         "paused": paused,
         "pause_reason": control.reason if control else None,
         "pause_changed_by_name": changed_by.full_name if changed_by else None,
         "pause_changed_at": control.changed_at if control else None,
         "identity_ready": problem is None,
         "provider_ready": provider_ready,
-        "runnable": not missing and not paused and problem is None and provider_ready,
+        "runnable": not paused and problem is None and provider_ready,
         "last_run": None
         if last_run is None
         else {
@@ -1559,7 +1491,6 @@ async def automatic_reconciliation_day(
                 "batch_count": run.batch_count,
                 "line_count": run.line_count,
                 "total_amount": run.total_amount,
-                "batch_limit": run.batch_limit,
             }
             for run in runs
         ],

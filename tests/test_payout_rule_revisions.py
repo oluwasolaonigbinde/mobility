@@ -21,9 +21,6 @@ def payload(effective_from, rate="8000"):
         effective_from=effective_from,
         daily_rate_naira=Decimal(rate),
         daily_target_miles=Decimal("8"),
-        shortfall_strategy="proportional",
-        minimum_miles=Decimal("0"),
-        outside_area_weight=Decimal("1"),
         reason="synthetic revision",
     )
 
@@ -39,7 +36,6 @@ def test_concurrent_supersedes_serialize_in_revision_order(postgis_db_sessionmak
     graph = build_offered_graph(db, "daily-revision-race")
     rule = create_v4_rule(db, campaign_id=graph.campaign.id, admin_id=graph.admin.id)
     create_v4_revision(db, campaign_id=graph.campaign.id, rule_id=rule.id, admin_id=graph.admin.id)
-    enabled = settings.model_copy(update={"payout_v4_publishing_enabled": True})
 
     async def race():
         locked = asyncio.Event()
@@ -57,7 +53,6 @@ def test_concurrent_supersedes_serialize_in_revision_order(postgis_db_sessionmak
                     campaign_id=graph.campaign.id,
                     payload=payload(now + timedelta(hours=index), str(8000 + index)),
                     actor_user_id=graph.admin.id,
-                    settings=enabled,
                 )
                 await session.commit()
                 return revision.revision_number
@@ -84,7 +79,6 @@ def test_concurrent_supersedes_serialize_in_revision_order(postgis_db_sessionmak
 def test_backdated_revision_does_not_write(postgis_db_sessionmaker, settings):
     db = postgis_db_sessionmaker
     graph = build_offered_graph(db, "daily-revision-backdate")
-    enabled = settings.model_copy(update={"payout_v4_publishing_enabled": True})
 
     async def scenario():
         async with db() as session:
@@ -95,7 +89,6 @@ def test_backdated_revision_does_not_write(postgis_db_sessionmaker, settings):
                     campaign_id=graph.campaign.id,
                     payload=payload(now - timedelta(seconds=1)),
                     actor_user_id=graph.admin.id,
-                    settings=enabled,
                 )
             assert error.value.code == "INVALID_PAYOUT_RULE_REVISION"
             assert list((await session.scalars(select(CampaignPayoutRuleRevision))).all()) == []

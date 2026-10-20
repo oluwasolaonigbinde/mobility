@@ -69,11 +69,8 @@ PAYOUT_TERMS_SHAPE_SQL = (
     " AND minimum_miles IS NOT NULL AND outside_area_weight IS NOT NULL"
     " AND shortfall_strategy IS NOT NULL"
     " AND daily_rate_naira > 0 AND daily_target_miles > 0"
-    " AND minimum_miles >= 0 AND minimum_miles <= daily_target_miles"
-    " AND outside_area_weight >= 0 AND outside_area_weight <= 1"
-    " AND ((shortfall_strategy = 'proportional' AND deduction_per_mile_naira IS NULL)"
-    " OR (shortfall_strategy = 'per_mile_deduction' AND deduction_per_mile_naira IS NOT NULL"
-    " AND deduction_per_mile_naira > 0))"
+    " AND minimum_miles = 0 AND outside_area_weight = 0"
+    " AND shortfall_strategy = 'proportional' AND deduction_per_mile_naira IS NULL"
 )
 
 CURRENCY_CODE_SQL = (

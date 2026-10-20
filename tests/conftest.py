@@ -1018,7 +1018,7 @@ def create_test_campaign_payout_revision(
                 daily_target_miles=daily_target_miles,
                 shortfall_strategy="proportional",
                 minimum_miles=0,
-                outside_area_weight=1,
+                outside_area_weight=0,
                 currency="NGN",
                 eligibility_params={},
                 formula_version="payout_v4",

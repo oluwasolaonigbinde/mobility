@@ -9,7 +9,6 @@ from pydantic import (
     Field,
     field_serializer,
     field_validator,
-    model_validator,
 )
 
 from app.models.payout import (
@@ -84,23 +83,13 @@ class CampaignPayoutRuleListResponse(BaseModel):
 
 
 class CampaignPayoutV4RevisionCreate(BaseModel):
-    """A daily-rate (payout_v4, D39) revision. Every pay value is required and
-    entered by Terrax Media staff; nothing is defaulted. The stop rule is fixed
-    by the server and cannot be supplied."""
+    """Staff set the day rate and target; D43 fixes the remaining pay rules."""
 
     model_config = ConfigDict(extra="forbid")
 
     effective_from: datetime
     daily_rate_naira: Decimal = Field(gt=Decimal("0"), max_digits=14, decimal_places=2)
     daily_target_miles: Decimal = Field(gt=Decimal("0"), max_digits=10, decimal_places=3)
-    shortfall_strategy: Literal["proportional", "per_mile_deduction"]
-    deduction_per_mile_naira: Decimal | None = Field(
-        default=None, gt=Decimal("0"), max_digits=14, decimal_places=2
-    )
-    minimum_miles: Decimal = Field(ge=Decimal("0"), max_digits=10, decimal_places=3)
-    outside_area_weight: Decimal = Field(
-        ge=Decimal("0"), le=Decimal("1"), max_digits=5, decimal_places=4
-    )
     reason: str
 
     @field_validator("effective_from")
@@ -117,21 +106,6 @@ class CampaignPayoutV4RevisionCreate(BaseModel):
         if not trimmed:
             raise ValueError("reason must not be empty")
         return trimmed
-
-    @model_validator(mode="after")
-    def validate_strategy(self) -> "CampaignPayoutV4RevisionCreate":
-        per_mile = self.shortfall_strategy == "per_mile_deduction"
-        if per_mile and self.deduction_per_mile_naira is None:
-            raise ValueError("deduction_per_mile_naira is required for per_mile_deduction")
-        if not per_mile and self.deduction_per_mile_naira is not None:
-            raise ValueError("deduction_per_mile_naira applies only to per_mile_deduction")
-        if self.minimum_miles > self.daily_target_miles:
-            raise ValueError("minimum_miles must not exceed daily_target_miles")
-        return self
-
-
-class PayoutV4Status(BaseModel):
-    publishing_enabled: bool
 
 
 class CampaignPayoutRuleRevisionRead(DecimalStringMixin):

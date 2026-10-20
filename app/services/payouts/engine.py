@@ -150,7 +150,6 @@ async def classify_daily_rate_trip(
     distance_by_day = credited_distance_m_by_day(
         pings=pings,
         breakdown=breakdown,
-        outside_area_weight=terms.outside_area_weight,
     )
     governing_values = v4_governing_values(binding, terms, params)
     ping_fingerprint = ping_set_fingerprint(ping_rows)

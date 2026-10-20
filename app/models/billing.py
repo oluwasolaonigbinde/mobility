@@ -73,7 +73,6 @@ class InvoiceStatus(StrEnum):
 class FinancialAuthorityType(StrEnum):
     PREPAID_CASH = "prepaid_cash"
     APPROVED_CREDIT = "approved_credit"
-    SUBSIDY = "subsidy"
 
 
 class LiabilityReservationStatus(StrEnum):
@@ -610,7 +609,7 @@ class CampaignFinancialAuthorization(Base):
             "revision_number > 0", name="ck_campaign_financial_authorizations_revision"
         ),
         CheckConstraint(
-            "authority_type IN ('prepaid_cash', 'approved_credit', 'subsidy')",
+            "authority_type IN ('prepaid_cash', 'approved_credit')",
             name="ck_campaign_financial_authorizations_type",
         ),
         CheckConstraint(
@@ -624,16 +623,10 @@ class CampaignFinancialAuthorization(Base):
         CheckConstraint(
             "(authority_type = 'prepaid_cash' AND funded_cash_amount = authorized_amount "
             "AND credit_limit IS NULL AND credit_due_at IS NULL AND "
-            "credit_approved_by_user_id IS NULL AND credit_terms IS NULL "
-            "AND subsidy_reference IS NULL) OR "
+            "credit_approved_by_user_id IS NULL AND credit_terms IS NULL) OR "
             "(authority_type = 'approved_credit' AND funded_cash_amount = 0 "
             "AND credit_limit = authorized_amount AND credit_due_at IS NOT NULL AND "
-            "credit_approved_by_user_id IS NOT NULL AND credit_terms IS NOT NULL "
-            "AND subsidy_reference IS NULL) OR "
-            "(authority_type = 'subsidy' AND funded_cash_amount = 0 "
-            "AND credit_limit IS NULL AND credit_due_at IS NULL AND "
-            "credit_approved_by_user_id IS NULL AND credit_terms IS NULL "
-            "AND subsidy_reference IS NOT NULL)",
+            "credit_approved_by_user_id IS NOT NULL AND credit_terms IS NOT NULL)",
             name="ck_campaign_financial_authorizations_evidence",
         ),
         UniqueConstraint(
@@ -662,7 +655,6 @@ class CampaignFinancialAuthorization(Base):
         ForeignKey("users.id", ondelete="RESTRICT")
     )
     credit_terms: Mapped[dict[str, Any] | None] = mapped_column(JSON(none_as_null=True))
-    subsidy_reference: Mapped[str | None] = mapped_column(Text)
     effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_by_user_id: Mapped[UUID] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False

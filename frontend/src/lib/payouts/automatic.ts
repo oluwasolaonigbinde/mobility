@@ -35,22 +35,11 @@ export function reconciliationDay(raw: string | undefined, now: Date = new Date(
   return todayInWat(now);
 }
 
-const SETTING_LABELS: Record<string, string> = {
-  PAYOUT_AUTOMATIC_APPROVAL_ENABLED: "The automatic payout switch is off",
-  PAYOUT_AUTOMATIC_FREQUENCY: "How often drivers are paid has not been set",
-  PAYOUT_AUTOMATIC_BATCH_LIMIT_NGN: "The most one automatic run may pay has not been set",
-};
-
-export function missingSettingLabel(name: string): string {
-  return SETTING_LABELS[name] ?? "An automatic payout setting has not been supplied";
-}
-
 const ALERT_LABELS: Record<string, string> = {
   business_health: "Business health needs attention",
   failed_payment: "A payment failed",
   duplicate_payment: "A possible duplicate payment",
   daily_limit: "Above one day's pay — kept for a person to check",
-  batch_limit: "Over the run limit",
   run_failed: "Automatic payouts could not run",
   submission_blocked: "A payment could not be sent",
 };
@@ -70,7 +59,6 @@ const REASON_LABELS: Record<string, string> = {
   adjusted_trip: "Pay was corrected",
   not_daily_rate: "Not daily-rate pay",
   daily_limit: "Above one day's pay",
-  above_run_limit: "Larger than the run limit",
 };
 
 export function manualReasonLabel(reason: string): string {
@@ -120,11 +108,6 @@ export function alertDetail(alert: AutomaticAlert): string | null {
       return `Earned ₦${detail.earned} against a day rate of ₦${detail.ceiling}.`;
     }
     return null;
-  }
-  if (alert.kind === "batch_limit" && typeof detail.limit === "string") {
-    return detail.reason === "above_run_limit"
-      ? `This earning is larger than the run limit of ₦${detail.limit}.`
-      : `The run reached its limit of ₦${detail.limit}; the rest wait for the next run.`;
   }
   if (alert.kind === "run_failed") {
     return detail.reason === "provider_unavailable"

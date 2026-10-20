@@ -946,7 +946,7 @@ async def find_due_payout_submission_intent_ids(
     # Lookups (claimed/query_only) on automatic intents stay due.
     from app.services.automatic_payouts import automatic_submission_blocker
 
-    if await automatic_submission_blocker(session, settings or get_settings(), lock=False):
+    if await automatic_submission_blocker(session, lock=False):
         due = due & ~(
             (PayoutSubmissionIntent.state == PayoutSubmissionIntentState.PENDING.value)
             & PayoutSubmissionIntent.payout_batch_line_id.in_(
@@ -1027,7 +1027,7 @@ async def claim_payout_submission_intent(  # noqa: C901
                     "PAYOUT_BATCH_AUTHORITY_CHANGED",
                     "The automatic payout authority is not the Cardvert system actor",
                 )
-            automatic_blocker = await automatic_submission_blocker(session, settings)
+            automatic_blocker = await automatic_submission_blocker(session)
             admin_ids: set[UUID] = set()
         else:
             admin_ids = requester_ids | {stub.created_by_user_id}
@@ -1135,7 +1135,7 @@ async def claim_payout_submission_intent(  # noqa: C901
                     "The Cardvert automatic payout identity was changed; nothing is sent",
                     http_status=status.HTTP_503_SERVICE_UNAVAILABLE,
                 )
-            # Paused, switched off or not set up: the payment waits unsent.
+            # Paused: the payment waits unsent.
             return None
         recovery_incident_id = None
         if action == PayoutSubmissionClaimAction.QUERY:

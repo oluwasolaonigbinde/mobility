@@ -54,6 +54,7 @@ from app.services.campaigns import comparable_campaign_datetime
 from app.services.drivers import get_driver_profile_by_user_id
 from app.services.installation_evidence import ensure_current_approved_installation_evidence
 from app.services.payout_eligibility import (
+    ELIGIBILITY_DEFAULTS,
     STATIONARY_POLICY_D39,
 )
 from app.services.payout_rule_serialization import (
@@ -1307,15 +1308,12 @@ def _daily_rate_offer_terms(payout: dict) -> dict[str, Decimal | str | None] | N
         or not all(number.is_finite() for number in numbers)
         or values["daily_rate_naira"] <= 0
         or values["daily_target_miles"] <= 0
-        or not 0 <= values["minimum_miles"] <= values["daily_target_miles"]
-        or not 0 <= values["outside_area_weight"] <= 1
+        or values["minimum_miles"] != 0
+        or values["outside_area_weight"] != 0
     ):
         return None
     strategy, deduction = values["shortfall_strategy"], values["deduction_per_mile_naira"]
-    if not (
-        (strategy == "proportional" and deduction is None)
-        or (strategy == "per_mile_deduction" and deduction is not None and deduction > 0)
-    ):
+    if strategy != "proportional" or deduction is not None:
         return None
     return values
 
@@ -1476,7 +1474,7 @@ async def build_offer_terms(
         # numeric classifier snapshot records the complete daily-rate binding
         # shape.  The binding carries the same marker in its dedicated column.
         "eligibility": {
-            **resolved_eligibility_snapshot(settings, revision.eligibility_params),
+            **resolved_eligibility_snapshot(revision.eligibility_params),
             "stationary_policy_marker": STOP_POLICY_BY_FORMULA[revision.formula_version],
         },
     }
@@ -1489,10 +1487,10 @@ async def build_offer_terms(
     return terms, canonical_offer_terms_sha256(terms)
 
 
-def resolved_eligibility_snapshot(settings: Settings, overlay: dict | None) -> dict:
+def resolved_eligibility_snapshot(overlay: dict | None) -> dict:
     """Freeze every classifier value effective at acceptance.
 
-    Values retain their configured fallbacks; the daily-rate revision fixes
+    Values retain the former fixed defaults; the daily-rate revision fixes
     the D39 stop window and zero grace for later acceptances.
     """
     overlay = overlay or {}
@@ -1502,28 +1500,28 @@ def resolved_eligibility_snapshot(settings: Settings, overlay: dict | None) -> d
 
     return {
         "stationary_radius_m": value(
-            "stationary_radius_m", settings.payout_eligibility_stationary_radius_m
+            "stationary_radius_m", ELIGIBILITY_DEFAULTS["stationary_radius_m"]
         ),
         "stationary_window_seconds": int(
             value(
                 "stationary_window_min",
-                settings.payout_eligibility_stationary_window_min,
+                ELIGIBILITY_DEFAULTS["stationary_window_min"],
             )
             * 60
         ),
         "stationary_grace_seconds": int(
             value(
                 "stationary_grace_min",
-                settings.payout_eligibility_stationary_grace_min,
+                ELIGIBILITY_DEFAULTS["stationary_grace_min"],
             )
             * 60
         ),
-        "max_accuracy_m": value("max_accuracy_m", settings.payout_eligibility_max_accuracy_m),
-        "teleport_kmh": value("teleport_kmh", settings.payout_eligibility_teleport_kmh),
+        "max_accuracy_m": value("max_accuracy_m", ELIGIBILITY_DEFAULTS["max_accuracy_m"]),
+        "teleport_kmh": value("teleport_kmh", ELIGIBILITY_DEFAULTS["teleport_kmh"]),
         "max_ping_gap_seconds": int(
             value(
                 "max_ping_gap_seconds",
-                settings.payout_eligibility_max_ping_gap_seconds,
+                ELIGIBILITY_DEFAULTS["max_ping_gap_seconds"],
             )
         ),
     }

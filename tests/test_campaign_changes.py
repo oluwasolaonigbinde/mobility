@@ -522,7 +522,7 @@ def test_funding_and_change_approval_serialize_without_overauthorization_pg(
                     daily_target_miles="70.00",
                     shortfall_strategy="proportional",
                     minimum_miles="0.00",
-                    outside_area_weight="1.00",
+                    outside_area_weight="0.00",
                     currency="NGN",
                     eligibility_params={},
                     resolved_eligibility_params={},

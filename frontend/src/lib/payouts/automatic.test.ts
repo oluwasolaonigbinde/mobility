@@ -4,7 +4,6 @@ import {
   alertLabel,
   formatWat,
   manualReasonLabel,
-  missingSettingLabel,
   outcomeText,
   reconciliationDay,
   todayInWat,
@@ -46,13 +45,7 @@ describe("automatic payout copy helpers", () => {
     expect(reconciliationDay(undefined, now)).toBe("2026-09-28");
   });
 
-  it("names settings, alerts, reasons and outcomes in plain words", () => {
-    expect(missingSettingLabel("PAYOUT_AUTOMATIC_FREQUENCY")).toBe(
-      "How often drivers are paid has not been set",
-    );
-    expect(missingSettingLabel("SOMETHING_ELSE")).toBe(
-      "An automatic payout setting has not been supplied",
-    );
+  it("names alerts, reasons and outcomes in plain words", () => {
     expect(alertLabel("duplicate_payment")).toBe("A possible duplicate payment");
     expect(alertLabel("new_kind")).toBe("Payment problem to review");
     expect(manualReasonLabel("open_dispute")).toBe("Driver has an open dispute");
@@ -70,12 +63,6 @@ describe("automatic payout copy helpers", () => {
       "Earned ₦9000.00 against a day rate of ₦8000.00.",
     );
     expect(alertDetail(alert("daily_limit", {}))).toBeNull();
-    expect(
-      alertDetail(alert("batch_limit", { limit: "5000.00", reason: "above_run_limit" })),
-    ).toMatch(/larger than the run limit/);
-    expect(
-      alertDetail(alert("batch_limit", { limit: "5000.00", reason: "run_limit_reached" })),
-    ).toMatch(/wait for the next run/);
     expect(alertDetail(alert("run_failed", { reason: "provider_unavailable" }))).toMatch(
       /No payment provider/,
     );

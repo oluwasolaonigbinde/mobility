@@ -22,9 +22,6 @@ from app.services.payout_eligibility import (
 from app.services.payouts.common import (
     DECIMAL_2,
     PAYOUT_V4,
-    SHORTFALL_PER_MILE_DEDUCTION,
-    SHORTFALL_PROPORTIONAL,
-    SHORTFALL_STRATEGIES,
 )
 from app.services.provenance import stable_source_fingerprint
 
@@ -35,21 +32,17 @@ class DailyRateTerms:
 
     daily_rate_naira: Decimal
     daily_target_miles: Decimal
-    shortfall_strategy: str
-    deduction_per_mile_naira: Decimal | None
-    minimum_miles: Decimal
-    outside_area_weight: Decimal
+    # Fixed zero rules remain frozen audit inputs. Keep their original decimal
+    # scale so removing the knobs cannot change an existing input fingerprint.
+    minimum_miles: Decimal = Decimal("0")
+    outside_area_weight: Decimal = Decimal("0")
 
     def as_metadata(self) -> dict[str, str | None]:
         return {
             "daily_rate_naira": str(self.daily_rate_naira),
             "daily_target_miles": str(self.daily_target_miles),
-            "shortfall_strategy": self.shortfall_strategy,
-            "deduction_per_mile_naira": (
-                str(self.deduction_per_mile_naira)
-                if self.deduction_per_mile_naira is not None
-                else None
-            ),
+            "shortfall_strategy": "proportional",
+            "deduction_per_mile_naira": None,
             "minimum_miles": str(self.minimum_miles),
             "outside_area_weight": str(self.outside_area_weight),
         }
@@ -66,9 +59,10 @@ def daily_rate_terms(binding: AssignmentRuleBinding) -> DailyRateTerms:
     )
     if (
         any(value is None for value in required)
-        or binding.shortfall_strategy not in SHORTFALL_STRATEGIES
-        or (binding.shortfall_strategy == SHORTFALL_PER_MILE_DEDUCTION)
-        != (binding.deduction_per_mile_naira is not None)
+        or binding.shortfall_strategy != "proportional"
+        or binding.deduction_per_mile_naira is not None
+        or binding.minimum_miles != 0
+        or binding.outside_area_weight != 0
     ):
         raise AppError(
             "PAYOUT_BINDING_INCOMPLETE",
@@ -83,12 +77,6 @@ def daily_rate_terms(binding: AssignmentRuleBinding) -> DailyRateTerms:
     return DailyRateTerms(
         daily_rate_naira=Decimal(binding.daily_rate_naira),
         daily_target_miles=Decimal(binding.daily_target_miles),
-        shortfall_strategy=binding.shortfall_strategy,
-        deduction_per_mile_naira=(
-            Decimal(binding.deduction_per_mile_naira)
-            if binding.deduction_per_mile_naira is not None
-            else None
-        ),
         minimum_miles=Decimal(binding.minimum_miles),
         outside_area_weight=Decimal(binding.outside_area_weight),
     )
@@ -103,30 +91,17 @@ def _half_up_naira(value: Fraction) -> Decimal:
 def day_pay_naira(distance_m: int, terms: DailyRateTerms) -> Decimal:
     """D(d): a day's pay for ``distance_m`` whole credited metres (payout_v4).
 
-    D(0) = 0; below the minimum distance nothing is paid; at or above the
-    target the day rate is paid and never more (one full day's rate per
-    driver per campaign day). Short of the target: ``proportional`` pays
-    rate x miles / target; ``per_mile_deduction`` pays rate minus the
-    deduction for each missing mile, floored at 0. D is non-decreasing, so a
-    day's per-trip increments are never negative and sum to D(day total).
-    The per-mile form jumps from D(0) to rate - deduction x target just above
-    zero; the client's minimum-distance answer (Q1) decides whether that jump
-    is intended.
+    D43: rate x miles / target, capped at the day rate, with no minimum.
+    D is non-decreasing, so per-trip increments sum to D(day total).
     """
     if distance_m <= 0:
         return Decimal("0.00")
     miles = Fraction(distance_m) / Fraction(METRES_PER_MILE)
-    if miles < Fraction(terms.minimum_miles):
-        return Decimal("0.00")
     rate = Fraction(terms.daily_rate_naira)
     target = Fraction(terms.daily_target_miles)
     if miles >= target:
         return _half_up_naira(rate)
-    if terms.shortfall_strategy == SHORTFALL_PROPORTIONAL:
-        return _half_up_naira(rate * miles / target)
-    assert terms.deduction_per_mile_naira is not None
-    deduction = Fraction(terms.deduction_per_mile_naira)
-    return _half_up_naira(max(Fraction(0), rate - deduction * (target - miles)))
+    return _half_up_naira(rate * miles / target)
 
 
 def v4_governing_values(

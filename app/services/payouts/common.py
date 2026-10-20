@@ -37,15 +37,6 @@ ZERO = Decimal("0")
 PAYOUT_V4 = "payout_v4"
 
 
-SHORTFALL_PROPORTIONAL = "proportional"
-
-
-SHORTFALL_PER_MILE_DEDUCTION = "per_mile_deduction"
-
-
-SHORTFALL_STRATEGIES = frozenset({SHORTFALL_PROPORTIONAL, SHORTFALL_PER_MILE_DEDUCTION})
-
-
 RULE_REVISION_UNIQUE_CONSTRAINTS = (
     "uq_campaign_payout_rule_revisions_campaign_number",
     "uq_campaign_payout_rule_revisions_campaign_effective",
@@ -292,17 +283,6 @@ def rule_revision_conflict() -> AppError:
         "PAYOUT_RULE_REVISION_CONFLICT",
         "A concurrent revision was created for this campaign; re-read the revision chain and retry",
         status_code=status.HTTP_409_CONFLICT,
-    )
-
-
-def payout_v4_policy_unavailable() -> AppError:
-    # D39 Q1-Q3 (shortfall formula and minimum, which miles count, the cap and
-    # the full-day amount) are still open with the client. Until the owner
-    # switches publishing on, nothing is written.
-    return AppError(
-        "PAYOUT_V4_POLICY_UNAVAILABLE",
-        "Daily-rate pay is not switched on yet",
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
     )
 
 

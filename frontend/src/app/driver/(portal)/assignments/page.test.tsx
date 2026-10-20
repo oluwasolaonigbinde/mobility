@@ -280,7 +280,7 @@ describe("DriverAssignmentsPage history availability", () => {
             shortfall_strategy: "proportional",
             deduction_per_mile_naira: null,
             minimum_miles: "0.000",
-            outside_area_weight: "1.0000",
+            outside_area_weight: "0.0000",
           },
           eligibility: { stationary_window_seconds: 300, max_ping_gap_seconds: 120 },
         },

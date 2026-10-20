@@ -40,8 +40,6 @@ def test_secrets_are_blank_and_unapproved_policies_stay_unset(name: str) -> None
     for key in (
         "ALLOW_DEMO_SEED",
         "DEMO_LOGIN_ENABLED",
-        "PAYOUT_V4_PUBLISHING_ENABLED",
-        "PAYOUT_AUTOMATIC_APPROVAL_ENABLED",
     ):
         assert environment[key] == "false"
     assert environment["MALWARE_SCANNER_HOST"] == "clamav"

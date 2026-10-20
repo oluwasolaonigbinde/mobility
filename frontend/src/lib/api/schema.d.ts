@@ -1936,23 +1936,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/payout-v4/status": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Whether daily-rate (payout_v4) revisions can be published */
-        get: operations["admin_payout_v4_status_api_v1_admin_payout_v4_status_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/admin/payouts/automatic/alerts": {
         parameters: {
             query?: never;
@@ -6704,8 +6687,6 @@ export interface components {
         AutomaticPayoutRunRead: {
             /** Batch Count */
             batch_count: number;
-            /** Batch Limit */
-            batch_limit?: string | null;
             /**
              * Created At
              * Format: date-time
@@ -6725,17 +6706,16 @@ export interface components {
         };
         /** AutomaticPayoutStatusRead */
         AutomaticPayoutStatusRead: {
-            /** Batch Limit */
-            batch_limit: string | null;
             /** Currency */
             currency: string;
-            /** Frequency */
-            frequency: ("daily" | "weekly") | null;
+            /**
+             * Frequency
+             * @constant
+             */
+            frequency: "daily";
             /** Identity Ready */
             identity_ready: boolean;
             last_run: components["schemas"]["AutomaticPayoutRunRead"] | null;
-            /** Missing Settings */
-            missing_settings: string[];
             /** Open Alert Count */
             open_alert_count: number;
             /** Pause Changed At */
@@ -6750,8 +6730,6 @@ export interface components {
             provider_ready: boolean;
             /** Runnable */
             runnable: boolean;
-            /** Switched On */
-            switched_on: boolean;
             /** Unsent Count */
             unsent_count: number;
         };
@@ -7847,33 +7825,20 @@ export interface components {
         CampaignPayoutRuleStatus: "active" | "inactive";
         /**
          * CampaignPayoutV4RevisionCreate
-         * @description A daily-rate (payout_v4, D39) revision. Every pay value is required and
-         *     entered by Terrax Media staff; nothing is defaulted. The stop rule is fixed
-         *     by the server and cannot be supplied.
+         * @description Staff set the day rate and target; D43 fixes the remaining pay rules.
          */
         CampaignPayoutV4RevisionCreate: {
             /** Daily Rate Naira */
             daily_rate_naira: number | string;
             /** Daily Target Miles */
             daily_target_miles: number | string;
-            /** Deduction Per Mile Naira */
-            deduction_per_mile_naira?: number | string | null;
             /**
              * Effective From
              * Format: date-time
              */
             effective_from: string;
-            /** Minimum Miles */
-            minimum_miles: number | string;
-            /** Outside Area Weight */
-            outside_area_weight: number | string;
             /** Reason */
             reason: string;
-            /**
-             * Shortfall Strategy
-             * @enum {string}
-             */
-            shortfall_strategy: "proportional" | "per_mile_deduction";
         };
         /** CampaignPerformanceArea */
         CampaignPerformanceArea: {
@@ -10139,10 +10104,6 @@ export interface components {
             max_driver_liability: number | string;
             /** Reason */
             reason: string;
-            /** Subsidy Amount */
-            subsidy_amount?: number | string | null;
-            /** Subsidy Reference */
-            subsidy_reference?: string | null;
         };
         /** FinancialAuthorityRead */
         FinancialAuthorityRead: {
@@ -10184,14 +10145,12 @@ export interface components {
             reason: string;
             /** Revision Number */
             revision_number: number;
-            /** Subsidy Reference */
-            subsidy_reference: string | null;
         };
         /**
          * FinancialAuthorityType
          * @enum {string}
          */
-        FinancialAuthorityType: "prepaid_cash" | "approved_credit" | "subsidy";
+        FinancialAuthorityType: "prepaid_cash" | "approved_credit";
         /** FraudDisputeCreate */
         FraudDisputeCreate: {
             /** Message */
@@ -11620,7 +11579,7 @@ export interface components {
          * PayoutAutomaticAlertKind
          * @enum {string}
          */
-        PayoutAutomaticAlertKind: "failed_payment" | "duplicate_payment" | "daily_limit" | "batch_limit" | "run_failed" | "submission_blocked" | "business_health";
+        PayoutAutomaticAlertKind: "failed_payment" | "duplicate_payment" | "daily_limit" | "run_failed" | "submission_blocked" | "business_health";
         /**
          * PayoutBatchApprovalMode
          * @enum {string}
@@ -12139,11 +12098,6 @@ export interface components {
             ledger_entry_ids: string[];
             /** Total Amount */
             total_amount: string;
-        };
-        /** PayoutV4Status */
-        PayoutV4Status: {
-            /** Publishing Enabled */
-            publishing_enabled: boolean;
         };
         /** PaystackWebhookReceipt */
         PaystackWebhookReceipt: {
@@ -18879,35 +18833,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PayoutCalculationListResponse"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_payout_v4_status_api_v1_admin_payout_v4_status_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PayoutV4Status"];
                 };
             };
             /** @description Request validation failed */

@@ -8,7 +8,6 @@ from fastapi import APIRouter, Query
 
 from app.api.v1.dependencies import AdminUserDependency, SessionDependency
 from app.api.v1.disbursements import DisbursementDependency
-from app.core.config import get_settings
 from app.schemas.automatic_payouts import (
     AutomaticPayoutAlertListRead,
     AutomaticPayoutAlertRead,
@@ -33,7 +32,7 @@ router = APIRouter(prefix="/admin/payouts/automatic", tags=["Admin automatic pay
 
 async def _status(session, adapter) -> AutomaticPayoutStatusRead:
     return AutomaticPayoutStatusRead.model_validate(
-        await automatic_payout_status(session, settings=get_settings(), adapter=adapter)
+        await automatic_payout_status(session, adapter=adapter)
     )
 
 
@@ -79,7 +78,7 @@ async def admin_release_unsent_automatic_payments(
     session: SessionDependency,
 ) -> AutomaticPayoutReleaseRead:
     result = await release_unsent_automatic_payments(
-        session, reason=payload.reason, actor_user_id=current_user.id, settings=get_settings()
+        session, reason=payload.reason, actor_user_id=current_user.id
     )
     await session.commit()
     return AutomaticPayoutReleaseRead.model_validate(result)

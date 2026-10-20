@@ -62,9 +62,7 @@ async def enrich_driver_ledger(session, entries, responses, settings):
             )
         ).all()
     }
-    runtime = await automatic_payout_status(
-        session, settings=settings, adapter=build_disbursement_adapter(settings)
-    )
+    runtime = await automatic_payout_status(session, adapter=build_disbursement_adapter(settings))
     today = datetime.now(UTC).astimezone(ZoneInfo("Africa/Lagos")).date().isoformat()
     balances = {
         currency: await driver_money_balance(

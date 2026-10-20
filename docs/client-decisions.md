@@ -327,6 +327,7 @@ declines (Q8); accepted terms are frozen. One active campaign per vehicle
 flagged after seven inactive days (Q20).
 
 **History:**
+- **2026-10-20** — D109 removes automatic challenges and the weekly floor; inspectors record passed/failed plus a note, and inactivity produces one initial notice per staff recipient then closes on verified activity. Built locally in `be1fc9de` and `c848e5c0` (REQ-211); final specialist reviews and merge pending.
 - **2026-08-14** — Client confirmed (Q7, Q8, Q16, Q20, D18).
 
 ### Drivers and vehicles
@@ -408,7 +409,7 @@ REQ-039 is superseded by D108/D109: daily proof is removed and inspectors record
 passed/failed observations with notes, without challenge windows to configure.
 
 **History:**
-- **2026-10-20** — Daily display proof and coupled automatic driver challenges removed under D108/D109 (REQ-211). Weekly approved five-view installation photos remain the trip-start gate. Built in `be1fc9de`; remaining B1 simplifications and final specialist reviews are in progress.
+- **2026-10-20** — Daily display proof and coupled automatic driver challenges removed under D108/D109 (REQ-211). Weekly approved five-view installation photos remain the trip-start gate. Built in `be1fc9de`; the remaining B1 simplifications are built in `c848e5c0`. Final specialist reviews and merge remain pending.
 - **2026-10-20** — Owner-approved pre-push fix (REQ-208): the installation-photo rule (five views, driver or admin, 7 days) is built into the code instead of three `INSTALLATION_EVIDENCE_*` settings that a fresh deployment left empty, which blocked every photo upload. Display-proof windows are unchanged.
 - **2026-10-06** — The registered temporary development installation/proof values (REQ-094) are integrated. Built in `6879c95`; unanswered client replacement inputs remain REQ-039.
 - **2026-10-02** — Owner authorized temporary installation/proof values in development and preview configuration only (REQ-094); unanswered client values remain REQ-039, with the inventory in `demo-data.md`.
@@ -520,6 +521,7 @@ target, [REQ-022](requests.md) driver email/WhatsApp, [REQ-023](requests.md)
 company-wide visibility, [REQ-024](requests.md) erasure.
 
 **History:**
+- **2026-10-20** — D109 removes named complaint assignment; active staff handle the shared queue. Built locally in `c848e5c0` (REQ-211); final specialist reviews and merge pending.
 - **2026-09-25** — Client asked for in-app complaints handled by Customer Service (D39d). Built in `7e39c66` (REQ-005).
 
 ### Notifications and contact
@@ -663,6 +665,7 @@ key-management service (D44).
 **Still open:** [REQ-031](requests.md) lawyer's name, [REQ-032](requests.md) legal pack.
 
 **History:**
+- **2026-10-20** — D110 replaces the in-app DSR workflow with manual staff handling and removes the no-op history purge. D119 fixes terminal KYC retention at six calendar months with current-reference protection and deletion evidence. Built locally in `c848e5c0` (REQ-211/218); final privacy review and merge pending. The legal pack remains open.
 - **2026-10-05 (superseding decision)** — Owner replaced D60's field-specific exception with one whole-token UUID phone-classification rule after a payout audit approver ID was scrubbed. Real phones and sensitive fields remain redacted; privacy/security and money review are required (D61, REQ-111). Built in `1f91b8a`.
 - **2026-10-05** — Owner approved exact whole-field stored-file review UUID preservation after phone redaction was shown to corrupt valid review evidence. No broader UUID exemption or phone disclosure is permitted (D60, REQ-109). Built in `69655e2`; replaced by `1f91b8a` under D61.
 - **2026-10-04 (vehicle extension)** — Owner extended D58/REQ-105 to driver-page vehicle documents. The earlier separate vehicle purpose/need confirmation ended; each View keeps the existing vehicle-review purpose/reason and individual audit, minute/leave hiding and record isolation. Commit is approved after verification and review. Built in `6eb5ab9`.

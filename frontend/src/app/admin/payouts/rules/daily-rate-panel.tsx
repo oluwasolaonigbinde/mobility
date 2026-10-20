@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useId } from "react";
+import { useActionState } from "react";
 import { publishDailyRateAction, type DailyRateActionState } from "./actions";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
@@ -11,56 +11,22 @@ type Revision = components["schemas"]["CampaignPayoutRuleRevisionRead"];
 
 const initialState: DailyRateActionState = {};
 
-function shorterDays(revision: Revision): string {
-  if (revision.shortfall_strategy === "per_mile_deduction") {
-    return `${formatMoneyExact(revision.deduction_per_mile_naira)} off per missing mile`;
-  }
-  return "In proportion to miles";
-}
-
-function outsideArea(weight: string | null | undefined): string {
-  const share = Number(weight);
-  if (share >= 1) return "Count in full";
-  if (share <= 0) return "Not counted";
-  return `Count at ${Math.round(share * 1000) / 10}%`;
-}
-
-/**
- * D39 daily-rate pay (payout_v4). Values are append-only revisions entered by
- * Terrax Media staff; the 5-minute stop rule is fixed by Cardvert. Publishing
- * stays switched off until the client confirms the shortfall rule, which miles
- * count and the cap.
- */
 export function DailyRatePanel({
   campaignId,
   revisions,
-  publishingEnabled,
 }: {
   campaignId: string;
   revisions: Revision[];
-  publishingEnabled: boolean;
 }) {
   const [state, formAction, pending] = useActionState(publishDailyRateAction, initialState);
-  const strategyId = useId();
-  const notSwitchedOn = !publishingEnabled || state.notSwitchedOn;
   const fieldError = (name: string) => (state.field === name ? state.error : undefined);
   const previous = (name: string) => (state.created ? "" : (state.values?.[name] ?? ""));
 
   return (
     <div className="flex flex-col gap-6">
-      {notSwitchedOn ? (
-        <p
-          role="status"
-          className="border-amber/40 bg-amber/10 text-amber rounded-lg border px-3.5 py-2.5 text-sm"
-        >
-          Daily-rate pay is not switched on yet. It opens once the client confirms how shorter days
-          are paid, which miles count and the full-day amount.
-        </p>
-      ) : null}
-
       <form action={formAction} className="flex flex-col gap-6" noValidate>
         <input type="hidden" name="campaign_id" value={campaignId} />
-        <fieldset className="grid gap-4 sm:grid-cols-2" disabled={notSwitchedOn || pending}>
+        <fieldset className="grid gap-4 sm:grid-cols-2" disabled={pending}>
           <legend className="micro text-muted mb-3">New version — daily rate (NGN)</legend>
           <Field
             label="Day rate (₦)"
@@ -77,55 +43,6 @@ export function DailyRatePanel({
             inputMode="decimal"
             className="font-mono"
             error={fieldError("daily_target_miles")}
-          />
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor={strategyId} className="micro text-muted">
-              Shorter days are paid
-            </label>
-            <select
-              id={strategyId}
-              name="shortfall_strategy"
-              defaultValue={previous("shortfall_strategy")}
-              aria-invalid={fieldError("shortfall_strategy") ? true : undefined}
-              className="bg-raised text-ink border-edge focus:border-amber h-11 rounded-lg border px-3.5 text-sm focus:outline-none"
-            >
-              <option value="" disabled>
-                Choose…
-              </option>
-              <option value="proportional">In proportion to the miles covered</option>
-              <option value="per_mile_deduction">
-                Day rate minus a fixed amount per missing mile
-              </option>
-            </select>
-            {fieldError("shortfall_strategy") ? (
-              <p role="alert" className="text-coral text-xs">
-                {fieldError("shortfall_strategy")}
-              </p>
-            ) : null}
-          </div>
-          <Field
-            label="Deduction per missing mile (₦, per-mile rule only)"
-            name="deduction_per_mile_naira"
-            defaultValue={previous("deduction_per_mile_naira")}
-            inputMode="decimal"
-            className="font-mono"
-            error={fieldError("deduction_per_mile_naira")}
-          />
-          <Field
-            label="Minimum miles for any pay (0 for none)"
-            name="minimum_miles"
-            defaultValue={previous("minimum_miles")}
-            inputMode="decimal"
-            className="font-mono"
-            error={fieldError("minimum_miles")}
-          />
-          <Field
-            label="Share of miles outside the campaign area that count (0 to 1)"
-            name="outside_area_weight"
-            defaultValue={previous("outside_area_weight")}
-            inputMode="decimal"
-            className="font-mono"
-            error={fieldError("outside_area_weight")}
           />
           <Field
             label="Starts (future)"
@@ -158,12 +75,14 @@ export function DailyRatePanel({
           </p>
         ) : null}
 
-        <Button type="submit" disabled={notSwitchedOn || pending} className="w-full">
+        <Button type="submit" disabled={pending} className="w-full">
           {pending ? "Publishing…" : "Publish daily rate"}
         </Button>
         <p className="micro text-faint">
-          Stops of up to 5 minutes count as driving; longer stops add no miles (fixed by Cardvert).
-          Drivers keep the terms they accepted; past days change only through a correction.
+          Only in-area miles count, with no minimum. Shorter days earn a proportional share up to
+          the day rate. Stops of up to 5 minutes count as driving; longer stops add no miles (fixed
+          by Cardvert). Drivers keep the terms they accepted; past days change only through a
+          correction.
         </p>
       </form>
 
@@ -180,9 +99,6 @@ export function DailyRatePanel({
                   <th className="px-4 py-2 font-normal">Starts</th>
                   <th className="px-4 py-2 text-right font-normal">Day rate</th>
                   <th className="px-4 py-2 text-right font-normal">Daily miles</th>
-                  <th className="px-4 py-2 font-normal">Shorter days</th>
-                  <th className="px-4 py-2 text-right font-normal">Minimum</th>
-                  <th className="px-4 py-2 font-normal">Outside area</th>
                   <th className="py-2 pl-4 font-normal">Reason</th>
                 </tr>
               </thead>
@@ -197,9 +113,6 @@ export function DailyRatePanel({
                     <td className="px-4 py-3 text-right font-mono">
                       {Number(r.daily_target_miles)}
                     </td>
-                    <td className="px-4 py-3">{shorterDays(r)}</td>
-                    <td className="px-4 py-3 text-right font-mono">{Number(r.minimum_miles)}</td>
-                    <td className="px-4 py-3">{outsideArea(r.outside_area_weight)}</td>
                     <td className="text-muted max-w-[14rem] truncate py-3 pl-4" title={r.reason}>
                       {r.reason}
                     </td>

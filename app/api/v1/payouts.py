@@ -50,7 +50,6 @@ from app.schemas.payouts import (
     PayoutCorrectionOrderRead,
     PayoutDayProjection,
     PayoutLedgerEntrySummary,
-    PayoutV4Status,
     RecomputePayoutDayRequest,
     RecomputePayoutDayResult,
 )
@@ -285,19 +284,6 @@ async def admin_get_campaign_payout_rule(
     return payout_rule_response(rule)
 
 
-@router.get(
-    "/admin/payout-v4/status",
-    response_model=PayoutV4Status,
-    summary="Whether daily-rate (payout_v4) revisions can be published",
-)
-async def admin_payout_v4_status(
-    current_user: AdminUserDependency,
-    settings: SettingsDependency,
-) -> PayoutV4Status:
-    del current_user
-    return PayoutV4Status(publishing_enabled=settings.payout_v4_publishing_enabled)
-
-
 @router.post(
     "/admin/campaigns/{campaign_id}/payout-v4-revisions",
     response_model=CampaignPayoutRuleRevisionRead,
@@ -309,14 +295,12 @@ async def admin_publish_payout_v4_revision(
     payload: CampaignPayoutV4RevisionCreate,
     current_user: AdminUserDependency,
     session: SessionDependency,
-    settings: SettingsDependency,
 ) -> CampaignPayoutRuleRevisionRead:
     revision, previous, created_rule = await publish_payout_v4_revision(
         session,
         campaign_id=campaign_id,
         payload=payload,
         actor_user_id=current_user.id,
-        settings=settings,
     )
     if created_rule is not None:
         await create_audit_event(

@@ -144,11 +144,11 @@ def create_trip_ready_graph(
                     daily_target_miles=Decimal("8.00"),
                     shortfall_strategy="proportional",
                     minimum_miles=Decimal("0"),
-                    outside_area_weight=Decimal("1"),
+                    outside_area_weight=Decimal("0"),
                     currency="NGN",
                     eligibility_params={},
                     resolved_eligibility_params=resolved_eligibility_snapshot(
-                        eligibility_settings, payout_revision.eligibility_params
+                        payout_revision.eligibility_params
                     )
                     if eligibility_settings is not None
                     else {},
