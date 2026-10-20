@@ -589,11 +589,6 @@ def _validate_live_adapters(environment: Mapping[str, str]) -> None:
         "FILE_KYC_RETENTION_DAYS",
         # Approved applicants get their set-up link only when this is set.
         "DRIVER_ACCOUNT_SETUP_PUBLIC_URL",
-        "DISPLAY_PROOF_CHALLENGE_TTL_SECONDS",
-        "DISPLAY_PROOF_VALIDITY_SECONDS",
-        "EVIDENCE_HIGH_EARNER_THRESHOLD_NGN",
-        "EVIDENCE_RENEWAL_LOOKBACK_DAYS",
-        "EVIDENCE_CHALLENGE_RESPONSE_HOURS",
         "VERIFIED_HOURS_FLOOR_PER_WEEK",
     ):
         _require(environment, name)

@@ -38,11 +38,6 @@ No missing client answer is recorded as approved. These records are fictional an
 
 | Temporary input | Current value and location | Replacing answer |
 | --- | --- | --- |
-| Display challenge lifetime | `DISPLAY_PROOF_CHALLENGE_TTL_SECONDS=600` in those files | REQ-039 |
-| Display proof lifetime | `DISPLAY_PROOF_VALIDITY_SECONDS=86400` in those files | REQ-039 |
-| Higher-earner spot-check threshold | `EVIDENCE_HIGH_EARNER_THRESHOLD_NGN=50000` in those files | REQ-039 |
-| Renewal lookback | `EVIDENCE_RENEWAL_LOOKBACK_DAYS=7` in those files | REQ-039 |
-| Reply window | `EVIDENCE_CHALLENGE_RESPONSE_HOURS=24` in those files | REQ-039 |
 | Invoice bank and number prefix | OPay, non-routable all-zero account `0000000000`, prefix `TXM`, held only in the seeded issuer profile and invoice snapshots | REQ-041, REQ-042 and REQ-052 |
 | Reach estimates | Abuja weekday: 240 contacts/km, 5/minute, road factor 1.15; Abuja office: 180/km, 4/minute, road factor 1; Abuja weekend: 140/km, 4/minute, road factor 1; morning/midday/evening/night factors 1.2/1/1.3/0.7; target/bonus/exclusion factors 1.2/1.35/0 | EXT-REPORT-METHOD: calculation, labels and limitations |
 | Report calculation inputs | Seeded traffic profiles, routes, impression estimates, exposure scores and frozen measurement snapshots; `impressions_v1` / `exposure_v1` identify the existing calculation | EXT-REPORT-METHOD; no revenue or conversion inputs are invented |

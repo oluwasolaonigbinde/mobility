@@ -31,8 +31,6 @@ from app.models.campaign_assignment import (
 )
 from app.models.driver import DriverProfile
 from app.models.installation_evidence import (
-    DisplayProof,
-    DisplayProofChallenge,
     InstallationEvidencePhoto,
     InstallationEvidenceStatus,
     InstallationEvidenceSubmission,
@@ -1084,15 +1082,17 @@ async def ensure_demo_start_authority(
             at=captured_at,
         )
 
-    proof = await session.scalar(
-        select(DisplayProof)
-        .where(DisplayProof.assignment_id == assignment.id)
-        .order_by(DisplayProof.verified_at.desc())
+    evidence = await session.scalar(
+        select(InstallationEvidenceSubmission)
+        .where(
+            InstallationEvidenceSubmission.assignment_id == assignment.id,
+            InstallationEvidenceSubmission.status == InstallationEvidenceStatus.APPROVED.value,
+        )
+        .order_by(InstallationEvidenceSubmission.revision.desc())
         .limit(1)
     )
-    if proof is None or proof.valid_until.replace(tzinfo=UTC) <= now:
+    if evidence is None or evidence.approved_until.replace(tzinfo=UTC) <= now:
         installation_file = await managed_image("front")
-        proof_file = await managed_image("back")
         device_id = uuid4()
         evidence = InstallationEvidenceSubmission(
             assignment_id=assignment.id,
@@ -1130,32 +1130,6 @@ async def ensure_demo_start_authority(
                     submission_id=evidence.id, view_code=view, stored_file_id=image_file.id
                 )
             )
-        challenge = DisplayProofChallenge(
-            assignment_id=assignment.id,
-            evidence_submission_id=evidence.id,
-            driver_profile_id=profile.id,
-            vehicle_id=vehicle.id,
-            device_id=device_id,
-            nonce_sha256=hashlib.sha256(uuid4().bytes).hexdigest(),
-            expires_at=now + timedelta(minutes=5),
-            consumed_at=now,
-            created_at=now,
-        )
-        session.add(challenge)
-        await session.flush()
-        proof = DisplayProof(
-            challenge_id=challenge.id,
-            assignment_id=assignment.id,
-            evidence_submission_id=evidence.id,
-            driver_profile_id=profile.id,
-            vehicle_id=vehicle.id,
-            device_id=device_id,
-            stored_file_id=proof_file.id,
-            verified_at=now,
-            valid_until=now + timedelta(seconds=settings.display_proof_validity_seconds or 3600),
-            proof_metadata={"demo_synthetic": True},
-        )
-        session.add(proof)
 
     await ensure_daily_terms(
         session,
@@ -1214,8 +1188,8 @@ async def ensure_demo_start_authority(
             "offer_terms_sha256": assignment.offer_terms_sha256,
             "activated_at": activated_at.isoformat(),
             "creative_id": offer_terms["creative"]["id"],
-            "installation_evidence_submission_id": str(proof.evidence_submission_id),
-            "installation_evidence_revision": image_revision,
+            "installation_evidence_submission_id": str(evidence.id),
+            "installation_evidence_revision": evidence.revision,
             "assignment_rule_binding_id": str(binding.id),
             "liability_reservation_id": str(reservation.id),
             "financial_authorization_id": str(reservation.authorization_id),

@@ -4,7 +4,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from conftest import create_test_display_proof
+from conftest import create_test_installation_evidence
 from payout_fixtures import create_v4_revision, create_v4_rule, insert_v4_binding
 from sqlalchemy import select
 from test_campaign_assignments import create_assignment_ready_graph, create_postgres_offer
@@ -228,7 +228,7 @@ def test_campaign_activation_commits_before_waiting_reversal_cutoff(
             return allocation.receipt_id
 
     receipt_id = asyncio.run(setup())
-    create_test_display_proof(
+    create_test_installation_evidence(
         postgis_db_sessionmaker,
         assignment_id=assignment_id,
         reviewed_by_user_id=admin.id,

@@ -54,7 +54,6 @@ function JobCard({
   a,
   policy,
   evidence,
-  pendingDueAt,
   activeId,
   photoStatus,
   now,
@@ -62,7 +61,6 @@ function JobCard({
   a: Assignment;
   policy: EvidencePolicy;
   evidence: Evidence | undefined;
-  pendingDueAt: string | undefined;
   activeId?: string;
   photoStatus?: string;
   now: number;
@@ -74,14 +72,8 @@ function JobCard({
     ["accepted", "active", "deactivated"].includes(a.status) &&
     ((!installationApproved && evidence?.status !== "pending_review") ||
       (a.id === activeId && photoStatus === "installation_required"));
-  const needsPhoto =
-    (a.id === activeId && photoStatus === "display_required") || Boolean(pendingDueAt);
   const readyToDrive =
-    a.status === "active" &&
-    a.id === activeId &&
-    photoStatus === "ready" &&
-    installationApproved &&
-    !pendingDueAt;
+    a.status === "active" && a.id === activeId && photoStatus === "ready" && installationApproved;
   let sentence = "Open Home to check your next step.";
   if (a.status === "offered") sentence = "A new job for you. Take a look and decide.";
   else if (evidence?.status === "pending_review")
@@ -92,7 +84,6 @@ function JobCard({
     sentence = `Next, send ${policy.required_views.length} photos of the advert on your car.`;
   else if (a.status === "accepted")
     sentence = "Your photos are approved. Terrax Media will confirm when to start.";
-  else if (needsPhoto) sentence = "Next, take today’s photo of your advert.";
   else if (readyToDrive) sentence = "You’re ready to drive. Start your trip from Home.";
   else if (a.status === "deactivated") sentence = "Contact Terrax Media about restarting this job.";
   return (
@@ -121,9 +112,6 @@ function JobCard({
         requiredViews={policy.required_views}
         latestEvidenceStatus={evidence?.status}
         approvedUntil={evidence?.approved_until ?? undefined}
-        pendingChallengeDueAt={pendingDueAt}
-        proofAvailable={policy.display_proof_challenge_ttl_seconds != null}
-        displayDue={a.id === activeId && photoStatus === "display_required"}
       />
       {readyToDrive ? (
         <Link href="/driver" className="brand-action mt-4 w-full">
@@ -220,26 +208,22 @@ export default async function DriverAssignmentsPage({
   }
 
   const items = assignments.data.items;
-  const [evidencePolicy, pendingVerifications] = await Promise.all([
-    readDriverApi(() => api.GET("/api/v1/driver/installation-evidence/policy")),
-    readDriverApi(() => api.GET("/api/v1/driver/evidence-verifications/pending")),
-  ]);
-  if (evidencePolicy.state === "auth" || pendingVerifications.state === "auth") redirect("/login");
-  if (evidencePolicy.state !== "ready" || pendingVerifications.state !== "ready") {
+  const evidencePolicy = await readDriverApi(() =>
+    api.GET("/api/v1/driver/installation-evidence/policy"),
+  );
+  if (evidencePolicy.state === "auth") redirect("/login");
+  if (evidencePolicy.state !== "ready") {
     return (
       <div className="animate-rise flex flex-col gap-4">
         <h1 className="font-display text-2xl font-semibold tracking-tight">Jobs</h1>
         <DriverDataUnavailable
           title="Campaign history is unavailable"
-          detail="Cardvert couldn't load your installation photos and pending checks, so job actions are unavailable. Try again shortly."
+          detail="Cardvert couldn't load your installation photos, so job actions are unavailable. Try again shortly."
           retryHref="/driver/assignments"
         />
       </div>
     );
   }
-  const pendingByAssignment = new Map(
-    pendingVerifications.data.items.map((item) => [item.assignment_id, item]),
-  );
   const evidenceHistories = await Promise.all(
     items.map(async (assignment) => {
       const history = await readDriverApi(() =>
@@ -298,7 +282,6 @@ export default async function DriverAssignmentsPage({
       photoStatus={active.state === "ready" ? active.data.photo_status : undefined}
       policy={evidencePolicy.data}
       evidence={evidenceByAssignment.get(a.id)}
-      pendingDueAt={pendingByAssignment.get(a.id)?.due_at ?? undefined}
     />
   );
 

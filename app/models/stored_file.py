@@ -326,7 +326,6 @@ _STORED_FILE_REFERENCE_MODELS = frozenset(
         "DriverKycDocument",
         "VehicleEvidenceDocument",
         "InstallationEvidencePhoto",
-        "DisplayProof",
         "ReportArtifact",
     }
 )

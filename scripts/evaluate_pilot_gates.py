@@ -210,23 +210,7 @@ REFERENCE_RUNTIME_CLAIMS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE", ("EXT-Q28-COMPANY",)),
 )
 
-GROUP_RUNTIME_CLAIMS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
-    (
-        (
-            "DISPLAY_PROOF_CHALLENGE_TTL_SECONDS",
-            "DISPLAY_PROOF_VALIDITY_SECONDS",
-        ),
-        ("EXT-EVIDENCE-POLICY",),
-    ),
-    (
-        (
-            "EVIDENCE_HIGH_EARNER_THRESHOLD_NGN",
-            "EVIDENCE_RENEWAL_LOOKBACK_DAYS",
-            "EVIDENCE_CHALLENGE_RESPONSE_HOURS",
-        ),
-        ("EXT-EVIDENCE-POLICY",),
-    ),
-)
+GROUP_RUNTIME_CLAIMS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = ()
 
 
 def _rows(

@@ -13,8 +13,8 @@ from conftest import (
     create_test_campaign_creative,
     create_test_campaign_payout_revision,
     create_test_campaign_zone,
-    create_test_display_proof,
     create_test_driver_profile,
+    create_test_installation_evidence,
     create_test_organization,
     create_test_trip_analytics,
     create_test_trip_session,
@@ -2381,7 +2381,7 @@ def test_admin_activation_commits_one_immutable_snapshot_and_replay_converges(
         json={"metadata": {}},
     )
     assert accepted.status_code == http_status.HTTP_200_OK
-    create_test_display_proof(
+    create_test_installation_evidence(
         db_sessionmaker,
         assignment_id=assignment_id,
         reviewed_by_user_id=admin.id,
@@ -2555,7 +2555,7 @@ def test_admin_activation_then_driver_trip_uses_real_synthetic_authorities(
         json={"metadata": {}},
     )
     assert accepted.status_code == http_status.HTTP_200_OK
-    create_test_display_proof(
+    create_test_installation_evidence(
         db_sessionmaker,
         assignment_id=assignment_id,
         reviewed_by_user_id=admin.id,
@@ -2694,7 +2694,7 @@ def test_admin_activation_then_driver_trip_uses_real_synthetic_authorities(
     )
     assert trip.status_code == http_status.HTTP_201_CREATED, trip.text
     assert trip.json()["assignment_id"] == str(assignment_id)
-    assert trip.json()["display_proof_id"] is not None
+    assert "display_proof_id" not in trip.json()
 
 
 def test_accept_rejects_cancelled_completed_and_expired_campaigns(

@@ -247,7 +247,7 @@ def test_real_funded_active_job_guards_and_atomic_resume(
 ):
     from uuid import UUID
 
-    from conftest import create_test_display_proof, fetch_user_by_email
+    from conftest import create_test_installation_evidence, fetch_user_by_email
     from sqlalchemy import select
     from test_campaign_assignments import assignment_payload
 
@@ -312,7 +312,9 @@ def test_real_funded_active_job_guards_and_atomic_resume(
         json={"metadata": {}},
     )
     assert accepted.status_code == 200, accepted.text
-    create_test_display_proof(db_sessionmaker, assignment_id=job_id, reviewed_by_user_id=admin.id)
+    create_test_installation_evidence(
+        db_sessionmaker, assignment_id=job_id, reviewed_by_user_id=admin.id
+    )
 
     async def fund():
         async with db_sessionmaker() as session:

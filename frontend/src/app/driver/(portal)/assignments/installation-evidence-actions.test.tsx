@@ -82,66 +82,13 @@ describe("InstallationEvidenceActions", () => {
     expect(screen.queryByRole("button", { name: "Send display photo" })).not.toBeInTheDocument();
   });
 
-  it("gets a nonce before uploading and consuming a start-of-shift proof", async () => {
-    const user = userEvent.setup();
-    mocks.upload.mockResolvedValue("proof-file");
-    mocks.postJson
-      .mockResolvedValueOnce({ challenge_id: "challenge", nonce: "server-nonce" })
-      .mockResolvedValueOnce({ id: "proof" });
-    const { container } = render(
-      <InstallationEvidenceActions
-        assignmentId={ASSIGNMENT_ID}
-        status="active"
-        requiredViews={["front"]}
-        latestEvidenceStatus="approved"
-      />,
-    );
-    const inputs = container.querySelectorAll<HTMLInputElement>('input[type="file"]');
-    const proofInput = inputs[inputs.length - 1]!;
-    await user.upload(proofInput, new File(["proof"], "proof.png", { type: "image/png" }));
-    await user.click(screen.getByRole("button", { name: "Send display photo" }));
-
-    await waitFor(() => expect(mocks.postJson).toHaveBeenCalledTimes(2));
-    expect(mocks.postJson).toHaveBeenNthCalledWith(
-      1,
-      `/api/driver/assignments/${ASSIGNMENT_ID}/display-proof/challenge`,
-      { device_id: "00000000-0000-4000-8000-000000000002" },
-    );
-    expect(mocks.postJson).toHaveBeenNthCalledWith(
-      2,
-      `/api/driver/assignments/${ASSIGNMENT_ID}/display-proof`,
-      expect.objectContaining({
-        challenge_id: "challenge",
-        nonce: "server-nonce",
-        stored_file_id: "proof-file",
-      }),
-    );
-  });
-
-  it("surfaces a requested display photo in plain words", () => {
-    render(
-      <InstallationEvidenceActions
-        assignmentId={ASSIGNMENT_ID}
-        status="active"
-        requiredViews={["front"]}
-        latestEvidenceStatus="approved"
-        pendingChallengeDueAt="2026-08-27T12:00:00Z"
-      />,
-    );
-
-    expect(screen.getByText(/Terrax Media asked for a new photo/)).toBeVisible();
-    expect(screen.queryByText(/GPS/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Send display photo" })).toBeVisible();
-  });
-
-  it("names the client's photo views and hides display proof until its windows are set", async () => {
+  it("has no daily photo task after weekly photos are approved", async () => {
     render(
       <InstallationEvidenceActions
         assignmentId={ASSIGNMENT_ID}
         status="active"
         requiredViews={["front", "back", "left", "right", "close_up"]}
         latestEvidenceStatus="approved"
-        proofAvailable={false}
       />,
     );
 

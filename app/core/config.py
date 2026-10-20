@@ -195,14 +195,6 @@ class Settings(BaseSettings):
     # an approved value is configured by the deployment environment.
     file_kyc_retention_days: OptionalInt = None
     # The installation-photo rule is built into installation_evidence.py (REQ-208).
-    # Display-proof windows remain deployment inputs; trips need them.
-    display_proof_challenge_ttl_seconds: OptionalInt = None
-    display_proof_validity_seconds: OptionalInt = None
-    # Q17 policy values remain deployment inputs. Recurring proof work is
-    # disabled until all three are explicitly configured.
-    evidence_high_earner_threshold_ngn: str | float | int | None = None
-    evidence_renewal_lookback_days: OptionalInt = None
-    evidence_challenge_response_hours: OptionalInt = None
     # Production provider and verified sender identity are external inputs.
     # Empty values keep provider dispatch and receipt handling fail closed.
     email_provider: str = ""
@@ -478,18 +470,6 @@ class Settings(BaseSettings):
     def validate_file_kyc_retention_days(cls, value: int | None) -> int | None:
         if value is not None and value <= 0:
             raise ValueError("FILE_KYC_RETENTION_DAYS must be positive when configured")
-        return value
-
-    @field_validator(
-        "display_proof_challenge_ttl_seconds",
-        "display_proof_validity_seconds",
-        "evidence_renewal_lookback_days",
-        "evidence_challenge_response_hours",
-    )
-    @classmethod
-    def validate_optional_evidence_windows(cls, value: int | None) -> int | None:
-        if value is not None and value <= 0:
-            raise ValueError("Installation evidence windows must be positive when configured")
         return value
 
     @field_validator(

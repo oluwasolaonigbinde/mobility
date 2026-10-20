@@ -414,8 +414,6 @@ async def _startup(ctx: dict[str, Any]) -> None:
         payout_crypto_keyring_b64=('{"1":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}'),
         privacy_min_vehicles_per_cell=1,
         privacy_min_resolution_m=50,
-        display_proof_challenge_ttl_seconds=120,
-        display_proof_validity_seconds=3600,
         worker_sweep_batch_size=int(os.environ.get("R58_SWEEP_BATCH_SIZE", "25")),
     )
     engine = create_async_engine(settings.database_url, poolclass=NullPool)

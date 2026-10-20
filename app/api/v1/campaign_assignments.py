@@ -456,18 +456,16 @@ async def driver_get_active_campaign_assignment(
         return ActiveCampaignAssignmentResponse(assignment=None)
     from datetime import UTC, datetime
 
-    from app.services.installation_evidence import ensure_current_display_proof
+    from app.services.installation_evidence import ensure_current_approved_installation_evidence
 
     photo_status = "ready"
     try:
-        await ensure_current_display_proof(
+        await ensure_current_approved_installation_evidence(
             session, assignment=assignment, settings=settings, now=datetime.now(UTC), lock=False
         )
     except AppError as error:
         photo_status = (
-            "display_required"
-            if error.code == "CURRENT_DISPLAY_PROOF_REQUIRED"
-            else "installation_required"
+            "installation_required"
             if error.code
             in {"APPROVED_INSTALLATION_EVIDENCE_REQUIRED", "INSTALLATION_EVIDENCE_EXPIRED"}
             else "unavailable"

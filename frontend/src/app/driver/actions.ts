@@ -63,9 +63,6 @@ const START_PHOTO_REFUSALS: Record<string, string> = {
   APPROVED_INSTALLATION_EVIDENCE_REQUIRED:
     "Your installation photos need to be approved first. Send them from Jobs.",
   INSTALLATION_EVIDENCE_EXPIRED: "New installation photos are due. Send them from Jobs.",
-  CURRENT_DISPLAY_PROOF_REQUIRED: "Take today's display photo on Jobs, then start again.",
-  DISPLAY_PROOF_POLICY_UNAVAILABLE:
-    "Trips can't start yet because photo checks aren't set up. Contact support.",
 };
 
 export async function startTripAction(assignmentId: string): Promise<StartTripResult> {

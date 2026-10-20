@@ -115,12 +115,15 @@ describe("driver trip BFF actions", () => {
     await expect(startTripAction(ASSIGNMENT_ID)).resolves.toMatchObject({ outcome: "unknown" });
   });
 
-  it("turns a missing display photo into a definite refusal with the driver's next step", async () => {
+  it("explains that weekly installation photos need approval before starting", async () => {
     mocks.post.mockRejectedValueOnce(
-      new ApiError(409, { code: "CURRENT_DISPLAY_PROOF_REQUIRED", message: "proof required" }),
+      new ApiError(409, {
+        code: "APPROVED_INSTALLATION_EVIDENCE_REQUIRED",
+        message: "photos required",
+      }),
     );
     await expect(startTripAction(ASSIGNMENT_ID)).resolves.toEqual({
-      error: "Take today's display photo on Jobs, then start again.",
+      error: "Your installation photos need to be approved first. Send them from Jobs.",
       outcome: "failed",
     });
 

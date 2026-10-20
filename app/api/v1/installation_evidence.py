@@ -19,20 +19,15 @@ from app.models.evidence_verification import (
     EvidenceVerificationStatus,
     EvidenceVerificationType,
 )
-from app.models.installation_evidence import DisplayProof, InstallationEvidenceSubmission
+from app.models.installation_evidence import InstallationEvidenceSubmission
 from app.models.stored_file import StoredFile
 from app.schemas.evidence_verification import (
     AdminEvidenceVerificationList,
-    EvidenceVerificationList,
     EvidenceVerificationRead,
     PhysicalSpotCheckCreate,
     PhysicalSpotCheckResolve,
 )
 from app.schemas.installation_evidence import (
-    DisplayProofChallengeCreate,
-    DisplayProofChallengeRead,
-    DisplayProofCreate,
-    DisplayProofRead,
     InstallationEvidenceCreate,
     InstallationEvidenceDecision,
     InstallationEvidenceList,
@@ -49,18 +44,15 @@ from app.schemas.stored_files import (
 from app.services.audit import create_audit_event
 from app.services.evidence_verification import (
     list_admin_verifications,
-    list_driver_pending_verifications,
     queue_physical_spot_check,
     resolve_physical_spot_check,
 )
 from app.services.installation_evidence import (
     INSTALLATION_EVIDENCE_VIEWS,
     INSTALLATION_PHOTO_VALIDITY_HOURS,
-    create_display_proof_challenge,
     list_evidence,
     list_photos,
     review_installation_evidence,
-    submit_display_proof,
     submit_installation_evidence,
 )
 from app.services.stored_files import (
@@ -121,22 +113,6 @@ async def evidence_response(
     )
 
 
-def proof_response(proof: DisplayProof) -> DisplayProofRead:
-    return DisplayProofRead(
-        id=proof.id,
-        challenge_id=proof.challenge_id,
-        assignment_id=proof.assignment_id,
-        evidence_submission_id=proof.evidence_submission_id,
-        driver_profile_id=proof.driver_profile_id,
-        vehicle_id=proof.vehicle_id,
-        device_id=proof.device_id,
-        stored_file_id=proof.stored_file_id,
-        verified_at=proof.verified_at,
-        valid_until=proof.valid_until,
-        metadata=proof.proof_metadata,
-    )
-
-
 def verification_response(row: EvidenceVerification) -> EvidenceVerificationRead:
     return EvidenceVerificationRead(
         id=row.id,
@@ -150,7 +126,6 @@ def verification_response(row: EvidenceVerification) -> EvidenceVerificationRead
         issued_by_user_id=row.issued_by_user_id,
         resolved_by_user_id=row.resolved_by_user_id,
         due_at=row.due_at,
-        display_proof_id=row.display_proof_id,
         fraud_flag_id=row.fraud_flag_id,
         result_note=row.result_note,
         metadata=row.verification_metadata,
@@ -167,20 +142,9 @@ async def driver_evidence_policy(
     _user: DriverUserDependency,
     settings: SettingsDependency,
 ) -> InstallationEvidencePolicyRead:
-    # The photo rule is built in; the display-proof windows remain deployment inputs.
-    proof_configured = (
-        settings.display_proof_challenge_ttl_seconds is not None
-        and settings.display_proof_validity_seconds is not None
-    )
     return InstallationEvidencePolicyRead(
         required_views=list(INSTALLATION_EVIDENCE_VIEWS),
         evidence_validity_hours=INSTALLATION_PHOTO_VALIDITY_HOURS,
-        display_proof_challenge_ttl_seconds=(
-            settings.display_proof_challenge_ttl_seconds if proof_configured else None
-        ),
-        display_proof_validity_seconds=(
-            settings.display_proof_validity_seconds if proof_configured else None
-        ),
     )
 
 
@@ -451,74 +415,10 @@ async def admin_reject_evidence(
     return await evidence_response(session, submission)
 
 
-@router.post(
-    "/driver/campaign-assignments/{assignment_id}/display-proof/challenge",
-    response_model=DisplayProofChallengeRead,
-    status_code=status.HTTP_201_CREATED,
-)
-async def driver_create_proof_challenge(
-    assignment_id: UUID,
-    payload: DisplayProofChallengeCreate,
-    user: DriverUserDependency,
-    session: SessionDependency,
-    settings: SettingsDependency,
-) -> DisplayProofChallengeRead:
-    challenge, nonce = await create_display_proof_challenge(
-        session,
-        actor_user_id=user.id,
-        assignment_id=assignment_id,
-        device_id=payload.device_id,
-        settings=settings,
-    )
-    await session.commit()
-    return DisplayProofChallengeRead(
-        challenge_id=challenge.id,
-        nonce=nonce,
-        evidence_submission_id=challenge.evidence_submission_id,
-        expires_at=challenge.expires_at,
-    )
-
-
-@router.post(
-    "/driver/campaign-assignments/{assignment_id}/display-proof",
-    response_model=DisplayProofRead,
-    status_code=status.HTTP_201_CREATED,
-)
-async def driver_submit_display_proof(
-    assignment_id: UUID,
-    payload: DisplayProofCreate,
-    user: DriverUserDependency,
-    session: SessionDependency,
-    settings: SettingsDependency,
-) -> DisplayProofRead:
-    proof = await submit_display_proof(
-        session,
-        actor_user_id=user.id,
-        assignment_id=assignment_id,
-        payload=payload,
-        settings=settings,
-    )
-    await session.commit()
-    return proof_response(proof)
-
-
-@router.get(
-    "/driver/evidence-verifications/pending",
-    response_model=EvidenceVerificationList,
-    summary="List current driver's pending evidence verifications",
-)
-async def driver_pending_evidence_verifications(
-    user: DriverUserDependency,
-    session: SessionDependency,
-) -> EvidenceVerificationList:
-    rows = await list_driver_pending_verifications(session, user_id=user.id)
-    return EvidenceVerificationList(items=[verification_response(row) for row in rows])
-
-
 @router.get(
     "/admin/evidence-verifications",
     response_model=AdminEvidenceVerificationList,
-    summary="List recurring challenges and physical spot checks",
+    summary="List physical spot checks",
 )
 async def admin_evidence_verifications(
     _user: AdminUserDependency,

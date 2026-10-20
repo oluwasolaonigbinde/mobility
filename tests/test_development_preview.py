@@ -25,7 +25,7 @@ def test_default_aggregation_supports_navigation_frozen_reports_maps_and_export(
     from datetime import UTC, datetime, timedelta
     from uuid import UUID, uuid4
 
-    from conftest import auth_headers, create_test_display_proof
+    from conftest import auth_headers, create_test_installation_evidence
     from sqlalchemy import select
     from test_advertiser_reports import create_report_graph
     from test_heatmaps import add_ping_batch
@@ -58,7 +58,7 @@ def test_default_aggregation_supports_navigation_frozen_reports_maps_and_export(
                 plate_number=f"NAV-{day}-{index}",
                 started_at=DAY_1 + timedelta(days=day),
             )
-            proof = create_test_display_proof(
+            proof = create_test_installation_evidence(
                 postgis_db_sessionmaker,
                 assignment_id=assignment.id,
                 reviewed_by_user_id=admin.id,
@@ -74,9 +74,7 @@ def test_default_aggregation_supports_navigation_frozen_reports_maps_and_export(
                     creative = await session.scalar(
                         select(CampaignCreative).where(CampaignCreative.campaign_id == campaign.id)
                     )
-                    evidence = await session.get(
-                        InstallationEvidenceSubmission, proof.evidence_submission_id
-                    )
+                    evidence = await session.get(InstallationEvidenceSubmission, proof.id)
                     evidence.reviewed_at = event.occurred_at - timedelta(minutes=1)
                     evidence.approved_until = event.occurred_at + timedelta(days=1)
                     snapshot = dict(event.event_metadata["activation_snapshot"])

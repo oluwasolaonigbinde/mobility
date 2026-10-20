@@ -91,15 +91,8 @@ it("never borrows areas from a different job or lets visual failure remove safe 
   ).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Start trip" })).toBeVisible();
 });
-it("opens just the photo task when proof is due", async () => {
-  mocks.journey.mockResolvedValue({ ...ready, photoStatus: "display_required" });
-  render(await Home());
-  expect(screen.getByRole("button", { name: "Take today’s photo" })).toBeVisible();
-  expect(screen.queryByRole("button", { name: "Start trip" })).not.toBeInTheDocument();
-});
 it.each([
   ["Start trip", ready, "button"],
-  ["Take today’s photo", { ...ready, photoStatus: "display_required" }, "button"],
   ["View live trip", { ...ready, currentTrip: { id: "trip" } }, "link"],
 ] as const)(
   "keeps %s when visual context is unavailable without making another active-job read",

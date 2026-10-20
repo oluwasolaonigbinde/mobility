@@ -124,14 +124,6 @@ def test_gate_manifest_matches_architecture_once_and_controls_live_adapter(
             "G-commercial",
             "EXT-Q28-COMPANY",
         ),
-        (
-            {
-                "DISPLAY_PROOF_CHALLENGE_TTL_SECONDS": "300",
-                "DISPLAY_PROOF_VALIDITY_SECONDS": "600",
-            },
-            "G-GPS",
-            "EXT-EVIDENCE-POLICY",
-        ),
     ],
 )
 def test_runtime_or_fabricated_reference_cannot_override_missing_authority(

@@ -410,9 +410,8 @@ Set `PUBLIC_ORIGIN`, `PASSWORD_RESET_PUBLIC_URL` and
 it an approved driver's email cannot carry a link. The link works once, for 24
 hours (`DRIVER_ACCOUNT_SETUP_TTL_SECONDS=86400`). If the setup URL is missing,
 the email asks the recipient to contact Terrax for a replacement link and never
-includes a bare token. Before the first trip, also set the display-proof
-windows `DISPLAY_PROOF_CHALLENGE_TTL_SECONDS` and
-`DISPLAY_PROOF_VALIDITY_SECONDS`; trips cannot start without them (REQ-039).
+includes a bare token. D108/REQ-211 removes daily display proof and its configuration.
+Trip start requires current staff-approved weekly installation photos, not a daily photo.
 Driver applications, website enquiries and installation photos need no
 deployment switch. An account-name lookup does
 not verify a payout account: when it is unavailable, D89 permits staff to make a

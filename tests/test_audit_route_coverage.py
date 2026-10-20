@@ -169,14 +169,6 @@ AUDITED = {
     ): "installation_evidence.rejected",
     (
         "POST",
-        "/api/v1/driver/campaign-assignments/{assignment_id}/display-proof/challenge",
-    ): "display_proof.challenge_issued",
-    (
-        "POST",
-        "/api/v1/driver/campaign-assignments/{assignment_id}/display-proof",
-    ): "display_proof.verified",
-    (
-        "POST",
         "/api/v1/admin/evidence-verifications/physical-spot-checks",
     ): "evidence_verification.spot_check_queued",
     (

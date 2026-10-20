@@ -15,7 +15,7 @@ from app.adapters.storage import (
 )
 from app.core.errors import AppError
 from app.models.campaign import CampaignCreative
-from app.models.installation_evidence import DisplayProof, InstallationEvidencePhoto
+from app.models.installation_evidence import InstallationEvidencePhoto
 from app.models.kyc import (
     DriverKycDocument,
     DriverKycSubmission,
@@ -187,7 +187,6 @@ async def _file_is_referenced(
         select(InstallationEvidencePhoto.id).where(
             InstallationEvidencePhoto.stored_file_id == file_id
         ),
-        select(DisplayProof.id).where(DisplayProof.stored_file_id == file_id),
         select(ReportArtifact.id).where(ReportArtifact.stored_file_id == file_id),
     )
     for statement in checks:

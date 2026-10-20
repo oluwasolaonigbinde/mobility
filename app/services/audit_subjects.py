@@ -106,8 +106,6 @@ for _kind, _table in {
     "fraud_dispute": "fraud_disputes",
     "payout_calculation": "payout_calculations",
     "installation_evidence_submission": "installation_evidence_submissions",
-    "display_proof": "display_proofs",
-    "display_proof_challenge": "display_proof_challenges",
     "evidence_verification": "evidence_verifications",
 }.items():
     SUBJECT_QUERIES[_kind] = (

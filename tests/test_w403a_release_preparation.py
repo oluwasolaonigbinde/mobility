@@ -286,11 +286,6 @@ def valid_release_environment(tmp_path: Path) -> dict[str, str]:
             "DRIVER_ACCOUNT_SETUP_PUBLIC_URL": (
                 "https://cardvert.client-owned-domain.com/driver-account-setup"
             ),
-            "DISPLAY_PROOF_CHALLENGE_TTL_SECONDS": "900",
-            "DISPLAY_PROOF_VALIDITY_SECONDS": "86400",
-            "EVIDENCE_HIGH_EARNER_THRESHOLD_NGN": "100000",
-            "EVIDENCE_RENEWAL_LOOKBACK_DAYS": "30",
-            "EVIDENCE_CHALLENGE_RESPONSE_HOURS": "24",
             "VERIFIED_HOURS_FLOOR_PER_WEEK": "10",
             "EMAIL_PROVIDER": "smtp",
             "EMAIL_SENDER_ADDRESS": "notifications@client-owned-domain.com",
@@ -375,8 +370,6 @@ def test_production_compose_preserves_package_configuration_overrides() -> None:
         "ROUTE_REPLAY_MIN_DISTANCE_M": "777",
         "PRIVACY_MIN_VEHICLES_PER_CELL": "9",
         "DRIVER_ACCOUNT_SETUP_TTL_SECONDS": "4747",
-        "DISPLAY_PROOF_VALIDITY_SECONDS": "313",
-        "EVIDENCE_RENEWAL_LOOKBACK_DAYS": "91",
     }
     model = production_model(profiles=("release",), overrides=overrides)
 
@@ -590,11 +583,6 @@ def test_complete_synthetic_environment_validates_settings_and_renders_compose(
         ),
         ("FILE_KYC_RETENTION_DAYS", "", "FILE_KYC_RETENTION_DAYS"),
         ("DRIVER_ACCOUNT_SETUP_PUBLIC_URL", "", "DRIVER_ACCOUNT_SETUP_PUBLIC_URL"),
-        ("DISPLAY_PROOF_CHALLENGE_TTL_SECONDS", "", "CHALLENGE_TTL"),
-        ("DISPLAY_PROOF_VALIDITY_SECONDS", "", "PROOF_VALIDITY"),
-        ("EVIDENCE_HIGH_EARNER_THRESHOLD_NGN", "", "HIGH_EARNER"),
-        ("EVIDENCE_RENEWAL_LOOKBACK_DAYS", "", "RENEWAL_LOOKBACK"),
-        ("EVIDENCE_CHALLENGE_RESPONSE_HOURS", "", "CHALLENGE_RESPONSE"),
         ("VERIFIED_HOURS_FLOOR_PER_WEEK", "", "VERIFIED_HOURS_FLOOR_PER_WEEK"),
     ],
 )

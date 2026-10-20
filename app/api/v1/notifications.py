@@ -142,14 +142,6 @@ def notification_feed_response(
             "Campaign cancelled",
             "A campaign cancellation has been recorded.",
         ),
-        NotificationType.EVIDENCE_CHALLENGE_CREATED.value: (
-            "New display photo needed",
-            "Terrax Media asked for a new photo of the advert on your car. Open Jobs to send it.",
-        ),
-        NotificationType.EVIDENCE_VERIFIED.value: (
-            "Photos approved",
-            "Terrax Media approved your photos of the advert.",
-        ),
         NotificationType.PAYOUT_RELEASED.value: (
             "Pay ready",
             "A hold on some of your pay has been lifted. "

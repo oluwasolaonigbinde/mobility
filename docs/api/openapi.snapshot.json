@@ -88,7 +88,6 @@
             "default": "unavailable",
             "enum": [
               "ready",
-              "display_required",
               "installation_required",
               "unavailable"
             ],
@@ -832,18 +831,6 @@
             ],
             "title": "Campaign Name"
           },
-          "display_proof_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Display Proof Id"
-          },
           "driver_name": {
             "anyOf": [
               {
@@ -998,7 +985,6 @@
           "issued_by_user_id",
           "resolved_by_user_id",
           "due_at",
-          "display_proof_id",
           "fraud_flag_id",
           "result_note",
           "metadata",
@@ -11140,165 +11126,6 @@
         "title": "DigitalCampaignAudienceSourceCreate",
         "type": "object"
       },
-      "DisplayProofChallengeCreate": {
-        "additionalProperties": false,
-        "properties": {
-          "device_id": {
-            "format": "uuid",
-            "title": "Device Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "device_id"
-        ],
-        "title": "DisplayProofChallengeCreate",
-        "type": "object"
-      },
-      "DisplayProofChallengeRead": {
-        "properties": {
-          "challenge_id": {
-            "format": "uuid",
-            "title": "Challenge Id",
-            "type": "string"
-          },
-          "evidence_submission_id": {
-            "format": "uuid",
-            "title": "Evidence Submission Id",
-            "type": "string"
-          },
-          "expires_at": {
-            "format": "date-time",
-            "title": "Expires At",
-            "type": "string"
-          },
-          "nonce": {
-            "title": "Nonce",
-            "type": "string"
-          }
-        },
-        "required": [
-          "challenge_id",
-          "nonce",
-          "evidence_submission_id",
-          "expires_at"
-        ],
-        "title": "DisplayProofChallengeRead",
-        "type": "object"
-      },
-      "DisplayProofCreate": {
-        "additionalProperties": false,
-        "properties": {
-          "challenge_id": {
-            "format": "uuid",
-            "title": "Challenge Id",
-            "type": "string"
-          },
-          "device_id": {
-            "format": "uuid",
-            "title": "Device Id",
-            "type": "string"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "title": "Metadata",
-            "type": "object"
-          },
-          "nonce": {
-            "maxLength": 256,
-            "minLength": 32,
-            "title": "Nonce",
-            "type": "string"
-          },
-          "stored_file_id": {
-            "format": "uuid",
-            "title": "Stored File Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "challenge_id",
-          "nonce",
-          "device_id",
-          "stored_file_id"
-        ],
-        "title": "DisplayProofCreate",
-        "type": "object"
-      },
-      "DisplayProofRead": {
-        "properties": {
-          "assignment_id": {
-            "format": "uuid",
-            "title": "Assignment Id",
-            "type": "string"
-          },
-          "challenge_id": {
-            "format": "uuid",
-            "title": "Challenge Id",
-            "type": "string"
-          },
-          "device_id": {
-            "format": "uuid",
-            "title": "Device Id",
-            "type": "string"
-          },
-          "driver_profile_id": {
-            "format": "uuid",
-            "title": "Driver Profile Id",
-            "type": "string"
-          },
-          "evidence_submission_id": {
-            "format": "uuid",
-            "title": "Evidence Submission Id",
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "title": "Metadata",
-            "type": "object"
-          },
-          "stored_file_id": {
-            "format": "uuid",
-            "title": "Stored File Id",
-            "type": "string"
-          },
-          "valid_until": {
-            "format": "date-time",
-            "title": "Valid Until",
-            "type": "string"
-          },
-          "vehicle_id": {
-            "format": "uuid",
-            "title": "Vehicle Id",
-            "type": "string"
-          },
-          "verified_at": {
-            "format": "date-time",
-            "title": "Verified At",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "challenge_id",
-          "assignment_id",
-          "evidence_submission_id",
-          "driver_profile_id",
-          "vehicle_id",
-          "device_id",
-          "stored_file_id",
-          "verified_at",
-          "valid_until",
-          "metadata"
-        ],
-        "title": "DisplayProofRead",
-        "type": "object"
-      },
       "DocumentReviewRead": {
         "additionalProperties": false,
         "properties": {
@@ -11741,7 +11568,6 @@
             "default": "unavailable",
             "enum": [
               "ready",
-              "display_required",
               "installation_required",
               "unavailable"
             ],
@@ -13679,22 +13505,6 @@
         "title": "EstimateImpressionsRequest",
         "type": "object"
       },
-      "EvidenceVerificationList": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/EvidenceVerificationRead"
-            },
-            "title": "Items",
-            "type": "array"
-          }
-        },
-        "required": [
-          "items"
-        ],
-        "title": "EvidenceVerificationList",
-        "type": "object"
-      },
       "EvidenceVerificationRead": {
         "properties": {
           "assignment_id": {
@@ -13706,18 +13516,6 @@
             "format": "uuid",
             "title": "Campaign Id",
             "type": "string"
-          },
-          "display_proof_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Display Proof Id"
           },
           "driver_profile_id": {
             "format": "uuid",
@@ -13839,7 +13637,6 @@
           "issued_by_user_id",
           "resolved_by_user_id",
           "due_at",
-          "display_proof_id",
           "fraud_flag_id",
           "result_note",
           "metadata",
@@ -13852,8 +13649,6 @@
       "EvidenceVerificationStatus": {
         "enum": [
           "pending",
-          "satisfied",
-          "missed",
           "passed",
           "failed"
         ],
@@ -13862,8 +13657,6 @@
       },
       "EvidenceVerificationType": {
         "enum": [
-          "high_earner_renewal",
-          "concurrent_session",
           "physical_spot_check"
         ],
         "title": "EvidenceVerificationType",
@@ -15018,8 +14811,6 @@
           "route_looping",
           "route_replay",
           "exclusion_zone_presence",
-          "missed_display_challenge",
-          "concurrent_session_day",
           "physical_spot_check_failed"
         ],
         "title": "FraudFlagType",
@@ -15849,28 +15640,6 @@
       },
       "InstallationEvidencePolicyRead": {
         "properties": {
-          "display_proof_challenge_ttl_seconds": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Display Proof Challenge Ttl Seconds"
-          },
-          "display_proof_validity_seconds": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Display Proof Validity Seconds"
-          },
           "evidence_validity_hours": {
             "title": "Evidence Validity Hours",
             "type": "integer"
@@ -15885,9 +15654,7 @@
         },
         "required": [
           "required_views",
-          "evidence_validity_hours",
-          "display_proof_challenge_ttl_seconds",
-          "display_proof_validity_seconds"
+          "evidence_validity_hours"
         ],
         "title": "InstallationEvidencePolicyRead",
         "type": "object"
@@ -17880,8 +17647,6 @@
           "campaign_budget_paused",
           "campaign_budget_resumed",
           "campaign_cancelled",
-          "evidence_challenge_created",
-          "evidence_verified",
           "payout_released",
           "password_reset_requested",
           "driver_onboarding_access_requested",
@@ -24527,18 +24292,6 @@
             "title": "Created At",
             "type": "string"
           },
-          "display_proof_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Display Proof Id"
-          },
           "driver_profile_id": {
             "format": "uuid",
             "title": "Driver Profile Id",
@@ -24685,7 +24438,6 @@
           "campaign_id",
           "driver_profile_id",
           "vehicle_id",
-          "display_proof_id",
           "status",
           "started_at",
           "ended_at",
@@ -31237,7 +30989,7 @@
             "OAuth2PasswordBearer": []
           }
         ],
-        "summary": "List recurring challenges and physical spot checks",
+        "summary": "List physical spot checks",
         "tags": [
           "Installation evidence"
         ]
@@ -43115,122 +42867,6 @@
         ]
       }
     },
-    "/api/v1/driver/campaign-assignments/{assignment_id}/display-proof": {
-      "post": {
-        "operationId": "driver_submit_display_proof_api_v1_driver_campaign_assignments__assignment_id__display_proof_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "assignment_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Assignment Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DisplayProofCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DisplayProofRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Driver Submit Display Proof",
-        "tags": [
-          "Installation evidence"
-        ]
-      }
-    },
-    "/api/v1/driver/campaign-assignments/{assignment_id}/display-proof/challenge": {
-      "post": {
-        "operationId": "driver_create_proof_challenge_api_v1_driver_campaign_assignments__assignment_id__display_proof_challenge_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "assignment_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Assignment Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DisplayProofChallengeCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DisplayProofChallengeRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Driver Create Proof Challenge",
-        "tags": [
-          "Installation evidence"
-        ]
-      }
-    },
     "/api/v1/driver/campaign-assignments/{assignment_id}/installation-evidence": {
       "get": {
         "operationId": "driver_list_evidence_api_v1_driver_campaign_assignments__assignment_id__installation_evidence_get",
@@ -44071,42 +43707,6 @@
         "summary": "Read current driver earnings summary",
         "tags": [
           "Payouts"
-        ]
-      }
-    },
-    "/api/v1/driver/evidence-verifications/pending": {
-      "get": {
-        "operationId": "driver_pending_evidence_verifications_api_v1_driver_evidence_verifications_pending_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EvidenceVerificationList"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "List current driver's pending evidence verifications",
-        "tags": [
-          "Installation evidence"
         ]
       }
     },

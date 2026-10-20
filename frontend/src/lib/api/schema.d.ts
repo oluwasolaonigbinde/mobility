@@ -1088,7 +1088,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List recurring challenges and physical spot checks */
+        /** List physical spot checks */
         get: operations["admin_evidence_verifications_api_v1_admin_evidence_verifications_get"];
         put?: never;
         post?: never;
@@ -4148,40 +4148,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/driver/campaign-assignments/{assignment_id}/display-proof": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Driver Submit Display Proof */
-        post: operations["driver_submit_display_proof_api_v1_driver_campaign_assignments__assignment_id__display_proof_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/driver/campaign-assignments/{assignment_id}/display-proof/challenge": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Driver Create Proof Challenge */
-        post: operations["driver_create_proof_challenge_api_v1_driver_campaign_assignments__assignment_id__display_proof_challenge_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/driver/campaign-assignments/{assignment_id}/installation-evidence": {
         parameters: {
             query?: never;
@@ -4448,23 +4414,6 @@ export interface paths {
         };
         /** Read current driver earnings summary */
         get: operations["driver_get_earnings_summary_api_v1_driver_earnings_summary_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/driver/evidence-verifications/pending": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List current driver's pending evidence verifications */
-        get: operations["driver_pending_evidence_verifications_api_v1_driver_evidence_verifications_pending_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5094,7 +5043,7 @@ export interface components {
              * @default unavailable
              * @enum {string}
              */
-            photo_status: "ready" | "display_required" | "installation_required" | "unavailable";
+            photo_status: "ready" | "installation_required" | "unavailable";
         };
         /** AdminApplicantRead */
         AdminApplicantRead: {
@@ -5371,8 +5320,6 @@ export interface components {
             campaign_id: string;
             /** Campaign Name */
             campaign_name?: string | null;
-            /** Display Proof Id */
-            display_proof_id: string | null;
             /** Driver Name */
             driver_name?: string | null;
             /**
@@ -9187,115 +9134,6 @@ export interface components {
              */
             source_type: "digital-campaign-audience";
         };
-        /** DisplayProofChallengeCreate */
-        DisplayProofChallengeCreate: {
-            /**
-             * Device Id
-             * Format: uuid
-             */
-            device_id: string;
-        };
-        /** DisplayProofChallengeRead */
-        DisplayProofChallengeRead: {
-            /**
-             * Challenge Id
-             * Format: uuid
-             */
-            challenge_id: string;
-            /**
-             * Evidence Submission Id
-             * Format: uuid
-             */
-            evidence_submission_id: string;
-            /**
-             * Expires At
-             * Format: date-time
-             */
-            expires_at: string;
-            /** Nonce */
-            nonce: string;
-        };
-        /** DisplayProofCreate */
-        DisplayProofCreate: {
-            /**
-             * Challenge Id
-             * Format: uuid
-             */
-            challenge_id: string;
-            /**
-             * Device Id
-             * Format: uuid
-             */
-            device_id: string;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            };
-            /** Nonce */
-            nonce: string;
-            /**
-             * Stored File Id
-             * Format: uuid
-             */
-            stored_file_id: string;
-        };
-        /** DisplayProofRead */
-        DisplayProofRead: {
-            /**
-             * Assignment Id
-             * Format: uuid
-             */
-            assignment_id: string;
-            /**
-             * Challenge Id
-             * Format: uuid
-             */
-            challenge_id: string;
-            /**
-             * Device Id
-             * Format: uuid
-             */
-            device_id: string;
-            /**
-             * Driver Profile Id
-             * Format: uuid
-             */
-            driver_profile_id: string;
-            /**
-             * Evidence Submission Id
-             * Format: uuid
-             */
-            evidence_submission_id: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Metadata */
-            metadata: {
-                [key: string]: unknown;
-            };
-            /**
-             * Stored File Id
-             * Format: uuid
-             */
-            stored_file_id: string;
-            /**
-             * Valid Until
-             * Format: date-time
-             */
-            valid_until: string;
-            /**
-             * Vehicle Id
-             * Format: uuid
-             */
-            vehicle_id: string;
-            /**
-             * Verified At
-             * Format: date-time
-             */
-            verified_at: string;
-        };
         /** DocumentReviewRead */
         DocumentReviewRead: {
             /** Expires On */
@@ -9467,7 +9305,7 @@ export interface components {
              * @default unavailable
              * @enum {string}
              */
-            photo_status: "ready" | "display_required" | "installation_required" | "unavailable";
+            photo_status: "ready" | "installation_required" | "unavailable";
         };
         /** DriverDocumentsRead */
         DriverDocumentsRead: {
@@ -10179,11 +10017,6 @@ export interface components {
             /** Traffic Density Profile Id */
             traffic_density_profile_id?: string | null;
         };
-        /** EvidenceVerificationList */
-        EvidenceVerificationList: {
-            /** Items */
-            items: components["schemas"]["EvidenceVerificationRead"][];
-        };
         /** EvidenceVerificationRead */
         EvidenceVerificationRead: {
             /**
@@ -10196,8 +10029,6 @@ export interface components {
              * Format: uuid
              */
             campaign_id: string;
-            /** Display Proof Id */
-            display_proof_id: string | null;
             /**
              * Driver Profile Id
              * Format: uuid
@@ -10246,12 +10077,12 @@ export interface components {
          * EvidenceVerificationStatus
          * @enum {string}
          */
-        EvidenceVerificationStatus: "pending" | "satisfied" | "missed" | "passed" | "failed";
+        EvidenceVerificationStatus: "pending" | "passed" | "failed";
         /**
          * EvidenceVerificationType
          * @enum {string}
          */
-        EvidenceVerificationType: "high_earner_renewal" | "concurrent_session" | "physical_spot_check";
+        EvidenceVerificationType: "physical_spot_check";
         /** ExposureScoreConstantsRead */
         ExposureScoreConstantsRead: {
             /**
@@ -10766,7 +10597,7 @@ export interface components {
          * FraudFlagType
          * @enum {string}
          */
-        FraudFlagType: "insufficient_pings" | "impossible_speed" | "poor_accuracy" | "stationary_trip" | "excessive_ping_gap" | "future_timestamp" | "route_looping" | "route_replay" | "exclusion_zone_presence" | "missed_display_challenge" | "concurrent_session_day" | "physical_spot_check_failed";
+        FraudFlagType: "insufficient_pings" | "impossible_speed" | "poor_accuracy" | "stationary_trip" | "excessive_ping_gap" | "future_timestamp" | "route_looping" | "route_replay" | "exclusion_zone_presence" | "physical_spot_check_failed";
         /** HeatmapFeature */
         HeatmapFeature: {
             /** Geometry */
@@ -11093,10 +10924,6 @@ export interface components {
         };
         /** InstallationEvidencePolicyRead */
         InstallationEvidencePolicyRead: {
-            /** Display Proof Challenge Ttl Seconds */
-            display_proof_challenge_ttl_seconds: number | null;
-            /** Display Proof Validity Seconds */
-            display_proof_validity_seconds: number | null;
             /** Evidence Validity Hours */
             evidence_validity_hours: number;
             /** Required Views */
@@ -11919,7 +11746,7 @@ export interface components {
          * NotificationType
          * @enum {string}
          */
-        NotificationType: "driver_id_approved" | "driver_id_rejected" | "driver_car_approved" | "driver_car_rejected" | "assignment_offered" | "assignment_accepted" | "campaign_approved" | "campaign_rejected" | "creative_approved" | "creative_rejected" | "quotation_ready" | "funding_confirmed" | "budget_alert" | "budget_urgent_alert" | "campaign_budget_paused" | "campaign_budget_resumed" | "campaign_cancelled" | "evidence_challenge_created" | "evidence_verified" | "payout_released" | "password_reset_requested" | "driver_onboarding_access_requested" | "driver_account_setup_requested" | "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied" | "activity_floor_breached" | "activity_floor_recovered" | "assignment_inactive" | "assignment_activity_recovered" | "payout_automatic_alert" | "payout_automatic_paused" | "payout_automatic_resumed" | "complaint_received" | "complaint_replied" | "complaint_resolved" | "complaint_assigned";
+        NotificationType: "driver_id_approved" | "driver_id_rejected" | "driver_car_approved" | "driver_car_rejected" | "assignment_offered" | "assignment_accepted" | "campaign_approved" | "campaign_rejected" | "creative_approved" | "creative_rejected" | "quotation_ready" | "funding_confirmed" | "budget_alert" | "budget_urgent_alert" | "campaign_budget_paused" | "campaign_budget_resumed" | "campaign_cancelled" | "payout_released" | "password_reset_requested" | "driver_onboarding_access_requested" | "driver_account_setup_requested" | "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied" | "activity_floor_breached" | "activity_floor_recovered" | "assignment_inactive" | "assignment_activity_recovered" | "payout_automatic_alert" | "payout_automatic_paused" | "payout_automatic_resumed" | "complaint_received" | "complaint_replied" | "complaint_resolved" | "complaint_assigned";
         /** NotificationUnreadCountRead */
         NotificationUnreadCountRead: {
             /** Unread Count */
@@ -14485,8 +14312,6 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
-            /** Display Proof Id */
-            display_proof_id: string | null;
             /**
              * Driver Profile Id
              * Format: uuid
@@ -24152,76 +23977,6 @@ export interface operations {
             };
         };
     };
-    driver_submit_display_proof_api_v1_driver_campaign_assignments__assignment_id__display_proof_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                assignment_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DisplayProofCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DisplayProofRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    driver_create_proof_challenge_api_v1_driver_campaign_assignments__assignment_id__display_proof_challenge_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                assignment_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DisplayProofChallengeCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DisplayProofChallengeRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     driver_list_evidence_api_v1_driver_campaign_assignments__assignment_id__installation_evidence_get: {
         parameters: {
             query?: never;
@@ -24771,35 +24526,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DriverEarningsSummary"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    driver_pending_evidence_verifications_api_v1_driver_evidence_verifications_pending_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvidenceVerificationList"];
                 };
             };
             /** @description Request validation failed */

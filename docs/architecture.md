@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.147 — 2026-10-20. Canonical source of truth: current state AND target state.**
+**Version 1.148 — 2026-10-20. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -44,6 +44,56 @@ verified starting point.
 Read this document **before designing or building any feature**. It exists so that
 implementations conform to one architecture instead of drifting apart, agent by
 agent, PR by PR.
+
+### 1.1 Pilot simplification (D108–D119 / REQ-210–219) [TARGET]
+
+Owner direction on 20 October supersedes conflicting designs in §§8, 14–24,
+27, 30 and 35 for Lane A's approved S1–S60 inventory. Implementation and
+criterion verification follow [the contract](req210-slimdown-delivery.md).
+Earlier descriptions below are historical where they conflict with this amendment.
+
+- D108–D110: remove daily display proof entirely, high-earner/concurrent
+  challenges, unset weekly hours floor, named complaint assignment, DSR workflow,
+  no-op disclosure-history purge and obsolete pay environment keys. Keep weekly
+  five-view/seven-day approved installation photos. Inspector records passed/failed
+  plus note; failure holds pay. Inactivity is seven days, self-closing, one notice.
+- D111–D114: existing frozen proportional in-area daily formula, no minimum,
+  one-day cap, identical eligibility defaults. No publishing/cadence/run-limit
+  switches or subsidy; Pause remains. Same admin can perform manual payout and
+  correction actions with reasons/audit and stale/add-only checks. First new-bank
+  payout stays human, holds stay held, provider per-line proof stays mandatory.
+  Overpayments are manual negative adjustments, no automatic debt/recovery.
+  Receipts recorded→confirmed/reversed; direct booked/budget rule exactly D104.
+  Late uploads apply before day pay calculation, otherwise audit/drop; only
+  explicit corrections change calculated pay. Keep speed/stationary/gap/replay/
+  exclusion/failed-spot flags, open→confirmed/dismissed; never auto-release.
+- D115–D116: remove pilot retargeting/audience/export/adapter/job/privacy cells
+  and ROI, with no report recommendations. Remove bonus zones, Scheduled and
+  unused non-money enums; artwork retains PNG/JPEG/WebP images and PDF as image/pdf.
+  One advertiser role with company isolation. Photo
+  approval reuses every locked activation check; unmet prerequisites are shown.
+  Funding, window/waiver, artwork, frozen terms, eligibility and exclusivity stay. Fitted artwork cannot be added/swapped after production starts or active/later status; replacements go through Terrax (client, 20 Oct, D116/REQ-215). Creative create/update share the campaign production-authority lock with production start.
+- D117/D119: fixed existing security/tracking/infrastructure numbers without
+  weaker values, queued retry email sent/failed without signed receipts, opt-out
+  retained. Phone needs only support number 07074200080 configuration; expiry,
+  attempts and staff audit stay. KYC file retention is fixed six months.
+- D118: one weekly/final campaign report plus staff Re-run. Preserve D71 issued
+  bytes/hashes and old downloads. Advertisers select period and one/all owned
+  campaigns, CSV/PDF with charts: dates, three-car areas, cars, verified distance/
+  driving days/trips/time, labelled estimated views, creative previews and status.
+  Measured and estimated sections visibly distinct; no money/budget/CTR/ROI.
+  Fixed estimate formula; Finished derives from date, no stored completed values.
+  Reports and the owned campaign seven-day distance/car series share Nigeria-day
+  grouping: seven entries including partial today, empty days zero, existing disclosure rules.
+
+Placement remains in existing domain services, APIs and jobs. Remove obsolete
+routes/tables/services without compatibility aliases. Reporting adds only the
+approved `/advertiser/reports` surface/navigation and changes campaign reports.
+All §9 baselines and R14-B follow API changes. Signed trip evidence, tenant/file
+boundaries, exact ledger and kept provider adapters remain. No visual redesign,
+REQ-196 change, S25/S26, Day X of Y or progress edit is authorized. Controller
+must reconcile obsolete launch wording for evidence/DSR/audiences/method gates;
+this amendment makes no launch, CI, merge or provider claim.
 
 ### The conformance rule
 
@@ -255,7 +305,7 @@ to conflict, the earlier-numbered principle wins.
         └───────────────┬───────────────┘
                         │  Authorization: Bearer <JWT>, internal network
         ┌───────────────▼───────────────┐
-        │  FastAPI  (app/)              │  /api/v1 — 320 operations
+        │  FastAPI  (app/)              │  /api/v1 — 318 operations
         │  SQLAlchemy 2 async + Alembic │  request/response + worker
         │  services layer, audit trail  │  enqueue (§6.5); no WebSockets
         └───────┬───────────────┬───────┘
@@ -263,7 +313,7 @@ to conflict, the earlier-numbered principle wins.
    ┌────────────▼─────────┐   ┌─▼──────────────────────────┐
    │ PostgreSQL 16 +      │   │ Redis 7                    │
    │ PostGIS 3.4          │   │ [BUILT] login rate-limit   │
-   │ 135 mapped tables,   │   │ counters (F7) + arq queue  │
+   │ 133 mapped tables,   │   │ counters (F7) + arq queue  │
    │ (Point/MultiPolygon) │   │ (§6.5); disposable queue,  │
    └──────────────────────┘   │ fail-closed auth buckets   │
                               └────────────────────────────┘
@@ -276,7 +326,7 @@ of this diagram is §13.
 <!-- architecture-current-state:start -->
 <!-- Generated by scripts/update_architecture_inventory.py; do not edit this block. -->
 
-Current OpenAPI: **321 operations across 291 paths**; **320 operations under `/api/v1`** plus root `/health`.
+Current OpenAPI: **319 operations across 289 paths**; **318 operations under `/api/v1`** plus root `/health`.
 
 | Prefix | Operations | Paths |
 |--------|-----------:|------:|
@@ -284,15 +334,15 @@ Current OpenAPI: **321 operations across 291 paths**; **320 operations under `/a
 | `/api/v1/advertiser/*` | 66 | 52 |
 | `/api/v1/auth/*` | 18 | 18 |
 | `/api/v1/campaign-enquiries` | 1 | 1 |
-| `/api/v1/driver/*` | 49 | 46 |
+| `/api/v1/driver/*` | 47 | 44 |
 | `/api/v1/health*` | 3 | 3 |
 | `/api/v1/me` | 1 | 1 |
 | `/api/v1/notifications/*` | 5 | 5 |
 | `/api/v1/webhooks/*` | 2 | 2 |
 | `/health` | 1 | 1 |
 
-SQLAlchemy metadata contains **135 mapped tables**.
-Alembic contains **3 linear revisions**, from base `0106_development_baseline` to the single head `0108_req180_backend_batch2`.
+SQLAlchemy metadata contains **133 mapped tables**.
+Alembic contains **4 linear revisions**, from base `0106_development_baseline` to the single head `0109_remove_daily_display_proof`.
 
 Required public driver-onboarding paths:
 
@@ -324,7 +374,7 @@ app/
 ├── core/              # config.py (pydantic-settings), security.py (JWT/argon2),
 │                      # errors.py (AppError + envelope), middleware.py (request-ID)
 ├── db/                # base.py (DeclarativeBase), session.py (async engine/session)
-├── models/            # SQLAlchemy models — 135 mapped tables (see §7)
+├── models/            # SQLAlchemy models — 133 mapped tables (see §7)
 ├── schemas/           # Pydantic request/response models, incl. pagination + decimal mixins
 ├── services/          # all business logic; routers stay thin
 └── seeds/demo.py      # demo seed CLI (python -m app.seeds.demo) — NOT an endpoint
@@ -556,7 +606,7 @@ queues/realtime ad hoc — §14 remains the one sanctioned design.
 
 ## 7. Data model
 
-### 7.1 Entities **[BUILT]** — 135 mapped tables
+### 7.1 Entities **[BUILT]** — 133 mapped tables
 
 The groups below describe selected load-bearing entities rather than an
 exhaustive table catalogue. SQLAlchemy metadata and the generated sentinel
@@ -636,7 +686,7 @@ Notes:
 
 ### 7.2 Migration policy **[BUILT]**
 
-- Alembic has **3 linear revisions**, from base `0106_development_baseline` to the single head `0108_req180_backend_batch2`.
+- Alembic has **4 linear revisions**, from base `0106_development_baseline` to the single head `0109_remove_daily_display_proof`.
   <!-- verified by scripts/update_architecture_inventory.py from Alembic's ScriptDirectory -->
 - The baseline enables `pgcrypto` + `postgis`.
 - D83 authorizes the one-time development squash because there is no live data.
@@ -3866,6 +3916,8 @@ within one hour. Simultaneous Redis/database failure can only emit the fixed
 failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
+
+- **v1.148 — 20 October 2026 (D108–D119 / REQ-210–219):** Owner-approved pilot simplification and client-selected CSV/PDF reports. §1.1 supersedes conflicting earlier designs; ordered batch implementation and reviews pending. No external action, progress or REQ-196 change.
 
 - **v1.147 — 20 October 2026 (REQ-208 / D106–D107; extends D105):** Owner-approved pre-push fixes from the read-only Fable review. D107 makes three distinct cars the whole disclosure rule for every governed output (audience policy schema v2, reason `minimum_cars`; trip/day/contributor-share settings removed). A fresh deployment needs no feature switches: Apply and the enquiry form are always on with their rate limits, and the installation-photo rule is code; display-proof windows stay deployment inputs that trips need. A shell command creates the first staff admin. D106 sets the approved-driver set-up link to 24 hours and makes `DRIVER_ACCOUNT_SETUP_PUBLIC_URL` a required release value. Plain recovery emails; staff header reads Terrax Media operations. Speed: one `GET /driver/earnings/days` read (days plus today/this week/total/on hold), company outstanding invoice money on the staff company list, card artwork on the advertiser campaign list, and one cached commercial read per staff campaign hub request. All three API baselines move together. No push, provider or deployment claim.
 

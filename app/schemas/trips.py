@@ -95,7 +95,6 @@ class TripRead(BaseModel):
     campaign_id: UUID
     driver_profile_id: UUID
     vehicle_id: UUID
-    display_proof_id: UUID | None
     status: TripSessionStatus
     started_at: datetime
     ended_at: datetime | None

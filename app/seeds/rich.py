@@ -1760,7 +1760,6 @@ async def ensure_portal_campaigns(session, *, graph, staff, settings):
     for i, person in enumerate([graph.admin, graph.advertiser, graph.driver, *staff[:5]]):
         for j, kind in enumerate(
             (
-                NotificationType.EVIDENCE_VERIFIED,
                 NotificationType.COMPLAINT_REPLIED,
                 NotificationType.PAYOUT_RELEASED,
             )

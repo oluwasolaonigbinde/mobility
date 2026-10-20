@@ -36,8 +36,8 @@ def test_architecture_inventory_requires_one_linear_alembic_head() -> None:
     revisions = tuple(scripts.walk_revisions())
 
     assert scripts.get_bases() == ["0106_development_baseline"]
-    assert scripts.get_heads() == ["0108_req180_backend_batch2"]
-    assert len(revisions) == 3
+    assert scripts.get_heads() == ["0109_remove_daily_display_proof"]
+    assert len(revisions) == 4
     assert not any(revision.is_branch_point or revision.is_merge_point for revision in revisions)
 
 

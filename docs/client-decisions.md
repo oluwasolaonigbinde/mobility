@@ -260,7 +260,9 @@ emails come only when extra charges go past the agreed price (D104).
 
 ### Campaign lifecycle and changes
 
-**Current rule:** Advertisers create a draft and submit it for admin approval
+**Current rule:** D116 merges Scheduled into Approved, removes bonus zones/unreachable enums and advertiser company roles. Artwork retains PNG/JPEG/WebP images and PDF using explicit image/pdf types; remove video/html/text/other. Fitted artwork cannot be added/swapped after production starts; replacement goes through Terrax (client, 20 Oct), enforced by a shared create/update production-lock guard. Photo approval activates only after all existing checks. D118 derives Finished from end date. Campaign daily metrics use Nigeria calendar days; the owned seven-day read includes partial today and zero empty days. Funding, cancellations, D104 budget rules and change approvals remain. Owner-approved 20 October 2026, REQ-210–218; implementation pending.
+
+**Previous rule (ended 20 October 2026; retained history):** Advertisers create a draft and submit it for admin approval
 (Q6). A campaign can be submitted only with start and end dates, a total budget
 and at least one target area (D38d). Launch needs funding authority, approved
 artwork, assigned eligible vehicles and approved installation photos; an admin
@@ -316,7 +318,9 @@ advertiser or campaign information. Screens belong to Worker B.
 
 ### Matching, offers and activity
 
-**Current rule:** Cardvert recommends eligible drivers and vehicles; an admin
+**Current rule:** D109 removes high-earner/concurrent challenges, weekly hours floor and extra notices. Inspector records passed/failed plus note; failure holds pay. Seven-day inactivity flag self-closes with one staff notice. Owner-approved 20 October 2026, REQ-210–218; implementation pending.
+
+**Previous rule (ended 20 October 2026; retained history):** Cardvert recommends eligible drivers and vehicles; an admin
 approves the assignment (Q7). The driver gets a full offer and accepts or
 declines (Q8); accepted terms are frozen. One active campaign per vehicle
 (Q16). A configurable minimum of verified hours applies, and a driver is
@@ -390,7 +394,9 @@ renewal periods stay unset (D69, REQ-137). Mark expired retains the recorded out
 
 ### Installation photos
 
-**Current rule:** Before campaign hours can earn, installation photos must be
+**Current rule:** D108 removes all daily display proof; keep weekly five-view seven-day approved installation photos. D116 auto-activates on approval only when every existing check passes, otherwise show missing checks. Owner-approved 20 October 2026, REQ-210–218; implementation pending.
+
+**Previous rule (ended 20 October 2026; retained history):** Before campaign hours can earn, installation photos must be
 approved by an admin (Q17). Views: **front, back, left, right and close-up**.
 The driver or an admin uploads them (there is no installer login); Compliance
 reviews; new photos are required **weekly**; Terrax's inspector makes spot
@@ -424,7 +430,9 @@ continuous stop adds no distance (D39b, D43d).
 
 ### Driver pay
 
-**Current rule:** A driver earns a **daily rate of ₦10,000** for covering the
+**Current rule:** D111 removes publishing switch, fixes proportional in-area daily pay and identical eligibility values, daily automatic cadence with no run limit under Pause. D112 allows one admin with reasons/audit for manual batches/corrections; stale/add-only/new-bank/hold/provider checks stay. D113 replaces automatic debt with manual negative adjustments. Owner-approved 20 October 2026, REQ-210–218; implementation pending.
+
+**Previous rule (ended 20 October 2026; retained history):** A driver earns a **daily rate of ₦10,000** for covering the
 **expected daily miles** (70 in the pilot). A shorter day pays **its share of
 the day**: miles counted ÷ expected miles × ₦10,000 (50 of 70 miles =
 ₦7,143), with **no minimum distance**. **Only miles inside the campaign area
@@ -449,7 +457,9 @@ of days on hold. Paid money is never counted as on hold (REQ-208).
 
 ### Payout approval and timing
 
-**Current rule:** Drivers are paid by **automatic bank transfer** through an
+**Current rule:** D111 fixes daily automatic payouts under Pause, clean earnings only, first new-bank payout human. D112 permits same admin for manual preparation/approval/reconciliation and corrections with reasons/audit and stale checks. D113 removes debt carry-forward; manual negative adjustments are audited. Owner-approved 20 October 2026, REQ-210–218; implementation pending.
+
+**Previous rule (ended 20 October 2026; retained history):** Drivers are paid by **automatic bank transfer** through an
 approved provider (Q27; Paystack Transfers funded from OPay, client answers
 item 8), **every day** (D43e). **Payouts are approved automatically** for clean
 earnings only: no hold, flag or open dispute; a verified bank account that has
@@ -478,7 +488,9 @@ remain unchanged. Requested hardening: [REQ-036](requests.md), [REQ-040](request
 
 ### Fraud holds and earnings release
 
-**Current rule:** Earnings from flagged trips are held for admin review, with
+**Current rule:** D114 retains only pay-changing flags (speed/stationary/gap/replay/exclusion/failed spot), open to confirmed/dismissed. Never auto-release flagged pay. Late uploads apply before day pay calculation, otherwise audit/drop; corrections remain explicit. D117 fixes seven-day target. Owner-approved 20 October 2026, REQ-210–218; implementation pending.
+
+**Previous rule (ended 20 October 2026; retained history):** Earnings from flagged trips are held for admin review, with
 reasons and a dispute path; thresholds are configurable (Q21). Clean earnings
 become available for the next payout. Flagged earnings stay pending with a
 seven-day review target and are never released automatically; unresolved cases
@@ -490,7 +502,9 @@ escalate after day seven (Q22).
 
 ### Complaints and support
 
-**Current rule:** Drivers and advertisers raise complaints in the app, with a
+**Current rule:** D109 removes named staff assignment and its notification. Existing department handling, messages and cancellation requests stay. Owner-approved 20 October 2026, REQ-210–218; implementation pending.
+
+**Previous rule (ended 20 October 2026; retained history):** Drivers and advertisers raise complaints in the app, with a
 category and an optional reference to one of their own campaigns, trips or
 payouts; Customer Service answers in an inbox that also appears under
 "Waiting for you" (D39d). Until the client decides: categories are a neutral
@@ -542,7 +556,9 @@ named operator (D70, REQ-138).
 
 ### Advertiser reporting and privacy
 
-**Current rule:** The standard report is a **Campaign Performance Analysis**:
+**Current rule:** D118: weekly/final campaign reports with staff Re-run; issued files immutable and old downloads retained (D71). Advertisers choose period and one/all own campaigns, CSV/PDF with charts: dates, three-car areas, cars, verified distance/driving days/trips/time, labelled estimated views, creative previews and status. Measured and estimated sections visibly distinct. No money/budget/CTR/ROI. Fixed estimates; Finished derives from date. D115 removes audience recommendations. Owner-approved 20 October 2026, REQ-210–218; implementation pending.
+
+**Previous rule (ended 20 October 2026; retained history):** The standard report is a **Campaign Performance Analysis**:
 verified operations, clearly labelled estimated exposure and target-area
 coverage. Financial ROI appears only when an advertiser supplies conversion or
 revenue data and an approved method exists (Q12, Q30, D20c). Advertisers do not
@@ -577,7 +593,9 @@ recommendations and the existing conditional ROI authority.
 
 ### Retargeting and ad platforms
 
-**Current rule:** Retargeting uses anonymised exposure segments, controlled
+**Current rule:** D115 removes pilot retargeting/audience export, sources/links, screens, services, job, ad adapter, audience privacy cells and ROI mode. Owner approved removal 20 October; Git retains old code. Reports work without recommendations. Owner-approved 20 October 2026, REQ-210–218; implementation pending.
+
+**Previous rule (ended 20 October 2026; retained history):** Retargeting uses anonymised exposure segments, controlled
 export and optional Meta/Google targeting by area, time and context — never
 person-level audiences (Q11, D20a). **Off for the pilot**; Meta Business and
 Google Ads accounts are to be created in Terrax's name later (client answers
@@ -636,7 +654,9 @@ key-management service (D44).
 
 ### Legal, privacy and retention
 
-**Current rule:** Built GPS, ID collection, results and reports are accessible during development without legal approval switches; tenant isolation, aggregation limits and query recording remain, and legal/privacy plus overlap/differencing protections must be restored before real users (D56, REQ-072/089). For driver-application and vehicle-document review, the View click is the staff acknowledgment; each read keeps its application or vehicle purpose-scoped audit and one-minute/leave-page hiding, and NIN has its separate reveal (D58, REQ-105). Complete canonical UUID whole tokens are never phone numbers in any audit field or free text; phones beside them, broken/partial UUIDs and sensitive fields retain redaction (D61, REQ-111, superseding D60).
+**Current rule:** D110 removes unrequested DSR workflow/no-op disclosure purge; staff handle requests manually pending legal rules. Company isolation, audited access and three-car rule stay. D119 fixes KYC retention at six months (client item 17, owner confirmed 20 October), so purge runs. Owner-approved 20 October 2026, REQ-210–218; implementation pending.
+
+**Previous rule (ended 20 October 2026; retained history):** Built GPS, ID collection, results and reports are accessible during development without legal approval switches; tenant isolation, aggregation limits and query recording remain, and legal/privacy plus overlap/differencing protections must be restored before real users (D56, REQ-072/089). For driver-application and vehicle-document review, the View click is the staff acknowledgment; each read keeps its application or vehicle purpose-scoped audit and one-minute/leave-page hiding, and NIN has its separate reveal (D58, REQ-105). Complete canonical UUID whole tokens are never phone numbers in any audit field or free text; phones beside them, broken/partial UUIDs and sensitive fields retain redaction (D61, REQ-111, superseding D60).
 
 **Still open:** [REQ-031](requests.md) lawyer's name, [REQ-032](requests.md) legal pack.
 

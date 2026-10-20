@@ -52,7 +52,7 @@ from app.services.campaign_assignments import (
     get_driver_profile_for_user,
 )
 from app.services.campaign_cancellations import campaign_financial_cutoff
-from app.services.installation_evidence import ensure_current_display_proof
+from app.services.installation_evidence import ensure_current_approved_installation_evidence
 from app.services.payout_rule_serialization import (
     acquire_campaign_terms_lock,
     acquire_campaign_terms_shared_lock,
@@ -391,7 +391,7 @@ async def start_driver_trip(
         driver_profile_id=driver_profile.id,
         vehicle_id=vehicle.id,
     )
-    display_proof = await ensure_current_display_proof(
+    await ensure_current_approved_installation_evidence(
         session,
         assignment=assignment,
         settings=settings,
@@ -404,7 +404,6 @@ async def start_driver_trip(
         campaign_id=assignment.campaign_id,
         driver_profile_id=driver_profile.id,
         vehicle_id=vehicle.id,
-        display_proof_id=display_proof.id,
         started_by_user_id=user_id,
         status=TripSessionStatus.ACTIVE.value,
         evidence_protocol_version=2,

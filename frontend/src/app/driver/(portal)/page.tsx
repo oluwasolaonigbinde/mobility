@@ -13,7 +13,6 @@ import { loadDriverCampaignJourney } from "@/lib/driver/load-campaign-journey";
 import { loadDailyEarnings } from "@/lib/driver/load-daily-earnings";
 import { watDay } from "@/lib/driver/daily-earnings";
 import { TripTracker } from "./track/trip-tracker";
-import { InstallationEvidenceActions } from "./assignments/installation-evidence-actions";
 import { JobVisual } from "@/components/driver/job-visual";
 import { frozenJob } from "@/lib/driver/frozen-job";
 
@@ -46,8 +45,6 @@ export default async function DriverHomePage() {
     lastPaid?.paidAt && watDay(new Date(lastPaid.paidAt)) === yesterday
       ? "Paid yesterday"
       : lastPaid?.status;
-  const photoDue =
-    work.photoStatus === "display_required" && work.journey.canStart && !work.currentTrip;
   const noOffer = next?.id === "offer" && /^No (current|campaign) offer/.test(next.title);
   return (
     <FreshDriverAuthority
@@ -101,15 +98,6 @@ export default async function DriverHomePage() {
               <Link href="/driver/track" className={actionClass}>
                 View live trip
               </Link>
-            ) : photoDue ? (
-              <InstallationEvidenceActions
-                assignmentId={assignment!.id}
-                status="active"
-                requiredViews={[]}
-                latestEvidenceStatus="approved"
-                displayOnly
-                primaryPhoto
-              />
             ) : work.journey.canStart && work.photoStatus === "ready" ? (
               <TripTracker
                 assignment={work.trackerAssignment}

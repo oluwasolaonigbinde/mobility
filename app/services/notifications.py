@@ -55,8 +55,6 @@ _CAMPAIGN_NOTICE_TYPES = {
     NotificationType.CAMPAIGN_BUDGET_PAUSED,
     NotificationType.CAMPAIGN_BUDGET_RESUMED,
     NotificationType.CAMPAIGN_CANCELLED,
-    NotificationType.EVIDENCE_CHALLENGE_CREATED,
-    NotificationType.EVIDENCE_VERIFIED,
     NotificationType.PAYOUT_RELEASED,
     NotificationType.FRAUD_HOLD_RAISED,
     NotificationType.FRAUD_REVIEW_RESOLVED,

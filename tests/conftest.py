@@ -43,8 +43,6 @@ from app.models.campaign_zone import CampaignZone, CampaignZoneType
 from app.models.driver import DriverOnboardingStatus, DriverProfile
 from app.models.impression import ImpressionEstimate, TrafficDensityProfile
 from app.models.installation_evidence import (
-    DisplayProof,
-    DisplayProofChallenge,
     InstallationEvidencePhoto,
     InstallationEvidenceStatus,
     InstallationEvidenceSubmission,
@@ -97,8 +95,6 @@ def settings() -> Settings:
         access_token_expire_minutes=60,
         privacy_min_vehicles_per_cell=1,
         privacy_min_resolution_m=50,
-        display_proof_challenge_ttl_seconds=120,
-        display_proof_validity_seconds=3600,
         paystack_secret_key=None,
         paystack_checkout_return_url="",
     )
@@ -633,15 +629,15 @@ def create_test_activation_snapshot(
     return asyncio.run(create())
 
 
-def create_test_display_proof(
+def create_test_installation_evidence(
     db_sessionmaker: async_sessionmaker[AsyncSession],
     *,
     assignment_id: UUID,
     reviewed_by_user_id: UUID,
-) -> DisplayProof:
+) -> InstallationEvidenceSubmission:
     """Seed explicit synthetic W2-03C authority for tests outside that boundary."""
 
-    async def create() -> DisplayProof:
+    async def create() -> InstallationEvidenceSubmission:
         async with db_sessionmaker() as session:
             assignment = await session.get(CampaignAssignment, assignment_id)
             assert assignment is not None
@@ -688,8 +684,6 @@ def create_test_display_proof(
                 await session.flush()
                 return stored
 
-            evidence_file = await managed_image("installation")
-            proof_file = await managed_image("display-proof")
             device_id = uuid4()
             evidence = InstallationEvidenceSubmission(
                 assignment_id=assignment.id,
@@ -703,59 +697,35 @@ def create_test_display_proof(
                 request_fingerprint="e" * 64,
                 device_id=device_id,
                 captured_at=now,
-                required_views=["front"],
+                required_views=["front", "back", "left", "right", "close_up"],
                 status=InstallationEvidenceStatus.APPROVED.value,
                 reviewed_at=now,
-                approved_until=now + timedelta(days=1),
+                approved_until=now + timedelta(days=7),
                 evidence_metadata={"synthetic_test": True},
                 submitted_at=now,
             )
             session.add(evidence)
             await session.flush()
-            session.add(
-                InstallationEvidencePhoto(
-                    submission_id=evidence.id,
-                    view_code="front",
-                    stored_file_id=evidence_file.id,
+            for view in evidence.required_views:
+                evidence_file = await managed_image(view)
+                session.add(
+                    InstallationEvidencePhoto(
+                        submission_id=evidence.id,
+                        view_code=view,
+                        stored_file_id=evidence_file.id,
+                    )
                 )
-            )
-            challenge = DisplayProofChallenge(
-                assignment_id=assignment.id,
-                evidence_submission_id=evidence.id,
-                driver_profile_id=assignment.driver_profile_id,
-                vehicle_id=assignment.vehicle_id,
-                device_id=device_id,
-                nonce_sha256=uuid4().hex * 2,
-                expires_at=now + timedelta(minutes=5),
-                consumed_at=now,
-                created_at=now,
-            )
-            session.add(challenge)
-            await session.flush()
-            proof = DisplayProof(
-                challenge_id=challenge.id,
-                assignment_id=assignment.id,
-                evidence_submission_id=evidence.id,
-                driver_profile_id=assignment.driver_profile_id,
-                vehicle_id=assignment.vehicle_id,
-                device_id=device_id,
-                stored_file_id=proof_file.id,
-                verified_at=now,
-                valid_until=now + timedelta(hours=1),
-                proof_metadata={"synthetic_test": True},
-            )
-            session.add(proof)
             await session.commit()
-            await session.refresh(proof)
-            return proof
+            await session.refresh(evidence)
+            return evidence
 
-    proof = asyncio.run(create())
+    evidence = asyncio.run(create())
     create_test_activation_snapshot(
         db_sessionmaker,
         assignment_id=assignment_id,
         actor_user_id=reviewed_by_user_id,
     )
-    return proof
+    return evidence
 
 
 def sign_test_trip_manifest(trip: TripSession) -> None:

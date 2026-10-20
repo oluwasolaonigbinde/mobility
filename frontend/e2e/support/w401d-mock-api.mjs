@@ -398,15 +398,7 @@ const server = createServer(async (request, response) => {
     return send(response, 200, {
       required_views: ["front", "back", "left", "right", "close_up"],
       evidence_validity_hours: 168,
-      display_proof_challenge_ttl_seconds: null,
-      display_proof_validity_seconds: null,
     });
-  }
-  if (
-    request.method === "GET" &&
-    url.pathname === "/api/v1/driver/evidence-verifications/pending"
-  ) {
-    return send(response, 200, { items: [] });
   }
 
   return fail(response, 404, "NOT_FOUND", "Synthetic route was not found");

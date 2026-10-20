@@ -14,11 +14,12 @@ from app.main import create_app
 from app.models.user import UserRole
 
 SNAPSHOT_PATH = Path("docs/api/openapi.snapshot.json")
-EXPECTED_ALEMBIC_HEAD = "0108_req180_backend_batch2"
+EXPECTED_ALEMBIC_HEAD = "0109_remove_daily_display_proof"
 EXPECTED_MIGRATIONS = {
     "0106_development_baseline.py",
     "0107_audience_sweep_cursor.py",
     "0108_req180_backend_batch2.py",
+    "0109_remove_daily_display_proof.py",
 }
 MAJOR_CONTRACT_PATHS = {
     "health": "/api/v1/health",

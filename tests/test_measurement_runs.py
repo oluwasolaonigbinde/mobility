@@ -9,7 +9,7 @@ from conftest import (
     auth_headers,
     create_test_campaign,
     create_test_campaign_creative,
-    create_test_display_proof,
+    create_test_installation_evidence,
     create_test_organization,
     create_test_payout_rule,
     create_test_user,
@@ -90,7 +90,7 @@ def create_measurement_graph(
         service_city=service_city,
         driver_phone=None if identity_domain.endswith(".invalid") else "+234555000",
     )
-    proof = create_test_display_proof(
+    proof = create_test_installation_evidence(
         db_sessionmaker,
         assignment_id=assignment.id,
         reviewed_by_user_id=admin.id,
@@ -104,15 +104,13 @@ def create_measurement_graph(
                 )
             )
             assert event is not None
-            evidence = await session.get(
-                InstallationEvidenceSubmission, proof.evidence_submission_id
-            )
+            evidence = await session.get(InstallationEvidenceSubmission, proof.id)
             assert evidence is not None
             evidence.reviewed_at = event.occurred_at - timedelta(minutes=1)
             evidence.approved_until = event.occurred_at + timedelta(days=1)
             snapshot = dict(event.event_metadata["activation_snapshot"])
             snapshot["creative_id"] = str(creative.id)
-            snapshot["installation_evidence_submission_id"] = str(proof.evidence_submission_id)
+            snapshot["installation_evidence_submission_id"] = str(proof.id)
             snapshot["installation_evidence_revision"] = evidence.revision
             event.event_metadata = {
                 **event.event_metadata,

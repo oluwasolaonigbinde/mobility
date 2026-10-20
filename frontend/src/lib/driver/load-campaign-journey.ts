@@ -22,7 +22,7 @@ type CurrentJob = components["schemas"]["DriverCurrentJob"];
 
 export interface LoadedDriverCampaignJourney {
   journey: DriverCampaignJourney;
-  photoStatus: "ready" | "display_required" | "installation_required" | "unavailable";
+  photoStatus: "ready" | "installation_required" | "unavailable";
   activationAssignment: DriverTrackerAssignment | null;
   currentTrip: DriverTrackerTrip | null;
   trackerAssignment: DriverTrackerAssignment | null;

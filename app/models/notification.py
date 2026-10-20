@@ -41,8 +41,6 @@ class NotificationType(StrEnum):
     CAMPAIGN_BUDGET_PAUSED = "campaign_budget_paused"
     CAMPAIGN_BUDGET_RESUMED = "campaign_budget_resumed"
     CAMPAIGN_CANCELLED = "campaign_cancelled"
-    EVIDENCE_CHALLENGE_CREATED = "evidence_challenge_created"
-    EVIDENCE_VERIFIED = "evidence_verified"
     PAYOUT_RELEASED = "payout_released"
     PASSWORD_RESET_REQUESTED = "password_reset_requested"
     DRIVER_ONBOARDING_ACCESS_REQUESTED = "driver_onboarding_access_requested"

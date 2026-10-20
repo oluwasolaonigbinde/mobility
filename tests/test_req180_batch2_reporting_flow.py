@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
-from conftest import auth_headers, create_test_display_proof
+from conftest import auth_headers, create_test_installation_evidence
 from sqlalchemy import func, select
 from test_advertiser_reports import DAY_1, PASSWORD, create_report_graph
 from test_heatmaps import add_ping_batch
@@ -41,7 +41,7 @@ def three_car_run(db_client, maker, *, vehicle_count=3, dominant=False):
                 else {}
             ),
         )
-        proof = create_test_display_proof(
+        proof = create_test_installation_evidence(
             maker, assignment_id=assignment.id, reviewed_by_user_id=admin.id
         )
 
@@ -55,9 +55,7 @@ def three_car_run(db_client, maker, *, vehicle_count=3, dominant=False):
                         CampaignActivationEvent.assignment_id == assignment.id
                     )
                 )
-                evidence = await session.get(
-                    InstallationEvidenceSubmission, proof.evidence_submission_id
-                )
+                evidence = await session.get(InstallationEvidenceSubmission, proof.id)
                 evidence.reviewed_at = event.occurred_at - timedelta(minutes=1)
                 evidence.approved_until = event.occurred_at + timedelta(days=1)
                 snapshot = {

@@ -224,6 +224,4 @@ class CampaignAssignmentRecommendationListResponse(BaseModel):
 
 class ActiveCampaignAssignmentResponse(BaseModel):
     assignment: CampaignAssignmentRead | None
-    photo_status: Literal["ready", "display_required", "installation_required", "unavailable"] = (
-        "unavailable"
-    )
+    photo_status: Literal["ready", "installation_required", "unavailable"] = "unavailable"

@@ -7,10 +7,11 @@ from uuid import UUID
 import pytest
 from conftest import (
     auth_headers,
+    create_test_activation_snapshot,
     create_test_campaign,
     create_test_campaign_assignment,
-    create_test_display_proof,
     create_test_driver_profile,
+    create_test_installation_evidence,
     create_test_organization,
     create_test_user,
     create_test_vehicle,
@@ -74,6 +75,7 @@ def create_trip_ready_graph(
     driver_email: str = "driver@example.com",
     plate_number: str = "ABC-123",
     with_financial_authority: bool = True,
+    with_installation_evidence: bool = True,
     eligibility_settings: Settings | None = None,
 ):
     admin = create_test_user(db_sessionmaker, email=admin_email, password=PASSWORD)
@@ -120,11 +122,15 @@ def create_trip_ready_graph(
         if assignment_status == CampaignAssignmentStatus.ACTIVE
         else None,
     )
-    if assignment_status == CampaignAssignmentStatus.ACTIVE:
-        create_test_display_proof(
+    if assignment_status == CampaignAssignmentStatus.ACTIVE and with_installation_evidence:
+        create_test_installation_evidence(
             db_sessionmaker,
             assignment_id=assignment.id,
             reviewed_by_user_id=admin.id,
+        )
+    elif assignment_status == CampaignAssignmentStatus.ACTIVE:
+        create_test_activation_snapshot(
+            db_sessionmaker, assignment_id=assignment.id, actor_user_id=admin.id
         )
 
     async def add_financial_authority(payout_revision) -> None:
@@ -382,7 +388,7 @@ def test_driver_can_start_get_current_read_and_end_trip(db_client, db_sessionmak
     assert created["campaign_id"] == str(campaign.id)
     assert created["driver_profile_id"] == str(profile.id)
     assert created["vehicle_id"] == str(vehicle.id)
-    assert created["display_proof_id"] is not None
+    assert "display_proof_id" not in created
     assert created["status"] == "active"
     assert created["ping_count"] == 0
     assert created["metadata"] == {"shift": "morning"}
@@ -512,7 +518,7 @@ def test_trip_start_fails_closed_on_unusable_frozen_payout_window_before_downstr
         "assert_new_work_authorized",
         "ensure_current_activation_snapshot",
         "ensure_no_active_trip_for_driver_or_vehicle",
-        "ensure_current_display_proof",
+        "ensure_current_approved_installation_evidence",
     ):
         monkeypatch.setattr(trips_service, name, unexpected_downstream_check)
 

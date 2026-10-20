@@ -7,8 +7,8 @@ import pytest
 from conftest import (
     create_test_campaign_creative,
     create_test_campaign_zone,
-    create_test_display_proof,
     create_test_driver_profile,
+    create_test_installation_evidence,
     create_test_user,
     create_test_vehicle,
     fetch_user_by_email,
@@ -336,7 +336,7 @@ def test_campaign_extension_and_trip_start_serialize_on_frozen_assignment_window
             return binding
 
     fresh_binding = asyncio.run(accept_and_activate_fresh_assignment())
-    create_test_display_proof(
+    create_test_installation_evidence(
         postgis_db_sessionmaker,
         assignment_id=fresh_assignment_id,
         reviewed_by_user_id=admin.id,

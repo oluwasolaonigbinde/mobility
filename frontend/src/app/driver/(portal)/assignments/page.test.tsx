@@ -51,7 +51,6 @@ describe("DriverAssignmentsPage history availability", () => {
           },
         };
       }
-      if (path === "/api/v1/driver/evidence-verifications/pending") return { data: { items: [] } };
       if (path === "/api/v1/driver/campaign-assignments/{assignment_id}/installation-evidence")
         return { data: { items: [] } };
       throw new Error(`Unexpected request: ${path}`);

@@ -53,7 +53,6 @@ class EvidenceVerificationRead(BaseModel):
     issued_by_user_id: UUID | None
     resolved_by_user_id: UUID | None
     due_at: datetime | None
-    display_proof_id: UUID | None
     fraud_flag_id: UUID | None
     result_note: str | None
     metadata: dict[str, Any]
