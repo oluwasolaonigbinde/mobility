@@ -191,9 +191,6 @@ class Settings(BaseSettings):
     object_storage_presign_ttl_seconds: int = 300
     object_storage_orphan_ttl_hours: int = 24
     object_storage_download_ttl_seconds: int = 60
-    # No legal retention period is assumed. Execution remains disabled until
-    # an approved value is configured by the deployment environment.
-    file_kyc_retention_days: OptionalInt = None
     # The installation-photo rule is built into installation_evidence.py (REQ-208).
     # Production provider and verified sender identity are external inputs.
     # Empty values keep provider dispatch and receipt handling fail closed.
@@ -229,9 +226,6 @@ class Settings(BaseSettings):
     password_reset_ip_max_attempts: int = 10
     password_reset_rate_window_seconds: int = 3600
     password_reset_public_url: str = ""
-    # Comma-separated legal exception evidence references. Empty means that a
-    # DSR may be inventoried but no retained-exception assessment can complete.
-    dsr_approved_exception_references: str = ""
     malware_scanner_host: str = ""
     malware_scanner_port: int = 3310
     malware_scanner_timeout_seconds: int = 30
@@ -295,7 +289,6 @@ class Settings(BaseSettings):
     heatmap_max_cells: int = 5000
     heatmap_min_trips_per_cell: int = 1
     privacy_legal_approval_reference: str = ""
-    privacy_query_history_retention_days: int = 30
     # Real ROI requires the approved financial method reference. Synthetic ROI
     # remains restricted to local/test environments.
     measurement_roi_method_reference: str = ""
@@ -312,7 +305,6 @@ class Settings(BaseSettings):
     # Q20 deliberately has no invented production default. Keep the raw
     # value so an absent, malformed, non-finite, or non-positive setting can
     # fail closed at the activity worker boundary with observable evidence.
-    verified_hours_floor_per_week: str | float | int | None = None
     fraud_review_sla_days: int = 7
     ping_retention_months: int = 12
     partition_premake_months: int = 4
@@ -465,13 +457,6 @@ class Settings(BaseSettings):
             raise ValueError("File-boundary numeric settings must be positive")
         return value
 
-    @field_validator("file_kyc_retention_days")
-    @classmethod
-    def validate_file_kyc_retention_days(cls, value: int | None) -> int | None:
-        if value is not None and value <= 0:
-            raise ValueError("FILE_KYC_RETENTION_DAYS must be positive when configured")
-        return value
-
     @field_validator(
         "max_location_pings_per_batch",
         "location_ping_future_skew_seconds",
@@ -598,7 +583,6 @@ class Settings(BaseSettings):
         return value
 
     @field_validator(
-        "privacy_query_history_retention_days",
         "privacy_min_vehicles_per_cell",
         "privacy_min_resolution_m",
     )
@@ -653,21 +637,6 @@ class Settings(BaseSettings):
         if len(normalized) > 255:
             raise ValueError("Measurement method references must be at most 255 characters")
         return normalized
-
-    @field_validator("dsr_approved_exception_references")
-    @classmethod
-    def validate_dsr_exception_references(cls, value: str) -> str:
-        references = [part.strip() for part in value.split(",") if part.strip()]
-        if len(references) != len(set(references)) or any(
-            len(reference) > 255
-            or reference.lower() in {"missing", "todo", "tbd", "placeholder", "n/a", "none"}
-            for reference in references
-        ):
-            raise ValueError(
-                "DSR_APPROVED_EXCEPTION_REFERENCES must contain unique non-placeholder "
-                "references of at most 255 characters"
-            )
-        return ",".join(references)
 
     @field_validator("email_receipt_signing_secret")
     @classmethod
@@ -836,16 +805,6 @@ class Settings(BaseSettings):
             )
         if self.impression_min_confidence > self.impression_max_confidence:
             raise ValueError("IMPRESSION_MIN_CONFIDENCE must not exceed IMPRESSION_MAX_CONFIDENCE")
-        if (
-            self.dsr_approved_exception_references
-            and self.environment.lower() != "test"
-            and self.privacy_legal_approval_reference.strip().lower()
-            in {"", "missing", "todo", "tbd", "placeholder", "n/a", "none"}
-        ):
-            raise ValueError(
-                "DSR_APPROVED_EXCEPTION_REFERENCES requires an approved privacy legal "
-                "reference outside test"
-            )
         if not (
             self.heatmap_min_resolution_m
             <= self.heatmap_default_resolution_m

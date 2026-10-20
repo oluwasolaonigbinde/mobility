@@ -181,7 +181,7 @@ class AssignmentActivityFlagRead(BaseModel):
     last_verified_activity_at: datetime | None
     first_detected_at: datetime
     last_evaluated_at: datetime
-    recovered_at: datetime | None
+    closed_at: datetime | None
     eligible_trip_count: int
     evidence_event_count: int
 

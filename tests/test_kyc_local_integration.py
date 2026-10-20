@@ -44,14 +44,10 @@ def test_real_private_upload_scan_and_protected_kyc_binding(
     )
     db_client.app.dependency_overrides[get_storage_provider] = lambda: storage
     try:
-        admin, driver, _, bank_id, _ = _seed_driver_authority(
-            db_sessionmaker, suffix="real-local"
-        )
+        admin, driver, _, bank_id, _ = _seed_driver_authority(db_sessionmaker, suffix="real-local")
         headers = auth_headers(db_client, driver.email, PASSWORD)
         file_ids: dict[str, str] = {}
-        for index, document_type in enumerate(
-            ("driver_license", "driver_photo"), start=1
-        ):
+        for index, document_type in enumerate(("driver_license", "driver_photo"), start=1):
             content = b"\x89PNG\r\n\x1a\n" + f"local-kyc-{index}".encode() * 8
             checksum = hashlib.sha256(content).hexdigest()
             intent = db_client.post(
@@ -102,12 +98,10 @@ def test_real_private_upload_scan_and_protected_kyc_binding(
 
         async def make_terminal() -> list[str]:
             async with db_sessionmaker() as session:
-                submission = await session.get(
-                    DriverKycSubmission, UUID(submitted.json()["id"])
-                )
+                submission = await session.get(DriverKycSubmission, UUID(submitted.json()["id"]))
                 assert submission is not None
                 submission.status = KycSubmissionStatus.REJECTED
-                submission.created_at = datetime.now(UTC) - timedelta(days=31)
+                submission.created_at = datetime.now(UTC) - timedelta(days=200)
                 keys = list(
                     (
                         await session.scalars(
@@ -121,7 +115,7 @@ def test_real_private_upload_scan_and_protected_kyc_binding(
                 return keys
 
         storage_keys = asyncio.run(make_terminal())
-        configured = settings.model_copy(update={"file_kyc_retention_days": 30})
+        configured = settings
         db_client.app.dependency_overrides[get_settings] = lambda: configured
         admin_auth = auth_headers(db_client, admin.email, PASSWORD)
         planned = db_client.post(

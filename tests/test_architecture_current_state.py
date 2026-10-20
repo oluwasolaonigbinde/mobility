@@ -5,7 +5,6 @@ from alembic.script import ScriptDirectory
 
 from app.main import create_app
 from scripts.update_architecture_inventory import (
-    REQUIRED_DSR_ROUTES,
     REQUIRED_ONBOARDING_ROUTES,
     collect_inventory,
     render_architecture,
@@ -36,13 +35,12 @@ def test_architecture_inventory_requires_one_linear_alembic_head() -> None:
     revisions = tuple(scripts.walk_revisions())
 
     assert scripts.get_bases() == ["0106_development_baseline"]
-    assert scripts.get_heads() == ["0109_remove_daily_display_proof"]
-    assert len(revisions) == 4
+    assert scripts.get_heads() == ["0110_simplify_driver_operations"]
+    assert len(revisions) == 5
     assert not any(revision.is_branch_point or revision.is_merge_point for revision in revisions)
 
 
-def test_required_onboarding_and_dsr_routes_are_present() -> None:
+def test_required_onboarding_routes_are_present() -> None:
     paths = set(create_app().openapi()["paths"])
 
     assert REQUIRED_ONBOARDING_ROUTES <= paths
-    assert REQUIRED_DSR_ROUTES <= paths

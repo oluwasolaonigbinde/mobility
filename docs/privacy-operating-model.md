@@ -80,23 +80,19 @@ converted into a live policy. The current 12-month ping setting is synthetic
 build configuration, not legal approval. Backup tooling now enforces both a
 newest-14 cap and a hard age bound of at most 35 days.
 
-W3-00B's manual operator workflow is defined in
-`docs/data-subject-request-runbook.md`. It opens and identity-verifies one
-access, rectification or erasure case; inventories subject-linked database
-classes; verifies managed objects through the private-storage port; requires
-operator evidence for devices, logs, backups and processors; and refuses
-completion until all six locations are assessed. Case identity and location
-evidence are append-only, retries are fingerprinted, and storage outage or
-mismatch fails closed. This is synthetic build capability, not a live DSR,
-approved response deadline or legal disposition.
+D110 / REQ-211 removes the unrequested in-app data-subject-request workflow.
+Terrax staff handle requests manually until a lawyer sets the response and
+retention rules. Verify the requester, consider database records, private objects,
+devices, logs, backups and processors, and record the actual decision and evidence
+outside the removed workflow. Do not claim completion or an approved deadline
+without that evidence. Company isolation and the three-car disclosure floor stay.
 
-No erasure operation may rewrite immutable money, invoice, receipt, payout,
-fraud-review, or audit facts. The W3-00B service refuses to record database or
-object erasure while its inventory still finds records. A retained exception
-therefore requires an exact configured approval reference; the setting is
-blank by default while the legal decision is MISSING. The inventory covers
-MNY-09A route-replay hashes explicitly: those hashes are pseudonymous derived
-location-linkage data, not anonymous data.
+No erasure may rewrite immutable money, invoice, receipt, payout, fraud-review or
+audit facts. Route-replay hashes remain pseudonymous location-linkage data.
+D119 / REQ-218 fixes terminal KYC file retention at six calendar months, as the
+client requested and owner confirmed on 20 October. Current-reference checks,
+dry-run review and durable deletion evidence remain. This owner-approved value
+does not resolve the remaining legal pack or provider decisions.
 
 ## Notice, consent, and withdrawal
 
@@ -106,8 +102,7 @@ time, approver/evidence reference, and replacement/withdrawal relationship.
 
 On withdrawal or objection, the operator follows the ordered procedure in the
 register: authenticate proportionately; record purpose/version/time; stop new
-dependent processing; preserve only an approved exception; open the W3-00B
-cross-store request; and provide a safe completion/exception response. If the
+dependent processing; preserve only an approved exception; handle the request manually across the affected stores; and provide a safe completion/exception response. If the
 system cannot identify an approved notice or exception, live use fails closed.
 
 ## Breach register and escalation

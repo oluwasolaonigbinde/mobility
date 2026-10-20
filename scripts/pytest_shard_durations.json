@@ -192,14 +192,6 @@
       "seconds": 94.73200000000003,
       "test_count": 26
     },
-    "tests/test_data_subject_inventory_registry.py": {
-      "seconds": 2.888,
-      "test_count": 2
-    },
-    "tests/test_data_subject_requests.py": {
-      "seconds": 32.314,
-      "test_count": 14
-    },
     "tests/test_deploy_templates.py": {
       "seconds": 0.021,
       "test_count": 4
@@ -567,10 +559,6 @@
     "tests/test_r29_active_driver_postgresql.py": {
       "seconds": 4.643,
       "test_count": 4
-    },
-    "tests/test_r30_challenge_finality_postgresql.py": {
-      "seconds": 2.477,
-      "test_count": 1
     },
     "tests/test_r31_frozen_window_postgresql.py": {
       "seconds": 20.378,

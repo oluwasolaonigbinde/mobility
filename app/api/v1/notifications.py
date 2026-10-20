@@ -160,21 +160,9 @@ def notification_feed_response(
             "Reply about your trip",
             "Terrax Media replied to what you said about your trip. Open Earnings to read it.",
         ),
-        NotificationType.ACTIVITY_FLOOR_BREACHED.value: (
-            "Not enough driving this week",
-            "You drove less than this job's weekly minimum. Terrax Media will look at your job.",
-        ),
-        NotificationType.ACTIVITY_FLOOR_RECOVERED.value: (
-            "Weekly driving back on track",
-            "You're back above this job's weekly minimum.",
-        ),
         NotificationType.ASSIGNMENT_INACTIVE.value: (
             "No trips for 7 days",
-            "No trips were recorded on your job for 7 days. Terrax Media will look at it.",
-        ),
-        NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED.value: (
-            "Trips started again",
-            "Trips are being recorded on your job again.",
+            "No verified trips were recorded for this job for 7 days. Follow up with the driver.",
         ),
         NotificationType.PAYOUT_AUTOMATIC_ALERT.value: (
             "Automatic payout needs attention",
@@ -200,10 +188,6 @@ def notification_feed_response(
         NotificationType.COMPLAINT_RESOLVED.value: (
             "Complaint resolved",
             "Terrax Media marked your complaint as resolved. Open Help to read it or reply.",
-        ),
-        NotificationType.COMPLAINT_ASSIGNED.value: (
-            "Complaint assigned to you",
-            "A complaint in the Customer Service inbox was assigned to you.",
         ),
     }
     title, body = rendered.get(

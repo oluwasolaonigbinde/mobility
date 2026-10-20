@@ -1,13 +1,12 @@
 import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
-import pytest
 from conftest import auth_headers
+from sqlalchemy import func, select
 from test_fraud_assessments import build_graph
 
-from app.core.errors import AppError
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
 from app.models.evidence_verification import (
     EvidenceVerification,
@@ -18,10 +17,6 @@ from app.models.payout import (
     EarningsLedgerEntryType,
 )
 from app.models.trip import TripSession
-from app.services.evidence_verification import (
-    queue_physical_spot_check,
-    resolve_physical_spot_check,
-)
 from app.services.fraud_holds import acknowledge_fraud_flag, fraud_hold_counts, resolve_fraud_flag
 
 NOW = datetime(2026, 8, 26, 12, 0, tzinfo=UTC)
@@ -61,113 +56,69 @@ def activate_and_add_earning(
     asyncio.run(run())
 
 
-def test_physical_spot_check_exact_retry_failure_and_dismissal_release(
-    db_sessionmaker, settings
-) -> None:
+def test_spot_result_retry_hold_and_explicit_dismissal(db_client, db_sessionmaker):
     graph = build_graph(db_sessionmaker, "spot-check")
     activate_and_add_earning(db_sessionmaker, graph, amount="1.00")
-    request_id = uuid4()
+    headers = auth_headers(db_client, "admin-spot-check@example.com", PASSWORD)
+    path = "/api/v1/admin/evidence-verifications/physical-spot-checks"
+    payload = {
+        "assignment_id": str(graph.assignment.id),
+        "trip_session_id": str(graph.trip.id),
+        "client_request_id": str(uuid4()),
+        "outcome": "failed",
+        "note": "Branding was absent during the physical inspection.",
+    }
+    failed = db_client.post(path, headers=headers, json=payload)
+    assert failed.status_code == 201, failed.text
+    assert failed.json()["status"] == "failed"
+    flag_id = failed.json()["fraud_flag_id"]
+    assert flag_id is not None
+    retry = db_client.post(path, headers=headers, json=payload)
+    assert retry.status_code == 201
+    assert retry.json()["id"] == failed.json()["id"]
+    conflict = db_client.post(path, headers=headers, json={**payload, "outcome": "passed"})
+    assert conflict.status_code == 409
+    assert conflict.json()["error"]["code"] == "EVIDENCE_VERIFICATION_REPLAY_CONFLICT"
+    passed = db_client.post(
+        path,
+        headers=headers,
+        json={
+            **payload,
+            "client_request_id": str(uuid4()),
+            "outcome": "passed",
+            "note": "Branding is present on a later inspection.",
+        },
+    )
+    assert passed.status_code == 201, passed.text
+    assert passed.json()["fraud_flag_id"] is None
 
-    async def run():
+    async def inspect_and_dismiss():
         async with db_sessionmaker() as session:
-            first = await queue_physical_spot_check(
-                session,
-                actor_user_id=graph.assignment.assigned_by_user_id,
-                assignment_id=graph.assignment.id,
-                trip_session_id=graph.trip.id,
-                client_request_id=request_id,
-                note="Inspect the installed display.",
-                metadata={"fixture": "synthetic"},
-                now=NOW,
-            )
-            await session.commit()
-            verification_id = first.id
-        async with db_sessionmaker() as session:
-            retry = await queue_physical_spot_check(
-                session,
-                actor_user_id=graph.assignment.assigned_by_user_id,
-                assignment_id=graph.assignment.id,
-                trip_session_id=graph.trip.id,
-                client_request_id=request_id,
-                note="Inspect the installed display.",
-                metadata={"fixture": "synthetic"},
-                now=NOW,
-            )
-            assert retry.id == verification_id
-            with pytest.raises(AppError, match="spot-check retry"):
-                await queue_physical_spot_check(
-                    session,
-                    actor_user_id=graph.assignment.assigned_by_user_id,
-                    assignment_id=graph.assignment.id,
-                    trip_session_id=graph.trip.id,
-                    client_request_id=request_id,
-                    note="Changed request.",
-                    metadata={"fixture": "synthetic"},
-                    now=NOW,
-                )
-            await session.rollback()
-        async with db_sessionmaker() as session:
-            failed = await resolve_physical_spot_check(
-                session,
-                verification_id=verification_id,
-                actor_user_id=graph.assignment.assigned_by_user_id,
-                outcome="failed",
-                note="Branding was not present.",
-                evidence={"observation": "physical inspection"},
-                now=NOW,
-            )
-            await session.commit()
-            flag_id = failed.fraud_flag_id
-        async with db_sessionmaker() as session:
-            exact = await resolve_physical_spot_check(
-                session,
-                verification_id=verification_id,
-                actor_user_id=graph.assignment.assigned_by_user_id,
-                outcome="failed",
-                note="Branding was not present.",
-                evidence={"observation": "physical inspection"},
-                now=NOW,
-            )
-            assert exact.fraud_flag_id == flag_id
-            second = await queue_physical_spot_check(
-                session,
-                actor_user_id=graph.assignment.assigned_by_user_id,
-                assignment_id=graph.assignment.id,
-                trip_session_id=graph.trip.id,
-                client_request_id=uuid4(),
-                note="Repeat physical inspection.",
-                metadata={"fixture": "synthetic-repeat"},
-                now=NOW,
-            )
-            second_failed = await resolve_physical_spot_check(
-                session,
-                verification_id=second.id,
-                actor_user_id=graph.assignment.assigned_by_user_id,
-                outcome="failed",
-                note="The repeat inspection also failed.",
-                evidence={"observation": "second physical inspection"},
-                now=NOW,
-            )
-            assert second_failed.fraud_flag_id == flag_id
+            assert (await fraud_hold_counts(session, graph.trip.id))["high"] == 1
+            assert await session.scalar(select(func.count()).select_from(EvidenceVerification)) == 2
             await acknowledge_fraud_flag(
                 session,
-                flag_id=flag_id,
+                flag_id=UUID(flag_id),
                 actor_user_id=graph.assignment.assigned_by_user_id,
                 now=NOW,
             )
             await resolve_fraud_flag(
                 session,
-                flag_id=flag_id,
+                flag_id=UUID(flag_id),
                 actor_user_id=graph.assignment.assigned_by_user_id,
                 outcome="dismissed",
-                resolution_note="False positive after evidence review.",
+                resolution_note="Staff reviewed the failed observation.",
                 now=NOW + timedelta(seconds=1),
             )
             await session.commit()
-        async with db_sessionmaker() as session:
-            return await fraud_hold_counts(session, graph.trip.id)
+            assert (await fraud_hold_counts(session, graph.trip.id))["high"] == 0
 
-    assert asyncio.run(run()) == {"low": 0, "medium": 0, "high": 0}
+    asyncio.run(inspect_and_dismiss())
+    driver_headers = auth_headers(db_client, graph.driver.email, PASSWORD)
+    assert db_client.post(path, headers=driver_headers, json=payload).status_code == 403
+    assert db_client.post(path, json=payload).status_code == 401
+    for change in ({"note": " "}, {"outcome": "pending"}):
+        assert db_client.post(path, headers=headers, json={**payload, **change}).status_code == 422
 
 
 def test_admin_physical_checks_have_complete_filtered_paging(db_client, db_sessionmaker) -> None:
@@ -186,7 +137,9 @@ def test_admin_physical_checks_have_complete_filtered_paging(db_client, db_sessi
                     vehicle_id=graph.vehicle.id,
                     source_trip_session_id=graph.trip.id,
                     verification_type="physical_spot_check",
-                    status="pending",
+                    status="passed",
+                    resolved_by_user_id=graph.assignment.assigned_by_user_id,
+                    resolved_at=NOW,
                     issued_by_user_id=graph.assignment.assigned_by_user_id,
                     client_request_id=uuid4(),
                     request_fingerprint="a" * 64,
@@ -198,7 +151,7 @@ def test_admin_physical_checks_have_complete_filtered_paging(db_client, db_sessi
 
     asyncio.run(add_checks())
     path = "/api/v1/admin/evidence-verifications"
-    filters = {"status": "pending", "verification_type": "physical_spot_check"}
+    filters = {"status": "passed", "verification_type": "physical_spot_check"}
     first = db_client.get(path, headers=headers, params=filters)
     assert first.status_code == 200
     assert first.json()["total"] == 103
@@ -209,7 +162,7 @@ def test_admin_physical_checks_have_complete_filtered_paging(db_client, db_sessi
     assert tail.status_code == 200
     assert tail.json()["total"] == 103
     assert [row["id"] for row in tail.json()["items"]] == [str(i) for i in identifiers[100:]]
-    empty = db_client.get(path, headers=headers, params={**filters, "status": "passed"})
+    empty = db_client.get(path, headers=headers, params={**filters, "status": "failed"})
     assert empty.json()["total"] == 0
     assert empty.json()["items"] == []
     for invalid in ({"limit": 0}, {"limit": 101}, {"offset": -1}):

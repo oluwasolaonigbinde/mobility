@@ -96,25 +96,17 @@ describe("complaint forms", () => {
     expect(action).not.toHaveBeenCalled();
   });
 
-  it("saves status and assignment, and disables assignment without a staff list", async () => {
+  it("saves the complaint status", async () => {
     const user = userEvent.setup();
     const action = vi.fn(async (_state: unknown, data: FormData) => {
       expect(data.get("status")).toBe("resolved");
-      expect(data.get("assignee")).toBe("s1");
+      expect(data.has("assignee")).toBe(false);
       return { done: "Saved." };
     });
-    const { unmount } = render(
-      <ComplaintUpdateForm complaintId="c1" action={action} staff={[{ id: "s1", label: "Ada" }]} />,
-    );
+    render(<ComplaintUpdateForm complaintId="c1" action={action} />);
     await user.selectOptions(screen.getByLabelText("Status"), "resolved");
-    await user.selectOptions(screen.getByLabelText("Assigned to"), "s1");
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(screen.getByText(/Saved\./)).toBeInTheDocument());
-    unmount();
-
-    render(<ComplaintUpdateForm complaintId="c1" action={vi.fn()} staff={null} />);
-    expect(screen.getByLabelText("Assigned to")).toBeDisabled();
-    expect(screen.getByText("The staff list couldn't be loaded.")).toBeInTheDocument();
   });
 });
 

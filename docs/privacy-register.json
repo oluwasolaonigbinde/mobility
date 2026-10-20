@@ -133,19 +133,19 @@
     {
       "id": "R02_KYC_FINANCIAL",
       "data_classes": ["identity_kyc", "vehicle_evidence", "financial_identifiers"],
-      "build_disposition": "No live KYC is authorized; statutory, failed-application, replacement and processor deletion periods are MISSING",
+      "build_disposition": "Terminal KYC file retention is fixed at six calendar months (client item 17; owner confirmed 20 Oct, D119). Current references and immutable financial/audit facts remain protected; other legal and processor decisions remain MISSING",
       "approval": "MISSING"
     },
     {
       "id": "R03_RAW_LOCATION",
       "data_classes": ["precise_location", "trip_session", "device_queue_evidence"],
-      "build_disposition": "The current synthetic build parameter is PING_RETENTION_MONTHS=12; this is not an approved live retention decision. The W3-00B manual workflow now inventories raw/derived/replay data, device queues, backups and processors without supplying a live period",
+      "build_disposition": "The current synthetic build parameter is PING_RETENTION_MONTHS=12; this is not an approved live retention decision. Staff consider raw/derived/replay data, device queues, backups and processors manually pending legal rules (D110)",
       "approval": "MISSING"
     },
     {
       "id": "R04_DERIVED_LOCATION",
       "data_classes": ["derived_location_analytics", "route_replay_hashes", "fraud_evidence", "impression_estimates"],
-      "build_disposition": "Current records follow owning trips and the W3-00B inventory explicitly counts derived analytics, route-replay hashes, fraud evidence and impression estimates; no approved live period exists",
+      "build_disposition": "Current records follow owning trips; staff consider derived analytics, route-replay hashes, fraud evidence and impression estimates manually; no approved live period exists",
       "approval": "MISSING"
     },
     {
@@ -233,21 +233,15 @@
       "Record the notice/consent version, purpose and withdrawal timestamp; if no approved version exists, fail live use closed",
       "Stop new consent-dependent collection, display, export, activation and optional contact for that purpose",
       "Preserve only facts covered by an approved legal/financial/security exception and record the exception",
-      "Open the W3-00B DSR workflow for DB, objects, devices, logs, backups and processors",
+      "Handle the request manually across DB, objects, devices, logs, backups and processors pending legal rules (D110)",
       "Confirm completion or the exact approved exception to the requester through a safe channel"
     ]
   },
-  "dsr_workflow": {
-    "build_status": "BUILT_SYNTHETIC_ONLY",
-    "live_use_authorized": false,
-    "operator_role": "active Cardvert administrator; named accountable operator MISSING",
-    "request_types": ["access", "rectification", "erasure"],
-    "locations": ["database", "object_storage", "device_queue", "operational_logs", "backups", "processors"],
-    "evidence_rule": "Every location has one immutable assessment; exact retries converge, changed retries conflict, and completion requires all six",
-    "erasure_rule": "Never claim erased while database or object inventory still finds records; required immutable history needs an explicitly configured approved exception reference",
-    "production_exception_references": "MISSING",
+  "privacy_request_handling": {
+    "method": "Manual Terrax staff handling until a lawyer sets rules (D110 / REQ-211)",
     "response_wording_and_deadline": "MISSING",
-    "runbook": "docs/data-subject-request-runbook.md"
+    "stores_to_consider": ["database", "object_storage", "device_queue", "operational_logs", "backups", "processors"],
+    "immutable_history": "Do not rewrite money, fraud-review or audit facts"
   },
   "breach_responsibilities": {
     "incident_commander_role": "platform_operator_role",
@@ -285,7 +279,7 @@
     },
     {
       "risk": "Over-retention or resurrection from backups/processors",
-      "controls": "Partition purge evidence, hard 35-day backup age bound and W3-00B's immutable six-location manual DSR workflow cover database, objects, devices, logs, backups and processors",
+      "controls": "Partition purge evidence, hard 35-day backup age bound, six-calendar-month terminal KYC purge and manual staff handling across database, objects, devices, logs, backups and processors (D110/D119)",
       "residual": "OPEN — approved retention/DSR decisions, named providers and live exercise remain missing"
     },
     {

@@ -30,7 +30,6 @@ type Query = {
   complaint?: string;
   task?: string;
   history?: string;
-  mine?: string;
 };
 export default async function SupportPage({ searchParams }: { searchParams: Promise<Query> }) {
   const p = await searchParams;
@@ -56,7 +55,6 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
                 status,
                 user_id: p.user_id,
                 organization_id: p.organization_id,
-                assigned_to_me: p.mine === "true",
               },
             },
           })
@@ -400,7 +398,6 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
                 <ComplaintUpdateForm
                   complaintId={selectedComplaint.id}
                   action={updateComplaintAction}
-                  staff={staff.map((person) => ({ id: person.id, label: person.full_name }))}
                 />
               )}
             </>

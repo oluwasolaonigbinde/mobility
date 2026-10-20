@@ -492,8 +492,7 @@ never fabricate or rewrite purge evidence to unblock deletion.
 days so purged pings age out of backups automatically. The local
 `scripts/db_backup.sh` enforces both newest-14 and age-at-most-35-days bounds;
 `BACKUP_RETENTION_DAYS` may narrow that age but cannot exceed 35. Keep approved
-encrypted off-host copies on the same or a shorter bounded rotation. The
-cross-store request procedure is in `docs/data-subject-request-runbook.md`.
+encrypted off-host copies on the same or a shorter bounded rotation. Terrax staff handle privacy requests manually across the affected stores until a lawyer sets rules (D110).
 
 | Failure | Effect | Recovery |
 |---|---|---|
@@ -556,18 +555,17 @@ Production storage, malware scanner and key-custody selections remain external
 deployment inputs. The local MinIO, ClamAV and keyring adapters prove the
 provider-neutral contracts; they are not production-provider approval.
 
-KYC retention execution is disabled unless an approved positive
-`FILE_KYC_RETENTION_DAYS` value is configured. Do not copy a local or synthetic
-test value into a live environment. After legal/privacy approval, an active
-admin must run the dry-run first and reconcile its eligible count before any
-execution:
+KYC file retention is fixed at six calendar months (D119 / REQ-218, client
+item 17, owner confirmed 20 October). The purge job runs without a retention
+setting. An active admin can run the dry-run and reconcile its eligible count
+before manual execution:
 
 ```text
 POST /api/v1/admin/operations/file-kyc-retention
 {"dry_run":true,"reason":"approved_retention_review_reference"}
 ```
 
-Only rejected or expired submissions older than the configured cutoff are
+Only rejected or expired submissions older than the six-calendar-month cutoff are
 eligible. Pending and approved submissions remain untouched. The worker uses
 the same boundary once daily; without the setting it records
 `policy_configured=false` and deletes nothing. Execution commits payload clearing,

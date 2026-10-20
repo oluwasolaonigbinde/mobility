@@ -240,17 +240,6 @@ def test_nonlocal_runtime_url_rejections_redact_credentials(field: str, value: s
     assert "do-not-echo" not in str(captured.value)
 
 
-def test_dsr_exception_references_require_legal_approval_outside_test() -> None:
-    with pytest.raises(ValidationError, match="approved privacy legal reference"):
-        production_settings(dsr_approved_exception_references="LEGAL-EXCEPTION-1")
-
-    settings = production_settings(
-        privacy_legal_approval_reference="COUNSEL-APPROVAL-1",
-        dsr_approved_exception_references="LEGAL-EXCEPTION-1",
-    )
-    assert settings.dsr_approved_exception_references == "LEGAL-EXCEPTION-1"
-
-
 def test_short_jwt_secret_rejected() -> None:
     with pytest.raises(ValidationError):
         Settings(jwt_secret_key="too-short")
@@ -358,17 +347,6 @@ def test_impression_ratio_settings_must_be_between_zero_and_one(
 def test_impression_min_confidence_must_not_exceed_max() -> None:
     with pytest.raises(ValidationError):
         Settings(impression_min_confidence=0.9, impression_max_confidence=0.5)
-
-
-def test_file_kyc_retention_has_no_default_and_blank_parses_as_unset() -> None:
-    assert Settings().file_kyc_retention_days is None
-    assert Settings(file_kyc_retention_days="").file_kyc_retention_days is None
-
-
-@pytest.mark.parametrize("invalid_value", [0, -1])
-def test_file_kyc_retention_must_be_positive_when_configured(invalid_value: int) -> None:
-    with pytest.raises(ValidationError):
-        Settings(file_kyc_retention_days=invalid_value)
 
 
 def test_email_provider_and_receipt_authority_have_no_production_defaults() -> None:

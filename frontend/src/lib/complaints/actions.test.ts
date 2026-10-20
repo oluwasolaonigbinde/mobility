@@ -29,7 +29,6 @@ import {
 const COMPLAINT = "00000000-0000-4000-8000-00000000000c";
 const TRIP = "00000000-0000-4000-8000-00000000000d";
 const REQUEST = "00000000-0000-4000-8000-00000000000e";
-const STAFF = "00000000-0000-4000-8000-00000000000f";
 
 function form(values: Record<string, string>): FormData {
   const data = new FormData();
@@ -219,14 +218,10 @@ describe("staff actions", () => {
   });
 
   it.each([
-    [{ status: "resolved", assignee: "" }, { status: "resolved" }],
-    [{ status: "", assignee: "none" }, { assigned_to_user_id: null }],
-    [
-      { status: "open", assignee: STAFF },
-      { status: "open", assigned_to_user_id: STAFF },
-    ],
-    [{ status: "", assignee: "" }, {}],
-  ])("maps the status and assignment form %#", async (values, body) => {
+    [{ status: "resolved" }, { status: "resolved" }],
+    [{ status: "open" }, { status: "open" }],
+    [{ status: "" }, {}],
+  ])("maps the status form %#", async (values, body) => {
     expect(await updateComplaintAction({}, form({ complaint_id: COMPLAINT, ...values }))).toEqual({
       done: "Saved.",
     });
@@ -236,19 +231,9 @@ describe("staff actions", () => {
     });
   });
 
-  it("refuses bad input and explains an invalid assignee", async () => {
+  it("refuses an invalid status", async () => {
     expect(
-      await updateComplaintAction(
-        {},
-        form({ complaint_id: COMPLAINT, status: "closed", assignee: "" }),
-      ),
-    ).toEqual({ error: "Choose a status or a staff member." });
-    mocks.patch.mockRejectedValueOnce(apiError(422, "COMPLAINT_ASSIGNEE_INVALID"));
-    expect(
-      await updateComplaintAction(
-        {},
-        form({ complaint_id: COMPLAINT, status: "", assignee: STAFF }),
-      ),
-    ).toEqual({ error: "Choose an active Terrax Media staff member." });
+      await updateComplaintAction({}, form({ complaint_id: COMPLAINT, status: "closed" })),
+    ).toEqual({ error: "Choose a status." });
   });
 });

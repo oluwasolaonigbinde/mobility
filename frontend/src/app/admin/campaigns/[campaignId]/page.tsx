@@ -534,7 +534,7 @@ export default async function CampaignHub({
                         {flag.flag_type === "inactivity"
                           ? "No recent verified activity"
                           : "Verified driving hours below the target"}{" "}
-                        · {flag.status === "recovered" ? "Recovered" : "Needs attention"} ·{" "}
+                        · {flag.status === "closed" ? "Closed" : "Needs attention"} ·{" "}
                         {formatDateRange(flag.window_start, flag.window_end)}
                       </p>
                     ))}

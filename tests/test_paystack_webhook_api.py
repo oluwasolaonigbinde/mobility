@@ -50,21 +50,16 @@ from app.models.billing import (
     PaymentGatewayEvent,
     PaymentReceipt,
 )
-from app.models.data_subject_request import DataSubjectRequestType
 from app.models.disbursement import (
     PayoutBatchLine,
     PayoutLineReconciliationEvent,
+    PayoutProviderEvent,
     PayoutProviderEventProcessingAttempt,
     PayoutSubmissionIntent,
 )
 from app.models.payout import EarningsLedgerEntry
 from app.models.user import UserRole
 from app.services.billing.invoices import create_invoice_draft, issue_invoice
-from app.services.data_subject_requests import (
-    create_data_subject_request,
-    data_subject_inventory,
-    verify_data_subject_identity,
-)
 from app.services.disbursements import process_payout_submission_intent
 
 WEBHOOK = "/api/v1/webhooks/paystack"
@@ -697,7 +692,7 @@ def test_paystack_transfer_evidence_must_match_the_frozen_amount(
     assert "paid" not in _ledger_status(db_sessionmaker, entry_id).lower()
 
 
-def test_provider_events_and_failed_attempts_are_in_driver_inventory(
+def test_provider_events_and_failed_attempts_keep_processing_evidence(
     db_client, db_sessionmaker
 ) -> None:
     _, _, _, reference, entry_id, enqueuer = _submitted_paystack_line(
@@ -726,30 +721,12 @@ def test_provider_events_and_failed_attempts_are_in_driver_inventory(
             )
         )
 
-    admin = create_test_user(
-        db_sessionmaker,
-        email=f"paystack-dsr-admin-{uuid4().hex}@example.com",
-        role=UserRole.ADMIN,
-    )
-
-    async def inventory() -> int:
+    async def processing_evidence():
         async with db_sessionmaker() as session:
-            subject_user_id = await session.scalar(
-                select(EarningsLedgerEntry.driver_user_id).where(EarningsLedgerEntry.id == entry_id)
-            )
-            assert subject_user_id is not None
-            case = await create_data_subject_request(
-                session,
-                actor_user_id=admin.id,
-                subject_user_id=subject_user_id,
-                request_type=DataSubjectRequestType.ACCESS,
-                client_request_id=uuid4(),
-                requested_at=datetime.now(UTC),
-            )
-            await verify_data_subject_identity(session, actor_user_id=admin.id, request_id=case.id)
-            result = await data_subject_inventory(
-                session, actor_user_id=admin.id, request_id=case.id
-            )
-            return result["database"]["payout_provider_processing_evidence"]
+            events = list(await session.scalars(select(PayoutProviderEvent)))
+            attempts = list(await session.scalars(select(PayoutProviderEventProcessingAttempt)))
+            assert len(events) == 2
+            assert len(attempts) == 2
+            assert {attempt.outcome for attempt in attempts} == {"processed", "failed"}
 
-    assert asyncio.run(inventory()) == 4
+    asyncio.run(processing_evidence())

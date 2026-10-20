@@ -170,11 +170,7 @@ AUDITED = {
     (
         "POST",
         "/api/v1/admin/evidence-verifications/physical-spot-checks",
-    ): "evidence_verification.spot_check_queued",
-    (
-        "POST",
-        "/api/v1/admin/evidence-verifications/{verification_id}/physical-spot-check-result",
-    ): "evidence_verification.spot_check_resolved",
+    ): "evidence_verification.spot_check_recorded",
     ("POST", "/api/v1/driver/kyc/submissions"): "driver.kyc.submitted",
     ("PATCH", "/api/v1/driver/profile"): "driver.profile.updated",
     ("POST", "/api/v1/driver/campaign-assignments/{assignment_id}/accept"): (
@@ -378,14 +374,6 @@ AUDITED = {
         "operations.driver_contact_task.completed"
     ),
     ("POST", "/api/v1/admin/measurement-runs"): "measurement_run.issued",
-    ("POST", "/api/v1/admin/privacy/dsr-requests"): "privacy.dsr.opened",
-    ("POST", "/api/v1/admin/privacy/dsr-requests/{request_id}/verify-identity"): (
-        "privacy.dsr.identity_verified"
-    ),
-    ("POST", "/api/v1/admin/privacy/dsr-requests/{request_id}/locations/{location}"): (
-        "privacy.dsr.location_assessed"
-    ),
-    ("POST", "/api/v1/admin/privacy/dsr-requests/{request_id}/complete"): ("privacy.dsr.completed"),
     # W3-04B/C driver-application onboarding and review (public applicant
     # capability token in the request body; each router commits once):
     ("POST", "/api/v1/auth/driver-onboarding/files/uploads"): ("stored_file.upload_requested"),

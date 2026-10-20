@@ -232,7 +232,6 @@ async def admin_file_kyc_retention(
     result = await purge_terminal_file_kyc(
         session,
         storage=storage,
-        retention_days=settings.file_kyc_retention_days,
         limit=settings.worker_sweep_batch_size,
         dry_run=payload.dry_run,
         actor_user_id=user.id,

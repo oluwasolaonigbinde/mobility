@@ -404,9 +404,11 @@ checks on top (client answers item 4). This rule is built into Cardvert, so a
 fresh deployment needs no photo settings (REQ-208). The daily display-photo
 windows remain deployment values (REQ-039); trips need them.
 
-**Still open:** [REQ-039](requests.md) — spot-check and display-proof values.
+REQ-039 is superseded by D108/D109: daily proof is removed and inspectors record
+passed/failed observations with notes, without challenge windows to configure.
 
 **History:**
+- **2026-10-20** — Daily display proof and coupled automatic driver challenges removed under D108/D109 (REQ-211). Weekly approved five-view installation photos remain the trip-start gate. Built in `be1fc9de`; remaining B1 simplifications and final specialist reviews are in progress.
 - **2026-10-20** — Owner-approved pre-push fix (REQ-208): the installation-photo rule (five views, driver or admin, 7 days) is built into the code instead of three `INSTALLATION_EVIDENCE_*` settings that a fresh deployment left empty, which blocked every photo upload. Display-proof windows are unchanged.
 - **2026-10-06** — The registered temporary development installation/proof values (REQ-094) are integrated. Built in `6879c95`; unanswered client replacement inputs remain REQ-039.
 - **2026-10-02** — Owner authorized temporary installation/proof values in development and preview configuration only (REQ-094); unanswered client values remain REQ-039, with the inventory in `demo-data.md`.

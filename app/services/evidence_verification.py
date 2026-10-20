@@ -1,19 +1,19 @@
 import hashlib
 import json
 from datetime import UTC, datetime
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
 
 from app.core.errors import AppError
+from app.db.integrity import integrity_constraint_name
 from app.models.campaign_assignment import CampaignAssignment
 from app.models.driver import DriverProfile
 from app.models.evidence_verification import (
     EvidenceVerification,
-    EvidenceVerificationStatus,
-    EvidenceVerificationType,
 )
 from app.models.trip import TripSession
 from app.models.trip_analytics import FraudFlag, FraudFlagSeverity, FraudFlagStatus, FraudFlagType
@@ -104,50 +104,49 @@ def _not_found() -> AppError:
     )
 
 
-async def queue_physical_spot_check(
+async def record_physical_spot_check(
     session: AsyncSession,
     *,
     actor_user_id: UUID,
     assignment_id: UUID,
     trip_session_id: UUID,
     client_request_id: UUID,
+    outcome: str,
     note: str,
-    metadata: dict,
     now: datetime | None = None,
 ) -> EvidenceVerification:
-    payload = {
-        "assignment_id": str(assignment_id),
-        "trip_session_id": str(trip_session_id),
-        "note": note.strip(),
-        "metadata": metadata,
-    }
-    fingerprint = _fingerprint(payload)
-    request_filter = (
-        EvidenceVerification.issued_by_user_id == actor_user_id,
-        EvidenceVerification.client_request_id == client_request_id,
+    """Record the inspector's result once; a failure raises the ordinary pay hold."""
+    from app.services.admin_authorization import require_active_admin
+
+    await require_active_admin(session, actor_user_id)
+    if outcome not in {"passed", "failed"} or not note.strip():
+        raise AppError(
+            "EVIDENCE_VERIFICATION_OUTCOME_INVALID",
+            "Record passed or failed with a note",
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )
+    fingerprint = _fingerprint(
+        {
+            "assignment_id": str(assignment_id),
+            "trip_session_id": str(trip_session_id),
+            "outcome": outcome,
+            "note": note.strip(),
+        }
     )
+    assignment = await _locked_assignment(session, assignment_id)
+    if assignment is None:
+        raise _not_found()
     existing = await session.scalar(
         select(EvidenceVerification).where(
-            *request_filter,
+            EvidenceVerification.issued_by_user_id == actor_user_id,
+            EvidenceVerification.client_request_id == client_request_id,
         )
     )
     if existing is not None:
         if existing.request_fingerprint != fingerprint:
             raise AppError(
                 "EVIDENCE_VERIFICATION_REPLAY_CONFLICT",
-                "The spot-check retry does not match the original request",
-                status_code=status.HTTP_409_CONFLICT,
-            )
-        return existing
-    assignment = await _locked_assignment(session, assignment_id)
-    if assignment is None:
-        raise _not_found()
-    existing = await session.scalar(select(EvidenceVerification).where(*request_filter))
-    if existing is not None:
-        if existing.request_fingerprint != fingerprint:
-            raise AppError(
-                "EVIDENCE_VERIFICATION_REPLAY_CONFLICT",
-                "The spot-check retry does not match the original request",
+                "The spot-check retry does not match the original result",
                 status_code=status.HTTP_409_CONFLICT,
             )
         return existing
@@ -160,106 +159,59 @@ async def queue_physical_spot_check(
         or trip.vehicle_id != assignment.vehicle_id
     ):
         raise _not_found()
-    issued_at = _utc(now or await database_clock(session))
+    recorded_at = _utc(now or await database_clock(session))
     row = EvidenceVerification(
+        id=uuid4(),
         assignment_id=assignment.id,
         campaign_id=assignment.campaign_id,
         driver_profile_id=assignment.driver_profile_id,
         vehicle_id=assignment.vehicle_id,
         source_trip_session_id=trip.id,
-        verification_type=EvidenceVerificationType.PHYSICAL_SPOT_CHECK.value,
-        status=EvidenceVerificationStatus.PENDING.value,
+        verification_type="physical_spot_check",
+        status=outcome,
         issued_by_user_id=actor_user_id,
+        resolved_by_user_id=actor_user_id,
         client_request_id=client_request_id,
         request_fingerprint=fingerprint,
         result_note=note.strip(),
-        verification_metadata={**metadata, "gps_claim": "none"},
-        issued_at=issued_at,
+        verification_metadata={"gps_claim": "none"},
+        issued_at=recorded_at,
+        resolved_at=recorded_at,
     )
-    session.add(row)
-    await session.flush()
-    await create_audit_event(
-        session,
-        actor_user_id=actor_user_id,
-        action="evidence_verification.spot_check_queued",
-        entity_type="evidence_verification",
-        entity_id=str(row.id),
-        metadata={"assignment_id": str(assignment.id), "trip_session_id": str(trip.id)},
-    )
-    return row
-
-
-async def resolve_physical_spot_check(
-    session: AsyncSession,
-    *,
-    verification_id: UUID,
-    actor_user_id: UUID,
-    outcome: str,
-    note: str,
-    evidence: dict,
-    now: datetime | None = None,
-) -> EvidenceVerification:
-    if outcome not in {"passed", "failed"}:
-        raise AppError(
-            "EVIDENCE_VERIFICATION_OUTCOME_INVALID",
-            "Spot-check outcome must be passed or failed",
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        )
-    result_fingerprint = _fingerprint(
-        {
-            "actor_user_id": str(actor_user_id),
-            "outcome": outcome,
-            "note": note.strip(),
-            "evidence": evidence,
-        }
-    )
-    campaign_id = await session.scalar(
-        select(EvidenceVerification.campaign_id).where(EvidenceVerification.id == verification_id)
-    )
-    if campaign_id is None:
-        raise _not_found()
-    await acquire_campaign_terms_lock(session, campaign_id)
-    row = await session.scalar(
-        select(EvidenceVerification)
-        .where(EvidenceVerification.id == verification_id)
-        .with_for_update()
-    )
-    if row is None or row.verification_type != EvidenceVerificationType.PHYSICAL_SPOT_CHECK.value:
-        raise _not_found()
-    if row.status != EvidenceVerificationStatus.PENDING.value:
-        if row.status == outcome and row.result_fingerprint == result_fingerprint:
-            return row
-        raise AppError(
-            "EVIDENCE_VERIFICATION_REPLAY_CONFLICT",
-            "The completed spot check does not match this retry",
-            status_code=status.HTTP_409_CONFLICT,
-        )
-    resolved_at = _utc(now or await database_clock(session))
-    flag = None
-    if outcome == EvidenceVerificationStatus.FAILED.value:
+    if outcome == "failed":
         flag = await _fraud_flag_for_verification(
             session,
             verification=row,
             flag_type=FraudFlagType.PHYSICAL_SPOT_CHECK_FAILED,
             description="A physical display spot check failed and requires staff review.",
-            evidence={"verification_id": str(row.id), "result": evidence, "gps_claim": "none"},
-            now=resolved_at,
+            evidence={"verification_id": str(row.id), "gps_claim": "none"},
+            now=recorded_at,
         )
-    row.status = outcome
-    row.resolved_by_user_id = actor_user_id
-    row.resolved_at = resolved_at
-    row.result_note = note.strip()
-    row.result_fingerprint = result_fingerprint
-    row.verification_metadata = {**row.verification_metadata, "result": evidence}
-    row.fraud_flag_id = flag.id if flag is not None else None
-    await session.flush()
+        row.fraud_flag_id = flag.id
+    try:
+        async with session.begin_nested():
+            session.add(row)
+            await session.flush()
+    except IntegrityError as exc:
+        if integrity_constraint_name(exc) != "uq_evidence_verifications_admin_request":
+            raise
+        raise AppError(
+            "EVIDENCE_VERIFICATION_REPLAY_CONFLICT",
+            "The spot-check request was already used",
+            status_code=status.HTTP_409_CONFLICT,
+        ) from exc
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,
-        action="evidence_verification.spot_check_resolved",
+        action="evidence_verification.spot_check_recorded",
         entity_type="evidence_verification",
         entity_id=str(row.id),
-        metadata={"outcome": outcome, "fraud_flag_id": str(flag.id) if flag else None},
+        metadata={
+            "assignment_id": str(assignment.id),
+            "trip_session_id": str(trip.id),
+            "outcome": outcome,
+            "fraud_flag_id": str(row.fraud_flag_id) if row.fraud_flag_id else None,
+        },
     )
     return row
 

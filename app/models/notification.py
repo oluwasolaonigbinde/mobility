@@ -48,17 +48,13 @@ class NotificationType(StrEnum):
     FRAUD_HOLD_RAISED = "fraud_hold_raised"
     FRAUD_REVIEW_RESOLVED = "fraud_review_resolved"
     FRAUD_DISPUTE_REPLIED = "fraud_dispute_replied"
-    ACTIVITY_FLOOR_BREACHED = "activity_floor_breached"
-    ACTIVITY_FLOOR_RECOVERED = "activity_floor_recovered"
     ASSIGNMENT_INACTIVE = "assignment_inactive"
-    ASSIGNMENT_ACTIVITY_RECOVERED = "assignment_activity_recovered"
     PAYOUT_AUTOMATIC_ALERT = "payout_automatic_alert"
     PAYOUT_AUTOMATIC_PAUSED = "payout_automatic_paused"
     PAYOUT_AUTOMATIC_RESUMED = "payout_automatic_resumed"
     COMPLAINT_RECEIVED = "complaint_received"
     COMPLAINT_REPLIED = "complaint_replied"
     COMPLAINT_RESOLVED = "complaint_resolved"
-    COMPLAINT_ASSIGNED = "complaint_assigned"
 
 
 class NotificationChannel(StrEnum):

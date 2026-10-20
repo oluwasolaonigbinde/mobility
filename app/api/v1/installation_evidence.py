@@ -25,7 +25,6 @@ from app.schemas.evidence_verification import (
     AdminEvidenceVerificationList,
     EvidenceVerificationRead,
     PhysicalSpotCheckCreate,
-    PhysicalSpotCheckResolve,
 )
 from app.schemas.installation_evidence import (
     InstallationEvidenceCreate,
@@ -44,8 +43,7 @@ from app.schemas.stored_files import (
 from app.services.audit import create_audit_event
 from app.services.evidence_verification import (
     list_admin_verifications,
-    queue_physical_spot_check,
-    resolve_physical_spot_check,
+    record_physical_spot_check,
 )
 from app.services.installation_evidence import (
     INSTALLATION_EVIDENCE_VIEWS,
@@ -125,7 +123,6 @@ def verification_response(row: EvidenceVerification) -> EvidenceVerificationRead
         status=row.status,
         issued_by_user_id=row.issued_by_user_id,
         resolved_by_user_id=row.resolved_by_user_id,
-        due_at=row.due_at,
         fraud_flag_id=row.fraud_flag_id,
         result_note=row.result_note,
         metadata=row.verification_metadata,
@@ -474,44 +471,21 @@ async def admin_evidence_verifications(
     "/admin/evidence-verifications/physical-spot-checks",
     response_model=EvidenceVerificationRead,
     status_code=status.HTTP_201_CREATED,
-    summary="Queue an assignment-bound physical spot check",
+    summary="Record passed or failed physical spot check",
 )
-async def admin_queue_physical_spot_check(
+async def admin_record_physical_spot_check(
     payload: PhysicalSpotCheckCreate,
     user: AdminUserDependency,
     session: SessionDependency,
 ) -> EvidenceVerificationRead:
-    row = await queue_physical_spot_check(
+    row = await record_physical_spot_check(
         session,
         actor_user_id=user.id,
         assignment_id=payload.assignment_id,
         trip_session_id=payload.trip_session_id,
         client_request_id=payload.client_request_id,
         note=payload.note,
-        metadata=payload.metadata,
-    )
-    await session.commit()
-    return verification_response(row)
-
-
-@router.post(
-    "/admin/evidence-verifications/{verification_id}/physical-spot-check-result",
-    response_model=EvidenceVerificationRead,
-    summary="Record an audited physical spot-check result",
-)
-async def admin_resolve_physical_spot_check(
-    verification_id: UUID,
-    payload: PhysicalSpotCheckResolve,
-    user: AdminUserDependency,
-    session: SessionDependency,
-) -> EvidenceVerificationRead:
-    row = await resolve_physical_spot_check(
-        session,
-        verification_id=verification_id,
-        actor_user_id=user.id,
         outcome=payload.outcome,
-        note=payload.note,
-        evidence=payload.evidence,
     )
     await session.commit()
     return verification_response(row)

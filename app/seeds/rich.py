@@ -1170,7 +1170,6 @@ async def ensure_portal_people(session, *, graph, settings):
             advertiser_organization_id=graph.organization.id if party == "advertiser" else None,
             category=category,
             status=state,
-            assigned_to_user_id=staff[1].id,
             client_request_id=key,
             last_message_at=answered_at if reply else opened_at,
             resolved_at=answered_at if state == "resolved" else None,
@@ -2327,8 +2326,7 @@ async def _review_seed_fraud_flags(session, *, campaign_id, actor_user_id):
 
 async def ensure_trip_review_work(session, *, graph, staff, settings):
     from app.services.evidence_verification import (
-        queue_physical_spot_check,
-        resolve_physical_spot_check,
+        record_physical_spot_check,
     )
     from app.services.trips import (
         apply_quarantined_ping_batch,
@@ -2353,34 +2351,25 @@ async def ensure_trip_review_work(session, *, graph, staff, settings):
     for _index, (trip, outcome, note) in enumerate(
         zip(
             trips[:4],
-            ("pending", "pending", "passed", "failed"),
+            ("passed", "passed", "passed", "failed"),
             (
-                "Please check the rear panel at the Wuse office.",
-                "Meet the driver near Wuse Market after the morning route.",
+                "The inspector checked the rear panel at the Wuse office; it was secure.",
+                "The inspector saw all panels in place after the morning route.",
                 "All panels are secure and the phone number is readable.",
                 "The rear panel is peeling; arrange a replacement before the next route.",
             ),
             strict=False,
         )
     ):
-        check = await queue_physical_spot_check(
+        await record_physical_spot_check(
             session,
             actor_user_id=staff[3].id,
             assignment_id=trip.assignment_id,
             trip_session_id=trip.id,
             client_request_id=uuid5(trip.id, "spot-check"),
             note=note,
-            metadata={},
+            outcome=outcome,
         )
-        if outcome != "pending" and check.status == "pending":
-            await resolve_physical_spot_check(
-                session,
-                verification_id=check.id,
-                actor_user_id=staff[3].id,
-                outcome=outcome,
-                note=note,
-                evidence={},
-            )
     for trip, state in zip(trips[4:], ("quarantined", "applied", "discarded"), strict=False):
         payload = LocationPingBatchCreate(
             idempotency_key=f"{F7_SEED_VERSION}:f7:late:{trip.id}",

@@ -57,10 +57,6 @@ const noticeCopy: Partial<Record<NotificationType, string>> = {
   fraud_hold_raised: "This trip was put on hold for a check.",
   fraud_review_resolved: "Terrax Media finished checking this trip.",
   fraud_dispute_replied: "Terrax Media replied to you.",
-  activity_floor_breached: "You drove less than the weekly minimum.",
-  activity_floor_recovered: "You're back above the weekly minimum.",
-  assignment_inactive: "No trips were recorded on this job for 7 days.",
-  assignment_activity_recovered: "Trips started again on this job.",
 };
 
 const EXCLUSION_LABELS: Record<string, string> = {

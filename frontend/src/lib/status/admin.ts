@@ -35,6 +35,7 @@ const common: Record<string, string> = {
   paid: "Paid",
   reversal: "Taken back",
   failed: "Failed",
+  passed: "Passed",
   not_submitted: "Not submitted",
   not_started: "Not started",
   verified: "Verified",

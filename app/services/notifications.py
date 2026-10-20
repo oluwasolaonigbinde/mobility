@@ -14,8 +14,6 @@ from app.core.errors import AppError
 from app.core.outbox_enqueue import pending_job
 from app.models.assignment_activity import (
     AssignmentActivityFlag,
-    AssignmentActivityFlagEventType,
-    AssignmentActivityFlagType,
 )
 from app.models.billing import BudgetCampaignTransition, BudgetPolicyEvaluation
 from app.models.campaign import Campaign
@@ -59,10 +57,7 @@ _CAMPAIGN_NOTICE_TYPES = {
     NotificationType.FRAUD_HOLD_RAISED,
     NotificationType.FRAUD_REVIEW_RESOLVED,
     NotificationType.FRAUD_DISPUTE_REPLIED,
-    NotificationType.ACTIVITY_FLOOR_BREACHED,
-    NotificationType.ACTIVITY_FLOOR_RECOVERED,
     NotificationType.ASSIGNMENT_INACTIVE,
-    NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED,
 }
 
 
@@ -739,39 +734,13 @@ async def create_activity_flag_notice(
     session: AsyncSession,
     *,
     flag: AssignmentActivityFlag,
-    event_type: AssignmentActivityFlagEventType,
-    event_sequence: int,
-) -> Notification:
-    """Create one typed driver notice for an activity occurrence/recovery."""
-    if event_type == AssignmentActivityFlagEventType.OPENED:
-        type_key = (
-            NotificationType.ACTIVITY_FLOOR_BREACHED
-            if flag.flag_type == AssignmentActivityFlagType.VERIFIED_HOURS_FLOOR.value
-            else NotificationType.ASSIGNMENT_INACTIVE
-        )
-    else:
-        type_key = (
-            NotificationType.ACTIVITY_FLOOR_RECOVERED
-            if flag.flag_type == AssignmentActivityFlagType.VERIFIED_HOURS_FLOOR.value
-            else NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED
-        )
-    recipient_user_id = await session.scalar(
-        select(DriverProfile.user_id).where(DriverProfile.id == flag.driver_profile_id)
-    )
-    if recipient_user_id is None:
-        raise RuntimeError("activity flag driver profile is missing")
-    return await _create_notice(
+) -> list[Notification]:
+    """One staff notice when inactivity opens; closing needs no extra notice."""
+    return await create_active_admin_notices(
         session,
-        recipient_user_id=recipient_user_id,
-        type_key=type_key,
-        payload={
-            "activity_flag_id": str(flag.id),
-            "assignment_id": str(flag.assignment_id),
-            "activity_flag_type": flag.flag_type,
-            "activity_event": event_type.value,
-            "activity_event_sequence": event_sequence,
-        },
-        dedupe_key=(f"assignment_activity:{event_type.value}:v2:{flag.id}:{event_sequence}"),
+        type_key=NotificationType.ASSIGNMENT_INACTIVE,
+        event_key=f"assignment-inactive:{flag.id}",
+        payload={"activity_flag_id": str(flag.id), "assignment_id": str(flag.assignment_id)},
     )
 
 

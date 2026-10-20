@@ -25,7 +25,6 @@ from app.jobs.disbursements import (
     sweep_disbursement_intents,
     sweep_payout_provider_events,
 )
-from app.jobs.disclosure_retention import purge_expired_disclosure_query_history
 from app.jobs.earnings_release import sweep_earnings_release_reviews
 from app.jobs.email_delivery import deliver_email, sweep_email_notifications
 from app.jobs.exposure_segments import materialize_exposure_segment_job, sweep_exposure_segments
@@ -204,7 +203,6 @@ class WorkerSettings:
         cron(premake_ping_partitions, hour={1}, minute={10}, unique=True),
         cron(check_ping_partition_coverage, hour={7}, minute={20}, unique=True),
         cron(purge_expired_ping_partitions, hour={3}, minute={30}, unique=True),
-        cron(purge_expired_disclosure_query_history, hour={4}, minute={40}, unique=True),
         cron(
             recover_stored_object_deletions,
             minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),

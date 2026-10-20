@@ -9,7 +9,7 @@ import { formatDate, formatDateTime, formatMoneyExact } from "@/lib/format";
 import { adminStatus } from "@/lib/status/admin";
 import { ReviewActions } from "../fraud/review-actions";
 import { DisputeReplyActions } from "../fraud/dispute-actions";
-import { SpotCheckQueueForm, SpotCheckResultForm } from "../fraud/spot-check-actions";
+import { SpotCheckForm } from "../fraud/spot-check-actions";
 import {
   evidenceVerificationId,
   matchedTripIds,
@@ -91,7 +91,6 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
         query: {
           limit,
           offset: next,
-          status: "pending",
           verification_type: "physical_spot_check",
           verification_id,
           trip_session_id,
@@ -147,10 +146,7 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
   );
   const selectedCheck = selectedChecks?.find(
     (item) =>
-      item.id === p.check &&
-      scoped(item) &&
-      item.status === "pending" &&
-      item.verification_type === "physical_spot_check",
+      item.id === p.check && scoped(item) && item.verification_type === "physical_spot_check",
   );
   const visibleChecks = checks;
   const visibleLate = late?.items;
@@ -217,15 +213,6 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
           .catch(() => undefined)
       : undefined;
   const route = routePage?.items;
-  const pendingChecks =
-    selectedFlag && selectedInScope
-      ? await checkRead(0, 1, undefined, selectedFlag.trip_session_id)
-          .then(({ data }) => data?.items)
-          .catch(() => undefined)
-      : undefined;
-  const pendingCheck = pendingChecks?.find(
-    (item) => item.source_trip_session_id === selectedFlag?.trip_session_id,
-  );
   const held = (flag: NonNullable<typeof selectedFlag>) =>
     flag.money_effect.held_currency
       ? formatMoneyExact(flag.money_effect.held_pending_net, flag.money_effect.held_currency)
@@ -402,7 +389,7 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
                       >
                         {line(check.source_trip_session_id)}
                         <p className="mt-2">
-                          Staff to look at the car in person · requested{" "}
+                          {adminStatus(check.status)} inspection · recorded{" "}
                           {formatDateTime(check.issued_at)}
                         </p>
                         {ids(["Trip", check.source_trip_session_id])}
@@ -515,26 +502,15 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
                 }
               />
               {selectedFlag.status === "open" || selectedFlag.status === "acknowledged" ? (
-                !pendingChecks ? (
-                  <QueueUnavailable />
-                ) : pendingCheck ? (
-                  <Link
-                    className="text-cyan my-5 block underline"
-                    href={href({ tab: "in-person", flag: undefined, check: pendingCheck.id })}
-                  >
-                    In-person check waiting — record the result
-                  </Link>
-                ) : (
-                  <details className="my-5">
-                    <summary>Ask for an in-person check</summary>
-                    <SpotCheckQueueForm
-                      trip={{
-                        assignmentId: selectedFlag.assignment_id,
-                        tripSessionId: selectedFlag.trip_session_id,
-                      }}
-                    />
-                  </details>
-                )
+                <details className="my-5">
+                  <summary>Record an in-person check</summary>
+                  <SpotCheckForm
+                    trip={{
+                      assignmentId: selectedFlag.assignment_id,
+                      tripSessionId: selectedFlag.trip_session_id,
+                    }}
+                  />
+                </details>
               ) : null}
               {!disputes ? (
                 <QueueUnavailable />
@@ -606,7 +582,9 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
           ) : (
             <>
               {line(selectedCheck.source_trip_session_id)}
-              <SpotCheckResultForm verificationId={selectedCheck.id} />
+              <p className="mt-3">
+                {adminStatus(selectedCheck.status)} · {selectedCheck.result_note}
+              </p>
               {ids(["Trip", selectedCheck.source_trip_session_id], ["Check", selectedCheck.id])}
             </>
           )}

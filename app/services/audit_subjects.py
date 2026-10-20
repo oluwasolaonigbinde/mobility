@@ -67,10 +67,6 @@ SUBJECT_QUERIES: dict[str, tuple[str, str]] = {
         "driver_account_setup_tokens",
         "SELECT user_id FROM driver_account_setup_tokens WHERE id=:entity_id",
     ),
-    "data_subject_request": (
-        "data_subject_requests",
-        "SELECT subject_user_id FROM data_subject_requests WHERE id=:entity_id",
-    ),
     "password_reset_attempt": (
         "password_reset_attempts",
         "SELECT issued_user_id FROM password_reset_attempts WHERE id=:entity_id",

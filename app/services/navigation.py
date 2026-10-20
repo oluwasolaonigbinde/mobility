@@ -7,7 +7,6 @@ from app.models.campaign_change import CampaignChangeRequest
 from app.models.complaint import Complaint
 from app.models.disbursement import PayoutAutomaticAlert, PayoutBatch, PayoutBatchLine
 from app.models.driver_application import DriverApplication
-from app.models.evidence_verification import EvidenceVerification
 from app.models.fraud_dispute import FraudDispute
 from app.models.installation_evidence import InstallationEvidenceSubmission
 from app.models.payout import PayoutCorrectionOrder
@@ -27,7 +26,6 @@ SOURCE_AREAS = {
     "campaigns": "campaigns",
     "artwork": "campaigns",
     "photos": "campaigns",
-    "checks": "trips",
     "batches": "money",
     "alerts": "money",
     "corrections": "money",
@@ -65,11 +63,6 @@ async def admin_badge_summary(session: AsyncSession) -> dict:
         "photos": count(
             InstallationEvidenceSubmission,
             InstallationEvidenceSubmission.status == "pending_review",
-        ),
-        "checks": count(
-            EvidenceVerification,
-            EvidenceVerification.status == "pending",
-            EvidenceVerification.verification_type == "physical_spot_check",
         ),
         "batches": count(
             PayoutBatch,

@@ -136,22 +136,6 @@ _TEMPLATES: dict[NotificationType, Callable[[dict[str, Any]], RenderedEmail]] = 
         "Reply about your trip",
         "Terrax Media has replied about your trip. Open Earnings to read it.",
     ),
-    NotificationType.ACTIVITY_FLOOR_BREACHED: _static(
-        "Not enough driving this week",
-        "We have not seen enough trips for this job this week. "
-        "Terrax Media will check in with you.",
-    ),
-    NotificationType.ACTIVITY_FLOOR_RECOVERED: _static(
-        "Weekly driving back on track",
-        "You're back above this job's weekly minimum.",
-    ),
-    NotificationType.ASSIGNMENT_INACTIVE: _static(
-        "No recent trips",
-        "We have not seen any trips for this job recently. Open Jobs to check it.",
-    ),
-    NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED: _static(
-        "Trips started again", "Trips are being recorded on your job again."
-    ),
     NotificationType.COMPLAINT_REPLIED: _static(
         "Terrax Media replied to your complaint",
         "Terrax Media Customer Service replied to your complaint. Sign in to read the reply.",

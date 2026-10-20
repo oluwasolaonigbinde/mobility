@@ -1,6 +1,6 @@
 import re
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import select, text
@@ -21,6 +21,7 @@ from app.models.stored_file import StoredFile, StoredObjectDeletion
 from app.models.vehicle import Vehicle
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
+from app.services.data_lifecycle import subtract_calendar_months
 from app.services.stored_object_deletions import (
     _file_is_referenced,
     delete_stored_object,
@@ -29,6 +30,7 @@ from app.services.stored_object_deletions import (
 )
 from app.services.vehicle_onboarding import acquire_work_eligibility_lock
 
+FILE_KYC_RETENTION_MONTHS = 6
 FILE_KYC_RETENTION_LOCK = 0x46494C454B5943
 TERMINAL_RETENTION_STATUSES = {
     KycSubmissionStatus.REJECTED.value,
@@ -398,7 +400,6 @@ async def purge_terminal_file_kyc(  # noqa: C901
     session: AsyncSession,
     *,
     storage: StorageProvider,
-    retention_days: int | None,
     limit: int,
     dry_run: bool,
     actor_user_id: UUID | None,
@@ -408,23 +409,10 @@ async def purge_terminal_file_kyc(  # noqa: C901
     reason = _reason(reason)
     if limit < 1:
         raise ValueError("File/KYC retention limit must be positive")
-    if retention_days is None:
-        if not dry_run:
-            raise AppError(
-                "FILE_KYC_RETENTION_POLICY_REQUIRED",
-                "File/KYC retention execution requires an approved configured policy",
-                status_code=status.HTTP_409_CONFLICT,
-            )
-        result = FileKycPurgeResult(False, True, False, 0, 0, 0)
-        if actor_user_id is not None:
-            await _audit_run(session, result=result, actor_user_id=actor_user_id, reason=reason)
-        return result
-    if retention_days < 1:
-        raise ValueError("File/KYC retention days must be positive")
     if actor_user_id is not None:
         await require_active_admin(session, actor_user_id)
     now = now or datetime.now(UTC)
-    cutoff = now - timedelta(days=retention_days)
+    cutoff = subtract_calendar_months(now, FILE_KYC_RETENTION_MONTHS)
     driver_ids, vehicle_ids = await _candidate_ids(session, cutoff=cutoff, limit=limit)
     eligible = len(driver_ids) + len(vehicle_ids)
     if dry_run:

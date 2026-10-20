@@ -1107,25 +1107,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Queue an assignment-bound physical spot check */
-        post: operations["admin_queue_physical_spot_check_api_v1_admin_evidence_verifications_physical_spot_checks_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/evidence-verifications/{verification_id}/physical-spot-check-result": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Record an audited physical spot-check result */
-        post: operations["admin_resolve_physical_spot_check_api_v1_admin_evidence_verifications__verification_id__physical_spot_check_result_post"];
+        /** Record passed or failed physical spot check */
+        post: operations["admin_record_physical_spot_check_api_v1_admin_evidence_verifications_physical_spot_checks_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2247,91 +2230,6 @@ export interface paths {
         get: operations["admin_phone_verification_work_api_v1_admin_phone_verification_challenges_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/privacy/dsr-requests": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Open Data Subject Request */
-        post: operations["open_data_subject_request_api_v1_admin_privacy_dsr_requests_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/privacy/dsr-requests/{request_id}/complete": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Complete Data Subject Request Case */
-        post: operations["complete_data_subject_request_case_api_v1_admin_privacy_dsr_requests__request_id__complete_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/privacy/dsr-requests/{request_id}/inventory": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Inspect Data Subject Inventory */
-        get: operations["inspect_data_subject_inventory_api_v1_admin_privacy_dsr_requests__request_id__inventory_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/privacy/dsr-requests/{request_id}/locations/{location}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Assess Data Subject Location */
-        post: operations["assess_data_subject_location_api_v1_admin_privacy_dsr_requests__request_id__locations__location__post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/privacy/dsr-requests/{request_id}/verify-identity": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Verify Data Subject Request Identity */
-        post: operations["verify_data_subject_request_identity_api_v1_admin_privacy_dsr_requests__request_id__verify_identity_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5327,8 +5225,6 @@ export interface components {
              * Format: uuid
              */
             driver_profile_id: string;
-            /** Due At */
-            due_at: string | null;
             /** Fraud Flag Id */
             fraud_flag_id: string | null;
             /**
@@ -6345,6 +6241,8 @@ export interface components {
              * Format: uuid
              */
             campaign_id: string;
+            /** Closed At */
+            closed_at: string | null;
             /**
              * Driver Profile Id
              * Format: uuid
@@ -6374,8 +6272,6 @@ export interface components {
             last_verified_activity_at: string | null;
             /** Observed Seconds */
             observed_seconds: number;
-            /** Recovered At */
-            recovered_at: string | null;
             status: components["schemas"]["AssignmentActivityFlagStatus"];
             /** Threshold Seconds */
             threshold_seconds: number | null;
@@ -6399,12 +6295,12 @@ export interface components {
          * AssignmentActivityFlagStatus
          * @enum {string}
          */
-        AssignmentActivityFlagStatus: "open" | "recovered";
+        AssignmentActivityFlagStatus: "open" | "closed";
         /**
          * AssignmentActivityFlagType
          * @enum {string}
          */
-        AssignmentActivityFlagType: "verified_hours_floor" | "inactivity";
+        AssignmentActivityFlagType: "inactivity";
         /** AssignmentCampaignSummary */
         AssignmentCampaignSummary: {
             /** End At */
@@ -8944,141 +8840,6 @@ export interface components {
             /** Totals By Currency */
             totals_by_currency: components["schemas"]["DashboardCostCurrencySummary"][];
         };
-        /**
-         * DataSubjectDisposition
-         * @enum {string}
-         */
-        DataSubjectDisposition: "provided" | "rectified" | "erased" | "not_found" | "retained_exception";
-        /** DataSubjectInventoryRead */
-        DataSubjectInventoryRead: {
-            /** Database */
-            database: {
-                [key: string]: number;
-            };
-            /** Manual Locations */
-            manual_locations: components["schemas"]["DataSubjectLocation"][];
-            /** Object Storage */
-            object_storage: {
-                [key: string]: number;
-            };
-        };
-        /**
-         * DataSubjectLocation
-         * @enum {string}
-         */
-        DataSubjectLocation: "database" | "object_storage" | "device_queue" | "operational_logs" | "backups" | "processors";
-        /** DataSubjectLocationAssessmentCreate */
-        DataSubjectLocationAssessmentCreate: {
-            /**
-             * Client Request Id
-             * Format: uuid
-             */
-            client_request_id: string;
-            disposition: components["schemas"]["DataSubjectDisposition"];
-            /** Evidence Reference */
-            evidence_reference: string;
-            /** Exception Reference */
-            exception_reference?: string | null;
-            /** External Record Count */
-            external_record_count?: number | null;
-        };
-        /** DataSubjectLocationAssessmentRead */
-        DataSubjectLocationAssessmentRead: {
-            /**
-             * Assessed By User Id
-             * Format: uuid
-             */
-            assessed_by_user_id: string;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Data Class Counts */
-            data_class_counts: {
-                [key: string]: number;
-            };
-            disposition: components["schemas"]["DataSubjectDisposition"];
-            /** Evidence Reference */
-            evidence_reference: string;
-            /** Exception Reference */
-            exception_reference: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            location: components["schemas"]["DataSubjectLocation"];
-            /** Record Count */
-            record_count: number;
-        };
-        /** DataSubjectRequestCreate */
-        DataSubjectRequestCreate: {
-            /**
-             * Client Request Id
-             * Format: uuid
-             */
-            client_request_id: string;
-            request_type: components["schemas"]["DataSubjectRequestType"];
-            /**
-             * Requested At
-             * Format: date-time
-             */
-            requested_at: string;
-            /**
-             * Subject User Id
-             * Format: uuid
-             */
-            subject_user_id: string;
-        };
-        /** DataSubjectRequestRead */
-        DataSubjectRequestRead: {
-            /** Completed At */
-            completed_at: string | null;
-            /** Completed By User Id */
-            completed_by_user_id: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Identity Verified At */
-            identity_verified_at: string | null;
-            /** Identity Verified By User Id */
-            identity_verified_by_user_id: string | null;
-            /**
-             * Opened By User Id
-             * Format: uuid
-             */
-            opened_by_user_id: string;
-            request_type: components["schemas"]["DataSubjectRequestType"];
-            /**
-             * Requested At
-             * Format: date-time
-             */
-            requested_at: string;
-            status: components["schemas"]["DataSubjectRequestStatus"];
-            /**
-             * Subject User Id
-             * Format: uuid
-             */
-            subject_user_id: string;
-        };
-        /**
-         * DataSubjectRequestStatus
-         * @enum {string}
-         */
-        DataSubjectRequestStatus: "open" | "identity_verified" | "completed";
-        /**
-         * DataSubjectRequestType
-         * @enum {string}
-         */
-        DataSubjectRequestType: "access" | "rectification" | "erasure";
         /** DigitalCampaignAudienceSourceCreate */
         DigitalCampaignAudienceSourceCreate: {
             /** Aggregation Window Days */
@@ -10034,8 +9795,6 @@ export interface components {
              * Format: uuid
              */
             driver_profile_id: string;
-            /** Due At */
-            due_at: string | null;
             /** Fraud Flag Id */
             fraud_flag_id: string | null;
             /**
@@ -10077,7 +9836,7 @@ export interface components {
          * EvidenceVerificationStatus
          * @enum {string}
          */
-        EvidenceVerificationStatus: "pending" | "passed" | "failed";
+        EvidenceVerificationStatus: "passed" | "failed";
         /**
          * EvidenceVerificationType
          * @enum {string}
@@ -11746,7 +11505,7 @@ export interface components {
          * NotificationType
          * @enum {string}
          */
-        NotificationType: "driver_id_approved" | "driver_id_rejected" | "driver_car_approved" | "driver_car_rejected" | "assignment_offered" | "assignment_accepted" | "campaign_approved" | "campaign_rejected" | "creative_approved" | "creative_rejected" | "quotation_ready" | "funding_confirmed" | "budget_alert" | "budget_urgent_alert" | "campaign_budget_paused" | "campaign_budget_resumed" | "campaign_cancelled" | "payout_released" | "password_reset_requested" | "driver_onboarding_access_requested" | "driver_account_setup_requested" | "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied" | "activity_floor_breached" | "activity_floor_recovered" | "assignment_inactive" | "assignment_activity_recovered" | "payout_automatic_alert" | "payout_automatic_paused" | "payout_automatic_resumed" | "complaint_received" | "complaint_replied" | "complaint_resolved" | "complaint_assigned";
+        NotificationType: "driver_id_approved" | "driver_id_rejected" | "driver_car_approved" | "driver_car_rejected" | "assignment_offered" | "assignment_accepted" | "campaign_approved" | "campaign_rejected" | "creative_approved" | "creative_rejected" | "quotation_ready" | "funding_confirmed" | "budget_alert" | "budget_urgent_alert" | "campaign_budget_paused" | "campaign_budget_resumed" | "campaign_cancelled" | "payout_released" | "password_reset_requested" | "driver_onboarding_access_requested" | "driver_account_setup_requested" | "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied" | "assignment_inactive" | "payout_automatic_alert" | "payout_automatic_paused" | "payout_automatic_resumed" | "complaint_received" | "complaint_replied" | "complaint_resolved";
         /** NotificationUnreadCountRead */
         NotificationUnreadCountRead: {
             /** Unread Count */
@@ -12616,24 +12375,6 @@ export interface components {
              * Format: uuid
              */
             client_request_id: string;
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            };
-            /** Note */
-            note: string;
-            /**
-             * Trip Session Id
-             * Format: uuid
-             */
-            trip_session_id: string;
-        };
-        /** PhysicalSpotCheckResolve */
-        PhysicalSpotCheckResolve: {
-            /** Evidence */
-            evidence?: {
-                [key: string]: unknown;
-            };
             /** Note */
             note: string;
             /**
@@ -12641,6 +12382,11 @@ export interface components {
              * @enum {string}
              */
             outcome: "passed" | "failed";
+            /**
+             * Trip Session Id
+             * Format: uuid
+             */
+            trip_session_id: string;
         };
         /**
          * PingSampleResult
@@ -13737,10 +13483,6 @@ export interface components {
         StaffComplaintDetailRead: {
             /** Advertiser Organization Id */
             advertiser_organization_id: string | null;
-            /** Assigned To Name */
-            assigned_to_name: string | null;
-            /** Assigned To User Id */
-            assigned_to_user_id: string | null;
             category: components["schemas"]["ComplaintCategory"];
             /**
              * Created At
@@ -13840,10 +13582,6 @@ export interface components {
         StaffComplaintSummaryRead: {
             /** Advertiser Organization Id */
             advertiser_organization_id: string | null;
-            /** Assigned To Name */
-            assigned_to_name: string | null;
-            /** Assigned To User Id */
-            assigned_to_user_id: string | null;
             category: components["schemas"]["ComplaintCategory"];
             /**
              * Created At
@@ -13885,13 +13623,9 @@ export interface components {
         };
         /**
          * StaffComplaintUpdate
-         * @description Both fields are optional; an empty body is a valid no-op.
-         *
-         *     An omitted field is left unchanged; an explicit null assignee clears it.
+         * @description An omitted status is a valid no-op.
          */
         StaffComplaintUpdate: {
-            /** Assigned To User Id */
-            assigned_to_user_id?: string | null;
             /** Status */
             status?: ("open" | "resolved") | null;
         };
@@ -16597,7 +16331,6 @@ export interface operations {
             query?: {
                 status?: components["schemas"]["ComplaintStatus"] | null;
                 party?: components["schemas"]["ComplaintParty"] | null;
-                assigned_to_me?: boolean;
                 user_id?: string | null;
                 organization_id?: string | null;
                 limit?: number;
@@ -17421,7 +17154,7 @@ export interface operations {
             };
         };
     };
-    admin_queue_physical_spot_check_api_v1_admin_evidence_verifications_physical_spot_checks_post: {
+    admin_record_physical_spot_check_api_v1_admin_evidence_verifications_physical_spot_checks_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -17436,41 +17169,6 @@ export interface operations {
         responses: {
             /** @description Successful Response */
             201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EvidenceVerificationRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_resolve_physical_spot_check_api_v1_admin_evidence_verifications__verification_id__physical_spot_check_result_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                verification_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PhysicalSpotCheckResolve"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -19765,168 +19463,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminPhoneChallengeListRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    open_data_subject_request_api_v1_admin_privacy_dsr_requests_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DataSubjectRequestCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DataSubjectRequestRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    complete_data_subject_request_case_api_v1_admin_privacy_dsr_requests__request_id__complete_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                request_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DataSubjectRequestRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    inspect_data_subject_inventory_api_v1_admin_privacy_dsr_requests__request_id__inventory_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                request_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DataSubjectInventoryRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    assess_data_subject_location_api_v1_admin_privacy_dsr_requests__request_id__locations__location__post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                request_id: string;
-                location: components["schemas"]["DataSubjectLocation"];
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["DataSubjectLocationAssessmentCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DataSubjectLocationAssessmentRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    verify_data_subject_request_identity_api_v1_admin_privacy_dsr_requests__request_id__verify_identity_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                request_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DataSubjectRequestRead"];
                 };
             };
             /** @description Request validation failed */

@@ -382,24 +382,9 @@ def test_driver_context_resolves_trip_and_denies_another_drivers_assignment(
     ("type_key", "title", "body"),
     [
         (
-            NotificationType.ACTIVITY_FLOOR_BREACHED,
-            "Not enough driving this week",
-            "You drove less than this job's weekly minimum. Terrax Media will look at your job.",
-        ),
-        (
-            NotificationType.ACTIVITY_FLOOR_RECOVERED,
-            "Weekly driving back on track",
-            "You're back above this job's weekly minimum.",
-        ),
-        (
             NotificationType.ASSIGNMENT_INACTIVE,
             "No trips for 7 days",
-            "No trips were recorded on your job for 7 days. Terrax Media will look at it.",
-        ),
-        (
-            NotificationType.ASSIGNMENT_ACTIVITY_RECOVERED,
-            "Trips started again",
-            "Trips are being recorded on your job again.",
+            "No verified trips were recorded for this job for 7 days. Follow up with the driver.",
         ),
         (
             NotificationType.BUDGET_URGENT_ALERT,

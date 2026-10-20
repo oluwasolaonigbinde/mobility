@@ -64,8 +64,6 @@ SENSITIVE_SCOPES = {
     ),
     "privacy": (
         "app/services/disclosure.py",
-        "app/services/data_subject_inventory.py",
-        "app/services/data_subject_requests.py",
         "app/services/data_lifecycle.py",
         "app/services/file_kyc_lifecycle.py",
         "app/services/stored_files.py",

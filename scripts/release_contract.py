@@ -586,10 +586,8 @@ def _validate_live_adapters(environment: Mapping[str, str]) -> None:
         map_style = parsed_style._replace(query="").geturl()
     _validate_https_authority("NEXT_PUBLIC_MAP_STYLE_URL", map_style)
     for name in (
-        "FILE_KYC_RETENTION_DAYS",
         # Approved applicants get their set-up link only when this is set.
         "DRIVER_ACCOUNT_SETUP_PUBLIC_URL",
-        "VERIFIED_HOURS_FLOOR_PER_WEEK",
     ):
         _require(environment, name)
 

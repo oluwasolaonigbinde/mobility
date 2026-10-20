@@ -264,35 +264,6 @@ export const sources: Source[] = [
       ),
   ),
   source(
-    "checks",
-    "Compliance",
-    "trips",
-    "In-person checks",
-    "/admin/trip-checks?tab=in-person",
-    (api, limit, offset) =>
-      api.GET("/api/v1/admin/evidence-verifications", {
-        params: {
-          query: {
-            limit,
-            offset,
-            status: "pending",
-            verification_type: "physical_spot_check",
-            oldest_first: true,
-          },
-        },
-      }),
-    (r) =>
-      task(
-        `check:${r.id}`,
-        "trips",
-        r.issued_at,
-        "Requested",
-        present(r.driver_name),
-        "In-person check to record",
-        `/admin/trip-checks?tab=in-person&check=${r.id}`,
-      ),
-  ),
-  source(
     "batches",
     "Finance",
     "money",

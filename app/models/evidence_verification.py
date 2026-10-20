@@ -14,7 +14,6 @@ class EvidenceVerificationType(StrEnum):
 
 
 class EvidenceVerificationStatus(StrEnum):
-    PENDING = "pending"
     PASSED = "passed"
     FAILED = "failed"
 
@@ -33,17 +32,13 @@ class EvidenceVerification(Base):
             name="ck_evidence_verifications_type",
         ),
         CheckConstraint(
-            "status IN ('pending', 'passed', 'failed')",
+            "status IN ('passed', 'failed')",
             name="ck_evidence_verifications_status",
         ),
         CheckConstraint(
-            "(status = 'pending' AND resolved_at IS NULL AND resolved_by_user_id IS NULL "
-            "AND fraud_flag_id IS NULL) OR "
-            "(status = 'passed' AND resolved_at IS NOT NULL "
-            "AND resolved_by_user_id IS NOT NULL "
-            "AND fraud_flag_id IS NULL) OR "
-            "(status = 'failed' AND resolved_at IS NOT NULL "
-            "AND fraud_flag_id IS NOT NULL)",
+            "resolved_at IS NOT NULL AND resolved_by_user_id IS NOT NULL AND "
+            "((status = 'passed' AND fraud_flag_id IS NULL) OR "
+            "(status = 'failed' AND fraud_flag_id IS NOT NULL))",
             name="ck_evidence_verifications_resolution",
         ),
         CheckConstraint(
@@ -94,8 +89,6 @@ class EvidenceVerification(Base):
     )
     client_request_id: Mapped[UUID | None] = mapped_column()
     request_fingerprint: Mapped[str | None] = mapped_column(String(64))
-    result_fingerprint: Mapped[str | None] = mapped_column(String(64))
-    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     fraud_flag_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("fraud_flags.id", ondelete="RESTRICT")
     )

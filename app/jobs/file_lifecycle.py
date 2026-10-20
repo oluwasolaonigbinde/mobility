@@ -40,22 +40,12 @@ async def purge_orphaned_file_uploads(ctx: dict[str, Any]) -> dict[str, int]:
 
 async def purge_expired_file_kyc(ctx: dict[str, Any]) -> dict[str, int | bool]:
     settings = ctx["settings"]
-    if settings.file_kyc_retention_days is None:
-        logger.warning("job=purge_expired_file_kyc policy_configured=false")
-        return {
-            "policy_configured": False,
-            "lock_acquired": False,
-            "eligible_submissions": 0,
-            "purged_submissions": 0,
-            "purged_files": 0,
-        }
     storage = build_storage_provider(settings)
     async with ctx["sessionmaker"]() as session:
         session: AsyncSession
         result = await purge_terminal_file_kyc(
             session,
             storage=storage,
-            retention_days=settings.file_kyc_retention_days,
             limit=settings.worker_sweep_batch_size,
             dry_run=False,
             actor_user_id=None,

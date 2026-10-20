@@ -231,7 +231,7 @@ async def activity_flag_response(
         last_verified_activity_at=flag.last_verified_activity_at,
         first_detected_at=flag.first_detected_at,
         last_evaluated_at=flag.last_evaluated_at,
-        recovered_at=flag.recovered_at,
+        closed_at=flag.closed_at,
         eligible_trip_count=eligible_trip_count,
         evidence_event_count=event_count,
     )

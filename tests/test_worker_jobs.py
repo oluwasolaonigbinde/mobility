@@ -34,7 +34,6 @@ from app.jobs import business_health as business_health_jobs
 from app.jobs import campaign_assignments as campaign_assignment_jobs
 from app.jobs import data_lifecycle as data_lifecycle_jobs
 from app.jobs import disbursements as disbursement_jobs
-from app.jobs import disclosure_retention as disclosure_retention_jobs
 from app.jobs import earnings_release as earnings_release_jobs
 from app.jobs import email_delivery as email_delivery_jobs
 from app.jobs import exposure_segments as exposure_segment_jobs
@@ -113,7 +112,7 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert payout_event.coroutine is disbursement_jobs.process_payout_provider_event_job
     assert payout_event.keep_result_s == 0
 
-    assert len(WorkerSettings.cron_jobs) == 24
+    assert len(WorkerSettings.cron_jobs) == 23
     audience_crons = [
         job
         for job in WorkerSettings.cron_jobs
@@ -136,7 +135,7 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     existing_crons = [
         job for job in WorkerSettings.cron_jobs if job not in health_crons + audience_crons
     ]
-    assert len(existing_crons) == 22
+    assert len(existing_crons) == 21
     cron_job = existing_crons[0]
     assert isinstance(cron_job, CronJob)
     assert inspect.unwrap(cron_job.coroutine) is jobs.process_unprocessed_trips
@@ -225,7 +224,6 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
         data_lifecycle_jobs.premake_ping_partitions,
         data_lifecycle_jobs.check_ping_partition_coverage,
         data_lifecycle_jobs.purge_expired_ping_partitions,
-        disclosure_retention_jobs.purge_expired_disclosure_query_history,
         file_lifecycle_jobs.recover_stored_object_deletions,
         file_lifecycle_jobs.purge_orphaned_file_uploads,
         file_lifecycle_jobs.purge_expired_file_kyc,
@@ -237,7 +235,7 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
         assert cron_job.unique is True
         # Daily, staggered hours so lifecycle DDL never stacks.
         assert len(cron_job.hour) == 1
-    assert len({next(iter(job.hour)) for job in lifecycle_crons.values()}) == 6
+    assert len({next(iter(job.hour)) for job in lifecycle_crons.values()}) == 5
     disbursement_sweep = existing_crons[-3]
     assert (
         inspect.unwrap(disbursement_sweep.coroutine) is disbursement_jobs.sweep_disbursement_intents
@@ -556,16 +554,18 @@ def test_email_sweep_isolates_unexpected_failure_and_preserves_claim_recovery(
     asyncio.run(run())
 
 
-def test_file_kyc_worker_stays_disabled_without_approved_policy(settings) -> None:
-    result = asyncio.run(
-        file_lifecycle_jobs.purge_expired_file_kyc(
-            {"settings": settings.model_copy(update={"file_kyc_retention_days": None})}
-        )
-    )
+def test_file_kyc_worker_runs_with_fixed_policy(db_sessionmaker, settings, monkeypatch):
+    from test_stored_files import FakeStorageProvider
 
+    monkeypatch.setattr(
+        file_lifecycle_jobs, "build_storage_provider", lambda _: FakeStorageProvider()
+    )
+    result = asyncio.run(
+        file_lifecycle_jobs.purge_expired_file_kyc(make_ctx(db_sessionmaker, settings))
+    )
     assert result == {
-        "policy_configured": False,
-        "lock_acquired": False,
+        "policy_configured": True,
+        "lock_acquired": True,
         "eligible_submissions": 0,
         "purged_submissions": 0,
         "purged_files": 0,
@@ -605,7 +605,6 @@ def test_activity_worker_cursor_reaches_tail_across_bounded_runs(db_sessionmaker
     batch_settings = settings.model_copy(
         update={
             "worker_sweep_batch_size": 2,
-            "verified_hours_floor_per_week": None,
         }
     )
     ctx = make_ctx(db_sessionmaker, batch_settings)
@@ -656,15 +655,15 @@ def test_activity_worker_set_failure_retries_without_duplicate_events_or_notices
     settings,
     monkeypatch,
 ) -> None:
-    for index in range(3):
+    graphs = [
         build_graph(
             db_sessionmaker,
             f"setretry{index}",
             started_at=datetime(2026, 1, 1, 12, tzinfo=UTC),
         )
-    batch_settings = settings.model_copy(
-        update={"worker_sweep_batch_size": 2, "verified_hours_floor_per_week": None}
-    )
+        for index in range(3)
+    ]
+    batch_settings = settings.model_copy(update={"worker_sweep_batch_size": 2})
     failure = RuntimeError("cursor set failed")
     captured: list[Exception] = []
 
@@ -697,17 +696,25 @@ def test_activity_worker_set_failure_retries_without_duplicate_events_or_notices
 
     async def counts():
         async with db_sessionmaker() as session:
+            flags = list((await session.scalars(select(AssignmentActivityFlag))).all())
+            notices = list((await session.scalars(select(Notification))).all())
             return (
-                await session.scalar(select(func.count()).select_from(AssignmentActivityFlag)),
+                flags,
                 await session.scalar(select(func.count()).select_from(AssignmentActivityFlagEvent)),
-                await session.scalar(select(func.count()).select_from(Notification)),
+                notices,
             )
 
-    flag_count, event_count, notice_count = asyncio.run(counts())
+    flags, event_count, notices = asyncio.run(counts())
     assert captured == [failure]
     assert second["cursor"] == "advanced"
     assert third["cursor"] == "wrapped"
-    assert (flag_count, event_count, notice_count) == (3, 3, 3)
+    assert len(flags) == event_count == 3
+    expected = {(graph.admin.id, str(flag.id)) for graph in graphs for flag in flags}
+    assert len(notices) == len(expected)
+    assert {
+        (notice.recipient_user_id, notice.payload["activity_flag_id"]) for notice in notices
+    } == expected
+    assert all(notice.type_key == NotificationType.ASSIGNMENT_INACTIVE.value for notice in notices)
 
 
 def test_activity_worker_delete_failure_retries_wrap_idempotently(
@@ -720,9 +727,7 @@ def test_activity_worker_delete_failure_retries_wrap_idempotently(
         "cursor-delete-retry",
         started_at=datetime(2026, 1, 1, 12, tzinfo=UTC),
     )
-    batch_settings = settings.model_copy(
-        update={"worker_sweep_batch_size": 2, "verified_hours_floor_per_week": None}
-    )
+    batch_settings = settings.model_copy(update={"worker_sweep_batch_size": 2})
     failure = RuntimeError("cursor delete failed")
     captured: list[Exception] = []
 
@@ -780,12 +785,11 @@ def test_activity_worker_uses_one_database_clock_for_the_claimed_batch(
             "selected": len(assignment_ids),
             "evaluated": len(assignment_ids),
             "flags_opened": 0,
-            "flags_recovered": 0,
+            "flags_closed": 0,
             "notices_created": 0,
             "skipped": 0,
             "errors": 0,
             "config": "applied",
-            "config_reason": None,
         }
 
     monkeypatch.setattr(assignment_activity_jobs, "database_clock", fake_clock)

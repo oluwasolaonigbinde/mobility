@@ -51,7 +51,6 @@ const replySchema = followUpSchema.extend({ resolve: z.boolean() });
 const updateSchema = z.object({
   complaint_id: z.string().uuid(),
   status: z.enum(["open", "resolved", ""]),
-  assignee: z.union([z.literal(""), z.literal("none"), z.string().uuid()]),
 });
 
 function field(formData: FormData, name: string): string {
@@ -77,9 +76,6 @@ function explain(error: unknown, notFound: string): ComplaintActionState {
   }
   if (error.status === 409) {
     return { error: "This was already sent with different details. Refresh the page to see it." };
-  }
-  if (error.code === "COMPLAINT_ASSIGNEE_INVALID") {
-    return { error: "Choose an active Terrax Media staff member." };
   }
   if (error.status === 422) {
     return { error: "Some details weren't accepted. Check them and try again." };
@@ -206,14 +202,11 @@ export async function updateComplaintAction(
   const parsed = updateSchema.safeParse({
     complaint_id: field(formData, "complaint_id"),
     status: field(formData, "status"),
-    assignee: field(formData, "assignee"),
   });
-  if (!parsed.success) return { error: "Choose a status or a staff member." };
-  const { complaint_id, status, assignee } = parsed.data;
-  const body: { status?: "open" | "resolved"; assigned_to_user_id?: string | null } = {};
+  if (!parsed.success) return { error: "Choose a status." };
+  const { complaint_id, status } = parsed.data;
+  const body: { status?: "open" | "resolved" } = {};
   if (status) body.status = status;
-  if (assignee === "none") body.assigned_to_user_id = null;
-  else if (assignee) body.assigned_to_user_id = assignee;
   const api = createApiClient(await getSessionToken());
   try {
     await api.PATCH("/api/v1/admin/complaints/{complaint_id}", {

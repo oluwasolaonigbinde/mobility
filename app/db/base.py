@@ -59,7 +59,6 @@ import app.models.campaign_zone  # noqa: E402,F401
 import app.models.complaint  # noqa: E402,F401
 import app.models.contact  # noqa: E402,F401
 import app.models.data_purge  # noqa: E402,F401
-import app.models.data_subject_request  # noqa: E402,F401
 import app.models.disbursement  # noqa: E402,F401
 import app.models.disclosure  # noqa: E402,F401
 import app.models.driver  # noqa: E402,F401

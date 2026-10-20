@@ -847,18 +847,6 @@
             "title": "Driver Profile Id",
             "type": "string"
           },
-          "due_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Due At"
-          },
           "fraud_flag_id": {
             "anyOf": [
               {
@@ -984,7 +972,6 @@
           "status",
           "issued_by_user_id",
           "resolved_by_user_id",
-          "due_at",
           "fraud_flag_id",
           "result_note",
           "metadata",
@@ -3550,6 +3537,18 @@
             "title": "Campaign Id",
             "type": "string"
           },
+          "closed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed At"
+          },
           "driver_profile_id": {
             "format": "uuid",
             "title": "Driver Profile Id",
@@ -3597,18 +3596,6 @@
             "title": "Observed Seconds",
             "type": "integer"
           },
-          "recovered_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Recovered At"
-          },
           "status": {
             "$ref": "#/components/schemas/AssignmentActivityFlagStatus"
           },
@@ -3654,7 +3641,7 @@
           "last_verified_activity_at",
           "first_detected_at",
           "last_evaluated_at",
-          "recovered_at",
+          "closed_at",
           "eligible_trip_count",
           "evidence_event_count"
         ],
@@ -3664,14 +3651,13 @@
       "AssignmentActivityFlagStatus": {
         "enum": [
           "open",
-          "recovered"
+          "closed"
         ],
         "title": "AssignmentActivityFlagStatus",
         "type": "string"
       },
       "AssignmentActivityFlagType": {
         "enum": [
-          "verified_hours_floor",
           "inactivity"
         ],
         "title": "AssignmentActivityFlagType",
@@ -10713,323 +10699,6 @@
         "title": "DashboardCostSummary",
         "type": "object"
       },
-      "DataSubjectDisposition": {
-        "enum": [
-          "provided",
-          "rectified",
-          "erased",
-          "not_found",
-          "retained_exception"
-        ],
-        "title": "DataSubjectDisposition",
-        "type": "string"
-      },
-      "DataSubjectInventoryRead": {
-        "properties": {
-          "database": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "title": "Database",
-            "type": "object"
-          },
-          "manual_locations": {
-            "items": {
-              "$ref": "#/components/schemas/DataSubjectLocation"
-            },
-            "title": "Manual Locations",
-            "type": "array"
-          },
-          "object_storage": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "title": "Object Storage",
-            "type": "object"
-          }
-        },
-        "required": [
-          "database",
-          "object_storage",
-          "manual_locations"
-        ],
-        "title": "DataSubjectInventoryRead",
-        "type": "object"
-      },
-      "DataSubjectLocation": {
-        "enum": [
-          "database",
-          "object_storage",
-          "device_queue",
-          "operational_logs",
-          "backups",
-          "processors"
-        ],
-        "title": "DataSubjectLocation",
-        "type": "string"
-      },
-      "DataSubjectLocationAssessmentCreate": {
-        "additionalProperties": false,
-        "properties": {
-          "client_request_id": {
-            "format": "uuid",
-            "title": "Client Request Id",
-            "type": "string"
-          },
-          "disposition": {
-            "$ref": "#/components/schemas/DataSubjectDisposition"
-          },
-          "evidence_reference": {
-            "maxLength": 255,
-            "minLength": 1,
-            "title": "Evidence Reference",
-            "type": "string"
-          },
-          "exception_reference": {
-            "anyOf": [
-              {
-                "maxLength": 255,
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Exception Reference"
-          },
-          "external_record_count": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "External Record Count"
-          }
-        },
-        "required": [
-          "disposition",
-          "evidence_reference",
-          "client_request_id"
-        ],
-        "title": "DataSubjectLocationAssessmentCreate",
-        "type": "object"
-      },
-      "DataSubjectLocationAssessmentRead": {
-        "properties": {
-          "assessed_by_user_id": {
-            "format": "uuid",
-            "title": "Assessed By User Id",
-            "type": "string"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "data_class_counts": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "title": "Data Class Counts",
-            "type": "object"
-          },
-          "disposition": {
-            "$ref": "#/components/schemas/DataSubjectDisposition"
-          },
-          "evidence_reference": {
-            "title": "Evidence Reference",
-            "type": "string"
-          },
-          "exception_reference": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Exception Reference"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "location": {
-            "$ref": "#/components/schemas/DataSubjectLocation"
-          },
-          "record_count": {
-            "title": "Record Count",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "id",
-          "location",
-          "disposition",
-          "record_count",
-          "data_class_counts",
-          "evidence_reference",
-          "exception_reference",
-          "assessed_by_user_id",
-          "created_at"
-        ],
-        "title": "DataSubjectLocationAssessmentRead",
-        "type": "object"
-      },
-      "DataSubjectRequestCreate": {
-        "additionalProperties": false,
-        "properties": {
-          "client_request_id": {
-            "format": "uuid",
-            "title": "Client Request Id",
-            "type": "string"
-          },
-          "request_type": {
-            "$ref": "#/components/schemas/DataSubjectRequestType"
-          },
-          "requested_at": {
-            "format": "date-time",
-            "title": "Requested At",
-            "type": "string"
-          },
-          "subject_user_id": {
-            "format": "uuid",
-            "title": "Subject User Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "subject_user_id",
-          "request_type",
-          "client_request_id",
-          "requested_at"
-        ],
-        "title": "DataSubjectRequestCreate",
-        "type": "object"
-      },
-      "DataSubjectRequestRead": {
-        "properties": {
-          "completed_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Completed At"
-          },
-          "completed_by_user_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Completed By User Id"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "identity_verified_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Identity Verified At"
-          },
-          "identity_verified_by_user_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Identity Verified By User Id"
-          },
-          "opened_by_user_id": {
-            "format": "uuid",
-            "title": "Opened By User Id",
-            "type": "string"
-          },
-          "request_type": {
-            "$ref": "#/components/schemas/DataSubjectRequestType"
-          },
-          "requested_at": {
-            "format": "date-time",
-            "title": "Requested At",
-            "type": "string"
-          },
-          "status": {
-            "$ref": "#/components/schemas/DataSubjectRequestStatus"
-          },
-          "subject_user_id": {
-            "format": "uuid",
-            "title": "Subject User Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "subject_user_id",
-          "request_type",
-          "status",
-          "opened_by_user_id",
-          "requested_at",
-          "identity_verified_at",
-          "identity_verified_by_user_id",
-          "completed_at",
-          "completed_by_user_id",
-          "created_at"
-        ],
-        "title": "DataSubjectRequestRead",
-        "type": "object"
-      },
-      "DataSubjectRequestStatus": {
-        "enum": [
-          "open",
-          "identity_verified",
-          "completed"
-        ],
-        "title": "DataSubjectRequestStatus",
-        "type": "string"
-      },
-      "DataSubjectRequestType": {
-        "enum": [
-          "access",
-          "rectification",
-          "erasure"
-        ],
-        "title": "DataSubjectRequestType",
-        "type": "string"
-      },
       "DigitalCampaignAudienceSourceCreate": {
         "additionalProperties": false,
         "properties": {
@@ -13522,18 +13191,6 @@
             "title": "Driver Profile Id",
             "type": "string"
           },
-          "due_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Due At"
-          },
           "fraud_flag_id": {
             "anyOf": [
               {
@@ -13636,7 +13293,6 @@
           "status",
           "issued_by_user_id",
           "resolved_by_user_id",
-          "due_at",
           "fraud_flag_id",
           "result_note",
           "metadata",
@@ -13648,7 +13304,6 @@
       },
       "EvidenceVerificationStatus": {
         "enum": [
-          "pending",
           "passed",
           "failed"
         ],
@@ -17654,17 +17309,13 @@
           "fraud_hold_raised",
           "fraud_review_resolved",
           "fraud_dispute_replied",
-          "activity_floor_breached",
-          "activity_floor_recovered",
           "assignment_inactive",
-          "assignment_activity_recovered",
           "payout_automatic_alert",
           "payout_automatic_paused",
           "payout_automatic_resumed",
           "complaint_received",
           "complaint_replied",
-          "complaint_resolved",
-          "complaint_assigned"
+          "complaint_resolved"
         ],
         "title": "NotificationType",
         "type": "string"
@@ -19824,40 +19475,6 @@
             "title": "Client Request Id",
             "type": "string"
           },
-          "metadata": {
-            "additionalProperties": true,
-            "title": "Metadata",
-            "type": "object"
-          },
-          "note": {
-            "maxLength": 2000,
-            "minLength": 1,
-            "title": "Note",
-            "type": "string"
-          },
-          "trip_session_id": {
-            "format": "uuid",
-            "title": "Trip Session Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "assignment_id",
-          "trip_session_id",
-          "client_request_id",
-          "note"
-        ],
-        "title": "PhysicalSpotCheckCreate",
-        "type": "object"
-      },
-      "PhysicalSpotCheckResolve": {
-        "additionalProperties": false,
-        "properties": {
-          "evidence": {
-            "additionalProperties": true,
-            "title": "Evidence",
-            "type": "object"
-          },
           "note": {
             "maxLength": 2000,
             "minLength": 1,
@@ -19871,13 +19488,21 @@
             ],
             "title": "Outcome",
             "type": "string"
+          },
+          "trip_session_id": {
+            "format": "uuid",
+            "title": "Trip Session Id",
+            "type": "string"
           }
         },
         "required": [
-          "outcome",
-          "note"
+          "assignment_id",
+          "trip_session_id",
+          "client_request_id",
+          "note",
+          "outcome"
         ],
-        "title": "PhysicalSpotCheckResolve",
+        "title": "PhysicalSpotCheckCreate",
         "type": "object"
       },
       "PingSampleResult": {
@@ -22530,29 +22155,6 @@
             ],
             "title": "Advertiser Organization Id"
           },
-          "assigned_to_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Assigned To Name"
-          },
-          "assigned_to_user_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Assigned To User Id"
-          },
           "category": {
             "$ref": "#/components/schemas/ComplaintCategory"
           },
@@ -22672,8 +22274,6 @@
           "reference_type",
           "reference_id",
           "reference_label",
-          "assigned_to_user_id",
-          "assigned_to_name",
           "revision",
           "created_at",
           "last_message_at",
@@ -22804,29 +22404,6 @@
             ],
             "title": "Advertiser Organization Id"
           },
-          "assigned_to_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Assigned To Name"
-          },
-          "assigned_to_user_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Assigned To User Id"
-          },
           "category": {
             "$ref": "#/components/schemas/ComplaintCategory"
           },
@@ -22939,8 +22516,6 @@
           "reference_type",
           "reference_id",
           "reference_label",
-          "assigned_to_user_id",
-          "assigned_to_name",
           "revision",
           "created_at",
           "last_message_at",
@@ -22951,20 +22526,8 @@
       },
       "StaffComplaintUpdate": {
         "additionalProperties": false,
-        "description": "Both fields are optional; an empty body is a valid no-op.\n\nAn omitted field is left unchanged; an explicit null assignee clears it.",
+        "description": "An omitted status is a valid no-op.",
         "properties": {
-          "assigned_to_user_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Assigned To User Id"
-          },
           "status": {
             "anyOf": [
               {
@@ -29295,16 +28858,6 @@
           },
           {
             "in": "query",
-            "name": "assigned_to_me",
-            "required": false,
-            "schema": {
-              "default": false,
-              "title": "Assigned To Me",
-              "type": "boolean"
-            }
-          },
-          {
-            "in": "query",
             "name": "user_id",
             "required": false,
             "schema": {
@@ -30997,7 +30550,7 @@
     },
     "/api/v1/admin/evidence-verifications/physical-spot-checks": {
       "post": {
-        "operationId": "admin_queue_physical_spot_check_api_v1_admin_evidence_verifications_physical_spot_checks_post",
+        "operationId": "admin_record_physical_spot_check_api_v1_admin_evidence_verifications_physical_spot_checks_post",
         "requestBody": {
           "content": {
             "application/json": {
@@ -31035,65 +30588,7 @@
             "OAuth2PasswordBearer": []
           }
         ],
-        "summary": "Queue an assignment-bound physical spot check",
-        "tags": [
-          "Installation evidence"
-        ]
-      }
-    },
-    "/api/v1/admin/evidence-verifications/{verification_id}/physical-spot-check-result": {
-      "post": {
-        "operationId": "admin_resolve_physical_spot_check_api_v1_admin_evidence_verifications__verification_id__physical_spot_check_result_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "verification_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Verification Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PhysicalSpotCheckResolve"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/EvidenceVerificationRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Record an audited physical spot-check result",
+        "summary": "Record passed or failed physical spot check",
         "tags": [
           "Installation evidence"
         ]
@@ -35604,262 +35099,6 @@
         "summary": "Admin Phone Verification Work",
         "tags": [
           "Verified contacts"
-        ]
-      }
-    },
-    "/api/v1/admin/privacy/dsr-requests": {
-      "post": {
-        "operationId": "open_data_subject_request_api_v1_admin_privacy_dsr_requests_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DataSubjectRequestCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DataSubjectRequestRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Open Data Subject Request",
-        "tags": [
-          "Admin Privacy"
-        ]
-      }
-    },
-    "/api/v1/admin/privacy/dsr-requests/{request_id}/complete": {
-      "post": {
-        "operationId": "complete_data_subject_request_case_api_v1_admin_privacy_dsr_requests__request_id__complete_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "request_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Request Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DataSubjectRequestRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Complete Data Subject Request Case",
-        "tags": [
-          "Admin Privacy"
-        ]
-      }
-    },
-    "/api/v1/admin/privacy/dsr-requests/{request_id}/inventory": {
-      "get": {
-        "operationId": "inspect_data_subject_inventory_api_v1_admin_privacy_dsr_requests__request_id__inventory_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "request_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Request Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DataSubjectInventoryRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Inspect Data Subject Inventory",
-        "tags": [
-          "Admin Privacy"
-        ]
-      }
-    },
-    "/api/v1/admin/privacy/dsr-requests/{request_id}/locations/{location}": {
-      "post": {
-        "operationId": "assess_data_subject_location_api_v1_admin_privacy_dsr_requests__request_id__locations__location__post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "request_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Request Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "location",
-            "required": true,
-            "schema": {
-              "$ref": "#/components/schemas/DataSubjectLocation"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DataSubjectLocationAssessmentCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DataSubjectLocationAssessmentRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Assess Data Subject Location",
-        "tags": [
-          "Admin Privacy"
-        ]
-      }
-    },
-    "/api/v1/admin/privacy/dsr-requests/{request_id}/verify-identity": {
-      "post": {
-        "operationId": "verify_data_subject_request_identity_api_v1_admin_privacy_dsr_requests__request_id__verify_identity_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "request_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Request Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DataSubjectRequestRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Verify Data Subject Request Identity",
-        "tags": [
-          "Admin Privacy"
         ]
       }
     },

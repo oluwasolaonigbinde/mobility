@@ -178,19 +178,16 @@ export function ComplaintMessageForm({
   );
 }
 
-/** Staff status and assignment. */
+/** Staff status. */
 export function ComplaintUpdateForm({
   complaintId,
   action,
-  staff,
 }: {
   complaintId: string;
   action: Action;
-  staff: ReferenceOption[] | null;
 }) {
   const [state, formAction, pending] = useActionState(action, initial);
   const statusId = useId();
-  const assigneeId = useId();
   return (
     <form action={formAction} className="flex flex-col gap-3">
       <input type="hidden" name="complaint_id" value={complaintId} />
@@ -203,29 +200,6 @@ export function ComplaintUpdateForm({
           <option value="open">Reopen (needs a reply)</option>
           <option value="resolved">Mark as resolved</option>
         </select>
-      </div>
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor={assigneeId} className="micro text-muted">
-          Assigned to
-        </label>
-        <select
-          id={assigneeId}
-          name="assignee"
-          defaultValue=""
-          disabled={staff === null}
-          className={inputClass}
-        >
-          <option value="">Keep as it is</option>
-          <option value="none">Nobody</option>
-          {(staff ?? []).map((person) => (
-            <option key={person.id} value={person.id}>
-              {person.label}
-            </option>
-          ))}
-        </select>
-        {staff === null ? (
-          <p className="text-muted text-xs">The staff list couldn&apos;t be loaded.</p>
-        ) : null}
       </div>
       <Button type="submit" disabled={pending} className="self-start">
         {pending ? "Saving…" : "Save"}

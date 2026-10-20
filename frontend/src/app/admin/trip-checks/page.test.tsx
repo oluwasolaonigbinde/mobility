@@ -17,8 +17,7 @@ vi.mock("../fraud/dispute-actions", () => ({
   DisputeReplyActions: () => <button>Reply to driver</button>,
 }));
 vi.mock("../fraud/spot-check-actions", () => ({
-  SpotCheckQueueForm: () => <button>Request in-person check</button>,
-  SpotCheckResultForm: () => <button>Record check</button>,
+  SpotCheckForm: () => <button>Record check</button>,
 }));
 vi.mock("../operation-form", () => ({ OperationForm: () => <button>Add to trip</button> }));
 import TripChecks from "./page";
@@ -249,18 +248,20 @@ describe("Trip check work lists", () => {
     expect(screen.getByText("Driver explanation 100")).toBeVisible();
     expect(screen.getByRole("button", { name: "Reply to driver" })).toBeVisible();
   });
-  it("opens an existing pending check instead of asking for another", async () => {
+  it("allows another observation after an earlier inspection result", async () => {
     get.mockImplementation(async (path, options) =>
       path.endsWith("/evidence-verifications")
-        ? { data: { items: [{ id: "existing", source_trip_session_id: "trip" }], total: 1 } }
+        ? {
+            data: {
+              items: [{ id: "existing", source_trip_session_id: "trip", status: "passed" }],
+              total: 1,
+            },
+          }
         : defaultRead(path, options),
     );
     render(await page({ flag: "flag" }));
-    expect(screen.getByRole("link", { name: /In-person check waiting/ })).toHaveAttribute(
-      "href",
-      "/admin/trip-checks?tab=in-person&check=existing",
-    );
-    expect(screen.queryByRole("button", { name: "Request in-person check" })).toBeNull();
+    expect(screen.getByText("Record an in-person check")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /In-person check waiting/ })).toBeNull();
   });
   it("shows a final decision without describing pay as still held or requesting a check", async () => {
     get.mockImplementation(async (path, options) =>
@@ -289,7 +290,7 @@ describe("Trip check work lists", () => {
     expect(screen.getByText("Decision: Driver evidence accepted")).toBeVisible();
     expect(screen.getByText("The review deadline passed before this decision.")).toBeVisible();
     expect(screen.queryByText(/pay stays held/)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Request in-person check" })).toBeNull();
+    expect(screen.queryByText("Record an in-person check")).toBeNull();
   });
   it("uses the actual trip date for late uploads and only opens scoped decisions", async () => {
     render(await page({ tab: "late", late: "late", driver_profile_id: "driver" }));
@@ -304,14 +305,15 @@ describe("Trip check work lists", () => {
     expect(screen.getByText("Late upload not found for these filters.")).toBeVisible();
     expect(screen.queryByRole("button", { name: "Add to trip" })).toBeNull();
   });
-  it("includes an in-person check beyond the first hundred and opens it", async () => {
+  it("opens an inspection result beyond the first hundred", async () => {
     const rows = Array.from({ length: 101 }, (_, index) => ({
       id: `check-${index}`,
       source_trip_session_id: "trip",
       assignment_id: "job",
       driver_profile_id: "driver",
       campaign_id: "campaign",
-      status: "pending",
+      status: "passed",
+      result_note: "All panels were secure during inspection.",
       verification_type: "physical_spot_check",
       issued_at: date,
       driver_name: "Ada Driver",
@@ -335,7 +337,8 @@ describe("Trip check work lists", () => {
         : defaultRead(path, options),
     );
     render(await page({ tab: "in-person", check: "check-100", offset: "100" }));
-    expect(screen.getByRole("button", { name: "Record check" })).toBeVisible();
+    expect(screen.getByText(/Passed · All panels were secure during inspection\./)).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Record check" })).toBeNull();
     expect(get).toHaveBeenCalledWith("/api/v1/admin/evidence-verifications", {
       params: {
         query: {
@@ -345,7 +348,6 @@ describe("Trip check work lists", () => {
           trip_session_id: undefined,
           driver_profile_id: undefined,
           campaign_id: undefined,
-          status: "pending",
           verification_type: "physical_spot_check",
         },
       },

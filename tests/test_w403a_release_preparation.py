@@ -282,11 +282,9 @@ def valid_release_environment(tmp_path: Path) -> dict[str, str]:
             "MALWARE_SCANNER_HOST": "clamav",
             "MALWARE_SCANNER_PORT": "3310",
             "MALWARE_SCANNER_TIMEOUT_SECONDS": "30",
-            "FILE_KYC_RETENTION_DAYS": "365",
             "DRIVER_ACCOUNT_SETUP_PUBLIC_URL": (
                 "https://cardvert.client-owned-domain.com/driver-account-setup"
             ),
-            "VERIFIED_HOURS_FLOOR_PER_WEEK": "10",
             "EMAIL_PROVIDER": "smtp",
             "EMAIL_SENDER_ADDRESS": "notifications@client-owned-domain.com",
             "EMAIL_SMTP_HOST": "smtp.client-owned-domain.com",
@@ -581,9 +579,7 @@ def test_complete_synthetic_environment_validates_settings_and_renders_compose(
             "https://maps.client-owned-domain.com/style?access_token=secret",
             "MAP_STYLE",
         ),
-        ("FILE_KYC_RETENTION_DAYS", "", "FILE_KYC_RETENTION_DAYS"),
         ("DRIVER_ACCOUNT_SETUP_PUBLIC_URL", "", "DRIVER_ACCOUNT_SETUP_PUBLIC_URL"),
-        ("VERIFIED_HOURS_FLOOR_PER_WEEK", "", "VERIFIED_HOURS_FLOOR_PER_WEEK"),
     ],
 )
 def test_release_environment_rejects_incomplete_live_authority(

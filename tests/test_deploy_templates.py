@@ -34,11 +34,9 @@ SECRET_NAMES = {
 def test_secrets_are_blank_and_unapproved_policies_stay_unset(name: str) -> None:
     environment = read_env_file(ROOT / name)
     assert {key: environment[key] for key in SECRET_NAMES} == dict.fromkeys(SECRET_NAMES, "")
-    for key in (
-        "FILE_KYC_RETENTION_DAYS",
-        "INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE",
-    ):
+    for key in ("INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE",):
         assert environment[key] == ""
+    assert "FILE_KYC_RETENTION_DAYS" not in environment
     for key in (
         "ALLOW_DEMO_SEED",
         "DEMO_LOGIN_ENABLED",

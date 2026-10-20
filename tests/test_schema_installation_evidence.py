@@ -29,7 +29,8 @@ def test_installation_photo_is_append_only(
                         text(
                             "SELECT count(*) FROM information_schema.tables "
                             "WHERE table_schema='public' "
-                            "AND table_name IN ('display_proofs', 'display_proof_challenges')"
+                            "AND table_name IN ('display_proofs', 'display_proof_challenges', "
+                            "'data_subject_requests', 'data_subject_location_assessments')"
                         )
                     )
                     == 0

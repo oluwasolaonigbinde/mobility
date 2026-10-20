@@ -23,18 +23,17 @@ from app.db.base import Base, JSONEmptyObjectServerDefault
 
 
 class AssignmentActivityFlagType(StrEnum):
-    VERIFIED_HOURS_FLOOR = "verified_hours_floor"
     INACTIVITY = "inactivity"
 
 
 class AssignmentActivityFlagStatus(StrEnum):
     OPEN = "open"
-    RECOVERED = "recovered"
+    CLOSED = "closed"
 
 
 class AssignmentActivityFlagEventType(StrEnum):
     OPENED = "opened"
-    RECOVERED = "recovered"
+    CLOSED = "closed"
 
 
 class AssignmentActivityFlag(Base):
@@ -48,11 +47,11 @@ class AssignmentActivityFlag(Base):
     __tablename__ = "assignment_activity_flags"
     __table_args__ = (
         CheckConstraint(
-            "flag_type IN ('verified_hours_floor', 'inactivity')",
+            "flag_type = 'inactivity'",
             name="ck_assignment_activity_flags_type",
         ),
         CheckConstraint(
-            "status IN ('open', 'recovered')",
+            "status IN ('open', 'closed')",
             name="ck_assignment_activity_flags_status",
         ),
         CheckConstraint(
@@ -68,8 +67,8 @@ class AssignmentActivityFlag(Base):
             name="ck_assignment_activity_flags_observed",
         ),
         CheckConstraint(
-            "(status = 'open' AND recovered_at IS NULL) OR "
-            "(status = 'recovered' AND recovered_at IS NOT NULL)",
+            "(status = 'open' AND closed_at IS NULL) OR "
+            "(status = 'closed' AND closed_at IS NOT NULL)",
             name="ck_assignment_activity_flags_recovery_coherence",
         ),
         UniqueConstraint(
@@ -130,7 +129,7 @@ class AssignmentActivityFlag(Base):
     last_verified_activity_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     first_detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     last_evaluated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    recovered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     current_evidence: Mapped[dict[str, Any]] = mapped_column(
         "evidence",
         JSON,
@@ -152,7 +151,7 @@ class AssignmentActivityFlagEvent(Base):
     __tablename__ = "assignment_activity_flag_events"
     __table_args__ = (
         CheckConstraint(
-            "event_type IN ('opened', 'recovered')",
+            "event_type IN ('opened', 'closed')",
             name="ck_assignment_activity_flag_events_type",
         ),
         CheckConstraint(

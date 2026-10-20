@@ -59,7 +59,7 @@ describe("Bounded Work queue", () => {
     const queue = await collectWorkQueue(api, 1);
     expect(queue.Operations!.total).toBe(120);
     expect(get.mock.calls.every(([, o]) => o.params.query.limit === 1)).toBe(true);
-    expect(get).toHaveBeenCalledTimes(17);
+    expect(get).toHaveBeenCalledTimes(16);
   });
   it("asks the server for actionable contact/change/run rows before totals", async () => {
     await collectWorkQueue(api);
