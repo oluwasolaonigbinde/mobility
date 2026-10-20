@@ -4,8 +4,8 @@ import { loadCampaignAreas, previewFile } from "./campaign-visuals";
 it("loads every area before drawing a campaign boundary", async () => {
   const get = vi
     .fn()
-    .mockResolvedValueOnce({ data: { items: [{ id: "one" }], total: 2 } })
-    .mockResolvedValueOnce({ data: { items: [{ id: "two" }], total: 2 } });
+    .mockResolvedValueOnce({ data: { items: [{ id: "one", campaign_id: "campaign" }], total: 2 } })
+    .mockResolvedValueOnce({ data: { items: [{ id: "two", campaign_id: "campaign" }], total: 2 } });
   const result = await loadCampaignAreas({ GET: get } as unknown as ApiClient, "campaign");
   expect(result.available && result.data.items.map((item) => item.id)).toEqual(["one", "two"]);
   expect(get).toHaveBeenLastCalledWith("/api/v1/advertiser/campaigns/{campaign_id}/zones", {
@@ -16,7 +16,18 @@ it("loads every area before drawing a campaign boundary", async () => {
   });
 });
 it("withholds a partial map if pagination changes or repeats", async () => {
-  const get = vi.fn().mockResolvedValue({ data: { items: [{ id: "one" }], total: 2 } });
+  const get = vi
+    .fn()
+    .mockResolvedValue({ data: { items: [{ id: "one", campaign_id: "campaign" }], total: 2 } });
+  expect(await loadCampaignAreas({ GET: get } as unknown as ApiClient, "campaign")).toEqual({
+    available: false,
+    reason: "protocol",
+  });
+});
+it("rejects geometry from a different campaign before drawing", async () => {
+  const get = vi
+    .fn()
+    .mockResolvedValue({ data: { items: [{ id: "one", campaign_id: "other" }], total: 1 } });
   expect(await loadCampaignAreas({ GET: get } as unknown as ApiClient, "campaign")).toEqual({
     available: false,
     reason: "protocol",

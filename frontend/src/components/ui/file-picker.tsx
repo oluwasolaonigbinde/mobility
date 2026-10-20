@@ -3,10 +3,11 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { cx } from "@/lib/cx";
 
-export type FilePickerState = "idle" | "uploading" | "uploaded" | "failed";
+export type FilePickerState = "idle" | "uploading" | "checking" | "uploaded" | "failed";
 
 const stateText: Record<Exclude<FilePickerState, "idle">, string> = {
   uploading: "Uploading…",
+  checking: "Checking file…",
   uploaded: "Uploaded",
   failed: "Upload failed",
 };

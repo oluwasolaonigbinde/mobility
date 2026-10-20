@@ -21,7 +21,7 @@ export type QueueTask = {
   event: string;
   describe: () => Promise<{ name: string; reason: string; href: string }>;
 };
-type QueueRows = QueueTask[] & { total?: number; counts?: Partial<Record<Area, number>> };
+type QueueRows = QueueTask[] & { total?: number };
 export type QueueCollections = Record<Department, QueueRows | undefined>;
 type Source = {
   id: string;
@@ -480,7 +480,7 @@ export async function collectWorkQueue(api: ApiClient, limit = 5): Promise<Queue
   return combine(await Promise.all(sources.map((s) => s.read(api, limit, 0))));
 }
 function combine(reads: Awaited<ReturnType<Source["read"]>>[]): QueueCollections {
-  const empty = (): QueueRows => Object.assign([] as QueueTask[], { total: 0, counts: {} });
+  const empty = (): QueueRows => Object.assign([] as QueueTask[], { total: 0 });
   const result: QueueCollections = {
     Operations: empty(),
     Compliance: empty(),
@@ -498,7 +498,6 @@ function combine(reads: Awaited<ReturnType<Source["read"]>>[]): QueueCollections
     if (!rows) return;
     rows.push(...read.items);
     rows.total! += read.total;
-    rows.counts![source.area] = (rows.counts![source.area] ?? 0) + read.total;
   });
   departments.forEach((d) =>
     result[d]?.sort((a, b) => Date.parse(a.at) - Date.parse(b.at) || a.key.localeCompare(b.key)),
@@ -509,23 +508,3 @@ export const readWorkQueue = cache(async () => {
   const limit = await previewLimit();
   return combine(await Promise.all(sources.map((s) => readQueueSource(s.id, limit))));
 });
-export function waitingCounts(queue: QueueCollections) {
-  const count = (area?: Area) => {
-    const required: readonly Department[] = area
-      ? [...new Set(sources.filter((s) => s.area === area).map((s) => s.department))]
-      : departments;
-    if (required.some((d) => queue[d] === undefined)) return undefined;
-    return required.reduce<number>(
-      (n, d) => n + (area ? (queue[d]!.counts?.[area] ?? 0) : (queue[d]!.total ?? 0)),
-      0,
-    );
-  };
-  return {
-    total: count(),
-    drivers: count("drivers"),
-    campaigns: count("campaigns"),
-    trips: count("trips"),
-    money: count("money"),
-    support: count("support"),
-  };
-}

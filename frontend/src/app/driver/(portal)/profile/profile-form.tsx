@@ -26,17 +26,12 @@ export function ProfileForm({
       <Field
         label="Service city"
         name="service_city"
+        required
+        maxLength={128}
         defaultValue={defaults.service_city}
         placeholder="e.g. Abuja"
       />
-      <Field
-        label="Country code"
-        name="country_code"
-        defaultValue={defaults.country_code}
-        placeholder="NG"
-        maxLength={2}
-        className="uppercase"
-      />
+      <input type="hidden" name="country_code" value={defaults.country_code || "NG"} />
       {state.error ? (
         <p role="alert" className="text-coral text-xs">
           {state.error}

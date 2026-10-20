@@ -28,6 +28,7 @@ export async function createCampaignAction(
   input: CampaignWizardInput,
   existingCampaignId?: string,
   campaignRequestId?: string,
+  saveDraftOnly = false,
 ): Promise<CreateCampaignState> {
   if (existingCampaignId !== undefined && !z.uuid().safeParse(existingCampaignId).success) {
     return { error: "The campaign recovery reference is invalid." };
@@ -87,6 +88,10 @@ export async function createCampaignAction(
     }
   }
 
+  if (saveDraftOnly) {
+    revalidatePath("/advertiser/campaigns");
+    return { createdCampaignId: campaignId };
+  }
   for (const [index, creative] of creatives.entries()) {
     try {
       await api.POST("/api/v1/advertiser/campaigns/{campaign_id}/creatives", {
@@ -111,7 +116,7 @@ export async function createCampaignAction(
         "the attachment result is not yet confirmed",
       );
       return {
-        error: `Campaign created, but creative ${index + 1} ("${creative.name}") failed: ${reason}`,
+        error: `Your draft is saved, but advert design ${index + 1} ("${creative.name}") couldn't be attached: ${reason}`,
         createdCampaignId: campaignId,
       };
     }

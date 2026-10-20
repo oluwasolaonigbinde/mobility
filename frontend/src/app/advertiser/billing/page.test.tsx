@@ -6,6 +6,12 @@ const get = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: get }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
 vi.mock("./actions", () => ({ startInvoicePayment: vi.fn() }));
+const role = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/auth/current-user", () => ({
+  requireRole: role,
+  isAdvertiserViewer: (me: { advertiser_organization?: { membership_role?: string } }) =>
+    me.advertiser_organization?.membership_role === "viewer",
+}));
 
 import AdvertiserBillingPage from "./page";
 
@@ -60,7 +66,9 @@ function mockBilling(receipts: unknown[], invoices: unknown[] = []) {
     if (path === "/api/v1/advertiser/campaigns") {
       return {
         data: {
-          items: invoices.length ? [{ id: "campaign-1", name: "Lunch Routes" }] : [],
+          items: invoices.length
+            ? [{ id: "campaign-1", name: "Lunch Routes", status: "active" }]
+            : [],
           total: invoices.length ? 1 : 0,
         },
       };
@@ -70,7 +78,38 @@ function mockBilling(receipts: unknown[], invoices: unknown[] = []) {
 }
 
 describe("AdvertiserBillingPage", () => {
-  beforeEach(() => get.mockReset());
+  beforeEach(() => {
+    get.mockReset();
+    role.mockResolvedValue({
+      user: { role: "advertiser" },
+      advertiser_organization: { membership_role: "owner" },
+    });
+  });
+
+  it("lets a company viewer see what is owed without a payment button", async () => {
+    role.mockResolvedValue({
+      user: { role: "advertiser" },
+      advertiser_organization: { membership_role: "viewer" },
+    });
+    mockBilling([], [invoice({})]);
+    render(await AdvertiserBillingPage({}));
+    expect(
+      within(screen.getByRole("region", { name: "To pay" })).getByText("Invoice INV-2026-0007"),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pay invoice online" })).toBeNull();
+  });
+
+  it("shows billing as unavailable rather than empty when a read fails", async () => {
+    mockBilling([], [invoice({})]);
+    const ready = get.getMockImplementation()!;
+    get.mockImplementation(async (path?: string) => {
+      if (path === "/api/v1/advertiser/campaigns/{campaign_id}/commercial") return {};
+      return ready(path);
+    });
+    render(await AdvertiserBillingPage({}));
+    expect(screen.getByRole("status", { name: "Billing unavailable" })).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "To pay" })).toBeNull();
+  });
 
   it("orders the page as what is owed, what was paid, then invoice history", async () => {
     mockBilling(
@@ -212,5 +251,103 @@ describe("AdvertiserBillingPage", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent(heading);
     expect(screen.getByRole("status")).toHaveTextContent(message);
+  });
+});
+
+describe("AdvertiserBillingPage money rules", () => {
+  type Page = { items: unknown[]; total: number } | undefined;
+  type Options = { params?: { query?: { offset?: number }; path?: { campaign_id?: string } } };
+  const campaign = (n: number, status = "active") => ({
+    id: `campaign-${n}`,
+    name: `Campaign ${n}`,
+    status,
+  });
+  const many = (from: number, count: number) =>
+    Array.from({ length: count }, (_, index) => campaign(from + index));
+  function mockPages(pages: Page[], invoicesFor: (campaignId: string) => unknown[]) {
+    get.mockImplementation(async (path?: string, options?: Options) => {
+      if (path === "/api/v1/advertiser/billing") return { data: [] };
+      if (path === "/api/v1/advertiser/campaigns") {
+        const page = pages[(options?.params?.query?.offset ?? 0) / 100];
+        return page ? { data: page } : {};
+      }
+      const campaignId = options!.params!.path!.campaign_id!;
+      return {
+        data: { terms: { id: TERMS_ID }, invoices: invoicesFor(campaignId), settlements: [] },
+      };
+    });
+  }
+  const owed = (campaignId: string, overrides: Record<string, unknown> = {}) =>
+    invoice({ id: `invoice-${campaignId}`, campaign_id: campaignId, ...overrides });
+
+  beforeEach(() => {
+    get.mockReset();
+    role.mockResolvedValue({
+      user: { role: "advertiser" },
+      advertiser_organization: { membership_role: "owner" },
+    });
+  });
+
+  it.each([{ effective_obligation_amount: "bad" }, { funded_amount: null }])(
+    "shows billing as unavailable, never nothing to pay, for unreadable money %j",
+    async (change) => {
+      mockBilling([], [invoice(change)]);
+      render(await AdvertiserBillingPage({}));
+      expect(screen.getByRole("status", { name: "Billing unavailable" })).toBeInTheDocument();
+      expect(screen.queryByText("Nothing to pay right now.")).toBeNull();
+    },
+  );
+
+  it("leaves a cancelled campaign's invoice out of To pay but keeps it in history", async () => {
+    mockPages([{ items: [campaign(1, "cancelled")], total: 1 }], (id) => [owed(id)]);
+    render(await AdvertiserBillingPage({}));
+    expect(screen.getByText("Nothing to pay right now.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pay invoice online" })).toBeNull();
+    const history = screen.getByRole("region", { name: "Invoice history" });
+    expect(within(history).getByRole("link", { name: "Campaign 1" })).toBeInTheDocument();
+  });
+
+  it("reads every campaign page, so a payable campaign on page 2 is shown", async () => {
+    mockPages(
+      [
+        { items: many(1, 100), total: 101 },
+        { items: [campaign(101)], total: 101 },
+      ],
+      (id) => (id === "campaign-101" ? [owed(id)] : []),
+    );
+    render(await AdvertiserBillingPage({}));
+    const toPay = screen.getByRole("region", { name: "To pay" });
+    expect(within(toPay).getByText("Campaign 101")).toBeInTheDocument();
+    expect(within(toPay).getByRole("button", { name: "Pay invoice online" })).toBeInTheDocument();
+  });
+
+  it.each([
+    ["a later page fails", undefined],
+    ["the total changes", { items: [campaign(101)], total: 102 }],
+    ["a campaign repeats", { items: [campaign(1)], total: 101 }],
+  ])("shows billing as unavailable when %s", async (_name, second) => {
+    mockPages([{ items: many(1, 100), total: 101 }, second], () => []);
+    render(await AdvertiserBillingPage({}));
+    expect(screen.getByRole("status", { name: "Billing unavailable" })).toBeInTheDocument();
+  });
+
+  it("offers online payment only for NGN invoices", async () => {
+    mockPages([{ items: [campaign(1), campaign(2)], total: 2 }], (id) => [
+      owed(id, id === "campaign-2" ? { currency: "USD", invoice_number: "INV-USD" } : {}),
+    ]);
+    render(await AdvertiserBillingPage({}));
+    const toPay = screen.getByRole("region", { name: "To pay" });
+    expect(within(toPay).getByText("Invoice INV-USD")).toBeInTheDocument();
+    expect(within(toPay).getAllByRole("button", { name: "Pay invoice online" })).toHaveLength(1);
+    expect(within(toPay).getAllByText(/Card or bank transfer through Paystack/)).toHaveLength(1);
+  });
+
+  it("shows no Paystack note when only non-NGN invoices are owed", async () => {
+    mockPages([{ items: [campaign(1)], total: 1 }], (id) => [owed(id, { currency: "USD" })]);
+    render(await AdvertiserBillingPage({}));
+    const toPay = screen.getByRole("region", { name: "To pay" });
+    expect(within(toPay).getByText("Campaign 1")).toBeInTheDocument();
+    expect(within(toPay).queryByRole("button", { name: "Pay invoice online" })).toBeNull();
+    expect(within(toPay).queryByText(/Paystack/)).toBeNull();
   });
 });

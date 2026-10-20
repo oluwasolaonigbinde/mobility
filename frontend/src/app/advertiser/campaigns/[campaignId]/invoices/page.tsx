@@ -16,11 +16,29 @@ export default async function CampaignInvoicesPage({
   const { campaignId } = await params;
   const me = await requireRole("advertiser");
   const api = createApiClient(await getSessionToken());
-  const result = await loadAdvertiserPageData(() =>
-    api.GET("/api/v1/advertiser/campaigns/{campaign_id}/commercial", {
-      params: { path: { campaign_id: campaignId } },
-    }),
-  );
+  const [result, campaign] = await Promise.all([
+    loadAdvertiserPageData(() =>
+      api.GET("/api/v1/advertiser/campaigns/{campaign_id}/commercial", {
+        params: { path: { campaign_id: campaignId } },
+      }),
+    ),
+    loadAdvertiserPageData(() =>
+      api.GET("/api/v1/advertiser/campaigns/{campaign_id}", {
+        params: { path: { campaign_id: campaignId } },
+      }),
+    ),
+  ]);
+  if (!campaign.available) {
+    if (campaign.reason === "missing") notFound();
+    return (
+      <DataUnavailable
+        title="Invoices unavailable"
+        reason={campaign.reason}
+        retryHref={`/advertiser/campaigns/${campaignId}/invoices`}
+      />
+    );
+  }
+  if (campaign.data.id !== campaignId) notFound();
   if (!result.available) {
     if (result.reason === "missing") notFound();
     return (
@@ -43,7 +61,7 @@ export default async function CampaignInvoicesPage({
         <CommercialHistory
           invoices={result.data.invoices}
           settlements={result.data.settlements}
-          showPayment={!isAdvertiserViewer(me)}
+          showPayment={!isAdvertiserViewer(me) && campaign.data.status !== "cancelled"}
         />
       )}
     </div>

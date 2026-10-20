@@ -20,6 +20,7 @@ export function DriverDetailsForm({
       <Field
         label="Service city"
         name="service_city"
+        required
         defaultValue={driver.service_city ?? ""}
         maxLength={128}
       />

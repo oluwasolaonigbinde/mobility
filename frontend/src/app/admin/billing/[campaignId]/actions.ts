@@ -210,16 +210,3 @@ export async function recordProductionStartAction(campaignId: string, waiverId: 
   revalidatePath(path(campaignId));
   redirect(`${path(campaignId)}?saved=production#money`);
 }
-
-export async function recordBudgetBlockedStateAction(campaignId: string) {
-  try {
-    const api = createApiClient(await getSessionToken());
-    await api.POST("/api/v1/admin/campaigns/{campaign_id}/budget-policy-evaluation", {
-      params: { path: { campaign_id: campaignId } },
-    });
-  } catch (error) {
-    fail(campaignId, error);
-  }
-  revalidatePath(path(campaignId));
-  redirect(`${path(campaignId)}?saved=budget#money`);
-}

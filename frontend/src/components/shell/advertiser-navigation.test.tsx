@@ -58,8 +58,13 @@ it("keeps advanced planning out of the main side list", () => {
   for (const name of ["Home", "Campaigns", "Billing", "Help", "Account"])
     expect(screen.getByRole("link", { name })).toBeInTheDocument();
   expect(screen.queryByRole("link", { name: "Retargeting" })).toBeNull();
-  expect(screen.getByRole("link", { name: "People" })).toHaveAttribute(
-    "href",
-    "/advertiser/account#people",
+});
+it("lists Account once; its page holds company, people and password", () => {
+  render(<AdvertiserNavigation account={<span>Signed in</span>} />);
+  // The same list appears in the desktop sidebar and the phone menu; each lists Account once.
+  expect(within(screen.getByRole("complementary")).getAllByText("Account")).toHaveLength(1);
+  expect(within(screen.getByRole("dialog", { hidden: true })).getAllByText("Account")).toHaveLength(
+    1,
   );
+  expect(screen.queryByRole("link", { name: "People" })).toBeNull();
 });

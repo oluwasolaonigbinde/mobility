@@ -11,7 +11,7 @@ export function AdvertiserShell({ me, children }: { me: MeResponse; children: Re
   const account = (
     <>
       <p className="truncate text-sm font-semibold">{me.user.full_name}</p>
-      <p className="text-muted mt-1 truncate text-xs">{org?.name}</p>
+      <p className="text-muted mt-1 truncate text-sm">{org?.name}</p>
       <SessionLogoutButton
         label="Sign out"
         className="text-muted hover:text-coral mt-3 min-h-11 text-sm font-medium"
@@ -34,11 +34,8 @@ export function AdvertiserShell({ me, children }: { me: MeResponse; children: Re
               <BrandWordmark />
             </Link>
           </div>
-          <p className="text-muted hidden text-sm md:block">{org?.name}</p>
+          <p className="text-ink hidden text-base font-semibold md:block">{org?.name}</p>
           <div className="flex items-center gap-3">
-            <span className="text-muted hidden text-sm lg:inline">
-              Your advertising, in one place
-            </span>
             <NotificationCenter
               compact
               sessionScope={me.user.id}

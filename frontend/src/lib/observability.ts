@@ -3,11 +3,14 @@ const SENSITIVE_KEY =
 const PRIVATE_URL = /https?:\/\/[^\s"']+/gi;
 const BEARER_OR_JWT = /(?:bearer\s+)?eyJ[A-Za-z0-9._-]+/gi;
 const PRECISE_COORDINATE = /\b(?:lat(?:itude)?|lon(?:gitude)?|gps)\s*[=:]\s*-?\d+(?:\.\d+)?/gi;
+// Relative URLs in navigation breadcrumbs keep query and fragment, e.g. an Apply link's token.
+const URL_TOKEN = /([?#&][\w-]*token=)[^&#\s"']*/gi;
 
 function scrub(value: unknown): unknown {
   if (typeof value === "string") {
     return value
       .replace(PRIVATE_URL, "[REDACTED_URL]")
+      .replace(URL_TOKEN, "$1[REDACTED_TOKEN]")
       .replace(BEARER_OR_JWT, "[REDACTED_TOKEN]")
       .replace(PRECISE_COORDINATE, "[REDACTED_GPS]");
   }

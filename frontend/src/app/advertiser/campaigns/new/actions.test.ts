@@ -22,6 +22,29 @@ describe("createCampaignAction", () => {
     vi.clearAllMocks();
     mocks.post.mockResolvedValue({ data: { id: CAMPAIGN_ID } });
   });
+  it("saves the draft for the Areas step without attaching designs or submitting review", async () => {
+    const result = await createCampaignAction(
+      {
+        basics: {
+          name: "Area first",
+          description: "",
+          start_at: "",
+          end_at: "",
+          budget_amount: "100000.00",
+          daily_budget_amount: "",
+        },
+        creatives: [],
+      },
+      undefined,
+      REQUEST_ID,
+      true,
+    );
+    expect(result).toEqual({ createdCampaignId: CAMPAIGN_ID });
+    expect(mocks.post).toHaveBeenCalledTimes(1);
+    expect(mocks.post.mock.calls[0]![0]).toBe("/api/v1/advertiser/campaigns");
+    expect(mocks.post.mock.calls[0]![1].body.status).toBe("draft");
+    expect(mocks.redirect).not.toHaveBeenCalled();
+  });
 
   it("always creates campaigns as drafts", async () => {
     await createCampaignAction(

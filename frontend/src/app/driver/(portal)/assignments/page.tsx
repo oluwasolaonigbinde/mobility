@@ -86,6 +86,8 @@ function JobCard({
   if (a.status === "offered") sentence = "A new job for you. Take a look and decide.";
   else if (evidence?.status === "pending_review")
     sentence = "Terrax Media is checking your photos.";
+  else if (evidence?.status === "rejected" && ["accepted", "active"].includes(a.status))
+    sentence = "Your photos weren’t approved. Send clear new photos of the advert on your car.";
   else if (needsInstallation)
     sentence =
       policy.configured && policy.can_upload
@@ -112,7 +114,10 @@ function JobCard({
         <StatusChip tone={statusMeta[a.status].tone}>{statusMeta[a.status].label}</StatusChip>
       </div>
       <JobTerms a={a} />
-      <JobVisual terms={a.offer_terms} />
+      <JobVisual
+        job={frozenJob(a.offer_terms)}
+        assignmentId={["offered", "accepted", "active"].includes(a.status) ? a.id : undefined}
+      />
       {policy.configured && policy.can_upload ? (
         <InstallationEvidenceActions
           assignmentId={a.id}

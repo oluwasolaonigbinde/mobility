@@ -56,15 +56,13 @@ describe("PersonPayeeForm", () => {
   });
 
   it("uploads two private files and records consent, waits for clean scans and never echoes identity", async () => {
-    render(<PersonPayeeForm />);
+    render(<PersonPayeeForm accessToken={ACCESS_TOKEN} />);
     expect(screen.queryByLabelText("Signed agreement")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Code from your email")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Read the full agreement" })).toHaveAttribute(
       "href",
       "/apply/agreement/1",
     );
-    fireEvent.change(screen.getByLabelText("Code from your email"), {
-      target: { value: ACCESS_TOKEN },
-    });
     fireEvent.change(screen.getByLabelText("NIN (11 digits)"), {
       target: { value: "12345678901" },
     });
@@ -92,8 +90,10 @@ describe("PersonPayeeForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Send my details" }));
 
     expect(await screen.findByRole("status")).toHaveTextContent(
-      "Sent. We'll check your details. Check your status with your application reference.",
+      "Terrax Media will check your details. We’ll email you when it’s time to add your car.",
     );
+    expect(screen.getByRole("heading", { name: "Details sent" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send my details" })).toBeNull();
     expect(screen.queryByText(/\*{7}8901/)).not.toBeInTheDocument();
     expect(screen.queryByText("12345678901")).not.toBeInTheDocument();
     expect(screen.queryByText("0123456789")).not.toBeInTheDocument();

@@ -14,6 +14,9 @@ vi.mock("next/navigation", () => ({
   notFound: () => {
     throw new Error("not-found");
   },
+  redirect: (to: string) => {
+    throw new Error(`redirect:${to}`);
+  },
 }));
 vi.mock("./wizard", () => ({
   CampaignWizard: ({
@@ -32,7 +35,9 @@ const id = "00000000-0000-4000-8000-000000000001";
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.role.mockResolvedValue({ advertiser_organization: { currency: "NGN" } });
-  mocks.get.mockResolvedValue({ data: { id, name: "Existing draft" } });
+  mocks.get.mockImplementation(async (path: string) => ({
+    data: path.endsWith("/zones") ? { items: [], total: 0 } : { id, name: "Existing draft" },
+  }));
 });
 it("keeps ordinary new campaign creation available", async () => {
   render(await Page({ searchParams: Promise.resolve({}) }));
@@ -49,11 +54,9 @@ it("explains view-only access instead of offering a form the server refuses", as
   expect(screen.queryByTestId("wizard")).not.toBeInTheDocument();
   expect(mocks.get).not.toHaveBeenCalled();
 });
-it("loads the authorized existing campaign for creative-only recovery", async () => {
+it("loads the authorised saved campaign and areas for recovery", async () => {
   render(await Page({ searchParams: Promise.resolve({ campaignId: id }) }));
-  expect(
-    screen.getByRole("heading", { name: "Add creatives to Existing draft" }),
-  ).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "Finish Existing draft" })).toBeInTheDocument();
   expect(screen.getByTestId("wizard")).toHaveTextContent(`NGN:${id}`);
   expect(mocks.get).toHaveBeenCalledWith("/api/v1/advertiser/campaigns/{campaign_id}", {
     params: { path: { campaign_id: id } },
@@ -73,14 +76,31 @@ it.each(["absent", "cross-tenant"])(
       mocks.get.mockRejectedValue(
         new ApiError(404, { code: "CAMPAIGN_NOT_FOUND", message: "Unavailable" }),
       );
+    render(await Page({ searchParams: Promise.resolve({ campaignId: id }) }));
+    expect(
+      screen.getByRole("status", { name: "Your saved draft couldn't be confirmed" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("wizard")).toBeNull();
+  },
+);
+it.each(["campaign", "areas"])(
+  "sends an expired session on the %s read to sign in",
+  async (failing) => {
+    mocks.get.mockImplementation(async (path: string) => {
+      if (path.endsWith("/zones") === (failing === "areas"))
+        throw new ApiError(401, { code: "UNAUTHORIZED", message: "Expired" });
+      return { data: { id, name: "Existing draft" } };
+    });
     await expect(Page({ searchParams: Promise.resolve({ campaignId: id }) })).rejects.toThrow(
-      "not-found",
+      "redirect:/login",
     );
   },
 );
-it("propagates unavailable authority instead of presenting a create fallback", async () => {
+it("shows unavailable authority without presenting a create fallback", async () => {
   mocks.get.mockRejectedValue(new ApiError(503, { code: "UNAVAILABLE", message: "Unavailable" }));
-  await expect(Page({ searchParams: Promise.resolve({ campaignId: id }) })).rejects.toThrow(
-    "Unavailable",
-  );
+  render(await Page({ searchParams: Promise.resolve({ requestId: id }) }));
+  expect(
+    screen.getByRole("status", { name: "Your saved draft couldn't be confirmed" }),
+  ).toBeInTheDocument();
+  expect(screen.queryByTestId("wizard")).toBeNull();
 });

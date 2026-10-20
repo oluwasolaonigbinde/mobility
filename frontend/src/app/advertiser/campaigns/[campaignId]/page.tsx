@@ -14,8 +14,10 @@ import { CampaignArtwork } from "@/components/campaigns/campaign-artwork";
 import { AreaGraphic } from "@/components/campaigns/area-graphic";
 import { BudgetUsed } from "@/components/campaigns/budget-used";
 import { loadCampaignVisuals, previewFile } from "@/lib/advertiser/campaign-visuals";
-import { recordedBudget } from "@/lib/advertiser/budget-display";
+import { bookedBudget } from "@/lib/advertiser/budget-display";
 import { isOutstandingInvoice } from "@/lib/billing/commercial-history";
+import { readCampaignCancellationRequests } from "@/lib/api/audit-batch2";
+import { isCancellableCampaign } from "@/lib/campaigns/cancellation";
 import { StatusActions } from "./status-actions";
 import { CommercialPanel } from "./commercial-panel";
 import { CreativeStatusActions } from "./creative-status-actions";
@@ -24,12 +26,12 @@ import { CampaignCancellationPanel } from "./campaign-cancellation-panel";
 
 export const metadata: Metadata = { title: "Campaign" };
 const sentences: Record<string, string> = {
-  draft: "Let’s get your campaign ready for the road.",
+  draft: "Finish setting up your campaign.",
   pending_review: "Terrax Media is reviewing your campaign.",
   rejected: "Terrax Media has asked for a few changes.",
   approved: "Your campaign is approved. Terrax Media is arranging the next steps.",
   scheduled: "Your campaign is ready for its start date.",
-  active: "Your campaign is running. Your brand is out on the road.",
+  active: "Your campaign is running.",
   paused: "Your campaign is paused. Contact Terrax Media about the next steps.",
   completed: "Your campaign has finished.",
   cancelled: "This campaign has been cancelled.",
@@ -58,7 +60,8 @@ export default async function CampaignDetailPage({
     return <DataUnavailable title="Campaign unavailable" reason={loaded.reason} retryHref={base} />;
   }
   const campaign = loaded.data;
-  const [visuals, commercial, summary, history, changes] = await Promise.all([
+  const cancellable = isCancellableCampaign(campaign.status);
+  const [visuals, commercial, summary, history, changes, cancellations] = await Promise.all([
     loadCampaignVisuals(api, campaignId),
     loadAdvertiserPageData(() =>
       api.GET("/api/v1/advertiser/campaigns/{campaign_id}/commercial", {
@@ -80,7 +83,32 @@ export default async function CampaignDetailPage({
         params: { path: { campaign_id: campaignId } },
       }),
     ),
+    cancellable
+      ? loadAdvertiserPageData(() => readCampaignCancellationRequests(api, campaignId))
+      : null,
   ]);
+  // A request already sent shows its status instead of a second form (REQ-194).
+  const cancellation =
+    !cancellable || !cancellations ? null : !cancellations.available ? (
+      <DataUnavailable
+        title="Cancellation request unavailable"
+        reason={cancellations.reason}
+        retryHref={base}
+        className="mt-6"
+      />
+    ) : (
+      <CampaignCancellationPanel
+        campaignId={campaign.id}
+        campaignName={campaign.name}
+        pendingThreadId={
+          cancellations.data.items.find(
+            (item) =>
+              item.category === "campaign_cancellation" &&
+              (item.status === "open" || item.status === "answered"),
+          )?.id
+        }
+      />
+    );
   const { artwork, areas } = visuals;
   const creativeItems = artwork.available ? artwork.data.items : [];
   const artworkReasons = new Map(
@@ -152,7 +180,7 @@ export default async function CampaignDetailPage({
           <h1 className="font-display max-w-2xl text-3xl font-semibold md:text-4xl">
             {campaign.name}
           </h1>
-          <p className="text-muted mt-3 text-sm">
+          <p className="text-muted mt-3 text-base">
             {formatDateRange(campaign.start_at, campaign.end_at)}
           </p>
         </div>
@@ -161,7 +189,9 @@ export default async function CampaignDetailPage({
         aria-label="Next step"
         className="mb-7 flex flex-wrap items-center justify-between gap-4 rounded-2xl bg-[#f0f7ed] p-5"
       >
-        <p className="max-w-xl text-sm leading-6 md:text-base">{sentences[campaign.status]}</p>
+        <p className="text-ink max-w-xl text-base leading-6 md:text-lg">
+          {sentences[campaign.status]}
+        </p>
         <Link href={next.href} className="brand-action">
           {next.label} <span aria-hidden="true">→</span>
         </Link>
@@ -215,12 +245,7 @@ export default async function CampaignDetailPage({
         </Panel>
       </div>
       <Panel className="mb-7 p-5 md:p-6">
-        <BudgetUsed
-          value={recordedBudget(
-            campaign,
-            commercial.available ? commercial.data.budget_evaluations : undefined,
-          )}
-        />
+        <BudgetUsed value={bookedBudget(campaign)} />
       </Panel>
       <div className="grid gap-4">
         <details
@@ -258,6 +283,7 @@ export default async function CampaignDetailPage({
                 <CommercialPanel
                   campaignId={campaign.id}
                   canRequestQuotation={canWrite && !terminal}
+                  canPay={canWrite && campaign.status !== "cancelled"}
                   commercial={commercial.data}
                   error={
                     query.commercial_error
@@ -372,10 +398,14 @@ export default async function CampaignDetailPage({
                   retryHref={base}
                 />
               )}
-              {["approved", "scheduled", "active", "paused"].includes(campaign.status) ? (
-                <CampaignCancellationPanel campaignId={campaign.id} campaignName={campaign.name} />
-              ) : null}
+              {cancellation}
             </div>
+          </details>
+        ) : null}
+        {!canWrite && cancellation ? (
+          <details className="brand-disclosure">
+            <summary>Ask Terrax to cancel</summary>
+            <div className="disclosure-body">{cancellation}</div>
           </details>
         ) : null}
       </div>

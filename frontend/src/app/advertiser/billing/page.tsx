@@ -14,6 +14,14 @@ import {
   isOutstandingInvoice,
 } from "@/lib/billing/commercial-history";
 import { invoiceAmountLeftToPay, paidTowards } from "@/lib/billing/history";
+import { requireRole, isAdvertiserViewer } from "@/lib/auth/current-user";
+import {
+  loadAdvertiserPageData,
+  loadAllAdvertiserPages,
+  type UnavailableReason,
+} from "@/lib/advertiser/page-data";
+import { moneyMinor } from "@/lib/advertiser/budget-display";
+import { DataUnavailable } from "@/components/ui/data-unavailable";
 
 export const metadata: Metadata = { title: "Billing" };
 
@@ -41,23 +49,46 @@ export default async function AdvertiserBillingPage({
   searchParams?: Promise<{ payment?: string; message?: string }>;
 }) {
   const paymentResult = (await searchParams) ?? {};
+  const me = await requireRole("advertiser");
+  const canPay = !isAdvertiserViewer(me);
   const api = createApiClient(await getSessionToken());
-  const [{ data: history }, { data: campaigns }] = await Promise.all([
-    api.GET("/api/v1/advertiser/billing"),
-    api.GET("/api/v1/advertiser/campaigns", {
-      params: { query: { limit: 100, offset: 0 } },
-    }),
+  const [historyResult, campaignResult] = await Promise.all([
+    loadAdvertiserPageData(() => api.GET("/api/v1/advertiser/billing")),
+    loadAllAdvertiserPages((next) =>
+      api.GET("/api/v1/advertiser/campaigns", {
+        params: { query: { limit: 100, offset: next } },
+      }),
+    ),
   ]);
-  const receipts = history ?? [];
-  const commercialHistory = await Promise.all(
-    (campaigns?.items ?? []).map(async (campaign) => {
-      const { data: commercial } = await api.GET(
-        "/api/v1/advertiser/campaigns/{campaign_id}/commercial",
-        { params: { path: { campaign_id: campaign.id } } },
-      );
-      return { campaign, commercial };
-    }),
+  const unavailable = (reason: UnavailableReason = "protocol") => (
+    <DataUnavailable title="Billing unavailable" reason={reason} retryHref="/advertiser/billing" />
   );
+  if (!historyResult.available) return unavailable(historyResult.reason);
+  if (!campaignResult.available) return unavailable(campaignResult.reason);
+  const receipts = historyResult.data;
+  const campaigns = campaignResult.data;
+  const commercialHistory: Array<{
+    campaign: (typeof campaigns)[number];
+    commercial: import("@/lib/api/schema").components["schemas"]["CampaignCommercialRead"];
+  }> = [];
+  for (let offset = 0; offset < campaigns.length; offset += 4) {
+    const group = await Promise.all(
+      campaigns.slice(offset, offset + 4).map(async (campaign) => {
+        const result = await loadAdvertiserPageData(() =>
+          api.GET("/api/v1/advertiser/campaigns/{campaign_id}/commercial", {
+            params: { path: { campaign_id: campaign.id } },
+          }),
+        );
+        return result.available &&
+          campaign.status &&
+          result.data.invoices.every((invoice) => invoice.campaign_id === campaign.id)
+          ? { campaign, commercial: result.data }
+          : null;
+      }),
+    );
+    if (group.some((item) => item === null)) return unavailable();
+    commercialHistory.push(...group.filter((item) => item !== null));
+  }
   // Payments are put towards a campaign's accepted terms; name the campaign behind each.
   const campaignNameByTerms = new Map<string, string>();
   for (const { campaign, commercial } of commercialHistory) {
@@ -66,11 +97,23 @@ export default async function AdvertiserBillingPage({
       campaignNameByTerms.set(invoice.commercial_terms_id, campaign.name);
     }
   }
-  const outstanding = commercialHistory.flatMap(({ campaign, commercial }) =>
-    (commercial?.invoices ?? [])
-      .filter(isOutstandingInvoice)
-      .map((invoice) => ({ campaign, invoice })),
+  const payable = commercialHistory.flatMap(({ campaign, commercial }) =>
+    campaign.status === "cancelled"
+      ? []
+      : commercial.invoices.map((invoice) => ({ campaign, invoice })),
   );
+  // An unpaid invoice with unreadable amounts is unknown, never "Nothing to pay".
+  if (
+    payable.some(
+      ({ invoice }) =>
+        invoice.status === "issued" &&
+        invoice.payment_status !== "paid" &&
+        (moneyMinor(invoice.effective_obligation_amount) === null ||
+          moneyMinor(invoice.funded_amount) === null),
+    )
+  )
+    return unavailable();
+  const outstanding = payable.filter(({ invoice }) => isOutstandingInvoice(invoice));
   const withHistory = commercialHistory.filter(
     ({ commercial }) => commercial && (commercial.invoices.length || commercial.settlements.length),
   );
@@ -152,7 +195,7 @@ export default async function AdvertiserBillingPage({
                       </StatusChip>
                     </div>
                   </div>
-                  <InvoicePayForm invoice={invoice} showNote={false} />
+                  {canPay ? <InvoicePayForm invoice={invoice} showNote={false} /> : null}
                 </li>
               ))}
             </ul>

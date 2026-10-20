@@ -437,11 +437,7 @@ const profileSchema = z.object({
     .trim()
     .max(64)
     .transform((v) => (v === "" ? null : v)),
-  service_city: z
-    .string()
-    .trim()
-    .max(120)
-    .transform((v) => (v === "" ? null : v)),
+  service_city: z.string().trim().min(1, "Enter the city you drive in").max(128),
   country_code: z
     .string()
     .trim()

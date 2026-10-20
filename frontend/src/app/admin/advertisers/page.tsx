@@ -7,6 +7,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { QueueSearch, QueueUnavailable } from "../queue-search";
 import { adminStatus } from "@/lib/status/admin";
 import { exactCompanyMoney, readCompanyInvoices } from "./company-reads";
+import { readAdminAdvertiserOrganizations } from "@/lib/api/navigation";
 
 export default async function AdvertisersPage({
   searchParams,
@@ -16,35 +17,22 @@ export default async function AdvertisersPage({
   const p = await searchParams;
   const offset = Math.max(0, Math.floor(Number(p.offset) || 0));
   const api = createApiClient(await getSessionToken());
-  const { data } = await api
-    .GET("/api/v1/admin/advertiser-organizations", {
-      params: { query: { q: p.q, limit: 25, offset } },
-    })
-    .catch(() => ({ data: undefined }));
-  const summaries = new Map<string, Awaited<ReturnType<typeof summary>>>();
-  async function summary(id: string) {
-    const [company, people] = await Promise.all([
-      api
-        .GET("/api/v1/admin/advertiser-organizations/{organization_id}/company", {
-          params: { path: { organization_id: id } },
-        })
-        .then(({ data }) => data),
-      api
-        .GET("/api/v1/admin/advertiser-organizations/{organization_id}/members", {
-          params: { path: { organization_id: id }, query: { limit: 1, offset: 0 } },
-        })
-        .then(({ data }) => data),
-    ]);
-    if (!company || company.id !== id || !people) throw new Error("Incomplete company section");
-    const money = await readCompanyInvoices(api, id);
-    return { company, people: people.total, money };
-  }
+  const { data } = await readAdminAdvertiserOrganizations(api, { q: p.q, limit: 25, offset }).catch(
+    () => ({ data: undefined }),
+  );
+  const summaries = new Map<string, Awaited<ReturnType<typeof readCompanyInvoices>>>();
   let failed = false;
   if (data) {
     for (let offset = 0; offset < data.items.length; offset += 1) {
       const company = data.items[offset]!;
       try {
-        summaries.set(company.id, await summary(company.id));
+        if (
+          ![company.member_count, company.live_campaign_count].every(
+            (count) => Number.isSafeInteger(count) && count >= 0,
+          )
+        )
+          throw new Error("Incomplete company counts");
+        summaries.set(company.id, await readCompanyInvoices(api, company.id));
       } catch {
         failed = true;
       }
@@ -55,9 +43,14 @@ export default async function AdvertisersPage({
       <PageHeader
         title="Advertisers"
         actions={
-          <Link className="text-cyan underline" href="/admin/advertisers/new">
-            Add company
-          </Link>
+          <div className="flex gap-4">
+            <Link className="text-cyan underline" href="/admin/enquiries">
+              New enquiries
+            </Link>
+            <Link className="text-cyan underline" href="/admin/advertisers/new">
+              Add company
+            </Link>
+          </div>
         }
       />
       <QueueSearch q={p.q} label="Search companies" />
@@ -80,28 +73,19 @@ export default async function AdvertisersPage({
                   >
                     <h2 className="font-medium">{c.name}</h2>
                     <p className="text-muted text-sm">
-                      {detail.company.billing_contact_name ??
-                        detail.company.operational_contact_name ??
+                      {c.billing_contact_name ??
+                        c.operational_contact_name ??
                         "No contact recorded"}{" "}
-                      ·{" "}
-                      {detail.company.billing_email ??
-                        detail.company.operational_contact_email ??
-                        ""}{" "}
-                      · {adminStatus(c.status)}
+                      · {c.billing_email ?? c.operational_contact_email ?? ""} ·{" "}
+                      {adminStatus(c.status)}
                     </p>
                     <p className="text-muted text-sm">
-                      People: {detail.people} · Live campaigns:{" "}
-                      {
-                        detail.money.campaigns.filter(
-                          (campaign) =>
-                            campaign.status === "active" || campaign.status === "paused",
-                        ).length
-                      }
+                      People: {c.member_count} · Live campaigns: {c.live_campaign_count}
                     </p>
                     <p className="text-sm">
                       Outstanding:{" "}
-                      {detail.money.outstanding.length
-                        ? detail.money.outstanding
+                      {detail.outstanding.length
+                        ? detail.outstanding
                             .map(({ currency, amount }) => exactCompanyMoney(amount, currency))
                             .join(" · ")
                         : "No issued invoices"}

@@ -7,7 +7,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
-import { adminStatus } from "@/lib/status/admin";
+import { adminStatus, adminActivity } from "@/lib/status/admin";
 import { formatDate, formatDateRange } from "@/lib/format";
 import { CATEGORY_LABELS } from "@/lib/complaints/labels";
 import { HubNav, HubSection } from "../../hub-section";
@@ -15,14 +15,26 @@ import { QueueUnavailable } from "../../queue-search";
 import { UserStatusMenu } from "../../users/user-status-menu";
 import { updateCompanyAction } from "./company/actions";
 import { exactCompanyMoney, readCompanyInvoices } from "../company-reads";
+import { readAdvertiserCompany } from "../../entity-reads";
 
-export const metadata: Metadata = { title: "Advertiser" };
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ organizationId: string }>;
+}): Promise<Metadata> {
+  try {
+    const { data } = await readAdvertiserCompany((await params).organizationId);
+    return { title: data?.name ?? "Advertiser" };
+  } catch {
+    return { title: "Advertiser" };
+  }
+}
 const sections = [
   { id: "details", title: "Details" },
   { id: "people", title: "People" },
   { id: "campaigns", title: "Campaigns" },
   { id: "money", title: "Invoices and payments" },
-  { id: "complaints", title: "Complaints" },
+  { id: "complaints", title: "Messages and requests" },
   { id: "activity", title: "Activity" },
 ];
 export default async function CompanyHub({
@@ -44,10 +56,7 @@ export default async function CompanyHub({
   const offset = (value?: string) =>
     Number.isFinite(Number(value)) ? Math.max(0, Math.floor(Number(value))) : 0;
   const api = createApiClient(await getSessionToken());
-  const company = await api
-    .GET("/api/v1/admin/advertiser-organizations/{organization_id}/company", {
-      params: { path: { organization_id: organizationId } },
-    })
+  const company = await readAdvertiserCompany(organizationId)
     .then(({ data }) => data)
     .catch((error: unknown) => {
       if (error instanceof ApiError && error.status === 404) notFound();
@@ -248,13 +257,13 @@ export default async function CompanyHub({
             </>
           )}
         </HubSection>
-        <HubSection id="complaints" title="Complaints">
+        <HubSection id="complaints" title="Messages and requests">
           {!complaints ? (
             <QueueUnavailable />
           ) : (
             <>
               {!complaints.items.length ? (
-                <p>No complaints.</p>
+                <p>No messages or requests.</p>
               ) : (
                 <ul className="grid gap-3">
                   {complaints.items.map((item) => (
@@ -293,15 +302,9 @@ export default async function CompanyHub({
                   {activity.items.map((event) => (
                     <li key={event.id}>
                       <p>
-                        {event.actor_email ?? "System"} · {formatDate(event.created_at)}
+                        {event.actor_email ?? "System"} · {adminActivity(event.action)} ·{" "}
+                        {formatDate(event.created_at)}
                       </p>
-                      <details className="text-muted text-sm">
-                        <summary>Technical reference</summary>
-                        <p>{event.action}</p>
-                        <pre className="overflow-auto">
-                          {JSON.stringify(event.metadata, null, 2)}
-                        </pre>
-                      </details>
                     </li>
                   ))}
                 </ul>

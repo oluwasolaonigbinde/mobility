@@ -1,48 +1,73 @@
 "use client";
-import { useActionState, useState } from "react";
-import { issueMeasurement } from "./actions";
-import { SearchSelect } from "../search-select";
-export function IssueMeasurementForm({ campaignId }: { campaignId?: string }) {
-  const [request] = useState(() => crypto.randomUUID());
-  const [state, action, pending] = useActionState(
-    issueMeasurement,
-    {} as { error?: string; done?: string },
-  );
+import { useActionState, useRef } from "react";
+import { rerunReportAction, type RerunState } from "./actions";
+import { ReportForm } from "./report-form";
+
+export function RerunReportForm({ campaignId }: { campaignId: string }) {
+  const sending = useRef(false);
+  const [state, action, pending] = useActionState(async (previous: RerunState) => {
+    try {
+      return await rerunReportAction(campaignId, previous);
+    } catch {
+      return { unknownOutcome: true };
+    } finally {
+      sending.current = false;
+    }
+  }, {} as RerunState);
   return (
-    <details className="border-edge mb-6 rounded-xl border p-4">
-      <summary className="cursor-pointer">Prepare a results calculation</summary>
-      <form action={action} className="mt-4 grid gap-3">
-        <input type="hidden" name="client_request_id" value={request} />
-        {campaignId ? (
-          <input type="hidden" name="campaign_id" value={campaignId} />
-        ) : (
-          <SearchSelect kind="campaign" name="campaign_id" label="Campaign" />
-        )}
-        <label>
-          Period start (UTC)
-          <input
-            name="period_start_at"
-            placeholder="2026-09-01T00:00:00Z"
-            required
-            className="border-edge bg-raised block w-full rounded border p-2"
-          />
-        </label>
-        <label>
-          Period end (UTC, excluded)
-          <input
-            name="period_end_at"
-            placeholder="2026-10-01T00:00:00Z"
-            required
-            className="border-edge bg-raised block w-full rounded border p-2"
-          />
-        </label>
-        <p className="text-muted text-sm">Calculate results for the selected campaign period.</p>
-        <button disabled={pending} className="bg-amber text-bg rounded p-3">
-          {pending ? "Preparing…" : "Prepare results calculation"}
+    <section className="border-edge mb-6 rounded-xl border p-4">
+      <h2 className="font-medium">Campaign results</h2>
+      <p className="text-muted mt-2 text-sm">
+        Reports are prepared each week and when a campaign ends. You can also create a fresh report.
+      </p>
+      <form
+        action={action}
+        onSubmit={(event) => {
+          if (sending.current) event.preventDefault();
+          else sending.current = true;
+        }}
+        className="mt-4"
+      >
+        <button
+          type="submit"
+          disabled={pending}
+          className="bg-amber text-bg rounded px-4 py-3 text-sm"
+        >
+          {pending
+            ? "Requesting report…"
+            : state.report || state.unknownOutcome
+              ? "Create another results report"
+              : "Create results report"}
         </button>
-        {state.error ? <p role="alert">{state.error}</p> : null}
-        {state.done ? <p role="status">{state.done}</p> : null}
       </form>
-    </details>
+      {state.error ? (
+        <p role="alert" className="text-coral mt-3 text-sm">
+          {state.error}
+        </p>
+      ) : null}
+      {state.unknownOutcome ? (
+        <p role="alert" className="text-muted mt-3 text-sm">
+          We couldn’t confirm whether the report was requested.{" "}
+          {/* A full load, so results requested before the lost response are shown. */}
+          <a className="text-green underline" href={`/admin/campaigns/${campaignId}#results`}>
+            Check the campaign’s results
+          </a>{" "}
+          before creating another.
+        </p>
+      ) : null}
+      {state.report ? (
+        <>
+          <p role="status" className="mt-3 text-sm">
+            Report requested.
+          </p>
+          <ReportForm
+            key={state.report.id}
+            runId={state.report.measurement_run_id}
+            initialReport={state.report}
+            canIssue={false}
+          />
+        </>
+      ) : null}
+    </section>
   );
 }

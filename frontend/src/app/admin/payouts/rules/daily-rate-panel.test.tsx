@@ -68,7 +68,7 @@ describe("DailyRatePanel", () => {
       "Minimum miles for any pay (0 for none)",
       "Share of miles outside the campaign area that count (0 to 1)",
       "Starts (future)",
-      "Reason (logged)",
+      "Reason",
     ]) {
       expect(screen.getByLabelText(label)).toBeInTheDocument();
     }

@@ -40,25 +40,6 @@ export function AdvertiserNavigation({ account }: { account: ReactNode }) {
   const list = (
     <div className="brand-nav flex min-h-0 flex-1 flex-col gap-6">
       <SidebarNav items={items} />
-      <div className="border-edge grid gap-1 border-t pt-5 text-sm">
-        <p className="text-muted px-4 pb-1 font-medium">Account</p>
-        <Link
-          href="/advertiser/company"
-          aria-current={pathname === "/advertiser/company" ? "page" : undefined}
-          className="hover:bg-raised flex items-center gap-2 rounded-lg px-4 py-2.5"
-        >
-          Company details
-        </Link>
-        <Link href="/advertiser/account#people" className="hover:bg-raised rounded-lg px-4 py-2.5">
-          People
-        </Link>
-        <Link
-          href="/advertiser/account#password"
-          className="hover:bg-raised rounded-lg px-4 py-2.5"
-        >
-          Change password
-        </Link>
-      </div>
       <div className="border-edge mt-auto border-t px-4 pt-5">{account}</div>
     </div>
   );

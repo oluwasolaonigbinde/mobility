@@ -14,9 +14,15 @@ import { Panel } from "@/components/ui/panel";
 import { Button } from "@/components/ui/button";
 import { cx } from "@/lib/cx";
 import { formatMoney } from "@/lib/format";
-import { uploadCreativeFile, type CreativeUploadPhase } from "@/lib/files/creative-upload";
+import {
+  uploadCreativeFile,
+  CREATIVE_UPLOAD_PHASE_LABELS,
+  type CreativeUploadPhase,
+} from "@/lib/files/creative-upload";
+import { ZonesEditor } from "../[campaignId]/zones/zones-editor";
+import type { components } from "@/lib/api/schema";
 
-const STEPS = ["Basics", "Creatives", "Review"] as const;
+const STEPS = ["Basics", "Areas", "Your advert design", "Review"] as const;
 
 const CREATIVE_TYPES = [
   { value: "image", label: "Image" },
@@ -44,21 +50,26 @@ const stepFields: Record<number, FieldPath<CampaignWizardInput>[]> = {
     "basics.budget_amount",
     "basics.daily_budget_amount",
   ],
-  1: ["creatives"],
+  2: ["creatives"],
 };
 
 export function CampaignWizard({
   currency,
   existingCampaign,
   campaignRequestId: initialCampaignRequestId,
+  initialZones = [],
 }: {
   currency: string;
-  existingCampaign?: { id: string; name: string };
+  existingCampaign?: { id: string; name: string; basics?: CampaignWizardInput["basics"] };
   campaignRequestId?: string;
+  initialZones?: components["schemas"]["CampaignZoneRead"][];
 }) {
   const [campaignId, setCampaignId] = useState(existingCampaign?.id);
   const [step, setStep] = useState(existingCampaign ? 1 : 0);
   const [result, setResult] = useState<CreateCampaignState>({});
+  const draftBasics = useRef<CampaignWizardInput["basics"] | null>(null);
+  const draftSending = useRef(false);
+  const [basicsLocked, setBasicsLocked] = useState(Boolean(existingCampaign));
   const [campaignRequestId, setCampaignRequestId] = useState(
     initialCampaignRequestId ?? crypto.randomUUID(),
   );
@@ -79,6 +90,7 @@ export function CampaignWizard({
         end_at: "",
         budget_amount: "",
         daily_budget_amount: "",
+        ...existingCampaign?.basics,
       },
       creatives: [],
     },
@@ -90,7 +102,44 @@ export function CampaignWizard({
   async function next() {
     const fields = stepFields[step];
     const valid = fields ? await form.trigger(fields) : true;
-    if (valid) setStep((s) => Math.min(s + 1, STEPS.length - 1));
+    if (!valid || draftSending.current) return;
+    if (step === 0 && !campaignId) {
+      draftBasics.current ??= { ...form.getValues().basics };
+      setBasicsLocked(true);
+      window.history.replaceState(
+        null,
+        "",
+        `/advertiser/campaigns/new?requestId=${campaignRequestId}`,
+      );
+      draftSending.current = true;
+      setResult({});
+      startTransition(async () => {
+        try {
+          const state = await createCampaignAction(
+            { basics: draftBasics.current!, creatives: [] },
+            undefined,
+            campaignRequestId,
+            true,
+          );
+          setResult(state);
+          if (state.createdCampaignId && !state.error) {
+            setCampaignId(state.createdCampaignId);
+            window.history.replaceState(
+              null,
+              "",
+              `/advertiser/campaigns/new?campaignId=${state.createdCampaignId}`,
+            );
+            setStep(1);
+          }
+        } catch {
+          setResult({
+            error: "Your draft couldn't be confirmed. Try again to check the same saved details.",
+          });
+        } finally {
+          draftSending.current = false;
+        }
+      });
+    } else setStep((s) => Math.min(s + 1, STEPS.length - 1));
   }
 
   async function uploadCreative(index: number, fieldId: string, file: File | undefined) {
@@ -155,8 +204,6 @@ export function CampaignWizard({
   }
 
   const values = form.watch();
-  // QA-11: attaching to an existing campaign with no creatives would change nothing.
-  const attachBlocked = Boolean(campaignId) && values.creatives.length === 0;
 
   const inputClass =
     "h-11 w-full rounded-lg border border-edge bg-raised px-3.5 text-sm text-ink placeholder:text-faint transition-colors focus:border-amber focus:outline-none";
@@ -164,9 +211,7 @@ export function CampaignWizard({
   const errorClass = "mt-1 text-xs text-coral";
 
   return (
-    // pb-24 keeps the footer's Continue/Back clear of the floating theme
-    // pill (fixed bottom-right) when the page is scrolled to its end.
-    <form onSubmit={form.handleSubmit(submit)} noValidate className="pb-24">
+    <div className="pb-12">
       {/* Stepper */}
       <ol className="mb-6 flex flex-wrap items-center gap-2" aria-label="Progress">
         {STEPS.map((label, i) =>
@@ -191,9 +236,14 @@ export function CampaignWizard({
         )}
       </ol>
 
+      {result.error ? (
+        <p role="alert" className="text-coral mb-4 text-sm">
+          {result.error}
+        </p>
+      ) : null}
       <Panel className="p-6 md:p-8">
         {step === 0 ? (
-          <div className="flex max-w-xl flex-col gap-5">
+          <fieldset disabled={basicsLocked} className="flex max-w-xl flex-col gap-5">
             <div>
               <label htmlFor="c-name" className={labelClass}>
                 Campaign name *
@@ -289,29 +339,37 @@ export function CampaignWizard({
             <div className="border-amber/30 bg-amber/10 rounded-lg border p-3.5 text-sm">
               <p className="font-medium">Saved as a draft</p>
               <p className="text-muted mt-1">
-                Nothing is sent for review yet. On the campaign page you can add campaign areas
-                (zones), request a quotation, and press Submit for review when it&apos;s ready.
+                Continue saves your draft, then you can choose its areas and advert design. Nothing
+                is sent for review or payment yet.
               </p>
               <p className="text-muted mt-1">
                 To submit for review, the campaign needs start and end dates, a total budget and at
                 least one target area. You can save a draft without them.
               </p>
             </div>
-          </div>
+          </fieldset>
         ) : null}
 
-        {step === 1 ? (
+        {step === 1 && campaignId ? (
+          <div>
+            <p className="text-muted mb-4 text-sm">
+              Your draft is saved. Draw and name the areas where you’d like your advert seen. You
+              can add or change areas later.
+            </p>
+            <ZonesEditor key={campaignId} campaignId={campaignId} zones={initialZones} />
+          </div>
+        ) : null}
+        {step === 2 ? (
           <div className="flex flex-col gap-5">
             <p className="text-muted text-sm">
-              Upload each creative privately. A creative can be attached only after its file passes
-              the security scan.
+              Upload your advert design. We’ll check the file before adding it to your draft.
             </p>
 
             {creatives.fields.map((field, i) => (
               <Panel key={field.id} className="bg-raised/60 relative p-5">
                 <button
                   type="button"
-                  aria-label={`Remove creative ${i + 1}`}
+                  aria-label={`Remove design ${i + 1}`}
                   onClick={() => creatives.remove(i)}
                   disabled={Boolean(
                     uploadState[field.id]?.phase && uploadState[field.id]?.phase !== "clean",
@@ -323,7 +381,7 @@ export function CampaignWizard({
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="sm:col-span-2">
                     <label htmlFor={`cr-name-${i}`} className={labelClass}>
-                      Creative name *
+                      Design name *
                     </label>
                     <input
                       id={`cr-name-${i}`}
@@ -369,7 +427,7 @@ export function CampaignWizard({
                   </div>
                   <div className="sm:col-span-2">
                     <label htmlFor={`cr-file-${i}`} className={labelClass}>
-                      Creative file *
+                      Design file *
                     </label>
                     <input
                       id={`cr-file-${i}`}
@@ -387,9 +445,7 @@ export function CampaignWizard({
                     <input type="hidden" {...form.register(`creatives.${i}.original_filename`)} />
                     {uploadState[field.id]?.phase ? (
                       <p className="text-muted mt-1 text-xs" aria-live="polite">
-                        {uploadState[field.id]?.phase === "clean"
-                          ? `✓ ${form.getValues(`creatives.${i}.original_filename`)} passed security scan`
-                          : `${uploadState[field.id]?.phase}…`}
+                        {CREATIVE_UPLOAD_PHASE_LABELS[uploadState[field.id]!.phase!]}
                       </p>
                     ) : null}
                     {uploadState[field.id]?.error ? (
@@ -417,21 +473,17 @@ export function CampaignWizard({
               }
               className="border-edge text-muted hover:border-edge-strong hover:text-ink rounded-lg border border-dashed px-4 py-3.5 text-sm transition-colors"
             >
-              + Add creative
+              + Add advert design
             </button>
             <p className="micro text-faint">
-              {campaignId
-                ? "Add at least one creative file to attach it to this campaign."
-                : "Optional — you can add creatives later from the campaign page."}
+              You can also add your design later from the campaign page.
             </p>
           </div>
         ) : null}
 
-        {step === 2 ? (
+        {step === 3 ? (
           <div className="flex max-w-xl flex-col gap-4">
-            <h2 className="font-display text-xl font-semibold">
-              {campaignId ? "Review creative attachments" : "Review & create"}
-            </h2>
+            <h2 className="font-display text-xl font-semibold">Review your draft</h2>
             <dl className="divide-edge/60 divide-y text-sm">
               {[
                 ["Name", values.basics.name || "—"],
@@ -457,8 +509,8 @@ export function CampaignWizard({
                   campaignId ? "Existing campaign — details unchanged" : "Draft",
                 ],
                 [
-                  "Creatives",
-                  values.creatives.length ? `${values.creatives.length} attached` : "none",
+                  "Advert design",
+                  values.creatives.length ? `${values.creatives.length} ready to add` : "Add later",
                 ],
               ].map(([k, v]) => (
                 <div key={k} className="flex justify-between gap-6 py-2.5">
@@ -467,13 +519,7 @@ export function CampaignWizard({
                 </div>
               ))}
             </dl>
-            {attachBlocked ? (
-              <p id="attach-blocked" className="text-muted text-sm">
-                No creatives were added, so there is nothing to attach. Go back to add one, or
-                return to the campaign.
-              </p>
-            ) : null}
-            {result.error ? (
+            {result.error && result.createdCampaignId ? (
               <div
                 role="alert"
                 className="border-coral/40 bg-coral/10 text-coral rounded-lg border px-4 py-3 text-sm"
@@ -504,29 +550,26 @@ export function CampaignWizard({
           </Button>
         ) : (
           <Link href="/advertiser/campaigns" className="micro text-muted hover:text-ink">
-            Cancel
+            My campaigns
           </Link>
         )}
         {step < STEPS.length - 1 ? (
           <Button
             type="button"
+            disabled={submitting}
             onClick={(event) => {
               event.preventDefault();
               void next();
             }}
           >
-            Continue →
+            {submitting ? "Saving…" : "Continue →"}
           </Button>
         ) : (
-          <Button
-            type="submit"
-            disabled={submitting || attachBlocked}
-            aria-describedby={attachBlocked && step === 2 ? "attach-blocked" : undefined}
-          >
-            {submitting ? "Saving…" : campaignId ? "Attach creatives" : "Create campaign"}
+          <Button type="button" onClick={form.handleSubmit(submit)} disabled={submitting}>
+            {submitting ? "Saving…" : "Finish draft"}
           </Button>
         )}
       </div>
-    </form>
+    </div>
   );
 }

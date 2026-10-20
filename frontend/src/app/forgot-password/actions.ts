@@ -51,7 +51,7 @@ export async function requestPasswordResetAction(
     };
   }
   return {
-    done: "If the account can be recovered, reset instructions will be sent.",
+    done: "If that email has an account, we've sent a link to reset your password. Check your inbox.",
     email: parsed.data.email,
   };
 }

@@ -1,86 +1,67 @@
 import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
-
+import { beforeEach, expect, it, vi } from "vitest";
 const get = vi.hoisted(() => vi.fn());
-
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: get }) }));
-vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
-
+vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
 import AdminAuditPage from "./page";
-
-const EVENT = {
-  id: "00000000-0000-4000-8000-000000000001",
-  created_at: "2026-09-13T10:00:00Z",
-  actor_email: "admin@example.com",
-  action: "stored_file.read",
-  entity_type: "stored_file",
-  entity_id: "00000000-0000-4000-8000-000000000002",
-  metadata: {},
+const event = {
+  id: "event-id",
+  created_at: "2026-10-18T22:30:00Z",
+  actor_email: "staff@example.com",
+  action: "auth.login.succeeded",
+  entity_type: "user",
+  entity_id: "private-id",
+  metadata: { private_field: "private value" },
 };
-
-describe("AdminAuditPage filters", () => {
-  beforeEach(() => {
-    get.mockReset();
-  });
-
-  it("labels both exact-match filters and keeps their submitted values", async () => {
-    get.mockResolvedValue({ data: { items: [EVENT], total: 1, limit: 50, offset: 0 } });
-
-    render(
-      await AdminAuditPage({
-        searchParams: Promise.resolve({ action: "stored_file.read", entity_type: "stored_file" }),
+beforeEach(() => {
+  vi.resetAllMocks();
+});
+it("uses human filters with exact API values, and displays actor/action/date without technical payloads", async () => {
+  get.mockResolvedValue({ data: { items: [event], total: 1 } });
+  const { container } = render(
+    await AdminAuditPage({
+      searchParams: Promise.resolve({
+        action: "auth.login.succeeded",
+        entity_type: "user",
+        offset: "50",
       }),
-    );
-
-    const action = screen.getByLabelText("Action");
-    const entityType = screen.getByLabelText("Entity type");
-    expect(action).toHaveAttribute("name", "action");
-    expect(action).toHaveValue("stored_file.read");
-    expect(action).toHaveAttribute("placeholder", "Action, e.g. auth.login.succeeded");
-    expect(entityType).toHaveAttribute("name", "entity_type");
-    expect(entityType).toHaveValue("stored_file");
-    expect(entityType).toHaveAttribute("placeholder", "Entity type");
-    expect(action).toHaveAccessibleDescription(/exact action or entity type as shown in the table/);
-    expect(entityType).toHaveAccessibleDescription(
-      /exact action or entity type as shown in the table/,
-    );
-    expect(screen.getByRole("button", { name: "Filter" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Clear filters" })).toHaveAttribute(
-      "href",
-      "/admin/settings/activity",
-    );
-    expect(
-      screen.getByText(
-        "Showing events with action “stored_file.read” and entity type “stored_file”.",
-      ),
-    ).toBeInTheDocument();
-    expect(get).toHaveBeenCalledWith("/api/v1/admin/audit-events", {
-      params: {
-        query: { limit: 50, offset: 0, action: "stored_file.read", entity_type: "stored_file" },
-      },
-    });
+    }),
+  );
+  expect(screen.getByRole("combobox", { name: "Activity" })).toHaveValue("auth.login.succeeded");
+  expect(screen.getByRole("combobox", { name: "About" })).toHaveValue("user");
+  expect(screen.getByRole("option", { name: "Signed in" })).toBeInTheDocument();
+  expect(screen.getByRole("cell", { name: "Signed in" })).toBeInTheDocument();
+  expect(screen.getByRole("cell", { name: "staff@example.com" })).toBeInTheDocument();
+  expect(container).not.toHaveTextContent(
+    /private-id|private_field|private value|auth.login.succeeded|Recorded activity|Technical reference/,
+  );
+  expect(container.querySelector('input[name="offset"]')).toBeNull();
+  expect(get).toHaveBeenCalledWith("/api/v1/admin/audit-events", {
+    params: {
+      query: { limit: 50, offset: 50, action: "auth.login.succeeded", entity_type: "user" },
+    },
   });
-
-  it("explains an empty filtered result without a summary when unfiltered", async () => {
-    get.mockResolvedValue({ data: { items: [], total: 0, limit: 50, offset: 0 } });
-
-    render(await AdminAuditPage({ searchParams: Promise.resolve({ entity_type: "campaign" }) }));
-
-    expect(screen.getByText("No events exactly match these filters.")).toBeInTheDocument();
-    expect(screen.getByText("Showing events with entity type “campaign”.")).toBeInTheDocument();
-
-    get.mockClear();
-    const { container } = render(await AdminAuditPage({ searchParams: Promise.resolve({}) }));
-    expect(container).toHaveTextContent("No matching events.");
-    expect(container).not.toHaveTextContent("Showing events with");
-    expect(get).toHaveBeenCalledWith("/api/v1/admin/audit-events", {
-      params: { query: { limit: 50, offset: 0 } },
-    });
-  });
-  it("shows a single failure without a false empty log or count", async () => {
-    get.mockRejectedValue(new Error("offline"));
-    render(await AdminAuditPage({ searchParams: Promise.resolve({}) }));
-    expect(screen.getAllByRole("alert")).toHaveLength(1);
-    expect(screen.queryByText("No matching events.")).not.toBeInTheDocument();
-  });
+});
+it("preserves unknown URL filters in a human-labelled selected option", async () => {
+  get.mockResolvedValue({ data: { items: [], total: 0 } });
+  render(
+    await AdminAuditPage({
+      searchParams: Promise.resolve({ action: "stored_file.read", entity_type: "new_type" }),
+    }),
+  );
+  expect(screen.getByRole("combobox", { name: "Activity" })).toHaveValue("stored_file.read");
+  expect(screen.getByRole("combobox", { name: "About" })).toHaveValue("new_type");
+  expect(screen.getByRole("option", { name: "Stored file read" })).toBeInTheDocument();
+  expect(screen.getByRole("option", { name: "Selected records" })).toBeInTheDocument();
+  expect(screen.getByText("No activity matches these filters.")).toBeInTheDocument();
+});
+it("keeps genuine empty history separate from unavailable history", async () => {
+  get.mockResolvedValue({ data: { items: [], total: 0 } });
+  const empty = render(await AdminAuditPage({ searchParams: Promise.resolve({}) }));
+  expect(screen.getByText("No matching events.")).toBeInTheDocument();
+  empty.unmount();
+  get.mockRejectedValue(new Error("offline"));
+  render(await AdminAuditPage({ searchParams: Promise.resolve({}) }));
+  expect(screen.getAllByRole("alert")).toHaveLength(1);
+  expect(screen.queryByText("No matching events.")).toBeNull();
 });

@@ -11,14 +11,18 @@ describe("DriverAccountSetupPage", () => {
     );
 
     expect(screen.getByRole("heading", { name: "Set up your driver account" })).toBeInTheDocument();
-    expect(screen.getByText(/does not sign you in or assign campaign work/i)).toBeInTheDocument();
+    expect(
+      screen.getByText("Choose a password to finish setting up your driver account."),
+    ).toBeInTheDocument();
     expect(metadata.referrer).toBe("no-referrer");
   });
 
   it("fails closed when the setup authority is missing", async () => {
     render(await DriverAccountSetupPage({ searchParams: Promise.resolve({}) }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent("This setup action is incomplete");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "This link is incomplete. Ask Terrax for a new account setup email.",
+    );
     expect(screen.queryByRole("button", { name: "Set password" })).not.toBeInTheDocument();
   });
 });

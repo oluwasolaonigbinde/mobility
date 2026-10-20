@@ -70,11 +70,11 @@ function AccountVerification({ versionId }: { versionId: string }) {
     <form action={action} className="border-edge rounded-lg border p-2">
       <input type="hidden" name="bank_account_version_id" value={versionId} />
       <label className="micro text-muted flex flex-col gap-1">
-        Bank check reference, from the bank confirmation
+        Test-transfer reference from your bank
         <input
           name="verification_reference"
           type="password"
-          minLength={16}
+          minLength={1}
           maxLength={512}
           required
           className="border-edge bg-raised text-ink rounded-lg border px-2 py-2 text-xs"
@@ -114,9 +114,6 @@ export function PersonPayeeDecisionActions({
   const [rejectionReason, setRejectionReason] = useState("");
   return (
     <div className="flex min-w-0 flex-col gap-2">
-      <p className="text-muted mb-2 text-sm">
-        Each view is logged. Documents are hidden after one minute or when you leave this page.
-      </p>
       <p className="text-faint mb-2 text-xs">
         Identity documents are reviewed together. Bank details are checked separately before the
         combined decision.
@@ -213,7 +210,7 @@ export function PersonPayeeDecisionActions({
             </select>
           </label>
           <fieldset className="border-edge my-2 rounded-lg border p-3 text-xs">
-            <legend>Document outcomes for rejection or expiry</legend>
+            <legend>Documents that need changes</legend>
             <div className="my-3">
               <p className="font-medium">Driving licence</p>
               <label className="flex flex-col gap-1">
@@ -223,9 +220,9 @@ export function PersonPayeeDecisionActions({
                   defaultValue="on_file"
                   className="border-edge bg-raised rounded border p-2"
                 >
-                  <option value="on_file">On file, review incomplete</option>
-                  <option value="replace">Needs replacement</option>
-                  <option value="accepted">Accepted (view first)</option>
+                  <option value="on_file">Not checked yet</option>
+                  <option value="replace">Needs a new copy</option>
+                  <option value="accepted">Looks good (view first)</option>
                 </select>
               </label>
               <label className="mt-2 flex flex-col gap-1">
@@ -246,9 +243,9 @@ export function PersonPayeeDecisionActions({
                   defaultValue="on_file"
                   className="border-edge bg-raised rounded border p-2"
                 >
-                  <option value="on_file">On file, review incomplete</option>
-                  <option value="replace">Needs replacement</option>
-                  <option value="accepted">Accepted (view first)</option>
+                  <option value="on_file">Not checked yet</option>
+                  <option value="replace">Needs a new copy</option>
+                  <option value="accepted">Looks good (view first)</option>
                 </select>
               </label>
               <label className="mt-2 flex flex-col gap-1">
@@ -281,16 +278,6 @@ export function PersonPayeeDecisionActions({
               className="h-8 px-2 text-xs"
             >
               Reject
-            </Button>
-            <Button
-              type="submit"
-              name="intent"
-              value="expire"
-              disabled={pending}
-              variant="ghost"
-              className="h-8 px-2 text-xs"
-            >
-              Mark expired
             </Button>
           </div>
           {state.error ? (

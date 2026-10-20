@@ -1,12 +1,17 @@
-import type { components } from "@/lib/api/schema";
+import type { BudgetUsed } from "@/lib/api/audit-batch2";
 
-type Campaign = Pick<components["schemas"]["CampaignRead"], "id" | "currency" | "budget_amount">;
-type Evaluation = components["schemas"]["BudgetEvaluationRead"];
-export type BudgetDisplay = {
-  spent: bigint;
-  budget: bigint;
+type Campaign = {
   currency: string;
-  evaluatedAt: string;
+  budget_amount?: string | null;
+  budget_used?: BudgetUsed | null;
+};
+/** Booked: one campaign's billing commitment (D103), never summed across campaigns or currencies. */
+export type BudgetDisplay = {
+  booked: bigint;
+  /** The campaign's total budget; null when it has none (a daily-only campaign). */
+  budget: bigint | null;
+  currency: string;
+  asOf: string;
 };
 
 export function moneyMinor(value: string | null | undefined): bigint | null {
@@ -18,53 +23,31 @@ export function minorDecimal(value: bigint): string {
   return `${value / BigInt(100)}.${(value % BigInt(100)).toString().padStart(2, "0")}`;
 }
 
-/** A daily or obsolete evaluation is never presented as total campaign spending. */
-export function recordedBudget(
-  campaign: Campaign,
-  evaluations: Evaluation[] | undefined,
-): BudgetDisplay | null {
-  if (!evaluations?.length || evaluations.some((e) => !Number.isFinite(Date.parse(e.evaluated_at))))
-    return null;
-  const evaluation = [...evaluations].sort(
-    (a, b) => Date.parse(b.evaluated_at) - Date.parse(a.evaluated_at),
-  )[0]!;
-  const budget = moneyMinor(campaign.budget_amount);
-  const spent = moneyMinor(evaluation.billing_spend_amount);
+/** The campaign's own booked figure, or null (shown as a dash) when missing or inconsistent. */
+export function bookedBudget(campaign: Campaign): BudgetDisplay | null {
+  const used = campaign.budget_used;
+  if (!used) return null;
+  const booked = moneyMinor(used.amount);
+  const budget = used.budget_amount == null ? null : moneyMinor(used.budget_amount);
   if (
-    evaluation.budget_basis !== "total" ||
-    !["within_budget", "alert_threshold", "urgent_threshold", "pause_threshold"].includes(
-      evaluation.state,
-    ) ||
-    evaluation.external_gate ||
-    evaluation.campaign_id !== campaign.id ||
-    evaluation.currency !== campaign.currency ||
-    moneyMinor(evaluation.campaign_budget_amount) !== budget ||
-    budget === null ||
-    budget <= BigInt(0) ||
-    spent === null
+    booked === null ||
+    (used.budget_amount != null && (budget === null || budget <= BigInt(0))) ||
+    // The page also shows the campaign's budget; never show two different ones.
+    budget !== (campaign.budget_amount ? moneyMinor(campaign.budget_amount) : null) ||
+    used.currency !== campaign.currency ||
+    !Number.isFinite(Date.parse(used.as_of))
   )
     return null;
-  return { spent, budget, currency: campaign.currency, evaluatedAt: evaluation.evaluated_at };
+  return { booked, budget, currency: used.currency, asOf: used.as_of };
 }
 
-export function combineBudgets(values: Array<BudgetDisplay | null>): BudgetDisplay | null {
-  const first = values[0];
-  if (!first || values.some((value) => !value || value.currency !== first.currency)) return null;
-  return (values as BudgetDisplay[]).reduce(
-    (total, value) => ({
-      spent: total.spent + value.spent,
-      budget: total.budget + value.budget,
-      currency: first.currency,
-      evaluatedAt:
-        Date.parse(value.evaluatedAt) < Date.parse(total.evaluatedAt)
-          ? value.evaluatedAt
-          : total.evaluatedAt,
-    }),
-    {
-      spent: BigInt(0),
-      budget: BigInt(0),
-      currency: first.currency,
-      evaluatedAt: first.evaluatedAt,
-    },
-  );
+/**
+ * Percentage to two places for any size. Within budget it rounds down, so it
+ * never reaches 100 early; over budget it rounds up, so it never hides an
+ * overrun as 100. The caller caps the bar, not the number.
+ */
+export function bookedPercent(booked: bigint, budget: bigint): number {
+  const scaled = booked * BigInt(10000);
+  const hundredths = booked > budget ? (scaled + budget - BigInt(1)) / budget : scaled / budget;
+  return Number(hundredths) / 100;
 }

@@ -32,7 +32,7 @@ const message = z
   .max(2000, "Keep your message under 2,000 characters");
 
 const raiseSchema = z.object({
-  category: z.enum(CATEGORIES, { message: "Choose what your complaint is about" }),
+  category: z.enum(CATEGORIES, { message: "Choose what you need help with" }),
   message,
   reference: z
     .string()
@@ -73,7 +73,7 @@ function explain(error: unknown, notFound: string): ComplaintActionState {
   }
   if (error.status === 404) return { error: notFound };
   if (error.code === "COMPLAINT_MESSAGE_LIMIT") {
-    return { error: "This conversation is full. Please raise a new complaint instead." };
+    return { error: "This conversation is full. Please send a new message instead." };
   }
   if (error.status === 409) {
     return { error: "This was already sent with different details. Refresh the page to see it." };
@@ -140,7 +140,7 @@ async function followUp(party: Party, formData: FormData): Promise<ComplaintActi
       await api.POST("/api/v1/advertiser/complaints/{complaint_id}/messages", options);
     }
   } catch (error) {
-    return explain(error, "This complaint couldn't be found.");
+    return explain(error, "This conversation couldn't be found.");
   }
   revalidatePath(`${BASE[party]}/${complaint_id}`);
   return { done: "Sent. Customer Service will reply here." };
@@ -193,10 +193,10 @@ export async function replyToComplaintAction(
       body,
     });
   } catch (error) {
-    return explain(error, "This complaint couldn't be found.");
+    return explain(error, "This conversation couldn't be found.");
   }
   revalidatePath("/admin/support");
-  return { done: body.resolve ? "Reply sent and complaint resolved." : "Reply sent." };
+  return { done: body.resolve ? "Reply sent and conversation resolved." : "Reply sent." };
 }
 
 export async function updateComplaintAction(
@@ -221,7 +221,7 @@ export async function updateComplaintAction(
       body,
     });
   } catch (error) {
-    return explain(error, "This complaint couldn't be found.");
+    return explain(error, "This conversation couldn't be found.");
   }
   revalidatePath("/admin/support");
   return { done: "Saved." };

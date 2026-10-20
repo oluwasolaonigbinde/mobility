@@ -11,6 +11,8 @@ const campaign = {
   currency: "NGN",
   budget_amount: "100000",
   status: "active",
+  assignment_count: 2,
+  target_zone_count: 1,
   start_at: "2026-09-01T00:00:00Z",
   end_at: "2026-10-01T00:00:00Z",
 };

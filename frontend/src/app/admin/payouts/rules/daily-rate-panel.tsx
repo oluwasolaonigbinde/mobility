@@ -136,7 +136,7 @@ export function DailyRatePanel({
             error={fieldError("effective_from")}
           />
           <Field
-            label="Reason (logged)"
+            label="Reason"
             name="reason"
             defaultValue={previous("reason")}
             placeholder="for example: on-request areas"

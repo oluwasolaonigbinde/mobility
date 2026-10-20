@@ -13,6 +13,7 @@ export const CATEGORY_LABELS: Record<ComplaintCategory, string> = {
   pay_or_payout: "Pay or payouts",
   trip_or_tracking: "Trips and tracking",
   campaign_or_job: "A campaign or job",
+  campaign_cancellation: "Cancellation request",
   billing_or_invoice: "Billing or invoices",
   account: "My account",
   other: "Something else",
@@ -27,14 +28,14 @@ export const PARTY_CATEGORIES: Record<ComplaintParty, ComplaintCategory[]> = {
 export const COMPLAINANT_STATUS: Record<ComplaintStatus, { label: string; tone: Tone }> = {
   open: { label: "With Customer Service", tone: "amber" },
   answered: { label: "Terrax Media replied", tone: "cyan" },
-  resolved: { label: "Resolved", tone: "green" },
+  resolved: { label: "Conversation resolved", tone: "green" },
 };
 
 /** Staff-facing status. */
 export const STAFF_STATUS: Record<ComplaintStatus, { label: string; tone: Tone }> = {
   open: { label: "Needs a reply", tone: "amber" },
   answered: { label: "Waiting on them", tone: "cyan" },
-  resolved: { label: "Resolved", tone: "green" },
+  resolved: { label: "Conversation resolved", tone: "green" },
 };
 
 type Tone = "default" | "amber" | "cyan" | "green" | "coral";
@@ -47,7 +48,7 @@ export const REFERENCE_TYPE_LABELS: Record<ComplaintReferenceType, string> = {
 
 /** "Campaign: Lagos Launch", "Payout: Trip pay ₦…"; trip labels already say "Trip on …". */
 export function referenceText(type: ComplaintReferenceType | null, label: string | null): string {
-  if (!type) return "No record chosen";
+  if (!type) return "General help";
   if (!label) return `${REFERENCE_TYPE_LABELS[type]} (details unavailable)`;
   return type === "trip" ? label : `${REFERENCE_TYPE_LABELS[type]}: ${label}`;
 }

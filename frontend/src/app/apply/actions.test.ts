@@ -19,11 +19,7 @@ vi.mock("@/lib/api/client", () => ({
   createLoginApiClient: mocks.createLoginClient,
 }));
 
-import {
-  checkDriverApplicationStatusAction,
-  requestDriverOnboardingAccessAction,
-  submitDriverApplicationAction,
-} from "./actions";
+import { requestDriverOnboardingAccessAction, submitDriverApplicationAction } from "./actions";
 
 describe("driver application actions", () => {
   beforeEach(() => {
@@ -31,7 +27,7 @@ describe("driver application actions", () => {
     mocks.createLoginClient.mockReturnValue({ POST: mocks.post });
   });
 
-  it("submits the allowlisted fields and returns the reference", async () => {
+  it("submits allowlisted fields without returning the private application reference", async () => {
     mocks.post.mockResolvedValue({
       data: {
         status: "pending",
@@ -48,7 +44,6 @@ describe("driver application actions", () => {
 
     await expect(submitDriverApplicationAction({}, form)).resolves.toEqual({
       submitted: true,
-      reference: "reference-secret",
     });
     expect(mocks.post).toHaveBeenCalledWith("/api/v1/auth/register-driver", {
       body: {
@@ -88,36 +83,13 @@ describe("driver application actions", () => {
     },
   );
 
-  it("shows one pending status envelope for a reference", async () => {
-    mocks.get.mockResolvedValue({
-      data: {
-        status: "pending",
-        message: "Application status is pending review.",
-        person_payee: { status: "rejected" },
-        vehicle: { status: "pending_review" },
-      },
-    });
-    const form = new FormData();
-    form.set("reference", "reference-secret");
-
-    await expect(checkDriverApplicationStatusAction({}, form)).resolves.toEqual({
-      pending: true,
-      reference: "reference-secret",
-      personPayeeStatus: "rejected",
-      vehicleStatus: "pending_review",
-    });
-    expect(mocks.get).toHaveBeenCalledWith("/api/v1/auth/driver-application-status/{reference}", {
-      params: { path: { reference: "reference-secret" } },
-    });
-  });
-
   it("requests renewed onboarding access without confirming an application exists", async () => {
     mocks.post.mockResolvedValue({ data: { message: "private provider detail" } });
     const form = new FormData();
     form.set("email", " Driver@Example.com ");
 
     await expect(requestDriverOnboardingAccessAction({}, form)).resolves.toEqual({
-      done: "If your application is still open, we've emailed you a new code.",
+      done: "If your application is still open, we've emailed you a link to continue.",
       email: "driver@example.com",
     });
     expect(mocks.post).toHaveBeenCalledWith("/api/v1/auth/driver-onboarding-access/request", {
@@ -139,7 +111,7 @@ describe("driver application actions", () => {
     const result = await requestDriverOnboardingAccessAction({}, form);
 
     expect(result).toEqual({
-      error: "We couldn't send a new code right now. Try again in a few minutes.",
+      error: "We couldn't send a new link right now. Try again in a few minutes.",
       email: "driver@example.com",
     });
     expect(JSON.stringify(result)).not.toContain("mailbox");

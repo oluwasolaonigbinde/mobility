@@ -25,4 +25,15 @@ describe("forced password logout", () => {
     render(await ChangePasswordPage());
     expect(screen.getByRole("button", { name: /sign out/i })).toBeInTheDocument();
   });
+  it("also lets a signed-in advertiser change a non-temporary password", async () => {
+    mocks.getCurrentUser.mockResolvedValue({
+      user: { role: "advertiser", must_change_password: false },
+    });
+    render(await ChangePasswordPage());
+    expect(screen.getByText("password form")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Back to Cardvert" })).toHaveAttribute(
+      "href",
+      "/advertiser",
+    );
+  });
 });

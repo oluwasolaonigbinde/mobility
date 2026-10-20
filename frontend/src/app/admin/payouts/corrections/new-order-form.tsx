@@ -29,7 +29,7 @@ export function NewOrderForm() {
         </div>
         <div className="flex flex-col gap-1.5">
           <label htmlFor="co-reason" className="micro text-muted">
-            Reason (logged)
+            Reason
           </label>
           <input
             id="co-reason"

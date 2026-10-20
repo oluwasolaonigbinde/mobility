@@ -160,7 +160,7 @@ describe("CommercialPanel copy", () => {
     expect(screen.getByRole("button", { name: "Accept these exact terms" })).toBeInTheDocument();
     expect(screen.getByText("Vehicle wrap production")).toBeInTheDocument();
     expect(screen.queryByText("PRINT")).not.toBeInTheDocument();
-    expect(screen.getByText("Production")).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Type" })).toBeNull();
     expect(screen.getAllByText("₦100,000.00")).toHaveLength(3);
     expect(screen.getByText(/VAT 7.5% · ₦7,500.00/)).toBeInTheDocument();
     expect(screen.getByText("₦107,500.00")).toBeInTheDocument();
@@ -220,7 +220,8 @@ describe("CommercialPanel copy", () => {
     );
 
     expect(screen.getByText("Accepted quotation receipt")).toBeInTheDocument();
-    expect(screen.getByText(/Q-100 · revision 2/)).toBeInTheDocument();
+    expect(screen.getByText("Quote Q-100")).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/revision \d/);
     expect(screen.getByText("Accepted and fixed")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Accept these exact terms/ }),
@@ -251,11 +252,11 @@ describe("CommercialPanel copy", () => {
     );
 
     expect(screen.getByText("Payment basis")).toBeInTheDocument();
-    expect(screen.getByText("approved credit · ₦50,000.00")).toBeInTheDocument();
+    expect(screen.getByText("Approved company credit · ₦50,000.00")).toBeInTheDocument();
     expect(screen.queryByText("Funding authority")).not.toBeInTheDocument();
   });
 
-  it("names the latest budget alert level in plain words", () => {
+  it("says budget emails come only from extra charges past the agreed price (D104)", () => {
     const accepted = {
       ...revision(),
       quotation_revision_id: "00000000-0000-4000-8000-000000000002",
@@ -264,33 +265,16 @@ describe("CommercialPanel copy", () => {
       acceptance_method: "in_platform",
       accepted_at: "2026-09-14T12:30:00Z",
     } as Commercial["terms"];
-    const evaluation = (state: string) =>
-      ({ state }) as unknown as Commercial["budget_evaluations"][number];
-    const view = render(
+    render(
       <CommercialPanel
         campaignId={CAMPAIGN_ID}
         commercial={commercial({ terms: accepted, budget_evaluations: [] })}
       />,
     );
     expect(screen.getByText("Budget alerts")).toBeInTheDocument();
-    expect(screen.getByText("Not checked yet")).toBeInTheDocument();
-
-    for (const [state, label] of [
-      ["blocked_external_policy", "Not set up yet"],
-      ["alert_threshold", "Warning: most of the budget is used"],
-      ["urgent_threshold", "Urgent: the budget is nearly used"],
-      ["pause_threshold", "Paused: the budget is used up"],
-    ]) {
-      view.rerender(
-        <CommercialPanel
-          campaignId={CAMPAIGN_ID}
-          commercial={commercial({
-            terms: accepted,
-            budget_evaluations: [evaluation("within_budget"), evaluation(state!)],
-          })}
-        />,
-      );
-      expect(screen.getByText(label!)).toBeInTheDocument();
-    }
+    expect(
+      screen.getByText("We’ll email you if extra charges take you past your agreed price."),
+    ).toBeInTheDocument();
+    expect(document.body).not.toHaveTextContent(/80 %|Not set up yet/);
   });
 });

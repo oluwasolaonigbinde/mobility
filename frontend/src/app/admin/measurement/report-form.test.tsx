@@ -32,7 +32,7 @@ describe("ReportForm", () => {
 
   it("does not allow preparing files for a snapshot that cannot be reproduced", () => {
     render(<ReportForm runId={RUN} canIssue={false} />);
-    expect(screen.getByText(/No report selected/)).toBeVisible();
+    expect(screen.getByText("Prepare a report to download these results.")).toBeVisible();
     expect(screen.getByRole("button", { name: "Prepare report files" })).toBeDisabled();
     expect(screen.queryByRole("textbox", { name: "Reason for report access" })).toBeNull();
   });
@@ -46,7 +46,7 @@ describe("ReportForm", () => {
     const first = lastForm();
     expect(first).toMatchObject({ run: RUN, issuance: "", command: "issue" });
     expect(first.request).toMatch(/^[0-9a-f-]{36}$/);
-    expect(screen.getByText(/Version 2 · queued · Requested/)).toBeVisible();
+    expect(screen.getByText(/^Being prepared · Requested /)).toBeVisible();
     expect(screen.queryByRole("button", { name: /Authorize/ })).toBeNull();
 
     manageReport.mockResolvedValue({ report: report({ status: "queued", artifacts: [] }) });
@@ -68,7 +68,7 @@ describe("ReportForm", () => {
       />,
     );
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Report preparation failed: RENDER_TIMEOUT. No ready download is confirmed.",
+      "The report couldn’t be prepared. Try again or contact support.",
     );
     expect(screen.queryByRole("button", { name: "Prepare report files" })).toBeNull();
   });

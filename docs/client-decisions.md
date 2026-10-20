@@ -87,7 +87,7 @@ brand-green signed-in design replaces the switchable directions and picker
 (D98/REQ-181/185). Advertiser and driver screens use friendly sans type and the
 Terrax mark beside Cardvert. Advertisers use a side list and a left phone drawer;
 campaign sub-pages are tabs. Admin receives the palette only, retaining its
-layout, side panels and behaviour. The public site's separate styling stays.
+layout and side panels. Operational changes are limited to the owner-approved audit items, including enquiry handling, report re-runs and staff cancellation (D97). The public site's separate styling stays.
 The public website uses **Request a Quote** for its on-site advertiser
 enquiry, **Apply to drive** for `/apply`, and **Sign in** for `/login` (D52,
 REQ-070). Advertiser account setup remains operator-led; the enquiry creates
@@ -229,15 +229,22 @@ every applicable 100% limit; it is never automatic. The client
 also wants fixed costs (printing, installation, permits, design and any other
 quoted fixed line) to count towards the budget together with media, for the
 80 %, 95 % and 100 % levels (REQ-037). This already worked; W1-B added tests
-that prove it. Accepted prices never change. Advertiser Home and campaign
-overview show spending against budget rather than driver pay (D95/REQ-182).
-Home covers running campaigns. Only matching total-budget billing evaluations
-are shown, with their recorded date; unavailable spending stays unavailable.
-
-
+that prove it. Accepted prices never change. Each advertiser campaign shows
+**Booked** against its budget rather than driver pay (D103/REQ-193; screen
+wording D100/REQ-182): "Booked: ₦X of your ₦Y budget" on the campaign page and
+"₦X of ₦Y" in its row on the campaigns list. Booked is the figure the
+total-budget alerts use — confirmed funding before production, the invoice
+with corrections from production onwards — not a spent-so-far meter. It is
+never added up across campaigns or currencies, so Home shows only running
+campaigns and cars on the road. A campaign with only a daily budget shows just
+"Booked: ₦X". No funding or terms shows ₦0 of ₦Y; missing or failed data shows
+a quiet dash. Accepting a quotation raises the budget to at least the agreed
+price, so a normal campaign reads at most 100 % (a full green bar); budget
+emails come only when extra charges go past the agreed price (D104).
 
 **History:**
 - **Before 2026-09-24** — One alert level (`budget_alert_ratio`) before the pause.
+- **2026-10-19** — Owner asked for the figure to use a consumed-spend measure shared with the alerts, true ₦0 for no spend, a quiet dash only when missing, and one running total per currency (D100/REQ-182). Worker A then found no consumed-spend measure exists: the alerts use the billing commitment (confirmed funding before production, the full invoice obligation after). The owner then chose option A the same day: show that commitment as "Booked" (D100). Later that day the orchestrator simplified it: no daily figure on screen; a daily-only campaign shows just "Booked: ₦X", and Home shows a budget only when every campaign in that currency has one. Worker A then recorded the backend figure as D103/REQ-193 (never summed across campaigns or currencies) and the alert fix as D104, and on 20 October the owner confirmed Home drops its Booked tile and sum; Booked stays on each campaign's list row and page. Previously (D95) screens said "Spent so far" from recorded total-basis evaluations and showed a sentence when unavailable.
 - **2026-10-19** — Campaigns are fixed price, so warnings only cover charges beyond the agreed price. Owner's choice (D104, REQ-193). Previously a fully paid normal campaign reached 100 % of its budget and paused, and a daily budget paused a prepaid campaign. Advertisers now also see the booked amount against their budget (D103). The 80 %/95 % warnings cannot follow campaign progress until the client gives a rule for how spend builds up (REQ-196).
 - **2026-10-18** — D92 replaces deployment-configured blank ratios and external policy approval with default 80/95/100 enforcement. Controller delegates removal of that obsolete prerequisite (REQ-190); other gates and programme states remain unchanged.
 - **2026-10-18** — Owner accepts audit D5: replace advertiser driver-pay figures with spent so far of the budget (D95/REQ-182). Previous overview/detail screens led with calculated driver payouts. This changes presentation, not prices, financial authority or payout calculation; Phase 2 can add the live spend projection.
@@ -278,9 +285,13 @@ request requires their own campaign and a reason; sending or resolving it does
 not itself cancel the campaign. Phase 1 removes the old screen control and
 prepares the request form; Phase 2 connects the `campaign_cancellation` support
 category and removes the old endpoint through Worker A. D7 is not complete yet.
+Staff cancel a whole campaign from its page or cancellation-request thread,
+with a required reason and confirmation. The same financial cutoff rules apply;
+a linked request receives a fixed reply atomically and is not auto-resolved.
 
 **History:**
 - **2026-08-14** — Client confirmed the window and waiver (Q24, D18, D20).
+- **2026-10-19** — Owner specifies D97's staff integration: reason1–1000, explicit effect confirmation, same request identity on retry and optional same-campaign cancellation thread; the backend performs the existing cutoff and atomic reply. The request itself and support resolution remain separate from cancellation. Phase 2 source/integration is in progress; no completion or deployment claim.
 - **2026-10-18** — Owner accepts audit D7: Ask Terrax to cancel, with recognisable cancellation-request labels and confirmation that the campaign continues until Terrax confirms (D97/REQ-184). Earlier advertiser UI directly executed permanent cancellation. Cutoff, earnings and refund authority remain unchanged; backend/category integration is Phase 2.
 
 ### Artwork

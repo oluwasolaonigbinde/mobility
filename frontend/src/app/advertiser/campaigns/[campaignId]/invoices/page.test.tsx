@@ -31,9 +31,19 @@ const invoice = {
   funded_amount: "0.00",
   corrections: [],
 };
+function commercial(
+  data: unknown,
+  campaign: Record<string, unknown> = { id: "one", status: "active" },
+) {
+  mocks.get
+    .mockReset()
+    .mockImplementation(async (path: string) =>
+      path === "/api/v1/advertiser/campaigns/{campaign_id}" ? { data: campaign } : { data },
+    );
+}
 beforeEach(() => {
   mocks.role.mockResolvedValue({ viewer: false });
-  mocks.get.mockReset().mockResolvedValue({ data: { invoices: [], settlements: [] } });
+  commercial({ invoices: [], settlements: [] });
 });
 it("has a working empty destination", async () => {
   render(await Page(input));
@@ -42,7 +52,7 @@ it("has a working empty destination", async () => {
 });
 it("does not offer payments to a company viewer", async () => {
   mocks.role.mockResolvedValue({ viewer: true });
-  mocks.get.mockResolvedValue({ data: { invoices: [invoice], settlements: [] } });
+  commercial({ invoices: [invoice], settlements: [] });
   render(await Page(input));
   expect(screen.getByText("INV-1")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: "View invoice" })).toHaveAttribute(
@@ -52,7 +62,7 @@ it("does not offer payments to a company viewer", async () => {
   expect(screen.queryByRole("button", { name: "Pay invoice online" })).toBeNull();
 });
 it("retains the real invoice history and existing payment action for an owner", async () => {
-  mocks.get.mockResolvedValue({ data: { invoices: [invoice], settlements: [] } });
+  commercial({ invoices: [invoice], settlements: [] });
   render(await Page(input));
   expect(screen.getByText("INV-1")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Pay invoice online" })).toBeEnabled();
@@ -66,5 +76,16 @@ it("shows unavailable separately from an empty invoice history", async () => {
 });
 it("does not reveal invoices for an inaccessible campaign", async () => {
   mocks.get.mockRejectedValue(new ApiError(404, { code: "MISSING", message: "Missing" }));
+  await expect(Page(input)).rejects.toThrow("notFound");
+});
+
+it("offers no payment once the campaign is cancelled", async () => {
+  commercial({ invoices: [invoice], settlements: [] }, { id: "one", status: "cancelled" });
+  render(await Page(input));
+  expect(screen.getByText("INV-1")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Pay invoice online" })).toBeNull();
+});
+it("does not show another campaign's invoices under this address", async () => {
+  commercial({ invoices: [invoice], settlements: [] }, { id: "other", status: "active" });
   await expect(Page(input)).rejects.toThrow("notFound");
 });

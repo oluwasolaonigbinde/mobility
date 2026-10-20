@@ -101,6 +101,7 @@ const contexts: Record<string, Record<string, string>> = {
   campaign: { active: "Live", pending_review: "For review", completed: "Ended" },
   job: { active: "Live", accepted: "Accepted" },
   review: { pending: "Needs review", pending_review: "Needs review" },
+  report: { queued: "Being prepared", processing: "Being prepared", ready: "Ready" },
   complaint: { open: "Needs a reply", answered: "Waiting on them", resolved: "Resolved" },
   contact: { open: "Needs contact", completed: "Completed" },
   payment_class: {
@@ -151,6 +152,9 @@ export function adminTone(value: string): "green" | "amber" | "coral" | "default
   return "default";
 }
 const actions: Record<string, string> = {
+  "auth.login.succeeded": "Signed in",
+  "auth.login.failed": "Sign-in unsuccessful",
+  "auth.login.rate_limited": "Sign-in temporarily limited",
   "admin.campaign.resumed": "Campaign resumed",
   "admin.campaign.paused": "Campaign paused",
   "driver.profile.updated": "Driver updated their details",
@@ -164,6 +168,10 @@ const actions: Record<string, string> = {
   "admin.campaign.scheduled": "Campaign scheduled",
   "admin.campaign.activated": "Campaign started",
 };
+export const activityFilterOptions = Object.entries(actions).map(([value, label]) => ({
+  value,
+  label,
+}));
 export function adminActivity(action: string): string {
   if (actions[action]) return actions[action];
   const words = action.replace(/^(admin|advertiser|driver)\./, "").replaceAll(/[._]/g, " ");

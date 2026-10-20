@@ -16,7 +16,6 @@ import { QueueUnavailable } from "../../queue-search";
 import { recordRevisionAction } from "./actions";
 import {
   createInvoiceAction,
-  recordBudgetBlockedStateAction,
   recordFinancialAuthorityAction,
   recordInvoiceCorrectionAction,
   recordManualTransferAction,
@@ -533,28 +532,6 @@ export default async function AdminCampaignBillingPage({
                 {adminStatus(commercial.production_start.authority_basis, "production_authority")}
               </p>
             )}
-          </Panel>
-
-          <Panel className="p-6">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="font-display text-xl font-semibold">Advertiser budget policy</h2>
-                <p className="micro text-muted mt-1">
-                  Billing spend—not driver payout cost—will drive enforcement.
-                </p>
-              </div>
-              <StatusChip tone="amber">External policy required</StatusChip>
-            </div>
-            <p className="text-muted mt-5 text-sm">
-              Thresholds, recognition timing, pause/resume and override behavior remain disabled
-              under EXT-BUDGET-POLICY. Recording the blocked state creates admin-visible evidence
-              without pausing this campaign.
-            </p>
-            <form action={recordBudgetBlockedStateAction.bind(null, campaignId)} className="mt-4">
-              <Button type="submit" variant="ghost">
-                Record blocked policy state
-              </Button>
-            </form>
           </Panel>
         </div>
       ) : null}

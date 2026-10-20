@@ -27,11 +27,7 @@ const createDriverSchema = z.object({
     .trim()
     .max(64)
     .transform((v) => (v === "" ? null : v)),
-  service_city: z
-    .string()
-    .trim()
-    .max(120)
-    .transform((v) => (v === "" ? null : v)),
+  service_city: z.string().trim().min(1, "Enter the city this driver drives in").max(128),
   country_code: z
     .string()
     .trim()
@@ -106,11 +102,7 @@ export async function updateDriverDetailsAction(
         .trim()
         .max(128)
         .transform((v) => (v === "" ? null : v)),
-      service_city: z
-        .string()
-        .trim()
-        .max(128)
-        .transform((v) => (v === "" ? null : v)),
+      service_city: z.string().trim().min(1, "Enter the city this driver drives in").max(128),
     })
     .safeParse({
       user_id: formData.get("driver_profile_id"),

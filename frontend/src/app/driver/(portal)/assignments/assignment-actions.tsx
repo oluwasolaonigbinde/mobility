@@ -66,16 +66,28 @@ export function AssignmentActions({
   return (
     <div className="mt-4 flex flex-col gap-2">
       {step ? (
-        <Button
-          ref={triggerRef}
-          type="button"
-          variant={step.variant}
-          disabled={pending}
-          onClick={() => run()}
-          className={step.action === "deactivate" ? "text-coral h-10 w-full" : "h-12 w-full"}
-        >
-          {pending ? "Working…" : step.label}
-        </Button>
+        (() => {
+          const button = (
+            <Button
+              ref={triggerRef}
+              type="button"
+              variant={step.variant}
+              disabled={pending}
+              onClick={() => run()}
+              className={step.action === "deactivate" ? "text-coral h-10 w-full" : "h-12 w-full"}
+            >
+              {pending ? "Working…" : step.label}
+            </Button>
+          );
+          return step.action === "deactivate" ? (
+            <details>
+              <summary className="text-muted cursor-pointer py-2 text-sm">More</summary>
+              {button}
+            </details>
+          ) : (
+            button
+          );
+        })()
       ) : (
         <p className="text-muted text-xs">
           This offer can&apos;t be accepted because its pay terms are incomplete.

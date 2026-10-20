@@ -86,7 +86,7 @@ describe("raise complaint actions", () => {
   it("validates before calling the server", async () => {
     const base = { category: "account", message: "x", reference: "", client_request_id: REQUEST };
     expect(await raiseDriverComplaintAction({}, form({ ...base, category: "" }))).toEqual({
-      error: "Choose what your complaint is about",
+      error: "Choose what you need help with",
     });
     expect(await raiseDriverComplaintAction({}, form({ ...base, message: "   " }))).toEqual({
       error: "Write a message first",
@@ -175,11 +175,11 @@ describe("follow-up actions", () => {
     const values = { complaint_id: COMPLAINT, message: "x", client_request_id: REQUEST };
     mocks.post.mockRejectedValueOnce(apiError(409, "COMPLAINT_MESSAGE_LIMIT"));
     expect(await followUpDriverComplaintAction({}, form(values))).toEqual({
-      error: "This conversation is full. Please raise a new complaint instead.",
+      error: "This conversation is full. Please send a new message instead.",
     });
     mocks.post.mockRejectedValueOnce(apiError(404, "COMPLAINT_NOT_FOUND"));
     expect(await followUpDriverComplaintAction({}, form(values))).toEqual({
-      error: "This complaint couldn't be found.",
+      error: "This conversation couldn't be found.",
     });
     mocks.post.mockRejectedValueOnce(apiError(404, "ADVERTISER_ORGANIZATION_NOT_FOUND"));
     expect(await followUpAdvertiserComplaintAction({}, form(values))).toEqual({
@@ -201,7 +201,7 @@ describe("staff actions", () => {
   it("replies, optionally resolving", async () => {
     const values = { complaint_id: COMPLAINT, message: "Fixed", client_request_id: REQUEST };
     expect(await replyToComplaintAction({}, form({ ...values, resolve: "on" }))).toEqual({
-      done: "Reply sent and complaint resolved.",
+      done: "Reply sent and conversation resolved.",
     });
     expect(mocks.post).toHaveBeenCalledWith("/api/v1/admin/complaints/{complaint_id}/messages", {
       params: { path: { complaint_id: COMPLAINT } },
@@ -211,7 +211,7 @@ describe("staff actions", () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/support");
     mocks.post.mockRejectedValueOnce(apiError(404, "COMPLAINT_NOT_FOUND"));
     expect(await replyToComplaintAction({}, form(values))).toEqual({
-      error: "This complaint couldn't be found.",
+      error: "This conversation couldn't be found.",
     });
     expect(await replyToComplaintAction({}, form({ ...values, message: "" }))).toEqual({
       error: "Write a message first",

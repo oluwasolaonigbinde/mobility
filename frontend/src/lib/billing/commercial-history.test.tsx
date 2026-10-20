@@ -69,6 +69,7 @@ describe("CommercialHistory", () => {
       <CommercialHistory
         invoices={[invoice]}
         settlements={[{ ...settlement, disposition: "refund_recorded" }]}
+        showPayment
       />,
     );
 
@@ -110,6 +111,17 @@ describe("CommercialHistory", () => {
     expect(screen.getByRole("link", { name: "Lunch Routes" })).toHaveAttribute(
       "href",
       "/advertiser/campaigns/campaign-9",
+    );
+    expect(screen.queryByRole("button", { name: "Pay invoice online" })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["fully funded", { funded_amount: "96.75" }],
+    ["over funded", { funded_amount: "100.00" }],
+    ["unreadable", { effective_obligation_amount: "bad" }],
+  ])("offers no payment for an issued invoice that is %s", (_name, change) => {
+    render(
+      <CommercialHistory invoices={[{ ...invoice, ...change }]} settlements={[]} showPayment />,
     );
     expect(screen.queryByRole("button", { name: "Pay invoice online" })).not.toBeInTheDocument();
   });

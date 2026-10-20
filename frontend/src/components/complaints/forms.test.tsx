@@ -10,7 +10,7 @@ describe("complaint forms", () => {
     const user = userEvent.setup();
     const action = vi.fn(async (_state: unknown, data: FormData) => {
       expect(data.get("category")).toBe("pay_or_payout");
-      expect(data.get("reference")).toBe("payout:p1");
+      expect(data.get("reference")).toBe("campaign:j1");
       expect(String(data.get("client_request_id"))).toMatch(/[0-9a-f-]{36}/);
       return { error: "We couldn't find that record in your account." };
     });
@@ -18,7 +18,11 @@ describe("complaint forms", () => {
       <RaiseComplaintForm
         party="driver"
         action={action}
-        references={{ campaigns: [], trips: [], payouts: [{ id: "p1", label: "Trip pay ₦10" }] }}
+        references={{
+          campaigns: [{ id: "j1", label: "Wuse lunch rush" }],
+          trips: [{ id: "t1", label: "Trip on 3 Sep" }],
+          payouts: [{ id: "p1", label: "Trip pay ₦10" }],
+        }}
       />,
     );
 
@@ -27,9 +31,13 @@ describe("complaint forms", () => {
       Array.from((categories as HTMLSelectElement).options).map((o) => o.textContent),
     ).not.toContain("Billing or invoices");
     await user.selectOptions(categories, "pay_or_payout");
-    await user.selectOptions(screen.getByLabelText(/Which job, trip or payout/), "payout:p1");
+    const record = screen.getByLabelText("Which job is this about? (optional)");
+    expect(screen.getByRole("group", { name: "Jobs" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Trip on 3 Sep" })).toBeNull();
+    expect(screen.queryByRole("option", { name: "Trip pay ₦10" })).toBeNull();
+    await user.selectOptions(record, "campaign:j1");
     await user.type(screen.getByLabelText("Tell us what happened"), "Paid short");
-    await user.click(screen.getByRole("button", { name: "Send complaint" }));
+    await user.click(screen.getByRole("button", { name: "Send message" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("couldn't find that record");
     expect(action).toHaveBeenCalledTimes(1);
@@ -43,7 +51,7 @@ describe("complaint forms", () => {
         references={{ campaigns: [{ id: "c1", label: "Launch" }], trips: [], payouts: [] }}
       />,
     );
-    expect(screen.getByLabelText("Which campaign? (optional)")).toBeInTheDocument();
+    expect(screen.getByLabelText("Which campaign is this about? (optional)")).toBeInTheDocument();
     expect(screen.getByRole("group", { name: "Campaigns" })).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Billing or invoices" })).toBeInTheDocument();
   });
@@ -53,7 +61,7 @@ describe("complaint forms", () => {
     const action = vi.fn(async (_state: unknown, data: FormData) => {
       expect(data.get("resolve")).toBe("on");
       expect(data.get("complaint_id")).toBe("c1");
-      return { done: "Reply sent and complaint resolved." };
+      return { done: "Reply sent and conversation resolved." };
     });
     render(
       <ComplaintMessageForm
@@ -68,7 +76,7 @@ describe("complaint forms", () => {
     await user.type(screen.getByLabelText("Reply as Terrax Media"), "Done");
     await user.click(screen.getByLabelText("Mark as resolved with this reply"));
     await user.click(screen.getByRole("button", { name: "Send reply" }));
-    expect(await screen.findByText(/Reply sent and complaint resolved/)).toBeInTheDocument();
+    expect(await screen.findByText(/Reply sent and conversation resolved/)).toBeInTheDocument();
   });
 
   it("does not submit an empty message", async () => {

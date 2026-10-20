@@ -11,7 +11,7 @@
  */
 import type { StyleSpecification } from "maplibre-gl";
 
-const LOCAL_SCHEMATIC_STYLE: StyleSpecification = {
+export const LOCAL_SCHEMATIC_STYLE: StyleSpecification = {
   version: 8,
   name: "Cardvert local schematic",
   sources: {},

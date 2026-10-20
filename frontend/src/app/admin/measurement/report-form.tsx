@@ -1,6 +1,14 @@
 "use client";
 import { useActionState, useEffect, useState } from "react";
 import { manageReport, type ReportState } from "./actions";
+import { formatDate } from "@/lib/format";
+
+const reportStatus: Record<string, string> = {
+  queued: "Being prepared",
+  processing: "Being prepared",
+  ready: "Ready",
+  failed: "Failed",
+};
 
 function TemporaryDownload({ download }: { download: NonNullable<ReportState["download"]> }) {
   const [visible, setVisible] = useState(true);
@@ -32,13 +40,11 @@ export function ReportForm({
       <h2 className="font-medium">Report and downloads</h2>
       <p className="text-muted text-sm">
         {report
-          ? `Version ${report.version} · ${report.status} · Requested ${new Date(report.created_at).toLocaleDateString()}`
-          : "No report selected. Return through the work list to review an existing report."}
+          ? `${reportStatus[report.status] ?? "Being prepared"} · Requested ${formatDate(report.created_at)}`
+          : "Prepare a report to download these results."}
       </p>
       {report?.error_code ? (
-        <p role="alert">
-          Report preparation failed: {report.error_code}. No ready download is confirmed.
-        </p>
+        <p role="alert">The report couldn’t be prepared. Try again or contact support.</p>
       ) : null}
       <form action={action} className="mt-3 grid gap-3">
         <input type="hidden" name="run" value={runId} />

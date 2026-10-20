@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { readDriver, readApplication } from "../entity-reads";
 import { notFound } from "next/navigation";
+import { lagosDatetimeLocalOneYearAhead } from "@/lib/campaigns/schema";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
@@ -203,6 +204,21 @@ export default async function DriverHub({
   const p = documents.data?.person_payee;
   const v = application?.vehicle;
   const status = driver?.onboarding_status ?? application!.status;
+  // Sign-in setup is the next step only after every review is finished.
+  const next =
+    status === "suspended"
+      ? "Next: review why this driver is suspended."
+      : application && p?.status !== "approved"
+        ? "Next: review identity documents."
+        : application && !p?.bank_account_verified
+          ? "Next: check bank details."
+          : application && v?.status !== "approved"
+            ? "Next: check the car and its documents."
+            : account?.status === "invited"
+              ? "Next: complete sign-in setup."
+              : status === "pending"
+                ? "Next: review this driver's status."
+                : null;
   const selectedTrip = query.trip
     ? trips.data?.items.find((t) => t.trip_session_id === query.trip)
     : undefined;
@@ -229,7 +245,7 @@ export default async function DriverHub({
         title={person.full_name}
         eyebrow={[person.phone, person.service_city].filter(Boolean).join(" · ")}
         actions={
-          driver ? (
+          driver && !(application && driver.onboarding_status === "pending") ? (
             <DriverOnboardingMenu
               driverProfileId={driver.id}
               driverName={driver.full_name}
@@ -239,27 +255,15 @@ export default async function DriverHub({
           ) : undefined
         }
       />
-      <StatusChip tone={adminTone(status)}>{adminStatus(status, "driver")}</StatusChip>
+      <StatusChip tone={adminTone(status)}>
+        {next === "Next: complete sign-in setup."
+          ? "Waiting for driver to set a password"
+          : adminStatus(status, "driver")}
+      </StatusChip>
       {applicationAvailable && !application ? (
         <p className="text-muted mt-3 text-sm">Added by staff</p>
       ) : null}
-      {applicationAvailable ? (
-        <p className="text-muted my-4 text-sm">
-          {status === "suspended"
-            ? "Next: review why this driver is suspended."
-            : application && p?.status !== "approved"
-              ? "Next: review identity documents."
-              : application && !p?.bank_account_verified
-                ? "Next: check bank details."
-                : application && v?.status !== "approved"
-                  ? "Next: check the car and its documents."
-                  : account?.status === "invited"
-                    ? "Next: complete sign-in setup."
-                    : status === "pending"
-                      ? "Next: review this driver's status."
-                      : null}
-        </p>
-      ) : null}
+      {applicationAvailable ? <p className="text-muted my-4 text-sm">{next}</p> : null}
       {applicationAvailable ? (
         <HubChecklist
           title="Ready to drive?"
@@ -339,9 +343,11 @@ export default async function DriverHub({
                   />
                 </div>
               ) : null}
-              <p className="text-muted mt-3 text-sm">
-                The driver can reset their password from the sign-in page.
-              </p>
+              {account?.status !== "invited" ? (
+                <p className="text-muted mt-3 text-sm">
+                  The driver can reset their password from the sign-in page.
+                </p>
+              ) : null}
               {driver ? (
                 <details className="mt-4">
                   <summary className="text-cyan cursor-pointer">Edit driver details</summary>
@@ -380,6 +386,7 @@ export default async function DriverHub({
                   submissionId={vehicle.submission_id}
                   documentFileIds={vehicle.document_file_ids ?? {}}
                   status={vehicle.status ?? "not_submitted"}
+                  defaultValidUntil={lagosDatetimeLocalOneYearAhead()}
                 />
               </section>
             ) : null,
@@ -403,8 +410,9 @@ export default async function DriverHub({
                       <div>
                         <h3 className="font-medium">{car.plate_number}</h3>
                         <p className="text-muted text-sm">
-                          {[car.make, car.model, car.color].filter(Boolean).join(" · ")} ·{" "}
-                          {adminStatus(car.status)}
+                          {[car.make, car.model, car.color, adminStatus(car.status)]
+                            .filter(Boolean)
+                            .join(" · ")}
                         </p>
                       </div>
                       <VehicleStatusMenu
@@ -662,42 +670,32 @@ export default async function DriverHub({
             Complaints
           </Link>
         </HubSection>
-        <HubSection id="activity" title="Activity">
-          {id && !activity.data ? (
-            <QueueUnavailable />
-          ) : (
-            <>
-              {!activity.data?.items.length ? (
-                <p>No activity recorded for this driver.</p>
-              ) : (
-                activity.data?.items.map((event) => (
-                  <p className="mb-2 text-sm" key={event.id}>
-                    {formatDate(event.created_at)} · {adminActivity(event.action)} ·{" "}
-                    {event.actor_email ?? "System"}
-                  </p>
-                ))
-              )}
-              <Pagination
-                total={activity.data?.total ?? 0}
-                limit={25}
-                offset={offset(query.activity_offset)}
-                hrefFor={(n) => hrefFor("activity_offset", n, "activity")}
-              />
-            </>
-          )}
-        </HubSection>
-        <details className="text-muted text-xs">
-          <summary>Technical reference</summary>
-          {activity.data?.items.map((event) => (
-            <p key={event.id}>
-              {formatDate(event.created_at)} · {event.action}
-            </p>
-          ))}
-          <p className="mt-2 break-all">
-            Driver: {id} · Account: {userId} · Application:{" "}
-            {application?.id ?? "No linked application"}
-          </p>
-        </details>
+        {application && !activity.data?.items.length && (!id || activity.data) ? null : (
+          <HubSection id="activity" title="Activity">
+            {id && !activity.data ? (
+              <QueueUnavailable />
+            ) : (
+              <>
+                {!activity.data?.items.length ? (
+                  <p>No activity recorded for this driver.</p>
+                ) : (
+                  activity.data?.items.map((event) => (
+                    <p className="mb-2 text-sm" key={event.id}>
+                      {formatDate(event.created_at)} · {adminActivity(event.action)} ·{" "}
+                      {event.actor_email ?? "System"}
+                    </p>
+                  ))
+                )}
+                <Pagination
+                  total={activity.data?.total ?? 0}
+                  limit={25}
+                  offset={offset(query.activity_offset)}
+                  hrefFor={(n) => hrefFor("activity_offset", n, "activity")}
+                />
+              </>
+            )}
+          </HubSection>
+        )}
       </div>
       {selectedTrip ? (
         <HubDrawer
@@ -709,13 +707,6 @@ export default async function DriverHub({
             {adminStatus(selectedTrip.ledger_entry?.status ?? selectedTrip.status)}
           </p>
           <ProcessTripForm tripId={selectedTrip.trip_session_id} />
-          <details className="mt-4">
-            <summary>Technical reference</summary>
-            <p>{selectedTrip.trip_session_id}</p>
-            <pre className="overflow-auto text-xs">
-              {JSON.stringify(selectedTrip.metadata, null, 2)}
-            </pre>
-          </details>
         </HubDrawer>
       ) : query.trip && trips.data ? (
         <p role="alert">

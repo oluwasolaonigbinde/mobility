@@ -91,6 +91,30 @@ export function toApiDatetime(value: string | undefined): string | undefined {
   return new Date(`${withSeconds}+01:00`).toISOString();
 }
 
+/**
+ * Validate a datetime-local value as a real Lagos wall-clock time (rejecting, for
+ * example, 30 February, which `Date` would silently roll forward) and return the
+ * API instant, or null when it is blank, malformed or impossible.
+ */
+export function lagosLocalToApi(value: string): string | null {
+  if (!DATETIME_LOCAL.test(value)) return null;
+  const withSeconds = value.length === 16 ? `${value}:00` : value;
+  const time = Date.parse(`${withSeconds}+01:00`);
+  if (Number.isNaN(time)) return null;
+  if (new Date(time + LAGOS_OFFSET_MS).toISOString().slice(0, 19) !== withSeconds) return null;
+  return new Date(time).toISOString();
+}
+
+/** The same Lagos wall-clock time one calendar year ahead; 29 February becomes 28 February. */
+export function lagosDatetimeLocalOneYearAhead(now: number = Date.now()): string {
+  const local = new Date(now + LAGOS_OFFSET_MS);
+  const year = local.getUTCFullYear() + 1;
+  const month = local.getUTCMonth();
+  const day = Math.min(local.getUTCDate(), new Date(Date.UTC(year, month + 1, 0)).getUTCDate());
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${year}-${pad(month + 1)}-${pad(day)}T${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}`;
+}
+
 /** Render an API instant as a Lagos datetime-local value for a form default. */
 export function toLagosDatetimeLocal(iso: string | null | undefined): string {
   if (!iso) return "";

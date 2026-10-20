@@ -207,7 +207,7 @@ describe("payout operator forms", () => {
   it("does not reveal a destination when the operator cancels the audited read", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(false);
     render(<MaskedDestination versionId="version" />);
-    await userEvent.click(screen.getByRole("button", { name: "Show bank details (logged)" }));
+    await userEvent.click(screen.getByRole("button", { name: "Show bank details" }));
     expect(calls.mask).not.toHaveBeenCalled();
   });
 
@@ -216,7 +216,7 @@ describe("payout operator forms", () => {
     calls.mask.mockResolvedValue({ mask: "Bank 058 · account ending 6789" });
     render(<MaskedDestination versionId="11111111-1111-4111-8111-111111111111" />);
     expect(calls.mask).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByRole("button", { name: "Show bank details (logged)" }));
+    await userEvent.click(screen.getByRole("button", { name: "Show bank details" }));
     expect(await screen.findByText(/account ending 6789/)).toBeVisible();
     await userEvent.click(screen.getByRole("button", { name: "Hide" }));
     expect(screen.queryByText(/account ending 6789/)).not.toBeInTheDocument();

@@ -1,62 +1,75 @@
 import { describe, expect, it } from "vitest";
-import type { components } from "@/lib/api/schema";
-import { recordedBudget, combineBudgets, moneyMinor, minorDecimal } from "./budget-display";
-type Evaluation = components["schemas"]["BudgetEvaluationRead"];
-const campaign = { id: "campaign", currency: "NGN", budget_amount: "1000.00" };
-const evaluation = {
-  campaign_id: "campaign",
+import { bookedBudget, bookedPercent, minorDecimal, moneyMinor } from "./budget-display";
+
+const used = (amount: string, extra: Record<string, unknown> = {}) => ({
+  amount,
+  budget_amount: "1000.00",
   currency: "NGN",
-  campaign_budget_amount: "1000.00",
-  budget_basis: "total",
-  billing_spend_amount: "200.03",
-  evaluated_at: "2026-10-18T10:00:00Z",
-  state: "within_budget",
-} as Evaluation;
-describe("recorded campaign spending", () => {
-  it("uses exact total-budget billing spend and retains its recorded time", () => {
-    expect(recordedBudget(campaign, [evaluation])).toEqual({
-      spent: BigInt(20003),
+  basis: "funding",
+  as_of: "2026-10-18T10:00:00Z",
+  ...extra,
+});
+const daily = (amount: string) => used(amount, { budget_amount: null });
+const campaign = (
+  budget_used: unknown,
+  currency = "NGN",
+  budget_amount: string | null = "1000.00",
+) => ({ currency, budget_amount, budget_used }) as Parameters<typeof bookedBudget>[0];
+
+describe("booked budget (D103)", () => {
+  it("uses the exact booked figure, currency and as-of time", () => {
+    expect(bookedBudget(campaign(used("200.03")))).toEqual({
+      booked: BigInt(20003),
       budget: BigInt(100000),
       currency: "NGN",
-      evaluatedAt: evaluation.evaluated_at,
+      asOf: "2026-10-18T10:00:00Z",
     });
     expect(minorDecimal(moneyMinor("9007199254740991.03")!)).toBe("9007199254740991.03");
   });
-  it.each([
-    { budget_basis: "daily" },
-    { state: "blocked_external_policy" },
-    { state: "unknown" },
-    { external_gate: "MISSING" },
-    { campaign_budget_amount: "999.99" },
-    { currency: "USD" },
-    { campaign_id: "other" },
-    { billing_spend_amount: null },
-    { billing_spend_amount: "-1.00" },
-    { evaluated_at: "bad date" },
-  ])("withholds unavailable or mismatched spending %j", (change) => {
-    expect(recordedBudget(campaign, [{ ...evaluation, ...change }])).toBeNull();
+  it("keeps no funding or terms as a true zero, not a dash", () => {
+    expect(bookedBudget(campaign(used("0.00")))?.booked).toBe(BigInt(0));
   });
-  it("does not fall back to an older good evaluation after a later blocked one", () => {
-    expect(
-      recordedBudget(campaign, [
-        evaluation,
-        { ...evaluation, state: "blocked_external_policy", evaluated_at: "2026-10-18T11:00:00Z" },
-      ]),
-    ).toBeNull();
-  });
-  it("aggregates only complete same-currency readings, with the oldest time", () => {
-    const first = recordedBudget(campaign, [evaluation])!;
-    const next = { ...first, spent: BigInt(10001), evaluatedAt: "2026-10-18T09:00:00Z" };
-    expect(combineBudgets([first, next])).toEqual({
-      ...first,
-      spent: BigInt(30004),
-      budget: BigInt(200000),
-      evaluatedAt: next.evaluatedAt,
+  it("reads a daily-only campaign's figure with no budget to compare against", () => {
+    expect(bookedBudget(campaign(daily("25.00"), "NGN", null))).toEqual({
+      booked: BigInt(2500),
+      budget: null,
+      currency: "NGN",
+      asOf: "2026-10-18T10:00:00Z",
     });
-    expect(combineBudgets([first, null])).toBeNull();
-    expect(combineBudgets([first, { ...next, currency: "USD" }])).toBeNull();
-    expect(combineBudgets([])).toBeNull();
   });
+  it.each([
+    null,
+    undefined,
+    used("-1.00"),
+    used("abc"),
+    used("1.00", { budget_amount: "0.00" }),
+    used("1.00", { budget_amount: "bad" }),
+    used("1.00", { currency: "USD" }),
+    used("1.00", { as_of: "bad date" }),
+  ])("shows missing or inconsistent figures as unavailable %j", (value) => {
+    expect(bookedBudget(campaign(value))).toBeNull();
+  });
+  it("shows a dash rather than a second, different budget", () => {
+    expect(bookedBudget(campaign(used("1.00"), "NGN", "900.00"))).toBeNull();
+    expect(bookedBudget(campaign(used("1.00"), "NGN", null))).toBeNull();
+    expect(bookedBudget(campaign(daily("1.00"), "NGN", "1000.00"))).toBeNull();
+  });
+  it.each([
+    ["1500.00", "1000.00", 150],
+    ["1000.00", "1000.00", 100],
+    ["1000.01", "1000.00", 100.01],
+    ["100000.01", "100000.00", 100.01],
+    ["999.95", "1000.00", 99.99],
+    ["99995.00", "100000.00", 99.99],
+  ])(
+    "percent of %s booked against %s is %s, never hiding an overrun as 100",
+    (amount, budget, expected) => {
+      expect(bookedPercent(moneyMinor(amount)!, moneyMinor(budget)!)).toBe(expected);
+    },
+  );
+});
+
+describe("money parsing", () => {
   it.each([null, "", "NaN", "-2", "1.123", "1e3"])("rejects invalid money %s", (value) =>
     expect(moneyMinor(value)).toBeNull(),
   );

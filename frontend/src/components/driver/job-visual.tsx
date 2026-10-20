@@ -1,17 +1,22 @@
-import Image from "next/image";
+import { JobArtwork } from "./job-artwork";
 import { frozenJob } from "@/lib/driver/frozen-job";
 
-/** Phase 1 uses a local vehicle illustration until the scoped artwork API arrives. */
-export function JobVisual({ terms, compact = false }: { terms: unknown; compact?: boolean }) {
-  const job = frozenJob(terms);
+export function JobVisual({
+  job,
+  assignmentId,
+  compact = false,
+}: {
+  job: ReturnType<typeof frozenJob>;
+  assignmentId?: string;
+  compact?: boolean;
+}) {
   return (
     <div className="border-edge mt-4 overflow-hidden rounded-2xl border">
-      <Image
-        src="/marketing/terrax/hero-vehicle-placeholder.svg"
-        width={1024}
-        height={1280}
-        alt="Illustration of a car carrying an advert"
-        className={`w-full object-cover object-[center_95%] ${compact ? "h-28" : "h-36"}`}
+      <JobArtwork
+        key={assignmentId ?? "unavailable"}
+        assignmentId={assignmentId}
+        kind={job.artworkKind}
+        compact={compact}
       />
       <section aria-label="Job areas" className="bg-[#f3f8f0] p-4">
         <h3 className="text-sm font-semibold">Where to drive</h3>

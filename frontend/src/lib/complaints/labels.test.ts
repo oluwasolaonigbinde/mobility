@@ -23,6 +23,6 @@ describe("reference text", () => {
     expect(referenceText("campaign", "Launch")).toBe("Campaign: Launch");
     expect(referenceText("payout", "Trip pay ₦10")).toBe("Payout: Trip pay ₦10");
     expect(referenceText("payout", null)).toBe("Payout (details unavailable)");
-    expect(referenceText(null, null)).toBe("No record chosen");
+    expect(referenceText(null, null)).toBe("General help");
   });
 });

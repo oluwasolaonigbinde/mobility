@@ -85,11 +85,7 @@ export function RaiseComplaintForm({
   const categoryId = useId();
   const referenceId = useId();
   const groups: Array<[string, "campaign" | "trip" | "payout", ReferenceOption[]]> = references
-    ? [
-        [party === "driver" ? "Jobs" : "Campaigns", "campaign", references.campaigns],
-        ["Trips", "trip", references.trips],
-        ["Payouts", "payout", references.payouts],
-      ]
+    ? [[party === "driver" ? "Jobs" : "Campaigns", "campaign", references.campaigns]]
     : [];
 
   return (
@@ -111,10 +107,10 @@ export function RaiseComplaintForm({
       </div>
       <div className="flex flex-col gap-1.5">
         <label htmlFor={referenceId} className="micro text-muted">
-          Which {party === "driver" ? "job, trip or payout" : "campaign"}? (optional)
+          Which {party === "driver" ? "job" : "campaign"} is this about? (optional)
         </label>
         <select id={referenceId} name="reference" defaultValue="" className={inputClass}>
-          <option value="">None — it&apos;s about something else</option>
+          <option value="">It’s about something else</option>
           {groups
             .filter(([, , options]) => options.length > 0)
             .map(([label, type, options]) => (
@@ -129,8 +125,8 @@ export function RaiseComplaintForm({
         </select>
         {references === null ? (
           <p className="text-muted text-xs">
-            Your {party === "driver" ? "jobs, trips and payouts" : "campaigns"} couldn&apos;t be
-            loaded, so you can&apos;t pick one right now. You can still describe it in your message.
+            Your {party === "driver" ? "jobs" : "campaigns"} couldn&apos;t be loaded, so you
+            can&apos;t pick one right now. You can still describe it in your message.
           </p>
         ) : null}
       </div>
@@ -139,7 +135,7 @@ export function RaiseComplaintForm({
         placeholder="Say what went wrong and what you would like Terrax Media to do."
       />
       <Button type="submit" disabled={pending} className="self-start">
-        {pending ? "Sending…" : "Send complaint"}
+        {pending ? "Sending…" : "Send message"}
       </Button>
       <Feedback state={state} />
     </form>

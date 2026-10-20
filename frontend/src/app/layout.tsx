@@ -5,11 +5,10 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: {
-    default: "Cardvert — Aggregate Mobility Measurement",
+    default: "Cardvert · Terrax Media",
     template: "%s · Cardvert",
   },
-  description:
-    "Cardvert campaigns with Terrax aggregate measurement, hourly driver earnings, and fleet trust in one command center.",
+  description: "Manage your vehicle advertising campaigns and driving jobs with Terrax Media.",
 };
 
 export default function RootLayout({

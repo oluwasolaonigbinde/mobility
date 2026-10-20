@@ -9,6 +9,7 @@ import { Pagination } from "@/components/ui/pagination";
 import { ViewTabs, FilterChips } from "@/components/ui/tabs";
 import { QueueSearch, QueueUnavailable } from "../queue-search";
 import type { components } from "@/lib/api/schema";
+import { readAdminCampaigns } from "@/lib/api/navigation";
 
 type Campaign = components["schemas"]["AdminCampaignRead"];
 const tabs = [
@@ -115,7 +116,15 @@ async function CampaignList(
   const offset = Number.isFinite(Number(p.offset)) ? Math.max(0, Math.floor(Number(p.offset))) : 0;
   const api = createApiClient(await getSessionToken());
   let items:
-    { key: string; campaign: Campaign; next: string; section: string; job?: string }[] | undefined;
+    | {
+        key: string;
+        campaign: Campaign;
+        next: string;
+        section: string;
+        job?: string;
+        jobCount?: number;
+      }[]
+    | undefined;
   let total: number | undefined;
   if (source.id === "artwork") {
     const { data } = await api
@@ -202,14 +211,16 @@ async function CampaignList(
         }));
     }
   } else {
-    const { data } = await api
-      .GET("/api/v1/admin/campaigns", {
-        params: { query: { status: source.id as Campaign["status"], q: p.q, limit: 25, offset } },
-      })
-      .catch(() => ({ data: undefined }));
+    const { data } = await readAdminCampaigns(api, {
+      status: source.id as Campaign["status"],
+      q: p.q,
+      limit: 25,
+      offset,
+    }).catch(() => ({ data: undefined }));
     items = data?.items.map((campaign) => ({
       key: campaign.id,
       campaign,
+      jobCount: campaign.assignment_count,
       next:
         source.id === "pending_review"
           ? "Review campaign details"
@@ -222,14 +233,18 @@ async function CampaignList(
   }
   const summaries = items
     ? await Promise.all(
-        items.map(async ({ campaign }) => ({
-          jobs: (
-            await api
-              .GET("/api/v1/admin/campaign-assignments", {
-                params: { query: { campaign_id: campaign.id, limit: 1 } },
-              })
-              .catch(() => ({ data: undefined }))
-          ).data,
+        items.map(async ({ campaign, jobCount }) => ({
+          jobs: !["artwork", "changes", "installation"].includes(source.id)
+            ? Number.isSafeInteger(jobCount) && jobCount! >= 0
+              ? jobCount
+              : undefined
+            : (
+                await api
+                  .GET("/api/v1/admin/campaign-assignments", {
+                    params: { query: { campaign_id: campaign.id, limit: 1 } },
+                  })
+                  .catch(() => ({ data: undefined }))
+              ).data?.total,
           commercial: (
             await api
               .GET("/api/v1/admin/campaigns/{campaign_id}/commercial", {
@@ -269,7 +284,7 @@ async function CampaignList(
           <input type="hidden" name="source" value={source.id} />
         </QueueSearch>
       ) : null}
-      {!items || summaries.some((summary) => !summary.jobs || !summary.commercial) ? (
+      {!items || summaries.some((summary) => summary.jobs === undefined || !summary.commercial) ? (
         <QueueUnavailable />
       ) : (
         <>
@@ -314,11 +329,7 @@ async function CampaignList(
                     </div>
                     <div>
                       <p className="text-sm">{adminStatus(campaign.status, "campaign")}</p>
-                      <p className="text-muted mt-1 text-sm">
-                        {summaries[i]?.jobs
-                          ? `${summaries[i]!.jobs!.total} driver jobs`
-                          : "No jobs recorded"}
-                      </p>
+                      <p className="text-muted mt-1 text-sm">{summaries[i]?.jobs} driver jobs</p>
                     </div>
                     <div>
                       {percentage !== undefined ? (

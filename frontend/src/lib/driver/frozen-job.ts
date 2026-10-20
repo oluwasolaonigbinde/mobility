@@ -25,11 +25,20 @@ export function frozenJob(terms: unknown) {
   const excluded = names(zones?.exclusion);
   const currency = payout?.currency ?? source?.currency;
   const rate = payout?.daily_rate_naira;
+  const mime = object(source?.creative)?.mime_type;
   return {
     startAt: date(source?.campaign_window_start_at),
     endAt: date(source?.campaign_window_end_at),
     areas: target?.length ? target : null,
     excluded,
+    artworkKind:
+      typeof mime === "string" && ["image/png", "image/jpeg", "image/webp"].includes(mime)
+        ? ("image" as const)
+        : mime === "application/pdf"
+          ? ("document" as const)
+          : mime === "video/mp4"
+            ? ("video" as const)
+            : null,
     rate:
       payout?.formula_version === "payout_v4" &&
       typeof rate === "string" &&

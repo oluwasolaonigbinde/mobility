@@ -1,9 +1,19 @@
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ get: vi.fn(), notFound: vi.fn(), photo: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  get: vi.fn(),
+  notFound: vi.fn(),
+  photo: vi.fn(),
+  sectionFailure: "",
+  redirect: vi.fn(),
+}));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: mocks.get }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
-vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
+vi.mock("next/navigation", () => ({ notFound: mocks.notFound, redirect: mocks.redirect }));
+vi.mock("@/lib/auth/current-user", () => ({ requireRole: async () => ({ role: "admin" }) }));
+vi.mock("./cancel-campaign-form", () => ({
+  CancelCampaignForm: () => <p>Whole campaign cancellation</p>,
+}));
 vi.mock("../../approvals/review-actions", () => ({
   ReviewActions: () => <button>Review campaign</button>,
 }));
@@ -28,17 +38,38 @@ vi.mock("../../assignments/cancel-button", () => ({
 vi.mock("../../assignments/new/assignment-form", () => ({
   AssignmentForm: () => <p>Offer form</p>,
 }));
-vi.mock("../pay-terms-section", () => ({ default: () => <p>Pay terms form</p> }));
-vi.mock("../../billing/[campaignId]/content", () => ({ default: () => <p>Campaign money</p> }));
+vi.mock("../pay-terms-section", () => ({
+  default: async () => {
+    if (mocks.sectionFailure === "terms") throw new Error("terms failed");
+    return <p>Pay terms form</p>;
+  },
+}));
+vi.mock("../../billing/[campaignId]/content", () => ({
+  default: async () => {
+    if (mocks.sectionFailure === "billing") throw new Error("billing failed");
+    return <p>Campaign money</p>;
+  },
+}));
 vi.mock("../../billing/[campaignId]/invoices/[invoiceId]/content", () => ({
-  default: () => <p>Invoice details</p>,
+  default: async () => {
+    if (mocks.sectionFailure === "invoice") throw new Error("invoice failed");
+    return <p>Invoice details</p>;
+  },
 }));
 vi.mock("../../billing/[campaignId]/closeout/content", () => ({
-  default: () => <p>Close-out details</p>,
+  default: async () => {
+    if (mocks.sectionFailure === "closeout") throw new Error("closeout failed");
+    return <p>Close-out details</p>;
+  },
 }));
-vi.mock("../../measurement/[runId]/content", () => ({ default: () => <p>Results details</p> }));
+vi.mock("../../measurement/[runId]/content", () => ({
+  default: async () => {
+    if (mocks.sectionFailure === "results") throw new Error("results failed");
+    return <p>Results details</p>;
+  },
+}));
 vi.mock("../../measurement/issue-form", () => ({
-  IssueMeasurementForm: () => <p>Results form</p>,
+  RerunReportForm: () => <p>Results form</p>,
 }));
 vi.mock("../resume-form", () => ({ ResumeForm: () => <button>Resume</button> }));
 vi.mock("../artwork-preview", () => ({ ArtworkPreview: () => <button>View artwork</button> }));
@@ -140,11 +171,37 @@ const page = (query = {}) =>
   });
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.sectionFailure = "";
   mocks.notFound.mockImplementation(() => {
     throw new Error("not found");
   });
   reads();
 });
+it.each(["terms", "billing"])("keeps siblings usable if the %s section throws", async (failure) => {
+  mocks.sectionFailure = failure;
+  render(await page());
+  expect(screen.getByRole("heading", { name: "PalmPay Wuse" })).toBeInTheDocument();
+  expect(screen.getByText("Offer form")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Try again" })).toBeInTheDocument();
+  expect(screen.queryByText(failure === "terms" ? "Pay terms form" : "Campaign money")).toBeNull();
+  expect(
+    screen.getByText(failure === "terms" ? "Campaign money" : "Pay terms form"),
+  ).toBeInTheDocument();
+});
+it.each([
+  ["invoice", { drawer: "invoice", invoice: "invoice" }, "Invoice"],
+  ["closeout", { drawer: "closeout" }, "Close-out"],
+  ["results", { run: runId }, "Results and reports"],
+] as const)(
+  "contains a failed %s panel without crashing the campaign",
+  async (failure, query, title) => {
+    mocks.sectionFailure = failure;
+    render(await page(query));
+    expect(screen.getByRole("dialog", { name: title })).toHaveTextContent("Try again");
+    expect(screen.getByText("Pay terms form")).toBeInTheDocument();
+    expect(screen.getByText("Campaign money")).toBeInTheDocument();
+  },
+);
 it.each([true, false])("offers Start only when readiness allows it (%s)", async (ready) => {
   reads({ ready });
   render(await page({ job: jobId }));

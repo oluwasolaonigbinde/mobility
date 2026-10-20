@@ -4,12 +4,11 @@ import Link from "next/link";
 import { requireRole, isAdvertiserViewer } from "@/lib/auth/current-user";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
-import { formatCount, formatDateRange, formatDateTime, formatMoney } from "@/lib/format";
+import { formatCount, formatDateRange } from "@/lib/format";
 import { Panel } from "@/components/ui/panel";
 import { DataUnavailable } from "@/components/ui/data-unavailable";
 import { loadAdvertiserPageData } from "@/lib/advertiser/page-data";
 import { loadCampaignVisuals, previewFile } from "@/lib/advertiser/campaign-visuals";
-import { combineBudgets, minorDecimal, recordedBudget } from "@/lib/advertiser/budget-display";
 import { CampaignArtwork } from "@/components/campaigns/campaign-artwork";
 import { AreaGraphic } from "@/components/campaigns/area-graphic";
 
@@ -53,79 +52,46 @@ export default async function AdvertiserOverviewPage() {
   }
   const running = inventory.available ? inventory.data.items : [];
   const cards = await Promise.all(
-    running.map(async (campaign) => {
-      const [visuals, commercial] = await Promise.all([
-        loadCampaignVisuals(api, campaign.id),
-        loadAdvertiserPageData(() =>
-          api.GET("/api/v1/advertiser/campaigns/{campaign_id}/commercial", {
-            params: { path: { campaign_id: campaign.id } },
-          }),
-        ),
-      ]);
-      return {
-        campaign,
-        ...visuals,
-        budget: recordedBudget(
-          campaign,
-          commercial.available ? commercial.data.budget_evaluations : undefined,
-        ),
-      };
-    }),
+    running.map(async (campaign) => ({
+      campaign,
+      ...(await loadCampaignVisuals(api, campaign.id)),
+    })),
   );
-  const spending = inventory.available ? combineBudgets(cards.map((card) => card.budget)) : null;
   const canWrite = !isAdvertiserViewer(me);
   const start = canWrite ? (
     <Link href="/advertiser/campaigns/new" className="brand-action w-full sm:w-auto">
-      Start a new campaign <span aria-hidden="true">↗</span>
+      Start a new campaign <span aria-hidden="true">→</span>
     </Link>
   ) : null;
   return (
     <div className="animate-rise mx-auto max-w-6xl">
       <div className="mb-7 flex flex-wrap items-end justify-between gap-5">
         <div>
-          <p className="text-muted mb-2 text-sm">
-            Hello, {me.advertiser_organization?.name ?? me.user.full_name}
-          </p>
           <h1 className="font-display max-w-xl text-3xl font-semibold md:text-[2.5rem]">
-            Your brand, on the move.
+            Welcome back, {me.advertiser_organization?.name ?? me.user.full_name}
           </h1>
-          <p className="text-muted mt-3 text-sm md:text-base">
-            A little look at how your campaigns are doing.
-          </p>
+          {inventory.available ? (
+            <p className="text-ink mt-3 text-base md:text-lg">
+              {inventory.data.total
+                ? `${formatCount(inventory.data.total)} ${inventory.data.total === 1 ? "campaign is" : "campaigns are"} on the road right now.`
+                : "No campaigns are running right now."}
+            </p>
+          ) : null}
         </div>
         {start}
       </div>
       <Panel
-        className="mb-9 grid grid-cols-2 gap-y-5 p-5 md:grid-cols-3 md:p-7"
+        className="mb-9 grid grid-cols-2 gap-y-5 p-5 md:p-7"
         aria-label="Running campaign figures"
       >
         <div className="pr-4">
-          <p className="text-muted text-sm">Running campaigns</p>
+          <p className="text-ink text-base font-medium">Running campaigns</p>
           <p className="font-display mt-2 text-3xl font-semibold">
             {inventory.available ? formatCount(inventory.data.total) : "—"}
           </p>
         </div>
-        <div className="border-edge order-3 col-span-2 border-t pt-5 md:order-2 md:col-span-1 md:border-t-0 md:border-l md:px-7 md:pt-0">
-          <p className="text-muted text-sm">Spent so far</p>
-          {spending ? (
-            <>
-              <p className="font-display mt-2 text-2xl font-semibold">
-                {formatMoney(minorDecimal(spending.spent), spending.currency)}
-              </p>
-              <p className="text-muted mt-1 text-xs">
-                of {formatMoney(minorDecimal(spending.budget), spending.currency)} budget
-              </p>
-              <p className="text-muted mt-1 text-xs">
-                As at {formatDateTime(spending.evaluatedAt)} · Nigeria time (WAT)
-              </p>
-            </>
-          ) : (
-            <p className="text-muted mt-3 text-sm">Spending is being updated.</p>
-          )}
-          <p className="text-muted mt-2 text-xs">Across your running campaigns</p>
-        </div>
-        <div className="border-edge order-2 border-l pl-5 md:order-3 md:pl-7">
-          <p className="text-muted text-sm">Cars on the road</p>
+        <div className="border-edge border-l pl-5 md:pl-7">
+          <p className="text-ink text-base font-medium">Cars on the road</p>
           <p className="font-display mt-2 text-3xl font-semibold">
             {summary.available ? formatCount(summary.data.assignments.active) : "—"}
           </p>
@@ -141,7 +107,7 @@ export default async function AdvertiserOverviewPage() {
       ) : null}
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="font-display text-xl font-semibold">On the road now</h2>
-        <Link href="/advertiser/campaigns" className="text-green text-sm font-semibold">
+        <Link href="/advertiser/campaigns" className="text-green text-base font-semibold">
           All campaigns →
         </Link>
       </div>
@@ -160,12 +126,10 @@ export default async function AdvertiserOverviewPage() {
             alt="Illustration of cars carrying adverts through a city"
             className="mb-6 h-40 w-full max-w-sm rounded-2xl object-cover"
           />
-          <h3 className="font-display text-2xl font-semibold">Your next big idea starts here.</h3>
-          <p className="text-muted mt-3 max-w-md text-sm">
-            No campaigns are running yet. Put your brand on the road and reach people as they go
-            about their day.
+          <h3 className="font-display text-2xl font-semibold">No campaigns running</h3>
+          <p className="text-ink mt-3 max-w-md text-base">
+            Your running campaigns will appear here.
           </p>
-          {canWrite ? <div className="mt-6">{start}</div> : null}
         </Panel>
       ) : (
         <div className="grid gap-6">
@@ -182,7 +146,7 @@ export default async function AdvertiserOverviewPage() {
                   {areas.available ? (
                     <AreaGraphic areas={areas.data.items} />
                   ) : (
-                    <p className="text-muted p-6 text-sm">
+                    <p className="text-ink p-6 text-base">
                       The campaign area couldn&apos;t be loaded.
                     </p>
                   )}
@@ -190,7 +154,7 @@ export default async function AdvertiserOverviewPage() {
               </div>
               <div className="flex flex-wrap items-center justify-between gap-5 p-5 md:p-6">
                 <div>
-                  <p className="text-green mb-2 flex items-center gap-2 text-xs font-semibold">
+                  <p className="text-green mb-2 flex items-center gap-2 text-sm font-semibold">
                     <span className="bg-green size-1.5 rounded-full" />
                     Running
                   </p>
@@ -202,11 +166,11 @@ export default async function AdvertiserOverviewPage() {
                       {campaign.name}
                     </Link>
                   </h3>
-                  <p className="text-muted mt-2 text-sm">
+                  <p className="text-muted mt-2 text-base">
                     {formatDateRange(campaign.start_at, campaign.end_at)}
                   </p>
                   {areas.available ? (
-                    <p className="text-muted mt-1 text-sm">
+                    <p className="text-muted mt-1 text-base">
                       {areas.data.items.map((area) => area.name).join(" · ")}
                     </p>
                   ) : null}
@@ -219,7 +183,7 @@ export default async function AdvertiserOverviewPage() {
                 {areas.available ? (
                   <AreaGraphic areas={areas.data.items} />
                 ) : (
-                  <p className="text-muted p-5 text-sm">
+                  <p className="text-ink p-5 text-base">
                     The campaign area couldn&apos;t be loaded.
                   </p>
                 )}

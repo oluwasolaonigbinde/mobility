@@ -23,6 +23,13 @@ const campaign = {
   budget_amount: "1000.00",
   start_at: null,
   end_at: null,
+  budget_used: {
+    amount: "200.00",
+    budget_amount: "1000.00",
+    currency: "NGN",
+    basis: "funding",
+    as_of: "2026-10-18T10:00:00Z",
+  },
 };
 function ready(path: string) {
   if (path.endsWith("dashboard/summary"))
@@ -33,37 +40,32 @@ function ready(path: string) {
       },
     };
   if (path.endsWith("/campaigns")) return { data: { items: [campaign], total: 1 } };
-  if (path.endsWith("/commercial"))
-    return {
-      data: {
-        budget_evaluations: [
-          {
-            campaign_id: "one",
-            currency: "NGN",
-            campaign_budget_amount: "1000.00",
-            budget_basis: "total",
-            billing_spend_amount: "200.00",
-            evaluated_at: "2026-10-18T10:00:00Z",
-            state: "within_budget",
-          },
-        ],
-      },
-    };
   return { data: { items: [], total: 0 } };
 }
+const figures = () => screen.getByLabelText("Running campaign figures");
 beforeEach(() => {
   mocks.get.mockReset().mockImplementation(async (path: string) => ready(path));
   mocks.role.mockResolvedValue({
     user: { full_name: "Ada", role: "advertiser" },
-    advertiser_organization: { name: "Marula", membership_role: "owner" },
+    advertiser_organization: { name: "Marula", membership_role: "owner", currency: "NGN" },
   });
 });
-it("shows the three useful figures, recorded spend and one running card", async () => {
+it("shows the two running figures, no booked total and one running card", async () => {
   render(await Home());
-  for (const name of ["Running campaigns", "Spent so far", "Cars on the road"])
+  for (const name of ["Running campaigns", "Cars on the road"])
     expect(screen.getByText(name)).toBeInTheDocument();
-  expect(screen.getByText("₦200.00")).toBeInTheDocument();
-  expect(screen.getByText("of ₦1,000.00 budget")).toBeInTheDocument();
+  expect(figures()).toHaveTextContent("Running campaigns1");
+  expect(figures()).toHaveTextContent("Cars on the road8");
+  // Booked is one campaign's figure (D103); Home never adds it up across campaigns.
+  expect(document.body).not.toHaveTextContent(/booked|₦200\.00|budget/i);
+  expect(mocks.get).not.toHaveBeenCalledWith(
+    "/api/v1/advertiser/campaigns/{campaign_id}/commercial",
+    expect.anything(),
+  );
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Welcome back, Marula");
+  expect(screen.getByText("1 campaign is on the road right now.")).toBeInTheDocument();
+  expect(document.body).not.toHaveTextContent(/on the move|in one place/i);
+  expect(screen.getAllByRole("link", { name: /Start a new campaign/ })).toHaveLength(1);
   expect(screen.getByRole("link", { name: "Marula Kitchens" })).toHaveAttribute(
     "href",
     "/advertiser/campaigns/one",
@@ -92,8 +94,9 @@ it("does not replace an inventory failure with an empty state or financial zero"
   });
   render(await Home());
   expect(screen.getByRole("heading", { name: "Campaigns unavailable" })).toBeInTheDocument();
-  expect(screen.queryByText("Your next big idea starts here.")).toBeNull();
-  expect(screen.getByText("Spending is being updated.")).toBeInTheDocument();
+  expect(screen.queryByText("No campaigns running")).toBeNull();
+  expect(figures()).toHaveTextContent("Running campaigns—");
+  expect(figures()).not.toHaveTextContent(/Running campaigns0/);
 });
 it("shows a friendly illustrated empty state and hides create for viewers", async () => {
   mocks.role.mockResolvedValue({
@@ -104,10 +107,21 @@ it("shows a friendly illustrated empty state and hides create for viewers", asyn
     path.endsWith("/campaigns") ? { data: { items: [], total: 0 } } : ready(path),
   );
   render(await Home());
-  expect(screen.getByText("Your next big idea starts here.")).toBeInTheDocument();
+  expect(screen.getByText("No campaigns running")).toBeInTheDocument();
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Welcome back, Ada");
+  expect(screen.getByText("No campaigns are running right now.")).toBeInTheDocument();
   expect(screen.queryByRole("link", { name: /Start a new campaign/ })).toBeNull();
+  expect(figures()).toHaveTextContent("Running campaigns0");
 });
-it("loads every running campaign page before presenting a total", async () => {
+it("keeps one primary start action when nothing is running", async () => {
+  mocks.get.mockImplementation(async (path: string) =>
+    path.endsWith("/campaigns") ? { data: { items: [], total: 0 } } : ready(path),
+  );
+  render(await Home());
+  expect(screen.getByText("No campaigns running")).toBeInTheDocument();
+  expect(screen.getAllByRole("link", { name: /Start a new campaign/ })).toHaveLength(1);
+});
+it("loads every running campaign page before presenting the count", async () => {
   mocks.get.mockImplementation(
     async (path: string, options?: { params?: { query?: { offset?: number } } }) =>
       path.endsWith("/campaigns")
@@ -129,14 +143,14 @@ it("loads every running campaign page before presenting a total", async () => {
     "/api/v1/advertiser/campaigns",
     expect.objectContaining({ params: { query: { status: "active", limit: 100, offset: 1 } } }),
   );
-  expect(screen.getByText("Spending is being updated.")).toBeInTheDocument();
+  expect(figures()).toHaveTextContent("Running campaigns2");
 });
 it("redirects expired sessions without retaining data", async () => {
   mocks.get.mockRejectedValue(new ApiError(401, { code: "EXPIRED", message: "Expired" }));
   await expect(Home()).rejects.toThrow("redirect:/login");
 });
 it.each(["failed", "repeated"])(
-  "withholds the complete population and spend when later pagination is %s",
+  "withholds the complete population when later pagination is %s",
   async (failure) => {
     mocks.get.mockImplementation(
       async (path: string, options?: { params?: { query?: { offset?: number } } }) => {
@@ -148,49 +162,6 @@ it.each(["failed", "repeated"])(
     );
     render(await Home());
     expect(screen.getByRole("heading", { name: "Campaigns unavailable" })).toBeInTheDocument();
-    expect(screen.queryByText("₦200.00")).toBeNull();
-    expect(screen.getByText("Spending is being updated.")).toBeInTheDocument();
-  },
-);
-it.each(["NGN", "USD"])(
-  "only totals every running campaign when all currency inputs agree: %s",
-  async (currency) => {
-    mocks.get.mockImplementation(
-      async (path: string, options?: { params?: { path?: { campaign_id?: string } } }) => {
-        if (path.endsWith("/campaigns"))
-          return {
-            data: {
-              items: [campaign, { ...campaign, id: "two", name: "Second campaign", currency }],
-              total: 2,
-            },
-          };
-        if (path.endsWith("/commercial")) {
-          const id = options?.params?.path?.campaign_id;
-          return {
-            data: {
-              budget_evaluations: [
-                {
-                  campaign_id: id,
-                  currency: id === "two" ? currency : "NGN",
-                  campaign_budget_amount: "1000.00",
-                  budget_basis: "total",
-                  billing_spend_amount: "200.00",
-                  evaluated_at: id === "two" ? "2026-10-18T09:00:00Z" : "2026-10-18T10:00:00Z",
-                  state: "within_budget",
-                },
-              ],
-            },
-          };
-        }
-        return ready(path);
-      },
-    );
-    render(await Home());
-    expect(screen.getByText("Across your running campaigns")).toBeInTheDocument();
-    if (currency === "NGN") expect(screen.getByText("₦400.00")).toBeInTheDocument();
-    else {
-      expect(screen.getByText("Spending is being updated.")).toBeInTheDocument();
-      expect(screen.queryByText("₦400.00")).toBeNull();
-    }
+    expect(figures()).toHaveTextContent("Running campaigns—");
   },
 );

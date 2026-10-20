@@ -22,7 +22,7 @@ describe("requestPasswordResetAction", () => {
     const form = new FormData();
     form.set("email", " Driver@Example.com ");
     await expect(requestPasswordResetAction({}, form)).resolves.toEqual({
-      done: "If the account can be recovered, reset instructions will be sent.",
+      done: "If that email has an account, we've sent a link to reset your password. Check your inbox.",
       email: "driver@example.com",
     });
     expect(mocks.post).toHaveBeenCalledWith("/api/v1/auth/password-reset/request", {

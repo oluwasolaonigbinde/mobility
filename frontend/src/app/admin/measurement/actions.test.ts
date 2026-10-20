@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { revalidatePath } from "next/cache";
 import { ApiError } from "@/lib/api/errors";
-const mocks = vi.hoisted(() => ({ GET: vi.fn(), POST: vi.fn() }));
+const mocks = vi.hoisted(() => ({ GET: vi.fn(), POST: vi.fn(), rerun: vi.fn() }));
+vi.mock("@/lib/api/audit-batch2", () => ({ rerunCampaignReport: mocks.rerun }));
+vi.mock("@/lib/auth/current-user", () => ({ requireRole: async () => ({ role: "admin" }) }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => mocks }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "test" }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-import { issueMeasurement, manageReport } from "./actions";
+import { rerunReportAction, manageReport } from "./actions";
 const run = "11111111-1111-4111-8111-111111111111";
 const request = "22222222-2222-4222-8222-222222222222";
 const issuance = "33333333-3333-4333-8333-333333333333";
@@ -120,68 +122,45 @@ it("keeps the previous report but drops any old download link on an API refusal"
     error: "Report access is not permitted.",
   });
 });
-describe("issueMeasurement", () => {
+describe("rerunReportAction", () => {
   const campaign = "44444444-4444-4444-8444-444444444444";
-  function runForm(overrides: Record<string, string | null> = {}) {
-    const f = new FormData();
-    Object.entries({
+  it("requests a fresh report through the bodyless campaign-bound capability", async () => {
+    const report = {
+      id: issuance,
       campaign_id: campaign,
-      client_request_id: request,
-      period_start_at: "2026-09-01T00:00:00Z",
-      period_end_at: "2026-10-01T00:00:00Z",
-      ...overrides,
-    }).forEach(([k, v]) => (v === null ? f.delete(k) : f.set(k, v)));
-    return f;
-  }
-  it.each([
-    ["a missing campaign", { campaign_id: "" }],
-    ["a local timestamp", { period_start_at: "2026-09-01 00:00" }],
-    ["a missing request identity", { client_request_id: null }],
-  ])("rejects %s without creating a run", async (_label, overrides) => {
-    expect(await issueMeasurement({}, runForm(overrides))).toEqual({
-      error: "Select a campaign and enter complete UTC period timestamps.",
-    });
-    expect(mocks.POST).not.toHaveBeenCalled();
+      measurement_run_id: run,
+      status: "queued",
+    };
+    mocks.rerun.mockResolvedValue({ data: report });
+    expect(await rerunReportAction(campaign, {})).toEqual({ report });
+    expect(mocks.rerun).toHaveBeenCalledWith(expect.anything(), campaign);
+    expect(revalidatePath).toHaveBeenCalledWith(`/admin/campaigns/${campaign}`);
   });
-  it("creates a performance-only run and revalidates the work list", async () => {
-    mocks.POST.mockResolvedValue({ data: { id: run } });
-    const result = await issueMeasurement({}, runForm({ test_only: "on" }));
-    expect(mocks.POST).toHaveBeenCalledExactlyOnceWith("/api/v1/admin/measurement-runs", {
-      body: {
-        campaign_id: campaign,
-        client_request_id: request,
-        period_start_at: "2026-09-01T00:00:00Z",
-        period_end_at: "2026-10-01T00:00:00Z",
-        test_only: false,
-        mode: "performance_only",
-      },
-    });
-    expect(revalidatePath).toHaveBeenCalledWith("/admin/campaigns/[campaignId]", "page");
-    expect(result.done).toMatch(/^Results calculation recorded/);
+  it("does not request results for a malformed campaign", async () => {
+    expect(await rerunReportAction("bad", {})).toHaveProperty("error");
+    expect(mocks.rerun).not.toHaveBeenCalled();
   });
-  it("records a live-data run when the synthetic box is unchecked", async () => {
-    mocks.POST.mockResolvedValue({ data: { id: run } });
-    await issueMeasurement({}, runForm());
-    expect(mocks.POST.mock.calls[0]![1].body.test_only).toBe(false);
-  });
-  it("does not claim a run without a confirmed response", async () => {
-    mocks.POST.mockResolvedValue({ data: undefined });
-    expect(await issueMeasurement({}, runForm())).toEqual({
-      error: "No run was confirmed. Retry the same request.",
-    });
-    expect(revalidatePath).not.toHaveBeenCalled();
-  });
-  it("maps API refusals to their message and other failures to a retry instruction", async () => {
-    mocks.POST.mockRejectedValueOnce(
-      new ApiError(409, {
-        code: "MEASUREMENT_METHOD_NOT_APPROVED",
-        message: "Method not approved.",
-      }),
+  it("explains a missing completed reporting period", async () => {
+    mocks.rerun.mockRejectedValue(
+      new ApiError(409, { code: "REPORT_PERIOD_UNAVAILABLE", message: "private details" }),
     );
-    expect(await issueMeasurement({}, runForm())).toEqual({ error: "Method not approved." });
-    mocks.POST.mockRejectedValueOnce(new Error("socket closed"));
-    expect(await issueMeasurement({}, runForm())).toEqual({
-      error: "Service unavailable. Retry the same request to recover its result.",
-    });
+    expect(await rerunReportAction(campaign, {})).toHaveProperty(
+      "error",
+      "There isn’t a completed reporting period for this campaign yet.",
+    );
+  });
+  it.each([undefined, { campaign_id: request }])(
+    "does not claim a malformed confirmation succeeded",
+    async (data) => {
+      mocks.rerun.mockResolvedValue({ data });
+      expect(await rerunReportAction(campaign, {})).toEqual({ unknownOutcome: true });
+      expect(revalidatePath).not.toHaveBeenCalled();
+    },
+  );
+  it("does not auto-retry a lost non-idempotent request", async () => {
+    mocks.rerun.mockRejectedValue(new Error("lost response"));
+    expect(await rerunReportAction(campaign, {})).toEqual({ unknownOutcome: true });
+    expect(mocks.rerun).toHaveBeenCalledTimes(1);
+    expect(revalidatePath).not.toHaveBeenCalled();
   });
 });

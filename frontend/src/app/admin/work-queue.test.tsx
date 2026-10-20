@@ -8,7 +8,7 @@ vi.mock("next/headers", () => ({
   headers: async () => new Headers({ "x-cardvert-admin-path": "/admin" }),
 }));
 import Page from "./page";
-import { collectWorkQueue, waitingCounts } from "./work-queue";
+import { collectWorkQueue } from "./work-queue";
 import type { ApiClient } from "@/lib/api/client";
 const date = "2026-09-01T00:00:00Z";
 const api = { GET: get } as unknown as ApiClient;
@@ -43,7 +43,7 @@ describe("Bounded Work queue", () => {
     expect(reads).toHaveLength(1);
     expect(reads[0]![1].params.query).toMatchObject({ limit: 5, offset: 0, oldest_first: true });
   });
-  it("count-only badge mode requests one row and retains the full filtered total", async () => {
+  it("a one-row read retains the full filtered total", async () => {
     get.mockImplementation(async (path) =>
       path.endsWith("/driver-applications")
         ? {
@@ -57,7 +57,7 @@ describe("Bounded Work queue", () => {
         : { data: { items: [], total: 0 } },
     );
     const queue = await collectWorkQueue(api, 1);
-    expect(waitingCounts(queue).drivers).toBe(120);
+    expect(queue.Operations!.total).toBe(120);
     expect(get.mock.calls.every(([, o]) => o.params.query.limit === 1)).toBe(true);
     expect(get).toHaveBeenCalledTimes(17);
   });
@@ -99,7 +99,7 @@ describe("Bounded Work queue", () => {
     const queue = await collectWorkQueue(api);
     const row = await queue.Operations![0]!.describe();
     expect(row.reason).toMatch(/2 problems.*3,263.51 held/);
-    expect(waitingCounts(queue).trips).toBe(1);
+    expect(queue.Operations!.total).toBe(1);
     expect(
       get.mock.calls.find(([p]) => p.endsWith("/fraud-flags"))?.[1].params.query,
     ).toMatchObject({ group_by_trip: true, unresolved_only: true });
@@ -110,7 +110,7 @@ describe("Bounded Work queue", () => {
       return { data: { items: [], total: 0 } };
     });
     const queue = await collectWorkQueue(api);
-    expect(waitingCounts(queue).drivers).toBeUndefined();
+    expect(queue.Operations).toBeUndefined();
     render(await page());
     expect(
       within(screen.getByRole("region", { name: "Operations" })).getByRole("alert"),

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { formatMoney } from "@/lib/format";
+import { formatDate, formatMoney } from "@/lib/format";
 import type { components } from "@/lib/api/schema";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
@@ -20,13 +20,13 @@ type Quotation = Commercial["revisions"][number] | NonNullable<Commercial["terms
 
 const initialState: CommercialActionState = {};
 
-const budgetStateLabel: Record<string, string> = {
-  blocked_external_policy: "Not set up yet",
-  within_budget: "Within budget",
-  alert_threshold: "Warning: most of the budget is used",
-  urgent_threshold: "Urgent: the budget is nearly used",
-  pause_threshold: "Paused: the budget is used up",
-};
+function paymentLabel(value: string) {
+  return value === "standard_prepaid" || value === "prepaid_cash"
+    ? "Pay before the campaign starts"
+    : value === "approved_credit"
+      ? "Approved company credit"
+      : termLabel(value);
+}
 
 function exactMoney(currency: string, amount: string | number) {
   return formatMoney(amount, currency);
@@ -73,14 +73,16 @@ function TermsValue({ value }: { value: unknown }) {
       </dl>
     );
   }
-  return <>{String(value)}</>;
+  return (
+    <>
+      {typeof value === "string" && ["standard_prepaid", "prepaid_cash"].includes(value)
+        ? paymentLabel(value)
+        : String(value)}
+    </>
+  );
 }
 
 function QuotationFacts({ quotation, accepted }: { quotation: Quotation; accepted: boolean }) {
-  const revisionNumber =
-    "revision_number" in quotation
-      ? quotation.revision_number
-      : quotation.quotation_revision_number;
   return (
     <div
       className="border-edge mt-4 rounded-lg border p-4"
@@ -88,9 +90,7 @@ function QuotationFacts({ quotation, accepted }: { quotation: Quotation; accepte
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-sm font-medium">
-            {quotation.quote_reference} · revision {revisionNumber}
-          </p>
+          <p className="text-sm font-medium">Quote {quotation.quote_reference}</p>
           <p className="micro text-muted mt-1">
             {accepted ? "Accepted quotation receipt" : "Latest quotation for review"}
           </p>
@@ -102,7 +102,6 @@ function QuotationFacts({ quotation, accepted }: { quotation: Quotation; accepte
           <thead className="micro text-muted">
             <tr>
               <th className="pb-2 font-normal">Item</th>
-              <th className="pb-2 font-normal">Type</th>
               <th className="pb-2 text-right font-normal">Amount</th>
             </tr>
           </thead>
@@ -112,7 +111,6 @@ function QuotationFacts({ quotation, accepted }: { quotation: Quotation; accepte
                 <td className="py-2 pr-3">
                   <span className="font-medium">{String(item.description)}</span>
                 </td>
-                <td className="py-2 pr-3">{termLabel(String(item.kind))}</td>
                 <td className="py-2 text-right font-mono text-xs">
                   {exactMoney(quotation.currency, String(item.amount))}
                 </td>
@@ -151,7 +149,7 @@ function QuotationFacts({ quotation, accepted }: { quotation: Quotation; accepte
       <div className="mt-4 grid gap-4 md:grid-cols-3">
         <div>
           <p className="micro text-muted">Payment arrangement</p>
-          <p className="mt-1 text-sm">{quotation.payment_class.replaceAll("_", " ")}</p>
+          <p className="mt-1 text-sm">{paymentLabel(quotation.payment_class)}</p>
         </div>
         <div>
           <p className="micro text-muted">Production scope</p>
@@ -179,11 +177,13 @@ export function CommercialPanel({
   commercial,
   error,
   canRequestQuotation = true,
+  canPay = false,
 }: {
   campaignId: string;
   commercial: Commercial;
   error?: string;
   canRequestQuotation?: boolean;
+  canPay?: boolean;
 }) {
   const latest = commercial.revisions.at(-1);
   const [requestState, requestAction, requesting] = useActionState(
@@ -272,7 +272,7 @@ export function CommercialPanel({
               <p className="micro text-muted">Payment basis</p>
               <p className="mt-1 text-sm">
                 {commercial.financial_authority
-                  ? `${commercial.financial_authority.authority_type.replaceAll("_", " ")} · ${formatMoney(commercial.financial_authority.authorized_amount, commercial.financial_authority.currency)}`
+                  ? `${paymentLabel(commercial.financial_authority.authority_type)} · ${formatMoney(commercial.financial_authority.authorized_amount, commercial.financial_authority.currency)}`
                   : "Pending"}
               </p>
             </div>
@@ -280,15 +280,14 @@ export function CommercialPanel({
               <p className="micro text-muted">Production</p>
               <p className="mt-1 text-sm">
                 {commercial.production_start
-                  ? `Started · ${commercial.production_start.authority_basis.replaceAll("_", " ")}`
+                  ? `Started ${formatDate(commercial.production_start.started_at)}`
                   : "Not authorised to start"}
               </p>
             </div>
             <div>
               <p className="micro text-muted">Budget alerts</p>
               <p className="mt-1 text-sm">
-                {budgetStateLabel[commercial.budget_evaluations.at(-1)?.state ?? ""] ??
-                  "Not checked yet"}
+                We’ll email you if extra charges take you past your agreed price.
               </p>
             </div>
           </div>
@@ -323,7 +322,11 @@ export function CommercialPanel({
           </form>
         ) : null}
       </Panel>
-      <CommercialHistory invoices={commercial.invoices} settlements={commercial.settlements} />
+      <CommercialHistory
+        invoices={commercial.invoices}
+        settlements={commercial.settlements}
+        showPayment={canPay}
+      />
     </>
   );
 }

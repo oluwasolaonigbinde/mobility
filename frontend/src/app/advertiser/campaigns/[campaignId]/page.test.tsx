@@ -48,7 +48,7 @@ function ready(path: string) {
     return { data: { invoices: [], terms: {}, budget_evaluations: [] } };
   if (path.endsWith("/summary")) return { data: { assignments: { active: 8 } } };
   if (
-    ["/creatives", "/zones", "/review-history", "/change-requests"].some((suffix) =>
+    ["/creatives", "/zones", "/review-history", "/change-requests", "/complaints"].some((suffix) =>
       path.endsWith(suffix),
     )
   )
@@ -62,9 +62,7 @@ beforeEach(() => {
 it("leads with status and one next action, keeping quotation and changes closed", async () => {
   const { container } = render(await Page(input));
   expect(screen.getByRole("heading", { name: campaign.name })).toBeInTheDocument();
-  expect(
-    screen.getByText("Your campaign is running. Your brand is out on the road."),
-  ).toBeInTheDocument();
+  expect(screen.getByText("Your campaign is running.")).toBeInTheDocument();
   expect(screen.getByRole("link", { name: /See results/ })).toHaveAttribute(
     "href",
     "/advertiser/campaigns/one/report",
@@ -87,13 +85,110 @@ it("keeps campaign visuals and safe controls when the summary is gated", async (
   expect(screen.getByRole("link", { name: /See results/ })).toBeInTheDocument();
   expect(document.body).not.toHaveTextContent("Sensitive detail");
 });
-it("opens Manage to a prepared request, never permanent cancellation", async () => {
+it("shows Booked from the campaign's own figure, and a quiet dash when it is missing", async () => {
+  mocks.get.mockImplementation(async (path: string) =>
+    path === "/api/v1/advertiser/campaigns/{campaign_id}"
+      ? {
+          data: {
+            ...campaign,
+            budget_used: {
+              amount: "1200.00",
+              budget_amount: "1000.00",
+              currency: "NGN",
+              basis: "invoice",
+              as_of: "2026-10-18T10:00:00Z",
+            },
+          },
+        }
+      : ready(path),
+  );
+  const { unmount } = render(await Page(input));
+  expect(screen.getByRole("heading", { name: /^Booked:/ })).toHaveTextContent(
+    "Booked: ₦1,200.00 of your ₦1,000.00 budget",
+  );
+  expect(screen.getByRole("progressbar", { name: "Budget booked" })).toHaveAttribute(
+    "value",
+    "100",
+  );
+  unmount();
+  mocks.get.mockImplementation(async (path: string) => ready(path));
+  render(await Page(input));
+  expect(screen.getByRole("heading", { name: /^Booked:/ })).toHaveTextContent("Booked: —");
+});
+it("opens Manage to a cancellation request, never permanent cancellation", async () => {
   const user = userEvent.setup();
   render(await Page(input));
   await user.click(screen.getByText("Manage"));
-  expect(screen.getByRole("button", { name: "Ask Terrax to cancel" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Ask Terrax to cancel" })).toBeEnabled();
   expect(screen.getByRole("textbox", { name: "Why would you like to cancel?" })).toBeVisible();
+  expect(mocks.get).toHaveBeenCalledWith("/api/v1/advertiser/complaints", {
+    params: { query: { campaign_id: "one" } },
+  });
 });
+it.each(["open", "answered"])(
+  "shows a %s cancellation request instead of a second form",
+  async (status) => {
+    mocks.get.mockImplementation(async (path: string) =>
+      path.endsWith("/complaints")
+        ? {
+            data: {
+              items: [
+                { id: "other", category: "campaign_or_job", status: "open" },
+                { id: "done", category: "campaign_cancellation", status: "resolved" },
+                { id: "thread", category: "campaign_cancellation", status },
+              ],
+            },
+          }
+        : ready(path),
+    );
+    const user = userEvent.setup();
+    render(await Page(input));
+    await user.click(screen.getByText("Manage"));
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Cancellation requested. Your campaign continues until Terrax confirms.",
+    );
+    expect(screen.getByRole("link", { name: "View cancellation request" })).toHaveAttribute(
+      "href",
+      "/advertiser/help/thread",
+    );
+    expect(screen.queryByRole("button", { name: "Ask Terrax to cancel" })).toBeNull();
+  },
+);
+it("offers the form again once earlier requests are closed", async () => {
+  mocks.get.mockImplementation(async (path: string) =>
+    path.endsWith("/complaints")
+      ? { data: { items: [{ id: "done", category: "campaign_cancellation", status: "resolved" }] } }
+      : ready(path),
+  );
+  render(await Page(input));
+  expect(screen.getByRole("button", { name: "Ask Terrax to cancel" })).toBeInTheDocument();
+});
+it("never offers a possibly duplicate request when the request list fails", async () => {
+  mocks.get.mockImplementation(async (path: string) => {
+    if (path.endsWith("/complaints"))
+      throw new ApiError(503, { code: "DOWN", message: "Private failure" });
+    return ready(path);
+  });
+  render(await Page(input));
+  expect(
+    screen.getByRole("heading", { name: "Cancellation request unavailable" }),
+  ).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Ask Terrax to cancel" })).toBeNull();
+  expect(document.body).not.toHaveTextContent("Private failure");
+});
+it.each(["draft", "completed", "cancelled"])(
+  "does not read cancellation requests for a %s campaign",
+  async (status) => {
+    mocks.get.mockImplementation(async (path: string) =>
+      path === "/api/v1/advertiser/campaigns/{campaign_id}"
+        ? { data: { ...campaign, status } }
+        : ready(path),
+    );
+    render(await Page(input));
+    expect(mocks.get).not.toHaveBeenCalledWith("/api/v1/advertiser/complaints", expect.anything());
+    expect(screen.queryByRole("button", { name: "Ask Terrax to cancel" })).toBeNull();
+  },
+);
 it("withholds write controls for a company viewer", async () => {
   mocks.role.mockResolvedValue({ viewer: true });
   render(await Page(input));
@@ -106,7 +201,15 @@ it("uses an available invoice as the next step before launch", async () => {
       ? {
           data: {
             terms: {},
-            invoices: [{ id: "invoice", status: "issued", payment_status: "unpaid" }],
+            invoices: [
+              {
+                id: "invoice",
+                status: "issued",
+                payment_status: "unpaid",
+                effective_obligation_amount: "100.00",
+                funded_amount: "0.00",
+              },
+            ],
             budget_evaluations: [],
           },
         }
@@ -220,7 +323,15 @@ it("lets a viewer read an outstanding invoice without offering payment as the ne
         ? {
             data: {
               terms: {},
-              invoices: [{ id: "invoice", status: "issued", payment_status: "unpaid" }],
+              invoices: [
+                {
+                  id: "invoice",
+                  status: "issued",
+                  payment_status: "unpaid",
+                  effective_obligation_amount: "100.00",
+                  funded_amount: "0.00",
+                },
+              ],
               budget_evaluations: [],
             },
           }

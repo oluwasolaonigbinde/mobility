@@ -92,7 +92,7 @@ describe("payout form states", () => {
     expect(screen.getByText(/Already taken off for money the driver owed: .*10\.02/)).toBeTruthy();
     expect(screen.getByText(/Driver still owes from earlier pay: .*5\.00/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Allocate debt" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Show bank details (logged)" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Show bank details" })).toBeTruthy();
   });
 
   it("states when no credits match and keeps creation disabled", () => {
@@ -188,13 +188,13 @@ describe("payout form states", () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     calls.mask.mockResolvedValueOnce({ error: "Administrator access is required." });
     const { unmount } = render(<MaskedDestination versionId="version" />);
-    await userEvent.click(screen.getByRole("button", { name: "Show bank details (logged)" }));
+    await userEvent.click(screen.getByRole("button", { name: "Show bank details" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Administrator access is required.");
     unmount();
 
     calls.mask.mockResolvedValueOnce({ mask: "Bank 058 · account ending 6789" });
     render(<MaskedDestination versionId="version" />);
-    await userEvent.click(screen.getByRole("button", { name: "Show bank details (logged)" }));
+    await userEvent.click(screen.getByRole("button", { name: "Show bank details" }));
     expect(await screen.findByText(/account ending 6789/)).toBeTruthy();
     Object.defineProperty(document, "hidden", { configurable: true, value: true });
     act(() => {

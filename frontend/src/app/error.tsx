@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import * as Sentry from "@sentry/nextjs";
+import { captureClientError } from "@/lib/client-monitoring";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 
@@ -12,28 +12,24 @@ import { Panel } from "@/components/ui/panel";
  */
 export default function GlobalError({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
   useEffect(() => {
-    Sentry.captureException(error);
-    console.error("Unhandled UI error", error.digest ?? error.message);
+    void captureClientError(error);
   }, [error]);
 
   return (
     <main className="bg-atmosphere flex min-h-dvh items-center justify-center p-6">
       <Panel className="w-full max-w-sm p-8 text-center">
-        <p className="micro text-coral">Something broke</p>
-        <h1 className="font-display mt-2 text-2xl font-semibold">
-          That wasn&apos;t supposed to happen.
-        </h1>
+        <h1 className="font-display mt-2 text-2xl font-semibold">Something went wrong.</h1>
         <p className="text-muted mt-3 text-sm">
-          The error has been logged. Try again — if it persists, contact Cardvert support.
+          Please reload the page. If it happens again, contact Terrax Media.
         </p>
-        <Button type="button" onClick={reset} className="mt-6 w-full">
-          Try again
+        <Button type="button" onClick={retry} className="mt-6 w-full">
+          Reload page
         </Button>
       </Panel>
     </main>

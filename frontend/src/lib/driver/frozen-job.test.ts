@@ -18,7 +18,19 @@ it("reads the agreed dates, rate, currency and area names without mutable campai
     currency: "NGN",
     areas: ["Wuse II", "Maitama"],
     excluded: ["Airport restricted area"],
+    artworkKind: null,
   });
+});
+it.each([
+  ["image/png", "image"],
+  ["image/jpeg", "image"],
+  ["image/webp", "image"],
+  ["application/pdf", "document"],
+  ["video/mp4", "video"],
+  ["image/svg+xml", null],
+  [undefined, null],
+])("uses only the frozen safe artwork MIME %s", (mime, kind) => {
+  expect(frozenJob({ ...terms, creative: { mime_type: mime } }).artworkKind).toBe(kind);
 });
 it.each([undefined, null, {}, { zones: { target: [{ name: "Wuse II" }, {}] } }])(
   "does not invent paying areas when terms are absent or incomplete",

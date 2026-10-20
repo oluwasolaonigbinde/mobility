@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.145 — 2026-10-18. Canonical source of truth: current state AND target state.**
+**Version 1.146 — 2026-10-20. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -3385,8 +3385,9 @@ financial decision/release authority remain unchanged.
 
 One white/brand-green palette applies to signed-in screens; advertiser/driver
 headers pair the official Terrax mark with Cardvert. Admin is palette-only.
-Advertiser Home has running campaigns, recorded spending against budget and
-cars on the road, a new-campaign action and visual running-campaign cards.
+Advertiser Home has running campaigns and cars on the road, a new-campaign
+action and visual running-campaign cards (§27.9 replaces the earlier spending
+figure: Booked shows per campaign only, D100/D103).
 Authorised artwork uses the existing audited advertiser download authority
 through a bounded same-origin image response; missing/inaccessible images use
 a local illustration. Area graphics draw authorised GeoJSON without tile sources.
@@ -3469,6 +3470,42 @@ databases; credentials and existing demo/preview records are preserved.
 Focused checks, desktop/mobile and six-theme evidence, consolidated and named
 money/privacy/security review precede acceptance; D41 full CI remains required
 before an owner-authorized merge. No launch-package state changes.
+
+### 27.9 Portal integration and Booked budget display (D100/D103/D104, REQ-180/182/184/193–195) **[TARGET — Phase 2 in progress]**
+
+Worker B consumes Worker A's role-scoped summary/count, coarse results,
+enquiry, continuation and artwork contracts through the existing server BFF.
+No demo-specific screen branches are permitted. The figure is D103's
+`budget_used` (REQ-193); D100 records only its screen wording, superseding
+D95's display. Each campaign page shows "Booked: ₦X of your ₦Y budget" with a
+bar, and each campaigns-list row shows "₦X of ₦Y". Its `budget_amount` is null
+for a daily-only campaign, which shows "Booked: ₦X" with no bar; otherwise it
+must match the campaign's own budget. No funding is zero; missing is a quiet
+dash. It is never summed across campaigns or currencies, so Home has no Booked
+figure. Exactly 100 % is a full green bar; amber only above it (D104). Never
+reconstruct payout-based spend.
+
+Admin gains two operations: D97 staff cancellation and audit D4's create
+advertiser from a saved enquiry. Staff cancellation requires a reason;
+effect confirmation and stable retry identity invoke the existing financial
+cutoff engine. A linked cancellation request must match campaign/organization;
+the fixed reply is atomic and does not resolve the thread. Advertiser requests
+never themselves change the campaign. The campaign page reads the campaign's
+own requests (REQ-194); an open or answered cancellation request shows
+"Cancellation requested" with its thread instead of a second form, and a failed
+read shows no form. Admin layout and side panels remain, with bounded audit
+corrections. Apply continuation clears the email fragment before
+telemetry/requests and keeps its capability only in mounted client memory,
+reusing protected upload forms. Its `state` (REQ-195) must match its step: an
+in-review step shows a waiting message with no form, and a changes-needed step
+shows the reviewer's `changes_reason` as given above the form.
+
+One delivery contract/state matrix and criterion evidence cover these normal
+API paths. Money/eligibility and privacy/security reviews supplement the final
+consolidated PASS. Offline source work is not execution evidence; integration,
+serial runtime checks and cleanup follow Docker handover. The orchestrator's
+clean non-demo end-to-end re-audit is an additional pre-push gate. No push,
+deployment, provider call or launch-queue promotion is authorized.
 
 ## 28. Testing strategy — target
 
@@ -3819,6 +3856,8 @@ within one hour. Simultaneous Redis/database failure can only emit the fixed
 failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
+
+- **v1.146 — 20 October 2026 (D100/REQ-180/182/184; consumes D103–D105/REQ-193–195 and REQ-197; REQ-196 still needs an answer):** Worker B Phase 2 screen integration and remaining audit fixes, rebased onto Worker A Batch 2 (`3279f48b`). Results screens follow D105's three-car areas and coarse reports; staff budget pages drop the removed external budget-policy gate. D100 is now the screen wording for D103's per-campaign Booked figure (campaign page and list row; ₦0/dash; never summed, so Home has no Booked tile, owner 20 October), replacing D95's display; D104 alert copy; REQ-194 pending cancellation; REQ-195 applicant waiting/changes states. D97 staff cancellation retains the financial engine. No demo-only paths; clean non-demo re-audit gate recorded. Final execution/reviews are pending. No completion, push or live-use claim.
 
 - **v1.145 — 18 October 2026 (D95–D99/REQ-181–186):** Owner directs real implementation of Terrax's white/green brand look and simpler advertiser/driver screens. Single palette, advertiser drawer/tabs/visual campaign overview, recorded budget spending, campaign-local follow-up, frozen driver area names. Admin behaviour and geometry stay. Phase 1 is in progress; D7 request integration, scoped real driver artwork and live spending projection remain Phase 2. No merge, CI or deployment claimed.
 - **v1.144 — 19 October 2026 (REQ-188–192 / D90–D94 and REQ-180 additions, Batch 2 verification pending):** Coarse campaign results and protected frozen areas; durable weekly/end reports and staff rerun; default fixed budget policy and controller-delegated prerequisite removal; saved staff enquiries/conversion; 24-hour applicant continuation links; assigned-driver frozen artwork preview; D7 cancellation requests and staff-only whole-campaign cancellation through the existing financial engine, with a per-campaign request read (REQ-194); D103 booked amount on advertiser campaign reads; D104 acceptance raises the budget to the accepted gross (max), notices and pause only beyond the agreed total, pause above 100 %, daily budgets no longer enforced (REQ-193, REQ-196 open); applicant continuation state and reason (REQ-195); D105 three-car-only areas, removing the area reservation that blocked other outputs (REQ-197). Backend/API-client scope; screens belong to Worker B. [Delivery contract and evidence](req180-backend-batch2-delivery.md).

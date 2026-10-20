@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
@@ -9,6 +9,10 @@ import { isAdvertiserViewer, requireRole } from "@/lib/auth/current-user";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel } from "@/components/ui/panel";
 import { CampaignWizard } from "./wizard";
+import { toLagosDatetimeLocal } from "@/lib/campaigns/schema";
+import { DataUnavailable } from "@/components/ui/data-unavailable";
+import type { components } from "@/lib/api/schema";
+import { loadCampaignAreas } from "@/lib/advertiser/campaign-visuals";
 
 export const metadata: Metadata = { title: "New campaign" };
 
@@ -37,40 +41,61 @@ export default async function NewCampaignPage({
   const { campaignId, requestId } = await searchParams;
   if (requestId !== undefined && !z.uuid().safeParse(requestId).success) notFound();
   let existingCampaign;
+  let initialZones: components["schemas"]["CampaignZoneRead"][] = [];
+  const api = createApiClient(await getSessionToken());
+  const recoveryUnavailable = () => (
+    <DataUnavailable
+      title="Your saved draft couldn't be confirmed"
+      reason="protocol"
+      retryHref={`/advertiser/campaigns/new?${campaignId ? "campaignId" : "requestId"}=${campaignId ?? requestId}`}
+    />
+  );
   const recoveryId = campaignId ?? requestId;
   if (recoveryId !== undefined) {
     if (!z.uuid().safeParse(recoveryId).success) notFound();
     try {
-      const { data } = await createApiClient(await getSessionToken()).GET(
-        "/api/v1/advertiser/campaigns/{campaign_id}",
-        { params: { path: { campaign_id: recoveryId } } },
-      );
-      if (data) existingCampaign = { id: data.id, name: data.name };
-      else if (campaignId !== undefined) notFound();
+      const { data } = await api.GET("/api/v1/advertiser/campaigns/{campaign_id}", {
+        params: { path: { campaign_id: recoveryId } },
+      });
+      if (!data || data.id !== recoveryId) return recoveryUnavailable();
+      existingCampaign = {
+        id: data.id,
+        name: data.name,
+        basics: {
+          name: data.name,
+          description: data.description ?? "",
+          start_at: toLagosDatetimeLocal(data.start_at),
+          end_at: toLagosDatetimeLocal(data.end_at),
+          budget_amount: data.budget_amount ?? "",
+          daily_budget_amount: data.daily_budget_amount ?? "",
+        },
+      };
     } catch (error) {
-      if (error instanceof ApiError && error.status === 404) {
-        if (campaignId !== undefined) notFound();
-      } else {
-        throw error;
-      }
+      if (error instanceof ApiError && error.status === 401) redirect("/login");
+      return recoveryUnavailable();
     }
+    // Outside the try so its sign-in redirect is not swallowed.
+    const zones = await loadCampaignAreas(api, recoveryId, true);
+    if (!zones.available) return recoveryUnavailable();
+    initialZones = zones.data.items;
   }
   const currency = me.advertiser_organization?.currency ?? "NGN";
 
   return (
     <div className="animate-rise mx-auto max-w-4xl">
       <PageHeader
-        title={existingCampaign ? `Add creatives to ${existingCampaign.name}` : "New campaign"}
+        title={existingCampaign ? `Finish ${existingCampaign.name}` : "New campaign"}
         eyebrow={
           existingCampaign
-            ? "Upload creatives and attach them to this campaign"
-            : "Set the basics, then add creatives — campaign areas are set on the campaign page"
+            ? "Your draft is saved. Choose its areas and advert design."
+            : "Start with the basics, then choose your areas and advert design"
         }
       />
       <CampaignWizard
         currency={currency}
         existingCampaign={existingCampaign}
         campaignRequestId={requestId}
+        initialZones={initialZones}
       />
     </div>
   );

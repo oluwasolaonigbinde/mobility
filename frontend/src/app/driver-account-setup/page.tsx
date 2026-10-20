@@ -22,8 +22,7 @@ export default async function DriverAccountSetupPage({
         <p className="micro text-amber mb-3">Driver account setup</p>
         <h1 className="font-display text-4xl font-semibold">Set up your driver account</h1>
         <p className="text-muted mt-3 text-sm">
-          This administrator-authorized action only sets your password. It does not sign you in or
-          assign campaign work.
+          Choose a password to finish setting up your driver account.
         </p>
         <Panel className="mt-8 p-6">
           {token ? (
@@ -31,8 +30,7 @@ export default async function DriverAccountSetupPage({
           ) : (
             <div>
               <p role="alert" className="text-coral text-sm">
-                This setup action is incomplete. An administrator must issue a new setup action
-                after the required reviews are current.
+                This link is incomplete. Ask Terrax for a new account setup email.
               </p>
               <Link href="/apply" className="text-amber mt-4 inline-block text-sm">
                 Return to application information

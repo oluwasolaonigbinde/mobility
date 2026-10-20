@@ -28,7 +28,7 @@ const me = {
 } as MeResponse;
 
 describe("AppShell account controls", () => {
-  it("keeps password and durable sign-out actions reachable in the mobile shell", async () => {
+  it("keeps password and durable sign-out actions reachable from the header Account menu at every width", async () => {
     const user = userEvent.setup();
     render(
       <AppShell me={me} nav={[]}>
@@ -38,7 +38,7 @@ describe("AppShell account controls", () => {
 
     await user.click(screen.getByText("Account"));
     const accountControls = screen.getByRole("region", { name: "Account" });
-    expect(accountControls.closest("details")).toHaveClass("md:hidden");
+    expect(accountControls.closest("details")).not.toHaveClass("md:hidden");
     expect(within(accountControls).getByRole("form", { name: "Change password" })).toBeVisible();
     expect(within(accountControls).getByRole("button", { name: "Sign out" })).toBeEnabled();
   });

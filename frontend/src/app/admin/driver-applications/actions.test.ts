@@ -64,15 +64,15 @@ describe("reviewPersonPayeeAction", () => {
     document.set("file_id", FILE_ID);
 
     await expect(reviewPersonPayeeEvidenceAction({}, nin)).resolves.toMatchObject({
-      done: "NIN access logged.",
+      done: "NIN ready to view.",
       sensitiveValue: "12345678901",
     });
     await expect(reviewPersonPayeeEvidenceAction({}, account)).resolves.toMatchObject({
-      done: "Bank details access logged.",
+      done: "Bank details ready to view.",
       sensitiveValue: "Test Driver · 058 · 0123456789",
     });
     await expect(reviewPersonPayeeEvidenceAction({}, document)).resolves.toMatchObject({
-      done: "Document access logged.",
+      done: "Document ready to view.",
       downloadUrl: "https://private.test/review",
     });
     expect(mocks.post).toHaveBeenNthCalledWith(
@@ -140,6 +140,30 @@ describe("reviewPersonPayeeAction", () => {
       },
     );
   });
+
+  it.each(["TX 1", "  Bank ref: ₦50 / 12-3  ", "参照 1", "x".repeat(512)])(
+    "accepts a trimmed bank reference: %s",
+    async (reference) => {
+      const data = new FormData();
+      data.set("bank_account_version_id", VERSION_ID);
+      data.set("verification_reference", reference);
+      expect(await verifyPersonPayeeAccountAction({}, data)).toHaveProperty("done");
+      expect(mocks.post.mock.calls[0]![1].body).toEqual({
+        verification_reference: reference.trim(),
+      });
+    },
+  );
+
+  it.each(["", "  ", "x".repeat(513), "ref\n123", "ref\u0000123", "ref\u0085123"])(
+    "refuses blank, oversized or control-bearing bank references",
+    async (reference) => {
+      const data = new FormData();
+      data.set("bank_account_version_id", VERSION_ID);
+      data.set("verification_reference", reference);
+      expect(await verifyPersonPayeeAccountAction({}, data)).toHaveProperty("error");
+      expect(mocks.post).not.toHaveBeenCalled();
+    },
+  );
 
   it("requires all explicit approval facts before the governed decision endpoint", async () => {
     await expect(reviewPersonPayeeAction({}, form("approve", false))).resolves.toEqual({
@@ -240,7 +264,7 @@ describe("reviewPersonPayeeAction", () => {
     evidence.set("file_id", FILE_ID);
     evidence.set("submission_id", SUBMISSION_ID);
     await expect(reviewVehicleEvidenceAction({}, evidence)).resolves.toEqual({
-      done: "Car document access logged.",
+      done: "Car document ready to view.",
       downloadUrl: "https://private.test/vehicle",
     });
     expect(mocks.post).toHaveBeenLastCalledWith("/api/v1/admin/files/{file_id}/download", {
@@ -257,6 +281,7 @@ describe("reviewPersonPayeeAction", () => {
     decision.set("valid_until", "2099-01-01T00:00");
     await expect(reviewVehicleAction({}, decision)).resolves.toEqual({
       error: "Complete every vehicle approval confirmation.",
+      validUntil: "2099-01-01T00:00",
     });
     for (const name of [
       "owner_match_confirmed",
@@ -291,9 +316,30 @@ describe("reviewPersonPayeeAction", () => {
           ),
           owner_match_confirmed: true,
           documents_readable_confirmed: true,
+          valid_until: "2098-12-31T23:00:00.000Z",
         }),
       }),
     );
+    const calls = mocks.post.mock.calls.length;
+    for (const value of ["2099-02-30T09:00", ""]) {
+      decision.set("valid_until", value);
+      await expect(reviewVehicleAction({}, decision)).resolves.toEqual({
+        error: "Enter a real date and time for the car approval, in Nigeria time.",
+        validUntil: value,
+      });
+    }
+    expect(mocks.post).toHaveBeenCalledTimes(calls);
+    // Rejection does not need an approval date, blank or impossible.
+    decision.set("intent", "reject");
+    decision.set("reason_code", "owner_mismatch");
+    mocks.post.mockResolvedValueOnce({ data: { status: "rejected" } });
+    await expect(reviewVehicleAction({}, decision)).resolves.toEqual({
+      done: "Car documents not approved.",
+    });
+    expect(mocks.post.mock.calls.at(-1)?.[1].body).toMatchObject({
+      decision: "rejected",
+      valid_until: null,
+    });
   });
 
   it("starts approved driver account setup without exposing the one-use authority", async () => {
@@ -305,7 +351,7 @@ describe("reviewPersonPayeeAction", () => {
     });
 
     await expect(initiateDriverAccountSetupAction({}, data)).resolves.toEqual({
-      done: "A one-use setup link was created and queued for delivery to the applicant's stored email. Delivery is not confirmed.",
+      done: "Password setup email requested.",
     });
     expect(mocks.post).toHaveBeenLastCalledWith(
       "/api/v1/admin/driver-applications/{application_id}/account-setup",

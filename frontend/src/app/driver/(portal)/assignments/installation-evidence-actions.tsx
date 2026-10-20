@@ -78,7 +78,12 @@ export function InstallationEvidenceActions({
         for (const view of requiredViews) {
           setFileStates((current) => ({ ...current, [view]: "uploading" }));
           try {
-            photos.push({ view, stored_file_id: await uploadInstallationImage(files[view]!) });
+            photos.push({
+              view,
+              stored_file_id: await uploadInstallationImage(files[view]!, {
+                onStatus: () => setFileStates((current) => ({ ...current, [view]: "checking" })),
+              }),
+            });
           } catch (caught) {
             setFileStates((current) => ({ ...current, [view]: "failed" }));
             throw caught;
@@ -117,7 +122,9 @@ export function InstallationEvidenceActions({
         setProofState("uploading");
         let storedFileId: string;
         try {
-          storedFileId = await uploadInstallationImage(proofFile);
+          storedFileId = await uploadInstallationImage(proofFile, {
+            onStatus: () => setProofState("checking"),
+          });
         } catch (caught) {
           setProofState("failed");
           throw caught;

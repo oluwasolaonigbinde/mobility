@@ -104,14 +104,12 @@ export function MaskedDestination({ versionId }: { versionId: string }) {
           disabled={pending}
           type="button"
           onClick={() => {
-            if (
-              window.confirm("Show masked bank details for payment review? This access is logged.")
-            ) {
+            if (window.confirm("Show this driver's bank details?")) {
               start(async () => setResult(await maskedDestinationAction(versionId)));
             }
           }}
         >
-          {pending ? "Checking…" : "Show bank details (logged)"}
+          {pending ? "Checking…" : "Show bank details"}
         </Button>
       )}
       {result.error ? (

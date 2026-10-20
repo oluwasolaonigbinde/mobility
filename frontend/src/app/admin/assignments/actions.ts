@@ -9,6 +9,7 @@ import { getSessionToken } from "@/lib/auth/session";
 
 export interface AdminActionState {
   error?: string;
+  cityRequiredForDriver?: string;
 }
 
 export interface AssignmentRecommendation {
@@ -111,6 +112,11 @@ export async function createAssignmentAction(
     const api = createApiClient(await getSessionToken());
     await api.POST("/api/v1/admin/campaign-assignments", { body: parsed.data });
   } catch (error) {
+    if (error instanceof ApiError && error.code === "DRIVER_SERVICE_AREA_REQUIRED")
+      return {
+        error: "Add the driver’s city before sending a job offer.",
+        cityRequiredForDriver: parsed.data.driver_profile_id,
+      };
     if (error instanceof ApiError) return { error: error.message };
     return { error: "Could not reach the server." };
   }

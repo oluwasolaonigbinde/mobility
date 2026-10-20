@@ -1,37 +1,23 @@
 import "server-only";
 import type { ApiClient } from "@/lib/api/client";
-import { loadAdvertiserPageData } from "./page-data";
+import { loadAdvertiserPageData, loadAllAdvertiserPages } from "./page-data";
 
-export async function loadCampaignAreas(api: ApiClient, campaignId: string) {
-  const first = await loadAdvertiserPageData(() =>
-    api.GET("/api/v1/advertiser/campaigns/{campaign_id}/zones", {
-      params: {
-        path: { campaign_id: campaignId },
-        query: { zone_type: "target", limit: 100, offset: 0 },
-      },
-    }),
-  );
-  if (!first.available) return first;
-  const items = [...first.data.items];
-  while (items.length < first.data.total) {
-    const page = await loadAdvertiserPageData(() =>
+/** Every zone of one campaign (target areas only unless `allTypes`), or why they are unavailable. */
+export async function loadCampaignAreas(api: ApiClient, campaignId: string, allTypes = false) {
+  const zoneType = allTypes ? undefined : ("target" as const);
+  const areas = await loadAllAdvertiserPages(
+    (offset) =>
       api.GET("/api/v1/advertiser/campaigns/{campaign_id}/zones", {
         params: {
           path: { campaign_id: campaignId },
-          query: { zone_type: "target", limit: 100, offset: items.length },
+          query: { zone_type: zoneType, limit: 100, offset },
         },
       }),
-    );
-    if (!page.available) return page;
-    if (
-      !page.data.items.length ||
-      page.data.total !== first.data.total ||
-      page.data.items.some((next) => items.some((item) => item.id === next.id))
-    )
-      return { available: false as const, reason: "protocol" as const };
-    items.push(...page.data.items);
-  }
-  return { available: true as const, data: { ...first.data, items } };
+    (item) => item.campaign_id === campaignId,
+  );
+  return areas.available
+    ? { available: true as const, data: { items: areas.data, total: areas.data.length } }
+    : areas;
 }
 
 export async function loadCampaignVisuals(api: ApiClient, campaignId: string) {

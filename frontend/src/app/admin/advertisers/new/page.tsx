@@ -8,3 +8,4 @@ export default function AddCompany() {
     </div>
   );
 }
+export const metadata = { title: "New advertiser" };

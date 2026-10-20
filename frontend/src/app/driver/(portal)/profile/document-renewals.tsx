@@ -58,11 +58,13 @@ function RenewalForm({
   const context = JSON.stringify([driverId, submissionId, vehicleId ?? null]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [uploadStatus, setUploadStatus] = useState("");
   function changed(event: FormEvent<HTMLFormElement>) {
     if ((event.target as HTMLInputElement).name === "bank_search") return;
     generation.current += 1;
     requestId.current = crypto.randomUUID();
     setError("");
+    setUploadStatus("");
     if ((event.target as HTMLInputElement).type === "file")
       uploads.remove((event.target as HTMLInputElement).name);
   }
@@ -96,9 +98,18 @@ function RenewalForm({
         const file = (formElement.elements.namedItem(kind) as HTMLInputElement).files?.[0];
         if (!(file instanceof File) || !file.size)
           throw new Error(`Choose a file for ${(labels[kind] ?? kind).toLowerCase()}.`);
-        body[`${kind}_file_id`] = await uploads.upload(kind, file, context, (id, progress) =>
-          uploadDriverDocument(file, id, vehicleId ? "vehicle_evidence" : "driver_kyc", progress),
-        );
+        setUploadStatus(`Uploading ${labels[kind] ?? "file"}…`);
+        body[`${kind}_file_id`] = await uploads.upload(kind, file, context, (id, progress) => {
+          progress.onStatus = (message) => {
+            if (isCurrent()) setUploadStatus(message);
+          };
+          return uploadDriverDocument(
+            file,
+            id,
+            vehicleId ? "vehicle_evidence" : "driver_kyc",
+            progress,
+          );
+        });
         if (!isCurrent()) return;
       }
       if (!isCurrent()) return;
@@ -164,7 +175,7 @@ function RenewalForm({
         Terrax will review your changes. Your other documents and saved details stay on file.
       </p>
       <Button type="submit" disabled={busy}>
-        {busy ? "Uploading and checking files..." : "Send for review"}
+        {busy ? uploadStatus || "Sending…" : "Send for review"}
       </Button>
       {error ? (
         <p role="alert" className="text-coral text-sm">

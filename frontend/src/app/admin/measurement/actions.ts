@@ -5,6 +5,9 @@ import { getSessionToken } from "@/lib/auth/session";
 import { ApiError } from "@/lib/api/errors";
 import { z } from "zod";
 import type { components } from "@/lib/api/schema";
+import { rerunCampaignReport } from "@/lib/api/audit-batch2";
+import { requireRole } from "@/lib/auth/current-user";
+import { redirect } from "next/navigation";
 
 export type ReportState = {
   error?: string;
@@ -68,38 +71,31 @@ export async function manageReport(_state: ReportState, form: FormData): Promise
     };
   }
 }
-export async function issueMeasurement(_state: { error?: string; done?: string }, form: FormData) {
-  const parsed = z
-    .object({
-      campaign_id: z.string().uuid(),
-      client_request_id: z.string().uuid(),
-      period_start_at: z.string().datetime(),
-      period_end_at: z.string().datetime(),
-    })
-    .safeParse({
-      campaign_id: form.get("campaign_id"),
-      client_request_id: form.get("client_request_id"),
-      period_start_at: form.get("period_start_at"),
-      period_end_at: form.get("period_end_at"),
-    });
-  if (!parsed.success)
-    return { error: "Select a campaign and enter complete UTC period timestamps." };
+export type RerunState = {
+  error?: string;
+  report?: components["schemas"]["ReportIssuanceRead"];
+  unknownOutcome?: boolean;
+};
+export async function rerunReportAction(
+  campaignId: string,
+  _state: RerunState,
+): Promise<RerunState> {
+  await requireRole("admin");
+  if (!z.uuid().safeParse(campaignId).success) return { error: "Choose a campaign first." };
   try {
-    const { data } = await createApiClient(await getSessionToken()).POST(
-      "/api/v1/admin/measurement-runs",
-      { body: { ...parsed.data, mode: "performance_only", test_only: false } },
+    const { data } = await rerunCampaignReport(
+      createApiClient(await getSessionToken()),
+      campaignId,
     );
-    if (!data) return { error: "No run was confirmed. Retry the same request." };
-    revalidatePath("/admin/campaigns/[campaignId]", "page");
-    return {
-      done: "Results calculation recorded. Open it to check the saved results before issuing a report.",
-    };
+    if (!data || data.campaign_id !== campaignId) return { unknownOutcome: true };
+    revalidatePath(`/admin/campaigns/${campaignId}`);
+    return { report: data };
   } catch (error) {
-    return {
-      error:
-        error instanceof ApiError
-          ? error.message
-          : "Service unavailable. Retry the same request to recover its result.",
-    };
+    if (error instanceof ApiError && error.status === 401) redirect("/login");
+    if (error instanceof ApiError && error.code === "REPORT_PERIOD_UNAVAILABLE")
+      return { error: "There isn’t a completed reporting period for this campaign yet." };
+    if (error instanceof ApiError && [403, 404].includes(error.status))
+      return { error: "This campaign isn’t available to your account." };
+    return { unknownOutcome: true };
   }
 }

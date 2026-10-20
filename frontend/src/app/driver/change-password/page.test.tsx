@@ -25,4 +25,15 @@ describe("forced driver password logout", () => {
     render(await DriverChangePasswordPage());
     expect(screen.getByRole("button", { name: /sign out/i })).toBeInTheDocument();
   });
+  it("also lets a driver voluntarily change their password", async () => {
+    mocks.getCurrentUser.mockResolvedValue({
+      user: { role: "driver", must_change_password: false },
+    });
+    render(await DriverChangePasswordPage());
+    expect(screen.getByText("password form")).toBeVisible();
+    expect(screen.getByRole("link", { name: "Back to Profile" })).toHaveAttribute(
+      "href",
+      "/driver/profile",
+    );
+  });
 });

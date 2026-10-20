@@ -7,7 +7,7 @@ export function AreaGraphic({ areas }: { areas: Area[] }) {
   const valid = areas.filter((area) => validateZoneGeometry(area.geometry).ok);
   if (!valid.length)
     return (
-      <div className="bg-raised text-muted flex h-full min-h-32 items-center justify-center p-5 text-center text-sm">
+      <div className="bg-raised text-ink flex h-full min-h-32 items-center justify-center p-5 text-center text-base">
         {areas.length ? "The area picture is unavailable." : "Choose an area for your campaign."}
       </div>
     );
@@ -23,58 +23,57 @@ export function AreaGraphic({ areas }: { areas: Area[] }) {
   const x = (value: number) => 200 + (value - (east + west) / 2) * scale;
   const y = (value: number) => 110 - (value - (north + south) / 2) * scale;
   return (
-    <svg
-      viewBox="0 0 400 220"
-      role="img"
-      aria-label={`Campaign areas: ${valid.map((a) => a.name).join(", ")}`}
-      className="area-graphic"
-      preserveAspectRatio="xMidYMid meet"
-    >
-      {[40, 80, 120, 160, 200, 240, 280, 320, 360].map((v) => (
-        <path key={`v${v}`} d={`M${v} 0V220`} stroke="#e2ebdf" strokeWidth="1" />
-      ))}
-      {[30, 70, 110, 150, 190].map((v) => (
-        <path key={`h${v}`} d={`M0 ${v}H400`} stroke="#e2ebdf" strokeWidth="1" />
-      ))}
-      {valid.map((area) => {
-        const geometry = area.geometry as unknown as ZoneGeometry;
-        const polygons =
-          geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
-        return (
-          <path
-            key={area.id}
-            d={polygons
-              .map((polygon) =>
-                polygon
-                  .map(
-                    (ring) =>
-                      ring
-                        .map(
-                          ([lon, lat], i) =>
-                            `${i ? "L" : "M"}${x(lon).toFixed(2)},${y(lat).toFixed(2)}`,
-                        )
-                        .join(" ") + "Z",
-                  )
-                  .join(" "),
-              )
-              .join(" ")}
-            fill="#c8edbf"
-            fillOpacity="0.85"
-            fillRule="evenodd"
-            stroke="#256f1a"
-            strokeWidth="2"
-          />
-        );
-      })}
-      <path d="m365 37 5-15 5 15-5-4Z" fill="#0a1c09" />
-      <text x="370" y="15" fill="#46543f" fontSize="10" textAnchor="middle">
-        N
-      </text>
-      <rect x="15" y="183" width="112" height="24" rx="12" fill="white" />
-      <circle cx="28" cy="195" r="4" fill="#256f1a" />
-      <text x="39" y="199" fontSize="11" fill="#0a1c09">
+    <div className="relative h-full">
+      <svg
+        viewBox="0 0 400 220"
+        role="img"
+        aria-label={`Campaign areas: ${valid.map((a) => a.name).join(", ")}`}
+        className="area-graphic"
+        preserveAspectRatio="xMidYMid meet"
+      >
+        {[40, 80, 120, 160, 200, 240, 280, 320, 360].map((v) => (
+          <path key={`v${v}`} d={`M${v} 0V220`} stroke="#e2ebdf" strokeWidth="1" />
+        ))}
+        {[30, 70, 110, 150, 190].map((v) => (
+          <path key={`h${v}`} d={`M0 ${v}H400`} stroke="#e2ebdf" strokeWidth="1" />
+        ))}
+        {valid.map((area) => {
+          const geometry = area.geometry as unknown as ZoneGeometry;
+          const polygons =
+            geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
+          return (
+            <path
+              key={area.id}
+              d={polygons
+                .map((polygon) =>
+                  polygon
+                    .map(
+                      (ring) =>
+                        ring
+                          .map(
+                            ([lon, lat], i) =>
+                              `${i ? "L" : "M"}${x(lon).toFixed(2)},${y(lat).toFixed(2)}`,
+                          )
+                          .join(" ") + "Z",
+                    )
+                    .join(" "),
+                )
+                .join(" ")}
+              fill="#c8edbf"
+              fillOpacity="0.85"
+              fillRule="evenodd"
+              stroke="#256f1a"
+              strokeWidth="2"
+            />
+          );
+        })}
+        <path d="m365 37 5-15 5 15-5-4Z" fill="#0a1c09" />
+      </svg>
+      {/* HTML, not SVG text, so the label stays readable at any picture size. */}
+      <span className="text-ink absolute bottom-3 left-3 inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-[15px] font-semibold">
+        <span aria-hidden="true" className="bg-green size-2 rounded-full" />
         Campaign area
-      </text>
-    </svg>
+      </span>
+    </div>
   );
 }

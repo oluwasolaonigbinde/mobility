@@ -52,11 +52,11 @@ export default async function CampaignZonesPage({
         <StatusChip tone={statusTone[campaign.status]}>{statusLabel[campaign.status]}</StatusChip>
       </div>
       <p className="text-muted mb-6 max-w-2xl text-sm">
-        Draw where campaign vehicle activity is prioritized. Target zones carry premium driver
-        time, bonus zones add driver incentive, and exclusion zones are never billed.
+        Draw where campaign vehicle activity is prioritized. Target zones carry premium driver time,
+        bonus zones add driver incentive, and exclusion zones are never billed.
       </p>
 
-      <ZonesEditor campaignId={campaign.id} zones={zones?.items ?? []} />
+      <ZonesEditor key={campaign.id} campaignId={campaign.id} zones={zones?.items ?? []} />
     </div>
   );
 }

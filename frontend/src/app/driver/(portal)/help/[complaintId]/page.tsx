@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ComplaintConversationPage } from "@/components/complaints/complainant-pages";
 
-export const metadata: Metadata = { title: "Complaint" };
+export const metadata: Metadata = { title: "Support conversation" };
 
 export default async function DriverComplaintPage({
   params,

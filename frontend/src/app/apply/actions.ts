@@ -25,10 +25,6 @@ const applicationSchema = z.object({
   country_code: optionalText(2).transform((value) => value?.toUpperCase()),
 });
 
-const statusSchema = z.object({
-  reference: z.string().trim().min(1, "Enter your application reference").max(255),
-});
-
 const onboardingAccessSchema = z.object({
   email: z.string().trim().toLowerCase().email("Enter a valid email address"),
 });
@@ -39,15 +35,6 @@ export interface DriverApplicationState {
     Record<"email" | "full_name" | "phone" | "service_city" | "country_code", string>
   >;
   submitted?: boolean;
-  reference?: string;
-}
-
-export interface DriverApplicationStatusState {
-  error?: string;
-  pending?: boolean;
-  reference?: string;
-  personPayeeStatus?: string;
-  vehicleStatus?: string;
 }
 
 export interface DriverOnboardingAccessState {
@@ -86,45 +73,12 @@ export async function submitDriverApplicationAction(
     });
     if (!data)
       return { error: "We couldn't send your application right now. Please try again later." };
-    return {
-      submitted: true,
-      reference: data.application_reference ?? undefined,
-    };
+    return { submitted: true };
   } catch (error) {
     return {
       error:
         error instanceof ApiError
           ? "We couldn't send your application right now. Please try again later."
-          : "We couldn't connect. Check your internet connection and try again.",
-    };
-  }
-}
-
-export async function checkDriverApplicationStatusAction(
-  _previous: DriverApplicationStatusState,
-  formData: FormData,
-): Promise<DriverApplicationStatusState> {
-  const parsed = statusSchema.safeParse({ reference: formData.get("reference") });
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Enter your reference" };
-
-  try {
-    const { data } = await createApiClient().GET(
-      "/api/v1/auth/driver-application-status/{reference}",
-      { params: { path: { reference: parsed.data.reference } } },
-    );
-    return data?.status === "pending"
-      ? {
-          pending: true,
-          reference: parsed.data.reference,
-          personPayeeStatus: data.person_payee?.status ?? "not_submitted",
-          vehicleStatus: data.vehicle?.status ?? "not_submitted",
-        }
-      : { error: "We couldn't check that reference. Check it and try again." };
-  } catch (error) {
-    return {
-      error:
-        error instanceof ApiError
-          ? "We couldn't check that reference. Check it and try again."
           : "We couldn't connect. Check your internet connection and try again.",
     };
   }
@@ -153,13 +107,13 @@ export async function requestDriverOnboardingAccessAction(
     });
   } catch {
     return {
-      error: "We couldn't send a new code right now. Try again in a few minutes.",
+      error: "We couldn't send a new link right now. Try again in a few minutes.",
       email: parsed.data.email,
     };
   }
 
   return {
-    done: "If your application is still open, we've emailed you a new code.",
+    done: "If your application is still open, we've emailed you a link to continue.",
     email: parsed.data.email,
   };
 }

@@ -4,6 +4,7 @@ import { formatDate, formatMoney } from "@/lib/format";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
 import { startInvoicePayment } from "@/app/advertiser/billing/actions";
+import { moneyMinor } from "@/lib/advertiser/budget-display";
 
 type Invoice = components["schemas"]["InvoiceRead"];
 type Settlement = components["schemas"]["SettlementRead"];
@@ -30,7 +31,15 @@ function words(value: string) {
 
 /** An issued invoice that still has money owing on it. */
 export function isOutstandingInvoice(invoice: Invoice) {
-  return invoice.status === "issued" && invoice.payment_status !== "paid";
+  const obligation = moneyMinor(invoice.effective_obligation_amount);
+  const funded = moneyMinor(invoice.funded_amount);
+  return (
+    invoice.status === "issued" &&
+    invoice.payment_status !== "paid" &&
+    obligation !== null &&
+    funded !== null &&
+    obligation > funded
+  );
 }
 
 export function invoiceStatusLabel(invoice: Invoice) {
@@ -97,7 +106,7 @@ export function CommercialHistory({
   invoices,
   settlements,
   campaign,
-  showPayment = true,
+  showPayment = false,
 }: {
   invoices: Invoice[];
   settlements: Settlement[];

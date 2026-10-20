@@ -15,6 +15,10 @@ it("uses context-specific staff words without leaking internal keys", () => {
   expect(adminStatus("open", "complaint")).toBe("Needs a reply");
   expect(adminStatus("answered", "complaint")).toBe("Waiting on them");
   expect(adminStatus("resolved", "complaint")).toBe("Resolved");
+  expect(adminStatus("queued", "report")).toBe("Being prepared");
+  expect(adminStatus("processing", "report")).toBe("Being prepared");
+  expect(adminStatus("ready", "report")).toBe("Ready");
+  expect(adminStatus("failed", "report")).toBe("Failed");
   expect(adminStatus("new_internal_state")).toBe("Unknown status");
   expect(adminStatus(undefined)).toBe("Not recorded");
   expect(adminTone("paid")).toBe("green");

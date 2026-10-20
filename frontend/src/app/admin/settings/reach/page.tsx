@@ -1,4 +1,5 @@
 import Link from "next/link";
+export const metadata = { title: "Reach estimates" };
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { PageHeader } from "@/components/ui/page-header";

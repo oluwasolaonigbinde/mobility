@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { readCampaign } from "../../entity-reads";
 import { readPayTerms } from "../pay-terms-read";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+import { isRedirectError } from "next/dist/client/components/redirect-error";
+import type { ReactNode } from "react";
+import { requireRole } from "@/lib/auth/current-user";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
@@ -20,13 +23,15 @@ import { CampaignChangeReviewActions } from "../../approvals/campaign-change-rev
 import { InstallationReviewActions } from "../../approvals/installation-review-actions";
 import { ActivateAssignmentButton } from "../../assignments/activate-button";
 import { CancelAssignmentButton } from "../../assignments/cancel-button";
+import { CancelCampaignForm } from "./cancel-campaign-form";
+import { isCancellableCampaign } from "@/lib/campaigns/cancellation";
 import { AssignmentForm } from "../../assignments/new/assignment-form";
 import PayTermsSection from "../pay-terms-section";
 import BillingSection from "../../billing/[campaignId]/content";
 import InvoiceContent from "../../billing/[campaignId]/invoices/[invoiceId]/content";
 import CloseoutContent from "../../billing/[campaignId]/closeout/content";
 import MeasurementContent from "../../measurement/[runId]/content";
-import { IssueMeasurementForm } from "../../measurement/issue-form";
+import { RerunReportForm } from "../../measurement/issue-form";
 import { ResumeForm } from "../resume-form";
 import { ArtworkPreview } from "../artwork-preview";
 
@@ -56,6 +61,26 @@ type Query = {
   error?: string;
   saved?: string;
 };
+function sectionFailure(error: unknown) {
+  if (isRedirectError(error)) throw error;
+  if (error instanceof ApiError && error.status === 401) redirect("/login");
+  return { data: undefined };
+}
+async function renderSection(render: () => Promise<ReactNode>, retryHref: string) {
+  try {
+    return await render();
+  } catch (error) {
+    sectionFailure(error);
+    return (
+      <div>
+        <QueueUnavailable />
+        <Link className="text-cyan mt-2 inline-block underline" href={retryHref}>
+          Try again
+        </Link>
+      </div>
+    );
+  }
+}
 export default async function CampaignHub({
   params,
   searchParams,
@@ -63,6 +88,7 @@ export default async function CampaignHub({
   params: Promise<{ campaignId: string }>;
   searchParams: Promise<Query>;
 }) {
+  await requireRole("admin");
   const { campaignId } = await params;
   if (!z.string().uuid().safeParse(campaignId).success) notFound();
   const query = await searchParams;
@@ -71,6 +97,7 @@ export default async function CampaignHub({
   try {
     campaign = (await readCampaign(campaignId)).data;
   } catch (error) {
+    if (error instanceof ApiError && error.status === 401) redirect("/login");
     if (error instanceof ApiError && [403, 404, 422].includes(error.status)) notFound();
     throw error;
   }
@@ -83,7 +110,7 @@ export default async function CampaignHub({
         .GET("/api/v1/admin/campaigns/{campaign_id}/commercial", {
           params: { path: { campaign_id: campaignId } },
         })
-        .catch(() => ({ data: undefined })),
+        .catch(sectionFailure),
       api
         .GET("/api/v1/admin/campaigns/{campaign_id}/creatives", {
           params: {
@@ -91,14 +118,14 @@ export default async function CampaignHub({
             query: { limit: 25, offset: offset(query.artwork_offset) },
           },
         })
-        .catch(() => ({ data: undefined })),
+        .catch(sectionFailure),
       api
         .GET("/api/v1/admin/campaign-assignments", {
           params: {
             query: { campaign_id: campaignId, limit: 25, offset: offset(query.jobs_offset) },
           },
         })
-        .catch(() => ({ data: undefined })),
+        .catch(sectionFailure),
       api
         .GET("/api/v1/admin/campaigns/{campaign_id}/review-history", {
           params: {
@@ -106,26 +133,26 @@ export default async function CampaignHub({
             query: { limit: 25, offset: offset(query.history_offset) },
           },
         })
-        .catch(() => ({ data: undefined })),
+        .catch(sectionFailure),
       api
         .GET("/api/v1/admin/campaign-change-requests/pending", {
           params: { query: { campaign_id: campaignId, limit: 25 } },
         })
-        .catch(() => ({ data: undefined })),
+        .catch(sectionFailure),
       api
         .GET("/api/v1/admin/measurement-runs", {
           params: {
             query: { campaign_id: campaignId, limit: 25, offset: offset(query.results_offset) },
           },
         })
-        .catch(() => ({ data: undefined })),
+        .catch(sectionFailure),
       api
         .GET("/api/v1/admin/fraud-flags", {
           params: {
             query: { campaign_id: campaignId, limit: 25, offset: offset(query.reviews_offset) },
           },
         })
-        .catch(() => ({ data: undefined })),
+        .catch(sectionFailure),
       api
         .GET("/api/v1/admin/audit-events", {
           params: {
@@ -137,7 +164,7 @@ export default async function CampaignHub({
             },
           },
         })
-        .catch(() => ({ data: undefined })),
+        .catch(sectionFailure),
       readPayTerms(campaignId),
     ]);
   const drawer = ["invoice", "closeout"].includes(query.drawer ?? "")
@@ -161,7 +188,7 @@ export default async function CampaignHub({
         .GET("/api/v1/admin/campaign-assignments/{assignment_id}", {
           params: { path: { assignment_id: query.job } },
         })
-        .catch(() => ({ data: undefined }))
+        .catch(sectionFailure)
     ).data;
     jobLookupFailed = !candidate;
     if (candidate?.campaign_id === campaignId) selectedJob = { job: candidate };
@@ -172,12 +199,12 @@ export default async function CampaignHub({
           .GET("/api/v1/admin/campaign-assignments/{assignment_id}/readiness", {
             params: { path: { assignment_id: selectedJob.job.id } },
           })
-          .catch(() => ({ data: undefined })),
+          .catch(sectionFailure),
         api
           .GET("/api/v1/admin/campaign-assignments/{assignment_id}/installation-evidence", {
             params: { path: { assignment_id: selectedJob.job.id } },
           })
-          .catch(() => ({ data: undefined })),
+          .catch(sectionFailure),
       ])
     : [{ data: undefined }, { data: undefined }];
   const root = `/admin/campaigns/${campaignId}`;
@@ -206,7 +233,7 @@ export default async function CampaignHub({
     const candidate = (
       await api
         .GET("/api/v1/admin/measurement-runs/{run_id}", { params: { path: { run_id: query.run } } })
-        .catch(() => ({ data: undefined }))
+        .catch(sectionFailure)
     ).data;
     runLookupFailed = !candidate;
     if (candidate?.campaign_id === campaignId)
@@ -218,6 +245,52 @@ export default async function CampaignHub({
         superseded: false,
       };
   }
+  const [payTermsContent, billingContent, invoiceContent, closeoutContent, measurementContent] =
+    await Promise.all([
+      renderSection(() => PayTermsSection({ campaignId }), `${root}#pay-terms`),
+      commercial.data
+        ? renderSection(
+            () =>
+              BillingSection({
+                embedded: true,
+                params: Promise.resolve({ campaignId }),
+                searchParams: Promise.resolve({ error: query.error, saved: query.saved }),
+              }),
+            `${root}#money`,
+          )
+        : null,
+      drawer === "invoice" &&
+      query.invoice &&
+      commercial.data?.invoices.some((invoice) => invoice.id === query.invoice)
+        ? renderSection(
+            () =>
+              InvoiceContent({
+                params: Promise.resolve({ campaignId, invoiceId: query.invoice! }),
+              }),
+            `${root}?drawer=invoice&invoice=${query.invoice}#money`,
+          )
+        : null,
+      drawer === "closeout"
+        ? renderSection(
+            () =>
+              CloseoutContent({
+                params: Promise.resolve({ campaignId }),
+                searchParams: Promise.resolve({ page: query.page }),
+              }),
+            `${root}?drawer=closeout#money`,
+          )
+        : null,
+      drawer === "run" && selectedRun
+        ? renderSection(
+            () =>
+              MeasurementContent({
+                params: Promise.resolve({ runId: selectedRun!.id }),
+                searchParams: Promise.resolve({ report: query.report }),
+              }),
+            `${root}?run=${selectedRun.id}#results`,
+          )
+        : null,
+    ]);
   return (
     <div className="mx-auto max-w-6xl">
       <Link href="/admin/campaigns" className="text-cyan text-sm">
@@ -261,6 +334,16 @@ export default async function CampaignHub({
               "Staff cannot resume until the pause reason is recorded."}
           </p>
         </div>
+      ) : null}
+      {isCancellableCampaign(campaign.status) ? (
+        <details className="border-edge mb-5 rounded-lg border p-4">
+          <summary className="cursor-pointer text-sm">Manage campaign</summary>
+          <CancelCampaignForm
+            key={campaignId}
+            campaignId={campaignId}
+            campaignName={campaign.name}
+          />
+        </details>
       ) : null}
       {percentage !== undefined ? (
         <div className="mb-5">
@@ -484,21 +567,13 @@ export default async function CampaignHub({
           </details>
         </HubSection>
         <HubSection id="pay-terms" title="Pay terms">
-          <PayTermsSection campaignId={campaignId} />
+          {payTermsContent}
         </HubSection>
         <HubSection id="money" title="Money">
-          {commercial.data ? (
-            <BillingSection
-              embedded
-              params={Promise.resolve({ campaignId })}
-              searchParams={Promise.resolve({ error: query.error, saved: query.saved })}
-            />
-          ) : (
-            <QueueUnavailable />
-          )}
+          {commercial.data ? billingContent : <QueueUnavailable />}
         </HubSection>
         <HubSection id="results" title="Results">
-          <IssueMeasurementForm campaignId={campaignId} />
+          <RerunReportForm campaignId={campaignId} />
           {!results.data ? (
             <QueueUnavailable />
           ) : (
@@ -519,7 +594,9 @@ export default async function CampaignHub({
                         ? "Saved results can be reproduced"
                         : "Results cannot be reproduced — do not issue a report"}{" "}
                       · Report:{" "}
-                      {run.report_status ? adminStatus(run.report_status) : "Not requested"}
+                      {run.report_status
+                        ? adminStatus(run.report_status, "report")
+                        : "Not requested"}
                     </p>
                   </Link>
                 ))
@@ -586,15 +663,6 @@ export default async function CampaignHub({
             </>
           )}
         </HubSection>
-        <details className="text-muted text-xs">
-          <summary>Technical reference</summary>
-          {activity.data?.items.map((event) => (
-            <p key={event.id}>
-              {formatDate(event.created_at)} · {event.action}
-            </p>
-          ))}
-          <p className="mt-2 break-all">Campaign: {campaignId}</p>
-        </details>
       </div>
       {drawer === "job" ? (
         selectedJob ? (
@@ -643,7 +711,7 @@ export default async function CampaignHub({
         query.invoice &&
         commercial.data?.invoices.some((invoice) => invoice.id === query.invoice) ? (
           <HubDrawer title="Invoice" closeHref={closeHref("money")}>
-            <InvoiceContent params={Promise.resolve({ campaignId, invoiceId: query.invoice })} />
+            {invoiceContent}
           </HubDrawer>
         ) : !commercial.data ? (
           <QueueUnavailable />
@@ -653,19 +721,13 @@ export default async function CampaignHub({
       ) : null}
       {drawer === "closeout" ? (
         <HubDrawer title="Close-out" closeHref={closeHref("money")}>
-          <CloseoutContent
-            params={Promise.resolve({ campaignId })}
-            searchParams={Promise.resolve({ page: query.page })}
-          />
+          {closeoutContent}
         </HubDrawer>
       ) : null}
       {drawer === "run" ? (
         selectedRun ? (
           <HubDrawer title="Results and reports" closeHref={closeHref("results")}>
-            <MeasurementContent
-              params={Promise.resolve({ runId: selectedRun.id })}
-              searchParams={Promise.resolve({ report: query.report })}
-            />
+            {measurementContent}
           </HubDrawer>
         ) : runLookupFailed ? (
           <QueueUnavailable />

@@ -103,7 +103,7 @@ export function AppShell({
             <span aria-label="Account context" className="hidden md:inline">
               {me.advertiser_organization?.name ?? me.user.full_name}
             </span>
-            <details className="relative md:hidden">
+            <details className="relative">
               <summary className="hover:text-ink cursor-pointer list-none transition-colors">
                 Account
               </summary>

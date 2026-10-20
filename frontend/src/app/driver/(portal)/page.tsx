@@ -14,8 +14,8 @@ import { loadDailyEarnings } from "@/lib/driver/load-daily-earnings";
 import { watDay } from "@/lib/driver/daily-earnings";
 import { TripTracker } from "./track/trip-tracker";
 import { InstallationEvidenceActions } from "./assignments/installation-evidence-actions";
-import { readDriverApi } from "@/lib/driver/api-read";
 import { JobVisual } from "@/components/driver/job-visual";
+import { frozenJob } from "@/lib/driver/frozen-job";
 
 export const metadata: Metadata = { title: "Home" };
 const actionClass =
@@ -24,11 +24,7 @@ const actionClass =
 export default async function DriverHomePage() {
   const me = await requireRole("driver");
   const api = createApiClient(await getSessionToken());
-  const [work, earnings, visual] = await Promise.all([
-    loadDriverCampaignJourney(),
-    loadDailyEarnings(api),
-    readDriverApi(() => api.GET("/api/v1/driver/campaign-assignments/active")),
-  ]);
+  const [work, earnings] = await Promise.all([loadDriverCampaignJourney(), loadDailyEarnings(api)]);
   if (earnings.state === "auth") redirect("/login");
   const assignment = work.activationAssignment;
   const next =
@@ -58,28 +54,41 @@ export default async function DriverHomePage() {
     >
       <div className="animate-rise flex flex-col gap-4">
         <div>
-          <p className="text-muted mb-1 text-sm">Hello, {me.user.full_name.split(" ")[0]}</p>
-          <h1 className="font-display text-2xl font-semibold">Let’s make today count.</h1>
+          <p className="text-ink mb-1 text-base font-medium">
+            Hello, {me.user.full_name.split(" ")[0]}
+          </p>
+          <h1 className="font-display text-2xl font-semibold">
+            {work.currentTrip
+              ? "You’re on a trip now."
+              : assignment
+                ? "Here’s your current job."
+                : noOffer
+                  ? "No job yet."
+                  : "Here’s your next step."}
+          </h1>
         </div>
         <Panel className="p-5">
           <h2 className="font-display text-xl font-semibold">
             {assignment?.campaignName ?? "Your next job"}
           </h2>
           {assignment ? (
-            <p className="text-muted mt-1 text-sm">Car {assignment.plateNumber}</p>
+            <p className="text-ink mt-1 text-base">Car {assignment.plateNumber}</p>
           ) : null}
           {noOffer ? (
-            <p className="text-muted mt-3 text-sm leading-6">
-              You’re all set. We’ll message you when a job is ready.
+            <p className="text-ink mt-3 text-base leading-6">
+              {work.needsServiceCity
+                ? "Add the city you drive in so Terrax Media can find a job for you."
+                : "You’re all set. We’ll message you when a job is ready."}
             </p>
           ) : null}
           {assignment ? (
             <JobVisual
               compact
-              terms={
-                visual.state === "ready" && visual.data.assignment?.id === assignment.id
-                  ? visual.data.assignment.offer_terms
-                  : undefined
+              assignmentId={assignment.id}
+              job={
+                work.visualAssignment?.id === assignment.id
+                  ? work.visualAssignment.job
+                  : frozenJob(null)
               }
             />
           ) : null}
@@ -109,7 +118,9 @@ export default async function DriverHomePage() {
                 href={
                   work.photoStatus === "installation_required"
                     ? `/driver/assignments#photos-${assignment?.id}`
-                    : (next?.href ?? "/driver/assignments")
+                    : noOffer && work.needsServiceCity
+                      ? "/driver/profile"
+                      : (next?.href ?? "/driver/assignments")
                 }
                 className={actionClass}
               >
@@ -118,7 +129,9 @@ export default async function DriverHomePage() {
                   : work.photoStatus === "installation_required"
                     ? "Send installation photos"
                     : noOffer
-                      ? "See jobs"
+                      ? work.needsServiceCity
+                        ? "Add your city"
+                        : "See jobs"
                       : (next?.title ?? "See jobs")}
               </Link>
             )}
@@ -139,7 +152,7 @@ export default async function DriverHomePage() {
                     Today {formatMoney(day.amount, day.currency)}
                   </p>
                   {Number(day.amount) !== 0 ? (
-                    <p className="text-muted mt-1 text-sm">{day.status}</p>
+                    <p className="text-muted mt-1 text-base">{day.status}</p>
                   ) : null}
                 </div>
               ))
@@ -153,11 +166,14 @@ export default async function DriverHomePage() {
               </p>
             )}
             {todayDays.length && lastPaid ? (
-              <p className="text-muted mt-3 text-sm">
+              <p className="text-muted mt-3 text-base">
                 {lastPaidLabel} · {formatMoney(lastPaid.amount, lastPaid.currency)}
               </p>
             ) : null}
-            <Link href="/driver/earnings" className="text-amber mt-3 inline-block text-sm">
+            <Link
+              href="/driver/earnings"
+              className="text-amber mt-3 inline-block text-base font-medium"
+            >
               Earnings
             </Link>
           </Panel>

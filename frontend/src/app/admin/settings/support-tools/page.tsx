@@ -1,4 +1,5 @@
 import Link from "next/link";
+export const metadata = { title: "Support tools" };
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { PageHeader } from "@/components/ui/page-header";
@@ -8,7 +9,8 @@ import { SearchSelect } from "../../search-select";
 import { ProcessTripForm } from "../../payouts/process-trip-form";
 import { QueueUnavailable } from "../../queue-search";
 import { HubDrawer } from "../../hub-drawer";
-import { completePages, worklistHref } from "../../worklist-reads";
+import { worklistHref } from "../../worklist-reads";
+import { completePages } from "@/lib/complete-pages";
 export default async function SupportTools({
   searchParams,
 }: {

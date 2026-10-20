@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { watDay } from "@/lib/driver/daily-earnings";
-import { ApiError } from "@/lib/api/errors";
+import { frozenJob } from "@/lib/driver/frozen-job";
 const mocks = vi.hoisted(() => ({
   earnings: vi.fn(),
   journey: vi.fn(),
@@ -41,6 +41,10 @@ const ready = {
   trackerAssignment: assignment,
   currentTrip: null,
   photoStatus: "ready",
+  visualAssignment: {
+    id: "job",
+    job: frozenJob({ zones: { target: [{ name: "Wuse II" }], exclusion: [] } }),
+  },
 };
 beforeEach(() => {
   vi.clearAllMocks();
@@ -73,12 +77,11 @@ it("adds only the matching authoritative job's frozen areas", async () => {
   expect(screen.getByRole("button", { name: "Start trip" })).toBeVisible();
 });
 it("never borrows areas from a different job or lets visual failure remove safe Start", async () => {
-  mocks.visual.mockResolvedValue({
-    data: {
-      assignment: {
-        id: "different-job",
-        offer_terms: { zones: { target: [{ name: "Wrong area" }] } },
-      },
+  mocks.journey.mockResolvedValue({
+    ...ready,
+    visualAssignment: {
+      id: "different-job",
+      job: frozenJob({ zones: { target: [{ name: "Wrong area" }] } }),
     },
   });
   render(await Home());
@@ -98,15 +101,16 @@ it.each([
   ["Start trip", ready, "button"],
   ["Take today’s photo", { ...ready, photoStatus: "display_required" }, "button"],
   ["View live trip", { ...ready, currentTrip: { id: "trip" } }, "link"],
-] as const)("keeps %s when the optional visual read is unauthorised", async (name, work, role) => {
-  mocks.visual.mockRejectedValue(
-    new ApiError(401, { code: "UNAUTHENTICATED", message: "Expired session" }),
-  );
-  mocks.journey.mockResolvedValue(work);
-  render(await Home());
-  expect(screen.getByRole(role, { name })).toBeVisible();
-  expect(screen.getByText(/Areas to avoid couldn't be loaded/)).toBeInTheDocument();
-});
+] as const)(
+  "keeps %s when visual context is unavailable without making another active-job read",
+  async (name, work, role) => {
+    mocks.journey.mockResolvedValue({ ...work, visualAssignment: null });
+    render(await Home());
+    expect(screen.getByRole(role, { name })).toBeVisible();
+    expect(screen.getByText(/Areas to avoid couldn't be loaded/)).toBeInTheDocument();
+    expect(mocks.visual).not.toHaveBeenCalled();
+  },
+);
 it("keeps an active trip on Track", async () => {
   mocks.journey.mockResolvedValue({ ...ready, currentTrip: { id: "trip" } });
   render(await Home());
@@ -137,6 +141,28 @@ it("shows only the blocking next step", async () => {
     "/driver/profile",
   );
   expect(screen.queryByText("Getting ready to drive")).not.toBeInTheDocument();
+});
+it.each([
+  ["Here’s your current job.", ready],
+  ["You’re on a trip now.", { ...ready, currentTrip: { id: "trip" } }],
+  [
+    "No job yet.",
+    {
+      ...ready,
+      activationAssignment: null,
+      journey: {
+        canStart: false,
+        steps: [
+          { state: "current", id: "offer", title: "No current offer", href: "/driver/assignments" },
+        ],
+      },
+    },
+  ],
+] as const)("leads with the factual heading %s, never a slogan", async (heading, work) => {
+  mocks.journey.mockResolvedValue(work);
+  render(await Home());
+  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(heading);
+  expect(document.body).not.toHaveTextContent(/make today count/i);
 });
 it("fails closed for unavailable photo authority", async () => {
   mocks.journey.mockResolvedValue({ ...ready, photoStatus: "unavailable" });

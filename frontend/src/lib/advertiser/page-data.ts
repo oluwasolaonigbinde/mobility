@@ -1,6 +1,7 @@
 import "server-only";
 import { redirect } from "next/navigation";
 import { ApiError } from "@/lib/api/errors";
+import { completePages, IncompletePagesError } from "@/lib/complete-pages";
 
 export type UnavailableReason =
   "forbidden" | "missing" | "operational" | "protocol" | "insufficient";
@@ -21,6 +22,8 @@ export async function loadAdvertiserPageData<T>(
       if (error.status === 409 && error.code === "DISCLOSURE_SUPPRESSED") {
         return { available: false, reason: "insufficient" };
       }
+      if (error.status === 409 && error.code === "CAMPAIGN_REPORT_PENDING")
+        return { available: false, reason: "operational" };
       if (error.status === 429 || error.status >= 500) {
         return { available: false, reason: "operational" };
       }
@@ -33,6 +36,26 @@ export async function loadAdvertiserPageData<T>(
     ) {
       return { available: false, reason: "operational" };
     }
+    throw error;
+  }
+}
+
+/** Every page of an advertiser list, or why it is unavailable; each row must pass `belongs`. */
+export async function loadAllAdvertiserPages<T extends { id: string }>(
+  read: (offset: number) => Promise<{ data?: { items: T[]; total: number } }>,
+  belongs: (item: T) => boolean = () => true,
+): Promise<PageData<T[]>> {
+  try {
+    const items = await completePages(async (offset) => {
+      const page = await loadAdvertiserPageData(() => read(offset));
+      if (!page.available) throw new IncompletePagesError(page.reason);
+      return { data: page.data };
+    });
+    return items.every(belongs)
+      ? { available: true, data: items }
+      : { available: false, reason: "protocol" };
+  } catch (error) {
+    if (error instanceof IncompletePagesError) return { available: false, reason: error.reason };
     throw error;
   }
 }

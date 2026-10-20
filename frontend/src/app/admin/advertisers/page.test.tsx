@@ -17,6 +17,9 @@ it("finds named companies beyond the first page and keeps search during paginati
                 id: "company",
                 name: "PalmPay",
                 billing_email: "accounts@example.invalid",
+                billing_contact_name: "Accounts",
+                member_count: 1,
+                live_campaign_count: 0,
                 status: "active",
               },
             ],
@@ -62,17 +65,36 @@ it.each(["empty", "offline"])(
     expect(screen.queryByText("No matching companies.") !== null).toBe(state === "empty");
   },
 );
-it("does not attribute another company's contact to a directory row", async () => {
+it("uses the authorised row contact/counts without extra company/member reads", async () => {
   get.mockImplementation(async (path) =>
     path === "/api/v1/admin/advertiser-organizations"
-      ? { data: { items: [{ id: "company", name: "PalmPay", status: "active" }], total: 1 } }
+      ? {
+          data: {
+            items: [
+              {
+                id: "company",
+                name: "PalmPay",
+                status: "active",
+                member_count: 2,
+                live_campaign_count: 0,
+                billing_contact_name: "Own contact",
+              },
+            ],
+            total: 1,
+          },
+        }
       : path.endsWith("/company")
         ? { data: { id: "other", billing_contact_name: "Other contact" } }
         : { data: { items: [], total: 0 } },
   );
   render(await AdvertisersPage({ searchParams: Promise.resolve({}) }));
-  expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.getByText(/Own contact/)).toBeInTheDocument();
+  expect(screen.getByText("People: 2 · Live campaigns: 0")).toBeInTheDocument();
   expect(screen.queryByText(/Other contact/)).toBeNull();
+  expect(
+    get.mock.calls.some((call) => call[0].endsWith("/company") || call[0].endsWith("/members")),
+  ).toBe(false);
 });
 it("keeps all company detail reads within four concurrent requests", async () => {
   let active = 0,
@@ -83,7 +105,20 @@ it("keeps all company detail reads within four concurrent requests", async () =>
     await new Promise((resolve) => setTimeout(resolve, 5));
     active--;
     if (path === "/api/v1/admin/advertiser-organizations")
-      return { data: { items: [{ id: "company", name: "PalmPay", status: "active" }], total: 1 } };
+      return {
+        data: {
+          items: [
+            {
+              id: "company",
+              name: "PalmPay",
+              status: "active",
+              member_count: 1,
+              live_campaign_count: 8,
+            },
+          ],
+          total: 1,
+        },
+      };
     if (path.endsWith("/company")) return { data: { id: "company" } };
     if (path.endsWith("/members")) return { data: { items: [], total: 0 } };
     if (path.endsWith("/campaigns"))
@@ -91,7 +126,7 @@ it("keeps all company detail reads within four concurrent requests", async () =>
         data: {
           items: Array.from({ length: 8 }, (_, i) => ({
             id: `campaign${i}`,
-              organization_id: "company",
+            organization_id: "company",
             name: `Campaign ${i}`,
             status: "active",
           })),
@@ -107,4 +142,12 @@ it("keeps all company detail reads within four concurrent requests", async () =>
   render(await AdvertisersPage({ searchParams: Promise.resolve({}) }));
   expect(screen.queryByRole("alert")).toBeNull();
   expect(peak).toBe(4);
+});
+it("does not invent zero people or live campaigns when row counts are missing", async () => {
+  get.mockResolvedValue({
+    data: { items: [{ id: "company", name: "PalmPay", status: "active" }], total: 1 },
+  });
+  render(await AdvertisersPage({ searchParams: Promise.resolve({}) }));
+  expect(screen.getByRole("alert")).toBeInTheDocument();
+  expect(screen.queryByText(/People: 0/)).toBeNull();
 });
