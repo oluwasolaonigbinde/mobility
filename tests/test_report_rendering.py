@@ -19,57 +19,6 @@ MOVEMENT_CAVEAT = (
 )
 
 
-def test_v3_planning_projection_keeps_names_context_and_lagos_midnight():
-    snapshot = export_snapshot()
-    snapshot["schema_version"] = "campaign-performance-export-v3"
-    snapshot["linked_source_recommendations"] = [
-        {
-            "source_label": "Website traffic",
-            "zone_label": "Wuse II",
-            "measurement_run_id": snapshot["measurement"]["run_id"],
-            "state": "ready",
-            "recommendations": [
-                {
-                    "rank": 1,
-                    "coverage_cell": "grid-500m:10:20",
-                    "window_start_at": "2026-10-14T23:30:00Z",
-                    "window_end_at": "2026-10-15T00:30:00Z",
-                    "rationale": "Strongest governed modelled contact signal.",
-                }
-            ],
-            "provenance": {"segment_snapshot_sha256": "a" * 64},
-            "provenance_statement": "Governed vehicle movement from issued measurement.",
-            "uncertainty": "Not a statistical confidence interval.",
-            "disclaimer": "Not observed people or guaranteed outcomes.",
-        }
-    ]
-    csv_bytes = render_report_csv(snapshot)
-    assert csv_bytes == render_report_csv(snapshot)
-    assert render_report_pdf(snapshot) == render_report_pdf(snapshot)
-    pdf_lines = " ".join(_pdf_report_lines(snapshot))
-    for text in (
-        "Website traffic / Wuse II",
-        "grid-500m:10:20",
-        "15 Oct 2026 00:30",
-        "Nigeria time (WAT)",
-        "Africa/Lagos",
-        "Strongest governed",
-        "Not a statistical confidence interval",
-        "Not observed people",
-        "Governed vehicle movement",
-    ):
-        assert text.encode() in csv_bytes
-        assert text in pdf_lines
-    for state in ("suppressed", "stale", "unavailable"):
-        item = snapshot["linked_source_recommendations"][0]
-        item.update(state=state, recommendations=[], uncertainty=None, provenance=None)
-        assert state.encode() in render_report_csv(snapshot)
-        assert b"grid-500m" not in render_report_csv(snapshot)
-    item["measurement_run_id"] = "other-run"
-    with pytest.raises(ReportRenderLimitError, match="run mismatch"):
-        render_report_csv(snapshot)
-
-
 def completeness(*, covered: int, insufficient: int = 0, excluded: int = 0) -> dict:
     return {
         "cohort_trip_count": 3,
@@ -87,48 +36,6 @@ def completeness(*, covered: int, insufficient: int = 0, excluded: int = 0) -> d
     }
 
 
-@pytest.mark.parametrize("renderer", [render_report_csv, render_report_pdf])
-@pytest.mark.parametrize("corruption", ["missing", "invalid", "suppressed", "stale", "unavailable"])
-def test_v3_exports_refuse_missing_authority_and_unreleased_linked_targets(renderer, corruption):
-    snapshot = export_snapshot()
-    snapshot["schema_version"] = "campaign-performance-export-v3"
-    snapshot["issuance"]["schema_version"] = "campaign-performance-export-v3"
-    item = {
-        "source_label": "Website traffic",
-        "zone_label": "Wuse II",
-        "measurement_run_id": snapshot["measurement"]["run_id"],
-        "state": "ready",
-        "recommendations": [
-            {
-                "rank": 1,
-                "coverage_cell": "grid-500m:10:20",
-                "window_start_at": "2026-10-14T23:30:00Z",
-                "window_end_at": "2026-10-15T00:30:00Z",
-                "rationale": "Strongest governed modelled contact signal.",
-            }
-        ],
-        "provenance": None,
-        "provenance_statement": "Governed aggregate vehicle movement.",
-        "uncertainty": None,
-        "disclaimer": "Not observed people or guaranteed outcomes.",
-    }
-    snapshot["linked_source_recommendations"] = [item]
-    # Establish a renderable current-version snapshot before damaging its
-    # authority. Neither artifact format may release targets after this damage.
-    assert renderer(snapshot)
-    if corruption == "missing":
-        del snapshot["linked_source_recommendations"]
-        expected = "linked-source snapshot is missing"
-    elif corruption == "invalid":
-        item["state"] = "pending"
-        expected = "linked-source state is invalid"
-    else:
-        item["state"] = corruption
-        expected = "unreleased linked-source targets"
-    with pytest.raises(ReportRenderLimitError, match=expected):
-        renderer(snapshot)
-
-
 def density_profile(index: int) -> dict:
     return {
         "profile_id": f"00000000-0000-4000-8000-0000000000{index:02d}",
@@ -142,17 +49,17 @@ def density_profile(index: int) -> dict:
     }
 
 
-def export_snapshot(*, include_roi: bool = False, profile_count: int = 1) -> dict:
+def export_snapshot(*, profile_count: int = 1) -> dict:
     snapshot = {
-        "schema_version": "campaign-performance-export-v1",
+        "schema_version": "campaign-performance-export-v5",
         "title": "Campaign Performance Analysis",
         "synthetic": True,
         "creation_authority": "administrator",
         "issuance": {
             "id": "00000000-0000-4000-8000-000000000090",
             "version": 1,
-            "schema_version": "campaign-performance-export-v1",
-            "renderer_version": "campaign-report-renderer-v1",
+            "schema_version": "campaign-performance-export-v5",
+            "renderer_version": "campaign-report-renderer-v2",
             "created_at": "2026-08-28T00:00:00+00:00",
             "creation_authority": "administrator",
         },
@@ -200,50 +107,11 @@ def export_snapshot(*, include_roi: bool = False, profile_count: int = 1) -> dic
             "formula_version": "exposure_v1",
             "formula_fingerprint": "d" * 64,
             "input_fingerprint": "e" * 64,
-            "segment_snapshot_hashes": [],
             "disclaimer": "No cell satisfied the disclosure floor.",
             "authority_fingerprint": "f" * 64,
         },
     }
-    if include_roi:
-        snapshot["financial_result"] = {
-            "label": "Return on investment",
-            "class": "conditional_financial_measure",
-            "ratio": "1",
-            "percent": "100",
-            "currency": "NGN",
-            "method_revision": "synthetic-roi-v1",
-            "method": {
-                "approval_reference": "SYNTHETIC_TEST_ONLY",
-                "attribution_rule": "Synthetic conversion belongs to the fixture campaign.",
-                "attribution_window": "Synthetic one-day fixture window.",
-                "cost_basis": "Frozen driver campaign cost in NGN.",
-                "exclusions": "No synthetic exclusions.",
-                "corrections": "Reissue on changed fixture input.",
-                "late_data": "Late fixture data requires reissue.",
-                "limitations": "Advertiser-supplied inputs are not verified by Cardvert.",
-            },
-            "provenance": {
-                "conversion_provenance": "SYNTHETIC_TEST_ONLY conversion fixture",
-                "revenue_provenance": "SYNTHETIC_TEST_ONLY revenue fixture",
-                "reporting_cutoff": "2026-08-02T00:00:00+00:00",
-                "synthetic": True,
-            },
-        }
     return snapshot
-
-
-def test_historical_v1_suppression_bytes_keep_pre_change_golden_hashes() -> None:
-    # Independently captured with the renderer from ec267529, before W2-D.
-    snapshot = export_snapshot()
-    snapshot["metrics"][1]["values"][0]["value"] = "Omitted - insufficient frozen evidence"
-    assert hashlib.sha256(render_report_csv(snapshot)).hexdigest() == (
-        "bd583c0647751896049e74874d4335e71f5a84697e1f44eedb3cef1d9ad1cdaa"
-    )
-    assert hashlib.sha256(render_report_pdf(snapshot)).hexdigest() == (
-        "8faa1aab4bd59755da69b73346da08aaf8611050c00e3ee003e052f7ba318d74"
-    )
-    assert "Omitted - insufficient frozen evidence" in " ".join(_pdf_report_lines(snapshot))
 
 
 def test_new_export_snapshot_freezes_plain_suppression_text_in_csv_and_pdf() -> None:
@@ -252,7 +120,6 @@ def test_new_export_snapshot_freezes_plain_suppression_text_in_csv_and_pdf() -> 
     snapshot = export_snapshot()
     snapshot["schema_version"] = REPORT_SCHEMA_VERSION
     snapshot["issuance"]["schema_version"] = REPORT_SCHEMA_VERSION
-    snapshot["linked_source_recommendations"] = []
     snapshot["metrics"] = [
         {
             "id": "views",
@@ -270,7 +137,7 @@ def test_new_export_snapshot_freezes_plain_suppression_text_in_csv_and_pdf() -> 
     ]
     csv_bytes = render_report_csv(snapshot)
     pdf_lines = " ".join(_pdf_report_lines(snapshot))
-    assert REPORT_SCHEMA_VERSION == "campaign-performance-export-v4"
+    assert REPORT_SCHEMA_VERSION == "campaign-performance-export-v5"
     assert b"Not enough data" in csv_bytes
     assert "Not enough data" in pdf_lines
     assert b"insufficient frozen evidence" not in csv_bytes
@@ -279,7 +146,7 @@ def test_new_export_snapshot_freezes_plain_suppression_text_in_csv_and_pdf() -> 
 
 
 def test_renderers_are_deterministic_formula_safe_and_share_the_snapshot() -> None:
-    snapshot = export_snapshot(include_roi=True)
+    snapshot = export_snapshot()
 
     first_csv = render_report_csv(snapshot)
     second_csv = render_report_csv(snapshot)
@@ -293,15 +160,15 @@ def test_renderers_are_deterministic_formula_safe_and_share_the_snapshot() -> No
     assert b"'=Verified vehicle movement" in first_csv
     assert b"'@Synthetic only not observed people" in first_csv
     assert b"00000000-0000-4000-8000-000000000090" in first_csv
-    assert b"campaign-report-renderer-v1" in first_csv
-    assert b"Return on investment" in first_csv
+    assert b"campaign-report-renderer-v2" in first_csv
+    assert b"Return on investment" not in first_csv
     assert b"100" in first_csv
     assert first_pdf.startswith(b"%PDF-1.4")
     assert b"/JavaScript" not in first_pdf
     assert b"/URI" not in first_pdf
     assert b"/FontFile2" in first_pdf
     assert b"/ToUnicode" in first_pdf
-    assert "Return on investment" in "\n".join(_pdf_report_lines(snapshot))
+    assert "Return on investment" not in "\n".join(_pdf_report_lines(snapshot))
 
 
 def test_performance_only_artifacts_contain_no_roi_text() -> None:
@@ -336,7 +203,7 @@ def test_renderers_enforce_field_row_page_and_output_bounds() -> None:
 
 def test_csv_pdf_and_screen_contract_share_one_frozen_projection() -> None:
     # REP-003: all exports consume one typed row projection rather than parallel formatting.
-    snapshot = export_snapshot(include_roi=True)
+    snapshot = export_snapshot()
 
     projection = build_frozen_report_projection(snapshot)
     csv_rows = list(csv.reader(io.StringIO(render_report_csv(snapshot).decode("utf-8"))))
@@ -351,12 +218,9 @@ def test_csv_pdf_and_screen_contract_share_one_frozen_projection() -> None:
     period = next(row for row in projection.rows if row.metric_id == "period")
     timezone = next(row for row in projection.rows if row.metric_id == "timestamp_timezone")
     rounding = next(row for row in projection.rows if row.metric_id == "rounding")
-    financial_currency = next(row for row in projection.rows if row.metric_id == "currency")
     assert f"input={snapshot['measurement']['input_sha256']}" in period.provenance
     assert timezone.value == "UTC"
     assert rounding.value == "Exact frozen decimal strings"
-    assert snapshot["financial_result"]["currency"] in "\n".join(pdf_lines)
-    assert financial_currency.value == snapshot["financial_result"]["currency"]
 
 
 def test_unicode_labels_are_embedded_in_the_pdf_without_ascii_replacement() -> None:
@@ -389,7 +253,7 @@ def test_suppressed_totals_are_omitted_rather_than_zero_filled() -> None:
 
 
 def test_multi_profile_density_provenance_stays_inside_renderer_bounds() -> None:
-    snapshot = export_snapshot(include_roi=True, profile_count=24)
+    snapshot = export_snapshot(profile_count=24)
 
     csv_content = render_report_csv(snapshot)
     pdf_content = render_report_pdf(snapshot)

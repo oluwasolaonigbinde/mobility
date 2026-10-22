@@ -1,5 +1,4 @@
 from datetime import datetime
-from enum import StrEnum
 from typing import Any
 from uuid import UUID, uuid4
 
@@ -22,27 +21,12 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.db.base import Base
 
 
-class MeasurementRunMode(StrEnum):
-    PERFORMANCE_ONLY = "performance_only"
-    ROI_ENABLED = "roi_enabled"
-
-
 class MeasurementRun(Base):
     __tablename__ = "measurement_runs"
     __table_args__ = (
         CheckConstraint(
-            "mode IN ('performance_only', 'roi_enabled')",
-            name="ck_measurement_runs_mode",
-        ),
-        CheckConstraint(
             "period_start_at < period_end_at",
             name="ck_measurement_runs_period",
-        ),
-        CheckConstraint(
-            "(mode = 'performance_only' AND roi_method_revision IS NULL) OR "
-            "(mode = 'roi_enabled' AND roi_method_revision IS NOT NULL "
-            "AND length(trim(roi_method_revision)) > 0)",
-            name="ck_measurement_runs_roi_method",
         ),
         CheckConstraint(
             "length(input_manifest_sha256) = 64 "
@@ -84,13 +68,11 @@ class MeasurementRun(Base):
     )
     client_request_id: Mapped[UUID] = mapped_column(nullable=False)
     request_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
-    mode: Mapped[str] = mapped_column(String(32), nullable=False)
     test_only: Mapped[bool] = mapped_column(
         Boolean, default=False, server_default=text("false"), nullable=False
     )
     formula_version: Mapped[str] = mapped_column(String(64), nullable=False)
     method_revision: Mapped[str] = mapped_column(String(255), nullable=False)
-    roi_method_revision: Mapped[str | None] = mapped_column(String(255))
     period_start_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     period_end_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     input_manifest: Mapped[dict[str, Any]] = mapped_column(

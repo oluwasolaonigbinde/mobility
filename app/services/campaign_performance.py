@@ -1,4 +1,4 @@
-"""D90 coarse campaign facts; audience/heatmap policy is deliberately unchanged."""
+"""D90 coarse campaign facts and three-car report areas."""
 
 from collections import defaultdict
 from datetime import datetime
@@ -66,7 +66,7 @@ def performance_from_manifest(
 
 def _area_projection(manifest, *, analytics, estimates, labels, allow_contacts):
     # D105: an area row needs at least three distinct cars; nothing else withholds it.
-    authority = manifest.get("audience_exposure_authority") or {}
+    authority = manifest.get("report_area_authority") or {}
     groups = defaultdict(list)
     trips = {row["trip_session_id"]: row["vehicle_id"] for row in analytics}
     for row in authority.get("rows", []):
@@ -95,7 +95,7 @@ def _area_projection(manifest, *, analytics, estimates, labels, allow_contacts):
             continue
         contacts = None
         if allow_contacts and members <= impressions.keys():
-            # Same per-cell allocation as audience cells, without their whole-hour
+            # Report area allocation has no whole-hour
             # export window rule: report periods end at any cutoff.
             cells = defaultdict(Decimal)
             for row in rows:

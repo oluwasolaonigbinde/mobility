@@ -31,8 +31,6 @@ def test_stage_contract_and_reviewed_blockers_are_exact() -> None:
         "synthetic GPS",
         "measurement",
         "Campaign Performance Analysis",
-        "qualified synthetic conditional ROI",
-        "aggregate contextual activation",
         "payout instruction",
         "incident/recovery",
     )

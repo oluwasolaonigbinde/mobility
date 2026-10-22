@@ -129,7 +129,6 @@ def issue_payload(campaign_id, client_request_id=None):
         "client_request_id": str(client_request_id or uuid4()),
         "period_start_at": DAY_1.isoformat(),
         "period_end_at": (DAY_1 + timedelta(days=1)).isoformat(),
-        "mode": "performance_only",
         "test_only": True,
     }
 
@@ -147,8 +146,8 @@ def test_measurement_run_replays_reproduces_reissues_and_drives_report(
     assert first.status_code == 201, first.text
     first_body = first.json()
     assert first_body["reproducible"] is True
-    assert first_body["mode"] == "performance_only"
-    assert first_body["result_manifest"]["roi"] is None
+    assert "mode" not in first_body
+    assert "roi" not in first_body["result_manifest"]
     assert first_body["proof_bindings"][0]["creative_id"]
 
     replay = db_client.post("/api/v1/admin/measurement-runs", json=payload, headers=admin_headers)
@@ -361,9 +360,7 @@ def test_profile_revision_reissues_current_measurement_without_rewriting_frozen_
     assert frozen["reproducible"] is True
 
 
-def test_measurement_run_fails_closed_without_proof_or_roi_prerequisites(
-    db_client, db_sessionmaker
-) -> None:
+def test_measurement_run_fails_closed_without_proof(db_client, db_sessionmaker) -> None:
     admin, _, campaign = create_measurement_graph(db_sessionmaker)
     admin_headers = auth_headers(db_client, admin.email, PASSWORD)
 
@@ -397,74 +394,6 @@ def test_measurement_run_fails_closed_without_proof_or_roi_prerequisites(
     assert missing_proof.status_code == 409
     assert missing_proof.json()["error"]["code"] == "MEASUREMENT_PROOF_REQUIRED"
 
-    roi_missing = issue_payload(campaign.id)
-    roi_missing["mode"] = "roi_enabled"
-    response = db_client.post(
-        "/api/v1/admin/measurement-runs", json=roi_missing, headers=admin_headers
-    )
-    assert response.status_code == 409
-    assert response.json()["error"]["code"] == "ROI_PREREQUISITES_REQUIRED"
-
-
-def test_synthetic_roi_run_freezes_complete_method_and_inputs(
-    db_client, db_sessionmaker, settings
-) -> None:
-    admin, _, campaign = create_measurement_graph(db_sessionmaker)
-    payload = issue_payload(campaign.id)
-    payload["mode"] = "roi_enabled"
-    payload["roi"] = {
-        "attributed_revenue": "2400.00",
-        "approved_cost_basis": "1200.00",
-        "currency": "NGN",
-        "conversion_provenance": "SYNTHETIC_TEST_ONLY conversion fixture",
-        "revenue_provenance": "SYNTHETIC_TEST_ONLY revenue fixture",
-        "reporting_cutoff": (DAY_1 + timedelta(days=1)).isoformat(),
-        "synthetic": True,
-        "method": {
-            "revision": "synthetic-roi-v1",
-            "approval_reference": "SYNTHETIC_TEST_ONLY",
-            "attribution_rule": "Synthetic conversion belongs to the fixture campaign.",
-            "attribution_window": "Synthetic one-day fixture window.",
-            "cost_basis": "Frozen driver campaign cost in NGN.",
-            "exclusions": "No synthetic exclusions.",
-            "corrections": "Reissue on changed fixture input.",
-            "late_data": "Late fixture data requires reissue.",
-        },
-    }
-    response = db_client.post(
-        "/api/v1/admin/measurement-runs",
-        json=payload,
-        headers=auth_headers(db_client, admin.email, PASSWORD),
-    )
-    assert response.status_code == 201, response.text
-    body = response.json()
-    assert body["reproducible"] is True
-    assert body["roi_method_revision"] == "synthetic-roi-v1"
-    assert body["result_manifest"]["roi"]["ratio"] == "1"
-    assert body["result_manifest"]["roi_gate"] == {
-        "decision": "INCLUDE",
-        "test_only": True,
-    }
-    deployed = settings.model_copy(update={"environment": "staging"})
-    db_client.app.dependency_overrides[get_settings] = lambda: deployed
-    try:
-        payload["client_request_id"] = str(uuid4())
-        refused = db_client.post(
-            "/api/v1/admin/measurement-runs",
-            json=payload,
-            headers=auth_headers(db_client, admin.email, PASSWORD),
-        )
-        assert refused.status_code == 409
-        assert refused.json()["error"]["code"] == "ROI_PREREQUISITES_REQUIRED"
-        performance = db_client.post(
-            "/api/v1/admin/measurement-runs",
-            json=issue_payload(campaign.id),
-            headers=auth_headers(db_client, admin.email, PASSWORD),
-        )
-        assert performance.status_code == 201, performance.text
-    finally:
-        db_client.app.dependency_overrides.pop(get_settings, None)
-
 
 def test_measurement_issuance_does_not_require_legal_or_method_authorization(
     db_client, db_sessionmaker, settings
@@ -492,7 +421,6 @@ def test_measurement_result_manifest_is_canonical_json() -> None:
     from app.services.measurement import calculate_measurement_result
 
     manifest = {
-        "mode": "performance_only",
         "test_only": True,
         "formula_version": "measurement-result-v1",
         "method_revision": "measurement-contract-v1",
@@ -503,7 +431,6 @@ def test_measurement_result_manifest_is_canonical_json() -> None:
             "impression_estimates": [],
             "payout_calculations": [],
         },
-        "roi": None,
     }
     json.dumps(calculate_measurement_result(manifest), sort_keys=True)
 
@@ -633,7 +560,6 @@ def _disclosure_manifest(*, cohort_statuses=("sealed", "sealed"), estimated=True
         f"00000000-0000-4000-8000-00000000001{index}" for index in range(len(cohort_statuses))
     ]
     return {
-        "mode": "performance_only",
         "test_only": True,
         "formula_version": "measurement-result-v1",
         "method_revision": "measurement-contract-v1",
@@ -695,7 +621,6 @@ def _disclosure_manifest(*, cohort_statuses=("sealed", "sealed"), estimated=True
                 }
             ],
         },
-        "roi": None,
     }
 
 
@@ -929,46 +854,3 @@ def test_frozen_modelled_contacts_freeze_density_parameter_source_and_calibratio
     assert contacts["uncertainty"] == (
         "Model confidence is a diagnostic, not a statistical confidence interval."
     )
-
-
-def test_frozen_roi_exposes_every_contract_required_method_fact() -> None:
-    # REP-002
-    from app.services.measurement import calculate_measurement_result
-
-    contract = json.loads(
-        (Path(__file__).resolve().parents[1] / "docs" / "measurement-methodology.json").read_text()
-    )
-    manifest = _disclosure_manifest()
-    manifest["mode"] = "roi_enabled"
-    manifest["roi"] = {
-        "attributed_revenue": "2400.00",
-        "approved_cost_basis": "1200.00",
-        "currency": "NGN",
-        "conversion_provenance": "SYNTHETIC_TEST_ONLY conversion fixture",
-        "revenue_provenance": "SYNTHETIC_TEST_ONLY revenue fixture",
-        "reporting_cutoff": "2026-08-02T00:00:00+00:00",
-        "synthetic": True,
-        "method": {
-            "revision": "synthetic-roi-v1",
-            "approval_reference": "SYNTHETIC_TEST_ONLY",
-            "attribution_rule": "Synthetic conversion belongs to the fixture campaign.",
-            "attribution_window": "Synthetic one-day fixture window.",
-            "cost_basis": "Frozen driver campaign cost in NGN.",
-            "exclusions": "No synthetic exclusions.",
-            "corrections": "Reissue on changed fixture input.",
-            "late_data": "Late fixture data requires reissue.",
-        },
-    }
-    roi = calculate_measurement_result(manifest)["roi"]
-    disclosed = {**roi["method"], **roi["provenance"], "method_revision": roi["method_revision"]}
-
-    for field in contract["roi_gate"]["required_disclosure"]:
-        assert disclosed.get(field), field
-    expected_limitations = next(
-        row["limitations"] for row in contract["metric_hierarchy"] if row["id"] == "true_roi"
-    )
-    assert roi["method"]["limitations"] == expected_limitations
-
-    omitted = calculate_measurement_result(_disclosure_manifest())
-    assert omitted["roi"] is None
-    assert omitted["roi_gate"] == {"decision": "OMIT"}

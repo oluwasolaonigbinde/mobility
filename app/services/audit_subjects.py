@@ -11,8 +11,6 @@ ACTOR_ONLY_TYPES = frozenset(
     {
         "advertiser_organization",
         "advertiser_organization_notification_preference",
-        "audience_delivery",
-        "audience_delivery_approval",
         "budget_campaign_transition",
         "budget_policy_evaluation",
         "campaign_cancellation",
@@ -36,8 +34,6 @@ ACTOR_ONLY_TYPES = frozenset(
         "production_start",
         "receipt_allocation",
         "refund_settlement",
-        "retargeting_source",
-        "retargeting_source_link",
         "traffic_density_profile",
     }
 )

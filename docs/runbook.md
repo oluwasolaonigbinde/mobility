@@ -228,9 +228,11 @@ trap - EXIT
 
 ## Migrations
 
-D83 replaces the disposable development chain with the single root/head
-`0106_development_baseline`. Subsequent migration `0107_audience_sweep_cursor`
-is the current head and adds only the fair aggregate-planning scan position.
+D83 replaces the disposable development chain with root
+`0106_development_baseline`. The current Lane A head is
+`0113_remove_pilot_audiences`, following the driver and money simplifications.
+It removes the pilot audience tables and ROI columns without changing issued
+report JSON or stored artifact bytes.
 Initialize a fresh PostgreSQL database with:
 
 ```bash
@@ -673,15 +675,8 @@ Keep secrets in the host/platform secret store, not Git or image layers. Rotate 
 
 ## Scheduled job check-ins and Finance health (D82)
 
-`sweep_exposure_segments` uses the normal worker sweep interval and batch bound.
-It discovers committed current measurement/link pairs without Redis enqueue
-authority, advances a durable UUID-pair cursor, and materializes each pair in an
-isolated transaction. Cursor wrap retries lost/failed work; empty aggregates
-complete as suppressed segments. Safe catch-up logs show scanned/completed/
-failed counts and refusal codes. Stale or superseded parents require a current
-measurement/link, not manual segment edits or lower disclosure thresholds.
-Planning output is advisory aggregate geography/time; no ad-platform push is
-enabled by this job.
+The pilot has no audience producer, export or ad-platform job (D115/REQ-214).
+Report publication and all retained worker check-ins continue independently.
 
 Every `WorkerSettings.cron_jobs` entry emits `in_progress`, then `ok` or
 `error` (including cancellation), to `cardvert-<job-name-with-hyphens>`. Its

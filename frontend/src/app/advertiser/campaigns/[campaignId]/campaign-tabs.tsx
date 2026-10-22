@@ -14,7 +14,6 @@ export function CampaignTabs({ campaignId }: { campaignId: string }) {
         ["/map", "Map"],
         ["/zones", "Areas"],
         ["/invoices", "Invoices"],
-        ["/retargeting", "Reach these people again"],
       ].map(([path, label]) => ({
         href: base + path,
         label,

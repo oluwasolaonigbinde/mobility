@@ -14,7 +14,7 @@ from app.main import create_app
 from app.models.user import UserRole
 
 SNAPSHOT_PATH = Path("docs/api/openapi.snapshot.json")
-EXPECTED_ALEMBIC_HEAD = "0111_fix_daily_pay_policy"
+EXPECTED_ALEMBIC_HEAD = "0113_remove_pilot_audiences"
 EXPECTED_MIGRATIONS = {
     "0106_development_baseline.py",
     "0107_audience_sweep_cursor.py",
@@ -22,6 +22,8 @@ EXPECTED_MIGRATIONS = {
     "0109_remove_daily_display_proof.py",
     "0110_simplify_driver_operations.py",
     "0111_fix_daily_pay_policy.py",
+    "0112_simplify_money_operations.py",
+    "0113_remove_pilot_audiences.py",
 }
 MAJOR_CONTRACT_PATHS = {
     "health": "/api/v1/health",
@@ -44,8 +46,6 @@ MAJOR_CONTRACT_PATHS = {
     "earnings": "/api/v1/driver/earnings/ledger",
     "advertiser reports": "/api/v1/advertiser/campaigns/{campaign_id}/report",
     "heatmaps": "/api/v1/advertiser/campaigns/{campaign_id}/heatmap",
-    "planning sources": "/api/v1/advertiser/retargeting-sources",
-    "planning source links": "/api/v1/advertiser/retargeting-source-links",
     "protected KYC": "/api/v1/driver/kyc/submissions",
     "advertiser report issuance": "/api/v1/advertiser/measurement-runs/{run_id}/report-issuances",
     "advertiser report artifact download": "/api/v1/advertiser/report-issuances/{issuance_id}/artifacts/{artifact_format}/download",  # noqa: E501

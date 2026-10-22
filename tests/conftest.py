@@ -956,7 +956,9 @@ def create_test_payout_rule(
     return asyncio.run(create())
 
 
-def create_test_daily_payout_authority(db_sessionmaker, *, campaign_id, created_by_user_id):
+def create_test_daily_payout_authority(
+    db_sessionmaker, *, campaign_id, created_by_user_id, zone_ids=()
+):
     """Seed complete current terms for worker fixtures' existing assignments."""
     from payout_fixtures import create_v4_revision, insert_v4_binding
 
@@ -988,6 +990,7 @@ def create_test_daily_payout_authority(db_sessionmaker, *, campaign_id, created_
             Settings(environment="test"),
             assignment_id=assignment_id,
             revision=revision,
+            zone_ids=zone_ids,
         )
     return rule
 

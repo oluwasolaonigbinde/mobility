@@ -7,8 +7,5 @@ it("keeps invoice detail under the selected Invoices tab", () => {
   render(<CampaignTabs campaignId="one" />);
   expect(screen.getByRole("link", { name: "Invoices" })).toHaveAttribute("aria-current", "page");
   expect(screen.getByRole("link", { name: "Overview" })).not.toHaveAttribute("aria-current");
-  expect(screen.getByRole("link", { name: "Reach these people again" })).toHaveAttribute(
-    "href",
-    "/advertiser/campaigns/one/retargeting",
-  );
+  expect(screen.queryByRole("link", { name: "Reach these people again" })).toBeNull();
 });

@@ -1155,6 +1155,7 @@ async def advertiser_campaign_report(
     from app.services.disclosure import DisclosureQuery, record_disclosure
     from app.services.measurement import canonical_sha256, measurement_run_reproducible
     from app.services.payout_rule_serialization import database_clock
+    from app.services.report_issuances import _issuance_authority_matches
 
     organization_id = await require_governed_advertiser_output(
         session, settings=settings, route_id="advertiser.campaign.performance", user_id=user_id
@@ -1183,20 +1184,31 @@ async def advertiser_campaign_report(
             session, campaign=campaign, settings=settings, now=await database_clock(session)
         )
     else:
-        if not measurement_run_reproducible(run) or "performance" not in run.report_snapshot:
-            raise AppError(
-                "MEASUREMENT_RUN_INTEGRITY_FAILURE",
-                "Please prepare a new campaign report",
-                status_code=409,
-            )
-        result = CampaignPerformanceRead.model_validate(run.report_snapshot["performance"])
-        result.measurement_run_id = run.id
         issuance = await session.scalar(
             select(ReportIssuance)
             .where(ReportIssuance.measurement_run_id == run.id)
             .order_by(ReportIssuance.version.desc())
             .limit(1)
         )
+        if issuance is not None and issuance.status == "ready":
+            valid = _issuance_authority_matches(issuance, run, settings)
+        else:
+            valid = measurement_run_reproducible(run)
+        if not valid:
+            raise AppError(
+                "MEASUREMENT_RUN_INTEGRITY_FAILURE",
+                "Please prepare a new campaign report",
+                status_code=409,
+            )
+        if "performance" in run.report_snapshot:
+            result = CampaignPerformanceRead.model_validate(run.report_snapshot["performance"])
+        else:
+            # Retired report formats remain downloadable; current screen facts use
+            # the existing safe coarse projection rather than an old calculator.
+            result = await live_campaign_performance(
+                session, campaign=campaign, settings=settings, now=await database_clock(session)
+            )
+        result.measurement_run_id = run.id
         if issuance:
             result.report_issuance_id, result.report_status = issuance.id, issuance.status
     # D90 permits only this allowlisted coarse projection, never the rich snapshot.

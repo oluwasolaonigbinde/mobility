@@ -44,8 +44,6 @@ from app.models.trip_analytics import FraudFlag, TripAnalytics
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
 from app.services import (
-    audience,
-    audience_delivery,
     heatmaps,
     impressions,
     reports,
@@ -186,12 +184,6 @@ def test_route_inventory_covers_every_current_output_at_the_service_boundary() -
         "advertiser.campaign.impressions_summary",
         "advertiser.campaign.heatmap",
         "admin.heatmap",
-        "advertiser.audience.recommendations",
-        "admin.audience.recommendations",
-        "advertiser.audience.export",
-        "admin.audience.activation",
-        "advertiser.campaign.zone_insights",
-        "admin.campaign.zone_insights",
     }
     assert DISCLOSURE_ROUTE_INVENTORY == expected
 
@@ -206,11 +198,6 @@ def test_route_inventory_covers_every_current_output_at_the_service_boundary() -
             inspect.getsource(impressions.advertiser_campaign_impression_summary),
             inspect.getsource(heatmaps.advertiser_campaign_heatmap),
             inspect.getsource(heatmaps.admin_heatmap),
-            inspect.getsource(audience_delivery.recommendations_for_link),
-            inspect.getsource(audience_delivery._recommendations_for_segment),
-            inspect.getsource(audience_delivery.export_exposure_segment),
-            inspect.getsource(audience_delivery.activate_exposure_segment),
-            inspect.getsource(audience.high_exposure_zone_insights),
         ]
     )
     for route_id in expected:
@@ -308,9 +295,6 @@ def test_advertiser_reads_keep_the_disclosure_authorized_tenant(
             "report": db_client.get(
                 f"/api/v1/advertiser/campaigns/{campaign.id}/report", headers=headers
             ),
-            "score": db_client.get(
-                f"/api/v1/advertiser/campaigns/{campaign.id}/zone-insights", headers=headers
-            ),
             "impressions": db_client.get(
                 f"/api/v1/advertiser/campaigns/{campaign.id}/impressions/summary",
                 headers=headers,
@@ -335,7 +319,7 @@ def test_advertiser_reads_keep_the_disclosure_authorized_tenant(
         assert responses["report"].json()["campaign_id"] == str(campaign.id)
         assert responses["dashboard"].json()["organization_id"] == str(authorized_org.id)
         assert responses["summary"].json()["campaign"]["id"] == str(campaign.id)
-        for name in ("daily_metrics", "trips", "score", "impressions"):
+        for name in ("daily_metrics", "trips", "impressions"):
             assert responses[name].json()["campaign_id"] == str(campaign.id)
 
     async def set_membership_authority(

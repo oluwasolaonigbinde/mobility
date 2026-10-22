@@ -8,10 +8,6 @@
     "r17-backend-shard-5": "326e4400a6213e2680a9f9d5b58324f4391413f17d5c91248162d2ad0c8d9ae4"
   },
   "files": {
-    "tests/test_ad_platform_architecture.py": {
-      "seconds": 0.015,
-      "test_count": 1
-    },
     "tests/test_admin_company_directory.py": {
       "seconds": 13.782,
       "test_count": 9
@@ -43,10 +39,6 @@
     "tests/test_assignment_activity.py": {
       "seconds": 43.352000000000004,
       "test_count": 15
-    },
-    "tests/test_audience_delivery.py": {
-      "seconds": 46.372,
-      "test_count": 16
     },
     "tests/test_audit_events.py": {
       "seconds": 13.179,
@@ -276,10 +268,6 @@
       "seconds": 11.790000000000001,
       "test_count": 6
     },
-    "tests/test_exposure_segments.py": {
-      "seconds": 11.546999999999999,
-      "test_count": 5
-    },
     "tests/test_file_kyc_lifecycle.py": {
       "seconds": 20.352,
       "test_count": 10
@@ -432,10 +420,6 @@
       "seconds": 57.88300000000001,
       "test_count": 19
     },
-    "tests/test_payout_debt.py": {
-      "seconds": 23.127000000000002,
-      "test_count": 14
-    },
     "tests/test_payout_eligibility.py": {
       "seconds": 0.44200000000000006,
       "test_count": 36
@@ -479,14 +463,6 @@
     "tests/test_payouts.py": {
       "seconds": 49.775000000000006,
       "test_count": 19
-    },
-    "tests/test_payouts_v2.py": {
-      "seconds": 75.39399999999999,
-      "test_count": 28
-    },
-    "tests/test_payouts_v3.py": {
-      "seconds": 113.546,
-      "test_count": 37
     },
     "tests/test_payouts_v4.py": {
       "seconds": 69.082,
@@ -608,14 +584,6 @@
       "seconds": 0.051000000000000004,
       "test_count": 2
     },
-    "tests/test_retargeting_source_links.py": {
-      "seconds": 9.243,
-      "test_count": 5
-    },
-    "tests/test_retargeting_sources.py": {
-      "seconds": 9.806,
-      "test_count": 5
-    },
     "tests/test_review_notifications.py": {
       "seconds": 11.257,
       "test_count": 5
@@ -735,10 +703,6 @@
     "tests/test_worker_substrate.py": {
       "seconds": 4.345000000000001,
       "test_count": 30
-    },
-    "tests/test_zone_insights.py": {
-      "seconds": 2.835,
-      "test_count": 2
     }
   },
   "source_run": "https://github.com/oluwasolaonigbinde/mobility/actions/runs/37433319087",

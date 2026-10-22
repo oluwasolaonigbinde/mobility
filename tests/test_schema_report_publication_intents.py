@@ -26,11 +26,11 @@ SEED_ISSUANCE = (
     "client_request_id, request_fingerprint, version, snapshot, snapshot_sha256, "
     "authority_fingerprint, input_manifest_sha256, result_manifest_sha256, "
     "proof_manifest_sha256, report_snapshot_sha256, schema_version, renderer_version, "
-    "method_revision, roi_decision, synthetic, status, worker_attempts) VALUES "
+    "method_revision, synthetic, status, worker_attempts) VALUES "
     f"('{ISSUANCE}', '{ISSUANCE}', '{ISSUANCE}', '{ISSUANCE}', '{ISSUANCE}', '{ISSUANCE}', "
     "repeat('a', 64), 1, '{}'::jsonb, repeat('b', 64), repeat('c', 64), repeat('d', 64), "
     "repeat('e', 64), repeat('f', 64), repeat('1', 64), 'campaign-performance-export-v1', "
-    "'campaign-report-renderer-v1', 'measurement-contract-v1', 'OMIT', true, 'queued', 0)"
+    "'campaign-report-renderer-v1', 'measurement-contract-v1', true, 'queued', 0)"
 )
 LEASED = {"prepared", "publishing", "cleaning"}
 

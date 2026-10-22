@@ -11,6 +11,7 @@ import sentry_sdk
 from arq.connections import RedisSettings, create_pool
 from arq.cron import CronJob
 from arq.worker import Function, Worker
+from conftest import create_test_campaign_zone
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from test_trip_processing import (
@@ -36,7 +37,6 @@ from app.jobs import data_lifecycle as data_lifecycle_jobs
 from app.jobs import disbursements as disbursement_jobs
 from app.jobs import earnings_release as earnings_release_jobs
 from app.jobs import email_delivery as email_delivery_jobs
-from app.jobs import exposure_segments as exposure_segment_jobs
 from app.jobs import file_lifecycle as file_lifecycle_jobs
 from app.jobs import file_scanning as file_scanning_jobs
 from app.jobs import payment_gateway as payment_gateway_jobs
@@ -79,7 +79,7 @@ def make_ctx(sessionmaker, settings) -> dict:
 
 
 def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
-    assert len(WorkerSettings.functions) == 7
+    assert len(WorkerSettings.functions) == 6
     for index, name, coroutine in (
         (0, "scan_file", file_scanning_jobs.scan_file),
         (1, "deliver_email", email_delivery_jobs.deliver_email),
@@ -93,37 +93,22 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert registered.name == "process_trip"
     assert registered.keep_result_s == 0
     assert registered.coroutine is jobs.process_trip
-    segment = WorkerSettings.functions[3]
-    assert isinstance(segment, Function)
-    assert segment.name == "materialize_exposure_segment"
-    assert segment.coroutine is exposure_segment_jobs.materialize_exposure_segment_job
-    gateway = WorkerSettings.functions[4]
+    gateway = WorkerSettings.functions[3]
     assert isinstance(gateway, Function)
     assert gateway.name == "process_payment_gateway_event"
     assert gateway.keep_result_s == 0
-    disbursement = WorkerSettings.functions[5]
+    disbursement = WorkerSettings.functions[4]
     assert isinstance(disbursement, Function)
     assert disbursement.name == "process_disbursement_intent"
     assert disbursement.coroutine is disbursement_jobs.process_disbursement_intent_job
     assert disbursement.keep_result_s == 0
-    payout_event = WorkerSettings.functions[6]
+    payout_event = WorkerSettings.functions[5]
     assert isinstance(payout_event, Function)
     assert payout_event.name == "process_payout_provider_event"
     assert payout_event.coroutine is disbursement_jobs.process_payout_provider_event_job
     assert payout_event.keep_result_s == 0
 
-    assert len(WorkerSettings.cron_jobs) == 23
-    audience_crons = [
-        job
-        for job in WorkerSettings.cron_jobs
-        if inspect.unwrap(job.coroutine) is exposure_segment_jobs.sweep_exposure_segments
-    ]
-    assert len(audience_crons) == 1
-    assert audience_crons[0].coroutine is not exposure_segment_jobs.sweep_exposure_segments
-    assert audience_crons[0].unique is True
-    assert audience_crons[0].minute == sweep_cron_minutes(
-        get_settings().worker_sweep_interval_minutes
-    )
+    assert len(WorkerSettings.cron_jobs) == 22
     health_crons = [
         job
         for job in WorkerSettings.cron_jobs
@@ -132,9 +117,7 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert len(health_crons) == 1
     assert health_crons[0].minute == set(range(0, 60, 5))
     assert health_crons[0].unique is True
-    existing_crons = [
-        job for job in WorkerSettings.cron_jobs if job not in health_crons + audience_crons
-    ]
+    existing_crons = [job for job in WorkerSettings.cron_jobs if job not in health_crons]
     assert len(existing_crons) == 21
     cron_job = existing_crons[0]
     assert isinstance(cron_job, CronJob)
@@ -900,10 +883,17 @@ def test_process_trip_unexpected_integrity_error_is_captured_and_reraised(
 
 def test_process_trip_logs_outcome_and_never_secrets(db_sessionmaker, settings, caplog) -> None:
     graph = build_graph(db_sessionmaker, "job-log")
+    # Freeze a target area before the terms binding: outside miles never pay.
+    target_zone = create_test_campaign_zone(
+        db_sessionmaker,
+        campaign_id=graph.campaign.id,
+        created_by_user_id=graph.admin.id,
+    )
     create_test_daily_payout_authority(
         db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
+        zone_ids=[target_zone.id],
     )
     seed_analytics(db_sessionmaker, graph)
 
@@ -928,10 +918,17 @@ def test_sweep_recovers_lost_queue_and_second_pass_is_empty(
     caplog,
 ) -> None:
     graph = build_graph(postgis_db_sessionmaker, "sweep")
+    # Freeze a target area before the terms binding: outside miles never pay.
+    target_zone = create_test_campaign_zone(
+        postgis_db_sessionmaker,
+        campaign_id=graph.campaign.id,
+        created_by_user_id=graph.admin.id,
+    )
     create_test_daily_payout_authority(
         postgis_db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
+        zone_ids=[target_zone.id],
     )
     add_pings(postgis_db_sessionmaker, trip_id=graph.trip.id, points=moving_points())
 
@@ -975,10 +972,17 @@ def test_sweep_isolates_per_trip_failures_and_continues(
         "iso-good",
         ended_at=BASE_TIME + timedelta(minutes=40),
     )
+    # Freeze a target area before the terms binding: outside miles never pay.
+    target_zone = create_test_campaign_zone(
+        db_sessionmaker,
+        campaign_id=graph_good.campaign.id,
+        created_by_user_id=graph_good.admin.id,
+    )
     create_test_daily_payout_authority(
         db_sessionmaker,
         campaign_id=graph_good.campaign.id,
         created_by_user_id=graph_good.admin.id,
+        zone_ids=[target_zone.id],
     )
     add_pings(db_sessionmaker, trip_id=graph_good.trip.id, points=moving_points())
     seed_analytics(db_sessionmaker, graph_good)
@@ -1103,10 +1107,17 @@ def test_burst_worker_runs_enqueued_trip_end_to_end(postgis_db_sessionmaker, set
         pytest.skip("ARQ test Redis URL is not configured")
 
     graph = build_graph(postgis_db_sessionmaker, "burst")
+    # Freeze a target area before the terms binding: outside miles never pay.
+    target_zone = create_test_campaign_zone(
+        postgis_db_sessionmaker,
+        campaign_id=graph.campaign.id,
+        created_by_user_id=graph.admin.id,
+    )
     create_test_daily_payout_authority(
         postgis_db_sessionmaker,
         campaign_id=graph.campaign.id,
         created_by_user_id=graph.admin.id,
+        zone_ids=[target_zone.id],
     )
     add_pings(postgis_db_sessionmaker, trip_id=graph.trip.id, points=moving_points())
 

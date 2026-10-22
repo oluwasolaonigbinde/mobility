@@ -38,12 +38,6 @@ DISCLOSURE_ROUTE_INVENTORY = frozenset(
         "advertiser.campaign.impressions_summary",
         "advertiser.campaign.heatmap",
         "admin.heatmap",
-        "advertiser.audience.recommendations",
-        "admin.audience.recommendations",
-        "advertiser.audience.export",
-        "admin.audience.activation",
-        "advertiser.campaign.zone_insights",
-        "admin.campaign.zone_insights",
     }
 )
 
@@ -190,28 +184,6 @@ def disclosure_suppressed(reason: str) -> AppError:
         status_code=status.HTTP_409_CONFLICT,
         details={"reason": reason},
     )
-
-
-def exposure_cell_meets_disclosure_floor(
-    *,
-    distinct_vehicle_count: int,
-    resolution_m: int,
-    settings: Settings,
-) -> bool:
-    """D107: a cell is released when at least three distinct cars contributed."""
-    return (
-        distinct_vehicle_count >= settings.privacy_min_vehicles_per_cell
-        and resolution_m >= settings.privacy_min_resolution_m
-    )
-
-
-def audience_disclosure_policy(settings: Settings) -> dict[str, int | float | str]:
-    return {
-        "schema_version": "audience-disclosure-policy-v2",
-        "minimum_distinct_vehicles": settings.privacy_min_vehicles_per_cell,
-        "minimum_resolution_m": settings.privacy_min_resolution_m,
-        "window_alignment": "whole_utc_hours",
-    }
 
 
 def _add_contribution(

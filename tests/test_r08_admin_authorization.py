@@ -56,14 +56,6 @@ MIGRATED_CALL_SITES: dict[str, tuple[str, ...]] = {
     ),
     "campaign_changes": ("decide_campaign_change",),
     "heatmaps": ("admin_heatmap",),
-    "audience": (
-        "list_admin_retargeting_sources",
-        "get_admin_retargeting_source",
-        "_link_access",
-        "list_retargeting_source_links",
-        "high_exposure_zone_insights",
-    ),
-    "audience_delivery": ("_segment_access",),
     "measurement": ("issue_measurement_run",),
     "disbursements": (
         "create_payout_batch_draft",
@@ -94,33 +86,48 @@ def _named_functions(tree: ast.Module) -> dict[str, ast.AsyncFunctionDef]:
     return {node.name: node for node in ast.walk(tree) if isinstance(node, ast.AsyncFunctionDef)}
 
 
-def _canonical_calls(function: ast.AsyncFunctionDef) -> list[ast.Call]:
+def _canonical_calls(
+    function: ast.AsyncFunctionDef, name: str = "require_active_admin"
+) -> list[ast.Call]:
     return [
         node
         for node in ast.walk(function)
-        if isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Name)
-        and node.func.id == "require_active_admin"
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == name
     ]
 
 
-def test_all_44_sites_import_and_call_only_the_canonical_authority() -> None:
-    assert sum(map(len, MIGRATED_CALL_SITES.values())) == 44
+def test_all_37_sites_import_and_call_only_the_canonical_authority() -> None:
+    assert sum(map(len, MIGRATED_CALL_SITES.values())) == 37
     for service_name, expected_functions in MIGRATED_CALL_SITES.items():
         tree = _service_tree(service_name)
         functions = _named_functions(tree)
+        # Scheduled reports use the existing narrowly reserved automation actor;
+        # human calls still delegate to the same active-admin authority.
+        authority_module, authority_name = (
+            ("report_authorization", "require_report_operator")
+            if service_name == "measurement"
+            else ("admin_authorization", "require_active_admin")
+        )
         imports = [
             node
-            for node in tree.body
+            for node in ast.walk(tree)
             if isinstance(node, ast.ImportFrom)
-            and node.module == "app.services.admin_authorization"
+            and node.module == f"app.services.{authority_module}"
         ]
         assert len(imports) == 1
-        assert [alias.name for alias in imports[0].names] == ["require_active_admin"]
-        assert all(len(_canonical_calls(functions[name])) == 1 for name in expected_functions)
+        assert [alias.name for alias in imports[0].names] == [authority_name]
+        assert all(
+            len(_canonical_calls(functions[name], authority_name)) == 1
+            for name in expected_functions
+        )
         assert not ({"_active_admin", "_require_active_admin"} & functions.keys())
+        if service_name == "measurement":
+            operator = _named_functions(_service_tree("report_authorization"))[
+                "require_report_operator"
+            ]
+            assert len(_canonical_calls(operator)) == 1
 
-    for service_name in ("campaign_assignments", "campaign_changes", "audience_delivery"):
+    for service_name in ("campaign_assignments", "campaign_changes"):
         assert not any(
             isinstance(node, ast.ImportFrom)
             and any(

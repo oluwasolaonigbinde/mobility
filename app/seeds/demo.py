@@ -1816,14 +1816,11 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
     await ensure_trip_review_work(session, graph=graph, staff=staff, settings=settings)
     await ensure_completed_report_contributors(session, graph=graph, settings=settings)
     await ensure_portal_reports(session, graph=graph, settings=settings)
+    from app.seeds.driver_story import settle_demo_driver_history
     from app.seeds.rich import (
-        ensure_portal_audiences,
         ensure_portal_payouts,
         settle_seed_driver_notifications,
     )
-
-    await ensure_portal_audiences(session, graph=graph, settings=settings)
-    from app.seeds.driver_story import settle_demo_driver_history
 
     await settle_demo_driver_history(session, graph=graph, staff=staff, settings=settings)
     await ensure_portal_payouts(session, graph=graph, staff=staff, settings=settings)

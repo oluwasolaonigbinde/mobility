@@ -105,18 +105,18 @@ it.each([false, true])(
   },
 );
 
-it("preserves the explicitly supported export form with exact origin", async () => {
+it("rejects navigated forms at the JSON command boundary", async () => {
   const req = request(
-    "/api/advertiser/exposure-segments/segment/export",
+    "/api/advertiser/campaigns/campaign",
     {
       "content-type": "application/x-www-form-urlencoded",
       "sec-fetch-mode": "navigate",
       "sec-fetch-dest": "document",
       "sec-fetch-site": "same-origin",
     },
-    "approval_id=approved",
+    "name=changed",
   );
-  expect((await proxy(req)).status).toBe(200);
+  expect((await proxy(req)).status).toBe(403);
 });
 
 function routes(path: string): string[] {

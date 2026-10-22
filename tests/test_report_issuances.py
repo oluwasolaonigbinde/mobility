@@ -1,16 +1,13 @@
 import asyncio
 import hashlib
-import json
 import re
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
 from conftest import auth_headers, create_test_organization, create_test_user
-from sqlalchemy import func, select, update
-from sqlalchemy import text as sql_text
-from sqlalchemy.exc import DBAPIError, IntegrityError
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from test_advertiser_reports import PASSWORD
 from test_measurement_runs import create_measurement_graph, issue_payload
 from test_stored_files import FakeStorageProvider
@@ -148,31 +145,10 @@ def report_storage(db_client):
     db_client.app.dependency_overrides.pop(get_storage_provider, None)
 
 
-def issue_run(db_client, db_sessionmaker, *, roi: bool = False, test_only: bool = True):
+def issue_run(db_client, db_sessionmaker, *, test_only: bool = True):
     admin, advertiser, campaign = create_measurement_graph(db_sessionmaker)
     payload = issue_payload(campaign.id)
     payload["test_only"] = test_only
-    if roi:
-        payload["mode"] = "roi_enabled"
-        payload["roi"] = {
-            "attributed_revenue": "2400.00",
-            "approved_cost_basis": "1200.00",
-            "currency": "NGN",
-            "conversion_provenance": "SYNTHETIC_TEST_ONLY conversion fixture",
-            "revenue_provenance": "SYNTHETIC_TEST_ONLY revenue fixture",
-            "reporting_cutoff": payload["period_end_at"],
-            "synthetic": True,
-            "method": {
-                "revision": "synthetic-roi-v1",
-                "approval_reference": "SYNTHETIC_TEST_ONLY",
-                "attribution_rule": "Synthetic conversion belongs to the fixture campaign.",
-                "attribution_window": "Synthetic one-day fixture window.",
-                "cost_basis": "Frozen driver campaign cost in NGN.",
-                "exclusions": "No synthetic exclusions.",
-                "corrections": "Reissue on changed fixture input.",
-                "late_data": "Late fixture data requires reissue.",
-            },
-        }
     response = db_client.post(
         "/api/v1/admin/measurement-runs",
         json=payload,
@@ -201,497 +177,9 @@ def run_worker(db_sessionmaker, settings, storage) -> int:
     )
 
 
-@pytest.fixture
-def ready_linked_source(db_client, db_sessionmaker, settings):
-    from test_exposure_segments import _create_link_and_run
-
-    from app.jobs.exposure_segments import sweep_exposure_segments
-    from app.models.disclosure import DisclosureQueryDecision
-
-    advertiser, _, link_id, run_id = _create_link_and_run(db_client, db_sessionmaker)
-
-    async def prepare():
-        assert (
-            await sweep_exposure_segments({"sessionmaker": db_sessionmaker, "settings": settings})
-            == 1
-        )
-        async with db_sessionmaker() as session:
-            assert (
-                await session.scalar(select(func.count()).select_from(DisclosureQueryDecision)) == 0
-            )
-
-    asyncio.run(prepare())
-    return advertiser, link_id, run_id
-
-
-@pytest.mark.parametrize(
-    "edit", ["source", "user", "organization", "membership", "campaign", "zone", "link"]
-)
-def test_fresh_report_disclosures_hold_parent_and_access_locks_until_commit(
-    db_sessionmaker, settings, ready_linked_source, monkeypatch, edit
-):
-    from app.models.campaign import Campaign
-    from app.models.campaign_zone import CampaignZone
-    from app.models.disclosure import DisclosureQueryDecision
-    from app.models.organization import AdvertiserOrganization
-    from app.models.retargeting_source import RetargetingSource
-    from app.models.retargeting_source_link import RetargetingSourceLink
-    from app.models.user import User
-    from app.services import audience, audience_delivery
-
-    advertiser, link_id, run_id = ready_linked_source
-
-    async def exercise():
-        async with db_sessionmaker() as issuer, db_sessionmaker() as writer:
-            link = await writer.get(RetargetingSourceLink, link_id)
-            membership_id = await writer.scalar(
-                select(OrganizationMembership.id).where(
-                    OrganizationMembership.user_id == advertiser.id,
-                    OrganizationMembership.organization_id == link.organization_id,
-                )
-            )
-            model, identity, values = {
-                "source": (RetargetingSource, link.source_id, {"status": "deactivated"}),
-                "user": (User, advertiser.id, {"status": "disabled"}),
-                "organization": (
-                    AdvertiserOrganization,
-                    link.organization_id,
-                    {"status": "disabled"},
-                ),
-                "membership": (OrganizationMembership, membership_id, {"status": "disabled"}),
-                "campaign": (Campaign, link.campaign_id, {"name": "Concurrent campaign edit"}),
-                "zone": (CampaignZone, link.zone_id, {"name": "Concurrent zone edit"}),
-                "link": (RetargetingSourceLink, link.id, {"status": "removed"}),
-            }[edit]
-            statement = update(model).where(model.id == identity).values(**values)
-            await writer.rollback()
-            checkpoints = []
-
-            async def assert_edit_blocked(checkpoint):
-                await writer.execute(sql_text("SET LOCAL lock_timeout = '100ms'"))
-                try:
-                    with pytest.raises(DBAPIError) as blocked:
-                        await writer.execute(statement)
-                    assert blocked.value.orig.sqlstate == "55P03"
-                finally:
-                    await writer.rollback()
-                # Served history must be recorded, but invisible until issuance commits.
-                assert (
-                    await writer.scalar(select(func.count()).select_from(DisclosureQueryDecision))
-                    == 0
-                )
-                await writer.rollback()
-                checkpoints.append(checkpoint)
-
-            record = audience.record_disclosure
-
-            async def record_and_check(session, **kwargs):
-                await record(session, **kwargs)
-                await assert_edit_blocked(kwargs["query"].route_id)
-                assert await session.scalar(
-                    select(func.count()).select_from(DisclosureQueryDecision)
-                ) == len(checkpoints)
-
-            monkeypatch.setattr(audience, "record_disclosure", record_and_check)
-            monkeypatch.setattr(audience_delivery, "record_disclosure", record_and_check)
-            issuance = await request_report_issuance(
-                issuer,
-                actor_user_id=advertiser.id,
-                measurement_run_id=run_id,
-                payload=ReportIssuanceCreate(client_request_id=uuid4()),
-                settings=settings,
-                admin=False,
-            )
-            assert issuance.snapshot["exposure"]["state"] == "unavailable"
-            assert issuance.snapshot["linked_source_recommendations"][0]["state"] == "ready"
-            await assert_edit_blocked("snapshot_frozen")
-            assert checkpoints == [
-                "advertiser.audience.recommendations",
-                "snapshot_frozen",
-            ]
-            await issuer.commit()
-            await writer.execute(sql_text("SET LOCAL lock_timeout = '1s'"))
-            await writer.execute(statement)
-            await writer.commit()
-            assert await writer.get(ReportIssuance, issuance.id) is not None
-            decisions = list(await writer.scalars(select(DisclosureQueryDecision)))
-            # D105: freezing area rows records no separate area reservation.
-            assert [(row.output_class, row.decision) for row in decisions] == [
-                ("advertiser.audience.recommendations", "served")
-            ]
-            changed = await writer.get(model, identity, populate_existing=True)
-            assert all(getattr(changed, field) == value for field, value in values.items())
-
-    asyncio.run(exercise())
-
-
-def test_new_source_link_between_source_selection_and_scope_locks_refuses_mixed_snapshot(
-    db_sessionmaker, settings, ready_linked_source, monkeypatch
-):
-    from pydantic import TypeAdapter
-    from test_retargeting_source_links import source_payload
-
-    from app.core.errors import AppError
-    from app.models.disclosure import DisclosureQueryDecision
-    from app.models.retargeting_source import RetargetingSource
-    from app.models.retargeting_source_link import RetargetingSourceLink
-    from app.schemas.retargeting_source_links import RetargetingSourceLinkCreate
-    from app.schemas.retargeting_sources import RetargetingSourceCreate
-    from app.services.audience import create_retargeting_source, create_retargeting_source_link
-
-    advertiser, link_id, run_id = ready_linked_source
-    payload = ReportIssuanceCreate(client_request_id=uuid4())
-
-    async def exercise():
-        selected, added = asyncio.Event(), asyncio.Event()
-        async with db_sessionmaker() as issuer, db_sessionmaker() as writer:
-            existing = await writer.get(RetargetingSourceLink, link_id)
-            campaign_id, zone_id = existing.campaign_id, existing.zone_id
-            start_at, end_at = existing.start_at, existing.end_at
-            await writer.rollback()
-            scalars = issuer.scalars
-
-            async def pause_after_source_selection(statement, *args, **kwargs):
-                result = await scalars(statement, *args, **kwargs)
-                if (
-                    statement.column_descriptions[0].get("entity") is RetargetingSource
-                    and not selected.is_set()
-                ):
-                    # The actual SELECT FOR UPDATE has returned. The writer
-                    # commits a new parent before issuance locks User/Campaign.
-                    selected.set()
-                    await asyncio.wait_for(added.wait(), 5)
-                return result
-
-            monkeypatch.setattr(issuer, "scalars", pause_after_source_selection)
-
-            async def issue_once():
-                with pytest.raises(AppError) as changed:
-                    await request_report_issuance(
-                        issuer,
-                        actor_user_id=advertiser.id,
-                        measurement_run_id=run_id,
-                        payload=payload,
-                        settings=settings,
-                        admin=False,
-                    )
-                assert changed.value.code == "REPORT_AUDIENCE_CHANGED"
-                await issuer.rollback()
-
-            task = asyncio.create_task(issue_once())
-            try:
-                await asyncio.wait_for(selected.wait(), 5)
-                await writer.execute(sql_text("SET LOCAL lock_timeout = '2s'"))
-                source = await create_retargeting_source(
-                    writer,
-                    settings=settings,
-                    actor_user_id=advertiser.id,
-                    payload=TypeAdapter(RetargetingSourceCreate).validate_python(
-                        source_payload(datetime.now(UTC) + timedelta(days=365))
-                    ),
-                    idempotency_key="concurrent-report-source",
-                )
-                new_link = await create_retargeting_source_link(
-                    writer,
-                    settings=settings,
-                    actor_user_id=advertiser.id,
-                    payload=RetargetingSourceLinkCreate(
-                        source_id=source.id,
-                        campaign_id=campaign_id,
-                        zone_id=zone_id,
-                        start_at=start_at,
-                        end_at=end_at,
-                    ),
-                    idempotency_key="concurrent-report-link",
-                )
-                await writer.commit()
-                new_link_id = new_link.id
-                added.set()
-                await asyncio.wait_for(task, 5)
-            finally:
-                if not task.done():
-                    task.cancel()
-                    await asyncio.gather(task, return_exceptions=True)
-
-            assert await writer.scalar(select(func.count(ReportIssuance.id))) == 0
-            assert await writer.scalar(select(func.count(ReportArtifact.id))) == 0
-            assert await writer.scalar(select(func.count(DisclosureQueryDecision.id))) == 0
-            await writer.rollback()
-            retry = await request_report_issuance(
-                issuer,
-                actor_user_id=advertiser.id,
-                measurement_run_id=run_id,
-                payload=payload,
-                settings=settings,
-                admin=False,
-            )
-            await issuer.commit()
-            items = {
-                item["source_link_id"]: item
-                for item in retry.snapshot["linked_source_recommendations"]
-            }
-            assert set(items) == {str(link_id), str(new_link_id)}
-            assert items[str(link_id)]["state"] == "ready"
-            assert items[str(link_id)]["recommendations"]
-            assert items[str(new_link_id)]["state"] == "unavailable"
-            assert items[str(new_link_id)]["recommendations"] == []
-            assert all(item["measurement_run_id"] == str(run_id) for item in items.values())
-            assert await writer.scalar(select(func.count(ReportIssuance.id))) == 1
-
-    asyncio.run(exercise())
-
-
-@pytest.mark.parametrize("reader", ["zone_insights", "recommendations"])
-def test_ordinary_audience_readers_still_commit_fresh_disclosure_history(
-    db_sessionmaker, settings, ready_linked_source, reader
-):
-    from app.models.disclosure import DisclosureQueryDecision
-    from app.models.measurement import MeasurementRun
-    from app.services.audience import high_exposure_zone_insights
-    from app.services.audience_delivery import recommendations_for_link
-
-    advertiser, link_id, run_id = ready_linked_source
-
-    async def exercise():
-        async with db_sessionmaker() as session, db_sessionmaker() as observer:
-            if reader == "zone_insights":
-                run = await session.get(MeasurementRun, run_id)
-                result = await high_exposure_zone_insights(
-                    session,
-                    settings=settings,
-                    actor_user_id=advertiser.id,
-                    campaign_id=run.campaign_id,
-                    measurement_run_id=run_id,
-                )
-                route = "advertiser.campaign.zone_insights"
-            else:
-                result = await recommendations_for_link(
-                    session, settings=settings, actor_user_id=advertiser.id, source_link_id=link_id
-                )
-                route = "advertiser.audience.recommendations"
-            assert result.state == "ready"
-            # No caller commit: the ordinary reader must make this decision durable itself.
-            decisions = list(await observer.scalars(select(DisclosureQueryDecision)))
-            assert len(decisions) == 1
-            assert decisions[0].output_class == route
-            assert decisions[0].decision == "served"
-
-    asyncio.run(exercise())
-
-
-def test_linked_source_snapshot_publication_download_and_historical_integrity(
-    db_client, db_sessionmaker, settings, report_storage
-):
-    from test_exposure_segments import _create_link_and_run
-
-    from app.jobs.exposure_segments import sweep_exposure_segments
-    from app.models.campaign_zone import CampaignZone
-    from app.models.measurement import MeasurementRun
-    from app.models.retargeting_source_link import RetargetingSourceLink
-
-    advertiser, other, link_id, run_id = _create_link_and_run(db_client, db_sessionmaker)
-
-    async def prepare():
-        assert (
-            await sweep_exposure_segments({"sessionmaker": db_sessionmaker, "settings": settings})
-            == 1
-        )
-        async with db_sessionmaker() as session:
-            run = await session.get(MeasurementRun, run_id)
-            return run.created_by_user_id, run.campaign_id
-
-    admin_id, campaign_id = asyncio.run(prepare())
-    first = request_issuance(db_client, advertiser, run_id)
-    assert first.status_code == 202, first.text
-    issuance_id = UUID(first.json()["id"])
-
-    async def inspect(identity):
-        async with db_sessionmaker() as session:
-            issuance = await session.get(ReportIssuance, identity)
-            return issuance.snapshot, report_issuance_service._rendered_pair(issuance)
-
-    snapshot, pair = asyncio.run(inspect(issuance_id))
-    item = snapshot["linked_source_recommendations"][0]
-    assert item["measurement_run_id"] == str(run_id)
-    assert item["provenance"]["measurement_run_id"] == str(run_id)
-    assert item["state"] == "ready"
-    assert item["source_label"] == "Manual insight · area demand"
-    assert item["zone_label"] == "Segment target"
-    assert item["recommendations"] and item["uncertainty"] and item["disclaimer"]
-    assert run_worker(db_sessionmaker, settings, report_storage) == 1
-    headers = auth_headers(db_client, advertiser.email, PASSWORD)
-    for artifact in pair:
-        content = (
-            artifact.content if artifact.format == "csv" else rendered_pdf_bytes(artifact.content)
-        )
-        for text in (
-            "Manual insight",
-            "Segment target",
-            "Nigeria time (WAT)",
-            "Africa/Lagos",
-            "governed modelled contact signal",
-            "not observed people",
-        ):
-            assert text.encode() in content
-        downloaded = db_client.post(
-            f"/api/v1/advertiser/report-issuances/{issuance_id}/artifacts/{artifact.format}/download",
-            json={"reason": "Verify contextual recommendation report"},
-            headers=headers,
-        )
-        assert downloaded.status_code == 200, downloaded.text
-        assert artifact.checksum_sha256 == hashlib.sha256(artifact.content).hexdigest()
-    denied = db_client.post(
-        f"/api/v1/advertiser/report-issuances/{issuance_id}/artifacts/csv/download",
-        json={"reason": "Cross tenant download"},
-        headers=auth_headers(db_client, other.email, PASSWORD),
-    )
-    assert denied.status_code == 404
-
-    async def reissue_measurement():
-        async with db_sessionmaker() as session:
-            run = await issue_measurement_run(
-                session,
-                actor_user_id=admin_id,
-                payload=MeasurementRunCreate.model_validate(issue_payload(campaign_id)),
-                settings=settings,
-            )
-            await session.commit()
-            return run.id
-
-    newer_run_id = asyncio.run(reissue_measurement())
-    newer = request_issuance(db_client, advertiser, newer_run_id)
-    assert newer.status_code == 202, newer.text
-    newer_snapshot, _ = asyncio.run(inspect(UUID(newer.json()["id"])))
-    assert newer_snapshot["linked_source_recommendations"][0]["state"] == "unavailable"
-    assert newer_snapshot["linked_source_recommendations"][0]["recommendations"] == []
-
-    async def rename_parent():
-        async with db_sessionmaker() as session:
-            link = await session.get(RetargetingSourceLink, link_id)
-            zone = await session.get(CampaignZone, link.zone_id)
-            zone.name = "Edited area"
-            await session.commit()
-
-    asyncio.run(rename_parent())
-    historical_snapshot, historical_pair = asyncio.run(inspect(issuance_id))
-    assert historical_snapshot == snapshot
-    assert [row.content for row in historical_pair] == [row.content for row in pair]
-    for artifact in historical_pair:
-        historical_download = db_client.post(
-            f"/api/v1/advertiser/report-issuances/{issuance_id}/artifacts/{artifact.format}/download",
-            json={"reason": "Verify unchanged historical report after area edit"},
-            headers=headers,
-        )
-        assert historical_download.status_code == 200, historical_download.text
-    stale_reissue = request_issuance(db_client, advertiser, run_id, reissue_of_id=issuance_id)
-    assert stale_reissue.status_code == 202, stale_reissue.text
-    stale_snapshot, _ = asyncio.run(inspect(UUID(stale_reissue.json()["id"])))
-    assert stale_snapshot["linked_source_recommendations"][0]["state"] == "stale"
-    assert stale_snapshot["linked_source_recommendations"][0]["recommendations"] == []
-    csv_key = next(key for key in report_storage.objects if key.endswith(".csv"))
-    metadata = report_storage.objects[csv_key]
-    report_storage.objects[csv_key] = metadata.__class__(
-        object_key=csv_key,
-        size_bytes=metadata.size_bytes,
-        content_type=metadata.content_type,
-        checksum_sha256="f" * 64,
-    )
-    refused = db_client.post(
-        f"/api/v1/advertiser/report-issuances/{issuance_id}/artifacts/csv/download",
-        json={"reason": "Verify tampered artifact refusal"},
-        headers=headers,
-    )
-    assert refused.status_code == 409
-
-
 def run_publication_cleanup(db_sessionmaker, settings, storage) -> int:
     return asyncio.run(
         sweep_report_publications(db_sessionmaker, storage=storage, settings=settings)
-    )
-
-
-def test_v1_request_replay_keeps_snapshot_bytes_and_new_reissue_uses_v2_wording(
-    db_client, db_sessionmaker, settings, report_storage, monkeypatch
-) -> None:
-    from app.models.measurement import MeasurementRun
-    from app.models.report_issuance import ReportIssuance
-    from app.services.measurement import measurement_run_reproducible
-
-    _, advertiser, _, run = issue_run(db_client, db_sessionmaker)
-    request_id = uuid4()
-    # The old builder differs only in these frozen export constants; historical
-    # renderer output is separately anchored to ec267529's golden hashes.
-    with monkeypatch.context() as legacy:
-        legacy.setattr(
-            report_issuance_service, "REPORT_SCHEMA_VERSION", "campaign-performance-export-v1"
-        )
-        legacy.setattr(
-            report_issuance_service,
-            "SUPPRESSED_TOTAL_LABEL",
-            "Omitted - insufficient frozen evidence",
-        )
-        original = request_issuance(db_client, advertiser, run["id"], request_id=request_id)
-    assert original.status_code == 202, original.text
-    old_id = UUID(original.json()["id"])
-
-    async def inspect(identity):
-        async with db_sessionmaker() as session:
-            issuance = await session.get(ReportIssuance, identity)
-            measurement = await session.get(MeasurementRun, UUID(run["id"]))
-            assert measurement_run_reproducible(measurement)
-            return (
-                issuance.snapshot,
-                issuance.snapshot_sha256,
-                report_issuance_service._rendered_pair(issuance),
-            )
-
-    old_snapshot, old_hash, old_pair = asyncio.run(inspect(old_id))
-    replay = request_issuance(db_client, advertiser, run["id"], request_id=request_id)
-    assert replay.status_code == 202, replay.text
-    assert replay.json()["id"] == str(old_id)
-    replay_snapshot, replay_hash, replay_pair = asyncio.run(inspect(old_id))
-    assert replay_snapshot == old_snapshot
-    assert replay_hash == old_hash
-    assert [item.content for item in replay_pair] == [item.content for item in old_pair]
-    report_storage.fail_pdf_once = True
-    assert run_worker(db_sessionmaker, settings, report_storage) == 1
-    headers = auth_headers(db_client, advertiser.email, PASSWORD)
-    pending = db_client.get(f"/api/v1/advertiser/report-issuances/{old_id}", headers=headers)
-    assert pending.json()["status"] == "queued"
-    assert pending.json()["artifacts"] == []
-
-    async def make_old_retry_due():
-        async with db_sessionmaker() as session:
-            issuance = await session.get(ReportIssuance, old_id)
-            issuance.next_attempt_at = datetime.now(UTC) - timedelta(seconds=1)
-            await session.commit()
-
-    asyncio.run(make_old_retry_due())
-    assert run_worker(db_sessionmaker, settings, report_storage) == 1
-    ready = db_client.get(f"/api/v1/advertiser/report-issuances/{old_id}", headers=headers)
-    assert ready.json()["status"] == "ready"
-    assert sorted(report_storage.contents.values()) == sorted(item.content for item in old_pair)
-    for item in old_pair:
-        artifact = next(row for row in ready.json()["artifacts"] if row["format"] == item.format)
-        assert artifact["checksum_sha256"] == hashlib.sha256(item.content).hexdigest()
-        download = db_client.post(
-            f"/api/v1/advertiser/report-issuances/{old_id}/artifacts/{item.format}/download",
-            json={"reason": "Verify historical report download integrity"},
-            headers=headers,
-        )
-        assert download.status_code == 200, download.text
-        assert download.json()["url"] == "http://storage.test/private-download"
-
-    newer = request_issuance(db_client, advertiser, run["id"], reissue_of_id=old_id)
-    assert newer.status_code == 202, newer.text
-    new_snapshot, _, new_pair = asyncio.run(inspect(UUID(newer.json()["id"])))
-    assert new_snapshot["schema_version"] == "campaign-performance-export-v4"
-    assert old_snapshot["schema_version"] == "campaign-performance-export-v1"
-    assert [item.content for item in asyncio.run(inspect(old_id))[2]] == [
-        item.content for item in old_pair
-    ]
-    assert all(
-        item.checksum_sha256 == hashlib.sha256(item.content).hexdigest() for item in new_pair
     )
 
 
@@ -726,8 +214,8 @@ def test_performance_issuance_replay_worker_download_and_tamper_fail_closed(
     assert b"roi" not in rendered_pdf_bytes(pdf_content).lower()
     assert first.json()["id"].encode() in csv_content
     assert first.json()["id"].encode() in rendered_pdf_bytes(pdf_content)
-    assert b"campaign-performance-export-v4" in csv_content
-    assert b"campaign-report-renderer-v1" in rendered_pdf_bytes(pdf_content)
+    assert b"campaign-performance-export-v5" in csv_content
+    assert b"campaign-report-renderer-v2" in rendered_pdf_bytes(pdf_content)
     for fact in (
         b"Distance",
         b"Completed trips",
@@ -853,77 +341,6 @@ def test_lost_response_replay_does_not_recompose_mutable_latest_projection(
     assert replay.json()["id"] == first.json()["id"]
     assert changed.status_code == 409
     assert changed.json()["error"]["code"] == "REPORT_ISSUANCE_REQUEST_CONFLICT"
-
-
-def test_roi_golden_reissue_and_changed_request_conflict(
-    db_client, db_sessionmaker, settings, report_storage
-) -> None:
-    _, advertiser, _, run = issue_run(db_client, db_sessionmaker, roi=True)
-    request_id = uuid4()
-    first = request_issuance(db_client, advertiser, run["id"], request_id=request_id)
-    assert first.status_code == 202, first.text
-
-    changed = request_issuance(
-        db_client,
-        advertiser,
-        run["id"],
-        request_id=request_id,
-        reissue_of_id=uuid4(),
-    )
-    assert changed.status_code == 409
-    assert changed.json()["error"]["code"] == "REPORT_ISSUANCE_REQUEST_CONFLICT"
-    assert run_worker(db_sessionmaker, settings, report_storage) == 1
-
-    csv_content = next(
-        content for content in report_storage.contents.values() if content.startswith(b"section,")
-    )
-    assert b"Return on investment" in csv_content
-    assert b"synthetic-roi-v1" in csv_content
-    assert b",100,percent," in csv_content
-    pdf_content = next(
-        content for content in report_storage.contents.values() if content.startswith(b"%PDF-1.4")
-    )
-    frozen_roi = run["result_manifest"]["roi"]
-    disclosed = {
-        **frozen_roi["method"],
-        **frozen_roi["provenance"],
-        "method_revision": frozen_roi["method_revision"],
-    }
-    contract = json.loads(
-        (Path(__file__).resolve().parents[1] / "docs" / "measurement-methodology.json").read_text()
-    )
-    for field in contract["roi_gate"]["required_disclosure"]:
-        value = str(disclosed[field]).encode()
-        assert value in b" ".join(csv_content.split()), field
-        assert value in rendered_pdf_bytes(pdf_content), field
-
-    reissue = request_issuance(
-        db_client,
-        advertiser,
-        run["id"],
-        reissue_of_id=first.json()["id"],
-    )
-    assert reissue.status_code == 202, reissue.text
-    assert reissue.json()["version"] == 2
-    assert reissue.json()["reissue_of_id"] == first.json()["id"]
-    assert run_worker(db_sessionmaker, settings, report_storage) == 1
-
-    async def counts() -> tuple[int, int, int]:
-        async with db_sessionmaker() as session:
-            return (
-                int(await session.scalar(select(func.count()).select_from(ReportIssuance)) or 0),
-                int(await session.scalar(select(func.count()).select_from(ReportArtifact)) or 0),
-                int(
-                    await session.scalar(
-                        select(func.count())
-                        .select_from(StoredFile)
-                        .where(StoredFile.purpose == "report_export")
-                    )
-                    or 0
-                ),
-            )
-
-    assert asyncio.run(counts()) == (2, 4, 4)
 
 
 def test_partial_storage_failure_exposes_no_artifact_and_retry_recovers_pair(
@@ -2639,19 +2056,39 @@ def test_crashed_publication_is_reclaimed_and_reissued_end_to_end_on_postgres(
     assert [item["format"] for item in ready.json()["artifacts"]] == ["csv", "pdf"]
 
 
-def test_synthetic_roi_cannot_be_published_outside_local_environment(
-    db_client,
-    db_sessionmaker,
-    settings,
-    report_storage,
+def test_issued_files_remain_downloadable_after_methods_and_renderer_retire(
+    db_client, db_sessionmaker, settings, report_storage, monkeypatch
 ):
-    _, advertiser, _, run = issue_run(db_client, db_sessionmaker, roi=True)
-    deployed = settings.model_copy(update={"environment": "staging"})
-    db_client.app.dependency_overrides[get_settings] = lambda: deployed
-    try:
-        denied = request_issuance(db_client, advertiser, run["id"])
-        assert denied.status_code == 409, denied.text
-        assert denied.json()["error"]["code"] == "REPORT_ROI_AUTHORITY_INVALID"
-        assert report_storage.objects == {}
-    finally:
-        db_client.app.dependency_overrides.pop(get_settings, None)
+    _, advertiser, campaign, run = issue_run(db_client, db_sessionmaker)
+    response = request_issuance(db_client, advertiser, run["id"])
+    assert response.status_code == 202, response.text
+    identity = response.json()["id"]
+    assert run_worker(db_sessionmaker, settings, report_storage) == 1
+    frozen = dict(report_storage.contents)
+
+    def retired(*args, **kwargs):
+        raise AssertionError("Issued files must not rerun a retired calculation or renderer")
+
+    monkeypatch.setattr(report_issuance_service, "measurement_run_reproducible", retired)
+    monkeypatch.setattr(report_issuance_service, "_authority_document", retired)
+    monkeypatch.setattr(report_issuance_service, "_rendered_pair", retired)
+    monkeypatch.setattr("app.services.measurement.measurement_run_reproducible", retired)
+    headers = auth_headers(db_client, advertiser.email, PASSWORD)
+    current = db_client.get(
+        f"/api/v1/advertiser/measurement-runs/{run['id']}/report-issuances", headers=headers
+    )
+    assert current.status_code == 200, current.text
+    assert current.json()["id"] == identity
+    report = db_client.get(f"/api/v1/advertiser/campaigns/{campaign.id}/report", headers=headers)
+    assert report.status_code == 200, report.text
+    assert report.json()["report_issuance_id"] == identity
+    for format in ("csv", "pdf"):
+        download = db_client.post(
+            f"/api/v1/advertiser/report-issuances/{identity}/artifacts/{format}/download",
+            json={"reason": "Download the unchanged issued file"},
+            headers=headers,
+        )
+        assert download.status_code == 200, download.text
+        content = next(value for key, value in frozen.items() if key.endswith("." + format))
+        assert download.json()["checksum_sha256"] == hashlib.sha256(content).hexdigest()
+    assert report_storage.contents == frozen

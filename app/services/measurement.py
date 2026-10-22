@@ -29,13 +29,12 @@ from app.schemas.measurement import MeasurementRunCreate, MeasurementRunRead
 from app.services.audit import create_audit_event
 from app.services.campaign_assignments import activation_snapshot_digest
 from app.services.disclosure import (
-    _approved_reference,
     lock_trip_disclosure_snapshot,
     trip_cohort_meets_disclosure_floor,
 )
 from app.services.heatmaps import (
-    AUTHORITATIVE_AUDIENCE_CELL_FORMULA_VERSION,
-    authoritative_audience_trip_cell_counts,
+    REPORT_AREA_CELL_FORMULA_VERSION,
+    report_area_trip_cell_counts,
 )
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock
 from app.services.report_cohorts import economic_ledger_amount, select_report_cohort
@@ -63,12 +62,6 @@ DENSITY_PARAMETER_CALIBRATION = (
     "applied."
 )
 SUPPRESSED_TOTAL_LABEL = "Not enough data"
-ROI_METHOD_LIMITATIONS = (
-    "Return on investment is computed from advertiser-supplied conversion and revenue inputs "
-    "that Cardvert does not verify. It is not causal lift, incremental value, verified "
-    "exposure, or attribution of a person to an advert, and modelled potential contacts are "
-    "never one of its inputs."
-)
 
 # A cohort trip only enters the completeness denominator once its session is
 # terminal; a trip still running at the period boundary is disclosed separately
@@ -306,46 +299,12 @@ def calculate_measurement_result(input_manifest: dict[str, Any]) -> dict[str, An
     result: dict[str, Any] = {
         "schema_version": "measurement-result-v1",
         "title": "Campaign Performance Analysis",
-        "mode": input_manifest["mode"],
         "formula_version": input_manifest["formula_version"],
         "method_revision": input_manifest["method_revision"],
         "period": input_manifest["period"],
         "metrics": metrics,
         "proof_manifest_sha256": input_manifest["proof_manifest_sha256"],
-        "roi": None,
-        "roi_gate": {"decision": "OMIT"},
     }
-    roi = input_manifest.get("roi")
-    if input_manifest["mode"] == "roi_enabled" and roi is not None:
-        revenue = _decimal(roi["attributed_revenue"])
-        cost = _decimal(roi["approved_cost_basis"])
-        ratio = (revenue - cost) / cost
-        method = roi["method"]
-        result["roi"] = {
-            "label": "Return on investment",
-            "class": "conditional_financial_measure",
-            "ratio": str(ratio),
-            "percent": str(ratio * 100),
-            "currency": roi["currency"],
-            "method_revision": method["revision"],
-            "method": {
-                "approval_reference": method["approval_reference"],
-                "attribution_rule": method["attribution_rule"],
-                "attribution_window": method["attribution_window"],
-                "cost_basis": method["cost_basis"],
-                "exclusions": method["exclusions"],
-                "corrections": method["corrections"],
-                "late_data": method["late_data"],
-                "limitations": ROI_METHOD_LIMITATIONS,
-            },
-            "provenance": {
-                "conversion_provenance": roi["conversion_provenance"],
-                "revenue_provenance": roi["revenue_provenance"],
-                "reporting_cutoff": roi["reporting_cutoff"],
-                "synthetic": bool(roi["synthetic"]),
-            },
-        }
-        result["roi_gate"] = {"decision": "INCLUDE", "test_only": input_manifest["test_only"]}
     return result
 
 
@@ -373,46 +332,6 @@ def measurement_run_reproducible(run: MeasurementRun) -> bool:
     )
 
 
-def _validate_issuance(payload: MeasurementRunCreate, settings: Settings) -> None:
-    if payload.mode == "roi_enabled":
-        roi = payload.roi
-        if roi is None:
-            raise AppError(
-                "ROI_PREREQUISITES_REQUIRED",
-                "ROI-enabled runs require every approved input and method prerequisite",
-                status_code=status.HTTP_409_CONFLICT,
-            )
-        if payload.test_only:
-            if settings.environment.lower() not in {
-                "local",
-                "test",
-                "testing",
-                "development",
-                "dev",
-            }:
-                raise AppError(
-                    "ROI_PREREQUISITES_REQUIRED",
-                    "Synthetic ROI inputs are limited to local and test environments",
-                    status_code=status.HTTP_409_CONFLICT,
-                )
-            if not roi.synthetic or roi.method.approval_reference != "SYNTHETIC_TEST_ONLY":
-                raise AppError(
-                    "ROI_PREREQUISITES_REQUIRED",
-                    "Synthetic ROI runs require explicitly synthetic inputs and approval",
-                    status_code=status.HTTP_409_CONFLICT,
-                )
-        elif (
-            roi.synthetic
-            or not _approved_reference(settings.measurement_roi_method_reference)
-            or roi.method.approval_reference != settings.measurement_roi_method_reference
-        ):
-            raise AppError(
-                "ROI_PREREQUISITES_REQUIRED",
-                "ROI-enabled runs require the configured approved method reference",
-                status_code=status.HTTP_409_CONFLICT,
-            )
-
-
 async def _lock_request(session: AsyncSession, actor_id: UUID, request_id: UUID) -> None:
     digest = hashlib.sha256(f"measurement-run:{actor_id}:{request_id}".encode()).digest()[:8]
     await session.execute(
@@ -421,7 +340,7 @@ async def _lock_request(session: AsyncSession, actor_id: UUID, request_id: UUID)
     )
 
 
-async def _audience_exposure_authority(
+async def _report_area_authority(
     session: AsyncSession,
     *,
     campaign_id: UUID,
@@ -445,7 +364,7 @@ async def _audience_exposure_authority(
             ).all()
         )
         for zone_id in zone_ids:
-            zone_rows = await authoritative_audience_trip_cell_counts(
+            zone_rows = await report_area_trip_cell_counts(
                 session,
                 trip_ids=trip_ids,
                 zone_id=zone_id,
@@ -467,8 +386,8 @@ async def _audience_exposure_authority(
                 for row in zone_rows
             )
     return {
-        "schema_version": "audience-exposure-authority-v1",
-        "formula_version": AUTHORITATIVE_AUDIENCE_CELL_FORMULA_VERSION,
+        "schema_version": "report-area-authority-v1",
+        "formula_version": REPORT_AREA_CELL_FORMULA_VERSION,
         "resolution_m": resolution_m,
         "window_start_at": _json_value(window_start_at),
         "window_end_at": _json_value(window_end_at),
@@ -572,7 +491,6 @@ async def issue_measurement_run(  # noqa: C901
     from app.services.report_authorization import require_report_operator
 
     await require_report_operator(session, actor_user_id)
-    _validate_issuance(payload, settings)
     await _lock_request(session, actor_user_id, payload.client_request_id)
     request_body = payload.model_dump(mode="json", exclude={"client_request_id"})
     request_fingerprint = canonical_sha256(request_body)
@@ -627,7 +545,7 @@ async def issue_measurement_run(  # noqa: C901
         {row.trip_session_id for row in analytics_rows if row.status == "computed"},
         key=str,
     )
-    audience_exposure_authority = await _audience_exposure_authority(
+    report_area_authority = await _report_area_authority(
         session,
         campaign_id=campaign.id,
         trip_ids=measured_trip_ids,
@@ -761,7 +679,6 @@ async def issue_measurement_run(  # noqa: C901
         "schema_version": "measurement-input-manifest-v2",
         "campaign_id": str(campaign.id),
         "organization_id": str(campaign.organization_id),
-        "mode": payload.mode.value,
         "test_only": payload.test_only,
         "formula_version": MEASUREMENT_FORMULA_VERSION,
         "method_revision": method_revision,
@@ -770,7 +687,7 @@ async def issue_measurement_run(  # noqa: C901
             "end_at": _json_value(payload.period_end_at),
         },
         "proof_manifest_sha256": proof_sha,
-        "audience_exposure_authority": audience_exposure_authority,
+        "report_area_authority": report_area_authority,
         "cohort": cohort_manifest,
         "sources": {
             "trip_analytics": analytics_sources,
@@ -778,7 +695,6 @@ async def issue_measurement_run(  # noqa: C901
             "payout_calculations": payout_sources,
             "earnings_ledger_entries": ledger_sources,
         },
-        "roi": _json_value(payload.roi.model_dump()) if payload.roi is not None else None,
     }
     result_manifest = calculate_measurement_result(input_manifest)
     from app.services.campaign_performance import PERFORMANCE_POLICY, performance_from_manifest
@@ -898,11 +814,9 @@ async def issue_measurement_run(  # noqa: C901
         created_by_user_id=actor_user_id,
         client_request_id=payload.client_request_id,
         request_fingerprint=request_fingerprint,
-        mode=payload.mode.value,
         test_only=payload.test_only,
         formula_version=MEASUREMENT_FORMULA_VERSION,
         method_revision=method_revision,
-        roi_method_revision=(payload.roi.method.revision if payload.roi is not None else None),
         period_start_at=payload.period_start_at,
         period_end_at=payload.period_end_at,
         input_manifest=input_manifest,
@@ -943,7 +857,6 @@ async def issue_measurement_run(  # noqa: C901
         entity_id=str(run.id),
         metadata={
             "campaign_id": str(campaign.id),
-            "mode": run.mode,
             "test_only": run.test_only,
             "reissue_of_run_id": str(run.reissue_of_run_id) if run.reissue_of_run_id else None,
             "input_manifest_sha256": run.input_manifest_sha256,
@@ -978,11 +891,9 @@ async def measurement_run_read(session: AsyncSession, run: MeasurementRun) -> Me
         campaign_id=run.campaign_id,
         created_by_user_id=run.created_by_user_id,
         client_request_id=run.client_request_id,
-        mode=run.mode,
         test_only=run.test_only,
         formula_version=run.formula_version,
         method_revision=run.method_revision,
-        roi_method_revision=run.roi_method_revision,
         period_start_at=run.period_start_at,
         period_end_at=run.period_end_at,
         input_manifest=run.input_manifest,

@@ -24,18 +24,14 @@ export async function mutationBoundary(request: NextRequest): Promise<NextRespon
     return deny(503, "BFF_ORIGIN_UNAVAILABLE", "The browser request boundary is unavailable");
   }
   const path = request.nextUrl.pathname;
-  const exportForm =
-    request.method === "POST" &&
-    /^\/api\/advertiser\/exposure-segments\/[^/]+\/export\/?$/.test(path);
   const site = request.headers.get("sec-fetch-site");
   const mode = request.headers.get("sec-fetch-mode");
   const destination = request.headers.get("sec-fetch-dest");
   if (
     request.headers.get("origin") !== origin.origin ||
     (site !== null && site !== "same-origin") ||
-    (mode !== null &&
-      !["cors", "same-origin", ...(exportForm ? ["navigate"] : [])].includes(mode)) ||
-    (destination !== null && destination !== "empty" && !(exportForm && destination === "document"))
+    (mode !== null && !["cors", "same-origin"].includes(mode)) ||
+    (destination !== null && destination !== "empty")
   )
     return deny(403, "BFF_ORIGIN_DENIED", "The browser request origin is not permitted");
 
@@ -70,10 +66,6 @@ export async function mutationBoundary(request: NextRequest): Promise<NextRespon
       } finally {
         reader?.releaseLock();
       }
-    }
-  } else if (exportForm) {
-    if (!["application/x-www-form-urlencoded", "multipart/form-data"].includes(mediaType ?? "")) {
-      return deny(415, "BFF_MEDIA_TYPE_DENIED", "This command requires an export form");
     }
   } else if (mediaType !== "application/json") {
     return deny(415, "BFF_MEDIA_TYPE_DENIED", "This command requires application/json");

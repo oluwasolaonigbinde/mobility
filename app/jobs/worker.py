@@ -27,7 +27,6 @@ from app.jobs.disbursements import (
 )
 from app.jobs.earnings_release import sweep_earnings_release_reviews
 from app.jobs.email_delivery import deliver_email, sweep_email_notifications
-from app.jobs.exposure_segments import materialize_exposure_segment_job, sweep_exposure_segments
 from app.jobs.file_lifecycle import (
     purge_expired_file_kyc,
     purge_orphaned_file_uploads,
@@ -110,11 +109,6 @@ class WorkerSettings:
         func(deliver_email, name="deliver_email", keep_result=0),
         func(process_trip, name="process_trip", keep_result=0),
         func(
-            materialize_exposure_segment_job,
-            name="materialize_exposure_segment",
-            keep_result=0,
-        ),
-        func(
             process_payment_gateway_event_job,
             name="process_payment_gateway_event",
             keep_result=0,
@@ -131,11 +125,6 @@ class WorkerSettings:
         ),
     ]
     cron_jobs: list = [
-        cron(
-            sweep_exposure_segments,
-            minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
-            unique=True,
-        ),
         cron(sweep_business_health, minute=sweep_cron_minutes(5), unique=True),
         cron(
             process_unprocessed_trips,

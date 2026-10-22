@@ -12,7 +12,7 @@ import random
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time, timedelta
 from decimal import Decimal
-from typing import Any, Literal, cast
+from typing import Any, cast
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from sqlalchemy import func, select
@@ -2113,7 +2113,7 @@ async def ensure_portal_reports(session, *, graph, settings):
             period_start = campaign.start_at
             period_end = min(utc_now(), campaign.end_at)
             if campaign.status != "completed":
-                # Live audience exports require aligned whole UTC hours.
+                # Keep the seeded report period aligned to whole hours.
                 aligned_start = period_start.replace(minute=0, second=0, microsecond=0)
                 period_start = aligned_start + timedelta(hours=period_start != aligned_start)
                 period_end = period_end.replace(minute=0, second=0, microsecond=0)
@@ -2137,124 +2137,6 @@ async def ensure_portal_reports(session, *, graph, settings):
             settings=settings,
             admin=True,
         )
-
-
-async def ensure_portal_audiences(session, *, graph, settings):
-    from app.models.measurement import MeasurementRun
-    from app.models.retargeting_source_link import RetargetingSourceLink
-    from app.schemas.retargeting_source_links import RetargetingSourceLinkCreate
-    from app.schemas.retargeting_sources import ManualInsightSourceCreate
-    from app.services.audience import (
-        create_retargeting_source,
-        create_retargeting_source_link,
-        materialize_exposure_segment,
-    )
-    from app.services.audience_delivery import export_exposure_segment
-
-    for campaign in (graph.campaign, graph.rich.campaigns[0]):
-        run = await session.scalar(
-            select(MeasurementRun)
-            .where(MeasurementRun.campaign_id == campaign.id)
-            .order_by(MeasurementRun.created_at.desc())
-            .limit(1)
-        )
-        if run is None:
-            continue
-        zone = await session.scalar(
-            select(CampaignZone).where(
-                CampaignZone.campaign_id == campaign.id, CampaignZone.zone_type == "target"
-            )
-        )
-        insights: tuple[
-            tuple[
-                Literal["area-demand", "time-pattern", "contextual-affinity"],
-                Literal["low", "medium", "high"],
-            ],
-            ...,
-        ] = (
-            ("area-demand", "high"),
-            ("time-pattern", "medium"),
-            ("contextual-affinity", "low"),
-        )
-        for category, confidence in insights:
-            source = await create_retargeting_source(
-                session,
-                settings=settings,
-                actor_user_id=campaign.created_by_user_id,
-                idempotency_key=f"cardvert-preview:audience:{campaign.id}:{category}",
-                payload=ManualInsightSourceCreate(
-                    source_type="manual-insight",
-                    provenance="advertiser-declared",
-                    lawful_basis_reference="candidate-legitimate-interest",
-                    lawful_basis_status="unapproved",
-                    consent_disclaimer_status="not-reviewed",
-                    expires_at=campaign.end_at,
-                    dsr_owner_role="compliance-owner",
-                    dsr_status="pending",
-                    insight_category=category,
-                    confidence_band=confidence,
-                ),
-            )
-            existing = await session.scalar(
-                select(RetargetingSourceLink).where(
-                    RetargetingSourceLink.source_id == source.id,
-                    RetargetingSourceLink.campaign_id == campaign.id,
-                )
-            )
-            link = existing or await create_retargeting_source_link(
-                session,
-                settings=settings,
-                actor_user_id=campaign.created_by_user_id,
-                idempotency_key=f"cardvert-preview:link:{campaign.id}:{category}",
-                payload=RetargetingSourceLinkCreate(
-                    source_id=source.id,
-                    campaign_id=campaign.id,
-                    zone_id=zone.id,
-                    start_at=run.period_start_at,
-                    end_at=run.period_end_at,
-                ),
-            )
-            segment = await materialize_exposure_segment(
-                session, settings=settings, source_link_id=link.id, measurement_run_id=run.id
-            )
-            if category == "area-demand" and segment.releasable_cell_count > 0:
-                await export_exposure_segment(
-                    session,
-                    settings=settings,
-                    actor_user_id=campaign.created_by_user_id,
-                    segment_id=segment.id,
-                    idempotency_key=f"cardvert-preview:aggregate-export:{campaign.id}",
-                )
-    from app.schemas.retargeting_sources import WebsiteTrafficSourceCreate
-    from app.services.audience import deactivate_retargeting_source
-
-    for category in ("site-visitor", "content-interest"):
-        source = await create_retargeting_source(
-            session,
-            settings=settings,
-            actor_user_id=graph.advertiser.id,
-            idempotency_key=f"cardvert-preview:website:{category}",
-            payload=WebsiteTrafficSourceCreate(
-                source_type="website-traffic",
-                provenance="advertiser-declared",
-                lawful_basis_reference="candidate-consent",
-                lawful_basis_status="unapproved",
-                consent_disclaimer_status="not-reviewed",
-                expires_at=graph.campaign.end_at,
-                dsr_owner_role="privacy-officer",
-                dsr_status="pending",
-                audience_category=category,
-                aggregation_window_days=30,
-            ),
-        )
-        if category == "content-interest":
-            await deactivate_retargeting_source(
-                session,
-                settings=settings,
-                actor_user_id=graph.advertiser.id,
-                source_id=source.id,
-                idempotency_key="cardvert-preview:website:deactivate",
-            )
 
 
 async def _prepare_portal_earnings(session, entries, settings):

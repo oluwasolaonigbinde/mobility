@@ -433,7 +433,7 @@ continuous stop adds no distance (D39b, D43d).
 
 ### Driver pay
 
-**Current rule:** D111 removes publishing switch, fixes proportional in-area daily pay and identical eligibility values, daily automatic cadence with no run limit under Pause. D112 allows one admin with reasons/audit for manual batches/corrections; stale/add-only/new-bank/hold/provider checks stay. D113 replaces automatic debt with manual negative adjustments. Owner-approved 20 October 2026, REQ-210–218. B6 built in `4dcad44b`; B7 locally verified with money checkpoint PASS; final integrated review/merge pending.
+**Current rule:** D111 removes publishing switch, fixes proportional in-area daily pay and identical eligibility values, daily automatic cadence with no run limit under Pause. D112 allows one admin with reasons/audit for manual batches/corrections; stale/add-only/new-bank/hold/provider checks stay. D113 replaces automatic debt with manual negative adjustments. Owner-approved 20 October 2026, REQ-210–218. B6 built in `4dcad44b`; B7 built locally in `79ce736` with money checkpoint PASS; final integrated review/merge pending.
 
 **Previous rule (ended 20 October 2026; retained history):** A driver earns a **daily rate of ₦10,000** for covering the
 **expected daily miles** (70 in the pilot). A shorter day pays **its share of
@@ -460,7 +460,7 @@ of days on hold. Paid money is never counted as on hold (REQ-208).
 
 ### Payout approval and timing
 
-**Current rule:** D111 fixes daily automatic payouts under Pause, clean earnings only, first new-bank payout human. D112 permits same admin for manual preparation/approval/reconciliation and corrections with reasons/audit and stale checks. D113 removes debt carry-forward; manual negative adjustments are audited. Owner-approved 20 October 2026, REQ-210–218. B6 built in `4dcad44b`; B7 locally verified with money checkpoint PASS; final integrated review/merge pending.
+**Current rule:** D111 fixes daily automatic payouts under Pause, clean earnings only, first new-bank payout human. D112 permits same admin for manual preparation/approval/reconciliation and corrections with reasons/audit and stale checks. D113 removes debt carry-forward; manual negative adjustments are audited. Owner-approved 20 October 2026, REQ-210–218. B6 built in `4dcad44b`; B7 built locally in `79ce736` with money checkpoint PASS; final integrated review/merge pending.
 
 **Previous rule (ended 20 October 2026; retained history):** Drivers are paid by **automatic bank transfer** through an
 approved provider (Q27; Paystack Transfers funded from OPay, client answers
@@ -597,7 +597,7 @@ recommendations and the existing conditional ROI authority.
 
 ### Retargeting and ad platforms
 
-**Current rule:** D115 removes pilot retargeting/audience export, sources/links, screens, services, job, ad adapter, audience privacy cells and ROI mode. Owner approved removal 20 October; Git retains old code. Reports work without recommendations. Owner-approved 20 October 2026, REQ-210–218; implementation pending.
+**Current rule:** D115 removes pilot retargeting/audience export, sources/links, screens, services, job, ad adapter, audience privacy cells and ROI mode. Owner approved removal 20 October; Git retains old code. Reports work without recommendations. Owner-approved 20 October 2026, REQ-214; implemented locally with the B2 privacy checkpoint PASS. Issued files retain their exact bytes and authorized downloads. Final integrated review and merge pending.
 
 **Previous rule (ended 20 October 2026; retained history):** Retargeting uses anonymised exposure segments, controlled
 export and optional Meta/Google targeting by area, time and context — never

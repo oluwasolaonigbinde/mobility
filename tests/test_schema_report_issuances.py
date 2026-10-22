@@ -32,7 +32,7 @@ def test_report_frozen_authority_artifacts_are_guarded(
                         "requested_by_user_id, client_request_id, request_fingerprint, version, "
                         "snapshot, snapshot_sha256, authority_fingerprint, input_manifest_sha256, "
                         "result_manifest_sha256, proof_manifest_sha256, report_snapshot_sha256, "
-                        "schema_version, renderer_version, method_revision, roi_decision, "
+                        "schema_version, renderer_version, method_revision, "
                         "synthetic, "
                         "status, worker_attempts) VALUES "
                         "('71000000-0000-0000-0000-000000000001', "
@@ -44,7 +44,7 @@ def test_report_frozen_authority_artifacts_are_guarded(
                         "'{}'::jsonb, repeat('b', 64), repeat('c', 64), repeat('d', 64), "
                         "repeat('e', 64), repeat('f', 64), repeat('1', 64), "
                         "'campaign-performance-export-v1', 'campaign-report-renderer-v1', "
-                        "'measurement-contract-v1', 'OMIT', true, 'queued', 0)"
+                        "'measurement-contract-v1', true, 'queued', 0)"
                     )
                 )
                 await connection.execute(

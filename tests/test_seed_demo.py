@@ -1685,7 +1685,6 @@ def test_seed_business_ownership_and_applicant_financial_separation(
     )
     from app.models.disbursement import PayoutAutomaticAlert, PayoutBatch, PayoutBatchLine
     from app.models.driver_application import DriverApplication, DriverApplicationAccessToken
-    from app.models.exposure_segment import ExposureSegment
     from app.models.installation_evidence import (
         InstallationEvidencePhoto,
         InstallationEvidenceSubmission,
@@ -1700,8 +1699,6 @@ def test_seed_business_ownership_and_applicant_financial_separation(
         PayeeBankAccountVersion,
     )
     from app.models.report_issuance import ReportIssuance
-    from app.models.retargeting_source import RetargetingSource
-    from app.models.retargeting_source_link import RetargetingSourceLink
     from app.models.stored_file import StoredFile
 
     monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
@@ -1788,13 +1785,6 @@ def test_seed_business_ownership_and_applicant_financial_separation(
                 stored = await session.get(StoredFile, creative.stored_file_id)
                 assert stored.organization_id == campaign.organization_id
                 assert stored.uploader_user_id == campaign.created_by_user_id
-            for link in await session.scalars(select(RetargetingSourceLink)):
-                campaign = await session.get(Campaign, link.campaign_id)
-                source = await session.get(RetargetingSource, link.source_id)
-                assert source.organization_id == link.organization_id == campaign.organization_id
-            for segment in await session.scalars(select(ExposureSegment)):
-                campaign = await session.get(Campaign, segment.campaign_id)
-                assert segment.organization_id == campaign.organization_id
             applicant_ids = list(await session.scalars(select(DriverApplication.driver_profile_id)))
             for model in (
                 EarningsLedgerEntry,
@@ -1995,7 +1985,8 @@ def test_seed_business_ownership_and_applicant_financial_separation(
                     unread_by_driver[row.recipient_user_id] = (
                         unread_by_driver.get(row.recipient_user_id, 0) + 1
                     )
-            assert unread_by_driver.get(graph.driver.id) == 3
+            # The removed photo challenge no longer creates a third preview notice.
+            assert unread_by_driver.get(graph.driver.id) == 2
             assert max(unread_by_driver.values()) < 10
             assert sum(row.read_at is not None for row in driver_notices) > 10
             for zone in await session.scalars(select(CampaignZone)):
@@ -2138,7 +2129,8 @@ def test_demo_seed_is_idempotent_with_postgis(
     assert 0 < second_rich["ledger"] <= second_rich["trips"]
     assert second_rich["audit_events"] == 21
     assert len(second_rich["flag_types"]) >= 5
-    assert second_rich["severities"] == {"low", "medium", "high"}
+    # Quality-only low flags were removed; the seeded pay-changing flags remain.
+    assert second_rich["severities"] == {"medium", "high"}
     assert 10 <= second_rich["fraud_flags"] <= 20
     assert fetch_lifecycle_violation_count(postgis_db_sessionmaker) == 0
 

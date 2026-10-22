@@ -17,20 +17,18 @@ def test_removed_display_and_collection_switches_have_no_replacement() -> None:
     assert removed.isdisjoint(Settings.model_fields)
 
 
-def test_default_aggregation_supports_navigation_frozen_reports_maps_and_export(
+def test_default_aggregation_supports_navigation_frozen_reports_and_maps(
     postgis_db_client,
     postgis_db_sessionmaker,
 ):
     import asyncio
-    from datetime import UTC, datetime, timedelta
-    from uuid import UUID, uuid4
+    from datetime import timedelta
 
     from conftest import auth_headers, create_test_installation_evidence
     from sqlalchemy import select
     from test_advertiser_reports import create_report_graph
     from test_heatmaps import add_ping_batch
     from test_measurement_runs import DAY_1, PASSWORD, create_measurement_graph, issue_payload
-    from test_retargeting_source_links import source_payload
 
     from app.core.config import get_settings
     from app.models.campaign import CampaignCreative
@@ -39,7 +37,6 @@ def test_default_aggregation_supports_navigation_frozen_reports_maps_and_export(
     from app.models.disclosure import DisclosureQueryDecision
     from app.models.installation_evidence import InstallationEvidenceSubmission
     from app.models.trip import TripSession
-    from app.services.audience import materialize_exposure_segment
     from app.services.campaign_assignments import activation_snapshot_digest
 
     baseline = Settings(environment="test")
@@ -152,54 +149,11 @@ def test_default_aggregation_supports_navigation_frozen_reports_maps_and_export(
     assert heatmap.status_code == 200, heatmap.text
     assert len(heatmap.json()["features"]) == 1
     assert heatmap.json()["features"][0]["properties"]["trip_count"] == 13
-    source = postgis_db_client.post(
-        "/api/v1/advertiser/retargeting-sources",
-        headers=headers | {"Idempotency-Key": str(uuid4())},
-        json=source_payload(datetime.now(UTC) + timedelta(days=365)),
-    )
-    assert source.status_code == 201, source.text
-    link = postgis_db_client.post(
-        "/api/v1/advertiser/retargeting-source-links",
-        headers=headers | {"Idempotency-Key": str(uuid4())},
-        json={
-            "source_id": source.json()["id"],
-            "campaign_id": str(campaign.id),
-            "zone_id": str(zone_id),
-            "start_at": dates["start_at"],
-            "end_at": dates["end_at"],
-        },
-    )
-    assert link.status_code == 201, link.text
-
-    async def segment():
-        async with postgis_db_sessionmaker() as session:
-            segment = await materialize_exposure_segment(
-                session,
-                settings=baseline,
-                source_link_id=UUID(link.json()["id"]),
-                measurement_run_id=UUID(run.json()["id"]),
-            )
-            await session.commit()
-            return segment.id
-
-    segment_id = asyncio.run(segment())
-    exported = postgis_db_client.post(
-        f"/api/v1/advertiser/exposure-segments/{segment_id}/exports",
-        headers=headers | {"Idempotency-Key": str(uuid4())},
-        json={},
-    )
-    assert exported.status_code == 201, exported.text
-    rejected = postgis_db_client.post(
-        f"/api/v1/advertiser/exposure-segments/{segment_id}/exports",
-        headers=headers | {"Idempotency-Key": str(uuid4())},
-        json={"driver_id": str(uuid4())},
-    )
-    assert rejected.status_code == 422
 
     async def history():
         async with postgis_db_sessionmaker() as session:
             return list(await session.scalars(select(DisclosureQueryDecision)))
 
     records = asyncio.run(history())
-    assert len(records) >= 7
+    assert len(records) >= 6
     assert all(row.decision == "served" for row in records)

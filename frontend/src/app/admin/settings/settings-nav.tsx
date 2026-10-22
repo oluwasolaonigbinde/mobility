@@ -11,7 +11,6 @@ export function SettingsNav() {
       items={[
         ["staff", "Staff logins"],
         ["reach", "Reach estimates"],
-        ["audiences", "Retargeting audiences"],
         ["activity", "Activity log"],
         ["support-tools", "Support tools"],
       ].map(([path, label]) => ({

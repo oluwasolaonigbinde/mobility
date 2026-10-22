@@ -62,10 +62,6 @@ class ReportIssuance(Base):
             name="ck_report_issuances_status",
         ),
         CheckConstraint(
-            "roi_decision IN ('OMIT', 'INCLUDE')",
-            name="ck_report_issuances_roi_decision",
-        ),
-        CheckConstraint(
             "length(request_fingerprint) = 64 AND length(snapshot_sha256) = 64 "
             "AND length(authority_fingerprint) = 64 "
             "AND length(input_manifest_sha256) = 64 "
@@ -151,7 +147,6 @@ class ReportIssuance(Base):
     schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
     renderer_version: Mapped[str] = mapped_column(String(64), nullable=False)
     method_revision: Mapped[str] = mapped_column(String(255), nullable=False)
-    roi_decision: Mapped[str] = mapped_column(String(16), nullable=False)
     synthetic: Mapped[bool] = mapped_column(nullable=False)
     status: Mapped[str] = mapped_column(
         String(16), default=ReportIssuanceStatus.QUEUED, server_default="queued", nullable=False

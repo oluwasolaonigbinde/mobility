@@ -19,10 +19,9 @@ from app.adapters.storage import (
     StorageUnavailable,
     StorageWriteUncertain,
 )
-from app.core.config import LOCAL_ENVIRONMENTS, Settings
+from app.core.config import Settings
 from app.core.errors import AppError
 from app.models.campaign import Campaign
-from app.models.campaign_zone import CampaignZone
 from app.models.exposure_score import ExposureScore
 from app.models.measurement import MeasurementRun
 from app.models.organization import (
@@ -41,8 +40,6 @@ from app.models.report_issuance import (
     ReportPublicationState,
     ReportPublicationWrite,
 )
-from app.models.retargeting_source import RetargetingSource
-from app.models.retargeting_source_link import RetargetingSourceLink
 from app.models.stored_file import FilePurpose, FileScanStatus, StoredFile
 from app.models.user import User, UserRole, UserStatus
 from app.schemas.measurement import MeasurementResultRead
@@ -68,8 +65,8 @@ from app.services.report_rendering import (
 )
 from app.services.stored_files import _issue_download
 
-REPORT_SCHEMA_VERSION = "campaign-performance-export-v4"
-REPORT_RENDERER_VERSION = "campaign-report-renderer-v1"
+REPORT_SCHEMA_VERSION = "campaign-performance-export-v5"
+REPORT_RENDERER_VERSION = "campaign-report-renderer-v2"
 REPORT_LEASE_SECONDS = 120
 REPORT_MAX_ATTEMPTS = 3
 logger = logging.getLogger(__name__)
@@ -110,44 +107,13 @@ def _not_found() -> AppError:
     )
 
 
-def _approved_reference(value: str) -> bool:
-    return value.strip().lower() not in {"", "missing", "todo", "tbd", "placeholder", "n/a", "none"}
-
-
 def _authority_document(run: MeasurementRun, settings: Settings) -> dict[str, object]:
-    result = MeasurementResultRead.model_validate(run.result_manifest)
-    if result.roi_gate.decision == "INCLUDE":
-        roi_input = run.input_manifest.get("roi")
-        method = roi_input.get("method") if isinstance(roi_input, dict) else None
-        approval_reference = method.get("approval_reference") if isinstance(method, dict) else None
-        if run.test_only:
-            if (
-                settings.environment.lower() not in LOCAL_ENVIRONMENTS
-                or approval_reference != "SYNTHETIC_TEST_ONLY"
-            ):
-                raise _error(
-                    "REPORT_ROI_AUTHORITY_INVALID",
-                    "The frozen financial result has no valid synthetic approval authority",
-                    status.HTTP_409_CONFLICT,
-                )
-        elif (
-            not _approved_reference(settings.measurement_roi_method_reference)
-            or approval_reference != settings.measurement_roi_method_reference
-        ):
-            raise _error(
-                "REPORT_ROI_AUTHORITY_INVALID",
-                "The frozen financial result no longer matches approved authority",
-                status.HTTP_503_SERVICE_UNAVAILABLE,
-            )
     return {
         "schema_version": "report-issuance-authority-v1",
-        "mode": "measurement",
         "run_id": str(run.id),
         "run_method_revision": run.method_revision,
-        "run_roi_method_revision": run.roi_method_revision,
         "privacy_min_vehicles_per_cell": settings.privacy_min_vehicles_per_cell,
         "privacy_min_resolution_m": settings.privacy_min_resolution_m,
-        "measurement_roi_method_reference": settings.measurement_roi_method_reference,
     }
 
 
@@ -165,24 +131,6 @@ def _validate_frozen_run(run: MeasurementRun) -> MeasurementResultRead:
             "The frozen measurement result has an unsupported report identity",
             status.HTTP_409_CONFLICT,
         )
-    if run.mode == "performance_only":
-        valid = (
-            result.roi is None
-            and result.roi_gate.decision == "OMIT"
-            and run.roi_method_revision is None
-        )
-    else:
-        valid = (
-            result.roi is not None
-            and result.roi_gate.decision == "INCLUDE"
-            and run.roi_method_revision == result.roi.method_revision
-        )
-    if not valid:
-        raise _error(
-            "REPORT_ROI_DECISION_INCONSISTENT",
-            "The frozen report and financial-result decision do not agree",
-            status.HTTP_409_CONFLICT,
-        )
     return result
 
 
@@ -193,22 +141,7 @@ async def _authorize_scope(
     organization_id: UUID,
     campaign_id: UUID,
     write: bool,
-    lock_audience: bool = False,
 ) -> User:
-    # Source writers take Source before Campaign and then insert actor-bound audit
-    # evidence. Acquire Source before User as well, so their audit FK cannot wait
-    # on a User lock held by a report which is itself waiting on Source.
-    sources = []
-    if lock_audience:
-        sources = list(
-            await session.scalars(
-                select(RetargetingSource)
-                .where(RetargetingSource.organization_id == organization_id)
-                .order_by(RetargetingSource.id)
-                .with_for_update()
-                .execution_options(populate_existing=True)
-            )
-        )
     user = await session.scalar(
         select(User)
         .where(User.id == actor_user_id)
@@ -239,29 +172,6 @@ async def _authorize_scope(
         or campaign is None
     ):
         raise _not_found()
-    if lock_audience:
-        await session.scalars(
-            select(CampaignZone)
-            .where(CampaignZone.campaign_id == campaign_id)
-            .order_by(CampaignZone.id)
-            .with_for_update()
-            .execution_options(populate_existing=True)
-        )
-        links = list(
-            await session.scalars(
-                select(RetargetingSourceLink)
-                .where(RetargetingSourceLink.campaign_id == campaign_id)
-                .order_by(RetargetingSourceLink.id)
-                .with_for_update()
-                .execution_options(populate_existing=True)
-            )
-        )
-        if any(link.source_id not in {source.id for source in sources} for link in links):
-            raise _error(
-                "REPORT_AUDIENCE_CHANGED",
-                "Linked-source authority changed; retry report issuance",
-                status.HTTP_409_CONFLICT,
-            )
     if user.role == UserRole.ADMIN:
         return user
     if user.role != UserRole.ADVERTISER:
@@ -303,7 +213,6 @@ async def _compose_snapshot(
     admin: bool,
 ) -> dict[str, object]:
     from app.schemas.reports import CampaignPerformanceRead
-    from app.services.audience_delivery import frozen_recommendations_for_run
     from app.services.campaign_performance import PERFORMANCE_POLICY
     from app.services.exposure_scores import exposure_score_is_stale
     from app.services.report_authorization import REPORT_ACTOR_ID
@@ -312,14 +221,6 @@ async def _compose_snapshot(
     if "performance" not in run.report_snapshot:
         raise _error("REPORT_RECALCULATION_REQUIRED", "Prepare a new campaign report", 409)
     performance = CampaignPerformanceRead.model_validate(run.report_snapshot["performance"])
-    recommendations = await frozen_recommendations_for_run(
-        session,
-        settings=settings,
-        actor_user_id=actor_user_id,
-        run=run,
-        admin=admin,
-        commit_served=False,
-    )
     score = await session.scalar(
         select(ExposureScore)
         .where(ExposureScore.measurement_run_id == run.id)
@@ -412,24 +313,11 @@ async def _compose_snapshot(
             "formula_version": PERFORMANCE_POLICY,
             "formula_fingerprint": canonical_sha256({"policy": PERFORMANCE_POLICY}),
             "input_fingerprint": run.input_manifest_sha256,
-            "segment_snapshot_hashes": [],
             "disclaimer": performance.uncertainty,
             "uncertainty": performance.uncertainty,
             "authority_fingerprint": authority_fingerprint,
         },
-        "linked_source_recommendations": recommendations,
     }
-    if result.roi_gate.decision == "INCLUDE" and result.roi is not None:
-        snapshot["financial_result"] = {
-            "label": result.roi.label,
-            "class": result.roi.metric_class,
-            "ratio": result.roi.ratio,
-            "percent": result.roi.percent,
-            "currency": result.roi.currency,
-            "method_revision": result.roi.method_revision,
-            "method": result.roi.method.model_dump(),
-            "provenance": result.roi.provenance.model_dump(),
-        }
     return snapshot
 
 
@@ -452,7 +340,6 @@ async def request_report_issuance(
         organization_id=run.organization_id,
         campaign_id=run.campaign_id,
         write=True,
-        lock_audience=True,
     )
     await _lock_key(session, f"report-request:{actor_user_id}:{payload.client_request_id}")
     replay = await session.scalar(
@@ -536,7 +423,6 @@ async def request_report_issuance(
                 status.HTTP_409_CONFLICT,
             )
         version = parent.version + 1
-    result = MeasurementResultRead.model_validate(run.result_manifest)
     issuance = ReportIssuance(
         organization_id=run.organization_id,
         campaign_id=run.campaign_id,
@@ -556,7 +442,6 @@ async def request_report_issuance(
         schema_version=REPORT_SCHEMA_VERSION,
         renderer_version=REPORT_RENDERER_VERSION,
         method_revision=run.method_revision,
-        roi_decision=result.roi_gate.decision,
         synthetic=run.test_only,
         status=ReportIssuanceStatus.QUEUED,
     )
@@ -625,6 +510,35 @@ async def report_issuance_read(
     )
 
 
+def _issued_snapshot_is_intact(issuance: ReportIssuance, run: MeasurementRun) -> bool:
+    if canonical_sha256(issuance.snapshot) != issuance.snapshot_sha256:
+        return False
+    return all(
+        digest == bound_digest and canonical_sha256(value) == digest
+        for value, digest, bound_digest in (
+            (run.input_manifest, run.input_manifest_sha256, issuance.input_manifest_sha256),
+            (run.result_manifest, run.result_manifest_sha256, issuance.result_manifest_sha256),
+            (run.proof_manifest, run.proof_manifest_sha256, issuance.proof_manifest_sha256),
+            (run.report_snapshot, run.report_snapshot_sha256, issuance.report_snapshot_sha256),
+        )
+    )
+
+
+def _issuance_authority_matches(
+    issuance: ReportIssuance, run: MeasurementRun, settings: Settings
+) -> bool:
+    if issuance.status == ReportIssuanceStatus.READY:
+        return _issued_snapshot_is_intact(issuance, run)
+    if not measurement_run_reproducible(run):
+        return False
+    try:
+        return (
+            canonical_sha256(_authority_document(run, settings)) == issuance.authority_fingerprint
+        )
+    except AppError:
+        return False
+
+
 async def get_report_issuance(
     session: AsyncSession,
     *,
@@ -651,13 +565,9 @@ async def get_report_issuance(
     if admin != (actor.role == UserRole.ADMIN):
         raise _not_found()
     run = await session.get(MeasurementRun, issuance.measurement_run_id)
-    if run is None or not measurement_run_reproducible(run):
+    if run is None:
         raise _not_found()
-    try:
-        authority_fingerprint = canonical_sha256(_authority_document(run, settings))
-    except AppError as exc:
-        raise _not_found() from exc
-    if authority_fingerprint != issuance.authority_fingerprint:
+    if not _issuance_authority_matches(issuance, run, settings):
         raise _not_found()
     return issuance
 
@@ -680,8 +590,6 @@ async def get_current_report_issuance(
             campaign_id=run.campaign_id,
             write=True,
         )
-        _validate_frozen_run(run)
-        _authority_document(run, settings)
     except AppError as exc:
         raise _not_found() from exc
     issuance = await session.scalar(
@@ -691,7 +599,14 @@ async def get_current_report_issuance(
         .limit(1)
     )
     if issuance is None:
+        try:
+            _validate_frozen_run(run)
+            _authority_document(run, settings)
+        except AppError as exc:
+            raise _not_found() from exc
         return None
+    if not _issuance_authority_matches(issuance, run, settings):
+        raise _not_found()
     return ReportIssuanceCurrentRead(
         id=issuance.id,
         measurement_run_id=issuance.measurement_run_id,

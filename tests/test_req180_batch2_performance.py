@@ -19,7 +19,7 @@ def manifest_for_cars(count):
         "period": {"start_at": START.isoformat(), "end_at": END.isoformat()},
         "cohort": [],
         "sources": {"trip_analytics": [], "impression_estimates": []},
-        "audience_exposure_authority": {
+        "report_area_authority": {
             "resolution_m": 500,
             "window_start_at": START.isoformat(),
             "window_end_at": END.isoformat(),
@@ -55,7 +55,7 @@ def manifest_for_cars(count):
                 },
             }
         )
-        manifest["audience_exposure_authority"]["rows"].append(
+        manifest["report_area_authority"]["rows"].append(
             {
                 "zone_id": area,
                 "trip_session_id": trip,
@@ -89,10 +89,10 @@ def test_area_contacts_allow_a_period_that_ends_mid_hour():
     manifest, labels = manifest_for_cars(3)
     cutoff = (END - timedelta(minutes=17, seconds=5)).isoformat()
     manifest["period"]["end_at"] = cutoff
-    manifest["audience_exposure_authority"]["window_end_at"] = cutoff
-    manifest["audience_exposure_authority"]["rows"][0]["cell_ping_count"] = 4
-    manifest["audience_exposure_authority"]["rows"].append(
-        {**manifest["audience_exposure_authority"]["rows"][0], "grid_x": 2, "cell_ping_count": 6}
+    manifest["report_area_authority"]["window_end_at"] = cutoff
+    manifest["report_area_authority"]["rows"][0]["cell_ping_count"] = 4
+    manifest["report_area_authority"]["rows"].append(
+        {**manifest["report_area_authority"]["rows"][0], "grid_x": 2, "cell_ping_count": 6}
     )
     result = performance_from_manifest(manifest, campaign_id=uuid4(), labels=labels)
     assert result.areas[0].modelled_potential_contacts == "90.0000"
@@ -110,7 +110,7 @@ def test_area_contacts_allow_a_period_that_ends_mid_hour():
 def test_three_car_area_is_the_only_area_rule(case, trip_count, contacts):
     # D105: no composition, coverage or residual rule withholds a three-car area.
     manifest, labels = manifest_for_cars(4 if case == "small_residual" else 3)
-    rows = manifest["audience_exposure_authority"]["rows"]
+    rows = manifest["report_area_authority"]["rows"]
     if case == "missing_estimate":
         estimate = manifest["sources"]["impression_estimates"].pop()
         manifest["sources"]["impression_estimates"].append({**estimate, "status": "failed"})
@@ -134,7 +134,7 @@ def test_three_car_area_is_the_only_area_rule(case, trip_count, contacts):
 
 def test_a_two_car_area_is_withheld_while_a_three_car_area_is_shown():
     manifest, labels = manifest_for_cars(5)
-    rows = manifest["audience_exposure_authority"]["rows"]
+    rows = manifest["report_area_authority"]["rows"]
     small = str(uuid4())
     labels[small] = "Small area"
     for row in rows[3:]:
@@ -147,7 +147,7 @@ def test_three_trips_from_two_cars_do_not_release_an_area():
     manifest, labels = manifest_for_cars(3)
     first = manifest["sources"]["trip_analytics"][0]["vehicle_id"]
     manifest["sources"]["trip_analytics"][2]["vehicle_id"] = first
-    manifest["audience_exposure_authority"]["rows"][2]["vehicle_id"] = first
+    manifest["report_area_authority"]["rows"][2]["vehicle_id"] = first
     result = performance_from_manifest(manifest, campaign_id=uuid4(), labels=labels)
     assert result.totals.trip_count == 3
     assert result.areas == []
@@ -155,7 +155,7 @@ def test_three_trips_from_two_cars_do_not_release_an_area():
 
 def test_inconsistent_area_authority_still_fails_closed():
     manifest, labels = manifest_for_cars(3)
-    rows = manifest["audience_exposure_authority"]["rows"]
+    rows = manifest["report_area_authority"]["rows"]
     rows.append({**rows[0], "grid_x": 2, "total_ping_count": 11})
     with pytest.raises(AppError) as error:
         performance_from_manifest(manifest, campaign_id=uuid4(), labels=labels)

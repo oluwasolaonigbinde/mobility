@@ -26,8 +26,6 @@ STAGES = (
     "synthetic GPS",
     "measurement",
     "Campaign Performance Analysis",
-    "qualified synthetic conditional ROI",
-    "aggregate contextual activation",
     "payout instruction",
     "incident/recovery",
 )

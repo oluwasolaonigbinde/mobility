@@ -3,7 +3,6 @@ from fastapi import APIRouter
 from app.api.v1.admin import router as admin_router
 from app.api.v1.advertiser_organizations import router as advertiser_organizations_router
 from app.api.v1.advertiser_reports import router as advertiser_reports_router
-from app.api.v1.audience_delivery import router as audience_delivery_router
 from app.api.v1.audit import router as audit_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.automatic_payouts import router as automatic_payouts_router
@@ -32,8 +31,6 @@ from app.api.v1.notifications import router as notifications_router
 from app.api.v1.payees import router as payees_router
 from app.api.v1.payouts import router as payouts_router
 from app.api.v1.report_issuances import router as report_issuances_router
-from app.api.v1.retargeting_source_links import router as retargeting_source_links_router
-from app.api.v1.retargeting_sources import router as retargeting_sources_router
 from app.api.v1.stored_files import router as stored_files_router
 from app.api.v1.trip_analytics import router as trip_analytics_router
 from app.api.v1.trips import router as trips_router
@@ -52,7 +49,6 @@ api_router.include_router(disbursements_router)
 api_router.include_router(automatic_payouts_router)
 api_router.include_router(admin_router)
 api_router.include_router(audit_router)
-api_router.include_router(audience_delivery_router)
 api_router.include_router(advertiser_organizations_router)
 api_router.include_router(advertiser_reports_router)
 api_router.include_router(campaigns_router)
@@ -68,8 +64,6 @@ api_router.include_router(impressions_router)
 api_router.include_router(installation_evidence_router)
 api_router.include_router(kyc_router)
 api_router.include_router(payouts_router)
-api_router.include_router(retargeting_sources_router)
-api_router.include_router(retargeting_source_links_router)
 api_router.include_router(report_issuances_router)
 api_router.include_router(stored_files_router)
 api_router.include_router(trip_analytics_router)

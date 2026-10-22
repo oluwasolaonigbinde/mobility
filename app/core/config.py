@@ -268,9 +268,6 @@ class Settings(BaseSettings):
     heatmap_max_cells: int = 5000
     heatmap_min_trips_per_cell: int = 1
     privacy_legal_approval_reference: str = ""
-    # Real ROI requires the approved financial method reference. Synthetic ROI
-    # remains restricted to local/test environments.
-    measurement_roi_method_reference: str = ""
     privacy_min_vehicles_per_cell: int = 3
     privacy_min_resolution_m: int = 500
     allow_demo_seed: bool = False
@@ -560,16 +557,6 @@ class Settings(BaseSettings):
         normalized = value.strip().lower()
         if normalized not in {"", "smtp"}:
             raise ValueError("EMAIL_PROVIDER must be blank or smtp")
-        return normalized
-
-    @field_validator(
-        "measurement_roi_method_reference",
-    )
-    @classmethod
-    def validate_measurement_method_reference(cls, value: str) -> str:
-        normalized = value.strip()
-        if len(normalized) > 255:
-            raise ValueError("Measurement method references must be at most 255 characters")
         return normalized
 
     @field_validator("email_receipt_signing_secret")

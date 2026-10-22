@@ -16,5 +16,3 @@ export const readAdminCampaigns = (api: ApiClient, query?: AdminCampaignQuery) =
   api.GET("/api/v1/admin/campaigns", { params: { query } });
 export const readAdvertiserCampaigns = (api: ApiClient, query?: AdvertiserCampaignQuery) =>
   api.GET("/api/v1/advertiser/campaigns", { params: { query } });
-export const readAdvertiserRetargetingSources = (api: ApiClient) =>
-  api.GET("/api/v1/advertiser/retargeting-sources");

@@ -46,8 +46,6 @@ class Base(DeclarativeBase):
 
 
 import app.models.assignment_activity  # noqa: E402,F401
-import app.models.audience_delivery  # noqa: E402,F401
-import app.models.audience_work  # noqa: E402,F401
 import app.models.audit  # noqa: E402,F401
 import app.models.billing  # noqa: E402,F401
 import app.models.campaign  # noqa: E402,F401
@@ -65,7 +63,6 @@ import app.models.driver  # noqa: E402,F401
 import app.models.driver_application  # noqa: E402,F401
 import app.models.evidence_verification  # noqa: E402,F401
 import app.models.exposure_score  # noqa: E402,F401
-import app.models.exposure_segment  # noqa: E402,F401
 import app.models.fraud_assessment  # noqa: E402,F401
 import app.models.fraud_dispute  # noqa: E402,F401
 import app.models.impression  # noqa: E402,F401
@@ -78,8 +75,6 @@ import app.models.payee  # noqa: E402,F401
 import app.models.payout  # noqa: E402,F401
 import app.models.report_issuance  # noqa: E402,F401
 import app.models.report_schedule  # noqa: E402,F401
-import app.models.retargeting_source  # noqa: E402,F401
-import app.models.retargeting_source_link  # noqa: E402,F401
 import app.models.route_replay  # noqa: E402,F401
 import app.models.stored_file  # noqa: E402,F401
 import app.models.trip  # noqa: E402,F401

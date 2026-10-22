@@ -1,5 +1,5 @@
 import asyncio
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -9,14 +9,11 @@ from test_advertiser_reports import DAY_1, PASSWORD, create_report_graph
 from test_heatmaps import add_ping_batch
 from test_measurement_runs import create_measurement_graph, issue_payload
 from test_report_issuances import ReportStorage
-from test_retargeting_source_links import source_payload
 
-from app.jobs.exposure_segments import sweep_exposure_segments
 from app.models.campaign import CampaignCreative
 from app.models.campaign_assignment import CampaignActivationEvent
 from app.models.campaign_zone import CampaignZone
 from app.models.disclosure import DisclosureQueryDecision
-from app.models.exposure_segment import ExposureSegment
 from app.models.installation_evidence import InstallationEvidenceSubmission
 from app.models.report_issuance import ReportIssuance
 from app.models.trip import TripSession
@@ -99,24 +96,6 @@ def three_car_run(db_client, maker, *, vehicle_count=3, dominant=False):
             idempotency_key=f"area-{trip}",
         )
     headers = auth_headers(db_client, advertiser.email, PASSWORD)
-    source = db_client.post(
-        "/api/v1/advertiser/retargeting-sources",
-        headers=headers | {"Idempotency-Key": str(uuid4())},
-        json=source_payload(datetime.now(UTC) + timedelta(days=365)),
-    )
-    assert source.status_code == 201, source.text
-    link = db_client.post(
-        "/api/v1/advertiser/retargeting-source-links",
-        headers=headers | {"Idempotency-Key": str(uuid4())},
-        json={
-            "source_id": source.json()["id"],
-            "campaign_id": str(campaign.id),
-            "zone_id": str(zone_id),
-            "start_at": DAY_1.isoformat(),
-            "end_at": (DAY_1 + timedelta(days=1)).isoformat(),
-        },
-    )
-    assert link.status_code == 201, link.text
     response = db_client.post(
         "/api/v1/admin/measurement-runs",
         json=issue_payload(campaign.id),
@@ -135,10 +114,6 @@ def test_released_areas_never_block_other_advertiser_outputs(
     advertiser, campaign, run, headers = three_car_run(db_client, db_sessionmaker)
 
     async def ready():
-        assert (
-            await sweep_exposure_segments({"settings": settings, "sessionmaker": db_sessionmaker})
-            == 1
-        )
         async with db_sessionmaker() as session:
             # Private measurement/segment construction is not a public disclosure.
             assert (
@@ -169,9 +144,7 @@ def test_released_areas_never_block_other_advertiser_outputs(
     async def publish():
         async with db_sessionmaker() as session:
             row = await session.get(ReportIssuance, UUID(issuance.json()["id"]))
-            recommendations = row.snapshot["linked_source_recommendations"][0]
-            assert recommendations["state"] == "ready"
-            assert recommendations["recommendations"]
+            assert "linked_source_recommendations" not in row.snapshot
             assert len(row.snapshot["exposure"]["zones"]) == 1
         storage = ReportStorage()
         assert (
@@ -189,12 +162,8 @@ def test_released_areas_never_block_other_advertiser_outputs(
         )
         for value in (b"30000.00", b"1500.00", b"Driving days", b"Estimated views"):
             assert value in csv
-        async with db_sessionmaker() as session:
-            return await session.scalar(
-                select(ExposureSegment.id).where(ExposureSegment.campaign_id == campaign.id)
-            )
 
-    segment_id = asyncio.run(publish())
+    asyncio.run(publish())
     base = f"/api/v1/advertiser/campaigns/{campaign.id}"
     for response in (
         db_client.get("/api/v1/advertiser/dashboard/summary", headers=headers),
@@ -203,9 +172,3 @@ def test_released_areas_never_block_other_advertiser_outputs(
         db_client.get(f"{base}/heatmap", params={"bbox": "3,6,3.1,6.1"}, headers=headers),
     ):
         assert response.status_code == 200, response.text
-    exported = db_client.post(
-        f"/api/v1/advertiser/exposure-segments/{segment_id}/exports",
-        headers=headers | {"Idempotency-Key": str(uuid4())},
-        json={},
-    )
-    assert exported.status_code == 201, exported.text

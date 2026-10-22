@@ -30,7 +30,7 @@ from app.services.disclosure import (
 
 DECIMAL_2 = Decimal("0.01")
 DECIMAL_4 = Decimal("0.0001")
-AUTHORITATIVE_AUDIENCE_CELL_FORMULA_VERSION = "audience_exposure_v1"
+REPORT_AREA_CELL_FORMULA_VERSION = "report_area_v1"
 
 
 @dataclass(frozen=True)
@@ -571,7 +571,7 @@ def aggregation_sql(
     """
 
 
-async def authoritative_audience_trip_cell_counts(
+async def report_area_trip_cell_counts(
     session: AsyncSession,
     *,
     trip_ids: list[UUID],
@@ -582,7 +582,7 @@ async def authoritative_audience_trip_cell_counts(
 ) -> list[dict]:
     """Use the grandfathered raw-ping reader to produce bounded aggregate inputs."""
     if session.get_bind().dialect.name != "postgresql":
-        raise RuntimeError("Authoritative audience cell derivation requires PostGIS")
+        raise RuntimeError("Report area derivation requires PostGIS")
     if not trip_ids:
         return []
     result = await session.execute(
