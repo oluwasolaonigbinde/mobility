@@ -83,13 +83,12 @@ export default async function BatchDetailPage({
               Prepared by: <strong>{batch.maker_name}</strong> · {formatDateTime(batch.created_at)}
             </p>
             <p>
-              Approved by: <strong>{batch.checker_name ?? "Awaiting independent approval"}</strong>
+              Approved by: <strong>{batch.checker_name ?? "Awaiting approval"}</strong>
               {batch.approved_at ? ` · ${formatDateTime(batch.approved_at)}` : ""}
             </p>
             <p className="text-muted text-sm">
-              A different staff member must approve the saved payment instructions. Submission waits
-              first; provider evidence determines each line&apos;s outcome. Manual verification
-              requires a third staff member.
+              An admin approves the saved instructions with a reason. Provider evidence determines
+              each line&apos;s outcome; the same admin may verify it with a reason.
             </p>
           </>
         )}

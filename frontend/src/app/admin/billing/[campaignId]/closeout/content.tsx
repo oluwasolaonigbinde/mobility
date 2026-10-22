@@ -72,9 +72,8 @@ export default async function MoneyCloseoutPage({
                 ["Waiting for approval", item.reserved],
                 ["Payments awaiting a provider result", item.in_flight],
                 ["Confirmed failed payments", item.terminal_failed],
-                ["Pay records marked paid", item.cash_paid],
+                ["Verified cash paid", item.cash_paid],
                 ["Confirmed provider transfers", item.provider_verified_paid],
-                ["Amount the driver owes (all campaigns)", item.driver_wide_debt],
               ] as const
             ).map(([label, amount]) => (
               <p key={label} className="text-sm">

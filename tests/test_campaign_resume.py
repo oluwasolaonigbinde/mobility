@@ -2,6 +2,7 @@
 
 import asyncio
 from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from uuid import uuid4
 
 import pytest
@@ -518,28 +519,10 @@ def test_real_funded_active_job_guards_and_atomic_resume(
     )
 
 
-PAUSE_EVALUATION = {
-    "state": "pause_threshold",
-    "campaign_budget_amount": "10000",
-    "currency": "NGN",
-    "policy_id": "synthetic-policy",
-    "policy_revision": "synthetic-r1",
-    "policy_source": "synthetic_test",
-    "budget_basis": "total",
-    "billing_fact_source": "confirmed_funding",
-    "billing_spend_amount": "10000.01",
-    "alert_threshold_amount": "8000",
-    "pause_threshold_amount": "10000",
-    "resume_threshold_amount": "10000",
-    "alert_applied": True,
-    "pause_applied": True,
-}
-
-
 def test_budget_pause_chronology_and_unknown_current_record(db_sessionmaker):
     from sqlalchemy import select
 
-    from app.models.billing import BudgetCampaignTransition, BudgetPolicyEvaluation
+    from app.models.billing import BudgetCampaignTransition
 
     admin, campaign, _, pause_id = setup_pause(db_sessionmaker)
 
@@ -548,55 +531,43 @@ def test_budget_pause_chronology_and_unknown_current_record(db_sessionmaker):
             c = await session.get(Campaign, campaign.id)
             pause = await session.get(AuditEvent, pause_id)
             earlier = pause.created_at - timedelta(minutes=10)
-            evaluation = BudgetPolicyEvaluation(
+            earlier_pause = BudgetCampaignTransition(
                 campaign_id=c.id,
-                evaluation_key="a" * 64,
-                **PAUSE_EVALUATION,
-                evaluated_at=earlier,
+                action="pause",
+                prior_status="active",
+                new_status="paused",
+                reason="Budget limit",
+                created_at=earlier,
+                budget_amount=Decimal("10000"),
+                funding_fingerprint="a" * 64,
             )
-            session.add(evaluation)
+            session.add(earlier_pause)
             await session.flush()
             session.add(
                 BudgetCampaignTransition(
                     campaign_id=c.id,
-                    evaluation_id=evaluation.id,
-                    action="pause",
-                    prior_status="active",
-                    new_status="paused",
-                    reason="Budget limit",
-                    created_at=earlier,
-                )
-            )
-            session.add(
-                BudgetCampaignTransition(
-                    campaign_id=c.id,
-                    evaluation_id=evaluation.id,
+                    pause_transition_id=earlier_pause.id,
                     action="resume",
                     prior_status="paused",
                     new_status="active",
                     actor_user_id=admin.id,
                     reason="Funding corrected",
                     created_at=earlier + timedelta(minutes=1),
+                    budget_amount=Decimal("12000"),
+                    funding_fingerprint="b" * 64,
                 )
             )
             await session.flush()
             assert (await campaign_resume.pause_info(session, c))["kind"] == "operational"
-            later = BudgetPolicyEvaluation(
-                campaign_id=c.id,
-                evaluation_key="b" * 64,
-                **PAUSE_EVALUATION,
-                evaluated_at=pause.created_at + timedelta(minutes=1),
-            )
-            session.add(later)
-            await session.flush()
             transition = BudgetCampaignTransition(
                 campaign_id=c.id,
-                evaluation_id=later.id,
                 action="pause",
                 prior_status="active",
                 new_status="paused",
                 reason="Budget limit",
-                created_at=later.evaluated_at,
+                created_at=pause.created_at + timedelta(minutes=1),
+                budget_amount=Decimal("12000"),
+                funding_fingerprint="c" * 64,
             )
             session.add(transition)
             await session.flush()

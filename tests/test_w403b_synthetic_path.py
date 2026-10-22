@@ -223,14 +223,22 @@ async def _freeze_payout_instruction(
         )
         session.add(entry)
         await session.flush()
-        batch = await create_payout_batch_draft(session, currency="NGN", actor_user_id=admin.id)
+        batch = await create_payout_batch_draft(
+            session, reason="Focused staff payout action", currency="NGN", actor_user_id=admin.id
+        )
         _, lines = await reserve_payout_batch(
             session,
+            reason="Focused staff payout action",
             batch_id=batch.id,
             ledger_entry_ids=(entry.id,),
             actor_user_id=admin.id,
         )
-        await approve_payout_batch(session, batch_id=batch.id, actor_user_id=checker.id)
+        await approve_payout_batch(
+            session,
+            reason="Focused staff payout action",
+            batch_id=batch.id,
+            actor_user_id=checker.id,
+        )
         await session.commit()
         assert len(lines) == 1
         return batch.id, lines[0].instruction_fingerprint

@@ -341,7 +341,7 @@ def test_admin_recompute_calculates_postgis_distance_zone_overlap_and_is_idempot
     assert len(fetch_analytics_rows(postgis_db_sessionmaker)) == 1
 
 
-def test_insufficient_data_creates_deterministic_low_metrics_and_flag(
+def test_insufficient_data_keeps_low_metrics_without_a_pay_flag(
     postgis_db_client,
     postgis_db_sessionmaker,
 ) -> None:
@@ -372,8 +372,7 @@ def test_insufficient_data_creates_deterministic_low_metrics_and_flag(
     assert data["moving_seconds"] == 0
     assert data["stationary_seconds"] == 0
     assert data["quality_score"] == "0.0000"
-    assert [flag["flag_type"] for flag in data["fraud_flags"]] == ["insufficient_pings"]
-    assert data["fraud_flags"][0]["severity"] == "medium"
+    assert data["fraud_flags"] == []
 
 
 def test_anomaly_flags_zone_exclusion_and_recompute_open_flag_idempotency(
@@ -421,12 +420,12 @@ def test_anomaly_flags_zone_exclusion_and_recompute_open_flag_idempotency(
     flag_types = {flag["flag_type"] for flag in first.json()["fraud_flags"]}
     assert {
         "impossible_speed",
-        "poor_accuracy",
         "stationary_trip",
         "excessive_ping_gap",
-        "route_looping",
         "exclusion_zone_presence",
     }.issubset(flag_types)
+    assert first.json()["poor_accuracy_ping_count"] == 4
+    assert not {"poor_accuracy", "route_looping"} & flag_types
     impossible = next(
         flag for flag in first.json()["fraud_flags"] if flag["flag_type"] == "impossible_speed"
     )
@@ -441,7 +440,7 @@ def test_anomaly_flags_zone_exclusion_and_recompute_open_flag_idempotency(
     )
 
 
-@pytest.mark.parametrize("review_status", ["acknowledged", "confirmed", "dismissed"])
+@pytest.mark.parametrize("review_status", ["confirmed", "dismissed"])
 def test_recompute_preserves_reviewed_flags_and_redetects_only_after_dismissal(
     postgis_db_client,
     postgis_db_sessionmaker,
@@ -467,18 +466,12 @@ def test_recompute_preserves_reviewed_flags_and_redetects_only_after_dismissal(
         item for item in first.json()["fraud_flags"] if item["flag_type"] == "impossible_speed"
     )
 
-    acknowledged = postgis_db_client.post(
-        f"/api/v1/admin/fraud-flags/{original['id']}/review/acknowledge",
+    resolved = postgis_db_client.post(
+        f"/api/v1/admin/fraud-flags/{original['id']}/review/resolve",
         headers=admin_headers(postgis_db_client),
+        json={"outcome": review_status, "note": f"Review outcome: {review_status}."},
     )
-    assert acknowledged.status_code == http_status.HTTP_200_OK
-    if review_status != "acknowledged":
-        resolved = postgis_db_client.post(
-            f"/api/v1/admin/fraud-flags/{original['id']}/review/resolve",
-            headers=admin_headers(postgis_db_client),
-            json={"outcome": review_status, "note": f"Review outcome: {review_status}."},
-        )
-        assert resolved.status_code == http_status.HTTP_200_OK
+    assert resolved.status_code == http_status.HTTP_200_OK
 
     second = postgis_db_client.post(
         f"/api/v1/admin/trips/{trip.id}/recompute-analytics",
@@ -496,9 +489,7 @@ def test_recompute_preserves_reviewed_flags_and_redetects_only_after_dismissal(
         assert len(stored) == 2
         assert {flag.status for flag in stored} == {"dismissed", "open"}
         assert [
-            item
-            for item in second.json()["fraud_flags"]
-            if item["flag_type"] == "impossible_speed"
+            item for item in second.json()["fraud_flags"] if item["flag_type"] == "impossible_speed"
         ][0]["status"] == "open"
     else:
         assert len(stored) == 1
@@ -506,7 +497,7 @@ def test_recompute_preserves_reviewed_flags_and_redetects_only_after_dismissal(
         assert stored[0].status == review_status
 
 
-def test_future_timestamp_flag_uses_direct_corrupt_ping_insertion(
+def test_future_timestamp_stays_quality_evidence_without_a_pay_flag(
     postgis_db_client,
     postgis_db_sessionmaker,
 ) -> None:
@@ -537,16 +528,15 @@ def test_future_timestamp_flag_uses_direct_corrupt_ping_insertion(
 
     assert response.status_code == http_status.HTTP_200_OK
     flag_types = {flag["flag_type"] for flag in response.json()["fraud_flags"]}
-    assert "future_timestamp" in flag_types
+    assert "future_timestamp" not in flag_types
+    assert response.json()["metadata"]["future_ping_count"] == 2
 
 
 def test_admin_and_driver_analytics_endpoints_enforce_rbac_and_ownership(
     postgis_db_client,
     postgis_db_sessionmaker,
 ) -> None:
-    _, advertiser, _, campaign, _, _, _, trip = create_analytics_graph(
-        postgis_db_sessionmaker
-    )
+    _, advertiser, _, campaign, _, _, _, trip = create_analytics_graph(postgis_db_sessionmaker)
     advertiser_headers = auth_headers(postgis_db_client, advertiser.email, PASSWORD)
     other_driver = create_test_user(
         postgis_db_sessionmaker,
@@ -778,7 +768,7 @@ def test_unique_nonterminal_flag_index_is_present_in_postgres(
                           AND indexdef ILIKE :predicate
                         """
                     ),
-                    {"predicate": "%WHERE%open%acknowledged%confirmed%"},
+                    {"predicate": "%WHERE%open%confirmed%"},
                 )
                 or 0
             )

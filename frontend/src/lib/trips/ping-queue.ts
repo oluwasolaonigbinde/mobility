@@ -50,6 +50,7 @@ export interface EvidenceReceipt extends EvidenceManifestEntry {
   acceptedCount: number;
   rejectedCount: number;
   outcome: string;
+  evidenceScope: "manifest" | "late" | "late_dropped";
   receiptFormatVersion: number;
   receiptKeyVersion: number;
   receiptSignature: string;
@@ -554,7 +555,7 @@ export class PingQueue {
         results.filter((result) => result.status === "accepted").length !== receipt.acceptedCount
       )
         throw new Error("server sample dispositions do not match the queued batch");
-    } else if (receipt.rejectedCount > 0 && receipt.outcome !== "quarantined") {
+    } else if (receipt.rejectedCount > 0) {
       throw new Error("partial receipt is missing its signed sample dispositions");
     }
     const storageKey = recordKey(this.driverId, "receipt", batch.key);

@@ -470,7 +470,7 @@ def aggregation_sql(
                     WHERE ff.severity = 'high'
                 )::integer AS high_count
             FROM fraud_flags ff
-            WHERE ff.status IN ('open', 'acknowledged', 'confirmed')
+            WHERE ff.status IN ('open', 'confirmed')
             GROUP BY ff.trip_session_id
         ),
         latest_estimates AS (

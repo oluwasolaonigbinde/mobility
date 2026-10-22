@@ -236,7 +236,7 @@ describe("driver trip BFF actions", () => {
         accepted_count: 1,
         ...ACK_FIELDS,
         duplicate: false,
-        quarantined: false,
+        evidence_scope: "manifest",
       },
     });
     await expect(sendPingBatchAction(input)).resolves.toMatchObject({ acknowledged: true });
@@ -253,7 +253,7 @@ describe("driver trip BFF actions", () => {
         trip_id: TRIP_ID,
         accepted_count: 0,
         duplicate: false,
-        quarantined: false,
+        evidence_scope: "manifest",
       },
     });
     await expect(sendPingBatchAction(input)).resolves.toMatchObject({
@@ -295,7 +295,7 @@ describe("driver trip BFF actions", () => {
         accepted_count: 1,
         rejected_count: 1,
         duplicate: false,
-        quarantined: false,
+        evidence_scope: "manifest",
         sample_results: [
           { index: 0, sequence_number: 0, status: "accepted", rejection_code: null },
           { index: 1, sequence_number: 1, status: "rejected", rejection_code: "INVALID_SPEED" },
@@ -426,9 +426,26 @@ describe("driver trip BFF actions", () => {
   });
 
   it.each([
-    ["accepted", { accepted_count: 1, duplicate: false, quarantined: false }],
-    ["duplicate", { accepted_count: 1, duplicate: true, quarantined: false }],
-    ["quarantined", { accepted_count: 0, duplicate: false, quarantined: true }],
+    ["accepted", { accepted_count: 1, duplicate: false, evidence_scope: "manifest" }],
+    ["duplicate", { accepted_count: 1, duplicate: true, evidence_scope: "manifest" }],
+    [
+      "dropped",
+      {
+        accepted_count: 0,
+        rejected_count: 1,
+        outcome: "dropped",
+        duplicate: false,
+        evidence_scope: "late_dropped",
+        sample_results: [
+          {
+            index: 0,
+            sequence_number: 0,
+            status: "rejected",
+            rejection_code: "PAY_ALREADY_CALCULATED",
+          },
+        ],
+      },
+    ],
   ])("treats a complete %s response as an ACK", async (_label, response) => {
     mocks.post.mockResolvedValueOnce({
       data: {
@@ -461,7 +478,6 @@ describe("driver trip BFF actions", () => {
       acknowledged: true,
       acceptedCount: response.accepted_count,
       duplicate: response.duplicate,
-      quarantined: response.quarantined,
     });
   });
 

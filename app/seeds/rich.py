@@ -2279,7 +2279,7 @@ async def _prepare_portal_earnings(session, entries, settings):
 
 async def _review_seed_fraud_flags(session, *, campaign_id, actor_user_id):
     from app.models.trip_analytics import FraudFlag
-    from app.services.fraud_holds import acknowledge_fraud_flag, resolve_fraud_flag
+    from app.services.fraud_holds import resolve_fraud_flag
 
     flags = list(
         (
@@ -2301,7 +2301,7 @@ async def _review_seed_fraud_flags(session, *, campaign_id, actor_user_id):
     for vehicle_flags in review_groups:
         for flag, outcome, note in zip(
             vehicle_flags,
-            ("acknowledged", "confirmed", "dismissed"),
+            ("open", "confirmed", "dismissed"),
             (
                 None,
                 "The car remained at the depot during the recorded trip.",
@@ -2311,8 +2311,7 @@ async def _review_seed_fraud_flags(session, *, campaign_id, actor_user_id):
         ):
             if flag.status != "open":
                 continue
-            await acknowledge_fraud_flag(session, flag_id=flag.id, actor_user_id=actor_user_id)
-            if outcome != "acknowledged":
+            if outcome != "open":
                 if note is None:
                     raise ValueError("Expected demo fraud resolution note is missing")
                 await resolve_fraud_flag(
@@ -2327,11 +2326,6 @@ async def _review_seed_fraud_flags(session, *, campaign_id, actor_user_id):
 async def ensure_trip_review_work(session, *, graph, staff, settings):
     from app.services.evidence_verification import (
         record_physical_spot_check,
-    )
-    from app.services.trips import (
-        apply_quarantined_ping_batch,
-        discard_quarantined_ping_batch,
-        quarantine_ping_batch,
     )
 
     if max_trips_per_day() > 0:
@@ -2370,52 +2364,6 @@ async def ensure_trip_review_work(session, *, graph, staff, settings):
             note=note,
             outcome=outcome,
         )
-    for trip, state in zip(trips[4:], ("quarantined", "applied", "discarded"), strict=False):
-        payload = LocationPingBatchCreate(
-            idempotency_key=f"{F7_SEED_VERSION}:f7:late:{trip.id}",
-            batch_sequence=1,
-            metadata=f7_metadata(),
-            pings=[
-                LocationPingCreate(
-                    recorded_at=trip.started_at + timedelta(minutes=1),
-                    lat=LATE_UPLOAD_POINT[0],
-                    lon=LATE_UPLOAD_POINT[1],
-                    accuracy_m=10.0,
-                    sequence_number=0,
-                )
-            ],
-        )
-        result = await quarantine_ping_batch(
-            session,
-            trip=trip,
-            payload=payload,
-            digest=batch_payload_hash(payload),
-            received_at=utc_now(),
-            settings=settings,
-            hash_version=2,
-        )
-        late = result.quarantine
-        if late is None:
-            raise ValueError("Expected demo quarantined upload is missing")
-        if late.status != "quarantined":
-            continue
-        if state == "applied":
-            await apply_quarantined_ping_batch(
-                session,
-                trip_id=trip.id,
-                quarantine_id=late.id,
-                admin_user_id=staff[3].id,
-                note="The upload matches the route recorded that morning.",
-                settings=settings,
-            )
-        if state == "discarded":
-            await discard_quarantined_ping_batch(
-                session,
-                trip_id=trip.id,
-                quarantine_id=late.id,
-                admin_user_id=staff[2].id,
-                note="The upload repeats a point already recorded on this route.",
-            )
 
 
 async def ensure_portal_payouts(session, *, graph, staff, settings):
@@ -2477,7 +2425,7 @@ async def ensure_portal_payouts(session, *, graph, staff, settings):
             approved_at=now if state == "completed" else None,
             created_at=now,
             submitted_at=now if state == "completed" else None,
-            approval_mode="maker_checker",
+            approval_mode="manual",
         )
         line = build_frozen_payout_line(
             batch_id=key, entry=entry, payee_version=version, account_version=account
@@ -2560,15 +2508,14 @@ async def _ensure_payout_review_history(session, *, graph, staff, settings):
     from app.services.payout_corrections import (
         approve_correction_order,
         create_correction_order,
-        submit_correction_order,
     )
 
     for trip, state, reason in zip(
         graph.trips,
-        ("draft", "pending_approval", "approved", "rejected"),
+        ("draft", "draft", "executed", "draft"),
         (
             "Please check the Garki distance after the route was corrected.",
-            "The Central Area return leg needs a second review.",
+            "Please check the Central Area return leg.",
             "The route review is complete; please confirm the earnings.",
             "Please recheck the distance recorded near the fuel station.",
         ),
@@ -2589,19 +2536,16 @@ async def _ensure_payout_review_history(session, *, graph, staff, settings):
             created_by_user_id=staff[0].id,
             settings=settings,
         )
-        if state != "draft":
-            await submit_correction_order(session, order_id=order.id, actor_user_id=staff[0].id)
-        if state == "approved":
+        if state == "executed":
             await approve_correction_order(
                 session,
                 order_id=order.id,
-                actor_user_id=staff[4].id,
+                actor_user_id=staff[0].id,
+                reason="Checked the corrected route and pay preview",
+                release_at=trip.ended_at,
+                request_metadata={"source": "synthetic_pilot_seed"},
                 settings=settings,
             )
-        if state == "rejected":
-            from app.services.payout_corrections import reject_correction_order
-
-            await reject_correction_order(session, order_id=order.id, actor_user_id=staff[4].id)
     recorded = await session.scalar(
         select(AuditEvent.id)
         .where(

@@ -16,19 +16,17 @@ from payout_fixtures import (
 from sqlalchemy import update
 from test_payout_corrections import (
     RELEASE_AT,
-    approve,
     correction_entries,
     seed_misposted_amount,
     service,
-    submit,
 )
 from test_trip_processing import add_pings, run_pipeline
 
 from app.core.errors import AppError
 from app.models.trip import TripSession
 from app.services.payout_corrections import (
+    approve_correction_order,
     create_correction_order,
-    execute_correction_order,
     project_campaign_day,
 )
 
@@ -95,14 +93,13 @@ def test_adjacent_day_orders_share_one_half_cent_effect_without_deadlock(
     second = create_for_day(date(2026, 7, 21))
     for order in (first, second):
         assert order.projected_delta["day_totals"]["delta_amount"] == "0.01"
-        submit(postgis_db_sessionmaker, order.id, graph.admin.id)
-        approve(postgis_db_sessionmaker, settings, order.id, approver.id)
 
     async def attempt(order_id):
         async with postgis_db_sessionmaker() as session:
             try:
-                _, executed_now = await execute_correction_order(
+                _, executed_now = await approve_correction_order(
                     session,
+                    reason="Approve checked adjacent days",
                     order_id=order_id,
                     actor_user_id=approver.id,
                     release_at=RELEASE_AT,
@@ -248,14 +245,12 @@ def test_uuid_lock_order_preserves_chronological_cap_order_across_adjacent_days(
         )
 
     orders = (create_for_day(date(2026, 7, 20)), create_for_day(next_day))
-    for order in orders:
-        submit(postgis_db_sessionmaker, order.id, graph.admin.id)
-        approve(postgis_db_sessionmaker, settings, order.id, approver.id)
 
     async def execute(order_id):
         async with postgis_db_sessionmaker() as session:
-            _, executed_now = await execute_correction_order(
+            _, executed_now = await approve_correction_order(
                 session,
+                reason="Approve checked adjacent days",
                 order_id=order_id,
                 actor_user_id=approver.id,
                 release_at=None,

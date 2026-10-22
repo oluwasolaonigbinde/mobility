@@ -137,19 +137,30 @@ def test_batch_submission_commits_frozen_intent_without_provider_io(db_sessionma
             await session.flush()
             entry = await _seed_authority(session, graph)
             batch = await create_payout_batch_draft(
-                session, currency="ngn", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="ngn",
+                actor_user_id=graph.admin.id,
             )
             batch, lines = await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=batch.id,
                 ledger_entry_ids=(entry.id,),
                 actor_user_id=graph.admin.id,
             )
-            with pytest.raises(AppError) as same_admin:
-                await approve_payout_batch(session, batch_id=batch.id, actor_user_id=graph.admin.id)
-            assert same_admin.value.code == "PAYOUT_BATCH_MAKER_CHECKER_REQUIRED"
-            await approve_payout_batch(session, batch_id=batch.id, actor_user_id=checker.id)
-            await approve_payout_batch(session, batch_id=batch.id, actor_user_id=checker.id)
+            await approve_payout_batch(
+                session,
+                reason="Approve my prepared batch",
+                batch_id=batch.id,
+                actor_user_id=graph.admin.id,
+            )
+            await approve_payout_batch(
+                session,
+                reason="Approve my prepared batch",
+                batch_id=batch.id,
+                actor_user_id=graph.admin.id,
+            )
             frozen = (lines[0].instruction.copy(), lines[0].idempotency_key)
             await submit_payout_batch(
                 session,
@@ -226,10 +237,14 @@ def test_multi_line_reservation_freezes_exact_total_hashes_and_keys(db_sessionma
             session.add(second)
             await session.flush()
             batch = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             batch, lines = await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=batch.id,
                 ledger_entry_ids=(second.id, first.id),
                 actor_user_id=graph.admin.id,
@@ -302,10 +317,14 @@ def test_frozen_columns_tamper_blocks_approval(db_sessionmaker, tamper: str) -> 
             await session.flush()
             entry = await _seed_authority(session, graph)
             batch = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             _, lines = await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=batch.id,
                 ledger_entry_ids=(entry.id,),
                 actor_user_id=graph.admin.id,
@@ -315,10 +334,14 @@ def test_frozen_columns_tamper_blocks_approval(db_sessionmaker, tamper: str) -> 
             if alternate is not None:
                 other_entry = await _seed_authority(session, alternate)
                 other_batch = await create_payout_batch_draft(
-                    session, currency="NGN", actor_user_id=graph.admin.id
+                    session,
+                    reason="Focused staff payout action",
+                    currency="NGN",
+                    actor_user_id=graph.admin.id,
                 )
                 _, other_lines = await reserve_payout_batch(
                     session,
+                    reason="Focused staff payout action",
                     batch_id=other_batch.id,
                     ledger_entry_ids=(other_entry.id,),
                     actor_user_id=graph.admin.id,
@@ -341,7 +364,12 @@ def test_frozen_columns_tamper_blocks_approval(db_sessionmaker, tamper: str) -> 
             else:
                 batch.instruction_set_fingerprint = "f" * 64
             with pytest.raises(AppError) as changed:
-                await approve_payout_batch(session, batch_id=batch.id, actor_user_id=checker.id)
+                await approve_payout_batch(
+                    session,
+                    reason="Focused staff payout action",
+                    batch_id=batch.id,
+                    actor_user_id=checker.id,
+                )
             assert changed.value.code in {"PAYOUT_INSTRUCTION_CHANGED", "PAYOUT_BATCH_CHANGED"}
 
     asyncio.run(exercise())
@@ -355,11 +383,15 @@ def test_reservation_refuses_authoritative_active_hold_and_rolls_back(db_session
         async with db_sessionmaker() as session:
             entry = await _seed_authority(session, graph)
             batch = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             with pytest.raises(AppError) as held:
                 await reserve_payout_batch(
                     session,
+                    reason="Focused staff payout action",
                     batch_id=batch.id,
                     ledger_entry_ids=(entry.id,),
                     actor_user_id=graph.admin.id,
@@ -395,11 +427,15 @@ def test_reservation_is_whole_batch_and_rejects_mixed_currency(db_sessionmaker) 
             session.add(bad)
             await session.flush()
             batch = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             with pytest.raises(AppError) as invalid:
                 await reserve_payout_batch(
                     session,
+                    reason="Focused staff payout action",
                     batch_id=batch.id,
                     ledger_entry_ids=(good.id, bad.id),
                     actor_user_id=graph.admin.id,
@@ -428,17 +464,26 @@ def test_frozen_instruction_tamper_blocks_approval(db_sessionmaker) -> None:
             await session.flush()
             entry = await _seed_authority(session, graph)
             batch = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             _, lines = await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=batch.id,
                 ledger_entry_ids=(entry.id,),
                 actor_user_id=graph.admin.id,
             )
             lines[0].instruction = {**lines[0].instruction, "amount": "999.00"}
             with pytest.raises(AppError) as tampered:
-                await approve_payout_batch(session, batch_id=batch.id, actor_user_id=checker.id)
+                await approve_payout_batch(
+                    session,
+                    reason="Focused staff payout action",
+                    batch_id=batch.id,
+                    actor_user_id=checker.id,
+                )
             assert tampered.value.code == "PAYOUT_INSTRUCTION_CHANGED"
 
     asyncio.run(exercise())
@@ -460,15 +505,24 @@ def test_submission_fails_closed_without_approved_provider(db_sessionmaker) -> N
             await session.flush()
             entry = await _seed_authority(session, graph)
             batch = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=batch.id,
                 ledger_entry_ids=(entry.id,),
                 actor_user_id=graph.admin.id,
             )
-            await approve_payout_batch(session, batch_id=batch.id, actor_user_id=checker.id)
+            await approve_payout_batch(
+                session,
+                reason="Focused staff payout action",
+                batch_id=batch.id,
+                actor_user_id=checker.id,
+            )
             with pytest.raises(AppError) as unavailable:
                 await submit_payout_batch(
                     session,
@@ -490,10 +544,16 @@ def test_postgres_concurrent_batches_have_one_reservation_winner(
         async with postgis_db_sessionmaker() as session:
             entry = await _seed_authority(session, graph)
             first = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             second = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             await session.commit()
 
@@ -511,6 +571,7 @@ def test_postgres_concurrent_batches_have_one_reservation_winner(
                 try:
                     await reserve_payout_batch(
                         session,
+                        reason="Focused staff payout action",
                         batch_id=batch_id,
                         ledger_entry_ids=(entry.id,),
                         actor_user_id=graph.admin.id,
@@ -569,13 +630,20 @@ def test_reservation_conflict_keeps_public_error_envelope(db_client, db_sessionm
         async with db_sessionmaker() as session:
             entry = await _seed_authority(session, graph)
             first = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             second = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=first.id,
                 ledger_entry_ids=(entry.id,),
                 actor_user_id=graph.admin.id,
@@ -587,7 +655,7 @@ def test_reservation_conflict_keeps_public_error_envelope(db_client, db_sessionm
     response = db_client.post(
         f"/api/v1/admin/payout-batches/{batch_id}/reserve",
         headers=auth_headers(db_client, graph.admin.email, "long-secure-password"),
-        json={"ledger_entry_ids": [str(entry_id)]},
+        json={"ledger_entry_ids": [str(entry_id)], "reason": "Reserve checked credit"},
     )
 
     assert response.status_code == 409
@@ -631,16 +699,21 @@ def test_postgres_duplicate_provider_reference_preserves_outer_write(
             batches = []
             for entry in entries:
                 batch = await create_payout_batch_draft(
-                    session, currency="NGN", actor_user_id=graph.admin.id
+                    session,
+                    reason="Focused staff payout action",
+                    currency="NGN",
+                    actor_user_id=graph.admin.id,
                 )
                 await reserve_payout_batch(
                     session,
+                    reason="Focused staff payout action",
                     batch_id=batch.id,
                     ledger_entry_ids=(entry.id,),
                     actor_user_id=graph.admin.id,
                 )
                 await approve_payout_batch(
                     session,
+                    reason="Focused staff payout action",
                     batch_id=batch.id,
                     actor_user_id=checker.id,
                 )
@@ -731,7 +804,10 @@ def test_postgres_hold_creation_serializes_before_reservation(
         async with postgis_db_sessionmaker() as session:
             entry = await _seed_authority(session, graph)
             batch = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             await session.commit()
 
@@ -740,6 +816,7 @@ def test_postgres_hold_creation_serializes_before_reservation(
                 try:
                     await reserve_payout_batch(
                         session,
+                        reason="Focused staff payout action",
                         batch_id=batch.id,
                         ledger_entry_ids=(entry.id,),
                         actor_user_id=graph.admin.id,
@@ -789,7 +866,10 @@ def test_submit_draft_batch_always_refuses_before_provider_or_intent(db_sessionm
     async def exercise():
         async with db_sessionmaker() as session:
             batch = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             await session.commit()
             with pytest.raises(AppError) as refused:
@@ -826,7 +906,10 @@ def test_batch_state_and_actor_refusals_leave_provider_and_frozen_facts_untouche
             assert caught.value.code == "PAYOUT_BANK_ACCOUNT_MISSING"
             entry = await _seed_authority(session, graph)
             batch = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
 
             async def refuses(operation, code):
@@ -847,6 +930,7 @@ def test_batch_state_and_actor_refusals_leave_provider_and_frozen_facts_untouche
                 (
                     lambda: reserve_payout_batch(
                         session,
+                        reason="Focused staff payout action",
                         batch_id=uuid4(),
                         ledger_entry_ids=(entry.id,),
                         actor_user_id=graph.admin.id,
@@ -856,6 +940,7 @@ def test_batch_state_and_actor_refusals_leave_provider_and_frozen_facts_untouche
                 (
                     lambda: reserve_payout_batch(
                         session,
+                        reason="Focused staff payout action",
                         batch_id=batch.id,
                         ledger_entry_ids=(entry.id,),
                         actor_user_id=other.id,
@@ -865,6 +950,7 @@ def test_batch_state_and_actor_refusals_leave_provider_and_frozen_facts_untouche
                 (
                     lambda: reserve_payout_batch(
                         session,
+                        reason="Focused staff payout action",
                         batch_id=batch.id,
                         ledger_entry_ids=(uuid4(),),
                         actor_user_id=graph.admin.id,
@@ -873,7 +959,10 @@ def test_batch_state_and_actor_refusals_leave_provider_and_frozen_facts_untouche
                 ),
                 (
                     lambda: approve_payout_batch(
-                        session, batch_id=batch.id, actor_user_id=checker.id
+                        session,
+                        reason="Focused staff payout action",
+                        batch_id=batch.id,
+                        actor_user_id=checker.id,
                     ),
                     "PAYOUT_BATCH_NOT_RESERVED",
                 ),
@@ -881,6 +970,7 @@ def test_batch_state_and_actor_refusals_leave_provider_and_frozen_facts_untouche
                 await refuses(operation, code)
             _, lines = await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=batch.id,
                 ledger_entry_ids=(entry.id,),
                 actor_user_id=graph.admin.id,
@@ -896,9 +986,19 @@ def test_batch_state_and_actor_refusals_leave_provider_and_frozen_facts_untouche
                 ),
                 "PAYOUT_BATCH_NOT_APPROVED",
             )
-            await approve_payout_batch(session, batch_id=batch.id, actor_user_id=checker.id)
+            await approve_payout_batch(
+                session,
+                reason="Focused staff payout action",
+                batch_id=batch.id,
+                actor_user_id=checker.id,
+            )
             await refuses(
-                lambda: approve_payout_batch(session, batch_id=batch.id, actor_user_id=other.id),
+                lambda: approve_payout_batch(
+                    session,
+                    reason="Focused staff payout action",
+                    batch_id=batch.id,
+                    actor_user_id=other.id,
+                ),
                 "PAYOUT_BATCH_APPROVAL_CONFLICT",
             )
             assert batch.approved_by_user_id == checker.id

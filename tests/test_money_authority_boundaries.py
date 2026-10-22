@@ -173,20 +173,35 @@ def test_draft_currency_and_retry_authority_leave_no_extra_batches(db_sessionmak
             for currency in ("N", "123", "NGNN"):
                 with pytest.raises(AppError) as caught:
                     await disbursements.create_payout_batch_draft(
-                        session, currency=currency, actor_user_id=admin.id
+                        session,
+                        reason="Focused staff payout action",
+                        currency=currency,
+                        actor_user_id=admin.id,
                     )
                 assert caught.value.code == "PAYOUT_BATCH_CURRENCY_INVALID"
             request_id = uuid4()
             batch = await disbursements.create_payout_batch_draft(
-                session, currency=" ngn ", actor_user_id=admin.id, request_id=request_id
+                session,
+                reason="Focused staff payout action",
+                currency=" ngn ",
+                actor_user_id=admin.id,
+                request_id=request_id,
             )
             replay = await disbursements.create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=admin.id, request_id=request_id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=admin.id,
+                request_id=request_id,
             )
             assert replay.id == batch.id
             with pytest.raises(AppError) as caught:
                 await disbursements.create_payout_batch_draft(
-                    session, currency="USD", actor_user_id=admin.id, request_id=request_id
+                    session,
+                    reason="Focused staff payout action",
+                    currency="USD",
+                    actor_user_id=admin.id,
+                    request_id=request_id,
                 )
             assert caught.value.code == "PAYOUT_DRAFT_RETRY_CONFLICT"
             assert await session.scalar(select(func.count()).select_from(PayoutBatch)) == 1
@@ -195,6 +210,7 @@ def test_draft_currency_and_retry_authority_leave_no_extra_batches(db_sessionmak
                 with pytest.raises(AppError) as caught:
                     await disbursements.reserve_payout_batch(
                         session,
+                        reason="Focused staff payout action",
                         batch_id=batch.id,
                         ledger_entry_ids=selected,
                         actor_user_id=admin.id,
@@ -202,19 +218,6 @@ def test_draft_currency_and_retry_authority_leave_no_extra_batches(db_sessionmak
                 assert caught.value.code == "PAYOUT_BATCH_ENTRIES_INVALID"
 
     asyncio.run(run())
-
-
-def test_non_reversal_never_creates_debt_or_queries_accounts():
-    from app.services.payout_debt import record_reversal_obligation
-
-    session = AsyncMock()
-    with pytest.raises(ValueError, match="Only a reversal"):
-        asyncio.run(
-            record_reversal_obligation(
-                session, reversal_entry=EarningsLedgerEntry(entry_type="trip_payout")
-            )
-        )
-    session.scalar.assert_not_awaited()
 
 
 @pytest.mark.parametrize(

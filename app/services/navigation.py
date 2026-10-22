@@ -10,7 +10,6 @@ from app.models.driver_application import DriverApplication
 from app.models.fraud_dispute import FraudDispute
 from app.models.installation_evidence import InstallationEvidenceSubmission
 from app.models.payout import PayoutCorrectionOrder
-from app.models.trip import QuarantinedPingBatch
 from app.models.trip_analytics import FraudFlag
 from app.models.vehicle import Vehicle
 from app.services.contacts import list_manual_driver_contact_tasks
@@ -22,7 +21,6 @@ SOURCE_AREAS = {
     "cars": "drivers",
     "jobs": "campaigns",
     "trips": "trips",
-    "late": "trips",
     "campaigns": "campaigns",
     "artwork": "campaigns",
     "photos": "campaigns",
@@ -55,9 +53,8 @@ async def admin_badge_summary(session: AsyncSession) -> dict:
         "cars": count(Vehicle, Vehicle.status == "pending"),
         "jobs": count(CampaignAssignment, CampaignAssignment.status == "accepted"),
         "trips": select(func.count(func.distinct(FraudFlag.trip_session_id)))
-        .where(FraudFlag.status.in_(["open", "acknowledged"]))
+        .where(FraudFlag.status == "open")
         .scalar_subquery(),
-        "late": count(QuarantinedPingBatch, QuarantinedPingBatch.status == "quarantined"),
         "campaigns": count(Campaign, Campaign.status == "pending_review"),
         "artwork": count(CampaignCreative, CampaignCreative.status == "pending_review"),
         "photos": count(
@@ -69,16 +66,14 @@ async def admin_badge_summary(session: AsyncSession) -> dict:
             or_(
                 and_(
                     PayoutBatch.status == "reserved",
-                    PayoutBatch.approval_mode == "maker_checker",
+                    PayoutBatch.approval_mode == "manual",
                     PayoutBatch.approved_at.is_(None),
                 ),
                 failed_line,
             ),
         ),
         "alerts": count(PayoutAutomaticAlert, PayoutAutomaticAlert.resolved_at.is_(None)),
-        "corrections": count(
-            PayoutCorrectionOrder, PayoutCorrectionOrder.status == "pending_approval"
-        ),
+        "corrections": count(PayoutCorrectionOrder, PayoutCorrectionOrder.status == "draft"),
         "complaints": count(Complaint, Complaint.status == "open"),
         "disputes": count(FraudDispute, FraudDispute.status == "open"),
         "changes": count(CampaignChangeRequest, CampaignChangeRequest.status == "pending_admin"),

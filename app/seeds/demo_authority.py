@@ -290,7 +290,6 @@ async def seed_campaign_financials(
         PaymentReceipt,
         ReceiptAllocation,
         ReceiptLifecycleEvent,
-        ReceiptReconciliation,
     )
 
     if await session.scalar(
@@ -377,18 +376,7 @@ async def seed_campaign_financials(
         )
         session.add(receipt)
         await session.flush()
-        session.add(
-            ReceiptReconciliation(
-                receipt_id=receipt.id,
-                expected_amount=funded_amount,
-                expected_currency="NGN",
-                matched=True,
-                verification_source="manual",
-                reconciled_by_user_id=admin.id,
-                reconciled_at=at + timedelta(hours=4),
-            )
-        )
-        for i, state in enumerate(("observed", "reconciled", "confirmed")):
+        for i, state in enumerate(("recorded", "confirmed")):
             session.add(
                 ReceiptLifecycleEvent(
                     receipt_id=receipt.id,

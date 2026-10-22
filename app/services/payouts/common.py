@@ -180,7 +180,6 @@ class DriverCurrencyEarnings:
     lifetime_earned_amount: Decimal
     released_available_amount: Decimal
     cash_paid_amount: Decimal
-    carry_forward_debt_amount: Decimal
     batch_payable_amount: Decimal
     ledger_entry_count: int
 
@@ -214,18 +213,8 @@ class CampaignCost:
 
 
 def signed_ledger_amount_expression():
-    """Economic/provenance sign convention.
-
-    A debt remainder is settlement provenance for an already-recorded source,
-    never a second economic earning. Reversals are negative; a non-voided
-    original remains economic even if allocation changes its settlement status
-    to ``reversed``.
-    """
+    """Reversals subtract from the original trip; all other entries add."""
     return case(
-        (
-            EarningsLedgerEntry.entry_type == EarningsLedgerEntryType.DEBT_REMAINDER.value,
-            0,
-        ),
         (
             EarningsLedgerEntry.entry_type == EarningsLedgerEntryType.REVERSAL.value,
             -EarningsLedgerEntry.amount,
@@ -297,7 +286,7 @@ def payout_source_mismatch(mismatches: list[dict[str, str]]) -> AppError:
 
 def recompute_requires_correction_order() -> AppError:
     """PR7: the direct execute path is retired — ALL retroactive recomputes
-    execute only through an approved maker-checker correction order,
+    execute only through an approved reasoned manual correction order,
     regardless of delta sign."""
     return AppError(
         "RECOMPUTE_REQUIRES_CORRECTION_ORDER",

@@ -34,7 +34,6 @@ class DecimalStringMixin(BaseModel):
         "lifetime_earned_amount",
         "released_available_amount",
         "cash_paid_amount",
-        "carry_forward_debt_amount",
         "batch_payable_amount",
         "final_payout_total",
         "gross_payout_total",
@@ -256,7 +255,6 @@ class DriverEarningsCurrencySummary(DecimalStringMixin):
     lifetime_earned_amount: Decimal
     released_available_amount: Decimal
     cash_paid_amount: Decimal
-    carry_forward_debt_amount: Decimal
     batch_payable_amount: Decimal
     ledger_entry_count: int
 
@@ -340,8 +338,15 @@ class PayoutCorrectionOrderCreate(BaseModel):
         return trimmed
 
 
-class PayoutCorrectionOrderExecuteRequest(BaseModel):
+class PayoutCorrectionOrderApproveRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=3, max_length=500)
+
+    @field_validator("reason", mode="before")
+    @classmethod
+    def strip_reason(cls, value):
+        return value.strip() if isinstance(value, str) else value
 
     # Q22: positive deltas post as pending with their OWN release date — no
     # default is invented, so executing an order with positive deltas without

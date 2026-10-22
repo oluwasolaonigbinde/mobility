@@ -393,10 +393,14 @@ def test_stuck_payouts_use_latest_progress_and_ignore_terminal_intents(db_sessio
         async with db_sessionmaker() as session:
             entry = await _seed_authority(session, graph)
             batch = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             _, lines = await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=batch.id,
                 ledger_entry_ids=(entry.id,),
                 actor_user_id=graph.admin.id,

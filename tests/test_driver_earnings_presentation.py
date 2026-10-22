@@ -75,26 +75,20 @@ def test_payment_date_requires_succeeded_line_evidence(monkeypatch, state, paid_
         AsyncMock(return_value={"runnable": False, "frequency": "daily"}),
     )
     monkeypatch.setattr(presentation, "build_disbursement_adapter", lambda settings: None)
-    monkeypatch.setattr(
-        presentation,
-        "driver_money_balance",
-        AsyncMock(return_value=SimpleNamespace(carry_forward_debt=Decimal(0))),
-    )
     asyncio.run(presentation.enrich_driver_ledger(session, [entry], [response], None))
     assert bool(response.paid_at) is expected_paid
     assert response.paying_tonight is False
 
 
 @pytest.mark.parametrize(
-    "runnable,frequency,line_status,batch_mode,period,debt,tonight",
+    "runnable,frequency,line_status,batch_mode,period,tonight",
     [
-        (True, "daily", "reserved", "automatic", "today", 0, True),
-        (False, "daily", "reserved", "automatic", "today", 0, False),
-        (True, "weekly", "reserved", "automatic", "today", 0, False),
-        (True, "daily", "failed", "automatic", "today", 0, False),
-        (True, "daily", "reserved", "maker_checker", "today", 0, False),
-        (True, "daily", "reserved", "automatic", "yesterday", 0, False),
-        (True, "daily", "reserved", "automatic", "today", 1, False),
+        (True, "daily", "reserved", "automatic", "today", True),
+        (False, "daily", "reserved", "automatic", "today", False),
+        (True, "weekly", "reserved", "automatic", "today", False),
+        (True, "daily", "failed", "automatic", "today", False),
+        (True, "daily", "reserved", "manual", "today", False),
+        (True, "daily", "reserved", "automatic", "yesterday", False),
     ],
 )
 def test_tonight_requires_current_automatic_schedule_and_runtime(
@@ -104,7 +98,6 @@ def test_tonight_requires_current_automatic_schedule_and_runtime(
     line_status,
     batch_mode,
     period,
-    debt,
     tonight,
     clean_reason=None,
 ):
@@ -159,11 +152,6 @@ def test_tonight_requires_current_automatic_schedule_and_runtime(
     )
     monkeypatch.setattr(presentation, "build_disbursement_adapter", lambda settings: None)
     monkeypatch.setattr(
-        presentation,
-        "driver_money_balance",
-        AsyncMock(return_value=SimpleNamespace(carry_forward_debt=Decimal(debt))),
-    )
-    monkeypatch.setattr(
         presentation, "_clean_reason", AsyncMock(return_value=(clean_reason, {}, None))
     )
     asyncio.run(presentation.enrich_driver_ledger(session, [entry], [response], None))
@@ -173,5 +161,5 @@ def test_tonight_requires_current_automatic_schedule_and_runtime(
 @pytest.mark.parametrize("reason", ["new_bank_destination", "fraud_hold", "assessment_not_current"])
 def test_new_clean_check_can_withhold_tonight(monkeypatch, reason):
     test_tonight_requires_current_automatic_schedule_and_runtime(
-        monkeypatch, True, "daily", "reserved", "automatic", "today", 0, False, reason
+        monkeypatch, True, "daily", "reserved", "automatic", "today", False, reason
     )

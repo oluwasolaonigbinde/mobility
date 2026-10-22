@@ -18,7 +18,7 @@ const CAMPAIGN_ID = "00000000-0000-4000-8000-000000000001";
 
 function commercial(overrides: Partial<Commercial> = {}): Commercial {
   return {
-    budget_evaluations: [],
+    budget_check: null,
     expedited_waiver_copy: {
       accepted_wording: "I waive the wait.",
       accepted_wording_hash: "h",
@@ -268,7 +268,7 @@ describe("CommercialPanel copy", () => {
     render(
       <CommercialPanel
         campaignId={CAMPAIGN_ID}
-        commercial={commercial({ terms: accepted, budget_evaluations: [] })}
+        commercial={commercial({ terms: accepted, budget_check: null })}
       />,
     );
     expect(screen.getByText("Budget alerts")).toBeInTheDocument();

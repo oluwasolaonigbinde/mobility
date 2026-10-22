@@ -1353,29 +1353,11 @@
           "held_pending_net": {
             "title": "Held Pending Net",
             "type": "string"
-          },
-          "reversal_entry_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reversal Entry Id"
-          },
-          "reversal_recommended": {
-            "title": "Reversal Recommended",
-            "type": "boolean"
           }
         },
         "required": [
           "available_net",
           "currency",
-          "reversal_entry_id",
-          "reversal_recommended",
           "held_pending_net",
           "held_currency"
         ],
@@ -5057,85 +5039,16 @@
         "title": "BillingHistoryEntry",
         "type": "object"
       },
-      "BudgetEvaluationRead": {
+      "BudgetCheckRead": {
         "properties": {
-          "alert_applied": {
-            "title": "Alert Applied",
-            "type": "boolean"
-          },
-          "alert_threshold_amount": {
-            "anyOf": [
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Alert Threshold Amount"
-          },
-          "billing_fact_source": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Billing Fact Source"
-          },
           "billing_spend_amount": {
-            "anyOf": [
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Billing Spend Amount"
-          },
-          "budget_basis": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Budget Basis"
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Billing Spend Amount",
+            "type": "string"
           },
           "campaign_budget_amount": {
-            "anyOf": [
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Campaign Budget Amount"
-          },
-          "campaign_daily_budget_amount": {
-            "anyOf": [
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Campaign Daily Budget Amount"
-          },
-          "campaign_id": {
-            "format": "uuid",
-            "title": "Campaign Id",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+            "title": "Campaign Budget Amount",
             "type": "string"
           },
           "currency": {
@@ -5147,116 +5060,24 @@
             "title": "Evaluated At",
             "type": "string"
           },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "pause_applied": {
-            "title": "Pause Applied",
-            "type": "boolean"
-          },
-          "pause_threshold_amount": {
-            "anyOf": [
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Pause Threshold Amount"
-          },
-          "policy_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Policy Id"
-          },
-          "policy_revision": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Policy Revision"
-          },
-          "policy_source": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Policy Source"
-          },
           "resume_allowed": {
             "title": "Resume Allowed",
             "type": "boolean"
           },
-          "resume_threshold_amount": {
-            "anyOf": [
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resume Threshold Amount"
-          },
           "state": {
             "title": "State",
             "type": "string"
-          },
-          "urgent_threshold_amount": {
-            "anyOf": [
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Urgent Threshold Amount"
           }
         },
         "required": [
-          "id",
-          "campaign_id",
           "state",
           "campaign_budget_amount",
-          "campaign_daily_budget_amount",
           "currency",
-          "policy_id",
-          "policy_revision",
-          "policy_source",
-          "budget_basis",
-          "billing_fact_source",
           "billing_spend_amount",
-          "alert_threshold_amount",
-          "urgent_threshold_amount",
-          "pause_threshold_amount",
-          "resume_threshold_amount",
-          "alert_applied",
-          "pause_applied",
           "resume_allowed",
           "evaluated_at"
         ],
-        "title": "BudgetEvaluationRead",
+        "title": "BudgetCheckRead",
         "type": "object"
       },
       "BudgetResumeCreate": {
@@ -5303,11 +5124,6 @@
             "title": "Created At",
             "type": "string"
           },
-          "evaluation_id": {
-            "format": "uuid",
-            "title": "Evaluation Id",
-            "type": "string"
-          },
           "id": {
             "format": "uuid",
             "title": "Id",
@@ -5316,6 +5132,18 @@
           "new_status": {
             "title": "New Status",
             "type": "string"
+          },
+          "pause_transition_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pause Transition Id"
           },
           "prior_status": {
             "title": "Prior Status",
@@ -5336,7 +5164,7 @@
         "required": [
           "id",
           "campaign_id",
-          "evaluation_id",
+          "pause_transition_id",
           "action",
           "prior_status",
           "new_status",
@@ -6827,12 +6655,15 @@
       },
       "CampaignCommercialRead": {
         "properties": {
-          "budget_evaluations": {
-            "items": {
-              "$ref": "#/components/schemas/BudgetEvaluationRead"
-            },
-            "title": "Budget Evaluations",
-            "type": "array"
+          "budget_check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BudgetCheckRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "expedited_waiver_copy": {
             "$ref": "#/components/schemas/WaiverCopyRead"
@@ -6919,7 +6750,7 @@
           "waiver",
           "production_start",
           "settlements",
-          "budget_evaluations"
+          "budget_check"
         ],
         "title": "CampaignCommercialRead",
         "type": "object"
@@ -7043,7 +6874,7 @@
       "CampaignDriverMoneyRead": {
         "properties": {
           "cash_paid": {
-            "description": "Economic ledger amount paid, counting each credit once.",
+            "description": "Actual verified successful payout-line amounts.",
             "title": "Cash Paid",
             "type": "string"
           },
@@ -7058,10 +6889,6 @@
           "driver_profile_id": {
             "format": "uuid",
             "title": "Driver Profile Id",
-            "type": "string"
-          },
-          "driver_wide_debt": {
-            "title": "Driver Wide Debt",
             "type": "string"
           },
           "earned_net": {
@@ -7102,8 +6929,7 @@
           "in_flight",
           "terminal_failed",
           "cash_paid",
-          "provider_verified_paid",
-          "driver_wide_debt"
+          "provider_verified_paid"
         ],
         "title": "CampaignDriverMoneyRead",
         "type": "object"
@@ -11194,17 +11020,6 @@
             ],
             "title": "Batch Payable Amount"
           },
-          "carry_forward_debt_amount": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Carry Forward Debt Amount"
-          },
           "cash_paid_amount": {
             "anyOf": [
               {
@@ -11289,7 +11104,6 @@
           "lifetime_earned_amount",
           "released_available_amount",
           "cash_paid_amount",
-          "carry_forward_debt_amount",
           "batch_payable_amount",
           "ledger_entry_count"
         ],
@@ -11759,10 +11573,6 @@
             "title": "Batch Payable",
             "type": "string"
           },
-          "carry_forward_debt": {
-            "title": "Carry Forward Debt",
-            "type": "string"
-          },
           "cash_paid": {
             "title": "Cash Paid",
             "type": "string"
@@ -11806,7 +11616,6 @@
           "in_flight",
           "terminal_failed",
           "cash_paid",
-          "carry_forward_debt",
           "batch_payable"
         ],
         "title": "DriverMoneyBalanceRead",
@@ -12753,8 +12562,7 @@
         "enum": [
           "trip_payout",
           "adjustment",
-          "reversal",
-          "debt_remainder"
+          "reversal"
         ],
         "title": "EarningsLedgerEntryType",
         "type": "string"
@@ -12846,16 +12654,8 @@
             "title": "Campaign Name",
             "type": "string"
           },
-          "carry_forward_debt": {
-            "title": "Carry Forward Debt",
-            "type": "string"
-          },
           "currency": {
             "title": "Currency",
-            "type": "string"
-          },
-          "debt_deducted": {
-            "title": "Debt Deducted",
             "type": "string"
           },
           "destination_verified": {
@@ -12913,8 +12713,6 @@
           "occurred_at",
           "amount",
           "currency",
-          "debt_deducted",
-          "carry_forward_debt",
           "destination_verified",
           "bank_account_version_id",
           "eligible",
@@ -14024,11 +13822,6 @@
       },
       "FraudFlagCounts": {
         "properties": {
-          "acknowledged": {
-            "default": 0,
-            "title": "Acknowledged",
-            "type": "integer"
-          },
           "confirmed": {
             "default": 0,
             "title": "Confirmed",
@@ -14110,29 +13903,11 @@
               }
             ],
             "title": "Currency"
-          },
-          "reversal_entry_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reversal Entry Id"
-          },
-          "reversal_recommended": {
-            "title": "Reversal Recommended",
-            "type": "boolean"
           }
         },
         "required": [
           "available_net",
-          "currency",
-          "reversal_entry_id",
-          "reversal_recommended"
+          "currency"
         ],
         "title": "FraudFlagMoneyEffectRead",
         "type": "object"
@@ -14309,7 +14084,6 @@
       "FraudFlagStatus": {
         "enum": [
           "open",
-          "acknowledged",
           "confirmed",
           "dismissed"
         ],
@@ -14318,13 +14092,9 @@
       },
       "FraudFlagType": {
         "enum": [
-          "insufficient_pings",
           "impossible_speed",
-          "poor_accuracy",
           "stationary_trip",
           "excessive_ping_gap",
-          "future_timestamp",
-          "route_looping",
           "route_replay",
           "exclusion_zone_presence",
           "physical_spot_check_failed"
@@ -16039,6 +15809,15 @@
             "title": "Duplicate",
             "type": "boolean"
           },
+          "evidence_scope": {
+            "enum": [
+              "manifest",
+              "late",
+              "late_dropped"
+            ],
+            "title": "Evidence Scope",
+            "type": "string"
+          },
           "outcome": {
             "anyOf": [
               {
@@ -16057,11 +15836,6 @@
           "payload_hash_version": {
             "title": "Payload Hash Version",
             "type": "integer"
-          },
-          "quarantined": {
-            "default": false,
-            "title": "Quarantined",
-            "type": "boolean"
           },
           "receipt_format_version": {
             "anyOf": [
@@ -16125,7 +15899,8 @@
           "submitted_count",
           "payload_hash_version",
           "payload_hash",
-          "duplicate"
+          "duplicate",
+          "evidence_scope"
         ],
         "title": "LocationPingBatchResponse",
         "type": "object"
@@ -17421,6 +17196,22 @@
         "title": "PaymentWebhookReceipt",
         "type": "object"
       },
+      "PayoutActionReason": {
+        "additionalProperties": false,
+        "properties": {
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "PayoutActionReason",
+        "type": "object"
+      },
       "PayoutAutomaticAlertKind": {
         "enum": [
           "failed_payment",
@@ -17435,7 +17226,7 @@
       },
       "PayoutBatchApprovalMode": {
         "enum": [
-          "maker_checker",
+          "manual",
           "automatic"
         ],
         "title": "PayoutBatchApprovalMode",
@@ -17448,6 +17239,12 @@
             "maxLength": 3,
             "minLength": 3,
             "title": "Currency",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
             "type": "string"
           },
           "request_id": {
@@ -17464,6 +17261,7 @@
           }
         },
         "required": [
+          "reason",
           "currency"
         ],
         "title": "PayoutBatchCreate",
@@ -17683,7 +17481,7 @@
         "properties": {
           "approval_mode": {
             "$ref": "#/components/schemas/PayoutBatchApprovalMode",
-            "default": "maker_checker"
+            "default": "manual"
           },
           "approved_at": {
             "anyOf": [
@@ -17817,9 +17615,16 @@
             "minItems": 1,
             "title": "Ledger Entry Ids",
             "type": "array"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
           }
         },
         "required": [
+          "reason",
           "ledger_entry_ids"
         ],
         "title": "PayoutBatchReserve",
@@ -17873,7 +17678,7 @@
         "properties": {
           "approval_mode": {
             "$ref": "#/components/schemas/PayoutBatchApprovalMode",
-            "default": "maker_checker"
+            "default": "manual"
           },
           "approved_at": {
             "anyOf": [
@@ -18194,6 +17999,39 @@
         "title": "PayoutCalculationStatus",
         "type": "string"
       },
+      "PayoutCorrectionOrderApproveRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          },
+          "release_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Release At"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "PayoutCorrectionOrderApproveRequest",
+        "type": "object"
+      },
       "PayoutCorrectionOrderCreate": {
         "additionalProperties": false,
         "properties": {
@@ -18218,30 +18056,6 @@
           "reason"
         ],
         "title": "PayoutCorrectionOrderCreate",
-        "type": "object"
-      },
-      "PayoutCorrectionOrderExecuteRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "metadata": {
-            "additionalProperties": true,
-            "title": "Metadata",
-            "type": "object"
-          },
-          "release_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Release At"
-          }
-        },
-        "title": "PayoutCorrectionOrderExecuteRequest",
         "type": "object"
       },
       "PayoutCorrectionOrderListResponse": {
@@ -18439,9 +18253,6 @@
       "PayoutCorrectionOrderStatus": {
         "enum": [
           "draft",
-          "pending_approval",
-          "approved",
-          "rejected",
           "executed",
           "stale"
         ],
@@ -18477,52 +18288,6 @@
           "projection_fingerprint"
         ],
         "title": "PayoutDayProjection",
-        "type": "object"
-      },
-      "PayoutDebtAllocate": {
-        "additionalProperties": false,
-        "properties": {
-          "currency": {
-            "maxLength": 3,
-            "minLength": 3,
-            "title": "Currency",
-            "type": "string"
-          }
-        },
-        "required": [
-          "currency"
-        ],
-        "title": "PayoutDebtAllocate",
-        "type": "object"
-      },
-      "PayoutDebtAllocationRead": {
-        "properties": {
-          "balance": {
-            "$ref": "#/components/schemas/DriverMoneyBalanceRead"
-          },
-          "remainder_entry_ids": {
-            "items": {
-              "format": "uuid",
-              "type": "string"
-            },
-            "title": "Remainder Entry Ids",
-            "type": "array"
-          },
-          "settlement_ids": {
-            "items": {
-              "format": "uuid",
-              "type": "string"
-            },
-            "title": "Settlement Ids",
-            "type": "array"
-          }
-        },
-        "required": [
-          "balance",
-          "settlement_ids",
-          "remainder_entry_ids"
-        ],
-        "title": "PayoutDebtAllocationRead",
         "type": "object"
       },
       "PayoutLedgerEntrySummary": {
@@ -18642,6 +18407,60 @@
           "offset"
         ],
         "title": "PayoutLineHistoryRead",
+        "type": "object"
+      },
+      "PayoutNegativeAdjustment": {
+        "additionalProperties": false,
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*(?:\\d{0,12}|(?=[\\d.]{1,15}0*$)\\d{0,12}\\.\\d{0,2}0*$)",
+                "type": "string"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "type": "string"
+          },
+          "lagos_day": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lagos Day"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 3,
+            "title": "Reason",
+            "type": "string"
+          },
+          "request_id": {
+            "format": "uuid",
+            "title": "Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "request_id",
+          "amount",
+          "currency"
+        ],
+        "title": "PayoutNegativeAdjustment",
         "type": "object"
       },
       "PayoutOperationLineRead": {
@@ -19367,7 +19186,8 @@
                   "INVALID_RECORDED_AT",
                   "INVALID_ASSIGNMENT_AUTHORITY",
                   "INVALID_ACCURACY",
-                  "INVALID_SPEED"
+                  "INVALID_SPEED",
+                  "PAY_ALREADY_CALCULATED"
                 ],
                 "type": "string"
               },
@@ -19528,267 +19348,6 @@
           "fraud_flags"
         ],
         "title": "QualitySummary",
-        "type": "object"
-      },
-      "QuarantineApplyResponse": {
-        "properties": {
-          "accepted_count": {
-            "title": "Accepted Count",
-            "type": "integer"
-          },
-          "affected_lagos_days": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Affected Lagos Days",
-            "type": "array"
-          },
-          "applied_batch_id": {
-            "format": "uuid",
-            "title": "Applied Batch Id",
-            "type": "string"
-          },
-          "quarantine_id": {
-            "format": "uuid",
-            "title": "Quarantine Id",
-            "type": "string"
-          },
-          "trip_id": {
-            "format": "uuid",
-            "title": "Trip Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "quarantine_id",
-          "trip_id",
-          "applied_batch_id",
-          "accepted_count",
-          "affected_lagos_days"
-        ],
-        "title": "QuarantineApplyResponse",
-        "type": "object"
-      },
-      "QuarantineResolveRequest": {
-        "additionalProperties": false,
-        "properties": {
-          "note": {
-            "maxLength": 2000,
-            "minLength": 1,
-            "title": "Note",
-            "type": "string"
-          }
-        },
-        "required": [
-          "note"
-        ],
-        "title": "QuarantineResolveRequest",
-        "type": "object"
-      },
-      "QuarantinedPingBatchListResponse": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/QuarantinedPingBatchRead"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "limit": {
-            "title": "Limit",
-            "type": "integer"
-          },
-          "offset": {
-            "title": "Offset",
-            "type": "integer"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "total",
-          "limit",
-          "offset"
-        ],
-        "title": "QuarantinedPingBatchListResponse",
-        "type": "object"
-      },
-      "QuarantinedPingBatchRead": {
-        "properties": {
-          "applied_batch_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Applied Batch Id"
-          },
-          "assignment_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Assignment Id"
-          },
-          "campaign_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Campaign Id"
-          },
-          "campaign_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Campaign Name"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "driver_name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Driver Name"
-          },
-          "driver_profile_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Driver Profile Id"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "idempotency_key": {
-            "title": "Idempotency Key",
-            "type": "string"
-          },
-          "ping_count": {
-            "title": "Ping Count",
-            "type": "integer"
-          },
-          "received_at": {
-            "format": "date-time",
-            "title": "Received At",
-            "type": "string"
-          },
-          "resolution_note": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resolution Note"
-          },
-          "resolved_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resolved At"
-          },
-          "resolved_by_user_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Resolved By User Id"
-          },
-          "status": {
-            "title": "Status",
-            "type": "string"
-          },
-          "trip_session_id": {
-            "format": "uuid",
-            "title": "Trip Session Id",
-            "type": "string"
-          },
-          "trip_started_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Trip Started At"
-          },
-          "vehicle_plate": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Vehicle Plate"
-          }
-        },
-        "required": [
-          "id",
-          "trip_session_id",
-          "idempotency_key",
-          "ping_count",
-          "received_at",
-          "status",
-          "created_at"
-        ],
-        "title": "QuarantinedPingBatchRead",
         "type": "object"
       },
       "QuoteAccept": {
@@ -30224,6 +29783,64 @@
         ]
       }
     },
+    "/api/v1/admin/earnings-ledger/{entry_id}/negative-adjustments": {
+      "post": {
+        "operationId": "admin_record_negative_adjustment_api_v1_admin_earnings_ledger__entry_id__negative_adjustments_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "entry_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Entry Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutNegativeAdjustment"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EarningsLedgerEntryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Record an audited manual negative adjustment on a trip",
+        "tags": [
+          "Payouts"
+        ]
+      }
+    },
     "/api/v1/admin/evidence-verifications": {
       "get": {
         "operationId": "admin_evidence_verifications_api_v1_admin_evidence_verifications_get",
@@ -31004,54 +30621,6 @@
           }
         ],
         "summary": "List fraud and anomaly flags",
-        "tags": [
-          "Analytics"
-        ]
-      }
-    },
-    "/api/v1/admin/fraud-flags/{flag_id}/review/acknowledge": {
-      "post": {
-        "operationId": "admin_acknowledge_fraud_flag_api_v1_admin_fraud_flags__flag_id__review_acknowledge_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "flag_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Flag Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminFraudFlagRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Acknowledge a fraud flag for staff review",
         "tags": [
           "Analytics"
         ]
@@ -32914,123 +32483,6 @@
         ]
       }
     },
-    "/api/v1/admin/payout-batches/debt-balances/{driver_profile_id}": {
-      "get": {
-        "operationId": "admin_get_driver_money_balance_api_v1_admin_payout_batches_debt_balances__driver_profile_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "driver_profile_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Driver Profile Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "currency",
-            "required": true,
-            "schema": {
-              "maxLength": 3,
-              "minLength": 3,
-              "title": "Currency",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/DriverMoneyBalanceRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Admin Get Driver Money Balance",
-        "tags": [
-          "Admin payout batches"
-        ]
-      }
-    },
-    "/api/v1/admin/payout-batches/debt-balances/{driver_profile_id}/allocate": {
-      "post": {
-        "operationId": "admin_allocate_driver_debt_api_v1_admin_payout_batches_debt_balances__driver_profile_id__allocate_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "driver_profile_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Driver Profile Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PayoutDebtAllocate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PayoutDebtAllocationRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Admin Allocate Driver Debt",
-        "tags": [
-          "Admin payout batches"
-        ]
-      }
-    },
     "/api/v1/admin/payout-batches/eligible": {
       "get": {
         "operationId": "admin_eligible_payment_entries_api_v1_admin_payout_batches_eligible_get",
@@ -33206,6 +32658,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutActionReason"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
@@ -33234,6 +32696,65 @@
           }
         ],
         "summary": "Admin Poll Payout Line",
+        "tags": [
+          "Admin payout batches"
+        ]
+      }
+    },
+    "/api/v1/admin/payout-batches/money-balances/{driver_profile_id}": {
+      "get": {
+        "operationId": "admin_get_driver_money_balance_api_v1_admin_payout_batches_money_balances__driver_profile_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "driver_profile_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Driver Profile Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "currency",
+            "required": true,
+            "schema": {
+              "maxLength": 3,
+              "minLength": 3,
+              "title": "Currency",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverMoneyBalanceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Get Driver Money Balance",
         "tags": [
           "Admin payout batches"
         ]
@@ -33461,6 +32982,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutActionReason"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
@@ -33638,6 +33169,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayoutActionReason"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
@@ -34535,70 +34076,15 @@
             }
           }
         ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PayoutCorrectionOrderRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Approve a correction order (approver must differ from creator)",
-        "tags": [
-          "Payouts"
-        ]
-      }
-    },
-    "/api/v1/admin/payouts/correction-orders/{order_id}/execute": {
-      "post": {
-        "operationId": "admin_execute_correction_order_api_v1_admin_payouts_correction_orders__order_id__execute_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "order_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Order Id",
-              "type": "string"
-            }
-          }
-        ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/PayoutCorrectionOrderExecuteRequest"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Payload"
+                "$ref": "#/components/schemas/PayoutCorrectionOrderApproveRequest"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -34627,103 +34113,7 @@
             "OAuth2PasswordBearer": []
           }
         ],
-        "summary": "Execute an approved correction order (idempotent)",
-        "tags": [
-          "Payouts"
-        ]
-      }
-    },
-    "/api/v1/admin/payouts/correction-orders/{order_id}/reject": {
-      "post": {
-        "operationId": "admin_reject_correction_order_api_v1_admin_payouts_correction_orders__order_id__reject_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "order_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Order Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PayoutCorrectionOrderRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Reject a pending correction order",
-        "tags": [
-          "Payouts"
-        ]
-      }
-    },
-    "/api/v1/admin/payouts/correction-orders/{order_id}/submit": {
-      "post": {
-        "operationId": "admin_submit_correction_order_api_v1_admin_payouts_correction_orders__order_id__submit_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "order_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Order Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PayoutCorrectionOrderRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Submit a draft correction order for approval",
+        "summary": "Approve and apply a saved pay correction with a reason",
         "tags": [
           "Payouts"
         ]
@@ -34790,7 +34180,7 @@
     },
     "/api/v1/admin/payouts/recompute-day": {
       "post": {
-        "description": "PR7: the direct execute path is retired. Every retroactive recompute \u2014\nregardless of delta sign \u2014 runs through an approved maker-checker\ncorrection order. The route stays registered so the contract and the\naudit-coverage table remain consistent; it always answers 409.",
+        "description": "PR7: the direct execute path is retired. Every retroactive recompute \u2014\nregardless of delta sign \u2014 runs through an approved reasoned manual\ncorrection order. The route stays registered so the contract and the\naudit-coverage table remain consistent; it always answers 409.",
         "operationId": "admin_recompute_payout_day_api_v1_admin_payouts_recompute_day_post",
         "requestBody": {
           "content": {
@@ -35816,151 +35206,6 @@
         ]
       }
     },
-    "/api/v1/admin/trips/quarantined-batches": {
-      "get": {
-        "operationId": "admin_list_quarantined_batches_api_v1_admin_trips_quarantined_batches_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "trip_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Trip Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "status",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Status"
-            }
-          },
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "maximum": 200,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "quarantine_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Quarantine Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "driver_profile_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Driver Profile Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "campaign_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Campaign Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/QuarantinedPingBatchListResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "List quarantined ping batches",
-        "tags": [
-          "Trips Admin"
-        ]
-      }
-    },
     "/api/v1/admin/trips/{trip_id}/analytics": {
       "get": {
         "operationId": "admin_get_trip_analytics_api_v1_admin_trips__trip_id__analytics_get",
@@ -36136,142 +35381,6 @@
         "summary": "Estimate impressions for one analyzed trip",
         "tags": [
           "Impressions"
-        ]
-      }
-    },
-    "/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/apply": {
-      "post": {
-        "operationId": "admin_apply_quarantined_batch_api_v1_admin_trips__trip_id__quarantined_batches__quarantine_id__apply_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "trip_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Trip Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "quarantine_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Quarantine Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/QuarantineResolveRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/QuarantineApplyResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Apply a quarantined ping batch as live trip evidence",
-        "tags": [
-          "Trips Admin"
-        ]
-      }
-    },
-    "/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/discard": {
-      "post": {
-        "operationId": "admin_discard_quarantined_batch_api_v1_admin_trips__trip_id__quarantined_batches__quarantine_id__discard_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "trip_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Trip Id",
-              "type": "string"
-            }
-          },
-          {
-            "in": "path",
-            "name": "quarantine_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Quarantine Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/QuarantineResolveRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/QuarantinedPingBatchRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Discard a quarantined ping batch",
-        "tags": [
-          "Trips Admin"
         ]
       }
     },

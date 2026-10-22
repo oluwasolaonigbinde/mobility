@@ -66,16 +66,23 @@ async def _prepare_batch(sessionmaker, graph, adapter, *, line_count: int = 1):
             entries.append(entry)
         await session.flush()
         batch = await create_payout_batch_draft(
-            session, currency="NGN", actor_user_id=graph.admin.id
+            session,
+            reason="Focused staff payout action",
+            currency="NGN",
+            actor_user_id=graph.admin.id,
         )
         _, lines = await reserve_payout_batch(
             session,
+            reason="Focused staff payout action",
             batch_id=batch.id,
             ledger_entry_ids=tuple(entry.id for entry in entries),
             actor_user_id=graph.admin.id,
         )
         await approve_payout_batch(
-            session, batch_id=batch.id, actor_user_id=checker.id
+            session,
+            reason="Focused staff payout action",
+            batch_id=batch.id,
+            actor_user_id=checker.id,
         )
         await submit_payout_batch(
             session,
@@ -86,11 +93,7 @@ async def _prepare_batch(sessionmaker, graph, adapter, *, line_count: int = 1):
         intent_ids = tuple(
             await session.scalars(
                 select(PayoutSubmissionIntent.id)
-                .where(
-                    PayoutSubmissionIntent.payout_batch_line_id.in_(
-                        [line.id for line in lines]
-                    )
-                )
+                .where(PayoutSubmissionIntent.payout_batch_line_id.in_([line.id for line in lines]))
                 .order_by(PayoutSubmissionIntent.payout_batch_line_id)
             )
         )
@@ -105,9 +108,7 @@ def test_committed_intent_is_processed_once_and_resolved_line_never_replays(
     adapter = FakeDisbursementAdapter()
 
     async def exercise():
-        batch_id, line_ids, intent_ids = await _prepare_batch(
-            db_sessionmaker, graph, adapter
-        )
+        batch_id, line_ids, intent_ids = await _prepare_batch(db_sessionmaker, graph, adapter)
         ctx = {"sessionmaker": db_sessionmaker, "disbursement_adapter": adapter}
         first = await sweep_disbursement_intents(ctx)
         second = await sweep_disbursement_intents(ctx)
@@ -213,9 +214,7 @@ def test_unknown_intents_rotate_so_later_pending_lines_are_not_starved(
     adapter = FakeDisbursementAdapter()
 
     async def exercise():
-        _, _, intent_ids = await _prepare_batch(
-            db_sessionmaker, graph, adapter, line_count=101
-        )
+        _, _, intent_ids = await _prepare_batch(db_sessionmaker, graph, adapter, line_count=101)
         ordered_ids = tuple(sorted(intent_ids))
         old = datetime(2020, 1, 1, tzinfo=UTC)
         async with db_sessionmaker() as session:
@@ -269,9 +268,7 @@ def test_failed_oldest_prefix_does_not_starve_later_authorized_work(
     adapter = FakeDisbursementAdapter()
 
     async def exercise():
-        _, _, denied_ids = await _prepare_batch(
-            sessionmaker, denied_graph, adapter, line_count=100
-        )
+        _, _, denied_ids = await _prepare_batch(sessionmaker, denied_graph, adapter, line_count=100)
         _, _, ready_ids = await _prepare_batch(sessionmaker, ready_graph, adapter)
         if failure == "unexpected":
             process = disbursement_jobs.process_disbursement_intent_job
@@ -409,17 +406,13 @@ def test_partial_batch_progress_is_per_line_and_duplicate_reference_never_replay
             ledger_statuses = tuple(
                 await session.scalars(
                     select(EarningsLedgerEntry.status)
-                    .where(
-                        EarningsLedgerEntry.id.in_([line.ledger_entry_id for line in lines])
-                    )
+                    .where(EarningsLedgerEntry.id.in_([line.ledger_entry_id for line in lines]))
                     .order_by(EarningsLedgerEntry.id)
                 )
             )
             return outcomes, batch, lines, intents, duplicate_errors, ledger_statuses
 
-    outcomes, batch, lines, intents, duplicate_errors, ledger_statuses = asyncio.run(
-        exercise()
-    )
+    outcomes, batch, lines, intents, duplicate_errors, ledger_statuses = asyncio.run(exercise())
     assert outcomes == ["resolved", "query_only", "query_only"]
     assert len(adapter.calls) == 2
     assert batch.status == "submitted"

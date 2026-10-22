@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -16,6 +16,7 @@ from app.schemas.disbursements import (
     CampaignMoneyPositionRead,
     DriverMoneyBalanceRead,
     EligiblePaymentListRead,
+    PayoutActionReason,
     PayoutBatchCreate,
     PayoutBatchDetailRead,
     PayoutBatchLineRead,
@@ -23,8 +24,6 @@ from app.schemas.disbursements import (
     PayoutBatchRead,
     PayoutBatchReserve,
     PayoutBatchSummaryListRead,
-    PayoutDebtAllocate,
-    PayoutDebtAllocationRead,
     PayoutLineHistoryRead,
     PayoutSelectionPreview,
     PayoutSelectionPreviewRead,
@@ -40,7 +39,7 @@ from app.services.disbursements import (
     submit_payout_batch,
     void_payout_batch,
 )
-from app.services.payout_debt import allocate_available_credit_to_debt, driver_money_balance
+from app.services.payout_balances import driver_money_balance
 from app.services.payout_operations import (
     campaign_money_position,
     eligible_payment_entries,
@@ -87,6 +86,7 @@ async def admin_create_payout_batch(
         currency=payload.currency,
         actor_user_id=current_user.id,
         request_id=payload.request_id,
+        reason=payload.reason,
     )
     await session.commit()
     return _response(batch)
@@ -185,7 +185,7 @@ async def admin_campaign_money_position(
 
 
 @router.get(
-    "/debt-balances/{driver_profile_id}",
+    "/money-balances/{driver_profile_id}",
     response_model=DriverMoneyBalanceRead,
 )
 async def admin_get_driver_money_balance(
@@ -213,33 +213,6 @@ async def admin_get_driver_money_balance(
     )
 
 
-@router.post(
-    "/debt-balances/{driver_profile_id}/allocate",
-    response_model=PayoutDebtAllocationRead,
-)
-async def admin_allocate_driver_debt(
-    driver_profile_id: UUID,
-    payload: PayoutDebtAllocate,
-    current_user: AdminUserDependency,
-    session: SessionDependency,
-) -> PayoutDebtAllocationRead:
-    try:
-        result = await allocate_available_credit_to_debt(
-            session,
-            driver_profile_id=driver_profile_id,
-            currency=payload.currency,
-            actor_user_id=current_user.id,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    await session.commit()
-    return PayoutDebtAllocationRead(
-        balance=DriverMoneyBalanceRead.model_validate(result.balance, from_attributes=True),
-        settlement_ids=list(result.settlement_ids),
-        remainder_entry_ids=list(result.remainder_entry_ids),
-    )
-
-
 @router.post("/{batch_id}/reserve", response_model=PayoutBatchRead)
 async def admin_reserve_payout_batch(
     batch_id: UUID,
@@ -252,6 +225,7 @@ async def admin_reserve_payout_batch(
         batch_id=batch_id,
         ledger_entry_ids=tuple(payload.ledger_entry_ids),
         actor_user_id=current_user.id,
+        reason=payload.reason,
     )
     await session.commit()
     return _response(batch, lines)
@@ -260,11 +234,15 @@ async def admin_reserve_payout_batch(
 @router.post("/{batch_id}/approve", response_model=PayoutBatchRead)
 async def admin_approve_payout_batch(
     batch_id: UUID,
+    payload: PayoutActionReason,
     current_user: AdminUserDependency,
     session: SessionDependency,
 ) -> PayoutBatchRead:
     batch, lines = await approve_payout_batch(
-        session, batch_id=batch_id, actor_user_id=current_user.id
+        session,
+        batch_id=batch_id,
+        actor_user_id=current_user.id,
+        reason=payload.reason,
     )
     await session.commit()
     return _response(batch, lines)
@@ -290,6 +268,7 @@ async def admin_submit_payout_batch(
 @router.post("/lines/{line_id}/poll", response_model=PayoutBatchRead)
 async def admin_poll_payout_line(
     line_id: UUID,
+    payload: PayoutActionReason,
     current_user: AdminUserDependency,
     session: SessionDependency,
     adapter: DisbursementDependency,
@@ -299,6 +278,7 @@ async def admin_poll_payout_line(
         line_id=line_id,
         actor_user_id=current_user.id,
         adapter=adapter,
+        reason=payload.reason,
     )
     await session.commit()
     return _response(batch, lines)
@@ -307,6 +287,7 @@ async def admin_poll_payout_line(
 @router.post("/{batch_id}/retry-failed", response_model=PayoutBatchRead)
 async def admin_retry_failed_payout_lines(
     batch_id: UUID,
+    payload: PayoutActionReason,
     current_user: AdminUserDependency,
     session: SessionDependency,
     adapter: DisbursementDependency,
@@ -316,6 +297,7 @@ async def admin_retry_failed_payout_lines(
         batch_id=batch_id,
         actor_user_id=current_user.id,
         adapter=adapter,
+        reason=payload.reason,
     )
     await session.commit()
     return _response(batch, lines)

@@ -13,7 +13,7 @@ from test_budget_enforcement_w2_01e import (
 )
 
 from app.core.errors import AppError
-from app.models.billing import BudgetCampaignTransition, BudgetPolicyEvaluation
+from app.models.billing import BudgetCampaignTransition
 from app.models.campaign import Campaign
 from app.models.notification import Notification
 from app.models.user import UserRole
@@ -100,9 +100,7 @@ def test_normal_fixed_price_campaign_never_warns_or_pauses(
                     reference=f"D104-{reference}",
                     amount=str(amount),
                 )
-                evaluation = await budget.evaluate_campaign_budget_policy(
-                    session, campaign_id=campaign.id
-                )
+                evaluation = await budget.enforce_campaign_budget(session, campaign_id=campaign.id)
                 assert evaluation.state == "within_budget"
             assert evaluation.billing_spend_amount == terms.gross_amount
             assert await budget_notices(session) == 0
@@ -141,14 +139,10 @@ def test_extra_charges_warn_then_pause_and_resume_after_a_budget_increase(
                 await correct(
                     session, invoice=invoice, admin=admin, reference=f"D92-{index}", amount=amount
                 )
-                decision = await budget.evaluate_campaign_budget_policy(
-                    session, campaign_id=campaign.id
-                )
+                decision = await budget.enforce_campaign_budget(session, campaign_id=campaign.id)
                 assert decision.state == state
-                retry = await budget.evaluate_campaign_budget_policy(
-                    session, campaign_id=campaign.id
-                )
-                assert retry.id == decision.id
+                retry = await budget.enforce_campaign_budget(session, campaign_id=campaign.id)
+                assert retry.state == decision.state
                 notice_counts.append(await budget_notices(session))
             assert notice_counts == [3, 3, 6, 6, 9]
             assert decision.billing_spend_amount == Decimal("1000.01")
@@ -181,9 +175,9 @@ def test_extra_charges_warn_then_pause_and_resume_after_a_budget_increase(
             ).id == resumed.id
             # 1000.01 of 1200 is above 80%: the resume's own fresh evaluation warns, and the
             # first evaluation of the new epoch warns again (existing behaviour, recorded gap).
-            again = await budget.evaluate_campaign_budget_policy(session, campaign_id=campaign.id)
+            again = await budget.enforce_campaign_budget(session, campaign_id=campaign.id)
             assert again.state == "alert_threshold" and again.alert_applied is True
-            assert await budget_notices(session) == 15
+            assert await budget_notices(session) == 12
             await session.commit()
 
     asyncio.run(exercise())
@@ -216,7 +210,7 @@ def test_budget_above_the_quote_warns_only_when_extra_charges_exceed_the_agreed_
                 owner=owner,
                 settings=settings,
             )
-            within = await budget.evaluate_campaign_budget_policy(session, campaign_id=campaign.id)
+            within = await budget.enforce_campaign_budget(session, campaign_id=campaign.id)
             assert within.state == "within_budget" and await budget_notices(session) == 0
             steps = [
                 ("400000.00", "alert_threshold"),
@@ -227,9 +221,7 @@ def test_budget_above_the_quote_warns_only_when_extra_charges_exceed_the_agreed_
                 await correct(
                     session, invoice=invoice, admin=admin, reference=f"ROOM-{index}", amount=amount
                 )
-                decision = await budget.evaluate_campaign_budget_policy(
-                    session, campaign_id=campaign.id
-                )
+                decision = await budget.enforce_campaign_budget(session, campaign_id=campaign.id)
                 assert decision.state == state
             assert decision.billing_spend_amount == Decimal("1500000.01")
             assert (await session.get(Campaign, campaign.id)).status == "paused"
@@ -281,27 +273,24 @@ def test_enforcement_rechecks_new_scheduling_and_ignores_stored_daily_budgets(
             row = await session.get(Campaign, campaign.id)
             row.status = "approved"
             await session.flush()
-            before = await budget.evaluate_campaign_budget_policy(session, campaign_id=campaign.id)
+            before = await budget.enforce_campaign_budget(session, campaign_id=campaign.id)
             assert before.state == "pause_threshold" and before.pause_applied is False
             row.status = "scheduled"
             await session.flush()
-            evaluations = await budget.sweep_budget_policy_evaluations(session)
+            evaluations = await budget.sweep_campaign_budgets(session)
             # A daily-only draft has no enforced budget and is not swept.
             assert {item.campaign_id for item in evaluations} == {campaign.id, tiny.id, draft.id}
             after = next(item for item in evaluations if item.campaign_id == campaign.id)
-            assert after.id != before.id and after.pause_applied is True
+            assert before.pause_applied is False and after.pause_applied is True
             assert row.status == "paused"
             assert all(
-                item.budget_basis == "total" and item.state == "within_budget"
+                item.state == "within_budget"
                 for item in evaluations
                 if item.campaign_id != campaign.id
             )
             assert (
                 await session.scalar(select(func.count()).select_from(BudgetCampaignTransition))
                 == 1
-            )
-            assert (
-                await session.scalar(select(func.count()).select_from(BudgetPolicyEvaluation)) == 4
             )
             await session.commit()
 

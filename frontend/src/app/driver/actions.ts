@@ -247,7 +247,7 @@ const basePingBatchAckSchema = z.object({
   submitted_count: z.number().int().nonnegative(),
   rejected_count: z.number().int().nonnegative(),
   duplicate: z.boolean(),
-  quarantined: z.boolean(),
+  evidence_scope: z.enum(["manifest", "late", "late_dropped"]),
 });
 
 const sampleResultSchema = z.object({
@@ -260,6 +260,7 @@ const sampleResultSchema = z.object({
       "INVALID_ASSIGNMENT_AUTHORITY",
       "INVALID_ACCURACY",
       "INVALID_SPEED",
+      "PAY_ALREADY_CALCULATED",
     ])
     .nullable(),
 });
@@ -268,7 +269,7 @@ const pingBatchAckSchema = basePingBatchAckSchema.extend({
   batch_sequence: z.number().int().nonnegative(),
   payload_hash_version: z.literal(2),
   payload_hash: z.string().regex(/^[0-9a-f]{64}$/),
-  outcome: z.string(),
+  outcome: z.enum(["accepted", "dropped"]),
   receipt_format_version: z.number().int().positive(),
   receipt_key_version: z.number().int().positive(),
   receipt_signature: z.string().min(1),
@@ -288,8 +289,6 @@ export interface PingBatchResult extends DriverActionState {
   acknowledged: boolean;
   acceptedCount?: number;
   duplicate?: boolean;
-  /** Trip already sealed: server preserved the batch as quarantine evidence. */
-  quarantined?: boolean;
   receipt?: EvidenceReceipt;
   /**
    * When `error` is set: whether retrying the same batch can ever succeed.
@@ -334,8 +333,9 @@ export async function sendPingBatchAction(
     const positiveAck =
       acknowledgement.success &&
       acknowledgement.data.trip_id === parsed.data.tripId &&
+      acknowledgement.data.accepted_count + acknowledgement.data.rejected_count ===
+        acknowledgement.data.submitted_count &&
       (acknowledgement.data.duplicate ||
-        acknowledgement.data.quarantined ||
         // A partially accepted batch is still durably settled: the server
         // adjudicated every sample and signed the disposition, so resending
         // it would only replay the same answer (OFF-005).
@@ -352,7 +352,6 @@ export async function sendPingBatchAction(
       acknowledged: true,
       acceptedCount: acknowledgement.data.accepted_count,
       duplicate: acknowledgement.data.duplicate,
-      quarantined: acknowledgement.data.quarantined,
       sampleResults: acknowledgement.data.sample_results,
       receipt: {
         tripId: acknowledgement.data.trip_id,
@@ -365,6 +364,7 @@ export async function sendPingBatchAction(
         acceptedCount: acknowledgement.data.accepted_count,
         rejectedCount: acknowledgement.data.rejected_count,
         outcome: acknowledgement.data.outcome,
+        evidenceScope: acknowledgement.data.evidence_scope,
         receiptFormatVersion: acknowledgement.data.receipt_format_version,
         receiptKeyVersion: acknowledgement.data.receipt_key_version,
         receiptSignature: acknowledgement.data.receipt_signature,

@@ -942,7 +942,7 @@ def test_fractional_ping_timestamps_credit_their_full_distance() -> None:
 def test_zero_delta_correction_still_records_the_new_distance_for_later_trips(
     postgis_db_sessionmaker, settings
 ) -> None:
-    from payout_correction_fixtures import approve, create_order, execute, second_admin, submit
+    from payout_correction_fixtures import create_order, execute, second_admin
 
     db = postgis_db_sessionmaker
     # A very small rate rounds this short trip to zero both before and after
@@ -973,9 +973,7 @@ def test_zero_delta_correction_still_records_the_new_distance_for_later_trips(
     corrected = metres_along([p for p in first if p[0] not in lost])
     assert corrected < metres_along(first)
     order = create_order(db, settings, graph)
-    submit(db, order.id, graph.admin.id)
     approver = second_admin(db, "v4-zero-delta")
-    approve(db, settings, order.id, approver.id)
     executed = execute(db, settings, order.id, approver.id)
     executed_order = executed[0] if isinstance(executed, tuple) else executed
     recorded = executed_order.execution_result["drivers"][0]["trips"][0]

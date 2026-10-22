@@ -122,10 +122,7 @@ async def driver_trip_earnings_breakdown(
     currency = calculation.currency if calculation is not None else entries[0].currency
     amount = Decimal("0.00")
     for entry in entries:
-        if (
-            entry.status == EarningsLedgerEntryStatus.VOIDED.value
-            or entry.entry_type == EarningsLedgerEntryType.DEBT_REMAINDER.value
-        ):
+        if entry.status == EarningsLedgerEntryStatus.VOIDED.value:
             continue
         if entry.entry_type == EarningsLedgerEntryType.REVERSAL.value:
             amount -= entry.amount

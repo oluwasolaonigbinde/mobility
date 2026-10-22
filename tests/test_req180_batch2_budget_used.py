@@ -132,9 +132,7 @@ def test_budget_used_is_the_booked_total_on_every_advertiser_response(
             await correct(
                 session, invoice=invoice, admin=admin, reference="USED-X", amount="600.00"
             )
-            evaluation = await budget.evaluate_campaign_budget_policy(
-                session, campaign_id=produced.id
-            )
+            evaluation = await budget.enforce_campaign_budget(session, campaign_id=produced.id)
             locked = [
                 await budget._campaign_billing_spend(session, campaign_id=row.id)
                 for row in (funded, produced)
@@ -150,7 +148,6 @@ def test_budget_used_is_the_booked_total_on_every_advertiser_response(
     # A daily budget never changes the figure: it is always the booked total.
     assert over == {**over, "amount": "1100.00", "budget_amount": "1000.00", "basis": "invoice"}
     assert Decimal(over["amount"]) == locked[1][0] == evaluation.billing_spend_amount
-    assert evaluation.budget_basis == "total"
 
     listing = db_client.get("/api/v1/advertiser/campaigns", headers=headers).json()["items"]
     by_id = {item["id"]: item["budget_used"] for item in listing}
@@ -197,7 +194,7 @@ def test_cancelled_campaigns_keep_a_truthful_booked_amount_and_no_repeat_notices
                 settings=settings,
             )
             await correct(session, invoice=invoice, admin=admin, reference="CXL-X", amount="350.00")
-            alert = await budget.evaluate_campaign_budget_policy(session, campaign_id=running.id)
+            alert = await budget.enforce_campaign_budget(session, campaign_id=running.id)
             assert alert.state == "alert_threshold"
             notices = await session.scalar(
                 select(func.count())
@@ -206,7 +203,7 @@ def test_cancelled_campaigns_keep_a_truthful_booked_amount_and_no_repeat_notices
             )
             await _staff_cancel(session, admin=admin, campaign=running)
             for _ in range(2):
-                await budget.sweep_budget_policy_evaluations(session)
+                await budget.sweep_campaign_budgets(session)
             assert (
                 await session.scalar(
                     select(func.count())

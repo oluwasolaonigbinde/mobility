@@ -1,4 +1,4 @@
-"""MNY-06C: maker-checker payout correction orders (Q22, PR6/PR7/PR12/PR13).
+"""REQ-213: single-admin payout correction orders with stale and cash safety.
 
 Covers the campaign/Lagos-day projection (the PR6 core in dry-run), the full
 state machine with its illegal transitions, creator-approves-own rejection at
@@ -13,27 +13,22 @@ direct endpoint, and value-complete audit events.
 import asyncio
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 from conftest import (
     auth_headers,
-    create_test_campaign,
-    create_test_organization,
     create_test_user,
     fetch_audit_events,
     fetch_earnings_ledger_entries,
 )
 from payout_fixtures import build_v4_graph, drive, driver_totals, lagos_day_for, moving_points
-from sqlalchemy import event, select, text, update
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import select, text, update
 from starlette import status as http_status
 from test_trip_processing import PASSWORD, add_pings
 
-from app.core.config import Settings
 from app.core.errors import AppError
-from app.models.campaign import Campaign, CampaignStatus
-from app.models.disbursement import PayoutDebtObligation
+from app.models.campaign import Campaign
 from app.models.payout import (
     AssignmentRuleBinding,
     CampaignPayoutRule,
@@ -45,16 +40,11 @@ from app.models.payout import (
     PayoutCorrectionOrder,
     PayoutCorrectionOrderStatus,
 )
-from app.models.user import User, UserRole, UserStatus
 from app.services import payout_corrections
 from app.services.payout_corrections import (
-    CampaignDayProjection,
     approve_correction_order,
     create_correction_order,
-    execute_correction_order,
     project_campaign_day,
-    reject_correction_order,
-    submit_correction_order,
 )
 from app.services.payouts.breakdown import driver_trip_earnings_breakdown
 from app.services.payouts.common import PAYOUT_V4
@@ -89,27 +79,12 @@ def create_order(db_sessionmaker, settings, graph, *, reason="test correction"):
     )
 
 
-def submit(db_sessionmaker, order_id, actor_id):
-    return service(
-        db_sessionmaker,
-        lambda session: submit_correction_order(session, order_id=order_id, actor_user_id=actor_id),
-    )
-
-
-def approve(db_sessionmaker, settings, order_id, actor_id):
-    return service(
-        db_sessionmaker,
-        lambda session: approve_correction_order(
-            session, order_id=order_id, actor_user_id=actor_id, settings=settings
-        ),
-    )
-
-
 def execute(db_sessionmaker, settings, order_id, actor_id, *, release_at=RELEASE_AT):
     return service(
         db_sessionmaker,
-        lambda session: execute_correction_order(
+        lambda session: approve_correction_order(
             session,
+            reason="Approve the checked correction",
             order_id=order_id,
             actor_user_id=actor_id,
             release_at=release_at,
@@ -121,157 +96,6 @@ def execute(db_sessionmaker, settings, order_id, actor_id, *, release_at=RELEASE
 
 def second_admin(db_sessionmaker, tag):
     return create_test_user(db_sessionmaker, email=f"approver-{tag}@example.com")
-
-
-def submitted_order(db_sessionmaker, settings, graph, tag):
-    """create -> submit, plus a second admin to approve (maker-checker)."""
-    approver = second_admin(db_sessionmaker, tag)
-    order = create_order(db_sessionmaker, settings, graph)
-    submit(db_sessionmaker, order.id, graph.admin.id)
-    return order, approver
-
-
-def approved_order(db_sessionmaker, settings, graph, tag):
-    order, approver = submitted_order(db_sessionmaker, settings, graph, tag)
-    approve(db_sessionmaker, settings, order.id, approver.id)
-    return order, approver
-
-
-def test_correction_services_require_active_admin_before_domain_reads(
-    db_sessionmaker,
-    monkeypatch,
-) -> None:
-    advertiser = create_test_user(
-        db_sessionmaker,
-        email="correction-auth-advertiser@example.com",
-        role=UserRole.ADVERTISER,
-    )
-    organization, _ = create_test_organization(
-        db_sessionmaker,
-        name="Correction authorization org",
-        owner_user_id=advertiser.id,
-    )
-    campaign = create_test_campaign(
-        db_sessionmaker,
-        organization_id=organization.id,
-        created_by_user_id=advertiser.id,
-        campaign_status=CampaignStatus.ACTIVE,
-    )
-    admin = create_test_user(
-        db_sessionmaker,
-        email="correction-auth-admin@example.com",
-    )
-    checker = create_test_user(
-        db_sessionmaker,
-        email="correction-auth-checker@example.com",
-    )
-    driver = create_test_user(
-        db_sessionmaker,
-        email="correction-auth-driver@example.com",
-        role=UserRole.DRIVER,
-    )
-    disabled_admin = create_test_user(
-        db_sessionmaker,
-        email="correction-auth-disabled@example.com",
-        user_status=UserStatus.DISABLED,
-    )
-    settings = Settings(environment="test")
-    projection = CampaignDayProjection(computations=[], projected_delta={}, fingerprint="stable")
-
-    async def fake_project(*_args, **_kwargs):
-        return projection
-
-    monkeypatch.setattr(payout_corrections, "project_campaign_day", fake_project)
-
-    async def scenario() -> None:
-        denied_actors = [driver.id, advertiser.id, disabled_admin.id, uuid4()]
-        for actor_user_id in denied_actors:
-            async with db_sessionmaker() as session:
-                with pytest.raises(AppError) as error:
-                    await create_correction_order(
-                        session,
-                        campaign_id=campaign.id,
-                        lagos_day=datetime(2026, 6, 1, tzinfo=UTC).date(),
-                        reason="auth test",
-                        created_by_user_id=actor_user_id,
-                        settings=settings,
-                    )
-                assert error.value.code == "FORBIDDEN_ROLE"
-                await session.rollback()
-
-                for operation in (
-                    lambda actor_user_id=actor_user_id: submit_correction_order(
-                        session, order_id=uuid4(), actor_user_id=actor_user_id
-                    ),
-                    lambda actor_user_id=actor_user_id: approve_correction_order(
-                        session,
-                        order_id=uuid4(),
-                        actor_user_id=actor_user_id,
-                        settings=settings,
-                    ),
-                    lambda actor_user_id=actor_user_id: reject_correction_order(
-                        session, order_id=uuid4(), actor_user_id=actor_user_id
-                    ),
-                    lambda actor_user_id=actor_user_id: execute_correction_order(
-                        session,
-                        order_id=uuid4(),
-                        actor_user_id=actor_user_id,
-                        release_at=None,
-                        request_metadata={},
-                        settings=settings,
-                    ),
-                ):
-                    with pytest.raises(AppError) as error:
-                        await operation()
-                    assert error.value.code == "FORBIDDEN_ROLE"
-                    await session.rollback()
-
-        async with db_sessionmaker() as session:
-            order = await create_correction_order(
-                session,
-                campaign_id=campaign.id,
-                lagos_day=datetime(2026, 6, 1, tzinfo=UTC).date(),
-                reason="auth test",
-                created_by_user_id=admin.id,
-                settings=settings,
-            )
-            await submit_correction_order(session, order_id=order.id, actor_user_id=admin.id)
-            approved = await approve_correction_order(
-                session,
-                order_id=order.id,
-                actor_user_id=checker.id,
-                settings=settings,
-            )
-            assert approved.status == PayoutCorrectionOrderStatus.APPROVED.value
-            executed, executed_now = await execute_correction_order(
-                session,
-                order_id=order.id,
-                actor_user_id=checker.id,
-                release_at=None,
-                request_metadata={},
-                settings=settings,
-            )
-            assert executed.status == PayoutCorrectionOrderStatus.EXECUTED.value
-            assert executed_now is True
-
-            rejected_order = await create_correction_order(
-                session,
-                campaign_id=campaign.id,
-                lagos_day=datetime(2026, 6, 2, tzinfo=UTC).date(),
-                reason="auth test",
-                created_by_user_id=admin.id,
-                settings=settings,
-            )
-            await submit_correction_order(
-                session, order_id=rejected_order.id, actor_user_id=admin.id
-            )
-            rejected = await reject_correction_order(
-                session, order_id=rejected_order.id, actor_user_id=checker.id
-            )
-            assert rejected.status == PayoutCorrectionOrderStatus.REJECTED.value
-            await session.commit()
-
-    asyncio.run(scenario())
 
 
 def reload_order(db_sessionmaker, order_id) -> PayoutCorrectionOrder:
@@ -412,7 +236,7 @@ def test_unresolved_binding_rejects_approved_execution_atomically(
 ) -> None:
     graph = build_correction_graph(postgis_db_sessionmaker, settings, "co-rm2-exec")
     drive(postgis_db_sessionmaker, settings, graph.trip)
-    order, approver = approved_order(postgis_db_sessionmaker, settings, graph, "co-rm2-exec")
+    order, approver = prepared_order(postgis_db_sessionmaker, settings, graph, "co-rm2-exec")
     mark_binding_unresolved(postgis_db_sessionmaker, graph.assignment.id)
 
     try:
@@ -422,7 +246,7 @@ def test_unresolved_binding_rejects_approved_execution_atomically(
         assert exc.code == "PAYOUT_STATIONARY_POLICY_UNRESOLVED"
 
     reloaded = reload_order(postgis_db_sessionmaker, order.id)
-    assert reloaded.status == PayoutCorrectionOrderStatus.APPROVED.value
+    assert reloaded.status == PayoutCorrectionOrderStatus.DRAFT.value
     assert reloaded.executed_at is None
     assert reloaded.execution_result is None
     assert correction_entries(postgis_db_sessionmaker) == []
@@ -550,359 +374,7 @@ def test_correction_endpoints_require_admin(
 # --- State machine (C1) ------------------------------------------------------
 
 
-@pytest.fixture(params=[False, True])
-def correction_actor_uuids(request):
-    actor_ids = {
-        "admin-co-life@example.com": UUID("01130285-8830-4c98-b916-7b4de2a4aa62"),
-        "approver-co-life@example.com": UUID("8c9b5b4b-0191-4769-8709-bdc39e7c0347"),
-    }
-
-    def set_actor_id(_mapper, _connection, user):
-        if user.email in actor_ids:
-            user.id = actor_ids[user.email]
-
-    if request.param:
-        event.listen(User, "before_insert", set_actor_id)
-    try:
-        yield actor_ids if request.param else None
-    finally:
-        if request.param:
-            event.remove(User, "before_insert", set_actor_id)
-
-
-def test_full_lifecycle_via_api_with_maker_checker_actors(
-    postgis_db_client, postgis_db_sessionmaker, settings, correction_actor_uuids
-) -> None:
-    graph = build_correction_graph(postgis_db_sessionmaker, settings, "co-life")
-    drive(postgis_db_sessionmaker, settings, graph.trip)
-    seed_misposted_amount(postgis_db_sessionmaker, graph.trip.id, "450.00")
-    approver = second_admin(postgis_db_sessionmaker, "co-life")
-    if correction_actor_uuids:
-        assert graph.admin.id == correction_actor_uuids[graph.admin.email]
-        assert approver.id == correction_actor_uuids[approver.email]
-
-    creator_headers = auth_headers(postgis_db_client, graph.admin.email, PASSWORD)
-    approver_headers = auth_headers(postgis_db_client, approver.email, PASSWORD)
-    day = lagos_day_for(graph.trip.started_at).isoformat()
-
-    created = postgis_db_client.post(
-        "/api/v1/admin/payouts/correction-orders",
-        headers=creator_headers,
-        json={
-            "campaign_id": str(graph.campaign.id),
-            "lagos_day": day,
-            "reason": "underposted ledger correction",
-        },
-    )
-    order_id = created.json()["id"]
-
-    submitted = postgis_db_client.post(
-        f"/api/v1/admin/payouts/correction-orders/{order_id}/submit",
-        headers=creator_headers,
-    )
-    assert submitted.status_code == http_status.HTTP_200_OK
-    assert submitted.json()["status"] == "pending_approval"
-
-    # Creator approving own order: 403 at the service boundary (C1).
-    self_approval = postgis_db_client.post(
-        f"/api/v1/admin/payouts/correction-orders/{order_id}/approve",
-        headers=creator_headers,
-    )
-    assert self_approval.status_code == http_status.HTTP_403_FORBIDDEN
-    assert self_approval.json()["error"]["code"] == "CORRECTION_ORDER_SELF_APPROVAL"
-
-    approved = postgis_db_client.post(
-        f"/api/v1/admin/payouts/correction-orders/{order_id}/approve",
-        headers=approver_headers,
-    )
-    assert approved.status_code == http_status.HTTP_200_OK
-    assert approved.json()["status"] == "approved"
-    assert approved.json()["approved_by_user_id"] == str(approver.id)
-    assert approved.json()["decided_at"] is not None
-
-    # Positive delta without release_at -> 400, no state change (Q22).
-    missing_release = postgis_db_client.post(
-        f"/api/v1/admin/payouts/correction-orders/{order_id}/execute",
-        headers=creator_headers,
-    )
-    assert missing_release.status_code == http_status.HTTP_400_BAD_REQUEST
-    assert missing_release.json()["error"]["code"] == "CORRECTION_RELEASE_AT_REQUIRED"
-    assert reload_order(postgis_db_sessionmaker, order_id).status == "approved"
-
-    # The creator MAY execute: independent approval already happened — Q22
-    # forbids only creator-approves-own.
-    executed = postgis_db_client.post(
-        f"/api/v1/admin/payouts/correction-orders/{order_id}/execute",
-        headers=creator_headers,
-        json={"release_at": RELEASE_AT.isoformat()},
-    )
-    assert executed.status_code == http_status.HTTP_200_OK
-    executed_body = executed.json()
-    assert executed_body["status"] == "executed"
-    assert executed_body["executed_by_user_id"] == str(graph.admin.id)
-    result = executed_body["execution_result"]
-    assert result["adjustment_count"] == 1
-    assert result["reversal_count"] == 0
-    assert result["release_at"] == RELEASE_AT.isoformat()
-    trip_result = result["drivers"][0]["trips"][0]
-    assert trip_result["delta_amount"] == "150.00"
-    assert trip_result["entry_type"] == "adjustment"
-    assert trip_result["entry_status"] == "pending"
-
-    entries = correction_entries(postgis_db_sessionmaker)
-    assert len(entries) == 1
-    assert entries[0].amount == Decimal("150.00")
-    assert entries[0].status == EarningsLedgerEntryStatus.PENDING.value
-    assert entries[0].release_at == RELEASE_AT
-    assert entries[0].ledger_metadata["correction_order_id"] == order_id
-
-    # Idempotent replay: same recorded result, no second money effect (C3).
-    replay = postgis_db_client.post(
-        f"/api/v1/admin/payouts/correction-orders/{order_id}/execute",
-        headers=approver_headers,
-        json={"release_at": RELEASE_AT.isoformat()},
-    )
-    assert replay.status_code == http_status.HTTP_200_OK
-    assert replay.json()["execution_result"] == result
-    assert len(correction_entries(postgis_db_sessionmaker)) == 1
-
-    # Value-complete audit trail (C4): both actors, reason, old/new status,
-    # money values.
-    events = {
-        event.action: event
-        for event in fetch_audit_events(postgis_db_sessionmaker)
-        if event.action.startswith("admin.payout_correction_order.")
-    }
-    assert set(events) == {
-        "admin.payout_correction_order.created",
-        "admin.payout_correction_order.submitted",
-        "admin.payout_correction_order.approved",
-        "admin.payout_correction_order.executed",
-    }
-    created_meta = events["admin.payout_correction_order.created"].event_metadata
-    assert created_meta["status_before"] is None
-    assert created_meta["status_after"] == "draft"
-    assert created_meta["reason"] == "underposted ledger correction"
-    assert created_meta["projected_delta"]["trips"][0]["previous_posted_amount"] == "450.00"
-    approved_meta = events["admin.payout_correction_order.approved"].event_metadata
-    assert approved_meta["status_before"] == "pending_approval"
-    assert approved_meta["status_after"] == "approved"
-    assert approved_meta["created_by_user_id"] == str(graph.admin.id)
-    assert approved_meta["approved_by_user_id"] == str(approver.id)
-    executed_meta = events["admin.payout_correction_order.executed"].event_metadata
-    assert executed_meta["status_before"] == "approved"
-    assert executed_meta["status_after"] == "executed"
-    assert executed_meta["executed_by_user_id"] == str(graph.admin.id)
-    assert executed_meta["execution_result"]["drivers"][0]["trips"][0]["delta_amount"] == "150.00"
-    assert executed_meta["decided_at"] is not None
-    assert executed_meta["executed_at"] is not None
-
-    # One executed order audits exactly once (the replay mutated nothing).
-    executed_events = [
-        event
-        for event in fetch_audit_events(postgis_db_sessionmaker)
-        if event.action == "admin.payout_correction_order.executed"
-    ]
-    assert len(executed_events) == 1
-
-    # Reject path over the API: a fresh order for the (now settled) day is
-    # rejected by the approver, with a value-complete audit event.
-    second = postgis_db_client.post(
-        "/api/v1/admin/payouts/correction-orders",
-        headers=creator_headers,
-        json={
-            "campaign_id": str(graph.campaign.id),
-            "lagos_day": day,
-            "reason": "second thoughts",
-        },
-    )
-    second_id = second.json()["id"]
-    postgis_db_client.post(
-        f"/api/v1/admin/payouts/correction-orders/{second_id}/submit",
-        headers=creator_headers,
-    )
-    rejected = postgis_db_client.post(
-        f"/api/v1/admin/payouts/correction-orders/{second_id}/reject",
-        headers=approver_headers,
-    )
-    assert rejected.status_code == http_status.HTTP_200_OK
-    assert rejected.json()["status"] == "rejected"
-    reject_events = [
-        event
-        for event in fetch_audit_events(postgis_db_sessionmaker)
-        if event.action == "admin.payout_correction_order.rejected"
-    ]
-    assert len(reject_events) == 1
-    reject_meta = reject_events[0].event_metadata
-    assert reject_meta["status_before"] == "pending_approval"
-    assert reject_meta["status_after"] == "rejected"
-    assert reject_meta["rejected_by_user_id"] == str(approver.id)
-    assert reject_meta["reason"] == "second thoughts"
-    assert reject_events[0].actor_user_id == approver.id
-
-
-def test_reject_path_and_illegal_transitions(postgis_db_sessionmaker, settings) -> None:
-    graph = build_correction_graph(postgis_db_sessionmaker, settings, "co-illegal")
-    drive(postgis_db_sessionmaker, settings, graph.trip)
-    approver = second_admin(postgis_db_sessionmaker, "co-illegal")
-
-    def expect_invalid(coro_factory, action):
-        try:
-            service(postgis_db_sessionmaker, coro_factory)
-            raise AssertionError(f"expected CORRECTION_ORDER_INVALID_STATE for {action}")
-        except AppError as exc:
-            assert exc.code == "CORRECTION_ORDER_INVALID_STATE"
-            assert exc.status_code == http_status.HTTP_409_CONFLICT
-
-    order = create_order(postgis_db_sessionmaker, settings, graph)
-
-    # draft: approve/reject/execute are illegal.
-    expect_invalid(
-        lambda session: approve_correction_order(
-            session, order_id=order.id, actor_user_id=approver.id, settings=settings
-        ),
-        "approve draft",
-    )
-    expect_invalid(
-        lambda session: reject_correction_order(
-            session, order_id=order.id, actor_user_id=approver.id
-        ),
-        "reject draft",
-    )
-    expect_invalid(
-        lambda session: execute_correction_order(
-            session,
-            order_id=order.id,
-            actor_user_id=approver.id,
-            release_at=RELEASE_AT,
-            request_metadata={},
-            settings=settings,
-        ),
-        "execute draft",
-    )
-
-    submit(postgis_db_sessionmaker, order.id, graph.admin.id)
-    # pending_approval: submit again / execute are illegal.
-    expect_invalid(
-        lambda session: submit_correction_order(
-            session, order_id=order.id, actor_user_id=graph.admin.id
-        ),
-        "submit pending",
-    )
-    expect_invalid(
-        lambda session: execute_correction_order(
-            session,
-            order_id=order.id,
-            actor_user_id=approver.id,
-            release_at=RELEASE_AT,
-            request_metadata={},
-            settings=settings,
-        ),
-        "execute pending",
-    )
-
-    rejected = service(
-        postgis_db_sessionmaker,
-        lambda session: reject_correction_order(
-            session, order_id=order.id, actor_user_id=approver.id
-        ),
-    )
-    assert rejected.status == PayoutCorrectionOrderStatus.REJECTED.value
-    assert rejected.decided_at is not None
-    # rejected is terminal.
-    expect_invalid(
-        lambda session: submit_correction_order(
-            session, order_id=order.id, actor_user_id=graph.admin.id
-        ),
-        "submit rejected",
-    )
-    expect_invalid(
-        lambda session: execute_correction_order(
-            session,
-            order_id=order.id,
-            actor_user_id=approver.id,
-            release_at=RELEASE_AT,
-            request_metadata={},
-            settings=settings,
-        ),
-        "execute rejected",
-    )
-    assert correction_entries(postgis_db_sessionmaker) == []
-
-    # Unknown order -> 404.
-    try:
-        service(
-            postgis_db_sessionmaker,
-            lambda session: submit_correction_order(
-                session, order_id=uuid4(), actor_user_id=graph.admin.id
-            ),
-        )
-        raise AssertionError("expected CORRECTION_ORDER_NOT_FOUND")
-    except AppError as exc:
-        assert exc.code == "CORRECTION_ORDER_NOT_FOUND"
-
-
-def test_creator_approval_is_blocked_by_the_database_check_too(
-    postgis_db_sessionmaker, settings
-) -> None:
-    """C1: the maker-checker rule holds below the service layer — a direct
-    UPDATE writing approved_by = created_by violates the CHECK constraint."""
-    graph = build_correction_graph(postgis_db_sessionmaker, settings, "co-dbcheck")
-    drive(postgis_db_sessionmaker, settings, graph.trip)
-    order = create_order(postgis_db_sessionmaker, settings, graph)
-
-    async def direct_update() -> None:
-        async with postgis_db_sessionmaker() as session:
-            await session.execute(
-                update(PayoutCorrectionOrder)
-                .where(PayoutCorrectionOrder.id == order.id)
-                .values(approved_by_user_id=graph.admin.id)
-            )
-            await session.commit()
-
-    try:
-        asyncio.run(direct_update())
-        raise AssertionError("expected IntegrityError")
-    except IntegrityError as exc:
-        assert "ck_payout_correction_orders_approver_not_creator" in str(exc.orig)
-
-
 # --- Stale projection (C2) ---------------------------------------------------
-
-
-def test_input_drift_marks_order_stale_at_approve(postgis_db_sessionmaker, settings) -> None:
-    graph = build_correction_graph(postgis_db_sessionmaker, settings, "co-stale-appr")
-    drive(postgis_db_sessionmaker, settings, graph.trip)
-    order, approver = submitted_order(postgis_db_sessionmaker, settings, graph, "co-stale-appr")
-
-    drift_inputs(postgis_db_sessionmaker, graph)
-
-    try:
-        approve(postgis_db_sessionmaker, settings, order.id, approver.id)
-        raise AssertionError("expected CORRECTION_ORDER_STALE")
-    except AppError as exc:
-        assert exc.code == "CORRECTION_ORDER_STALE"
-        assert exc.status_code == http_status.HTTP_409_CONFLICT
-
-    reloaded = reload_order(postgis_db_sessionmaker, order.id)
-    assert reloaded.status == PayoutCorrectionOrderStatus.STALE.value
-    assert reloaded.approved_by_user_id is None
-
-    # stale is terminal: re-projection means a NEW order.
-    try:
-        submit(postgis_db_sessionmaker, order.id, graph.admin.id)
-        raise AssertionError("expected CORRECTION_ORDER_INVALID_STATE")
-    except AppError as exc:
-        assert exc.code == "CORRECTION_ORDER_INVALID_STATE"
-
-    stale_events = [
-        event
-        for event in fetch_audit_events(postgis_db_sessionmaker)
-        if event.action == "admin.payout_correction_order.stale"
-    ]
-    assert len(stale_events) == 1
-    assert stale_events[0].event_metadata["detected_during"] == "approve"
-    assert stale_events[0].event_metadata["status_after"] == "stale"
 
 
 def test_input_drift_marks_order_stale_at_execute_with_no_money_effect(
@@ -911,7 +383,7 @@ def test_input_drift_marks_order_stale_at_execute_with_no_money_effect(
     graph = build_correction_graph(postgis_db_sessionmaker, settings, "co-stale-exec")
     drive(postgis_db_sessionmaker, settings, graph.trip)
     seed_misposted_amount(postgis_db_sessionmaker, graph.trip.id, "450.00")
-    order, approver = approved_order(postgis_db_sessionmaker, settings, graph, "co-stale-exec")
+    order, approver = prepared_order(postgis_db_sessionmaker, settings, graph, "co-stale-exec")
 
     drift_inputs(postgis_db_sessionmaker, graph)
 
@@ -937,12 +409,13 @@ def test_concurrent_double_execute_has_exactly_one_money_effect(
     graph = build_correction_graph(postgis_db_sessionmaker, settings, "co-race")
     drive(postgis_db_sessionmaker, settings, graph.trip)
     seed_misposted_amount(postgis_db_sessionmaker, graph.trip.id, "450.00")
-    order, approver = approved_order(postgis_db_sessionmaker, settings, graph, "co-race")
+    order, approver = prepared_order(postgis_db_sessionmaker, settings, graph, "co-race")
 
     async def attempt():
         async with postgis_db_sessionmaker() as session:
-            result_order, executed_now = await execute_correction_order(
+            result_order, executed_now = await approve_correction_order(
                 session,
+                reason="Approve the checked correction",
                 order_id=order.id,
                 actor_user_id=approver.id,
                 release_at=RELEASE_AT,
@@ -975,7 +448,7 @@ def test_execution_is_atomic_when_a_late_failure_rolls_back(
     graph = build_correction_graph(postgis_db_sessionmaker, settings, "co-atomic")
     drive(postgis_db_sessionmaker, settings, graph.trip)
     seed_misposted_amount(postgis_db_sessionmaker, graph.trip.id, "450.00")
-    order, approver = approved_order(postgis_db_sessionmaker, settings, graph, "co-atomic")
+    order, approver = prepared_order(postgis_db_sessionmaker, settings, graph, "co-atomic")
 
     def boom(*args, **kwargs):
         raise RuntimeError("simulated crash after ledger writes")
@@ -984,8 +457,9 @@ def test_execution_is_atomic_when_a_late_failure_rolls_back(
 
     async def failing_execute():
         async with postgis_db_sessionmaker() as session:
-            await execute_correction_order(
+            await approve_correction_order(
                 session,
+                reason="Approve the checked correction",
                 order_id=order.id,
                 actor_user_id=approver.id,
                 release_at=RELEASE_AT,
@@ -1002,7 +476,7 @@ def test_execution_is_atomic_when_a_late_failure_rolls_back(
 
     assert correction_entries(postgis_db_sessionmaker) == []
     reloaded = reload_order(postgis_db_sessionmaker, order.id)
-    assert reloaded.status == PayoutCorrectionOrderStatus.APPROVED.value
+    assert reloaded.status == PayoutCorrectionOrderStatus.DRAFT.value
     assert reloaded.execution_result is None
 
     monkeypatch.undo()
@@ -1026,7 +500,7 @@ def test_positive_deltas_stay_pending_even_when_the_day_is_available(
     )
     seed_misposted_amount(postgis_db_sessionmaker, graph.trip.id, "450.00")
     totals_before = driver_totals(postgis_db_sessionmaker, settings, graph.driver.id)
-    order, approver = approved_order(postgis_db_sessionmaker, settings, graph, "co-pending")
+    order, approver = prepared_order(postgis_db_sessionmaker, settings, graph, "co-pending")
 
     execute(postgis_db_sessionmaker, settings, order.id, approver.id)
 
@@ -1053,7 +527,7 @@ def test_negative_delta_posts_reversal_without_debt_handling(
     drive(postgis_db_sessionmaker, settings, graph.trip)
     seed_misposted_amount(postgis_db_sessionmaker, graph.trip.id, "750.00")
     totals_before = driver_totals(postgis_db_sessionmaker, settings, graph.driver.id)
-    order, approver = approved_order(postgis_db_sessionmaker, settings, graph, "co-negative")
+    order, approver = prepared_order(postgis_db_sessionmaker, settings, graph, "co-negative")
 
     # Negative-only corrections need no release_at (Q22 covers positives).
     executed, executed_now = execute(
@@ -1084,7 +558,7 @@ def test_paid_trip_correction_inserts_available_reversal_without_terminal_rewrit
         EarningsLedgerEntryStatus.PAID.value,
     )
     seed_misposted_amount(postgis_db_sessionmaker, graph.trip.id, "750.00")
-    order, approver = approved_order(
+    order, approver = prepared_order(
         postgis_db_sessionmaker,
         settings,
         graph,
@@ -1125,12 +599,6 @@ def test_paid_trip_correction_inserts_available_reversal_without_terminal_rewrit
     assert entries[0].entry_type == EarningsLedgerEntryType.REVERSAL.value
     assert entries[0].status == EarningsLedgerEntryStatus.AVAILABLE.value
 
-    async def obligation_source_id():
-        async with postgis_db_sessionmaker() as session:
-            return await session.scalar(select(PayoutDebtObligation.source_reversal_entry_id))
-
-    assert asyncio.run(obligation_source_id()) == entries[0].id
-
 
 # --- Frozen daily-rate recompute correctness (PR6) ----------------------------
 
@@ -1142,7 +610,7 @@ def test_daily_rate_day_recomputes_from_frozen_binding_through_an_order(
     drive(postgis_db_sessionmaker, settings, graph.trip)
 
     void_trip_payout(postgis_db_sessionmaker, graph.trip.id)
-    order, approver = approved_order(postgis_db_sessionmaker, settings, graph, "co-v3")
+    order, approver = prepared_order(postgis_db_sessionmaker, settings, graph, "co-v3")
 
     executed, _ = execute(postgis_db_sessionmaker, settings, order.id, approver.id, release_at=None)
     trip_result = executed.execution_result["drivers"][0]["trips"][0]
@@ -1274,7 +742,7 @@ def test_daily_rate_correction_explanation_provenance(postgis_db_sessionmaker, s
     drive(postgis_db_sessionmaker, settings, graph.trip)
     graph.trip2 = graph.trip
     seed_misposted_amount(postgis_db_sessionmaker, graph.trip.id, "300.00")
-    order, approver = approved_order(postgis_db_sessionmaker, settings, graph, "co-provenance")
+    order, approver = prepared_order(postgis_db_sessionmaker, settings, graph, "co-provenance")
     executed, _ = execute(postgis_db_sessionmaker, settings, order.id, approver.id)
     result = executed.execution_result["drivers"][0]["trips"][0]
     assert result["target_amount"] == "600.00"
@@ -1430,3 +898,36 @@ def test_daily_rate_correction_explanation_provenance(postgis_db_sessionmaker, s
     fallback = asyncio.run(driver_breakdown())
     assert fallback.superseded_by_recompute is False
     assert fallback.excluded_seconds_by_reason == {"stale_original_reason": 77}
+
+
+def prepared_order(db_sessionmaker, settings, graph, tag):
+    """A saved draft is ready for its creator to approve and apply."""
+    return create_order(db_sessionmaker, settings, graph), graph.admin
+
+
+def test_same_admin_approves_applies_and_replays_with_required_reason(
+    postgis_db_client, postgis_db_sessionmaker, settings
+):
+    graph = build_correction_graph(postgis_db_sessionmaker, settings, "one-admin-correction")
+    drive(postgis_db_sessionmaker, settings, graph.trip)
+    seed_misposted_amount(postgis_db_sessionmaker, graph.trip.id, "450.00")
+    order = create_order(postgis_db_sessionmaker, settings, graph)
+    headers = auth_headers(postgis_db_client, graph.admin.email, PASSWORD)
+    url = f"/api/v1/admin/payouts/correction-orders/{order.id}/approve"
+    assert postgis_db_client.post(url, headers=headers, json={"reason": "  "}).status_code == 422
+    body = {"reason": "Checked the corrected distance", "release_at": RELEASE_AT.isoformat()}
+    response = postgis_db_client.post(url, headers=headers, json=body)
+    assert response.status_code == 200, response.text
+    stored = reload_order(postgis_db_sessionmaker, order.id)
+    assert stored.status == "executed"
+    assert stored.approved_by_user_id == stored.executed_by_user_id == graph.admin.id
+    assert len(correction_entries(postgis_db_sessionmaker)) == 1
+    replay = postgis_db_client.post(url, headers=headers, json=body)
+    assert replay.status_code == 200, replay.text
+    assert len(correction_entries(postgis_db_sessionmaker)) == 1
+    audits = [
+        e
+        for e in fetch_audit_events(postgis_db_sessionmaker)
+        if e.action == "admin.payout_correction_order.approved"
+    ]
+    assert len(audits) == 1 and audits[0].event_metadata["reason"] == body["reason"]

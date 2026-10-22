@@ -2,6 +2,7 @@ import { z } from "zod";
 
 const draftSchema = z.object({
   requestId: z.string().uuid(),
+  reason: z.string().trim().min(3).max(500),
   currency: z.string().regex(/^[A-Z]{3}$/),
   ledgerEntryIds: z.array(z.string().uuid()).min(1).max(500),
 });
@@ -28,11 +29,13 @@ export function retainDraftRecovery(
   actorId: string,
   currency: string,
   ledgerEntryIds: string[],
+  reason: string,
 ): DraftRecovery {
   const existing = readDraftRecovery(storage, actorId);
   if (existing) return existing;
   const draft = draftSchema.parse({
     requestId: crypto.randomUUID(),
+    reason,
     currency,
     ledgerEntryIds: [...ledgerEntryIds].sort(),
   });

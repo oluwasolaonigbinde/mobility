@@ -20,7 +20,6 @@ from app.api.v1.dependencies import (
 from app.core.errors import AppError
 from app.core.webhook_body import read_webhook_body
 from app.models.billing import (
-    BudgetPolicyEvaluation,
     CampaignFinancialAuthorization,
     CommercialQuotationRevision,
     CommercialQuoteRequest,
@@ -78,6 +77,7 @@ from app.services.billing.authority import (
     record_production_start,
 )
 from app.services.billing.budget import (
+    campaign_budget_check,
     resume_campaign_after_budget_pause,
 )
 from app.services.billing.checkout import (
@@ -198,12 +198,9 @@ async def _campaign_commercial_state(
             .order_by(RefundSettlement.recorded_at)
         )
     )
-    budget_evaluations = list(
-        await session.scalars(
-            select(BudgetPolicyEvaluation)
-            .where(BudgetPolicyEvaluation.campaign_id == campaign_id)
-            .order_by(BudgetPolicyEvaluation.evaluated_at)
-        )
+    budget_campaign = await session.get(Campaign, campaign_id)
+    budget_check = (
+        await campaign_budget_check(session, campaign=budget_campaign) if budget_campaign else None
     )
     return CampaignCommercialRead(
         quote_request=quote_request,
@@ -219,7 +216,7 @@ async def _campaign_commercial_state(
         waiver=waiver,
         production_start=production_start,
         settlements=settlements,
-        budget_evaluations=budget_evaluations,
+        budget_check=budget_check,
     )
 
 
@@ -551,13 +548,13 @@ async def admin_record_manual_transfer(
     user: AdminUserDependency,
     session: SessionDependency,
 ) -> ManualTransferResult:
-    receipt, reconciliation, allocation = await process_manual_bank_transfer(
+    receipt, matched, allocation = await process_manual_bank_transfer(
         session, actor_user_id=user.id, **payload.model_dump()
     )
     await session.commit()
     return ManualTransferResult(
         receipt=ReceiptRead.model_validate(receipt),
-        matched=reconciliation.matched,
+        matched=matched,
         allocation=allocation,
     )
 

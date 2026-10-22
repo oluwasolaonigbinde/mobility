@@ -42,13 +42,9 @@ DECIMAL_4 = Decimal("0.0001")
 ANALYTICS_ROW_CONSTRAINTS = frozenset({"uq_trip_analytics_trip_session_id"})
 BASE_ANALYTICS_FLAG_TYPES = frozenset(
     {
-        FraudFlagType.INSUFFICIENT_PINGS.value,
         FraudFlagType.IMPOSSIBLE_SPEED.value,
-        FraudFlagType.POOR_ACCURACY.value,
         FraudFlagType.STATIONARY_TRIP.value,
         FraudFlagType.EXCESSIVE_PING_GAP.value,
-        FraudFlagType.FUTURE_TIMESTAMP.value,
-        FraudFlagType.ROUTE_LOOPING.value,
         FraudFlagType.EXCLUSION_ZONE_PRESENCE.value,
     }
 )
@@ -384,21 +380,6 @@ def build_fraud_flags(
     detected_at: datetime,
 ) -> list[FraudFlag]:
     flags: list[FraudFlag] = []
-    if analytics.valid_ping_count < settings.route_analytics_min_valid_pings:
-        flags.append(
-            fraud_flag(
-                trip=trip,
-                analytics=analytics,
-                flag_type=FraudFlagType.INSUFFICIENT_PINGS,
-                severity=FraudFlagSeverity.MEDIUM,
-                description="Trip has fewer valid pings than required for analytics.",
-                evidence={
-                    "valid_ping_count": analytics.valid_ping_count,
-                    "min_valid_pings": settings.route_analytics_min_valid_pings,
-                },
-                detected_at=detected_at,
-            )
-        )
     if metrics.impossible_speed_count > 0:
         flags.append(
             fraud_flag(
@@ -411,22 +392,6 @@ def build_fraud_flags(
                     "max_observed_speed_mps": float(analytics.max_observed_speed_mps or 0),
                     "offending_segment_count": metrics.impossible_speed_count,
                     "threshold_mps": settings.route_analytics_impossible_speed_mps,
-                },
-                detected_at=detected_at,
-            )
-        )
-    if metrics.poor_accuracy_ratio > settings.route_analytics_poor_accuracy_ratio_threshold:
-        flags.append(
-            fraud_flag(
-                trip=trip,
-                analytics=analytics,
-                flag_type=FraudFlagType.POOR_ACCURACY,
-                severity=FraudFlagSeverity.MEDIUM,
-                description="Poor GPS accuracy ratio exceeded configured threshold.",
-                evidence={
-                    "poor_accuracy_ratio": metrics.poor_accuracy_ratio,
-                    "poor_accuracy_ping_count": analytics.poor_accuracy_ping_count,
-                    "threshold_ratio": settings.route_analytics_poor_accuracy_ratio_threshold,
                 },
                 detected_at=detected_at,
             )
@@ -459,43 +424,6 @@ def build_fraud_flags(
                     "max_gap_seconds": metrics.max_ping_gap_seconds,
                     "gap_count": metrics.excessive_gap_count,
                     "threshold_seconds": settings.route_analytics_max_ping_gap_seconds,
-                },
-                detected_at=detected_at,
-            )
-        )
-    if metrics.future_ping_count > 0:
-        flags.append(
-            fraud_flag(
-                trip=trip,
-                analytics=analytics,
-                flag_type=FraudFlagType.FUTURE_TIMESTAMP,
-                severity=FraudFlagSeverity.MEDIUM,
-                description="Stored location pings include future timestamps.",
-                evidence={
-                    "future_ping_count": metrics.future_ping_count,
-                    "future_skew_seconds": settings.location_ping_future_skew_seconds,
-                },
-                detected_at=detected_at,
-            )
-        )
-    if (
-        metrics.start_end_distance_m is not None
-        and analytics.distance_m > Decimal(str(settings.route_analytics_looping_min_distance_m))
-        and metrics.start_end_distance_m <= Decimal(str(settings.route_analytics_looping_radius_m))
-        and metrics.start_end_distance_m / max(analytics.distance_m, Decimal("1")) <= Decimal("0.1")
-    ):
-        flags.append(
-            fraud_flag(
-                trip=trip,
-                analytics=analytics,
-                flag_type=FraudFlagType.ROUTE_LOOPING,
-                severity=FraudFlagSeverity.LOW,
-                description="Trip route ended close to its start after significant distance.",
-                evidence={
-                    "start_end_distance_m": float(metrics.start_end_distance_m),
-                    "total_distance_m": float(analytics.distance_m),
-                    "looping_radius_m": settings.route_analytics_looping_radius_m,
-                    "looping_min_distance_m": settings.route_analytics_looping_min_distance_m,
                 },
                 detected_at=detected_at,
             )
@@ -916,7 +844,7 @@ async def list_fraud_flags(
         if value is not None
     ]
     if unresolved_only:
-        filters.append(FraudFlag.status.in_(("open", "acknowledged")))
+        filters.append(FraudFlag.status == "open")
 
     statement = select(FraudFlag)
     count_statement = select(func.count()).select_from(FraudFlag)

@@ -303,7 +303,7 @@ async function CampaignList(
           ) : (
             <div className="grid gap-3">
               {items.map(({ key, campaign, next, section, job }, i) => {
-                const evaluation = summaries[i]?.commercial?.budget_evaluations.at(-1);
+                const evaluation = summaries[i]?.commercial?.budget_check;
                 const spent = evaluation?.billing_spend_amount;
                 const percentage =
                   spent != null &&

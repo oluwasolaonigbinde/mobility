@@ -384,7 +384,7 @@ def test_advertiser_dashboard_campaign_summary_daily_metrics_and_report(
         trip=trip,
         analytics=analytics,
         severity="low",
-        flag_type="poor_accuracy",
+        flag_type="excessive_ping_gap",
         flag_status=FraudFlagStatus.DISMISSED.value,
         reviewed_by_user_id=admin.id,
     )
@@ -661,7 +661,7 @@ def test_campaign_trip_report_is_aggregate_only_and_rbac_protected(
         trip=trip,
         analytics=analytics,
         severity="medium",
-        flag_type="poor_accuracy",
+        flag_type="excessive_ping_gap",
     )
     set_estimate_fraud_counts(
         db_sessionmaker,
@@ -692,7 +692,6 @@ def test_campaign_trip_report_is_aggregate_only_and_rbac_protected(
     assert data["costs"]["totals_by_currency"][0]["final_payout_total"] == "1200.00"
     assert data["fraud_flags"] == {
         "open": 1,
-        "acknowledged": 0,
         "confirmed": 0,
         "dismissed": 0,
         "low": 0,

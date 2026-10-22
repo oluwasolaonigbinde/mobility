@@ -632,17 +632,20 @@ def _seed_payout_intent(
             entry = await _seed_authority(session, graph)
             batch = await create_payout_batch_draft(
                 session,
+                reason="Focused staff payout action",
                 currency="NGN",
                 actor_user_id=graph.admin.id,
             )
             _, lines = await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=batch.id,
                 ledger_entry_ids=(entry.id,),
                 actor_user_id=graph.admin.id,
             )
             await approve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=batch.id,
                 actor_user_id=checker.id,
             )

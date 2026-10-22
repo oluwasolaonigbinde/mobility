@@ -23,7 +23,6 @@ from app.services.billing.invoices import create_invoice_draft, issue_invoice
 from app.services.billing.receipts import (
     allocate_payment_receipt,
     confirm_payment_receipt,
-    reconcile_payment_receipt,
     record_payment_receipt,
 )
 
@@ -121,15 +120,12 @@ def test_company_list_outstanding_matches_the_per_campaign_reads(
                     evidence_reference=f"line-{reference}",
                     observed_at=datetime.now(UTC),
                 )
-                await reconcile_payment_receipt(
+                await confirm_payment_receipt(
                     session,
                     receipt_id=receipt.id,
                     actor_user_id=admin.id,
                     expected_amount=paid,
                     expected_currency="NGN",
-                )
-                await confirm_payment_receipt(
-                    session, receipt_id=receipt.id, actor_user_id=admin.id
                 )
                 await allocate_payment_receipt(
                     session,

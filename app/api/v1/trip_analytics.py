@@ -34,7 +34,7 @@ from app.schemas.trip_analytics import (
 from app.services.admin_trip_review import read_flag_route
 from app.services.audit import create_audit_event
 from app.services.earnings_release import fraud_flag_money_effect
-from app.services.fraud_holds import acknowledge_fraud_flag, resolve_fraud_flag
+from app.services.fraud_holds import resolve_fraud_flag
 from app.services.trip_analytics import (
     AnalyticsComputation,
     get_driver_trip_analytics,
@@ -84,8 +84,6 @@ async def admin_fraud_flag_response(
         money_effect=FraudFlagMoneyEffectRead(
             available_net=effect.available_net,
             currency=effect.currency,
-            reversal_entry_id=effect.reversal_entry_id,
-            reversal_recommended=effect.reversal_recommended,
         ),
     )
 
@@ -245,7 +243,7 @@ async def admin_list_fraud_flags(
                     select(FraudFlag.trip_session_id, func.count())
                     .where(
                         FraudFlag.trip_session_id.in_({flag.trip_session_id for flag in flags}),
-                        FraudFlag.status.in_(("open", "acknowledged")),
+                        FraudFlag.status == "open",
                     )
                     .group_by(FraudFlag.trip_session_id)
                 )
@@ -315,31 +313,6 @@ async def admin_read_flag_route(
         limit=limit,
         offset=offset,
     )
-
-
-@router.post(
-    "/admin/fraud-flags/{flag_id}/review/acknowledge",
-    response_model=AdminFraudFlagRead,
-    summary="Acknowledge a fraud flag for staff review",
-)
-async def admin_acknowledge_fraud_flag(
-    flag_id: UUID,
-    current_user: AdminUserDependency,
-    session: SessionDependency,
-    settings: SettingsDependency,
-) -> AdminFraudFlagRead:
-    result = await acknowledge_fraud_flag(
-        session,
-        flag_id=flag_id,
-        actor_user_id=current_user.id,
-    )
-    response = await admin_fraud_flag_response(
-        session,
-        flag=result.flag,
-        review_sla_days=settings.fraud_review_sla_days,
-    )
-    await session.commit()
-    return response
 
 
 @router.post(

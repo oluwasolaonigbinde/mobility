@@ -439,6 +439,33 @@ and never silently rewrite accepted money. The worker also owns location-ping
 partition premake, coverage alarms and audited retention, so it is mandatory in
 every deployed environment.
 
+## Manual money operations (D112–D114 / REQ-213)
+
+One active admin may prepare, approve and reconcile a manual payout batch and
+approve/apply a correction. Enter a reason for each action; the audit records
+it. Check the current net amount, destination and verified provider result.
+The first payout to a new bank account stays manual; held or flagged pay never
+auto-releases. A stale correction must be prepared again.
+
+Record an overpayment as a manual negative adjustment on the original trip,
+with a reason and the actual Nigeria day (choose one for a cross-midnight trip).
+It appends a ledger entry and never edits paid history or takes another trip's
+earnings. There is no debt recovery queue or automatic future deduction.
+Uncertain or already claimed transfers must be verified by their existing
+reference before any new submission. Partial corrected cash can settle a trip;
+the Paid display follows actual verified cash against net earned pay.
+
+Manual receipt handling records then confirms the exact expected amount and
+currency before allocation. Mismatches remain recorded. Budget checks retain
+D104's accepted-price exception, 80/95 warnings and strict-above-100 pause;
+resume requires a reason and changed funding/budget facts. No automatic resume.
+
+Late GPS uploads are admitted before pay has been calculated for any affected
+Nigeria day. Otherwise the signed acknowledgement drops the batch and the
+audit records it, without storing its coordinates or repricing pay. There is
+no staff apply/discard step. Review pay-changing flags directly as confirmed
+or dismissed; confirmation keeps the hold and never creates an automatic debit.
+
 ## Location-ping data lifecycle (S4)
 
 `location_pings` is range-partitioned by UTC month on `recorded_at`

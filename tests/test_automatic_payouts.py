@@ -29,7 +29,7 @@ from payout_fixtures import (
     insert_v4_binding,
     moving_points,
 )
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from test_mny03a_earnings_release import build_graph as build_manual_graph
 from test_payout_batches import _seed_authority
 from test_trip_processing import add_pings, run_pipeline
@@ -49,7 +49,6 @@ from app.models.disbursement import (
     PayoutAutomaticRun,
     PayoutBatch,
     PayoutBatchLine,
-    PayoutRecoveryIncident,
     PayoutSubmissionAttempt,
     PayoutSubmissionIntent,
     PayoutSubmissionObservation,
@@ -368,7 +367,9 @@ def test_human_cannot_approve_or_submit_an_automatic_batch(
         async with db() as session:
             for action in (approve_payout_batch, submit_payout_batch):
                 kwargs = (
-                    {"adapter": FakeDisbursementAdapter()} if action is submit_payout_batch else {}
+                    {"adapter": FakeDisbursementAdapter()}
+                    if action is submit_payout_batch
+                    else {"reason": "Verify automatic batch refuses manual approval"}
                 )
                 try:
                     await action(session, batch_id=batch.id, actor_user_id=graph.admin.id, **kwargs)
@@ -393,14 +394,14 @@ def test_human_cannot_approve_or_submit_an_automatic_batch(
         "open_dispute",
         "no_payee",
         "never_paid_account",
-        "debt",
+        "negative_adjusted",
         "adjusted",
         "already_reserved",
         "stale_assessment",
         "earlier_automatic",
     ],
 )
-def test_unclean_earnings_stay_on_the_maker_checker_path(
+def test_unclean_earnings_stay_on_the_manual_path(
     postgis_db_sessionmaker, settings, case, monkeypatch
 ) -> None:
     db = postgis_db_sessionmaker
@@ -416,7 +417,6 @@ def test_unclean_earnings_stay_on_the_maker_checker_path(
         "no_payee": "payee_unverified",
         # One admin can add and verify an account (D29); its first payment needs a person.
         "never_paid_account": "new_bank_destination",
-        "debt": "debt_outstanding",
         "stale_assessment": "assessment_not_current",
     }.get(case)
     if case == "open_hold":
@@ -441,25 +441,7 @@ def test_unclean_earnings_stay_on_the_maker_checker_path(
         asyncio.run(dispute())
         # test_open_dispute_alone_keeps_the_driver_manual covers a dispute on
         # another trip keeping a clean trip manual.
-    elif case == "debt":
-        from app.models.disbursement import DriverCurrencyDebtAccount
-
-        async def debt():
-            async with db() as session:
-                session.add(
-                    DriverCurrencyDebtAccount(
-                        driver_profile_id=graph.profile.id,
-                        driver_user_id=graph.driver.id,
-                        currency="NGN",
-                        outstanding_amount=Decimal("10.00"),
-                        lifetime_incurred_amount=Decimal("10.00"),
-                        lifetime_allocated_amount=Decimal("0.00"),
-                    )
-                )
-                await session.commit()
-
-        asyncio.run(debt())
-    elif case == "adjusted":
+    elif case in {"adjusted", "negative_adjusted"}:
 
         async def adjust():
             async with db() as session:
@@ -470,7 +452,7 @@ def test_unclean_earnings_stay_on_the_maker_checker_path(
                         campaign_id=entry.campaign_id,
                         trip_session_id=entry.trip_session_id,
                         vehicle_id=entry.vehicle_id,
-                        entry_type="adjustment",
+                        entry_type="reversal" if case == "negative_adjusted" else "adjustment",
                         status="available",
                         amount=Decimal("5.00"),
                         currency="NGN",
@@ -486,10 +468,14 @@ def test_unclean_earnings_stay_on_the_maker_checker_path(
         async def reserve():
             async with db() as session:
                 batch = await create_payout_batch_draft(
-                    session, currency="NGN", actor_user_id=graph.admin.id
+                    session,
+                    reason="Focused staff payout action",
+                    currency="NGN",
+                    actor_user_id=graph.admin.id,
                 )
                 await reserve_payout_batch(
                     session,
+                    reason="Focused staff payout action",
                     batch_id=batch.id,
                     ledger_entry_ids=(entry.id,),
                     actor_user_id=graph.admin.id,
@@ -615,10 +601,14 @@ def test_first_payment_to_an_account_needs_a_person_then_later_ones_are_automati
     async def person_reserves_first():
         async with db() as session:
             draft = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             _, (line,) = await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=draft.id,
                 ledger_entry_ids=(first.id,),
                 actor_user_id=graph.admin.id,
@@ -820,10 +810,14 @@ def test_cash_guard_counts_manual_lines_paid_the_same_day(
     async def manual_reserve():
         async with db() as session:
             draft = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             _, lines = await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=draft.id,
                 ledger_entry_ids=(first.id,),
                 actor_user_id=graph.admin.id,
@@ -989,7 +983,7 @@ def test_paused_automatic_intents_do_not_starve_the_send_queue(
     fake = FakeDisbursementAdapter()
     run(db, settings, adapter=fake)
     (automatic_intent,) = fetch(db, PayoutSubmissionIntent)
-    # Another driver's earning goes through the normal maker-checker path.
+    # Another driver's earning goes through the normal manual path.
     other = build_manual_graph(db, "auto-qb")
 
     async def manual_submit():
@@ -1005,15 +999,24 @@ def test_paused_automatic_intents_do_not_starve_the_send_queue(
             session.add(checker)
             await session.flush()
             draft = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=other.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=other.admin.id,
             )
             await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=draft.id,
                 ledger_entry_ids=(other_entry_id,),
                 actor_user_id=other.admin.id,
             )
-            await approve_payout_batch(session, batch_id=draft.id, actor_user_id=checker.id)
+            await approve_payout_batch(
+                session,
+                reason="Focused staff payout action",
+                batch_id=draft.id,
+                actor_user_id=checker.id,
+            )
             await submit_payout_batch(
                 session, batch_id=draft.id, actor_user_id=other.admin.id, adapter=fake
             )
@@ -1124,10 +1127,14 @@ def test_release_requires_pause_and_only_cancels_untried_payments(
     async def manual():
         async with db() as session:
             draft = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             _, lines = await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=draft.id,
                 ledger_entry_ids=(line.ledger_entry_id,),
                 actor_user_id=graph.admin.id,
@@ -1254,19 +1261,6 @@ def test_scanner_alerts_failures_duplicates_and_blocked_submissions_once(
                 )
             )
             session.add(
-                PayoutRecoveryIncident(
-                    ledger_entry_id=line.ledger_entry_id,
-                    chain_root_line_id=line.id,
-                    exposure_line_id=line.id,
-                    created_by_user_id=CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID,
-                    kind="duplicate_cash",
-                    status="contingent",
-                    amount=line.amount,
-                    currency="NGN",
-                    dedupe_key=uuid4().hex + uuid4().hex,
-                )
-            )
-            session.add(
                 AuditEvent(
                     actor_user_id=None,
                     action="worker.payout_submission.failed",
@@ -1285,7 +1279,7 @@ def test_scanner_alerts_failures_duplicates_and_blocked_submissions_once(
 
     assert asyncio.run(fail_and_scan())[1] == 0
     kinds = sorted(alert.kind for alert in fetch(db, PayoutAutomaticAlert))
-    assert kinds == ["duplicate_payment", "duplicate_payment", "failed_payment"]
+    assert kinds == ["duplicate_payment", "failed_payment"]
     # The worker audit was on a resolved intent, so no blocked alert; resolve one.
     alert = fetch(db, PayoutAutomaticAlert, PayoutAutomaticAlert.kind == "failed_payment")[0]
 
@@ -1307,41 +1301,78 @@ def test_scanner_alerts_failures_duplicates_and_blocked_submissions_once(
     assert again.value.code == "PAYOUT_AUTOMATIC_ALERT_RESOLVED"
 
 
-def test_new_duplicate_payment_is_alerted_past_the_scan_limit(
-    postgis_db_sessionmaker, settings
-) -> None:
+def test_new_duplicate_payment_is_alerted_past_the_scan_limit(postgis_db_sessionmaker, settings):
     db = postgis_db_sessionmaker
     clean_graph(db, settings, "auto-dupes")
     install_automatic(db)
     run(db, settings)
-    (line,) = fetch(db, PayoutBatchLine)
+    (source,) = fetch(db, PayoutBatchLine)
 
-    async def incident_then_scan(number: int):
+    async def exercise():
         async with db() as session:
-            session.add(
-                PayoutRecoveryIncident(
-                    # Ascending ids: an id-ordered scan would always reread the oldest.
+            for number in (1, 2):
+                original = await session.get(EarningsLedgerEntry, source.ledger_entry_id)
+                credit = EarningsLedgerEntry(
                     id=UUID(int=number),
-                    ledger_entry_id=line.ledger_entry_id,
-                    chain_root_line_id=line.id,
-                    exposure_line_id=line.id,
-                    created_by_user_id=CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID,
-                    kind="duplicate_cash",
-                    status="contingent",
-                    amount=line.amount,
+                    driver_profile_id=original.driver_profile_id,
+                    driver_user_id=original.driver_user_id,
+                    campaign_id=original.campaign_id,
+                    trip_session_id=original.trip_session_id,
+                    vehicle_id=original.vehicle_id,
+                    entry_type="adjustment",
+                    status="paid",
+                    amount=source.amount,
                     currency="NGN",
-                    dedupe_key=uuid4().hex + uuid4().hex,
+                    occurred_at=RUN_AT,
+                    ledger_metadata={"lagos_day": "2026-07-20"},
+                )
+                session.add(credit)
+                await session.flush()
+                for index in (1, 2):
+                    session.add(
+                        PayoutBatchLine(
+                            batch_id=source.batch_id,
+                            ledger_entry_id=credit.id,
+                            payee_version_id=source.payee_version_id,
+                            bank_account_version_id=source.bank_account_version_id,
+                            amount=source.amount,
+                            currency="NGN",
+                            instruction=source.instruction,
+                            instruction_fingerprint=source.instruction_fingerprint,
+                            idempotency_key=uuid4().hex + uuid4().hex,
+                            status="succeeded",
+                            reservation_active=False,
+                            provider_transfer_reference=f"duplicate-{number}-{index}",
+                        )
+                    )
+            await session.flush()
+            counts = []
+            for _ in range(3):
+                counts.append(await automatic.scan_automatic_payout_alerts(session, limit=1))
+            assert counts == [1, 1, 0]
+            assert await session.scalar(select(func.count(PayoutAutomaticAlert.id))) == 2
+            # Another actual success on an already-alerted credit is a new total.
+            session.add(
+                PayoutBatchLine(
+                    batch_id=source.batch_id,
+                    ledger_entry_id=UUID(int=1),
+                    payee_version_id=source.payee_version_id,
+                    bank_account_version_id=source.bank_account_version_id,
+                    amount=source.amount,
+                    currency="NGN",
+                    instruction=source.instruction,
+                    instruction_fingerprint=source.instruction_fingerprint,
+                    idempotency_key=uuid4().hex + uuid4().hex,
+                    status="succeeded",
+                    reservation_active=False,
+                    provider_transfer_reference="duplicate-1-3",
                 )
             )
-            await session.commit()
-        async with db() as session:
-            created = await automatic.scan_automatic_payout_alerts(session, limit=1)
-            await session.commit()
-            return created
+            await session.flush()
+            assert await automatic.scan_automatic_payout_alerts(session, limit=1) == 1
+            assert await automatic.scan_automatic_payout_alerts(session, limit=1) == 0
 
-    # Each scan reads one incident; the newer one is never hidden by the older.
-    assert [asyncio.run(incident_then_scan(number)) for number in (1, 2, 3)] == [1, 1, 1]
-    assert len(fetch(db, PayoutAutomaticAlert)) == 3
+    asyncio.run(exercise())
 
 
 def test_blocked_submission_raises_one_alert(postgis_db_sessionmaker, settings) -> None:
@@ -1366,15 +1397,24 @@ def test_blocked_submission_raises_one_alert(postgis_db_sessionmaker, settings) 
             session.add(checker)
             await session.flush()
             draft = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=other.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=other.admin.id,
             )
             await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=draft.id,
                 ledger_entry_ids=(other_entry.id,),
                 actor_user_id=other.admin.id,
             )
-            await approve_payout_batch(session, batch_id=draft.id, actor_user_id=checker.id)
+            await approve_payout_batch(
+                session,
+                reason="Focused staff payout action",
+                batch_id=draft.id,
+                actor_user_id=checker.id,
+            )
             await submit_payout_batch(
                 session,
                 batch_id=draft.id,
@@ -1514,7 +1554,7 @@ def test_finance_api_status_pause_alerts_and_reconciliation(
     manual_only = postgis_db_client.get(
         "/api/v1/admin/payout-batches/summaries",
         headers=headers,
-        params={"approval_mode": "maker_checker", "batch_status": "submitted"},
+        params={"approval_mode": "manual", "batch_status": "submitted"},
     ).json()
     assert manual_only["total"] == 0
     automatic_only = postgis_db_client.get(
@@ -1668,11 +1708,15 @@ def test_postgres_concurrent_runs_pause_and_manual_reservation_serialize(
     async def manual():
         async with db() as session:
             draft = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             try:
                 await reserve_payout_batch(
                     session,
+                    reason="Focused staff payout action",
                     batch_id=draft.id,
                     ledger_entry_ids=(entry.id,),
                     actor_user_id=graph.admin.id,
@@ -2410,15 +2454,24 @@ def test_w1p_paid_manual_correction_uses_trip_days_and_respects_ceiling(
             session.add(checker)
             await session.flush()
             draft = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             _, lines = await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=draft.id,
                 ledger_entry_ids=(correction.id,),
                 actor_user_id=graph.admin.id,
             )
-            await approve_payout_batch(session, batch_id=draft.id, actor_user_id=checker.id)
+            await approve_payout_batch(
+                session,
+                reason="Focused staff payout action",
+                batch_id=draft.id,
+                actor_user_id=checker.id,
+            )
             await submit_payout_batch(
                 session, batch_id=draft.id, actor_user_id=graph.admin.id, adapter=fake
             )

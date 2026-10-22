@@ -120,7 +120,7 @@ async def settle_demo_driver_history(session, *, graph, staff, settings):
                 created_by_user_id=staff[0].id,
                 approved_by_user_id=staff[4].id,
                 approved_at=paid_at,
-                approval_mode="maker_checker",
+                approval_mode="manual",
                 created_at=paid_at,
             )
             lines = [
@@ -195,6 +195,7 @@ async def settle_demo_driver_history(session, *, graph, staff, settings):
                             evidence_fingerprint=hashlib.sha256(line.id.bytes).hexdigest(),
                         ),
                         source="poll",
+                        reason="Verify synthetic driver payout history",
                         actor_user_id=staff[1].id,
                     )
                 finally:

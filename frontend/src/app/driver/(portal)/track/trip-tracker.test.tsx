@@ -75,6 +75,7 @@ const RECEIPT = {
   acceptedCount: 1,
   rejectedCount: 0,
   outcome: "accepted",
+  evidenceScope: "manifest" as const,
   receiptFormatVersion: 2,
   receiptKeyVersion: 1,
   receiptSignature: "signature",

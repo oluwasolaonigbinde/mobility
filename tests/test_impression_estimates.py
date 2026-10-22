@@ -353,8 +353,8 @@ def test_open_fraud_flags_apply_deterministic_severity_multipliers(
     create_test_user(db_sessionmaker, email="admin@example.com", password=PASSWORD)
     cases = [
         ("high", "impossible_speed", "0.2500", "297.50"),
-        ("medium", "poor_accuracy", "0.7000", "833.00"),
-        ("low", "route_looping", "0.9000", "1071.00"),
+        ("medium", "stationary_trip", "0.7000", "833.00"),
+        ("low", "excessive_ping_gap", "0.9000", "1071.00"),
     ]
     for index, (severity, flag_type, multiplier, expected) in enumerate(cases):
         _, _, _, _, _, _, _, trip, analytics = create_estimation_graph(
@@ -392,7 +392,6 @@ def test_open_fraud_flags_apply_deterministic_severity_multipliers(
     ("flag_status", "expected_multiplier", "expected_impressions"),
     [
         (FraudFlagStatus.OPEN.value, "0.2500", "297.50"),
-        (FraudFlagStatus.ACKNOWLEDGED.value, "0.2500", "297.50"),
         (FraudFlagStatus.CONFIRMED.value, "0.2500", "297.50"),
         (FraudFlagStatus.DISMISSED.value, "1.0000", "1190.00"),
     ],

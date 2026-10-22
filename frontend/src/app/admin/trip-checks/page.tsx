@@ -18,7 +18,6 @@ import {
 } from "../fraud/evidence";
 import { HubDrawer } from "../hub-drawer";
 import { QueueUnavailable } from "../queue-search";
-import { OperationForm } from "../operation-form";
 import { worklistHref } from "../worklist-reads";
 import { readTripContext } from "./reads";
 import { RecordedRouteMap } from "./route-map";
@@ -29,31 +28,26 @@ type Query = {
   driver_profile_id?: string;
   campaign_id?: string;
   flag?: string;
-  late?: string;
   check?: string;
   route_offset?: string;
   disputes_offset?: string;
 };
 export default async function TripChecks({ searchParams }: { searchParams: Promise<Query> }) {
   const p = await searchParams;
-  const tab = p.tab === "late" || p.tab === "in-person" ? p.tab : "suspicious";
+  const tab = p.tab === "in-person" ? p.tab : "suspicious";
   const offset = Number.isFinite(Number(p.offset)) ? Math.max(0, Math.floor(Number(p.offset))) : 0;
   const api = createApiClient(await getSessionToken());
   const href = (changes: Partial<Query>) =>
     worklistHref("/admin/trip-checks", { ...p, tab }, changes);
   const closeHref = href({
     flag: undefined,
-    late: undefined,
     check: undefined,
     route_offset: undefined,
     disputes_offset: undefined,
   });
-  const flagStatus = (["open", "acknowledged", "confirmed", "dismissed"] as const).find(
+  const flagStatus = (["open", "confirmed", "dismissed"] as const).find(
     (value) => value === p.status,
   );
-  const lateStatus = ["quarantined", "applied", "discarded"].includes(p.status ?? "")
-    ? p.status
-    : "quarantined";
   const flagRead = (next: number, limit = 25, flag_id?: string) =>
     api.GET("/api/v1/admin/fraud-flags", {
       params: {
@@ -62,19 +56,6 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
           offset: next,
           flag_id,
           status: flagStatus,
-          driver_profile_id: p.driver_profile_id,
-          campaign_id: p.campaign_id,
-        },
-      },
-    });
-  const lateRead = (next: number, limit = 25, quarantine_id?: string) =>
-    api.GET("/api/v1/admin/trips/quarantined-batches", {
-      params: {
-        query: {
-          limit,
-          offset: next,
-          status: lateStatus,
-          quarantine_id,
           driver_profile_id: p.driver_profile_id,
           campaign_id: p.campaign_id,
         },
@@ -105,12 +86,6 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
           .then(({ data }) => data)
           .catch(() => undefined)
       : undefined;
-  const late =
-    tab === "late"
-      ? await lateRead(offset)
-          .then(({ data }) => data)
-          .catch(() => undefined)
-      : undefined;
   const checkPage =
     tab === "in-person"
       ? await checkRead(offset)
@@ -118,14 +93,9 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
           .catch(() => undefined)
       : undefined;
   const checks = checkPage?.items;
-  const [allFlags, allLate, selectedChecks] = await Promise.all([
+  const [allFlags, selectedChecks] = await Promise.all([
     tab === "suspicious" && p.flag
       ? flagRead(0, 1, p.flag)
-          .then(({ data }) => data?.items)
-          .catch(() => undefined)
-      : Promise.resolve(undefined),
-    tab === "late" && p.late
-      ? lateRead(0, 1, p.late)
           .then(({ data }) => data?.items)
           .catch(() => undefined)
       : Promise.resolve(undefined),
@@ -141,19 +111,12 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
   const selectedFlag = allFlags?.find(
     (item) => item.id === p.flag && scoped(item) && (!flagStatus || item.status === flagStatus),
   );
-  const selectedLate = allLate?.find(
-    (item) => item.id === p.late && scoped(item) && item.status === lateStatus,
-  );
   const selectedCheck = selectedChecks?.find(
     (item) =>
       item.id === p.check && scoped(item) && item.verification_type === "physical_spot_check",
   );
   const visibleChecks = checks;
-  const visibleLate = late?.items;
-  const selectedTrip =
-    selectedFlag?.trip_session_id ??
-    selectedLate?.trip_session_id ??
-    selectedCheck?.source_trip_session_id;
+  const selectedTrip = selectedFlag?.trip_session_id ?? selectedCheck?.source_trip_session_id;
   let selectedContext;
   if (selectedTrip) {
     try {
@@ -165,7 +128,7 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
       /* Only the opened section fails. */
     }
   }
-  const selectedRecord = selectedFlag ?? selectedLate ?? selectedCheck;
+  const selectedRecord = selectedFlag ?? selectedCheck;
   const selectedInScope =
     selectedContext &&
     selectedRecord &&
@@ -239,7 +202,6 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
       });
   }
   for (const row of flags?.items ?? []) addSummary(row.trip_session_id, row);
-  for (const row of visibleLate ?? []) addSummary(row.trip_session_id, row);
   for (const row of visibleChecks ?? []) addSummary(row.source_trip_session_id, row);
   if (selectedTrip && selectedContext) summaries.set(selectedTrip, selectedContext);
   // Driver, trip time and the plain reason come first; IDs stay available but secondary (D38c).
@@ -264,13 +226,11 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
         .join(" · ")}
     </p>
   );
-  const total =
-    tab === "suspicious" ? flags?.total : tab === "late" ? late?.total : checkPage?.total;
+  const total = tab === "suspicious" ? flags?.total : checkPage?.total;
   const listHref = (changes: Partial<Query>) =>
     href({
       offset: undefined,
       flag: undefined,
-      late: undefined,
       check: undefined,
       route_offset: undefined,
       disputes_offset: undefined,
@@ -280,19 +240,13 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
     tab === "suspicious"
       ? [
           { href: listHref({ status: undefined }), label: "All", active: !flagStatus },
-          ...(["open", "acknowledged", "confirmed", "dismissed"] as const).map((status) => ({
+          ...(["open", "confirmed", "dismissed"] as const).map((status) => ({
             href: listHref({ status }),
             label: adminStatus(status),
             active: flagStatus === status,
           })),
         ]
-      : tab === "late"
-        ? ["quarantined", "applied", "discarded"].map((status) => ({
-            href: listHref({ status }),
-            label: adminStatus(status),
-            active: lateStatus === status,
-          }))
-        : [];
+      : [];
   const matchedTrips =
     selectedFlag && selectedInScope && selectedFlag.flag_type === "route_replay"
       ? await Promise.all(
@@ -310,7 +264,6 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
         items={(
           [
             ["suspicious", "Suspicious trips"],
-            ["late", "Late uploads"],
             ["in-person", "In-person checks"],
           ] as const
         ).map(([value, label]) => ({
@@ -355,27 +308,6 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
                     </li>
                   ))
                 : null}
-              {tab === "late"
-                ? visibleLate?.map((batch) => (
-                    <li key={batch.id}>
-                      <Link
-                        className="border-edge block rounded-xl border p-4"
-                        href={href({
-                          late: batch.id,
-                          route_offset: undefined,
-                          disputes_offset: undefined,
-                        })}
-                      >
-                        {line(batch.trip_session_id)}
-                        <p className="mt-2">
-                          Locations uploaded late · received {formatDateTime(batch.received_at)} ·{" "}
-                          {batch.ping_count} location records
-                        </p>
-                        {ids(["Trip", batch.trip_session_id])}
-                      </Link>
-                    </li>
-                  ))
-                : null}
               {tab === "in-person"
                 ? visibleChecks?.map((check) => (
                     <li key={check.id}>
@@ -403,9 +335,7 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
             total={total}
             limit={25}
             offset={offset}
-            hrefFor={(o) =>
-              href({ offset: String(o), flag: undefined, late: undefined, check: undefined })
-            }
+            hrefFor={(o) => href({ offset: String(o), flag: undefined, check: undefined })}
           />
         </>
       )}
@@ -429,7 +359,7 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
               </p>
               {selectedFlag.escalated_at ? (
                 <p className="text-amber mb-4 text-sm">
-                  {selectedFlag.status === "open" || selectedFlag.status === "acknowledged"
+                  {selectedFlag.status === "open"
                     ? "Review deadline passed — this review is unresolved and pay stays held."
                     : "The review deadline passed before this decision."}
                 </p>
@@ -487,21 +417,8 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
               ) : (
                 <QueueUnavailable />
               )}
-              <ReviewActions
-                flagId={selectedFlag.id}
-                status={selectedFlag.status}
-                reversalRecommended={selectedFlag.money_effect.reversal_recommended}
-                reversalRecorded={!!selectedFlag.money_effect.reversal_entry_id}
-                reversalAmount={
-                  selectedFlag.money_effect.currency
-                    ? formatMoneyExact(
-                        selectedFlag.money_effect.available_net,
-                        selectedFlag.money_effect.currency,
-                      )
-                    : undefined
-                }
-              />
-              {selectedFlag.status === "open" || selectedFlag.status === "acknowledged" ? (
+              <ReviewActions flagId={selectedFlag.id} status={selectedFlag.status} />
+              {selectedFlag.status === "open" ? (
                 <details className="my-5">
                   <summary>Record an in-person check</summary>
                   <SpotCheckForm
@@ -543,30 +460,6 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
                 ["Job", selectedFlag.assignment_id],
                 ["Check", evidenceVerificationId(selectedFlag.evidence)],
               )}
-            </>
-          )}
-        </HubDrawer>
-      ) : null}
-      {p.late && tab === "late" ? (
-        <HubDrawer title="Late upload" closeHref={closeHref}>
-          {!allLate ? (
-            <QueueUnavailable />
-          ) : !selectedLate || (selectedContext && !selectedInScope) ? (
-            <p>Late upload not found for these filters.</p>
-          ) : !selectedContext || failed ? (
-            <QueueUnavailable />
-          ) : (
-            <>
-              {line(selectedLate.trip_session_id)}
-              <p className="mt-3">
-                {adminStatus(selectedLate.status)} · received {formatDate(selectedLate.received_at)}
-              </p>
-              {selectedLate.status === "quarantined" ? (
-                <OperationForm id={selectedLate.id} trip={selectedLate.trip_session_id} />
-              ) : (
-                <p className="mt-4">{selectedLate.resolution_note}</p>
-              )}
-              {ids(["Trip", selectedLate.trip_session_id], ["Upload", selectedLate.id])}
             </>
           )}
         </HubDrawer>

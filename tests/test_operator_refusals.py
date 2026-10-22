@@ -271,17 +271,29 @@ def test_payout_draft_reference_cannot_be_reused_by_another_maker_or_currency(
     async def exercise():
         async with db_sessionmaker() as session:
             first = await create_payout_batch_draft(
-                session, currency="ngn", actor_user_id=maker.id, request_id=request_id
+                session,
+                reason="Focused staff payout action",
+                currency="ngn",
+                actor_user_id=maker.id,
+                request_id=request_id,
             )
             await session.commit()
             again = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=maker.id, request_id=request_id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=maker.id,
+                request_id=request_id,
             )
             codes = []
             for actor, currency in ((other.id, "NGN"), (maker.id, "USD")):
                 with pytest.raises(AppError) as conflict:
                     await create_payout_batch_draft(
-                        session, currency=currency, actor_user_id=actor, request_id=request_id
+                        session,
+                        reason="Focused staff payout action",
+                        currency=currency,
+                        actor_user_id=actor,
+                        request_id=request_id,
                     )
                 codes.append(conflict.value.code)
             return first.id, again.id, codes

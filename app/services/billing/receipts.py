@@ -19,7 +19,6 @@ from app.models.billing import (
     ReceiptLifecycleEvent,
     ReceiptLifecycleStatus,
     ReceiptMethod,
-    ReceiptReconciliation,
 )
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
@@ -42,11 +41,13 @@ async def _append_receipt_event(
     actor_user_id: UUID | None,
     occurred_at: datetime,
     reason: str | None = None,
+    provider_event_id: UUID | None = None,
 ) -> ReceiptLifecycleEvent:
     event = ReceiptLifecycleEvent(
         receipt_id=receipt_id,
         status=lifecycle_status,
         sequence_number=RECEIPT_SEQUENCE[lifecycle_status],
+        provider_event_id=provider_event_id,
         actor_user_id=actor_user_id,
         reason=reason,
         occurred_at=occurred_at,
@@ -206,7 +207,7 @@ async def record_payment_receipt(  # noqa: C901
     await _append_receipt_event(
         session,
         receipt_id=receipt.id,
-        lifecycle_status=ReceiptLifecycleStatus.OBSERVED,
+        lifecycle_status=ReceiptLifecycleStatus.RECORDED,
         actor_user_id=actor_user_id,
         occurred_at=observed,
     )
@@ -228,63 +229,61 @@ async def record_payment_receipt(  # noqa: C901
     return receipt
 
 
-async def reconcile_payment_receipt(
+async def confirm_payment_receipt(
     session: AsyncSession,
     *,
     receipt_id: UUID,
     actor_user_id: UUID,
     expected_amount: Decimal | str,
     expected_currency: str,
-) -> ReceiptReconciliation:
+) -> bool:
+    await require_active_admin(session, actor_user_id)
     receipt = await session.scalar(
         select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
     )
-    await require_active_admin(session, actor_user_id)
     if receipt is None:
         raise AppError("RECEIPT_NOT_FOUND", "Receipt was not found", status_code=404)
-    existing = await session.scalar(
-        select(ReceiptReconciliation).where(ReceiptReconciliation.receipt_id == receipt.id)
-    )
+    if receipt.method != ReceiptMethod.MANUAL_TRANSFER:
+        raise AppError(
+            "VERIFIED_GATEWAY_EVENT_REQUIRED",
+            "Gateway payments need verified provider confirmation",
+            status_code=403,
+        )
     amount = _money(expected_amount, "expected_amount")
     currency = expected_currency.strip().upper()
     if amount == 0 or len(currency) != 3:
         raise AppError(
-            "INVALID_RECONCILIATION_EXPECTATION",
+            "INVALID_CONFIRMATION_EXPECTATION",
             "Expected amount and currency are required",
-            status_code=status.HTTP_400_BAD_REQUEST,
+            status_code=400,
         )
-    if existing is not None:
-        if existing.expected_amount == amount and existing.expected_currency == currency:
-            return existing
+    current = await _receipt_status(session, receipt.id)
+    matched = receipt.amount == amount and receipt.currency == currency
+    if current == ReceiptLifecycleStatus.CONFIRMED:
+        if not matched:
+            raise AppError(
+                "RECEIPT_CONFIRMATION_CONFLICT",
+                "Confirmed payment details cannot change",
+                status_code=409,
+            )
+        return True
+    if current != ReceiptLifecycleStatus.RECORDED:
         raise AppError(
-            "RECONCILIATION_ALREADY_RECORDED",
-            "Receipt reconciliation evidence is immutable",
-            status_code=status.HTTP_409_CONFLICT,
+            "RECEIPT_NOT_RECORDED", "Only a recorded receipt can be confirmed", status_code=409
         )
     now = await database_clock(session)
-    matched = receipt.amount == amount and receipt.currency == currency
-    reconciliation = ReceiptReconciliation(
-        receipt_id=receipt.id,
-        expected_amount=amount,
-        expected_currency=currency,
-        matched=matched,
-        reconciled_by_user_id=actor_user_id,
-        reconciled_at=now,
-    )
-    session.add(reconciliation)
-    await session.flush()
     if matched:
         await _append_receipt_event(
             session,
             receipt_id=receipt.id,
-            lifecycle_status=ReceiptLifecycleStatus.RECONCILED,
+            lifecycle_status=ReceiptLifecycleStatus.CONFIRMED,
             actor_user_id=actor_user_id,
             occurred_at=now,
         )
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,
-        action="billing.receipt.reconciled",
+        action="billing.receipt.confirmation_checked",
         entity_type="payment_receipt",
         entity_id=str(receipt.id),
         metadata={
@@ -293,43 +292,7 @@ async def reconcile_payment_receipt(
             "matched": matched,
         },
     )
-    return reconciliation
-
-
-async def confirm_payment_receipt(
-    session: AsyncSession, *, receipt_id: UUID, actor_user_id: UUID
-) -> PaymentReceipt:
-    receipt = await session.scalar(
-        select(PaymentReceipt).where(PaymentReceipt.id == receipt_id).with_for_update()
-    )
-    await require_active_admin(session, actor_user_id)
-    if receipt is None:
-        raise AppError("RECEIPT_NOT_FOUND", "Receipt was not found", status_code=404)
-    current = await _receipt_status(session, receipt.id)
-    if current == ReceiptLifecycleStatus.CONFIRMED:
-        return receipt
-    if current != ReceiptLifecycleStatus.RECONCILED:
-        raise AppError(
-            "RECEIPT_NOT_RECONCILED",
-            "Only an exactly matched reconciled receipt can be confirmed",
-            status_code=status.HTTP_409_CONFLICT,
-        )
-    now = await database_clock(session)
-    await _append_receipt_event(
-        session,
-        receipt_id=receipt.id,
-        lifecycle_status=ReceiptLifecycleStatus.CONFIRMED,
-        actor_user_id=actor_user_id,
-        occurred_at=now,
-    )
-    await create_audit_event(
-        session,
-        actor_user_id=actor_user_id,
-        action="billing.receipt.confirmed",
-        entity_type="payment_receipt",
-        entity_id=str(receipt.id),
-    )
-    return receipt
+    return matched
 
 
 async def allocate_payment_receipt(  # noqa: C901
@@ -583,8 +546,8 @@ async def process_manual_bank_transfer(
     evidence_reference: str,
     observed_at: datetime,
     allocation_amount: Decimal | str | None = None,
-) -> tuple[PaymentReceipt, ReceiptReconciliation, ReceiptAllocation | None]:
-    """Record, reconcile and conditionally confirm one manual bank statement line."""
+) -> tuple[PaymentReceipt, bool, ReceiptAllocation | None]:
+    """Record and conditionally confirm one manual bank statement line."""
     receipt = await record_payment_receipt(
         session,
         organization_id=organization_id,
@@ -598,16 +561,15 @@ async def process_manual_bank_transfer(
         evidence_reference=evidence_reference,
         observed_at=observed_at,
     )
-    reconciliation = await reconcile_payment_receipt(
+    matched = await confirm_payment_receipt(
         session,
         receipt_id=receipt.id,
         actor_user_id=actor_user_id,
         expected_amount=expected_amount,
         expected_currency=currency,
     )
-    if not reconciliation.matched:
-        return receipt, reconciliation, None
-    await confirm_payment_receipt(session, receipt_id=receipt.id, actor_user_id=actor_user_id)
+    if not matched:
+        return receipt, False, None
     amount_to_allocate = allocation_amount if allocation_amount is not None else observed_amount
     allocation = await allocate_payment_receipt(
         session,
@@ -616,4 +578,4 @@ async def process_manual_bank_transfer(
         actor_user_id=actor_user_id,
         amount=amount_to_allocate,
     )
-    return receipt, reconciliation, allocation
+    return receipt, True, allocation

@@ -8,10 +8,8 @@ import pytest
 from sqlalchemy import select
 from starlette import status as http_status
 from test_trip_seal import (
-    admin_headers,
     batch_descriptor,
     make_batch_payload,
-    remember_batch,
 )
 from test_trips import create_trip_ready_graph, driver_headers, start_trip
 
@@ -23,7 +21,7 @@ from app.models.campaign_assignment import (
     CampaignAssignment,
     CampaignAssignmentStatus,
 )
-from app.models.trip import LocationPingBatch, QuarantinedPingBatch, TripSession
+from app.models.trip import TripSession
 from app.schemas.trips import (
     LocationPingBatchCreate,
     TripEndRequest,
@@ -111,8 +109,7 @@ def audit_actions(db_sessionmaker) -> list[str]:
     async def fetch():
         async with db_sessionmaker() as session:
             return [
-                row.action
-                for row in (await session.execute(select(AuditEvent))).scalars().all()
+                row.action for row in (await session.execute(select(AuditEvent))).scalars().all()
             ]
 
     return asyncio.run(fetch())
@@ -387,9 +384,7 @@ def test_concurrent_reconciles_adjudicate_exactly_once_postgres(
     postgis_db_sessionmaker, settings, monkeypatch
 ) -> None:
     """Two racing reconciles must not both adjudicate or both audit."""
-    _, _, driver, profile, vehicle, assignment = create_trip_ready_graph(
-        postgis_db_sessionmaker
-    )
+    _, _, driver, profile, vehicle, assignment = create_trip_ready_graph(postgis_db_sessionmaker)
     undelivered = batch_descriptor(make_batch_payload("never-delivered", batch_sequence=0))
 
     async def prepare() -> UUID:
@@ -463,52 +458,6 @@ def test_concurrent_reconciles_adjudicate_exactly_once_postgres(
     assert verify_adjudication_receipt(trip, settings)
 
 
-def test_evidence_arriving_after_adjudication_is_preserved_not_discarded(
-    db_client, db_sessionmaker
-) -> None:
-    _, _, _, _, _, assignment = create_trip_ready_graph(db_sessionmaker)
-    trip_id = start_trip(db_client, assignment.id).json()["id"]
-    payload = make_batch_payload("late-after-adjudication", batch_sequence=0)
-    remember_batch(trip_id, payload)
-    descriptor = batch_descriptor(payload)
-    end_with_manifest(db_client, trip_id, [descriptor], complete=False)
-    expire_grace(db_sessionmaker, trip_id)
-    db_client.post(
-        f"/api/v1/driver/trips/{trip_id}/evidence/reconcile",
-        headers=driver_headers(db_client),
-    )
-
-    late = send(db_client, trip_id, payload)
-
-    assert late.status_code == http_status.HTTP_200_OK
-    assert late.json()["quarantined"] is True
-    assert late.json()["accepted_count"] == 0
-    # A quarantine is a preservation, not a per-sample adjudication.
-    assert late.json()["sample_results"] == []
-
-    async def counts():
-        async with db_sessionmaker() as session:
-            quarantined = list(
-                (await session.execute(select(QuarantinedPingBatch))).scalars().all()
-            )
-            live = list((await session.execute(select(LocationPingBatch))).scalars().all())
-            return len(quarantined), len(live)
-
-    quarantined_count, live_count = asyncio.run(counts())
-    assert (quarantined_count, live_count) == (1, 0)
-
-    # An adjudicated trip was never sealed, so it has no money to correct: the
-    # admin reopen path refuses rather than originating a payout from it.
-    applied = db_client.post(
-        f"/api/v1/admin/trips/{trip_id}/quarantined-batches/"
-        f"{late.json()['batch_id']}/apply",
-        headers=admin_headers(db_client),
-        json={"note": "driver reported a missing stretch"},
-    )
-    assert applied.status_code == http_status.HTTP_409_CONFLICT
-    assert applied.json()["error"]["code"] == "QUARANTINE_APPLY_BLOCKED"
-
-
 @pytest.mark.parametrize("persist_timestamp", [True, False])
 def test_cancellation_is_a_distinct_terminal_capture_cutoff_postgres(
     postgis_db_client, postgis_db_sessionmaker, persist_timestamp
@@ -526,10 +475,16 @@ def test_cancellation_is_a_distinct_terminal_capture_cutoff_postgres(
             row = await session.get(CampaignAssignment, assignment.id)
             row.status = "cancelled"
             row.cancelled_at = cancelled_at if persist_timestamp else None
-            session.add(CampaignActivationEvent(
-                assignment_id=row.id, actor_user_id=None, event_type="cancelled",
-                previous_status="active", new_status="cancelled", occurred_at=cancelled_at,
-            ))
+            session.add(
+                CampaignActivationEvent(
+                    assignment_id=row.id,
+                    actor_user_id=None,
+                    event_type="cancelled",
+                    previous_status="active",
+                    new_status="cancelled",
+                    occurred_at=cancelled_at,
+                )
+            )
             await session.commit()
             assert row.deactivated_at is None
 
@@ -544,55 +499,3 @@ def test_cancellation_is_a_distinct_terminal_capture_cutoff_postgres(
     replay = send(client, trip_id, payload)
     assert replay.json()["receipt_signature"] == body["receipt_signature"]
     assert replay.json()["sample_results"] == body["sample_results"]
-
-
-def test_cancellation_cannot_be_bypassed_by_postseal_quarantine_application(
-    postgis_db_client, postgis_db_sessionmaker, settings
-):
-    from conftest import create_test_trip_analytics
-    from test_trip_seal import end_trip, fetch_all, send_batch
-
-    from app.models.trip import LocationPing
-    from app.services.trip_processing import process_ended_trip
-
-    client, factory = postgis_db_client, postgis_db_sessionmaker
-    _, campaign, _, profile, vehicle, assignment = create_trip_ready_graph(
-        factory, eligibility_settings=settings
-    )
-    trip_id = start_trip(client, assignment.id).json()["id"]
-    recorded = datetime.now(UTC)
-    recorded = recorded.replace(microsecond=recorded.microsecond // 1000 * 1000)
-    end_trip(client, trip_id, watermark={"client_batch_count": 0, "client_complete": True})
-    late = send_batch(client, trip_id, "cancelled-postseal", recorded_at=recorded)
-    assert late.status_code == 200, late.text
-    assert late.json()["quarantined"] is True
-    create_test_trip_analytics(
-        factory, trip_session_id=UUID(trip_id), assignment_id=assignment.id,
-        campaign_id=campaign.id, driver_profile_id=profile.id, vehicle_id=vehicle.id,
-        formula_version=settings.route_analytics_formula_version,
-        computed_at=datetime.now(UTC) + timedelta(minutes=1),
-    )
-
-    async def prepare():
-        async with factory() as session:
-            await process_ended_trip(session, trip_id=UUID(trip_id), settings=settings)
-            row = await session.get(CampaignAssignment, assignment.id)
-            row.status = "cancelled"
-            row.cancelled_at = recorded - timedelta(microseconds=1)
-            session.add(CampaignActivationEvent(
-                assignment_id=row.id, actor_user_id=None, event_type="cancelled",
-                previous_status="active", new_status="cancelled", occurred_at=row.cancelled_at,
-            ))
-            await session.commit()
-
-    asyncio.run(prepare())
-    before = len(fetch_all(factory, LocationPing))
-    response = client.post(
-        f"/api/v1/admin/trips/{trip_id}/quarantined-batches/{late.json()['batch_id']}/apply",
-        headers=admin_headers(client), json={"note": "review the preserved capture cutoff"},
-    )
-    assert response.status_code == 400, response.text
-    assert response.json()["error"]["code"] == "INVALID_ASSIGNMENT_AUTHORITY"
-    assert len(fetch_all(factory, LocationPing)) == before
-    assert "admin.trip.quarantined_batch.applied" not in audit_actions(factory)
-    assert len(fetch_all(factory, QuarantinedPingBatch)) == 1

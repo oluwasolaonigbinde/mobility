@@ -23,7 +23,7 @@ from app.services.drivers import get_required_driver_profile_with_user_by_user_i
 from app.services.impressions import (
     quantize_2,
 )
-from app.services.payout_debt import driver_money_balance
+from app.services.payout_balances import driver_money_balance
 from app.services.payouts.common import (
     PAYOUT_V4,
     CampaignCost,
@@ -170,9 +170,7 @@ async def driver_earnings_summary(
     totals = []
     for row in result.all():
         pending = quantize_2(Decimal(str(row[1] or 0)))
-        available = quantize_2(Decimal(str(row[2] or 0)))
         voided = quantize_2(Decimal(str(row[3] or 0)))
-        paid = quantize_2(Decimal(str(row[4] or 0)))
         balance = await driver_money_balance(
             session,
             driver_profile_id=profile.id,
@@ -182,13 +180,12 @@ async def driver_earnings_summary(
             DriverCurrencyEarnings(
                 currency=row[0],
                 pending_amount=pending,
-                available_amount=available,
-                paid_amount=paid,
+                available_amount=balance.released_available,
+                paid_amount=balance.cash_paid,
                 voided_amount=voided,
                 lifetime_earned_amount=quantize_2(Decimal(str(row[5] or 0))),
                 released_available_amount=balance.released_available,
                 cash_paid_amount=balance.cash_paid,
-                carry_forward_debt_amount=balance.carry_forward_debt,
                 batch_payable_amount=balance.batch_payable,
                 ledger_entry_count=int(row[6] or 0),
             )
@@ -204,7 +201,6 @@ async def driver_earnings_summary(
                 lifetime_earned_amount=Decimal("0.00"),
                 released_available_amount=Decimal("0.00"),
                 cash_paid_amount=Decimal("0.00"),
-                carry_forward_debt_amount=Decimal("0.00"),
                 batch_payable_amount=Decimal("0.00"),
                 ledger_entry_count=0,
             )

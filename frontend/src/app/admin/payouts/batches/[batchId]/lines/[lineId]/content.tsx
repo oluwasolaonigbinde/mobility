@@ -8,6 +8,7 @@ import { moneyHref, moneyPage, type MoneyQuery } from "../../../../../money/navi
 import { batchApi, type PayoutBatch } from "../../../batch-api";
 import { outcomeLabel } from "../../../operation-types";
 import { PollLineAction } from "../../../batch-forms";
+import { NegativeAdjustmentForm } from "../../../negative-adjustment-form";
 export default async function PaymentHistory({
   params,
   searchParams,
@@ -45,6 +46,7 @@ export default async function PaymentHistory({
         Back to payment run
       </Link>
       <p>{formatMoneyExact(line.amount, line.currency)}</p>
+      <NegativeAdjustmentForm entryId={line.ledger_entry_id} currency={line.currency} />
       <p>
         Latest provider answer:{" "}
         {history.latest_submission_outcome

@@ -21,17 +21,11 @@ export interface SpotCheckActionState {
   done?: string;
 }
 
-const reviewSchema = z.discriminatedUnion("intent", [
-  z.object({
-    flag_id: z.string().uuid(),
-    intent: z.literal("acknowledge"),
-  }),
-  z.object({
-    flag_id: z.string().uuid(),
-    intent: z.enum(["confirm", "dismiss"]),
-    note: z.string().trim().min(1, "A review note is required").max(2000),
-  }),
-]);
+const reviewSchema = z.object({
+  flag_id: z.string().uuid(),
+  intent: z.enum(["confirm", "dismiss"]),
+  note: z.string().trim().min(1, "A review note is required").max(2000),
+});
 
 const disputeReplySchema = z.object({
   dispute_id: z.string().uuid(),
@@ -63,17 +57,13 @@ export async function reviewFraudFlagAction(
   const path = { params: { path: { flag_id } } };
 
   try {
-    if (intent === "acknowledge") {
-      await api.POST("/api/v1/admin/fraud-flags/{flag_id}/review/acknowledge", path);
-    } else {
-      await api.POST("/api/v1/admin/fraud-flags/{flag_id}/review/resolve", {
-        ...path,
-        body: {
-          outcome: intent === "confirm" ? "confirmed" : "dismissed",
-          note: parsed.data.note,
-        },
-      });
-    }
+    await api.POST("/api/v1/admin/fraud-flags/{flag_id}/review/resolve", {
+      ...path,
+      body: {
+        outcome: intent === "confirm" ? "confirmed" : "dismissed",
+        note: parsed.data.note,
+      },
+    });
   } catch (error) {
     if (error instanceof ApiError) return { error: error.message };
     return { error: "Could not reach the server." };
@@ -81,12 +71,7 @@ export async function reviewFraudFlagAction(
 
   revalidatePath("/admin/trip-checks");
   return {
-    done:
-      intent === "acknowledge"
-        ? "Review started"
-        : intent === "confirm"
-          ? "Problem confirmed"
-          : "Trip cleared",
+    done: intent === "confirm" ? "Problem confirmed" : "Trip cleared",
   };
 }
 

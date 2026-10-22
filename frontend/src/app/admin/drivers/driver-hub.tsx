@@ -228,7 +228,7 @@ export default async function DriverHub({
     id && currency
       ? (
           await api
-            .GET("/api/v1/admin/payout-batches/debt-balances/{driver_profile_id}", {
+            .GET("/api/v1/admin/payout-batches/money-balances/{driver_profile_id}", {
               params: { path: { driver_profile_id: id }, query: { currency } },
             })
             .catch(() => ({ data: undefined }))
@@ -568,7 +568,6 @@ export default async function DriverHub({
                   {[
                     ["Ready for payout", balance.batch_payable],
                     ["Recorded as paid", balance.cash_paid],
-                    ["Amount owed", balance.carry_forward_debt],
                   ].map(([label, amount]) => (
                     <div key={label}>
                       <dt className="text-muted text-sm">{label}</dt>

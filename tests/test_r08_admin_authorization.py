@@ -29,7 +29,6 @@ MIGRATED_CALL_SITES: dict[str, tuple[str, ...]] = {
     ),
     "billing.receipts": (
         "record_payment_receipt",
-        "reconcile_payment_receipt",
         "confirm_payment_receipt",
         "allocate_payment_receipt",
         "reverse_payment_receipt",

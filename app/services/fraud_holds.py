@@ -21,7 +21,6 @@ from app.services.notifications import create_fraud_review_resolved_notice
 HOLD_ACTIVE_STATUSES = frozenset(
     {
         FraudFlagStatus.OPEN.value,
-        FraudFlagStatus.ACKNOWLEDGED.value,
         FraudFlagStatus.CONFIRMED.value,
     }
 )
@@ -31,8 +30,7 @@ FRAUD_RECONCILIATION_GATE_KEY = int.from_bytes(
     signed=True,
 )
 FRAUD_REVIEW_TRANSITIONS = {
-    FraudFlagStatus.OPEN.value: frozenset({FraudFlagStatus.ACKNOWLEDGED.value}),
-    FraudFlagStatus.ACKNOWLEDGED.value: frozenset(
+    FraudFlagStatus.OPEN.value: frozenset(
         {FraudFlagStatus.CONFIRMED.value, FraudFlagStatus.DISMISSED.value}
     ),
     FraudFlagStatus.CONFIRMED.value: frozenset(),
@@ -218,11 +216,7 @@ async def _review_fraud_flag(
     await create_audit_event(
         session,
         actor_user_id=actor_user_id,
-        action=(
-            "admin.fraud_flag.acknowledged"
-            if target_status == FraudFlagStatus.ACKNOWLEDGED.value
-            else "admin.fraud_flag.resolved"
-        ),
+        action="admin.fraud_flag.resolved",
         entity_type="fraud_flag",
         entity_id=str(flag.id),
         metadata={
@@ -236,38 +230,12 @@ async def _review_fraud_flag(
             "resolution_note": normalized_note,
         },
     )
-    if target_status == FraudFlagStatus.CONFIRMED.value:
-        from app.services.earnings_release import post_confirmed_fraud_reversal
-
-        await post_confirmed_fraud_reversal(
-            session,
-            flag=flag,
-            actor_user_id=actor_user_id,
-            occurred_at=reviewed_at,
-        )
     if target_status in {
         FraudFlagStatus.CONFIRMED.value,
         FraudFlagStatus.DISMISSED.value,
     }:
         await create_fraud_review_resolved_notice(session, flag)
     return FraudReviewResult(flag=flag, previous_status=previous_status, changed=True)
-
-
-async def acknowledge_fraud_flag(
-    session: AsyncSession,
-    *,
-    flag_id: UUID,
-    actor_user_id: UUID,
-    now: datetime | None = None,
-) -> FraudReviewResult:
-    return await _review_fraud_flag(
-        session,
-        flag_id=flag_id,
-        actor_user_id=actor_user_id,
-        target_status=FraudFlagStatus.ACKNOWLEDGED.value,
-        resolution_note=None,
-        now=now,
-    )
 
 
 async def resolve_fraud_flag(
@@ -283,7 +251,7 @@ async def resolve_fraud_flag(
         FraudFlagStatus.CONFIRMED.value,
         FraudFlagStatus.DISMISSED.value,
     }:
-        raise invalid_fraud_review_transition("acknowledged", outcome)
+        raise invalid_fraud_review_transition("open", outcome)
     return await _review_fraud_flag(
         session,
         flag_id=flag_id,

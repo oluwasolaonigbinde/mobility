@@ -71,10 +71,6 @@ SUBJECT_QUERIES: dict[str, tuple[str, str]] = {
         "password_reset_attempts",
         "SELECT issued_user_id FROM password_reset_attempts WHERE id=:entity_id",
     ),
-    "driver_currency_debt_account": (
-        "driver_currency_debt_accounts",
-        "SELECT driver_user_id FROM driver_currency_debt_accounts WHERE id=:entity_id",
-    ),
     "file_upload_intent": (
         "file_upload_intents",
         "SELECT subject_user_id FROM file_upload_intents WHERE id=:entity_id",
@@ -122,12 +118,6 @@ SUBJECT_QUERIES.update(
             "phone_verification_challenges",
             "SELECT d.user_id FROM phone_verification_challenges s JOIN driver_phone_versions p "
             "ON p.id=s.phone_version_id JOIN driver_profiles d ON d.id=p.driver_profile_id "
-            "WHERE s.id=:entity_id",
-        ),
-        "quarantined_ping_batch": (
-            "quarantined_ping_batches",
-            "SELECT d.user_id FROM quarantined_ping_batches s JOIN trip_sessions t "
-            "ON t.id=s.trip_session_id JOIN driver_profiles d ON d.id=t.driver_profile_id "
             "WHERE s.id=:entity_id",
         ),
         "campaign_liability_reservation": (

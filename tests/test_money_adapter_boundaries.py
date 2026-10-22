@@ -4,59 +4,15 @@ import asyncio
 import json
 from dataclasses import replace
 from decimal import Decimal
-from uuid import uuid4
 
 import pytest
 
-from app.adapters.budget.provider import BudgetPolicyContext, FixedBudgetPolicyAdapter
 from app.adapters.disbursement.provider import (
     DisbursementInstruction,
     FakeDisbursementAdapter,
     ProviderLookupStatus,
 )
 from app.adapters.payments.provider import FakePaymentGatewayAdapter, PaymentWebhookPayloadError
-
-
-def budget(**changes):
-    return FixedBudgetPolicyAdapter(
-        **{
-            "policy_id": "synthetic",
-            "policy_revision": "1",
-            "policy_source": "synthetic_test",
-            "alert_ratio": Decimal("0.8"),
-            "pause_ratio": Decimal("1"),
-            "resume_ratio": Decimal("0.5"),
-            **changes,
-        }
-    )
-
-
-@pytest.mark.parametrize(
-    "changes,message",
-    [
-        ({"policy_source": "unapproved"}, "invalid_budget_policy_source"),
-        ({"resume_ratio": Decimal("0")}, "invalid_budget_policy_threshold_order"),
-        ({"resume_ratio": Decimal("1.1")}, "invalid_budget_policy_threshold_order"),
-        ({"pause_ratio": Decimal("0.8")}, "invalid_budget_policy_threshold_order"),
-        ({"urgent_ratio": Decimal("0.8")}, "invalid_budget_policy_threshold_order"),
-        ({"urgent_ratio": Decimal("1")}, "invalid_budget_policy_threshold_order"),
-    ],
-)
-def test_unapproved_or_unordered_budget_policy_is_rejected(changes, message):
-    with pytest.raises(ValueError, match=message):
-        budget(**changes)
-
-
-def test_total_budget_is_the_only_basis_and_missing_budget_fails_closed():
-    async def run():
-        context = BudgetPolicyContext(uuid4(), "NGN", Decimal("100"), Decimal("100.01"))
-        decision = await budget().evaluate(context)
-        assert decision.budget_basis == "total"
-        assert decision.should_pause and not decision.resume_allowed
-        with pytest.raises(ValueError, match="requires_budget"):
-            await budget().evaluate(replace(context, configured_budget_amount=None))
-
-    asyncio.run(run())
 
 
 def test_synthetic_transfer_replay_rejects_conflicting_effects():

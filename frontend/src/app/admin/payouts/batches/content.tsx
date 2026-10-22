@@ -103,7 +103,7 @@ export default async function PaymentRuns({ searchParams }: { searchParams: Prom
                   ) : (
                     <>
                       <p>Prepared by: {run.maker_name}</p>
-                      <p>Approved by: {run.checker_name ?? "Waiting for a second approval"}</p>
+                      <p>Approved by: {run.checker_name ?? "Waiting for approval"}</p>
                     </>
                   )}
                   <p className="text-muted text-sm">

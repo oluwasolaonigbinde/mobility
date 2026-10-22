@@ -85,7 +85,6 @@ GENERIC_PUBLIC_REASON = (
 )
 PUBLIC_STATUS = {
     "open": "assessment_pending",
-    "acknowledged": "under_review",
     "confirmed": "issue_confirmed",
     "dismissed": "review_cleared",
 }

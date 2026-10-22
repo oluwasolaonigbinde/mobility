@@ -17,7 +17,7 @@ from app.models.payout import (
     EarningsLedgerEntryType,
 )
 from app.models.trip import TripSession
-from app.services.fraud_holds import acknowledge_fraud_flag, fraud_hold_counts, resolve_fraud_flag
+from app.services.fraud_holds import fraud_hold_counts, resolve_fraud_flag
 
 NOW = datetime(2026, 8, 26, 12, 0, tzinfo=UTC)
 PASSWORD = "long-secure-password"
@@ -96,12 +96,7 @@ def test_spot_result_retry_hold_and_explicit_dismissal(db_client, db_sessionmake
         async with db_sessionmaker() as session:
             assert (await fraud_hold_counts(session, graph.trip.id))["high"] == 1
             assert await session.scalar(select(func.count()).select_from(EvidenceVerification)) == 2
-            await acknowledge_fraud_flag(
-                session,
-                flag_id=UUID(flag_id),
-                actor_user_id=graph.assignment.assigned_by_user_id,
-                now=NOW,
-            )
+            pass
             await resolve_fraud_flag(
                 session,
                 flag_id=UUID(flag_id),

@@ -10,12 +10,22 @@ describe("durable payout recovery", () => {
         values.set(key, value);
       },
     };
-    const first = retainDraftRecovery(storage, "maker", "NGN", [
-      "22222222-2222-4222-8222-222222222222",
-    ]);
+    const first = retainDraftRecovery(
+      storage,
+      "maker",
+      "NGN",
+      ["22222222-2222-4222-8222-222222222222"],
+      "Staff payment review",
+    );
     expect(readDraftRecovery(storage, "maker")).toEqual(first);
     expect(
-      retainDraftRecovery(storage, "maker", "USD", ["33333333-3333-4333-8333-333333333333"]),
+      retainDraftRecovery(
+        storage,
+        "maker",
+        "USD",
+        ["33333333-3333-4333-8333-333333333333"],
+        "Different reason",
+      ),
     ).toEqual(first);
     expect(readDraftRecovery(storage, "other-admin")).toBeNull();
   });
@@ -32,6 +42,7 @@ describe("durable payout recovery", () => {
         "maker",
         "NGN",
         ["22222222-2222-4222-8222-222222222222"],
+        "Staff payment review",
       ),
     ).toThrow();
     expect(() => readDraftRecovery({ getItem: () => "{}" }, "maker")).toThrow();

@@ -85,11 +85,11 @@ class ReportCohort:
 
 
 def economic_ledger_amount(entry_type: str, status: str, amount: Decimal) -> Decimal:
-    if entry_type not in {"trip_payout", "adjustment", "reversal", "debt_remainder"}:
+    if entry_type not in {"trip_payout", "adjustment", "reversal"}:
         raise ValueError("Unknown economic ledger entry type")
     if status not in {"pending", "available", "voided", "reversed", "paid"} or amount < 0:
         raise ValueError("Invalid economic ledger fact")
-    if status == "voided" or entry_type == "debt_remainder":
+    if status == "voided":
         return Decimal("0.00")
     return -amount if entry_type == "reversal" else amount
 

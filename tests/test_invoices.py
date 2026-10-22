@@ -36,7 +36,6 @@ from app.services.billing.quotes import (
 from app.services.billing.receipts import (
     allocate_payment_receipt,
     confirm_payment_receipt,
-    reconcile_payment_receipt,
     record_payment_receipt,
 )
 
@@ -724,14 +723,13 @@ def test_commercial_validation_paths_fail_closed(db_sessionmaker, settings) -> N
                 evidence_reference="full-payment",
                 observed_at=datetime.now(UTC),
             )
-            await reconcile_payment_receipt(
+            await confirm_payment_receipt(
                 session,
                 receipt_id=receipt.id,
                 actor_user_id=admin.id,
                 expected_amount="1.08",
                 expected_currency="NGN",
             )
-            await confirm_payment_receipt(session, receipt_id=receipt.id, actor_user_id=admin.id)
             await allocate_payment_receipt(
                 session,
                 receipt_id=receipt.id,
@@ -871,14 +869,13 @@ def test_invoice_numbering_is_scope_sequential_and_payment_status_is_allocation_
                 evidence_reference="line-50",
                 observed_at=datetime.now(UTC),
             )
-            await reconcile_payment_receipt(
+            await confirm_payment_receipt(
                 session,
                 receipt_id=receipt.id,
                 actor_user_id=admin.id,
                 expected_amount="50.00",
                 expected_currency="NGN",
             )
-            await confirm_payment_receipt(session, receipt_id=receipt.id, actor_user_id=admin.id)
             await allocate_payment_receipt(
                 session,
                 receipt_id=receipt.id,

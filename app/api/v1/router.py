@@ -36,7 +36,6 @@ from app.api.v1.retargeting_source_links import router as retargeting_source_lin
 from app.api.v1.retargeting_sources import router as retargeting_sources_router
 from app.api.v1.stored_files import router as stored_files_router
 from app.api.v1.trip_analytics import router as trip_analytics_router
-from app.api.v1.trips import admin_router as trips_admin_router
 from app.api.v1.trips import router as trips_router
 from app.api.v1.vehicles import router as vehicles_router
 from app.api.v1.webhooks import router as webhooks_router
@@ -75,7 +74,6 @@ api_router.include_router(report_issuances_router)
 api_router.include_router(stored_files_router)
 api_router.include_router(trip_analytics_router)
 api_router.include_router(trips_router)
-api_router.include_router(trips_admin_router)
 api_router.include_router(driver_profiles_router)
 api_router.include_router(driver_documents_router)
 api_router.include_router(fraud_disputes_router)

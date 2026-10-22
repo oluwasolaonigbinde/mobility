@@ -16,7 +16,7 @@ from app.models.trip_analytics import FraudFlag, FraudFlagStatus
 from app.services.audit import create_audit_event
 from app.services.fraud_assessments import load_current_successful_assessment
 from app.services.fraud_holds import fraud_hold_active_clause, lock_fraud_hold_scope
-from app.services.payout_debt import record_reversal_obligation
+from app.services.payout_balances import lock_driver_money_scope
 from app.services.payout_rule_serialization import database_clock
 
 
@@ -32,8 +32,6 @@ class EarningsReleaseResult:
 class FraudFlagMoneyEffect:
     available_net: Decimal
     currency: str | None
-    reversal_entry_id: UUID | None
-    reversal_recommended: bool
 
 
 def _utc(value: datetime) -> datetime:
@@ -98,6 +96,23 @@ async def release_pending_earnings_for_trip(
     if not assessment.current or active_hold:
         return EarningsReleaseResult(trip_id, (), assessment.current, active_hold)
 
+    driver_scope = (
+        await session.execute(
+            select(
+                EarningsLedgerEntry.driver_profile_id,
+                EarningsLedgerEntry.currency,
+            )
+            .where(EarningsLedgerEntry.trip_session_id == trip_id)
+            .limit(1)
+        )
+    ).one_or_none()
+    if driver_scope is not None:
+        await lock_driver_money_scope(
+            session,
+            driver_profile_id=driver_scope.driver_profile_id,
+            currency=driver_scope.currency,
+        )
+
     entries = list(
         (
             await session.scalars(
@@ -120,19 +135,6 @@ async def release_pending_earnings_for_trip(
         entry.status = EarningsLedgerEntryStatus.AVAILABLE.value
     if released:
         await session.flush()
-        # Keep the trip lock before the driver/currency debt lock, matching
-        # reservation. A released reversal is not economically available until
-        # its debt authority exists, so a reservation conflict aborts this
-        # entire transaction (including the status transition and audit).
-        for reversal in sorted(
-            (
-                entry
-                for entry in released
-                if entry.entry_type == EarningsLedgerEntryType.REVERSAL.value
-            ),
-            key=lambda entry: (str(entry.driver_profile_id), entry.currency, str(entry.id)),
-        ):
-            await record_reversal_obligation(session, reversal_entry=reversal)
         await create_audit_event(
             session,
             actor_user_id=None,
@@ -183,7 +185,7 @@ async def escalate_fraud_flag_if_due(
     flag = await session.scalar(select(FraudFlag).where(FraudFlag.id == flag_id).with_for_update())
     if (
         flag is None
-        or flag.status not in {FraudFlagStatus.OPEN.value, FraudFlagStatus.ACKNOWLEDGED.value}
+        or flag.status not in {FraudFlagStatus.OPEN.value}
         or flag.escalated_at is not None
         or _utc(now) < _utc(flag.detected_at) + timedelta(days=review_sla_days)
     ):
@@ -223,9 +225,7 @@ async def find_due_fraud_flag_ids(
             await session.scalars(
                 select(FraudFlag.id)
                 .where(
-                    FraudFlag.status.in_(
-                        (FraudFlagStatus.OPEN.value, FraudFlagStatus.ACKNOWLEDGED.value)
-                    ),
+                    FraudFlag.status.in_((FraudFlagStatus.OPEN.value,)),
                     FraudFlag.escalated_at.is_(None),
                     FraudFlag.detected_at <= now - timedelta(days=review_sla_days),
                 )
@@ -270,126 +270,7 @@ async def fraud_flag_money_effect(
         ),
         Decimal("0"),
     )
-    reversal = next(
-        (entry for entry in entries if entry.source_fraud_flag_id == flag.id),
-        None,
-    )
     return FraudFlagMoneyEffect(
         available_net=net,
         currency=next(iter(currencies), None),
-        reversal_entry_id=reversal.id if reversal is not None else None,
-        reversal_recommended=(
-            flag.status != FraudFlagStatus.DISMISSED.value and reversal is None and net > 0
-        ),
     )
-
-
-async def post_confirmed_fraud_reversal(
-    session: AsyncSession,
-    *,
-    flag: FraudFlag,
-    actor_user_id: UUID,
-    occurred_at: datetime,
-) -> EarningsLedgerEntry | None:
-    """Post one positive, subtract-by-type reversal while the trip scope is held."""
-    if flag.status != FraudFlagStatus.CONFIRMED.value:
-        return None
-    authority = (
-        await session.execute(
-            select(
-                EarningsLedgerEntry.driver_profile_id,
-                EarningsLedgerEntry.currency,
-            )
-            .where(
-                EarningsLedgerEntry.trip_session_id == flag.trip_session_id,
-                EarningsLedgerEntry.status.in_(
-                    (
-                        EarningsLedgerEntryStatus.AVAILABLE.value,
-                        EarningsLedgerEntryStatus.PAID.value,
-                    )
-                ),
-                EarningsLedgerEntry.entry_type != EarningsLedgerEntryType.REVERSAL.value,
-            )
-            .order_by(EarningsLedgerEntry.occurred_at, EarningsLedgerEntry.id)
-            .limit(1)
-        )
-    ).one_or_none()
-    if authority is None:
-        return None
-    from app.services.disbursements import (
-        apply_confirmed_fraud_payout_recovery,
-        lock_payout_chains_for_trip,
-    )
-    from app.services.payout_debt import lock_driver_currency_debt_scope
-
-    chain_authority = await lock_payout_chains_for_trip(
-        session,
-        trip_id=flag.trip_session_id,
-    )
-    # The trip and complete payout chain precede the debt and ledger locks,
-    # matching provider reconciliation and replacement authorization.
-    await lock_driver_currency_debt_scope(
-        session,
-        driver_profile_id=authority.driver_profile_id,
-        currency=authority.currency,
-    )
-    effect = await fraud_flag_money_effect(session, flag=flag, lock_entries=True)
-    if not effect.reversal_recommended:
-        return None
-    source = await session.scalar(
-        select(EarningsLedgerEntry)
-        .where(
-            EarningsLedgerEntry.trip_session_id == flag.trip_session_id,
-            EarningsLedgerEntry.status.in_(
-                (
-                    EarningsLedgerEntryStatus.AVAILABLE.value,
-                    EarningsLedgerEntryStatus.PAID.value,
-                )
-            ),
-            EarningsLedgerEntry.entry_type != EarningsLedgerEntryType.REVERSAL.value,
-        )
-        .order_by(EarningsLedgerEntry.occurred_at, EarningsLedgerEntry.id)
-        .limit(1)
-    )
-    if source is None or effect.currency is None:
-        return None
-    reversal = EarningsLedgerEntry(
-        payout_calculation_id=None,
-        driver_profile_id=source.driver_profile_id,
-        driver_user_id=source.driver_user_id,
-        campaign_id=source.campaign_id,
-        trip_session_id=source.trip_session_id,
-        vehicle_id=source.vehicle_id,
-        entry_type=EarningsLedgerEntryType.REVERSAL.value,
-        status=EarningsLedgerEntryStatus.AVAILABLE.value,
-        amount=effect.available_net,
-        currency=effect.currency,
-        description="Confirmed post-release fraud reversal",
-        occurred_at=occurred_at,
-        source_fraud_flag_id=flag.id,
-        ledger_metadata={"source_fraud_flag_id": str(flag.id)},
-    )
-    session.add(reversal)
-    await session.flush()
-    await apply_confirmed_fraud_payout_recovery(
-        session,
-        flag=flag,
-        reversal=reversal,
-        actor_user_id=actor_user_id,
-        resolved_at=occurred_at,
-        chain_authority=chain_authority,
-    )
-    await create_audit_event(
-        session,
-        actor_user_id=actor_user_id,
-        action="admin.fraud_flag.available_earnings_reversed",
-        entity_type="fraud_flag",
-        entity_id=str(flag.id),
-        metadata={
-            "trip_session_id": str(flag.trip_session_id),
-            "ledger_entry_id": str(reversal.id),
-            "amount": str(reversal.amount),
-            "currency": reversal.currency,
-        },
-    )
-    return reversal

@@ -138,15 +138,24 @@ def test_money_audit_targets_follow_frozen_line_and_correction_trip_ownership(db
         async with db_sessionmaker() as session:
             entry = await _seed_authority(session, graph)
             batch = await create_payout_batch_draft(
-                session, currency="NGN", actor_user_id=graph.admin.id
+                session,
+                reason="Focused staff payout action",
+                currency="NGN",
+                actor_user_id=graph.admin.id,
             )
             batch, lines = await reserve_payout_batch(
                 session,
+                reason="Focused staff payout action",
                 batch_id=batch.id,
                 ledger_entry_ids=(entry.id,),
                 actor_user_id=graph.admin.id,
             )
-            await approve_payout_batch(session, batch_id=batch.id, actor_user_id=checker.id)
+            await approve_payout_batch(
+                session,
+                reason="Focused staff payout action",
+                batch_id=batch.id,
+                actor_user_id=checker.id,
+            )
             await submit_payout_batch(
                 session,
                 batch_id=batch.id,

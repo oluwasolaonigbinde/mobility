@@ -34,9 +34,6 @@ from app.models.disbursement import (
     PayoutLineReconciliationEvent,
     PayoutProviderEvent,
     PayoutProviderEventProcessingAttempt,
-    PayoutRecoveryIncident,
-    PayoutRecoveryIncidentKind,
-    PayoutRecoveryIncidentStatus,
     PayoutSubmissionAttempt,
     PayoutSubmissionClaimAction,
     PayoutSubmissionIntent,
@@ -68,13 +65,7 @@ from app.services.fraud_holds import (
     lock_fraud_reconciliation_gate,
 )
 from app.services.payees import read_verified_bank_account
-from app.services.payout_debt import (
-    activate_recovery_incident_debt,
-    close_recovery_incident,
-    get_or_create_recovery_incident,
-    lock_driver_currency_debt_scope,
-    settle_recovery_incident_from_credit,
-)
+from app.services.payout_balances import lock_driver_money_scope, trip_money_position
 from app.services.route_replay import route_replay_config_fingerprint
 
 DISBURSEMENT_CLAIM_LEASE = timedelta(minutes=2)
@@ -106,6 +97,17 @@ def _error(code: str, message: str, *, http_status: int = status.HTTP_409_CONFLI
     return AppError(code, message, status_code=http_status)
 
 
+def _reason(value: str) -> str:
+    reason = value.strip()
+    if not 3 <= len(reason) <= 500:
+        raise _error(
+            "PAYOUT_REASON_INVALID",
+            "Give a reason between 3 and 500 characters",
+            http_status=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        )
+    return reason
+
+
 def _canonical(value: object) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
 
@@ -135,9 +137,15 @@ def _line_idempotency_key(
 
 
 async def create_payout_batch_draft(
-    session: AsyncSession, *, currency: str, actor_user_id: UUID, request_id: UUID | None = None
+    session: AsyncSession,
+    *,
+    currency: str,
+    actor_user_id: UUID,
+    reason: str,
+    request_id: UUID | None = None,
 ) -> PayoutBatch:
     await require_active_admin(session, actor_user_id)
+    reason = _reason(reason)
     normalized = currency.strip().upper()
     if len(normalized) != 3 or not normalized.isalpha():
         raise _error(
@@ -174,7 +182,7 @@ async def create_payout_batch_draft(
         action="admin.payout_batch.created",
         entity_type="payout_batch",
         entity_id=str(batch.id),
-        metadata={"currency": normalized},
+        metadata={"currency": normalized, "reason": reason},
     )
     return batch
 
@@ -224,13 +232,17 @@ def build_frozen_payout_line(
     entry: EarningsLedgerEntry,
     payee_version: PayeeVersion,
     account_version: PayeeBankAccountVersion,
+    amount: Decimal | None = None,
 ) -> PayoutBatchLine:
     """Freeze one ledger credit into a reserved line (manual and automatic batches)."""
+    amount = entry.amount if amount is None else amount
+    if not Decimal("0.00") < amount <= entry.amount:
+        raise _error("PAYOUT_AMOUNT_INVALID", "The payout must fit its source credit")
     instruction = {
         "ledger_entry_id": str(entry.id),
         "payee_version_id": str(payee_version.id),
         "bank_account_version_id": str(account_version.id),
-        "amount": f"{entry.amount:.2f}",
+        "amount": f"{amount:.2f}",
         "currency": entry.currency,
     }
     instruction_fingerprint = _fingerprint(instruction)
@@ -239,7 +251,7 @@ def build_frozen_payout_line(
         ledger_entry_id=entry.id,
         payee_version_id=payee_version.id,
         bank_account_version_id=account_version.id,
-        amount=entry.amount,
+        amount=amount,
         currency=entry.currency,
         instruction=instruction,
         instruction_fingerprint=instruction_fingerprint,
@@ -270,17 +282,33 @@ async def reserve_payout_batch(  # noqa: C901
     batch_id: UUID,
     ledger_entry_ids: tuple[UUID, ...],
     actor_user_id: UUID,
+    reason: str,
 ) -> tuple[PayoutBatch, tuple[PayoutBatchLine, ...]]:
     # Preserve the admin-first lock order even when the caller has pending rows
     # whose foreign keys would otherwise be autoflushed before authorization.
     with session.no_autoflush:
         await require_active_admin(session, actor_user_id)
+    reason = _reason(reason)
     if not ledger_entry_ids or len(set(ledger_entry_ids)) != len(ledger_entry_ids):
         raise _error(
             "PAYOUT_BATCH_ENTRIES_INVALID",
             "Select one or more distinct ledger entries",
             http_status=status.HTTP_422_UNPROCESSABLE_CONTENT,
         )
+    stubs = (
+        await session.execute(
+            select(
+                EarningsLedgerEntry.id,
+                EarningsLedgerEntry.trip_session_id,
+                EarningsLedgerEntry.driver_profile_id,
+                EarningsLedgerEntry.currency,
+            ).where(EarningsLedgerEntry.id.in_(ledger_entry_ids))
+        )
+    ).all()
+    if len(stubs) != len(ledger_entry_ids) or any(row.trip_session_id is None for row in stubs):
+        raise _error("PAYOUT_ENTRY_INELIGIBLE", "Every selected entry must belong to a trip")
+    for trip_id in sorted({row.trip_session_id for row in stubs}, key=str):
+        await lock_fraud_hold_scope(session, trip_id)
     batch = await session.scalar(
         select(PayoutBatch)
         .where(PayoutBatch.id == batch_id)
@@ -306,34 +334,15 @@ async def reserve_payout_batch(  # noqa: C901
             return batch, existing_lines
         raise _error("PAYOUT_BATCH_NOT_DRAFT", "Only a draft batch can be reserved")
 
-    stubs = (
-        await session.execute(
-            select(
-                EarningsLedgerEntry.id,
-                EarningsLedgerEntry.trip_session_id,
-                EarningsLedgerEntry.driver_profile_id,
-                EarningsLedgerEntry.currency,
-            ).where(EarningsLedgerEntry.id.in_(ledger_entry_ids))
-        )
-    ).all()
-    if len(stubs) != len(ledger_entry_ids) or any(row.trip_session_id is None for row in stubs):
-        raise _error("PAYOUT_ENTRY_INELIGIBLE", "Every selected entry must belong to a trip")
-    for trip_id in sorted({row.trip_session_id for row in stubs}, key=str):
-        await lock_fraud_hold_scope(session, trip_id)
     for driver_profile_id, currency in sorted(
         {(row.driver_profile_id, row.currency) for row in stubs},
         key=lambda item: (str(item[0]), item[1]),
     ):
-        _, debt_account = await lock_driver_currency_debt_scope(
+        await lock_driver_money_scope(
             session,
             driver_profile_id=driver_profile_id,
             currency=currency,
         )
-        if debt_account is not None and debt_account.outstanding_amount > 0:
-            raise _error(
-                "PAYOUT_DEBT_ALLOCATION_REQUIRED",
-                "Carry-forward debt must be allocated before earnings become batchable",
-            )
 
     entries = list(
         (
@@ -345,6 +354,19 @@ async def reserve_payout_batch(  # noqa: C901
             )
         ).all()
     )
+    active_reservation = await session.scalar(
+        select(PayoutBatchLine.id)
+        .where(
+            PayoutBatchLine.ledger_entry_id.in_([entry.id for entry in entries]),
+            PayoutBatchLine.reservation_active.is_(True),
+        )
+        .limit(1)
+    )
+    if active_reservation is not None:
+        raise _error(
+            "PAYOUT_ENTRY_ALREADY_RESERVED",
+            "A selected ledger entry already has an active payout reservation",
+        )
     failed_history = await session.scalar(
         select(PayoutBatchLine.id)
         .where(
@@ -373,6 +395,7 @@ async def reserve_payout_batch(  # noqa: C901
     )
     payees_by_subject = {(payee.subject_id, payee.tenant_id): payee for payee in payees}
     lines: list[PayoutBatchLine] = []
+    remaining_by_trip: dict[UUID, Decimal] = {}
     await session.flush()
     for entry in entries:
         held = await session.scalar(
@@ -405,12 +428,24 @@ async def reserve_payout_batch(  # noqa: C901
         if payee is None:
             raise _error("PAYOUT_PAYEE_MISSING", "The ledger entry has no pilot payee")
         payee_version, account_version = await _frozen_payee_authority(session, entry, payee)
+        if entry.trip_session_id not in remaining_by_trip:
+            position = await trip_money_position(
+                session,
+                trip_session_id=entry.trip_session_id,
+                currency=entry.currency,
+            )
+            remaining_by_trip[entry.trip_session_id] = position.batch_payable
+        amount = min(entry.amount, remaining_by_trip[entry.trip_session_id])
+        if amount <= 0:
+            raise _error("PAYOUT_ENTRY_INELIGIBLE", "This trip has no unpaid cash authority")
+        remaining_by_trip[entry.trip_session_id] -= amount
         lines.append(
             build_frozen_payout_line(
                 batch_id=batch.id,
                 entry=entry,
                 payee_version=payee_version,
                 account_version=account_version,
+                amount=amount,
             )
         )
     try:
@@ -433,7 +468,7 @@ async def reserve_payout_batch(  # noqa: C901
         action="admin.payout_batch.reserved",
         entity_type="payout_batch",
         entity_id=str(batch.id),
-        metadata={"line_count": len(lines), "currency": batch.currency},
+        metadata={"line_count": len(lines), "currency": batch.currency, "reason": reason},
     )
     return batch, tuple(lines)
 
@@ -509,25 +544,20 @@ def _refuse_automatic_batch(batch: PayoutBatch) -> None:
 
 
 async def approve_payout_batch(
-    session: AsyncSession, *, batch_id: UUID, actor_user_id: UUID
+    session: AsyncSession, *, batch_id: UUID, actor_user_id: UUID, reason: str
 ) -> tuple[PayoutBatch, tuple[PayoutBatchLine, ...]]:
     await require_active_admin(session, actor_user_id)
+    reason = _reason(reason)
     batch, lines = await _locked_batch_with_lines(session, batch_id)
     _refuse_automatic_batch(batch)
     if batch.status != PayoutBatchStatus.RESERVED:
         raise _error("PAYOUT_BATCH_NOT_RESERVED", "Only a reserved batch can be approved")
-    if batch.created_by_user_id == actor_user_id:
-        raise _error(
-            "PAYOUT_BATCH_MAKER_CHECKER_REQUIRED",
-            "The batch approver must be different from its maker",
-            http_status=status.HTTP_403_FORBIDDEN,
-        )
     _assert_frozen(batch, lines)
     if batch.approved_by_user_id is not None:
         if batch.approved_by_user_id != actor_user_id:
             raise _error(
                 "PAYOUT_BATCH_APPROVAL_CONFLICT",
-                "The batch was already approved by another checker",
+                "The batch was already approved by another admin",
             )
         return batch, lines
     batch.approved_by_user_id = actor_user_id
@@ -539,7 +569,7 @@ async def approve_payout_batch(
         action="admin.payout_batch.approved",
         entity_type="payout_batch",
         entity_id=str(batch.id),
-        metadata={"maker_user_id": str(batch.created_by_user_id)},
+        metadata={"maker_user_id": str(batch.created_by_user_id), "reason": reason},
     )
     return batch, lines
 
@@ -557,7 +587,7 @@ async def submit_payout_batch(
     if batch.status not in {PayoutBatchStatus.RESERVED, PayoutBatchStatus.SUBMITTED}:
         raise _error("PAYOUT_BATCH_NOT_RESERVED", "The batch is not ready for submission")
     if batch.approved_by_user_id is None or batch.approved_at is None:
-        raise _error("PAYOUT_BATCH_NOT_APPROVED", "A separate admin must approve the batch")
+        raise _error("PAYOUT_BATCH_NOT_APPROVED", "An admin must approve the batch")
     _assert_frozen(batch, lines)
     capabilities = _submission_capabilities(adapter)
     existing = {
@@ -680,14 +710,10 @@ async def _final_payout_authority(  # noqa: C901
                 "PAYOUT_BATCH_AUTOMATIC_AUTHORITY_INVALID",
                 "The batch no longer has valid automatic approval",
             )
-    elif (
-        batch.approved_by_user_id is None
-        or batch.approved_at is None
-        or batch.approved_by_user_id == batch.created_by_user_id
-    ):
+    elif batch.approved_by_user_id is None or batch.approved_at is None:
         raise _error(
-            "PAYOUT_BATCH_MAKER_CHECKER_REQUIRED",
-            "The batch no longer has valid maker-checker approval",
+            "PAYOUT_BATCH_APPROVAL_REQUIRED",
+            "The batch no longer has valid admin approval",
         )
     _assert_frozen(batch, lines)
 
@@ -755,21 +781,16 @@ async def _final_payout_authority(  # noqa: C901
         session,
         (stub.trip_session_id for stub in ledger_stubs if stub.trip_session_id is not None),
     )
-    debt_scopes = sorted(
+    driver_scopes = sorted(
         {(stub.driver_profile_id, stub.currency) for stub in ledger_stubs},
         key=lambda item: (str(item[0]), item[1]),
     )
-    for driver_profile_id, currency in debt_scopes:
-        _, debt_account = await lock_driver_currency_debt_scope(
+    for driver_profile_id, currency in driver_scopes:
+        await lock_driver_money_scope(
             session,
             driver_profile_id=driver_profile_id,
             currency=currency,
         )
-        if debt_account is not None and debt_account.outstanding_amount > 0:
-            raise _error(
-                "PAYOUT_DEBT_ALLOCATION_REQUIRED",
-                "Carry-forward debt must be allocated before provider submission",
-            )
 
     ledgers = tuple(
         (
@@ -791,7 +812,7 @@ async def _final_payout_authority(  # noqa: C901
             or entry.status != EarningsLedgerEntryStatus.AVAILABLE.value
             or entry.entry_type == EarningsLedgerEntryType.REVERSAL.value
             or entry.amount <= 0
-            or entry.amount != line.amount
+            or not Decimal("0.00") < line.amount <= entry.amount
             or entry.currency != line.currency
             or entry.trip_session_id is None
         ):
@@ -817,6 +838,14 @@ async def _final_payout_authority(  # noqa: C901
 
     trip_authorities: list[dict[str, object]] = []
     for trip_id in ordered_trip_ids:
+        position = await trip_money_position(
+            session, trip_session_id=trip_id, currency=batch.currency
+        )
+        if position.reserved + position.in_flight > position.unpaid_authority:
+            raise _error(
+                "PAYOUT_TRIP_AMOUNT_CHANGED",
+                "A trip adjustment changed the payable amount; rebuild the unsent payout",
+            )
         active_hold = bool(
             await session.scalar(
                 select(FraudFlag.id)
@@ -895,7 +924,7 @@ async def _final_payout_authority(  # noqa: C901
             session,
             batch=batch,
             trip_ids=ordered_trip_ids,
-            driver_profile_ids=tuple(driver for driver, _ in debt_scopes),
+            driver_profile_ids=tuple(driver for driver, _ in driver_scopes),
         )
     config_state = _final_gate_config_state(settings)
     return {
@@ -1076,7 +1105,7 @@ async def claim_payout_submission_intent(  # noqa: C901
         ):
             raise _error(
                 "PAYOUT_BATCH_AUTHORITY_CHANGED",
-                "The payout batch maker-checker authority changed during final authorization",
+                "The payout batch approval authority changed during final authorization",
             )
         intents = tuple(
             (
@@ -1137,14 +1166,7 @@ async def claim_payout_submission_intent(  # noqa: C901
                 )
             # Paused: the payment waits unsent.
             return None
-        recovery_incident_id = None
-        if action == PayoutSubmissionClaimAction.QUERY:
-            recovery_incident_id = await session.scalar(
-                select(PayoutRecoveryIncident.id)
-                .where(PayoutRecoveryIncident.ledger_entry_id == line.ledger_entry_id)
-                .limit(1)
-            )
-        if action == PayoutSubmissionClaimAction.SUBMIT or recovery_incident_id is None:
+        if action == PayoutSubmissionClaimAction.SUBMIT:
             final_authority = await _final_payout_authority(
                 session,
                 batch=batch,
@@ -1157,6 +1179,15 @@ async def claim_payout_submission_intent(  # noqa: C901
             )
         else:
             _assert_frozen(batch, lines)
+            if (
+                intent.instruction != line.instruction
+                or intent.instruction_fingerprint != line.instruction_fingerprint
+                or intent.idempotency_key != line.idempotency_key
+            ):
+                raise _error(
+                    "PAYOUT_SUBMISSION_INTENT_CONFLICT",
+                    "Provider lookup must use the frozen payout instruction",
+                )
             final_authority = {
                 "final_gate_version": FINAL_DISBURSEMENT_GATE_VERSION,
                 "claim_scope": "provider_lookup_only",
@@ -1164,7 +1195,6 @@ async def claim_payout_submission_intent(  # noqa: C901
                 "batch_instruction_set_fingerprint": (batch.instruction_set_fingerprint),
                 "candidate_line_ids": [str(line.id)],
                 "candidate_intent_ids": [str(intent.id)],
-                "recovery_incident_id": str(recovery_incident_id),
             }
         authorized_at = _aware_utc(await session.scalar(select(func.now())))
         claim_token = uuid4()
@@ -1541,16 +1571,16 @@ async def _locked_ledger_chain(
     )
 
 
-async def lock_payout_chains_for_trip(
+async def lock_payout_chains(
     session: AsyncSession,
     *,
-    trip_id: UUID,
+    trip_ids: tuple[UUID, ...],
 ) -> tuple[
     dict[UUID, PayoutBatch],
     tuple[PayoutBatchLine, ...],
     dict[UUID, PayoutSubmissionIntent],
 ]:
-    """Lock payout chain authority before the shared debt and ledger scopes."""
+    """Lock payout chain authority before the shared driver and ledger scopes."""
     batch_ids = tuple(
         await session.scalars(
             select(PayoutBatchLine.batch_id)
@@ -1558,7 +1588,7 @@ async def lock_payout_chains_for_trip(
                 EarningsLedgerEntry,
                 EarningsLedgerEntry.id == PayoutBatchLine.ledger_entry_id,
             )
-            .where(EarningsLedgerEntry.trip_session_id == trip_id)
+            .where(EarningsLedgerEntry.trip_session_id.in_(trip_ids))
             .distinct()
         )
     )
@@ -1629,7 +1659,7 @@ def _cancel_uncalled_line(
     return True
 
 
-async def _converge_line_recovery(  # noqa: C901
+async def _converge_line_cash(
     session: AsyncSession,
     *,
     line: PayoutBatchLine,
@@ -1638,253 +1668,57 @@ async def _converge_line_recovery(  # noqa: C901
     intents_by_line: dict[UUID, PayoutSubmissionIntent],
     outcome: PayoutBatchLineStatus,
     resolved_at: datetime,
-    recovery_actor_user_id: UUID,
 ) -> None:
-    lines_by_id = {item.id: item for item in chain_lines}
-    root_id = _chain_root_id(line, lines_by_id)
-    incidents = tuple(
-        (
-            await session.scalars(
-                select(PayoutRecoveryIncident)
-                .where(
-                    PayoutRecoveryIncident.chain_root_line_id == root_id,
-                    PayoutRecoveryIncident.status
-                    != PayoutRecoveryIncidentStatus.DEBT_ACTIVATED.value,
-                )
-                .order_by(PayoutRecoveryIncident.id)
-                .with_for_update()
-            )
-        ).all()
-    )
-    for incident in incidents:
-        if outcome == PayoutBatchLineStatus.SUCCEEDED:
-            if (
-                incident.kind != PayoutRecoveryIncidentKind.CONFIRMED_FRAUD.value
-                and incident.exposure_line_id != line.id
-            ):
-                continue
-            debt_incident = incident
-            if (
-                incident.kind == PayoutRecoveryIncidentKind.CONFIRMED_FRAUD.value
-                and incident.status == PayoutRecoveryIncidentStatus.CLOSED.value
-            ):
-                debt_incident = await get_or_create_recovery_incident(
-                    session,
-                    kind=PayoutRecoveryIncidentKind.DUPLICATE_CASH,
-                    ledger_entry=ledger,
-                    amount=incident.amount,
-                    exposure_line_id=root_id,
-                    chain_root_line_id=root_id,
-                    created_by_user_id=incident.created_by_user_id,
-                    dedupe_parts=("post_net_cash", incident.id),
-                )
-            await activate_recovery_incident_debt(
-                session,
-                incident=debt_incident,
-                resolved_at=resolved_at,
-            )
-        elif incident.exposure_line_id != line.id:
-            continue
-        elif incident.kind == PayoutRecoveryIncidentKind.DUPLICATE_CASH.value:
-            await close_recovery_incident(
-                session,
-                incident=incident,
-                resolved_at=resolved_at,
-            )
-        else:
-            await settle_recovery_incident_from_credit(
-                session,
-                incident=incident,
-                credit=ledger,
-                actor_user_id=incident.created_by_user_id,
-                resolved_at=resolved_at,
-                preserve_credit_authority=(line.status == PayoutBatchLineStatus.FAILED.value),
-            )
-
     if outcome != PayoutBatchLineStatus.SUCCEEDED:
         return
-    succeeded = [
-        item for item in chain_lines if item.status == PayoutBatchLineStatus.SUCCEEDED.value
-    ]
+    for child in chain_lines:
+        if child.id != line.id and child.reservation_active:
+            _cancel_uncalled_line(child, intents_by_line.get(child.id), cancelled_at=resolved_at)
+    succeeded = [item for item in chain_lines if item.status == "succeeded"]
     if len(succeeded) > 1:
-        already_bound = any(
-            incident.kind == PayoutRecoveryIncidentKind.DUPLICATE_CASH.value
-            for incident in incidents
-        )
-        if not already_bound:
-            incident = await get_or_create_recovery_incident(
-                session,
-                kind=PayoutRecoveryIncidentKind.DUPLICATE_CASH,
-                ledger_entry=ledger,
-                amount=line.amount,
-                exposure_line_id=line.id,
-                chain_root_line_id=root_id,
-                created_by_user_id=recovery_actor_user_id,
-                dedupe_parts=("duplicate_cash", root_id, line.id),
-            )
-            await activate_recovery_incident_debt(
-                session,
-                incident=incident,
-                resolved_at=resolved_at,
-            )
-        return
+        from app.models.disbursement import PayoutAutomaticAlertKind
+        from app.services.automatic_payouts import raise_alert
 
-    children = {
-        item.predecessor_line_id: item
-        for item in chain_lines
-        if item.predecessor_line_id is not None
-    }
-    child = children.get(line.id)
-    if child is None or not child.reservation_active:
-        return
-    child_intent = intents_by_line.get(child.id)
-    if _cancel_uncalled_line(child, child_intent, cancelled_at=resolved_at):
-        return
-    if (
-        _intent_has_unknown_effect(child_intent)
-        or child.status == PayoutBatchLineStatus.SUBMITTED.value
-    ):
-        await get_or_create_recovery_incident(
+        await raise_alert(
             session,
-            kind=PayoutRecoveryIncidentKind.DUPLICATE_CASH,
-            ledger_entry=ledger,
-            amount=child.amount,
-            exposure_line_id=child.id,
-            chain_root_line_id=root_id,
-            created_by_user_id=recovery_actor_user_id,
-            dedupe_parts=("duplicate_cash", root_id, child.id),
+            kind=PayoutAutomaticAlertKind.DUPLICATE_PAYMENT,
+            dedupe=("duplicate_cash", *sorted((item.id for item in succeeded), key=str)),
+            detail={
+                "succeeded_line_ids": [str(item.id) for item in succeeded],
+                "total_verified_cash": str(
+                    sum((item.amount for item in succeeded), Decimal("0.00"))
+                ),
+            },
+            line_id=line.id,
+            ledger_entry_id=ledger.id,
+            driver_profile_id=ledger.driver_profile_id,
+            amount=line.amount,
+            currency=ledger.currency,
         )
 
 
-async def apply_confirmed_fraud_payout_recovery(  # noqa: C901
+async def cancel_uncalled_trip_payouts(
     session: AsyncSession,
     *,
-    flag: FraudFlag,
-    reversal: EarningsLedgerEntry,
-    actor_user_id: UUID,
+    trip_id: UUID,
+    chain_authority,
     resolved_at: datetime,
-    chain_authority: tuple[
-        dict[UUID, PayoutBatch],
-        tuple[PayoutBatchLine, ...],
-        dict[UUID, PayoutSubmissionIntent],
-    ],
 ) -> None:
-    """Classify confirmed fraud by provider-cash certainty for each payout chain."""
-    batches_by_id, chain_lines, intents_by_line = chain_authority
-    if not chain_lines:
-        from app.services.payout_debt import record_reversal_obligation
-
-        await record_reversal_obligation(session, reversal_entry=reversal)
-        return
-
-    ledgers = tuple(
-        (
-            await session.scalars(
-                select(EarningsLedgerEntry)
-                .where(
-                    EarningsLedgerEntry.trip_session_id == flag.trip_session_id,
-                    EarningsLedgerEntry.status.in_(
-                        (
-                            EarningsLedgerEntryStatus.AVAILABLE.value,
-                            EarningsLedgerEntryStatus.PAID.value,
-                        )
-                    ),
-                    EarningsLedgerEntry.entry_type != EarningsLedgerEntryType.REVERSAL.value,
-                )
-                .order_by(EarningsLedgerEntry.occurred_at, EarningsLedgerEntry.id)
-                .with_for_update()
+    batches, lines, intents = chain_authority
+    trip_entries = set(
+        await session.scalars(
+            select(EarningsLedgerEntry.id).where(
+                EarningsLedgerEntry.trip_session_id == trip_id,
             )
-        ).all()
+        )
     )
-    ledgers_by_id = {entry.id: entry for entry in ledgers}
-    grouped: dict[UUID, list[PayoutBatchLine]] = {}
-    for item in chain_lines:
-        if item.ledger_entry_id in ledgers_by_id:
-            grouped.setdefault(item.ledger_entry_id, []).append(item)
-    if not grouped:
-        from app.services.payout_debt import record_reversal_obligation
-
-        await record_reversal_obligation(session, reversal_entry=reversal)
-        return
-
-    remaining = reversal.amount
-    ledger_ids = sorted(grouped, key=str)
-    portions: dict[UUID, Decimal] = {}
-    for ledger_id in ledger_ids:
-        ledger = ledgers_by_id[ledger_id]
-        portion = min(ledger.amount, remaining)
-        portions[ledger_id] = portion
-        remaining -= portion
-    if remaining > 0:
-        portions[ledger_ids[0]] += remaining
-
-    for ledger_id in ledger_ids:
-        ledger = ledgers_by_id[ledger_id]
-        lines = tuple(grouped[ledger_id])
-        lines_by_id = {item.id: item for item in lines}
-        succeeded = tuple(
-            item for item in lines if item.status == PayoutBatchLineStatus.SUCCEEDED.value
+    for line in lines:
+        if line.ledger_entry_id in trip_entries and line.reservation_active:
+            _cancel_uncalled_line(line, intents.get(line.id), cancelled_at=resolved_at)
+    for batch_id, batch in batches.items():
+        batch.status = _derive_batch_status(
+            tuple(line for line in lines if line.batch_id == batch_id)
         )
-        active = tuple(item for item in lines if item.reservation_active)
-        if len(active) > 1:
-            raise RuntimeError("Payout replacement chain has multiple active lines")
-        predecessor_ids = {
-            item.predecessor_line_id for item in lines if item.predecessor_line_id is not None
-        }
-        leaves = tuple(item for item in lines if item.id not in predecessor_ids)
-        exposure = succeeded[-1] if succeeded else (active[0] if active else leaves[-1])
-        root_id = _chain_root_id(exposure, lines_by_id)
-        incident = await get_or_create_recovery_incident(
-            session,
-            kind=PayoutRecoveryIncidentKind.CONFIRMED_FRAUD,
-            ledger_entry=ledger,
-            amount=portions[ledger_id],
-            exposure_line_id=exposure.id,
-            chain_root_line_id=root_id,
-            source_fraud_flag_id=flag.id,
-            source_reversal_entry_id=reversal.id,
-            created_by_user_id=actor_user_id,
-            dedupe_parts=("confirmed_fraud", flag.id, root_id),
-        )
-        if succeeded:
-            await activate_recovery_incident_debt(
-                session,
-                incident=incident,
-                resolved_at=resolved_at,
-            )
-            if active:
-                _cancel_uncalled_line(
-                    active[0],
-                    intents_by_line.get(active[0].id),
-                    cancelled_at=resolved_at,
-                )
-            continue
-        if active:
-            active_line = active[0]
-            active_intent = intents_by_line.get(active_line.id)
-            if (
-                active_line.status == PayoutBatchLineStatus.SUBMITTED.value
-                or _intent_has_unknown_effect(active_intent)
-            ):
-                continue
-            if not _cancel_uncalled_line(
-                active_line,
-                active_intent,
-                cancelled_at=resolved_at,
-            ):
-                raise RuntimeError("Pre-provider payout exposure could not be cancelled")
-        await settle_recovery_incident_from_credit(
-            session,
-            incident=incident,
-            credit=ledger,
-            actor_user_id=actor_user_id,
-            resolved_at=resolved_at,
-            preserve_credit_authority=(exposure.status == PayoutBatchLineStatus.FAILED.value),
-        )
-
-    for batch_id, batch in batches_by_id.items():
-        batch_lines = tuple(item for item in chain_lines if item.batch_id == batch_id)
-        batch.status = _derive_batch_status(batch_lines)
     await session.flush()
 
 
@@ -1894,6 +1728,7 @@ async def _apply_verified_line_evidence(  # noqa: C901
     evidence: VerifiedLineEvidence,
     source: str,
     actor_user_id: UUID | None,
+    reason: str | None = None,
 ) -> tuple[PayoutBatch, tuple[PayoutBatchLine, ...], PayoutLineReconciliationEvent]:
     if source not in {"webhook", "poll"}:
         raise ValueError("Unknown provider evidence source")
@@ -1903,6 +1738,7 @@ async def _apply_verified_line_evidence(  # noqa: C901
         raise ValueError("Poll evidence must use an authenticated admin actor")
     if source == "poll":
         await require_active_admin(session, actor_user_id)
+        reason = _reason(reason or "")
     stub = (
         await session.execute(
             select(
@@ -1949,21 +1785,21 @@ async def _apply_verified_line_evidence(  # noqa: C901
                 "PAYOUT_PROVIDER_EVIDENCE_MISMATCH",
                 "Verified Paystack evidence does not match the frozen payout instruction",
             )
-    if actor_user_id is not None and actor_user_id in {
-        batch.created_by_user_id,
-        batch.approved_by_user_id,
-    }:
-        raise _error(
-            "PAYOUT_RECONCILER_SEPARATION_REQUIRED",
-            "The reconciler must differ from the batch maker and approver",
-            http_status=status.HTTP_403_FORBIDDEN,
-        )
     if line.status not in {
         PayoutBatchLineStatus.SUBMITTED,
         PayoutBatchLineStatus.FAILED,
         PayoutBatchLineStatus.SUCCEEDED,
     }:
         raise _error("PAYOUT_LINE_NOT_SUBMITTED", "The payout line is not reconcilable")
+    if source == "poll":
+        await create_audit_event(
+            session,
+            actor_user_id=actor_user_id,
+            action="admin.payout_line.reconciled",
+            entity_type="payout_batch_line",
+            entity_id=str(line.id),
+            metadata={"reason": reason, "outcome": evidence.outcome},
+        )
     existing_event = await session.scalar(
         select(PayoutLineReconciliationEvent).where(
             PayoutLineReconciliationEvent.provider_event_id == evidence.provider_event_id
@@ -2007,7 +1843,7 @@ async def _apply_verified_line_evidence(  # noqa: C901
                 "PAYOUT_LEDGER_FINALITY_CONFLICT",
                 "The payout ledger entry no longer exists",
             )
-        await lock_driver_currency_debt_scope(
+        await lock_driver_money_scope(
             session,
             driver_profile_id=ledger_authority.driver_profile_id,
             currency=ledger_authority.currency,
@@ -2081,7 +1917,7 @@ async def _apply_verified_line_evidence(  # noqa: C901
     if applied:
         if ledger is None:
             raise RuntimeError("Verified payout evidence lost its ledger lock")
-        await _converge_line_recovery(
+        await _converge_line_cash(
             session,
             line=line,
             ledger=ledger,
@@ -2089,7 +1925,6 @@ async def _apply_verified_line_evidence(  # noqa: C901
             intents_by_line=intents_by_line,
             outcome=PayoutBatchLineStatus(evidence.outcome),
             resolved_at=resolved_at,
-            recovery_actor_user_id=batch.created_by_user_id,
         )
     for batch_id, chain_batch in batches_by_id.items():
         batch_lines = tuple(item for item in locked_lines if item.batch_id == batch_id)
@@ -2349,10 +2184,12 @@ async def poll_payout_line(
     line_id: UUID,
     actor_user_id: UUID,
     adapter: DisbursementAdapter,
+    reason: str,
 ) -> tuple[PayoutBatch, tuple[PayoutBatchLine, ...], PayoutLineReconciliationEvent]:
     if session.new or session.dirty or session.deleted:
         raise RuntimeError("Provider polling requires a clean database unit of work")
     await require_active_admin(session, actor_user_id)
+    reason = _reason(reason)
     authority = (
         await session.execute(
             select(
@@ -2369,15 +2206,6 @@ async def poll_payout_line(
             "PAYOUT_PROVIDER_LINE_NOT_FOUND",
             "The payout line has no provider reference",
             http_status=status.HTTP_404_NOT_FOUND,
-        )
-    if actor_user_id in {
-        authority.created_by_user_id,
-        authority.approved_by_user_id,
-    }:
-        raise _error(
-            "PAYOUT_RECONCILER_SEPARATION_REQUIRED",
-            "The reconciler must differ from the batch maker and approver",
-            http_status=status.HTTP_403_FORBIDDEN,
         )
     provider_transfer_reference = authority.provider_transfer_reference
     await session.rollback()
@@ -2396,7 +2224,11 @@ async def poll_payout_line(
             http_status=status.HTTP_502_BAD_GATEWAY,
         ) from exc
     return await _apply_verified_line_evidence(
-        session, evidence=evidence, source="poll", actor_user_id=actor_user_id
+        session,
+        evidence=evidence,
+        source="poll",
+        actor_user_id=actor_user_id,
+        reason=reason,
     )
 
 
@@ -2406,8 +2238,10 @@ async def retry_failed_payout_lines(  # noqa: C901
     batch_id: UUID,
     actor_user_id: UUID,
     adapter: DisbursementAdapter,
+    reason: str,
 ) -> tuple[PayoutBatch, tuple[PayoutBatchLine, ...]]:
     await require_active_admin(session, actor_user_id)
+    reason = _reason(reason)
     trip_ids = tuple(
         await session.scalars(
             select(EarningsLedgerEntry.trip_session_id)
@@ -2488,16 +2322,11 @@ async def retry_failed_payout_lines(  # noqa: C901
         {(stub.driver_profile_id, stub.currency) for stub in stubs},
         key=lambda item: (str(item[0]), item[1]),
     ):
-        _, debt_account = await lock_driver_currency_debt_scope(
+        await lock_driver_money_scope(
             session,
             driver_profile_id=driver_profile_id,
             currency=currency,
         )
-        if debt_account is not None and debt_account.outstanding_amount > 0:
-            raise _error(
-                "PAYOUT_DEBT_ALLOCATION_REQUIRED",
-                "Carry-forward debt must be allocated before payout replacement",
-            )
     ledgers = tuple(
         (
             await session.scalars(
@@ -2550,13 +2379,14 @@ async def retry_failed_payout_lines(  # noqa: C901
         keys=settings.payout_crypto_keys, active_key_version=settings.payout_crypto_key_version
     )
     replacement_lines: list[PayoutBatchLine] = []
+    remaining_by_trip: dict[UUID, Decimal] = {}
     for predecessor in failed_lines:
         entry = ledgers_by_id.get(predecessor.ledger_entry_id)
         if (
             entry is None
             or entry.status != EarningsLedgerEntryStatus.AVAILABLE.value
             or entry.entry_type == EarningsLedgerEntryType.REVERSAL.value
-            or entry.amount != predecessor.amount
+            or not Decimal("0.00") < predecessor.amount <= entry.amount
             or entry.currency != predecessor.currency
         ):
             raise _error(
@@ -2604,11 +2434,22 @@ async def retry_failed_payout_lines(  # noqa: C901
                 "PAYOUT_RESOLVED_LINES_NOT_RETRYABLE",
                 "A replacement requires a different verified bank destination",
             )
+        if entry.trip_session_id not in remaining_by_trip:
+            position = await trip_money_position(
+                session,
+                trip_session_id=entry.trip_session_id,
+                currency=entry.currency,
+            )
+            remaining_by_trip[entry.trip_session_id] = position.batch_payable
+        amount = min(predecessor.amount, remaining_by_trip[entry.trip_session_id])
+        if amount <= 0:
+            raise _error("PAYOUT_ENTRY_INELIGIBLE", "This trip has no unpaid cash authority")
+        remaining_by_trip[entry.trip_session_id] -= amount
         instruction = {
             "ledger_entry_id": str(entry.id),
             "payee_version_id": str(payee_version.id),
             "bank_account_version_id": str(account_version.id),
-            "amount": f"{entry.amount:.2f}",
+            "amount": f"{amount:.2f}",
             "currency": entry.currency,
         }
         instruction_fingerprint = _fingerprint(instruction)
@@ -2619,7 +2460,7 @@ async def retry_failed_payout_lines(  # noqa: C901
                 predecessor_line_id=predecessor.id,
                 payee_version_id=payee_version.id,
                 bank_account_version_id=account_version.id,
-                amount=entry.amount,
+                amount=amount,
                 currency=entry.currency,
                 instruction=instruction,
                 instruction_fingerprint=instruction_fingerprint,
@@ -2663,6 +2504,7 @@ async def retry_failed_payout_lines(  # noqa: C901
         entity_type="payout_batch",
         entity_id=str(replacement.id),
         metadata={
+            "reason": reason,
             "predecessor_batch_id": str(batch.id),
             "predecessor_line_ids": [str(line.id) for line in failed_lines],
             "line_count": len(replacement_lines),

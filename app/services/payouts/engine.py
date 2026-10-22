@@ -1,7 +1,7 @@
 """Payouts: engine domain operations."""
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
@@ -228,7 +228,14 @@ async def calculate_trip_payout_v4(
         set(breakdown.eligible_seconds_by_day) | set(classified.distance_m_by_day)
     ) or [lagos_day.isoformat()]
     lagos_days = [date.fromisoformat(key) for key in day_keys]
-    for day in lagos_days:
+    # Late admission checks any calculated trip touching a day, including days
+    # on which this trip earns zero. Share those same locks without changing
+    # the days or amounts priced below.
+    last_day = lagos_day_for(trip.ended_at)
+    lock_days = set(lagos_days) | {
+        lagos_day + timedelta(days=index) for index in range((last_day - lagos_day).days + 1)
+    }
+    for day in sorted(lock_days):
         await acquire_paycap_lock(
             session, paycap_lock_key(trip.driver_profile_id, trip.campaign_id, day)
         )

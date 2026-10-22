@@ -17,14 +17,14 @@ from app.models.trip_analytics import FraudFlag
 from app.schemas.payouts import EarningsWorkDayRead
 from app.services.automatic_payouts import _clean_reason, automatic_payout_status
 from app.services.drivers import get_required_driver_profile_with_user_by_user_id
-from app.services.payout_debt import driver_money_balance
+from app.services.payout_balances import trip_money_positions
 from app.services.payouts.read import driver_earnings_summary
 
 
 def work_days(entry, calculation):
     if entry.entry_type == "trip_payout" and calculation is not None:
         amounts = calculation.amount_by_day or {}
-    elif entry.entry_type in {"adjustment", "reversal", "debt_remainder"}:
+    elif entry.entry_type in {"adjustment", "reversal"}:
         day = (entry.ledger_metadata or {}).get("lagos_day")
         amounts = {day: entry.amount} if day else {}
     else:
@@ -64,12 +64,6 @@ async def enrich_driver_ledger(session, entries, responses, settings):
     }
     runtime = await automatic_payout_status(session, adapter=build_disbursement_adapter(settings))
     today = datetime.now(UTC).astimezone(ZoneInfo("Africa/Lagos")).date().isoformat()
-    balances = {
-        currency: await driver_money_balance(
-            session, driver_profile_id=entries[0].driver_profile_id, currency=currency
-        )
-        for currency in {entry.currency for entry in entries}
-    }
     histories: dict = {}
     for row in lines:
         histories.setdefault(row[0].ledger_entry_id, []).append(row)
@@ -79,11 +73,11 @@ async def enrich_driver_ledger(session, entries, responses, settings):
         succeeded = [
             line for line, _, _ in history if line.status == "succeeded" and line.reconciled_at
         ]
-        if entry.status == "paid" and len(succeeded) == 1 and succeeded[0].amount == entry.amount:
-            response.paid_at = succeeded[0].reconciled_at
+        if entry.status == "paid" and succeeded:
+            response.paid_at = max(line.reconciled_at for line in succeeded)
         response.payment_on_hold = (
             any(line.status == "failed" for line, _, _ in history) and not succeeded
-        ) or balances[entry.currency].carry_forward_debt > 0
+        )
         response.paying_tonight = bool(
             entry.status == "available"
             and not response.payment_on_hold
@@ -111,7 +105,7 @@ async def enrich_driver_ledger(session, entries, responses, settings):
     return responses
 
 
-ACTIVE_HOLD_FLAG_STATUSES = ("open", "acknowledged", "confirmed")
+ACTIVE_HOLD_FLAG_STATUSES = ("open", "confirmed")
 LAGOS = ZoneInfo("Africa/Lagos")
 
 
@@ -123,49 +117,63 @@ def earnings_unavailable() -> AppError:
     )
 
 
-def group_earnings_days(entries, responses, held_trips: set[UUID]) -> list[dict]:
-    """Daily totals from persisted work-day allocations (REQ-208; was daily-earnings.ts)."""
-    groups: dict[tuple, dict] = {}
+def group_earnings_days(
+    entries, responses, held_trips: set[UUID], positions
+) -> tuple[list[dict], dict[str, Decimal]]:
+    """Work-day awards stay explicit; cash settlement is determined per whole trip.
+
+    A partial transfer has no invented allocation across a multi-day trip. Its
+    days remain unsettled until actual verified cash covers the trip's net award.
+    Headline held money counts each trip's unpaid award once.
+    """
+    trip_members = {}
+    groups = {}
     for entry, response in zip(entries, responses, strict=True):
-        # Debt remainders record settlement provenance, not another earning. A reversed
-        # original remains economic until its reversal entry nets it.
-        if entry.status == "voided" or entry.entry_type == "debt_remainder":
+        if entry.status == "voided":
             continue
         if not response.work_days:
             raise earnings_unavailable()
+        scope = (entry.trip_session_id, entry.currency)
+        trip_members.setdefault(scope, []).append((entry, response))
         sign = -1 if entry.entry_type == "reversal" else 1
         for allocation in response.work_days:
             group = groups.setdefault(
-                (allocation.day, entry.currency),
-                {"amount": Decimal(0), "unpaid": Decimal(0), "members": []},
+                (allocation.day, entry.currency), {"amount": Decimal(0), "scopes": set()}
             )
             group["amount"] += sign * allocation.amount
-            if entry.status != "paid":
-                group["unpaid"] += sign * allocation.amount
-            if allocation.amount != 0:
-                group["members"].append((entry, response))
-    days = []
-    for (day, currency), group in sorted(groups.items(), key=lambda item: item[0][1]):
-        members = group["members"]
-        held = group["amount"] < 0 or any(
+            if allocation.amount:
+                group["scopes"].add(scope)
+    states = {}
+    held_amounts = {}
+    for scope, members in trip_members.items():
+        position = positions[scope]
+        outstanding = max(position.earned_net - position.cash_paid, Decimal(0))
+        dates = [response.paid_at for entry, response in members if response.paid_at]
+        held = outstanding > 0 and any(
             response.payment_on_hold
             or entry.status == "reversed"
             or (entry.status == "paid" and not response.paid_at)
-            or (entry.status != "paid" and entry.trip_session_id in held_trips)
+            or entry.trip_session_id in held_trips
             for entry, response in members
         )
-        paid = bool(members) and all(
-            entry.status == "paid" and response.paid_at for entry, response in members
-        )
+        paid = position.cash_paid > 0 and outstanding == 0 and bool(dates)
         tonight = bool(members) and all(
             entry.status == "available" and response.paying_tonight for entry, response in members
         )
+        states[scope] = (held, paid, tonight, max(dates) if dates else None)
+        if held:
+            held_amounts[scope[1]] = held_amounts.get(scope[1], Decimal(0)) + outstanding
+    days = []
+    for (day, currency), group in sorted(groups.items(), key=lambda item: item[0][1]):
+        scopes = group["scopes"]
+        held = any(states[scope][0] for scope in scopes)
+        paid = bool(scopes) and all(states[scope][1] for scope in scopes)
+        tonight = bool(scopes) and all(states[scope][2] for scope in scopes)
         days.append(
             {
                 "day": day,
                 "currency": currency,
                 "amount": group["amount"],
-                "unpaid": group["unpaid"],
                 "status": "on_hold"
                 if held
                 else "paid"
@@ -173,21 +181,17 @@ def group_earnings_days(entries, responses, held_trips: set[UUID]) -> list[dict]
                 else "paying_tonight"
                 if tonight
                 else "being_checked",
-                "paid_at": max(response.paid_at for _, response in members)
-                if paid and not held
-                else None,
-                "trip_ids": list(
-                    dict.fromkeys(
-                        entry.trip_session_id for entry, _ in members if entry.trip_session_id
-                    )
-                ),
+                "paid_at": max(states[scope][3] for scope in scopes) if paid and not held else None,
+                "trip_ids": sorted({scope[0] for scope in scopes if scope[0]}, key=str),
             }
         )
     days.sort(key=lambda row: row["day"], reverse=True)
-    return days
+    return days, held_amounts
 
 
-def earnings_totals(days: list[dict], lifetime: dict[str, Decimal], today: date) -> list[dict]:
+def earnings_totals(
+    days: list[dict], lifetime: dict[str, Decimal], today: date, held_amounts: dict[str, Decimal]
+) -> list[dict]:
     """Today, this Monday-to-Sunday Lagos week, all time, and unpaid money on hold."""
     week_start = today - timedelta(days=today.weekday())
     week_end = week_start + timedelta(days=6)
@@ -203,12 +207,7 @@ def earnings_totals(days: list[dict], lifetime: dict[str, Decimal], today: date)
                     Decimal(0),
                 ),
                 "total": lifetime[currency],
-                # Only unpaid money counts: a driver with debt sees every day on hold,
-                # but money already paid is never "on hold".
-                "on_hold": sum(
-                    (max(row["unpaid"], Decimal(0)) for row in rows if row["status"] == "on_hold"),
-                    Decimal(0),
-                ),
+                "on_hold": held_amounts.get(currency, Decimal(0)),
             }
         )
     return totals
@@ -238,7 +237,8 @@ async def driver_earnings_days(session, *, user_id: UUID, settings, respond) -> 
             )
         )
     )
-    days = group_earnings_days(entries, responses, held_trips)
+    positions = await trip_money_positions(session, entries)
+    days, held_amounts = group_earnings_days(entries, responses, held_trips, positions)
     summary = await driver_earnings_summary(
         session, user_id=user_id, currency=None, settings=settings
     )
@@ -252,4 +252,4 @@ async def driver_earnings_days(session, *, user_id: UUID, settings, respond) -> 
     for row in days:
         lifetime.setdefault(row["currency"], Decimal(0))
     today = datetime.now(UTC).astimezone(LAGOS).date()
-    return {"totals": earnings_totals(days, lifetime, today), "days": days}
+    return {"totals": earnings_totals(days, lifetime, today, held_amounts), "days": days}

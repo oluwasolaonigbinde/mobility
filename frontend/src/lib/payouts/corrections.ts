@@ -1,12 +1,6 @@
 import { z } from "zod";
 
-/**
- * Correction-order forms (MNY-06C). Direct day recompute is retired — every
- * retroactive recompute is projected into a maker-checker correction order
- * (creator submits, a different admin approves, any admin executes). The
- * backend is the authority on every transition; this module only validates
- * form input and renders the stored projection defensively.
- */
+/** Saved day previews are applied once by an admin; stale previews require a new correction. */
 
 export const correctionOrderFormSchema = z.object({
   campaign_id: z.string().uuid("Pick a campaign"),

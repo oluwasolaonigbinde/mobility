@@ -6,10 +6,10 @@ it("uses context-specific staff words without leaking internal keys", () => {
   expect(adminStatus("pending_review", "campaign")).toBe("For review");
   expect(adminStatus("active", "campaign")).toBe("Live");
   expect(adminStatus("reserved")).toBe("Waiting for approval");
-  expect(adminStatus("acknowledged", "review")).toBe("Looking into it");
+  expect(adminStatus("open", "review")).toBe("Needs attention");
   expect(adminStatus("confirmed", "review")).toBe("Problem confirmed");
   expect(adminStatus("dismissed", "review")).toBe("Cleared");
-  expect(adminStatus("quarantined")).toBe("Late upload");
+  expect(adminStatus("manual")).toBe("Manual approval");
   expect(adminStatus("open", "contact")).toBe("Needs contact");
   expect(adminStatus("completed", "contact")).toBe("Completed");
   expect(adminStatus("open", "complaint")).toBe("Needs a reply");

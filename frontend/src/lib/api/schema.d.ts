@@ -1081,6 +1081,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/earnings-ledger/{entry_id}/negative-adjustments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record an audited manual negative adjustment on a trip */
+        post: operations["admin_record_negative_adjustment_api_v1_admin_earnings_ledger__entry_id__negative_adjustments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/evidence-verifications": {
         parameters: {
             query?: never;
@@ -1211,23 +1228,6 @@ export interface paths {
         get: operations["admin_list_fraud_flags_api_v1_admin_fraud_flags_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/fraud-flags/{flag_id}/review/acknowledge": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Acknowledge a fraud flag for staff review */
-        post: operations["admin_acknowledge_fraud_flag_api_v1_admin_fraud_flags__flag_id__review_acknowledge_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1681,40 +1681,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/admin/payout-batches/debt-balances/{driver_profile_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Admin Get Driver Money Balance */
-        get: operations["admin_get_driver_money_balance_api_v1_admin_payout_batches_debt_balances__driver_profile_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/payout-batches/debt-balances/{driver_profile_id}/allocate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Admin Allocate Driver Debt */
-        post: operations["admin_allocate_driver_debt_api_v1_admin_payout_batches_debt_balances__driver_profile_id__allocate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/admin/payout-batches/eligible": {
         parameters: {
             query?: never;
@@ -1760,6 +1726,23 @@ export interface paths {
         put?: never;
         /** Admin Poll Payout Line */
         post: operations["admin_poll_payout_line_api_v1_admin_payout_batches_lines__line_id__poll_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/payout-batches/money-balances/{driver_profile_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin Get Driver Money Balance */
+        get: operations["admin_get_driver_money_balance_api_v1_admin_payout_batches_money_balances__driver_profile_id__get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2099,59 +2082,8 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Approve a correction order (approver must differ from creator) */
+        /** Approve and apply a saved pay correction with a reason */
         post: operations["admin_approve_correction_order_api_v1_admin_payouts_correction_orders__order_id__approve_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/payouts/correction-orders/{order_id}/execute": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Execute an approved correction order (idempotent) */
-        post: operations["admin_execute_correction_order_api_v1_admin_payouts_correction_orders__order_id__execute_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/payouts/correction-orders/{order_id}/reject": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Reject a pending correction order */
-        post: operations["admin_reject_correction_order_api_v1_admin_payouts_correction_orders__order_id__reject_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/payouts/correction-orders/{order_id}/submit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Submit a draft correction order for approval */
-        post: operations["admin_submit_correction_order_api_v1_admin_payouts_correction_orders__order_id__submit_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2191,7 +2123,7 @@ export interface paths {
         /**
          * Retired: direct day recompute now requires a correction order
          * @description PR7: the direct execute path is retired. Every retroactive recompute —
-         *     regardless of delta sign — runs through an approved maker-checker
+         *     regardless of delta sign — runs through an approved reasoned manual
          *     correction order. The route stays registered so the contract and the
          *     audit-coverage table remain consistent; it always answers 409.
          */
@@ -2476,23 +2408,6 @@ export interface paths {
         patch: operations["admin_update_traffic_density_profile_api_v1_admin_traffic_density_profiles__profile_id__patch"];
         trace?: never;
     };
-    "/api/v1/admin/trips/quarantined-batches": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List quarantined ping batches */
-        get: operations["admin_list_quarantined_batches_api_v1_admin_trips_quarantined_batches_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/admin/trips/{trip_id}/analytics": {
         parameters: {
             query?: never;
@@ -2538,40 +2453,6 @@ export interface paths {
         put?: never;
         /** Estimate impressions for one analyzed trip */
         post: operations["admin_estimate_trip_impressions_api_v1_admin_trips__trip_id__estimate_impressions_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/apply": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Apply a quarantined ping batch as live trip evidence */
-        post: operations["admin_apply_quarantined_batch_api_v1_admin_trips__trip_id__quarantined_batches__quarantine_id__apply_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/discard": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Discard a quarantined ping batch */
-        post: operations["admin_discard_quarantined_batch_api_v1_admin_trips__trip_id__quarantined_batches__quarantine_id__discard_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -5400,10 +5281,6 @@ export interface components {
             held_currency: string | null;
             /** Held Pending Net */
             held_pending_net: string;
-            /** Reversal Entry Id */
-            reversal_entry_id: string | null;
-            /** Reversal Recommended */
-            reversal_recommended: boolean;
         };
         /** AdminFraudFlagRead */
         AdminFraudFlagRead: {
@@ -6866,27 +6743,12 @@ export interface components {
             events: components["schemas"]["ReceiptEventRead"][];
             receipt: components["schemas"]["ReceiptRead"];
         };
-        /** BudgetEvaluationRead */
-        BudgetEvaluationRead: {
-            /** Alert Applied */
-            alert_applied: boolean;
-            /** Alert Threshold Amount */
-            alert_threshold_amount: string | null;
-            /** Billing Fact Source */
-            billing_fact_source: string | null;
+        /** BudgetCheckRead */
+        BudgetCheckRead: {
             /** Billing Spend Amount */
-            billing_spend_amount: string | null;
-            /** Budget Basis */
-            budget_basis: string | null;
+            billing_spend_amount: string;
             /** Campaign Budget Amount */
-            campaign_budget_amount: string | null;
-            /** Campaign Daily Budget Amount */
-            campaign_daily_budget_amount: string | null;
-            /**
-             * Campaign Id
-             * Format: uuid
-             */
-            campaign_id: string;
+            campaign_budget_amount: string;
             /** Currency */
             currency: string;
             /**
@@ -6894,29 +6756,10 @@ export interface components {
              * Format: date-time
              */
             evaluated_at: string;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Pause Applied */
-            pause_applied: boolean;
-            /** Pause Threshold Amount */
-            pause_threshold_amount: string | null;
-            /** Policy Id */
-            policy_id: string | null;
-            /** Policy Revision */
-            policy_revision: string | null;
-            /** Policy Source */
-            policy_source: string | null;
             /** Resume Allowed */
             resume_allowed: boolean;
-            /** Resume Threshold Amount */
-            resume_threshold_amount: string | null;
             /** State */
             state: string;
-            /** Urgent Threshold Amount */
-            urgent_threshold_amount: string | null;
         };
         /** BudgetResumeCreate */
         BudgetResumeCreate: {
@@ -6940,17 +6783,14 @@ export interface components {
              */
             created_at: string;
             /**
-             * Evaluation Id
-             * Format: uuid
-             */
-            evaluation_id: string;
-            /**
              * Id
              * Format: uuid
              */
             id: string;
             /** New Status */
             new_status: string;
+            /** Pause Transition Id */
+            pause_transition_id: string | null;
             /** Prior Status */
             prior_status: string;
             /** Reason */
@@ -7482,8 +7322,7 @@ export interface components {
         };
         /** CampaignCommercialRead */
         CampaignCommercialRead: {
-            /** Budget Evaluations */
-            budget_evaluations: components["schemas"]["BudgetEvaluationRead"][];
+            budget_check: components["schemas"]["BudgetCheckRead"] | null;
             expedited_waiver_copy: components["schemas"]["WaiverCopyRead"];
             financial_authority: components["schemas"]["FinancialAuthorityRead"] | null;
             /** Invoices */
@@ -7526,7 +7365,7 @@ export interface components {
         CampaignDriverMoneyRead: {
             /**
              * Cash Paid
-             * @description Economic ledger amount paid, counting each credit once.
+             * @description Actual verified successful payout-line amounts.
              */
             cash_paid: string;
             /** Currency */
@@ -7538,8 +7377,6 @@ export interface components {
              * Format: uuid
              */
             driver_profile_id: string;
-            /** Driver Wide Debt */
-            driver_wide_debt: string;
             /** Earned Net */
             earned_net: string;
             /**
@@ -9045,8 +8882,6 @@ export interface components {
             available_amount: string | null;
             /** Batch Payable Amount */
             batch_payable_amount: string | null;
-            /** Carry Forward Debt Amount */
-            carry_forward_debt_amount: string | null;
             /** Cash Paid Amount */
             cash_paid_amount: string | null;
             /** Currency */
@@ -9261,8 +9096,6 @@ export interface components {
         DriverMoneyBalanceRead: {
             /** Batch Payable */
             batch_payable: string;
-            /** Carry Forward Debt */
-            carry_forward_debt: string;
             /** Cash Paid */
             cash_paid: string;
             /** Currency */
@@ -9614,7 +9447,7 @@ export interface components {
          * EarningsLedgerEntryType
          * @enum {string}
          */
-        EarningsLedgerEntryType: "trip_payout" | "adjustment" | "reversal" | "debt_remainder";
+        EarningsLedgerEntryType: "trip_payout" | "adjustment" | "reversal";
         /** EarningsWorkDayRead */
         EarningsWorkDayRead: {
             /** Amount */
@@ -9646,12 +9479,8 @@ export interface components {
             bank_account_version_id: string | null;
             /** Campaign Name */
             campaign_name: string;
-            /** Carry Forward Debt */
-            carry_forward_debt: string;
             /** Currency */
             currency: string;
-            /** Debt Deducted */
-            debt_deducted: string;
             /** Destination Verified */
             destination_verified: boolean;
             /** Driver Name */
@@ -10169,11 +9998,6 @@ export interface components {
         /** FraudFlagCounts */
         FraudFlagCounts: {
             /**
-             * Acknowledged
-             * @default 0
-             */
-            acknowledged: number;
-            /**
              * Confirmed
              * @default 0
              */
@@ -10221,10 +10045,6 @@ export interface components {
             available_net: string;
             /** Currency */
             currency: string | null;
-            /** Reversal Entry Id */
-            reversal_entry_id: string | null;
-            /** Reversal Recommended */
-            reversal_recommended: boolean;
         };
         /** FraudFlagRead */
         FraudFlagRead: {
@@ -10310,12 +10130,12 @@ export interface components {
          * FraudFlagStatus
          * @enum {string}
          */
-        FraudFlagStatus: "open" | "acknowledged" | "confirmed" | "dismissed";
+        FraudFlagStatus: "open" | "confirmed" | "dismissed";
         /**
          * FraudFlagType
          * @enum {string}
          */
-        FraudFlagType: "insufficient_pings" | "impossible_speed" | "poor_accuracy" | "stationary_trip" | "excessive_ping_gap" | "future_timestamp" | "route_looping" | "route_replay" | "exclusion_zone_presence" | "physical_spot_check_failed";
+        FraudFlagType: "impossible_speed" | "stationary_trip" | "excessive_ping_gap" | "route_replay" | "exclusion_zone_presence" | "physical_spot_check_failed";
         /** HeatmapFeature */
         HeatmapFeature: {
             /** Geometry */
@@ -10987,17 +10807,17 @@ export interface components {
             batch_sequence?: number | null;
             /** Duplicate */
             duplicate: boolean;
+            /**
+             * Evidence Scope
+             * @enum {string}
+             */
+            evidence_scope: "manifest" | "late" | "late_dropped";
             /** Outcome */
             outcome?: string | null;
             /** Payload Hash */
             payload_hash: string;
             /** Payload Hash Version */
             payload_hash_version: number;
-            /**
-             * Quarantined
-             * @default false
-             */
-            quarantined: boolean;
             /** Receipt Format Version */
             receipt_format_version?: number | null;
             /** Receipt Key Version */
@@ -11575,6 +11395,11 @@ export interface components {
              */
             event_id: string;
         };
+        /** PayoutActionReason */
+        PayoutActionReason: {
+            /** Reason */
+            reason: string;
+        };
         /**
          * PayoutAutomaticAlertKind
          * @enum {string}
@@ -11584,11 +11409,13 @@ export interface components {
          * PayoutBatchApprovalMode
          * @enum {string}
          */
-        PayoutBatchApprovalMode: "maker_checker" | "automatic";
+        PayoutBatchApprovalMode: "manual" | "automatic";
         /** PayoutBatchCreate */
         PayoutBatchCreate: {
             /** Currency */
             currency: string;
+            /** Reason */
+            reason: string;
             /** Request Id */
             request_id?: string | null;
         };
@@ -11670,7 +11497,7 @@ export interface components {
         };
         /** PayoutBatchRead */
         PayoutBatchRead: {
-            /** @default maker_checker */
+            /** @default manual */
             approval_mode: components["schemas"]["PayoutBatchApprovalMode"];
             /** Approved At */
             approved_at: string | null;
@@ -11711,6 +11538,8 @@ export interface components {
         PayoutBatchReserve: {
             /** Ledger Entry Ids */
             ledger_entry_ids: string[];
+            /** Reason */
+            reason: string;
         };
         /**
          * PayoutBatchStatus
@@ -11730,7 +11559,7 @@ export interface components {
         };
         /** PayoutBatchSummaryRead */
         PayoutBatchSummaryRead: {
-            /** @default maker_checker */
+            /** @default manual */
             approval_mode: components["schemas"]["PayoutBatchApprovalMode"];
             /** Approved At */
             approved_at: string | null;
@@ -11870,6 +11699,17 @@ export interface components {
          * @enum {string}
          */
         PayoutCalculationStatus: "calculated" | "insufficient_data" | "blocked";
+        /** PayoutCorrectionOrderApproveRequest */
+        PayoutCorrectionOrderApproveRequest: {
+            /** Metadata */
+            metadata?: {
+                [key: string]: unknown;
+            };
+            /** Reason */
+            reason: string;
+            /** Release At */
+            release_at?: string | null;
+        };
         /** PayoutCorrectionOrderCreate */
         PayoutCorrectionOrderCreate: {
             /**
@@ -11884,15 +11724,6 @@ export interface components {
             lagos_day: string;
             /** Reason */
             reason: string;
-        };
-        /** PayoutCorrectionOrderExecuteRequest */
-        PayoutCorrectionOrderExecuteRequest: {
-            /** Metadata */
-            metadata?: {
-                [key: string]: unknown;
-            };
-            /** Release At */
-            release_at?: string | null;
         };
         /** PayoutCorrectionOrderListResponse */
         PayoutCorrectionOrderListResponse: {
@@ -11962,7 +11793,7 @@ export interface components {
          * PayoutCorrectionOrderStatus
          * @enum {string}
          */
-        PayoutCorrectionOrderStatus: "draft" | "pending_approval" | "approved" | "rejected" | "executed" | "stale";
+        PayoutCorrectionOrderStatus: "draft" | "executed" | "stale";
         /** PayoutDayProjection */
         PayoutDayProjection: {
             /**
@@ -11981,19 +11812,6 @@ export interface components {
             };
             /** Projection Fingerprint */
             projection_fingerprint: string;
-        };
-        /** PayoutDebtAllocate */
-        PayoutDebtAllocate: {
-            /** Currency */
-            currency: string;
-        };
-        /** PayoutDebtAllocationRead */
-        PayoutDebtAllocationRead: {
-            balance: components["schemas"]["DriverMoneyBalanceRead"];
-            /** Remainder Entry Ids */
-            remainder_entry_ids: string[];
-            /** Settlement Ids */
-            settlement_ids: string[];
         };
         /** PayoutLedgerEntrySummary */
         PayoutLedgerEntrySummary: {
@@ -12044,6 +11862,22 @@ export interface components {
             offset: number;
             /** Total */
             total: number;
+        };
+        /** PayoutNegativeAdjustment */
+        PayoutNegativeAdjustment: {
+            /** Amount */
+            amount: number | string;
+            /** Currency */
+            currency: string;
+            /** Lagos Day */
+            lagos_day?: string | null;
+            /** Reason */
+            reason: string;
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
         };
         /** PayoutOperationLineRead */
         PayoutOperationLineRead: {
@@ -12350,7 +12184,7 @@ export interface components {
             /** Index */
             index: number;
             /** Rejection Code */
-            rejection_code?: ("INVALID_RECORDED_AT" | "INVALID_ASSIGNMENT_AUTHORITY" | "INVALID_ACCURACY" | "INVALID_SPEED") | null;
+            rejection_code?: ("INVALID_RECORDED_AT" | "INVALID_ASSIGNMENT_AUTHORITY" | "INVALID_ACCURACY" | "INVALID_SPEED" | "PAY_ALREADY_CALCULATED") | null;
             /** Sequence Number */
             sequence_number?: number | null;
             /**
@@ -12407,95 +12241,6 @@ export interface components {
             /** Average Quality Score */
             average_quality_score: string | null;
             fraud_flags: components["schemas"]["FraudFlagCounts"];
-        };
-        /** QuarantineApplyResponse */
-        QuarantineApplyResponse: {
-            /** Accepted Count */
-            accepted_count: number;
-            /** Affected Lagos Days */
-            affected_lagos_days: string[];
-            /**
-             * Applied Batch Id
-             * Format: uuid
-             */
-            applied_batch_id: string;
-            /**
-             * Quarantine Id
-             * Format: uuid
-             */
-            quarantine_id: string;
-            /**
-             * Trip Id
-             * Format: uuid
-             */
-            trip_id: string;
-        };
-        /** QuarantineResolveRequest */
-        QuarantineResolveRequest: {
-            /** Note */
-            note: string;
-        };
-        /** QuarantinedPingBatchListResponse */
-        QuarantinedPingBatchListResponse: {
-            /** Items */
-            items: components["schemas"]["QuarantinedPingBatchRead"][];
-            /** Limit */
-            limit: number;
-            /** Offset */
-            offset: number;
-            /** Total */
-            total: number;
-        };
-        /** QuarantinedPingBatchRead */
-        QuarantinedPingBatchRead: {
-            /** Applied Batch Id */
-            applied_batch_id?: string | null;
-            /** Assignment Id */
-            assignment_id?: string | null;
-            /** Campaign Id */
-            campaign_id?: string | null;
-            /** Campaign Name */
-            campaign_name?: string | null;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /** Driver Name */
-            driver_name?: string | null;
-            /** Driver Profile Id */
-            driver_profile_id?: string | null;
-            /**
-             * Id
-             * Format: uuid
-             */
-            id: string;
-            /** Idempotency Key */
-            idempotency_key: string;
-            /** Ping Count */
-            ping_count: number;
-            /**
-             * Received At
-             * Format: date-time
-             */
-            received_at: string;
-            /** Resolution Note */
-            resolution_note?: string | null;
-            /** Resolved At */
-            resolved_at?: string | null;
-            /** Resolved By User Id */
-            resolved_by_user_id?: string | null;
-            /** Status */
-            status: string;
-            /**
-             * Trip Session Id
-             * Format: uuid
-             */
-            trip_session_id: string;
-            /** Trip Started At */
-            trip_started_at?: string | null;
-            /** Vehicle Plate */
-            vehicle_plate?: string | null;
         };
         /** QuoteAccept */
         QuoteAccept: {
@@ -17069,6 +16814,41 @@ export interface operations {
             };
         };
     };
+    admin_record_negative_adjustment_api_v1_admin_earnings_ledger__entry_id__negative_adjustments_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                entry_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutNegativeAdjustment"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EarningsLedgerEntryRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     admin_evidence_verifications_api_v1_admin_evidence_verifications_get: {
         parameters: {
             query?: {
@@ -17349,37 +17129,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FraudFlagListResponse"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_acknowledge_fraud_flag_api_v1_admin_fraud_flags__flag_id__review_acknowledge_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                flag_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["AdminFraudFlagRead"];
                 };
             };
             /** @description Request validation failed */
@@ -18348,74 +18097,6 @@ export interface operations {
             };
         };
     };
-    admin_get_driver_money_balance_api_v1_admin_payout_batches_debt_balances__driver_profile_id__get: {
-        parameters: {
-            query: {
-                currency: string;
-            };
-            header?: never;
-            path: {
-                driver_profile_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["DriverMoneyBalanceRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_allocate_driver_debt_api_v1_admin_payout_batches_debt_balances__driver_profile_id__allocate_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                driver_profile_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["PayoutDebtAllocate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PayoutDebtAllocationRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     admin_eligible_payment_entries_api_v1_admin_payout_batches_eligible_get: {
         parameters: {
             query?: {
@@ -18493,7 +18174,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutActionReason"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -18502,6 +18187,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PayoutBatchRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_get_driver_money_balance_api_v1_admin_payout_batches_money_balances__driver_profile_id__get: {
+        parameters: {
+            query: {
+                currency: string;
+            };
+            header?: never;
+            path: {
+                driver_profile_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DriverMoneyBalanceRead"];
                 };
             };
             /** @description Request validation failed */
@@ -18624,7 +18342,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutActionReason"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -18724,7 +18446,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PayoutActionReason"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -19184,104 +18910,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PayoutCorrectionOrderRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_execute_correction_order_api_v1_admin_payouts_correction_orders__order_id__execute_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                order_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
+        requestBody: {
             content: {
-                "application/json": components["schemas"]["PayoutCorrectionOrderExecuteRequest"] | null;
+                "application/json": components["schemas"]["PayoutCorrectionOrderApproveRequest"];
             };
         };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PayoutCorrectionOrderRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_reject_correction_order_api_v1_admin_payouts_correction_orders__order_id__reject_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                order_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PayoutCorrectionOrderRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_submit_correction_order_api_v1_admin_payouts_correction_orders__order_id__submit_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                order_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -19953,43 +19586,6 @@ export interface operations {
             };
         };
     };
-    admin_list_quarantined_batches_api_v1_admin_trips_quarantined_batches_get: {
-        parameters: {
-            query?: {
-                trip_id?: string | null;
-                status?: string | null;
-                limit?: number;
-                offset?: number;
-                quarantine_id?: string | null;
-                driver_profile_id?: string | null;
-                campaign_id?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["QuarantinedPingBatchListResponse"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     admin_get_trip_analytics_api_v1_admin_trips__trip_id__analytics_get: {
         parameters: {
             query?: never;
@@ -20078,78 +19674,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ImpressionEstimateRead"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_apply_quarantined_batch_api_v1_admin_trips__trip_id__quarantined_batches__quarantine_id__apply_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                trip_id: string;
-                quarantine_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["QuarantineResolveRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["QuarantineApplyResponse"];
-                };
-            };
-            /** @description Request validation failed */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    admin_discard_quarantined_batch_api_v1_admin_trips__trip_id__quarantined_batches__quarantine_id__discard_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                trip_id: string;
-                quarantine_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["QuarantineResolveRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["QuarantinedPingBatchRead"];
                 };
             };
             /** @description Request validation failed */

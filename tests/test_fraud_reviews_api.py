@@ -64,33 +64,12 @@ def review_audits(db_sessionmaker, flag_id) -> list[AuditEvent]:
     return asyncio.run(fetch())
 
 
-def test_admin_can_acknowledge_then_confirm_and_list_enriched_flag(
+def test_admin_can_confirm_open_flag_and_list_enriched_flag(
     db_client,
     db_sessionmaker,
 ) -> None:
     admin, flag = create_review_flag(db_sessionmaker)
     headers = auth_headers(db_client, admin.email, PASSWORD)
-
-    acknowledged = db_client.post(
-        f"/api/v1/admin/fraud-flags/{flag.id}/review/acknowledge",
-        headers=headers,
-    )
-    assert acknowledged.status_code == http_status.HTTP_200_OK
-    acknowledged_body = acknowledged.json()
-    assert acknowledged_body["status"] == "acknowledged"
-    assert acknowledged_body["reviewed_by_user_id"] == str(admin.id)
-    assert acknowledged_body["reviewed_at"] is not None
-    assert acknowledged_body["resolution_note"] is None
-    assert datetime.fromisoformat(
-        acknowledged_body["review_due_at"].replace("Z", "+00:00")
-    ).replace(tzinfo=None) == flag.detected_at.replace(tzinfo=None) + timedelta(days=7)
-    assert acknowledged_body["escalated_at"] is None
-    assert acknowledged_body["money_effect"] == {
-        "available_net": "0",
-        "currency": None,
-        "reversal_entry_id": None,
-        "reversal_recommended": False,
-    }
 
     confirmed = db_client.post(
         f"/api/v1/admin/fraud-flags/{flag.id}/review/resolve",
@@ -103,6 +82,15 @@ def test_admin_can_acknowledge_then_confirm_and_list_enriched_flag(
     assert confirmed_body["reviewed_by_user_id"] == str(admin.id)
     assert confirmed_body["reviewed_at"] is not None
     assert confirmed_body["resolution_note"] == "Evidence verified."
+
+    assert datetime.fromisoformat(confirmed_body["review_due_at"].replace("Z", "+00:00")).replace(
+        tzinfo=None
+    ) == flag.detected_at.replace(tzinfo=None) + timedelta(days=7)
+    assert confirmed_body["escalated_at"] is None
+    assert confirmed_body["money_effect"] == {
+        "available_net": "0",
+        "currency": None,
+    }
 
     listed = db_client.get(
         "/api/v1/admin/fraud-flags?status=confirmed",
@@ -128,7 +116,6 @@ def test_admin_can_acknowledge_then_confirm_and_list_enriched_flag(
 
     audits = review_audits(db_sessionmaker, flag.id)
     assert {row.action for row in audits} == {
-        "admin.fraud_flag.acknowledged",
         "admin.fraud_flag.resolved",
     }
     assert {row.actor_user_id for row in audits} == {admin.id}
@@ -147,10 +134,6 @@ def test_direct_resolve_and_terminal_cross_transition_conflict_but_retry_is_idem
         headers=headers,
         json=payload,
     )
-    acknowledge = db_client.post(
-        f"/api/v1/admin/fraud-flags/{flag.id}/review/acknowledge",
-        headers=headers,
-    )
     first = db_client.post(
         f"/api/v1/admin/fraud-flags/{flag.id}/review/resolve",
         headers=headers,
@@ -167,9 +150,8 @@ def test_direct_resolve_and_terminal_cross_transition_conflict_but_retry_is_idem
         json={"outcome": "confirmed", "note": "Changed decision."},
     )
 
-    assert direct.status_code == http_status.HTTP_409_CONFLICT
-    assert direct.json()["error"]["code"] == "FRAUD_FLAG_INVALID_TRANSITION"
-    assert acknowledge.status_code == http_status.HTTP_200_OK
+    assert direct.status_code == http_status.HTTP_200_OK
+    assert direct.json() == first.json()
     assert first.status_code == http_status.HTTP_200_OK
     assert first.json()["status"] == "dismissed"
     assert retry.status_code == http_status.HTTP_200_OK
@@ -177,7 +159,7 @@ def test_direct_resolve_and_terminal_cross_transition_conflict_but_retry_is_idem
     assert conflict.status_code == http_status.HTTP_409_CONFLICT
     assert conflict.json()["error"]["code"] == "FRAUD_FLAG_INVALID_TRANSITION"
     audits = review_audits(db_sessionmaker, flag.id)
-    assert len(audits) == 2
+    assert len(audits) == 1
     assert [row.action for row in audits].count("admin.fraud_flag.resolved") == 1
 
 
@@ -189,7 +171,6 @@ def test_review_routes_require_admin_and_return_not_found(
     advertiser_headers = auth_headers(db_client, "advertiser@example.com", PASSWORD)
 
     for path, payload in (
-        (f"/api/v1/admin/fraud-flags/{flag.id}/review/acknowledge", None),
         (
             f"/api/v1/admin/fraud-flags/{flag.id}/review/resolve",
             {"outcome": "confirmed", "note": "Verified."},
@@ -202,7 +183,8 @@ def test_review_routes_require_admin_and_return_not_found(
         )
 
     missing = db_client.post(
-        f"/api/v1/admin/fraud-flags/{uuid4()}/review/acknowledge",
+        f"/api/v1/admin/fraud-flags/{uuid4()}/review/resolve",
+        json={"outcome": "confirmed", "note": "Verified."},
         headers=auth_headers(db_client, "admin@example.com", PASSWORD),
     )
     assert missing.status_code == http_status.HTTP_404_NOT_FOUND

@@ -420,7 +420,7 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
               {!selectedTask.completed_at &&
               p.history !== "true" &&
               selectedTask.status === "open" ? (
-                <OperationForm id={selectedTask.id} contact />
+                <OperationForm id={selectedTask.id} />
               ) : (
                 <p className="text-muted mt-4">Recorded history.</p>
               )}

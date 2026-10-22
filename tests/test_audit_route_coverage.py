@@ -32,6 +32,9 @@ from app.services.audit import create_audit_event
 from app.services.trip_evidence import manifest_root
 
 AUDITED = {
+    ("POST", "/api/v1/admin/earnings-ledger/{entry_id}/negative-adjustments"): (
+        "admin.earnings.negative_adjustment"
+    ),
     ("POST", "/api/v1/admin/campaigns/{campaign_id}/cancel"): "admin.campaign.cancelled",
     (
         "POST",
@@ -219,37 +222,17 @@ AUDITED = {
     ("POST", "/api/v1/admin/trips/{trip_id}/calculate-payout"): (
         "admin.payout_calculation.created"
     ),
-    # MNY-06C maker-checker correction orders (Q22):
+    # D112 audited correction orders (Q22):
     ("POST", "/api/v1/admin/payouts/correction-orders"): ("admin.payout_correction_order.created"),
-    ("POST", "/api/v1/admin/payouts/correction-orders/{order_id}/submit"): (
-        "admin.payout_correction_order.submitted"
-    ),
     ("POST", "/api/v1/admin/payouts/correction-orders/{order_id}/approve"): (
         "admin.payout_correction_order.approved"
-    ),
-    ("POST", "/api/v1/admin/payouts/correction-orders/{order_id}/reject"): (
-        "admin.payout_correction_order.rejected"
-    ),
-    ("POST", "/api/v1/admin/payouts/correction-orders/{order_id}/execute"): (
-        "admin.payout_correction_order.executed"
     ),
     # S4 backfill (§6.4.9):
     ("POST", "/api/v1/driver/trips/start"): "driver.trip.started",
     ("POST", "/api/v1/driver/trips/{trip_id}/end"): "driver.trip.ended",
     ("POST", "/api/v1/driver/trips/{trip_id}/evidence/reconcile"): "trip.sealed",
-    (
-        "POST",
-        "/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/apply",
-    ): "admin.trip.quarantined_batch.applied",
-    (
-        "POST",
-        "/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/discard",
-    ): "admin.trip.quarantined_batch.discarded",
     ("POST", "/api/v1/admin/trips/{trip_id}/recompute-analytics"): (
         "admin.trip_analytics.recomputed"
-    ),
-    ("POST", "/api/v1/admin/fraud-flags/{flag_id}/review/acknowledge"): (
-        "admin.fraud_flag.acknowledged"
     ),
     ("POST", "/api/v1/admin/fraud-flags/{flag_id}/review/resolve"): ("admin.fraud_flag.resolved"),
     ("POST", "/api/v1/driver/fraud-holds/{flag_id}/disputes"): ("driver.fraud_dispute.created"),
@@ -275,10 +258,6 @@ AUDITED = {
         "admin.bank_account.rewrapped"
     ),
     ("POST", "/api/v1/admin/payout-batches"): "admin.payout_batch.created",
-    (
-        "POST",
-        "/api/v1/admin/payout-batches/debt-balances/{driver_profile_id}/allocate",
-    ): "admin.payout_debt.allocated",
     ("POST", "/api/v1/admin/payout-batches/{batch_id}/reserve"): ("admin.payout_batch.reserved"),
     ("POST", "/api/v1/admin/payout-batches/{batch_id}/approve"): ("admin.payout_batch.approved"),
     ("POST", "/api/v1/admin/payout-batches/{batch_id}/submit"): ("admin.payout_batch.submitted"),

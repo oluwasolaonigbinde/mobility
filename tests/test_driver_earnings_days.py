@@ -19,6 +19,7 @@ from app.models.payout import EarningsLedgerEntry
 from app.models.user import UserRole
 from app.schemas.payouts import EarningsWorkDayRead
 from app.services.driver_earnings_presentation import earnings_totals, group_earnings_days
+from app.services.payout_balances import TripMoneyPosition
 
 TRIP = uuid4()
 
@@ -54,8 +55,29 @@ def row(
     return entry, response
 
 
-def show(*rows, held=frozenset()):
-    return group_earnings_days([e for e, _ in rows], [r for _, r in rows], set(held))
+def grouped(*rows, held=frozenset(), cash=None):
+    scopes = {(e.trip_session_id, e.currency) for e, _ in rows}
+    positions = {}
+    for scope in scopes:
+        members = [
+            (e, r)
+            for e, r in rows
+            if (e.trip_session_id, e.currency) == scope and e.status != "voided"
+        ]
+        earned = sum(
+            (e.amount * (-1 if e.entry_type == "reversal" else 1) for e, _ in members), Decimal(0)
+        )
+        # Partial/net regressions supply their independently verified cash explicitly.
+        paid = (cash or {}).get(
+            scope,
+            sum((e.amount for e, r in members if e.status == "paid" and r.paid_at), Decimal(0)),
+        )
+        positions[scope] = TripMoneyPosition(earned_net=earned, cash_paid=paid)
+    return group_earnings_days([e for e, _ in rows], [r for _, r in rows], set(held), positions)
+
+
+def show(*rows, held=frozenset(), cash=None):
+    return grouped(*rows, held=held, cash=cash)[0]
 
 
 def test_nets_exact_decimals_on_persisted_work_days():
@@ -103,7 +125,7 @@ def test_paying_tonight_needs_every_contribution_scheduled():
 
 
 @pytest.mark.parametrize("status", ["pending", "available", "paid"])
-def test_payment_hold_overrides_every_label(status):
+def test_payment_hold_keeps_only_unpaid_money_held(status):
     [day] = show(
         row(
             status=status,
@@ -112,7 +134,9 @@ def test_payment_hold_overrides_every_label(status):
             paid_at=datetime(2026, 10, 9, 20, tzinfo=UTC),
         )
     )
-    assert (day["status"], day["paid_at"]) == ("on_hold", None)
+    assert (day["status"], day["paid_at"]) == (
+        ("paid", datetime(2026, 10, 9, 20, tzinfo=UTC)) if status == "paid" else ("on_hold", None)
+    )
 
 
 def test_public_trip_holds_hold_unpaid_earnings():
@@ -126,11 +150,10 @@ def test_missing_allocations_withhold_every_figure():
     assert caught.value.code == "EARNINGS_DAYS_UNAVAILABLE"
 
 
-def test_reversed_original_nets_with_its_reversal_and_debt_provenance_is_ignored():
+def test_reversed_original_nets_with_its_reversal():
     [day] = show(
         row(amount="100.00", status="reversed", work_days=[("2026-10-09", "100.00")]),
         row(amount="20.00", entry_type="reversal", work_days=[("2026-10-09", "20.00")]),
-        row(amount="20.00", entry_type="debt_remainder", work_days=[]),
     )
     assert (day["amount"], day["status"]) == (Decimal("80.00"), "on_hold")
     assert show(row(status="voided")) == []
@@ -140,18 +163,24 @@ def test_totals_use_the_lagos_monday_week_lifetime_and_unpaid_held_money():
     # Wednesday 14 October 2026: the week started on Monday 12 October.
     today = date(2026, 10, 14)
     paid_at = datetime(2026, 10, 13, 1, tzinfo=UTC)
-    days = show(
+    days, held_amounts = grouped(
         row(amount="5.00", work_days=[("2026-10-14", "5.00")]),
         row(amount="6.00", work_days=[("2026-10-18", "6.00")]),
         row(amount="7.00", status="paid", paid_at=paid_at, work_days=[("2026-10-12", "7.00")]),
         row(amount="11.00", work_days=[("2026-10-11", "11.00")]),
         # On hold: 3.00 unpaid plus 4.00 already paid; only the unpaid part is held.
-        row(amount="3.00", payment_on_hold=True, work_days=[("2026-10-10", "3.00")]),
-        row(amount="4.00", status="paid", paid_at=paid_at, work_days=[("2026-10-10", "4.00")]),
+        row(amount="3.00", trip=uuid4(), payment_on_hold=True, work_days=[("2026-10-10", "3.00")]),
+        row(
+            amount="4.00",
+            trip=uuid4(),
+            status="paid",
+            paid_at=paid_at,
+            work_days=[("2026-10-10", "4.00")],
+        ),
         # A held day that only nets money back never shows a negative hold.
         row(amount="2.00", entry_type="reversal", work_days=[("2026-10-09", "2.00")]),
     )
-    [totals] = earnings_totals(days, {"NGN": Decimal("34.00")}, today)
+    [totals] = earnings_totals(days, {"NGN": Decimal("34.00")}, today, held_amounts)
     assert totals == {
         "currency": "NGN",
         "today": Decimal("5.00"),
@@ -226,3 +255,30 @@ def test_endpoint_matches_the_ledger_and_summary(db_client, db_sessionmaker, set
     broken = db_client.get("/api/v1/driver/earnings/days", headers=driver)
     assert broken.status_code == 409
     assert broken.json()["error"]["code"] == "EARNINGS_DAYS_UNAVAILABLE"
+
+
+def test_net_adjusted_credit_is_paid_when_actual_cash_covers_net_award():
+    paid_at = datetime(2026, 10, 10, 20, tzinfo=UTC)
+    [day] = show(
+        row(amount="100.00", status="paid", paid_at=paid_at, work_days=[("2026-10-09", "100.00")]),
+        row(amount="20.00", entry_type="reversal", work_days=[("2026-10-09", "20.00")]),
+        cash={(TRIP, "NGN"): Decimal("80.00")},
+    )
+    assert (day["amount"], day["status"], day["paid_at"]) == (Decimal("80.00"), "paid", paid_at)
+
+
+def test_partial_multi_day_cash_has_no_invented_allocation():
+    paid_at = datetime(2026, 10, 10, 20, tzinfo=UTC)
+    days, held = grouped(
+        row(
+            amount="100.00",
+            status="paid",
+            paid_at=paid_at,
+            payment_on_hold=True,
+            work_days=[("2026-10-09", "60.00"), ("2026-10-10", "40.00")],
+        ),
+        cash={(TRIP, "NGN"): Decimal("30.00")},
+    )
+    assert [day["amount"] for day in days] == [Decimal("40.00"), Decimal("60.00")]
+    assert all(day["status"] == "on_hold" and day["paid_at"] is None for day in days)
+    assert held == {"NGN": Decimal("70.00")}

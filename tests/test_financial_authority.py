@@ -57,7 +57,6 @@ from app.services.billing.quotes import (
 from app.services.billing.receipts import (
     allocate_payment_receipt,
     confirm_payment_receipt,
-    reconcile_payment_receipt,
     record_payment_receipt,
     reverse_payment_receipt,
 )
@@ -102,14 +101,13 @@ async def _funded_terms(session, *, admin, owner, organization, campaign, refere
         evidence_reference=f"{reference}-EVIDENCE",
         observed_at=datetime.now(UTC),
     )
-    await reconcile_payment_receipt(
+    await confirm_payment_receipt(
         session,
         receipt_id=receipt.id,
         actor_user_id=admin.id,
         expected_amount="100.00",
         expected_currency="NGN",
     )
-    await confirm_payment_receipt(session, receipt_id=receipt.id, actor_user_id=admin.id)
     allocation = await allocate_payment_receipt(
         session,
         receipt_id=receipt.id,

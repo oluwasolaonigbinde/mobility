@@ -42,7 +42,7 @@ from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
 from app.schemas.impressions import TrafficDensityProfileUpdate
 from app.services import fraud_assessments, route_replay, trip_processing
-from app.services.fraud_holds import acknowledge_fraud_flag, resolve_fraud_flag
+from app.services.fraud_holds import resolve_fraud_flag
 from app.services.impressions import update_traffic_density_profile
 from app.services.payouts.engine import calculate_trip_payout
 from app.services.trip_evidence import sign_manifest_receipt
@@ -1036,26 +1036,6 @@ def test_review_status_changes_refresh_assessment_and_dismissal_refreshes_money_
     first_fingerprint = first_estimate.estimate_metadata["output_fingerprint"]
     assert first_estimate.fraud_adjustment_multiplier == Decimal("0.2500")
 
-    async def acknowledge_flag() -> None:
-        async with db_sessionmaker() as session:
-            flag = await session.scalar(select(FraudFlag))
-            await acknowledge_fraud_flag(
-                session,
-                flag_id=flag.id,
-                actor_user_id=graph.admin.id,
-                now=BASE_TIME + timedelta(hours=1),
-            )
-            await session.commit()
-
-    asyncio.run(acknowledge_flag())
-    assert find_due(db_sessionmaker, settings) == [graph.trip.id]
-
-    acknowledged = run_pipeline(db_sessionmaker, graph.trip.id, settings)
-    still_held = fetch_impression_estimates(db_sessionmaker)[0]
-    assert stage_outcomes(acknowledged)["fraud_assessment"] == "created"
-    assert still_held.fraud_adjustment_multiplier == Decimal("0.2500")
-    assert find_due(db_sessionmaker, settings) == []
-
     async def dismiss_flag() -> None:
         async with db_sessionmaker() as session:
             flag = await session.scalar(select(FraudFlag))
@@ -1128,12 +1108,7 @@ def test_confirmed_review_transition_is_due_but_remains_held(
                     now=BASE_TIME + timedelta(hours=2),
                 )
             else:
-                await acknowledge_fraud_flag(
-                    session,
-                    flag_id=flag.id,
-                    actor_user_id=graph.admin.id,
-                    now=BASE_TIME + timedelta(hours=1),
-                )
+                pass
             await session.commit()
 
     asyncio.run(transition(confirm=False))

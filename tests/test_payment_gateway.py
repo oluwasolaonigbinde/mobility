@@ -29,7 +29,6 @@ from app.services.billing.gateway import (
 from app.services.billing.receipts import (
     allocate_payment_receipt,
     confirm_payment_receipt,
-    reconcile_payment_receipt,
     record_payment_receipt,
 )
 
@@ -142,8 +141,7 @@ def test_signed_gateway_ingestion_is_thin_and_worker_retry_converges(db_sessionm
                 )
             )
             assert statuses == [
-                ReceiptLifecycleStatus.OBSERVED,
-                ReceiptLifecycleStatus.RECONCILED,
+                ReceiptLifecycleStatus.RECORDED,
                 ReceiptLifecycleStatus.CONFIRMED,
             ]
             await session.commit()
@@ -249,14 +247,13 @@ def test_manual_payment_before_gateway_confirmation_preserves_unallocated_cash(
                 evidence_reference="statement-before-gateway",
                 observed_at=datetime.now(UTC),
             )
-            await reconcile_payment_receipt(
+            await confirm_payment_receipt(
                 session,
                 receipt_id=manual.id,
                 actor_user_id=admin.id,
                 expected_amount="100.00",
                 expected_currency="NGN",
             )
-            await confirm_payment_receipt(session, receipt_id=manual.id, actor_user_id=admin.id)
             await allocate_payment_receipt(
                 session,
                 receipt_id=manual.id,

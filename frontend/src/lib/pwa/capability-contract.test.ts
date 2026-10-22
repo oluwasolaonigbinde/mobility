@@ -48,7 +48,7 @@ describe("R14-A capability policy", () => {
     [{ serviceWorker: "unprobed" }, "SERVICE_WORKER_UNPROBED", "degraded"],
     [{ serviceWorker: "not-registered" }, "SERVICE_WORKER_NOT_REGISTERED", "degraded"],
     [{ displayMode: "browser" }, "NOT_STANDALONE", "degraded"],
-  ] satisfies Array<[Partial<CapabilitySnapshot>, string, string]>) (
+  ] satisfies Array<[Partial<CapabilitySnapshot>, string, string]>)(
     "maps installability %#",
     (patch, code, health) => {
       const assessment = changed(patch);
@@ -74,8 +74,14 @@ describe("R14-A capability policy", () => {
       status: "degraded",
       code: "BACKGROUND_PAUSED",
     });
-    expect(changed({ visibility: "hidden" }).actions).toEqual({ start: false, capture: false, end: true });
-    expect(result({ visibility: "unknown" }, "visibility-background")?.code).toBe("VISIBILITY_UNKNOWN");
+    expect(changed({ visibility: "hidden" }).actions).toEqual({
+      start: false,
+      capture: false,
+      end: true,
+    });
+    expect(result({ visibility: "unknown" }, "visibility-background")?.code).toBe(
+      "VISIBILITY_UNKNOWN",
+    );
   });
 
   it.each([
@@ -148,7 +154,7 @@ describe("R14-A capability policy", () => {
         singleWriter: "web-locks-exclusive",
         idempotencyKey: "mint-once-at-batch-cut",
         retry: "reuse-identical-key-and-payload",
-        ackDeletes: ["signed-accepted", "signed-duplicate", "signed-quarantined"],
+        ackDeletes: ["signed-accepted", "signed-duplicate", "signed-dropped"],
         terminalHttpStatuses: [400, 409, 422],
         terminalAction: "dead-letter-without-rekey",
       },
@@ -163,11 +169,11 @@ describe("R14-A capability policy", () => {
         assignmentActiveGate: "not-required-for-ended-delivery",
         graceSeal: false,
       },
-      quarantine: {
-        postSealBatches: "preserve-never-reject",
-        resolution: "audited-admin-apply-or-discard",
-        applyRequiresInitialPayout: true,
-        applyAutoRecomputesMoney: false,
+      lateSettlement: {
+        admission: "before-any-affected-nigeria-day-pay-is-calculated",
+        afterCalculation: "signed-drop-with-audit-no-gps-payload",
+        staffQueue: false,
+        calculatedMoneyChanges: false,
         preSealAnalyticsReusableForMoney: false,
       },
     });
@@ -195,20 +201,34 @@ describe("deterministic probes", () => {
       },
     };
     expect(await probeExclusiveWebLock(locks)).toBe("pass");
-    expect(await probeExclusiveWebLock({ request: async (_n, _o, cb) => cb(null) })).toBe("contended");
-    expect(await probeExclusiveWebLock({ request: vi.fn().mockRejectedValue(new Error("no")) })).toBe("denied");
+    expect(await probeExclusiveWebLock({ request: async (_n, _o, cb) => cb(null) })).toBe(
+      "contended",
+    );
+    expect(
+      await probeExclusiveWebLock({ request: vi.fn().mockRejectedValue(new Error("no")) }),
+    ).toBe("denied");
     expect(await probeExclusiveWebLock()).toBe("unavailable");
   });
 
   it("classifies wake-lock and foreground-location outcomes", async () => {
     const release = vi.fn().mockResolvedValue(undefined);
-    expect(await probeScreenWakeLock({ request: vi.fn().mockResolvedValue({ release }) })).toBe("pass");
+    expect(await probeScreenWakeLock({ request: vi.fn().mockResolvedValue({ release }) })).toBe(
+      "pass",
+    );
     expect(release).toHaveBeenCalledOnce();
-    expect(await probeScreenWakeLock({ request: vi.fn().mockRejectedValue(new Error("no")) })).toBe("denied");
+    expect(await probeScreenWakeLock({ request: vi.fn().mockRejectedValue(new Error("no")) })).toBe(
+      "denied",
+    );
     expect(await probeScreenWakeLock()).toBe("unavailable");
 
-    expect(await probeForegroundLocation({ getCurrentPosition: (ok) => ok({} as GeolocationPosition) })).toBe("granted");
-    expect(await probeForegroundLocation({ getCurrentPosition: (_ok, fail) => fail({ code: 1 } as GeolocationPositionError) })).toBe("denied");
+    expect(
+      await probeForegroundLocation({ getCurrentPosition: (ok) => ok({} as GeolocationPosition) }),
+    ).toBe("granted");
+    expect(
+      await probeForegroundLocation({
+        getCurrentPosition: (_ok, fail) => fail({ code: 1 } as GeolocationPositionError),
+      }),
+    ).toBe("denied");
     expect(await probeForegroundLocation()).toBe("unavailable");
   });
 

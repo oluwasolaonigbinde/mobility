@@ -48,7 +48,6 @@ from app.services.billing.quotes import (
 from app.services.billing.receipts import (
     allocate_payment_receipt,
     confirm_payment_receipt,
-    reconcile_payment_receipt,
     record_payment_receipt,
     reverse_payment_receipt,
 )
@@ -218,14 +217,13 @@ def test_effective_invoice_obligation_drives_allocation_status_and_production(
                 evidence_reference="PROJECTION-EVIDENCE",
                 observed_at=datetime.now(UTC),
             )
-            await reconcile_payment_receipt(
+            await confirm_payment_receipt(
                 session,
                 receipt_id=receipt.id,
                 actor_user_id=admin.id,
                 expected_amount="100.00",
                 expected_currency="NGN",
             )
-            await confirm_payment_receipt(session, receipt_id=receipt.id, actor_user_id=admin.id)
             with pytest.raises(AppError) as overfunding:
                 await allocate_payment_receipt(
                     session,
@@ -350,14 +348,13 @@ def test_standard_production_and_later_debit_cannot_reopen_refund_eligibility(
                 evidence_reference="refund frozen start debit",
                 observed_at=first_allocation.allocated_at + timedelta(hours=25),
             )
-            await reconcile_payment_receipt(
+            await confirm_payment_receipt(
                 session,
                 receipt_id=receipt.id,
                 actor_user_id=admin.id,
                 expected_amount="50.00",
                 expected_currency="NGN",
             )
-            await confirm_payment_receipt(session, receipt_id=receipt.id, actor_user_id=admin.id)
             await allocate_payment_receipt(
                 session,
                 receipt_id=receipt.id,
@@ -444,15 +441,12 @@ def test_late_refund_booking_uses_frozen_cancellation_and_exact_retry_identity(
                 evidence_reference="post-cancellation debit funding",
                 observed_at=allocation.allocated_at + timedelta(hours=25),
             )
-            await reconcile_payment_receipt(
+            await confirm_payment_receipt(
                 session,
                 receipt_id=later_receipt.id,
                 actor_user_id=admin.id,
                 expected_amount="50.00",
                 expected_currency="NGN",
-            )
-            await confirm_payment_receipt(
-                session, receipt_id=later_receipt.id, actor_user_id=admin.id
             )
             await allocate_payment_receipt(
                 session,
@@ -1053,14 +1047,13 @@ def test_refund_requires_reversed_allocated_receipt_and_complete_record(
                 evidence_reference="SYNTHETIC",
                 observed_at=datetime.now(UTC),
             )
-            await reconcile_payment_receipt(
+            await confirm_payment_receipt(
                 session,
                 receipt_id=spare.id,
                 actor_user_id=admin.id,
                 expected_amount="10",
                 expected_currency="NGN",
             )
-            await confirm_payment_receipt(session, receipt_id=spare.id, actor_user_id=admin.id)
             await reverse_payment_receipt(
                 session,
                 receipt_id=spare.id,

@@ -15,7 +15,7 @@ from app.core.outbox_enqueue import pending_job
 from app.models.assignment_activity import (
     AssignmentActivityFlag,
 )
-from app.models.billing import BudgetCampaignTransition, BudgetPolicyEvaluation
+from app.models.billing import BudgetCampaignTransition
 from app.models.campaign import Campaign
 from app.models.campaign_assignment import CampaignAssignment
 from app.models.contact import PasswordResetToken
@@ -544,7 +544,7 @@ async def create_budget_policy_notices(
     session: AsyncSession,
     *,
     campaign: Campaign,
-    evaluation: BudgetPolicyEvaluation,
+    evaluation,
     epoch_id: UUID | None = None,
 ) -> list[Notification]:
     type_key = {
@@ -565,7 +565,6 @@ async def create_budget_policy_notices(
         "state": evaluation.state,
         "budget": str(evaluation.campaign_budget_amount),
         "currency": evaluation.currency,
-        "basis": evaluation.budget_basis,
     }
     event_key = (
         "budget:" + hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()

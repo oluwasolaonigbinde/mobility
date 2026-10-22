@@ -209,7 +209,7 @@ function reads({
           total: 1,
         },
       };
-    if (path.includes("/debt-balances/"))
+    if (path.includes("/money-balances/"))
       return {
         data: {
           currency: "NGN",

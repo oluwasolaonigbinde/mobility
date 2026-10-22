@@ -19,7 +19,6 @@ vi.mock("../fraud/dispute-actions", () => ({
 vi.mock("../fraud/spot-check-actions", () => ({
   SpotCheckForm: () => <button>Record check</button>,
 }));
-vi.mock("../operation-form", () => ({ OperationForm: () => <button>Add to trip</button> }));
 import TripChecks from "./page";
 const date = "2026-09-03T07:15:00Z";
 const flag = {
@@ -45,23 +44,7 @@ const flag = {
     held_currency: "NGN",
     available_net: "90.00",
     currency: "NGN",
-    reversal_recommended: false,
-    reversal_entry_id: null,
   },
-};
-const late = {
-  id: "late",
-  driver_profile_id: "driver",
-  campaign_id: "campaign",
-  assignment_id: "job",
-  driver_name: "Ada Driver",
-  vehicle_plate: "ABJ-101",
-  campaign_name: "PalmPay Wuse",
-  trip_started_at: date,
-  trip_session_id: "trip",
-  status: "quarantined",
-  received_at: "2026-09-20T00:00:00Z",
-  ping_count: 42,
 };
 function defaultRead(
   path: string,
@@ -98,7 +81,6 @@ function defaultRead(
       },
     };
   if (path.endsWith("/fraud-flags")) return { data: { items: [flag], total: 1 } };
-  if (path.endsWith("/quarantined-batches")) return { data: { items: [late], total: 1 } };
   return { data: { items: [], total: 0 } };
 }
 const page = (query: Record<string, string> = {}) =>
@@ -123,14 +105,6 @@ describe("Trip check work lists", () => {
     const statuses = screen.getByRole("navigation", { name: "Status" });
     expect(within(statuses).getByRole("link", { current: "page" })).toHaveTextContent("All");
     expect(within(statuses).queryByRole("link", { name: /Quarantined/i })).toBeNull();
-    cleanup();
-    render(await page({ tab: "late" }));
-    const lateStatuses = screen.getByRole("navigation", { name: "Status" });
-    expect(within(lateStatuses).getAllByRole("link")).toHaveLength(3);
-    expect(within(lateStatuses).getByRole("link", { current: "page" })).toHaveAttribute(
-      "href",
-      expect.stringContaining("status=quarantined"),
-    );
     cleanup();
     render(await page({ tab: "in-person" }));
     expect(screen.queryByRole("navigation", { name: "Status" })).toBeNull();
@@ -292,19 +266,6 @@ describe("Trip check work lists", () => {
     expect(screen.queryByText(/pay stays held/)).toBeNull();
     expect(screen.queryByText("Record an in-person check")).toBeNull();
   });
-  it("uses the actual trip date for late uploads and only opens scoped decisions", async () => {
-    render(await page({ tab: "late", late: "late", driver_profile_id: "driver" }));
-    expect(screen.getAllByText(/Trip 3 Sept 2026/)).toHaveLength(2);
-    expect(screen.getByRole("button", { name: "Add to trip" })).toBeVisible();
-    expect(get).toHaveBeenCalledWith("/api/v1/admin/trips/{trip_id}/analytics", {
-      params: { path: { trip_id: "trip" } },
-    });
-  });
-  it("hides a selected late upload outside the driver filter", async () => {
-    render(await page({ tab: "late", late: "late", driver_profile_id: "other" }));
-    expect(screen.getByText("Late upload not found for these filters.")).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Add to trip" })).toBeNull();
-  });
   it("opens an inspection result beyond the first hundred", async () => {
     const rows = Array.from({ length: 101 }, (_, index) => ({
       id: `check-${index}`,
@@ -358,7 +319,7 @@ describe("Trip check work lists", () => {
       if (path.endsWith("/analytics")) throw new Error("offline");
       return defaultRead(path, options);
     });
-    render(await page({ tab: "late" }));
+    render(await page());
     expect(screen.queryByRole("alert")).toBeNull();
     expect(get.mock.calls.some(([path]) => path.endsWith("/analytics"))).toBe(false);
   });

@@ -32,9 +32,11 @@ def costs(run):
     return next(m for m in run.result_manifest["metrics"] if m["id"] == "driver_campaign_cost")
 
 
-def test_new_reports_freeze_signed_corrections_and_preserve_issued_runs(
+def test_new_measurements_freeze_signed_corrections_and_preserve_prior_runs(
     postgis_db_sessionmaker, settings
 ):
+    # The shared fixture lowers the floor to one car; exercise the production floor here.
+    settings.privacy_min_vehicles_per_cell = 3
     factory = postgis_db_sessionmaker
     admin, _, campaign = create_measurement_graph(factory, identity_tag="corrected-report")
 
@@ -46,7 +48,6 @@ def test_new_reports_freeze_signed_corrections_and_preserve_issued_runs(
             for kind, amount, state in [
                 ("adjustment", "300.00", "pending"),
                 ("reversal", "100.00", "available"),
-                ("debt_remainder", "900.00", "available"),
                 ("adjustment", "500.00", "voided"),
             ]:
                 session.add(
@@ -74,10 +75,9 @@ def test_new_reports_freeze_signed_corrections_and_preserve_issued_runs(
         )
         assert second.report_snapshot["daily_metrics"][0]["final_payout_total"] == "1400.00"
         assert costs(first)["totals_by_currency"] == [{"currency": "NGN", "value": "1200.00"}]
-        contributions = second.input_manifest["disclosure_authority"]["contributions"]
-        assert list(contributions["cost:NGN:final_payout"].values()) == ["1400.00"]
-        assert list(contributions["cost:NGN:reversal"].values()) == ["100.00"]
-        assert list(contributions["cost:NGN:credit"].values()) == ["1500.00"]
+        disclosure = second.input_manifest["disclosure_authority"]
+        assert disclosure["vehicle_count"] == 1 and disclosure["passed"] is False
+        assert not any(metric.startswith("cost:") for metric in disclosure["contributions"])
         assert first.input_manifest_sha256 == first_hash
         assert measurement_run_reproducible(first) and measurement_run_reproducible(second)
         async with factory() as session:

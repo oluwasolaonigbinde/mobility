@@ -28,7 +28,6 @@ from test_heatmaps import BBOX, PASSWORD, RECORDED_AT, add_ping_batch, create_he
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.db.integrity import integrity_constraint_name
-from app.jobs.disclosure_retention import purge_expired_disclosure_query_history
 from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.disclosure import DisclosureQueryDecision
 from app.models.driver import DriverOnboardingStatus
@@ -587,48 +586,7 @@ def test_parent_child_scope_overlap_serializes_concurrently(
     assert asyncio.run(run()) == ["served", "served"]
 
 
-def test_scheduled_retention_preserves_protection_without_source_retirement_authority(
-    db_sessionmaker,
-) -> None:
-    now = datetime.now(UTC)
-
-    async def run() -> tuple[dict[str, int], int]:
-        async with db_sessionmaker() as session:
-            for suffix, expires_at in (
-                ("a", now - timedelta(days=1)),
-                ("b", now + timedelta(days=1)),
-            ):
-                session.add(
-                    DisclosureQueryDecision(
-                        principal_hash=suffix * 64,
-                        scope_hash=suffix * 64,
-                        query_hash=suffix * 64,
-                        result_hash=suffix * 64,
-                        tenant_id=uuid4(),
-                        campaign_id=uuid4(),
-                        output_class="advertiser.campaign.heatmap",
-                        decision="served",
-                        reason="privacy_floor_passed",
-                        window_start=datetime(2026, 1, 1, tzinfo=UTC),
-                        window_end=datetime(2026, 1, 8, tzinfo=UTC),
-                        expires_at=expires_at,
-                    )
-                )
-            await session.commit()
-        result = await purge_expired_disclosure_query_history({"sessionmaker": db_sessionmaker})
-        async with db_sessionmaker() as session:
-            remaining = int(
-                await session.scalar(select(func.count()).select_from(DisclosureQueryDecision)) or 0
-            )
-        return result, remaining
-
-    assert asyncio.run(run()) == ({"deleted": 0}, 2)
-
-
-@pytest.mark.parametrize("run_scheduled_job", [False, True])
-def test_expired_history_remains_recorded_when_overlapping_views_are_served(
-    db_sessionmaker, run_scheduled_job
-):
+def test_expired_history_remains_recorded_when_overlapping_views_are_served(db_sessionmaker):
     initial = query()
     overlapping = DisclosureQuery(
         **{**initial.__dict__, "principal_id": uuid4(), "filters": {"metric": "distance_m"}}
@@ -646,8 +604,6 @@ def test_expired_history_remains_recorded_when_overlapping_views_are_served(
             first = await session.scalar(select(DisclosureQueryDecision))
             first.expires_at = datetime.now(UTC) - timedelta(days=1)
             await session.commit()
-        if run_scheduled_job:
-            await purge_expired_disclosure_query_history({"sessionmaker": db_sessionmaker})
         async with db_sessionmaker() as session:
             await record_heatmap_disclosure(
                 session,
@@ -979,7 +935,7 @@ def test_trip_cohort_releases_uneven_metrics_once_enough_cars_drove(
                     campaign_id=campaign.id,
                     driver_profile_id=first_trip.driver_profile_id,
                     vehicle_id=first_trip.vehicle_id,
-                    flag_type="insufficient_pings",
+                    flag_type="excessive_ping_gap",
                     severity="low",
                     status="open",
                     description="Synthetic daily authority boundary",
@@ -1129,7 +1085,6 @@ def test_disclosure_snapshot_and_fraud_review_share_trip_lock_order(
     from app.models.payout import EarningsLedgerEntry
     from app.services.disclosure import lock_trip_disclosure_snapshot
     from app.services.fraud_holds import (
-        acknowledge_fraud_flag,
         fraud_hold_counts,
         lock_fraud_hold_scope,
         lock_fraud_reconciliation_gate,
@@ -1146,7 +1101,7 @@ def test_disclosure_snapshot_and_fraud_review_share_trip_lock_order(
 
     async def run():
         async with factory() as setup:
-            await acknowledge_fraud_flag(setup, flag_id=flag.id, actor_user_id=graph.admin.id)
+            pass
             await setup.commit()
         started = asyncio.Event()
         follower_pid = None
@@ -1218,11 +1173,12 @@ def test_disclosure_snapshot_and_fraud_review_share_trip_lock_order(
             reversals = list(
                 await session.scalars(
                     select(EarningsLedgerEntry).where(
-                        EarningsLedgerEntry.source_fraud_flag_id == flag.id
+                        EarningsLedgerEntry.trip_session_id == graph.trip.id,
+                        EarningsLedgerEntry.entry_type == "reversal",
                     )
                 )
             )
-            assert len(reversals) == (1 if confirmed else 0)
+            assert reversals == []
             if reversals:
                 assert reversals[0].amount == Decimal("125.50")
 
@@ -1408,7 +1364,7 @@ def test_date_range_summaries_need_three_cars_in_each_released_set(
         add(
             FraudFlag(
                 **car,
-                flag_type="insufficient_pings",
+                flag_type="excessive_ping_gap",
                 severity="low",
                 status="open",
                 description="Synthetic dated fraud flag",

@@ -129,6 +129,7 @@ class PingSampleResult(BaseModel):
             "INVALID_ASSIGNMENT_AUTHORITY",
             "INVALID_ACCURACY",
             "INVALID_SPEED",
+            "PAY_ALREADY_CALCULATED",
         ]
         | None
     ) = None
@@ -148,13 +149,7 @@ class LocationPingBatchResponse(BaseModel):
     receipt_key_version: int | None = None
     receipt_signature: str | None = None
     duplicate: bool
-    # True when the trip was already sealed: the payload is preserved in
-    # quarantine (batch_id is the quarantine row) and no pings were inserted.
-    # The client must treat this as an ACK and drop the batch from its queue.
-    quarantined: bool = False
-    # Ordered per-sample disposition replayed from the batch's immutable
-    # rejection manifest. Empty for quarantined batches, which
-    # carry no per-sample adjudication.
+    evidence_scope: Literal["manifest", "late", "late_dropped"]
     sample_results: list[PingSampleResult] = Field(default_factory=list)
 
 
@@ -176,52 +171,3 @@ class TripEvidenceReconcileResponse(BaseModel):
     receipt_key_version: int
     receipt_signature: str
     duplicate: bool
-
-
-class QuarantinedPingBatchRead(BaseModel):
-    driver_profile_id: UUID | None = None
-    campaign_id: UUID | None = None
-    assignment_id: UUID | None = None
-    trip_started_at: datetime | None = None
-    driver_name: str | None = None
-    campaign_name: str | None = None
-    vehicle_plate: str | None = None
-    id: UUID
-    trip_session_id: UUID
-    idempotency_key: str
-    ping_count: int
-    received_at: datetime
-    status: str
-    resolved_at: datetime | None = None
-    resolved_by_user_id: UUID | None = None
-    resolution_note: str | None = None
-    applied_batch_id: UUID | None = None
-    created_at: datetime
-
-
-class QuarantinedPingBatchListResponse(BaseModel):
-    items: list[QuarantinedPingBatchRead]
-    total: int
-    limit: int
-    offset: int
-
-
-class QuarantineResolveRequest(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    note: str = Field(min_length=1, max_length=2000)
-
-    @field_validator("note")
-    @classmethod
-    def trim_note(cls, value: str) -> str:
-        return normalize_required_text(value)
-
-
-class QuarantineApplyResponse(BaseModel):
-    quarantine_id: UUID
-    trip_id: UUID
-    applied_batch_id: UUID
-    accepted_count: int
-    # Africa/Lagos calendar days the applied pings touch â€” the admin runs the
-    # recompute-day tool for these; applying never auto-recomputes money.
-    affected_lagos_days: list[str]

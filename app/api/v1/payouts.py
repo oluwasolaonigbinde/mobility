@@ -25,6 +25,7 @@ from app.models.payout import (
     PayoutCorrectionOrderStatus,
 )
 from app.schemas.campaigns import ensure_timezone_aware
+from app.schemas.disbursements import PayoutNegativeAdjustment
 from app.schemas.payouts import (
     AdminPayoutCalculationRead,
     CalculatePayoutRequest,
@@ -44,8 +45,8 @@ from app.schemas.payouts import (
     EarningsLedgerEntryRead,
     PayoutCalculationListResponse,
     PayoutCalculationRead,
+    PayoutCorrectionOrderApproveRequest,
     PayoutCorrectionOrderCreate,
-    PayoutCorrectionOrderExecuteRequest,
     PayoutCorrectionOrderListResponse,
     PayoutCorrectionOrderRead,
     PayoutDayProjection,
@@ -54,15 +55,13 @@ from app.schemas.payouts import (
     RecomputePayoutDayResult,
 )
 from app.services.audit import create_audit_event
+from app.services.payout_adjustments import record_negative_adjustment
 from app.services.payout_corrections import (
     approve_correction_order,
     create_correction_order,
-    execute_correction_order,
     get_correction_order,
     list_correction_orders,
     project_campaign_day,
-    reject_correction_order,
-    submit_correction_order,
 )
 from app.services.payouts.breakdown import driver_trip_earnings_breakdown
 from app.services.payouts.common import recompute_requires_correction_order
@@ -469,7 +468,6 @@ async def driver_get_earnings_summary(
                 lifetime_earned_amount=total.lifetime_earned_amount,
                 released_available_amount=total.released_available_amount,
                 cash_paid_amount=total.cash_paid_amount,
-                carry_forward_debt_amount=total.carry_forward_debt_amount,
                 batch_payable_amount=total.batch_payable_amount,
                 ledger_entry_count=total.ledger_entry_count,
             )
@@ -591,7 +589,7 @@ async def admin_recompute_payout_day(
     settings: SettingsDependency,
 ) -> RecomputePayoutDayResult:
     """PR7: the direct execute path is retired. Every retroactive recompute —
-    regardless of delta sign — runs through an approved maker-checker
+    regardless of delta sign — runs through an approved reasoned manual
     correction order. The route stays registered so the contract and the
     audit-coverage table remain consistent; it always answers 409."""
     del payload, current_user, session, settings
@@ -761,129 +759,54 @@ async def admin_get_correction_order(
 
 
 @router.post(
-    "/admin/payouts/correction-orders/{order_id}/submit",
-    response_model=PayoutCorrectionOrderRead,
-    summary="Submit a draft correction order for approval",
+    "/admin/earnings-ledger/{entry_id}/negative-adjustments",
+    response_model=EarningsLedgerEntryRead,
+    status_code=status.HTTP_201_CREATED,
+    summary="Record an audited manual negative adjustment on a trip",
 )
-async def admin_submit_correction_order(
-    order_id: UUID,
+async def admin_record_negative_adjustment(
+    entry_id: UUID,
+    payload: PayoutNegativeAdjustment,
     current_user: AdminUserDependency,
     session: SessionDependency,
-) -> PayoutCorrectionOrderRead:
-    order = await submit_correction_order(session, order_id=order_id, actor_user_id=current_user.id)
-    await create_audit_event(
+) -> EarningsLedgerEntryRead:
+    entry = await record_negative_adjustment(
         session,
+        source_entry_id=entry_id,
         actor_user_id=current_user.id,
-        action="admin.payout_correction_order.submitted",
-        entity_type="payout_correction_order",
-        entity_id=str(order.id),
-        metadata={
-            "status_before": PayoutCorrectionOrderStatus.DRAFT.value,
-            "status_after": order.status,
-            **correction_order_audit_values(order),
-        },
+        request_id=payload.request_id,
+        amount=payload.amount,
+        currency=payload.currency,
+        reason=payload.reason,
+        lagos_day=payload.lagos_day,
     )
     await session.commit()
-    return correction_order_response(order)
+    return ledger_entry_response(entry)
 
 
 @router.post(
     "/admin/payouts/correction-orders/{order_id}/approve",
     response_model=PayoutCorrectionOrderRead,
-    summary="Approve a correction order (approver must differ from creator)",
+    summary="Approve and apply a saved pay correction with a reason",
 )
 async def admin_approve_correction_order(
     order_id: UUID,
+    payload: PayoutCorrectionOrderApproveRequest,
     current_user: AdminUserDependency,
     session: SessionDependency,
     settings: SettingsDependency,
 ) -> PayoutCorrectionOrderRead:
-    order = await approve_correction_order(
-        session, order_id=order_id, actor_user_id=current_user.id, settings=settings
-    )
-    await create_audit_event(
-        session,
-        actor_user_id=current_user.id,
-        action="admin.payout_correction_order.approved",
-        entity_type="payout_correction_order",
-        entity_id=str(order.id),
-        metadata={
-            "status_before": PayoutCorrectionOrderStatus.PENDING_APPROVAL.value,
-            "status_after": order.status,
-            **correction_order_audit_values(order),
-        },
-    )
-    await session.commit()
-    return correction_order_response(order)
-
-
-@router.post(
-    "/admin/payouts/correction-orders/{order_id}/reject",
-    response_model=PayoutCorrectionOrderRead,
-    summary="Reject a pending correction order",
-)
-async def admin_reject_correction_order(
-    order_id: UUID,
-    current_user: AdminUserDependency,
-    session: SessionDependency,
-) -> PayoutCorrectionOrderRead:
-    order = await reject_correction_order(session, order_id=order_id, actor_user_id=current_user.id)
-    await create_audit_event(
-        session,
-        actor_user_id=current_user.id,
-        action="admin.payout_correction_order.rejected",
-        entity_type="payout_correction_order",
-        entity_id=str(order.id),
-        metadata={
-            "status_before": PayoutCorrectionOrderStatus.PENDING_APPROVAL.value,
-            "status_after": order.status,
-            "rejected_by_user_id": str(current_user.id),
-            **correction_order_audit_values(order),
-        },
-    )
-    await session.commit()
-    return correction_order_response(order)
-
-
-@router.post(
-    "/admin/payouts/correction-orders/{order_id}/execute",
-    response_model=PayoutCorrectionOrderRead,
-    summary="Execute an approved correction order (idempotent)",
-)
-async def admin_execute_correction_order(
-    order_id: UUID,
-    current_user: AdminUserDependency,
-    session: SessionDependency,
-    settings: SettingsDependency,
-    payload: Annotated[PayoutCorrectionOrderExecuteRequest | None, Body()] = None,
-) -> PayoutCorrectionOrderRead:
-    request = payload or PayoutCorrectionOrderExecuteRequest()
-    order, executed_now = await execute_correction_order(
+    order, executed_now = await approve_correction_order(
         session,
         order_id=order_id,
         actor_user_id=current_user.id,
-        release_at=request.release_at,
-        request_metadata=request.metadata,
+        release_at=payload.release_at,
+        request_metadata=payload.metadata,
         settings=settings,
+        reason=payload.reason,
     )
     if executed_now:
-        await create_audit_event(
-            session,
-            actor_user_id=current_user.id,
-            action="admin.payout_correction_order.executed",
-            entity_type="payout_correction_order",
-            entity_id=str(order.id),
-            metadata={
-                "status_before": PayoutCorrectionOrderStatus.APPROVED.value,
-                "status_after": order.status,
-                "release_at": (
-                    request.release_at.isoformat() if request.release_at is not None else None
-                ),
-                **correction_order_audit_values(order),
-            },
-        )
         await session.commit()
-    # Idempotent replay: no mutation happened, return the recorded result.
     return correction_order_response(order)
 
 

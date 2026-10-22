@@ -1753,7 +1753,7 @@ def test_seed_business_ownership_and_applicant_financial_separation(
             from app.models.billing import BudgetCampaignTransition
             from app.services.billing.budget import (
                 campaign_budget_used,
-                sweep_budget_policy_evaluations,
+                sweep_campaign_budgets,
             )
 
             now = datetime.now(UTC)
@@ -1765,7 +1765,7 @@ def test_seed_business_ownership_and_applicant_financial_separation(
                 assert used["amount"] <= used["budget_amount"], campaign.name
             statuses = {row.id: row.status for row in campaigns}
             async with postgis_db_sessionmaker() as sweep:
-                evaluated = await sweep_budget_policy_evaluations(sweep)
+                evaluated = await sweep_campaign_budgets(sweep)
                 # Every budgeted campaign was actually evaluated, not skipped by an error.
                 assert len(evaluated) == sum(
                     (row.budget_amount or 0) > 0 for row in await sweep.scalars(select(Campaign))
@@ -1860,7 +1860,7 @@ def test_seed_business_ownership_and_applicant_financial_separation(
                     assert stored.scanned_at <= submission.submitted_at
             for line in await session.scalars(select(PayoutBatchLine)):
                 batch = await session.get(PayoutBatch, line.batch_id)
-                if batch.approval_mode != "maker_checker":
+                if batch.approval_mode != "manual":
                     continue
                 entry = await session.get(EarningsLedgerEntry, line.ledger_entry_id)
                 trip = await session.get(TripSession, entry.trip_session_id)

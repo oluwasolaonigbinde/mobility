@@ -209,7 +209,7 @@ export default async function CampaignHub({
     `${root}?${new URLSearchParams(Object.entries(query).filter(([key]) => !["drawer", "invoice", "job", "run", "report", "page"].includes(key)))}#${section}`;
   const hrefFor = (key: string, value: number, anchor: string) =>
     `${root}?${new URLSearchParams({ ...query, [key]: String(value) })}#${anchor}`;
-  const latestBudget = commercial.data?.budget_evaluations.at(-1);
+  const latestBudget = commercial.data?.budget_check;
   const spent = latestBudget?.billing_spend_amount;
   const budget = campaign.budget_amount;
   const percentage =

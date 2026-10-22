@@ -176,27 +176,6 @@ export const sources: Source[] = [
       ),
   ),
   source(
-    "late",
-    "Operations",
-    "trips",
-    "Late uploads",
-    "/admin/trip-checks?tab=late",
-    (api, limit, offset) =>
-      api.GET("/api/v1/admin/trips/quarantined-batches", {
-        params: { query: { limit, offset, status: "quarantined" } },
-      }),
-    (r) =>
-      task(
-        `late:${r.id}`,
-        "trips",
-        r.received_at,
-        "Received",
-        `${present(r.driver_name)} · ${present(r.vehicle_plate)}`,
-        `Late upload for ${formatDate(r.trip_started_at)} trip`,
-        `/admin/trip-checks?tab=late&late=${r.id}`,
-      ),
-  ),
-  source(
     "campaigns",
     "Compliance",
     "campaigns",
@@ -281,7 +260,7 @@ export const sources: Source[] = [
         "Created",
         `Payment run ${formatDate(r.created_at)}`,
         [
-          r.status === "reserved" && r.approval_mode === "maker_checker" && !r.approved_at
+          r.status === "reserved" && r.approval_mode === "manual" && !r.approved_at
             ? "Needs approval"
             : null,
           (r.outcomes.failed ?? 0) > 0 ? "Has failed payments" : null,
@@ -322,7 +301,7 @@ export const sources: Source[] = [
     "/admin/money?tab=corrections",
     (api, limit, offset) =>
       api.GET("/api/v1/admin/payouts/correction-orders", {
-        params: { query: { limit, offset, status: "pending_approval", oldest_first: true } },
+        params: { query: { limit, offset, status: "draft", oldest_first: true } },
       }),
     (r) =>
       task(
