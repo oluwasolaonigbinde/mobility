@@ -157,12 +157,21 @@ export async function reviewInstallationEvidenceAction(
   }
   const api = createApiClient(await getSessionToken());
   const path = { params: { path: { submission_id: parsed.data.submission_id } } };
+  let done = "Installation rejected";
   try {
     if (parsed.data.intent === "approve") {
-      await api.POST("/api/v1/admin/installation-evidence/{submission_id}/approve", {
-        ...path,
-        body: {},
-      });
+      const { data } = await api.POST(
+        "/api/v1/admin/installation-evidence/{submission_id}/approve",
+        {
+          ...path,
+          body: {},
+        },
+      );
+      if (!data)
+        return { error: "Approval could not be confirmed. Reload to check the photos and job." };
+      done = data.activation?.ready
+        ? "Installation approved and job started."
+        : `Installation approved. Job has not started: ${data.activation?.message ?? "Check the job's prerequisites."}`;
     } else {
       await api.POST("/api/v1/admin/installation-evidence/{submission_id}/reject", {
         ...path,
@@ -175,7 +184,7 @@ export async function reviewInstallationEvidenceAction(
   }
   revalidatePath("/admin/campaigns");
   revalidatePath("/admin/campaigns/[campaignId]", "page");
-  return {
-    done: parsed.data.intent === "approve" ? "Installation approved" : "Installation rejected",
-  };
+  revalidatePath("/admin/approvals");
+  revalidatePath("/admin");
+  return { done };
 }

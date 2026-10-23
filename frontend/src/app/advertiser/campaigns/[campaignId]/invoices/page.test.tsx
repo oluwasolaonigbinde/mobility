@@ -6,7 +6,6 @@ vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: mocks.get })
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
 vi.mock("@/lib/auth/current-user", () => ({
   requireRole: mocks.role,
-  isAdvertiserViewer: (me: { viewer?: boolean }) => Boolean(me.viewer),
 }));
 vi.mock("next/navigation", () => ({
   notFound: () => {
@@ -49,17 +48,6 @@ it("has a working empty destination", async () => {
   render(await Page(input));
   expect(screen.getByRole("heading", { name: "Invoices" })).toBeInTheDocument();
   expect(screen.getByText("No invoices yet")).toBeInTheDocument();
-});
-it("does not offer payments to a company viewer", async () => {
-  mocks.role.mockResolvedValue({ viewer: true });
-  commercial({ invoices: [invoice], settlements: [] });
-  render(await Page(input));
-  expect(screen.getByText("INV-1")).toBeInTheDocument();
-  expect(screen.getByRole("link", { name: "View invoice" })).toHaveAttribute(
-    "href",
-    "/advertiser/campaigns/one/invoices/invoice",
-  );
-  expect(screen.queryByRole("button", { name: "Pay invoice online" })).toBeNull();
 });
 it("retains the real invoice history and existing payment action for an owner", async () => {
   commercial({ invoices: [invoice], settlements: [] });

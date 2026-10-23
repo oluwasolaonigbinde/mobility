@@ -180,7 +180,6 @@ export async function loadDriverCampaignJourney(): Promise<LoadedDriverCampaignJ
     "active",
     "declined",
     "expired",
-    "deactivated",
     "cancelled",
     "completed",
   ];

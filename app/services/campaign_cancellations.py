@@ -161,13 +161,12 @@ async def request_campaign_cancellation(
         await _validate_cancellation_complaint(session, campaign, complaint_id)
     if campaign.status not in {
         CampaignStatus.APPROVED.value,
-        CampaignStatus.SCHEDULED.value,
         CampaignStatus.ACTIVE.value,
         CampaignStatus.PAUSED.value,
     }:
         raise _error(
             "CAMPAIGN_CANCELLATION_NOT_AVAILABLE",
-            "Only an approved, scheduled, active or paused campaign can be cancelled",
+            "Only an approved, active or paused campaign can be cancelled",
         )
 
     now = await database_clock(session)
@@ -233,7 +232,6 @@ async def request_campaign_cancellation(
                         CampaignAssignmentStatus.OFFERED.value,
                         CampaignAssignmentStatus.ACCEPTED.value,
                         CampaignAssignmentStatus.ACTIVE.value,
-                        CampaignAssignmentStatus.DEACTIVATED.value,
                     }
                 ),
             )

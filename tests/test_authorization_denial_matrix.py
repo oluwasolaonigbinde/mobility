@@ -427,17 +427,18 @@ def test_generated_advertiser_campaign_reads_hide_foreign_guessed_and_stale_memb
 
 
 @pytest.mark.parametrize(
-    ("membership_role", "membership_status", "expected_status"),
+    ("membership_status", "user_status", "organization_status", "expected_status"),
     [
-        (MembershipRole.OWNER, MembershipStatus.ACTIVE, 201),
-        (MembershipRole.MANAGER, MembershipStatus.ACTIVE, 201),
-        (MembershipRole.VIEWER, MembershipStatus.ACTIVE, 403),
-        (MembershipRole.MANAGER, MembershipStatus.DISABLED, 404),
+        (MembershipStatus.ACTIVE, UserStatus.ACTIVE, "active", 201),
+        (MembershipStatus.DISABLED, UserStatus.ACTIVE, "active", 404),
+        (MembershipStatus.ACTIVE, UserStatus.DISABLED, "active", 403),
+        (MembershipStatus.ACTIVE, UserStatus.ACTIVE, "disabled", 404),
     ],
 )
 def test_advertiser_write_capability_matrix(
-    membership_role,
     membership_status,
+    user_status,
+    organization_status,
     expected_status,
     postgis_db_client,
     postgis_db_sessionmaker,
@@ -447,14 +448,16 @@ def test_advertiser_write_capability_matrix(
     db_sessionmaker = postgis_db_sessionmaker
     actor = create_test_user(
         db_sessionmaker,
-        email=f"matrix-{membership_role}-{membership_status}@example.com",
+        email="matrix-advertiser@example.com",
         role=UserRole.ADVERTISER,
+        user_status=user_status,
     )
     create_test_organization(
         db_sessionmaker,
-        name=f"Matrix {membership_role} {membership_status}",
+        name="Matrix advertiser",
+        organization_status=organization_status,
         owner_user_id=actor.id,
-        membership_role=membership_role,
+        membership_role=MembershipRole.ADVERTISER,
         membership_status=membership_status,
     )
     before = _audit_count(db_sessionmaker)
@@ -473,7 +476,7 @@ def test_advertiser_write_capability_matrix(
 
     assert response.status_code == expected_status, response.text
     if expected_status == 403:
-        assert response.json()["error"]["code"] == "ADVERTISER_MEMBERSHIP_WRITE_FORBIDDEN"
+        assert response.json()["error"]["code"] == "USER_NOT_ACTIVE"
     if expected_status == 404:
         assert response.json()["error"]["code"] == "ADVERTISER_ORGANIZATION_NOT_FOUND"
     expected_audit_delta = 1 if expected_status == 201 else 0

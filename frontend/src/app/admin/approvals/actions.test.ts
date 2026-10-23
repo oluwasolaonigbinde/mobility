@@ -154,7 +154,7 @@ describe("reviewCreativeAction", () => {
 describe("reviewInstallationEvidenceAction", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.post.mockResolvedValue({ data: {} });
+    mocks.post.mockResolvedValue({ data: { activation: { ready: true } } });
   });
 
   function evidenceForm(intent: "approve" | "reject", reason = ""): FormData {
@@ -167,7 +167,7 @@ describe("reviewInstallationEvidenceAction", () => {
 
   it("uses governed evidence decisions and rejects an empty rejection reason", async () => {
     await expect(reviewInstallationEvidenceAction({}, evidenceForm("approve"))).resolves.toEqual({
-      done: "Installation approved",
+      done: "Installation approved and job started.",
     });
     expect(mocks.post).toHaveBeenCalledWith(
       "/api/v1/admin/installation-evidence/{submission_id}/approve",
@@ -182,5 +182,14 @@ describe("reviewInstallationEvidenceAction", () => {
       reviewInstallationEvidenceAction({}, evidenceForm("reject", "   ")),
     ).resolves.toEqual({ error: "A rejection reason is required" });
     expect(mocks.post).not.toHaveBeenCalled();
+  });
+
+  it("keeps the approval and shows the unmet activation check", async () => {
+    mocks.post.mockResolvedValue({
+      data: { activation: { ready: false, message: "Production start is required." } },
+    });
+    await expect(reviewInstallationEvidenceAction({}, evidenceForm("approve"))).resolves.toEqual({
+      done: "Installation approved. Job has not started: Production start is required.",
+    });
   });
 });

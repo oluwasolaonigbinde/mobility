@@ -1,11 +1,5 @@
 const MAX_CREATIVE_BYTES = 25 * 1024 * 1024;
-const ACCEPTED_TYPES = new Set([
-  "application/pdf",
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "video/mp4",
-]);
+const ACCEPTED_TYPES = new Set(["application/pdf", "image/jpeg", "image/png", "image/webp"]);
 
 export type CreativeUploadPhase = "hashing" | "uploading" | "scanning" | "clean";
 export const CREATIVE_UPLOAD_PHASE_LABELS: Record<CreativeUploadPhase, string> = {
@@ -94,9 +88,8 @@ export async function uploadCreativeFile(
   file: File,
   onPhase: (phase: CreativeUploadPhase) => void,
   options: { pollDelayMs?: number; maxPolls?: number; clientRequestId?: string } = {},
-): Promise<{ storedFileId: string; creativeType: "image" | "video" | "other" }> {
-  if (!ACCEPTED_TYPES.has(file.type))
-    throw new Error("Choose a PNG, JPEG, WebP, MP4, or PDF file.");
+): Promise<{ storedFileId: string; creativeType: "image" | "pdf" }> {
+  if (!ACCEPTED_TYPES.has(file.type)) throw new Error("Choose a PNG, JPEG, WebP or PDF file.");
   if (file.size <= 0 || file.size > MAX_CREATIVE_BYTES) {
     throw new Error("Creative files must be larger than 0 bytes and no more than 25 MB.");
   }
@@ -157,10 +150,6 @@ export async function uploadCreativeFile(
   onPhase("clean");
   return {
     storedFileId: stored.id,
-    creativeType: file.type.startsWith("image/")
-      ? "image"
-      : file.type.startsWith("video/")
-        ? "video"
-        : "other",
+    creativeType: file.type === "application/pdf" ? "pdf" : "image",
   };
 }

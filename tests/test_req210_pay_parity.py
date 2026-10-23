@@ -45,6 +45,15 @@ def test_seed_pay_and_ledger_match_before_slimdown(
     monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
     monkeypatch.setattr(demo, "utc_now", lambda: now)
     monkeypatch.setattr(rich, "utc_now", lambda: now)
+
+    async def fixed_cancellation_clock(_session):
+        return now
+
+    # Refund seed facts are also dated by the frozen seed clock. Otherwise this
+    # exact historical baseline ages out of its 24-hour window on a later day.
+    monkeypatch.setattr(
+        "app.services.campaign_cancellations.database_clock", fixed_cancellation_clock
+    )
     seed_demo_graph(postgis_db_sessionmaker, settings)
 
     async def read_money():

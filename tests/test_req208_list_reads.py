@@ -170,7 +170,7 @@ def test_campaign_list_carries_the_card_picture(db_client, db_sessionmaker) -> N
         db_sessionmaker, campaign_id=campaign.id, creative_status=CreativeStatus.APPROVED
     )
     ready_new = create_test_campaign_creative(
-        db_sessionmaker, campaign_id=campaign.id, creative_status=CreativeStatus.READY
+        db_sessionmaker, campaign_id=campaign.id, creative_status=CreativeStatus.DRAFT
     )
     infected_newest = create_test_campaign_creative(
         db_sessionmaker, campaign_id=campaign.id, creative_status=CreativeStatus.APPROVED

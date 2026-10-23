@@ -17,7 +17,6 @@ const COUNTS = {
   active: 1,
   declined: 0,
   expired: 0,
-  deactivated: 0,
   cancelled: 0,
   completed: 0,
 };
@@ -230,24 +229,18 @@ describe("loadDriverCampaignJourney", () => {
     expect(result.trackerAssignment).toBeNull();
   });
 
-  it.each([
-    "offered",
-    "accepted",
-    "active",
-    "declined",
-    "expired",
-    "deactivated",
-    "cancelled",
-    "completed",
-  ])("does not treat a missing %s count as zero", async (status) => {
-    const ready = mocks.get.getMockImplementation();
-    mocks.get.mockImplementation(async (path: string, options?: Record<string, unknown>) => {
-      const result = await ready?.(path, options);
-      if (path === "/api/v1/driver/current-job") delete result.data.counts[status];
-      return result;
-    });
-    const result = await loadDriverCampaignJourney();
-    expect(result.journey.canStart).toBe(false);
-    expect(result.journey.steps.find((step) => step.id === "offer")?.state).toBe("degraded");
-  });
+  it.each(["offered", "accepted", "active", "declined", "expired", "cancelled", "completed"])(
+    "does not treat a missing %s count as zero",
+    async (status) => {
+      const ready = mocks.get.getMockImplementation();
+      mocks.get.mockImplementation(async (path: string, options?: Record<string, unknown>) => {
+        const result = await ready?.(path, options);
+        if (path === "/api/v1/driver/current-job") delete result.data.counts[status];
+        return result;
+      });
+      const result = await loadDriverCampaignJourney();
+      expect(result.journey.canStart).toBe(false);
+      expect(result.journey.steps.find((step) => step.id === "offer")?.state).toBe("degraded");
+    },
+  );
 });

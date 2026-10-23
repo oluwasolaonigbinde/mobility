@@ -37,7 +37,7 @@ export async function GET(
     if (
       !upstream.ok ||
       !mime ||
-      ![...RASTERS, "application/pdf", "video/mp4"].includes(mime) ||
+      ![...RASTERS, "application/pdf"].includes(mime) ||
       Number(upstream.headers.get("content-length")) > MAX_BYTES
     ) {
       await upstream.body?.cancel();

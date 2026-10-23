@@ -452,7 +452,7 @@ def test_earlier_future_start_is_classified_as_an_expansion(
         db_sessionmaker,
         organization_id=organization.id,
         created_by_user_id=advertiser.id,
-        campaign_status=CampaignStatus.SCHEDULED,
+        campaign_status=CampaignStatus.APPROVED,
         start_at=current_start,
         end_at=now + timedelta(days=10),
         budget_amount="1000.00",

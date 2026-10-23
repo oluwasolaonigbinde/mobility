@@ -593,10 +593,7 @@ async def admin_assignment_readiness(
     return AssignmentReadinessRead(
         assignment_id=assignment_id,
         ready=True,
-        message=(
-            "Ready for administrator activation. "
-            "Every prerequisite is checked again when you activate."
-        ),
+        message=("Every prerequisite passes. You can retry starting this approved job."),
     )
 
 

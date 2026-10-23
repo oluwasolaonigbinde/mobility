@@ -5,8 +5,6 @@ import Page from "./page";
 const mocks = vi.hoisted(() => ({ get: vi.fn(), role: vi.fn() }));
 vi.mock("@/lib/auth/current-user", () => ({
   requireRole: mocks.role,
-  isAdvertiserViewer: (me: { advertiser_organization?: { membership_role?: string } }) =>
-    me.advertiser_organization?.membership_role === "viewer",
 }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "session" }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: mocks.get }) }));
@@ -44,15 +42,6 @@ it("keeps ordinary new campaign creation available", async () => {
   expect(screen.getByRole("heading", { name: "New campaign" })).toBeInTheDocument();
   expect(mocks.get).not.toHaveBeenCalled();
   expect(mocks.role).toHaveBeenCalledWith("advertiser");
-});
-it("explains view-only access instead of offering a form the server refuses", async () => {
-  mocks.role.mockResolvedValue({
-    advertiser_organization: { currency: "NGN", membership_role: "viewer" },
-  });
-  render(await Page({ searchParams: Promise.resolve({ campaignId: id }) }));
-  expect(screen.getByText(/Only company owners and managers can create campaigns/)).toBeVisible();
-  expect(screen.queryByTestId("wizard")).not.toBeInTheDocument();
-  expect(mocks.get).not.toHaveBeenCalled();
 });
 it("loads the authorised saved campaign and areas for recovery", async () => {
   render(await Page({ searchParams: Promise.resolve({ campaignId: id }) }));

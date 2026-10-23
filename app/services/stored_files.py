@@ -94,10 +94,10 @@ async def _advertiser_scope(session: AsyncSession, *, actor_user_id: UUID, write
         or organization.status != OrganizationStatus.ACTIVE
     ):
         raise _error("FILE_SCOPE_NOT_FOUND", "File scope was not found", status.HTTP_404_NOT_FOUND)
-    if write and membership.role not in {MembershipRole.OWNER, MembershipRole.MANAGER}:
+    if write and membership.role != MembershipRole.ADVERTISER:
         raise _error(
             "ORGANIZATION_WRITE_FORBIDDEN",
-            "Owner or manager access is required",
+            "Active advertiser access is required",
             status.HTTP_403_FORBIDDEN,
         )
     return organization.id
@@ -312,7 +312,6 @@ def _safe_subject_filename(payload: FileUploadCreate) -> str:
         "image/jpeg": "jpg",
         "image/png": "png",
         "image/webp": "webp",
-        "video/mp4": "mp4",
     }
     return f"{payload.purpose.value.replace('_', '-')}.{extensions[payload.content_type]}"
 

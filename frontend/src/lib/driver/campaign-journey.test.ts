@@ -18,7 +18,6 @@ const emptyOffers: OfferAuthority = {
   active: 0,
   declined: 0,
   expired: 0,
-  deactivated: 0,
   cancelled: 0,
   completed: 0,
 };

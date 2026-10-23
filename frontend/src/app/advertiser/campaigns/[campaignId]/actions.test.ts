@@ -512,7 +512,7 @@ describe("campaign action failure and partial-input paths", () => {
     );
     const form = creativeSubmitForm();
     form.set("stored_file_id", "00000000-0000-4000-8000-000000000099");
-    form.set("creative_type", "video");
+    form.set("creative_type", "pdf");
 
     await expect(replaceCreativeAndSubmitAction({}, form)).resolves.toEqual({
       error: "The creative file is not ready for review.",

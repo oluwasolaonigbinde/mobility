@@ -151,7 +151,7 @@ describe("CreativeStatusActions", () => {
   it("keeps a failed replacement submission retryable without hiding the cleared file", async () => {
     const user = userEvent.setup();
     let finish!: (state: { error: string }) => void;
-    mocks.upload.mockResolvedValue({ storedFileId: STORED_FILE_ID, creativeType: "video" });
+    mocks.upload.mockResolvedValue({ storedFileId: STORED_FILE_ID, creativeType: "pdf" });
     mocks.replace.mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -160,7 +160,7 @@ describe("CreativeStatusActions", () => {
     );
     renderActions("draft");
 
-    chooseReplacement(new File(["clip"], "clip.mp4", { type: "video/mp4" }));
+    chooseReplacement(new File(["%PDF"], "wrap.pdf", { type: "application/pdf" }));
     await user.click(await screen.findByRole("button", { name: "Replace and submit" }));
     expect(await screen.findByRole("button", { name: "Replacing…" })).toBeDisabled();
 
@@ -169,7 +169,7 @@ describe("CreativeStatusActions", () => {
       "The artwork result is not yet confirmed.",
     );
     expect(screen.getByRole("button", { name: "Replace and submit" })).toBeEnabled();
-    expect((mocks.replace.mock.calls[0]?.[1] as FormData).get("creative_type")).toBe("video");
+    expect((mocks.replace.mock.calls[0]?.[1] as FormData).get("creative_type")).toBe("pdf");
   });
 
   it("reuses the upload identity when the same file is retried after a failure", async () => {

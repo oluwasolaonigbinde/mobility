@@ -935,7 +935,7 @@ def test_pings_require_active_owned_trip_and_active_assignment(db_client, db_ses
     update_assignment_status(
         db_sessionmaker,
         second_assignment.id,
-        CampaignAssignmentStatus.DEACTIVATED,
+        CampaignAssignmentStatus.CANCELLED,
     )
     inactive_assignment = db_client.post(
         f"/api/v1/driver/trips/{second_trip_id}/pings",

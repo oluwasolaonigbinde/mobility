@@ -365,7 +365,6 @@ const server = createServer(async (request, response) => {
         active: 1,
         declined: 0,
         expired: 0,
-        deactivated: 0,
         cancelled: 0,
         completed: 0,
       },

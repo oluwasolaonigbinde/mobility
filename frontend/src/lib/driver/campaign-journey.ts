@@ -33,7 +33,6 @@ export interface OfferAuthority {
   active: number;
   declined: number;
   expired: number;
-  deactivated: number;
   cancelled: number;
   completed: number;
 }

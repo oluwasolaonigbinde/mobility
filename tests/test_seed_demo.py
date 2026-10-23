@@ -1712,7 +1712,9 @@ def test_seed_business_ownership_and_applicant_financial_separation(
             campaigns = list(await session.scalars(select(Campaign)))
             memberships = list(await session.scalars(select(OrganizationMembership)))
             owners = {
-                (row.organization_id, row.user_id) for row in memberships if row.role == "owner"
+                (row.organization_id, row.user_id)
+                for row in memberships
+                if row.role == "advertiser"
             }
             for campaign in campaigns:
                 assert campaign.name.split(" — ")[0] == companies[campaign.organization_id].name
@@ -1726,7 +1728,7 @@ def test_seed_business_ownership_and_applicant_financial_separation(
             assert {
                 "draft",
                 "pending_review",
-                "scheduled",
+                "approved",
                 "active",
                 "paused",
                 "completed",

@@ -114,7 +114,7 @@ def build_graph(sm) -> Graph:
         sm, email="cs-adv2@example.com", role=UserRole.ADVERTISER, full_name="Other Owner"
     )
     org, _ = create_test_organization(sm, name="Acme Ads", owner_user_id=advertiser.id)
-    _add_member(sm, org_id=org.id, user_id=viewer.id, role=MembershipRole.VIEWER)
+    _add_member(sm, org_id=org.id, user_id=viewer.id, role=MembershipRole.ADVERTISER)
     other_org, _ = create_test_organization(sm, name="Other Ads", owner_user_id=other_advertiser.id)
     profile = create_test_driver_profile(sm, user_id=driver.id)
     other_profile = create_test_driver_profile(sm, user_id=other_driver.id)

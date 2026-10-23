@@ -5,8 +5,6 @@ import { ApiError } from "@/lib/api/errors";
 const mocks = vi.hoisted(() => ({ get: vi.fn(), role: vi.fn() }));
 vi.mock("@/lib/auth/current-user", () => ({
   requireRole: mocks.role,
-  isAdvertiserViewer: (me: { advertiser_organization?: { membership_role?: string } }) =>
-    me.advertiser_organization?.membership_role === "viewer",
 }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "session" }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: mocks.get }) }));
@@ -18,14 +16,14 @@ beforeEach(() => {
   mocks.get.mockResolvedValue({ data: { items: [], total: 0 } });
 });
 
-it("offers campaign creation to owners and managers", async () => {
-  mocks.role.mockResolvedValue({ advertiser_organization: { membership_role: "manager" } });
+it("offers campaign creation to advertisers", async () => {
+  mocks.role.mockResolvedValue({ advertiser_organization: { membership_role: "advertiser" } });
   render(await CampaignsPage({ searchParams: Promise.resolve({}) }));
   expect(screen.getByRole("link", { name: "+ New campaign" })).toBeInTheDocument();
 });
 
 it("shows only three campaign groups and marks the selected tab", async () => {
-  mocks.role.mockResolvedValue({ advertiser_organization: { membership_role: "manager" } });
+  mocks.role.mockResolvedValue({ advertiser_organization: { membership_role: "advertiser" } });
   render(await CampaignsPage({ searchParams: Promise.resolve({ group: "setup" }) }));
   const filters = screen.getByRole("navigation", { name: "Campaign groups" });
   const current = filters.querySelectorAll('[aria-current="page"]');
@@ -38,10 +36,10 @@ it("shows only three campaign groups and marks the selected tab", async () => {
 });
 it.each([
   ["running", ["active", "paused"]],
-  ["setup", ["draft", "pending_review", "approved", "rejected", "scheduled"]],
+  ["setup", ["draft", "pending_review", "approved", "rejected"]],
   ["finished", ["completed", "cancelled"]],
 ])("groups every campaign status under %s", async (group, expected) => {
-  mocks.role.mockResolvedValue({ advertiser_organization: { membership_role: "manager" } });
+  mocks.role.mockResolvedValue({ advertiser_organization: { membership_role: "advertiser" } });
   const statuses = [
     "active",
     "paused",
@@ -49,7 +47,6 @@ it.each([
     "pending_review",
     "approved",
     "rejected",
-    "scheduled",
     "completed",
     "cancelled",
   ];
@@ -74,7 +71,7 @@ it.each([
     );
 });
 it("reads the complete population before applying a group filter", async () => {
-  mocks.role.mockResolvedValue({ advertiser_organization: { membership_role: "manager" } });
+  mocks.role.mockResolvedValue({ advertiser_organization: { membership_role: "advertiser" } });
   mocks.get
     .mockResolvedValueOnce({
       data: { items: [{ id: "draft", name: "Draft", status: "draft" }], total: 2 },
@@ -94,7 +91,7 @@ it("reads the complete population before applying a group filter", async () => {
 it.each(["failed", "empty", "duplicate", "changed-total", "oversized"])(
   "does not show a partial list as complete: %s",
   async (failure) => {
-    mocks.role.mockResolvedValue({ advertiser_organization: { membership_role: "manager" } });
+    mocks.role.mockResolvedValue({ advertiser_organization: { membership_role: "advertiser" } });
     mocks.get.mockResolvedValueOnce({
       data: { items: [{ id: "one", status: "active", name: "First campaign" }], total: 2 },
     });
@@ -124,7 +121,7 @@ it.each(["failed", "empty", "duplicate", "changed-total", "oversized"])(
 );
 
 it("shows each campaign's own booked figure, never a total, and a dash when it is missing", async () => {
-  mocks.role.mockResolvedValue({ advertiser_organization: { membership_role: "manager" } });
+  mocks.role.mockResolvedValue({ advertiser_organization: { membership_role: "advertiser" } });
   const used = {
     amount: "1000.00",
     budget_amount: "1000.00",
@@ -164,12 +161,4 @@ it("shows each campaign's own booked figure, never a total, and a dash when it i
   expect(cell("daily")).toHaveTextContent(/^₦25\.00$/);
   expect(cell("missing")).toHaveTextContent("—not available");
   expect(document.body).not.toHaveTextContent("₦1,025.00");
-});
-
-it("explains view-only access instead of a create button for viewers", async () => {
-  mocks.role.mockResolvedValue({ advertiser_organization: { membership_role: "viewer" } });
-  render(await CampaignsPage({ searchParams: Promise.resolve({}) }));
-  expect(screen.queryByRole("link", { name: "+ New campaign" })).not.toBeInTheDocument();
-  expect(screen.getByText(/View only/)).toBeInTheDocument();
-  expect(screen.queryByRole("link", { name: /Create a campaign/ })).toBeNull();
 });

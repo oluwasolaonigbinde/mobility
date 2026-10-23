@@ -7,7 +7,7 @@ import { Field } from "@/components/ui/field";
 
 const initialState: AdminActionState = {};
 
-const TYPES = ["car", "van", "minibus", "bus", "motorcycle", "tricycle", "other"] as const;
+const TYPES = ["car"] as const;
 
 export function VehicleForm({
   users,

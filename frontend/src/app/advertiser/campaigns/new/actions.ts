@@ -13,8 +13,8 @@ import {
   type CampaignWizardInput,
 } from "@/lib/campaigns/schema";
 
-const VIEWER_WRITE_MESSAGE =
-  "Only company owners and managers can create campaigns. Ask one of them to create it or to change your access.";
+const WRITE_ACCESS_MESSAGE =
+  "Your advertiser access is unavailable. Ask Terrax to check your account.";
 
 export interface CreateCampaignState {
   error?: string;
@@ -72,7 +72,7 @@ export async function createCampaignAction(
     } catch (error) {
       // A definite permission refusal created nothing, so there is no request to recheck.
       if (error instanceof ApiError && error.code === "ADVERTISER_MEMBERSHIP_WRITE_FORBIDDEN") {
-        return { error: VIEWER_WRITE_MESSAGE };
+        return { error: WRITE_ACCESS_MESSAGE };
       }
       return {
         error: publicActionError(
@@ -112,6 +112,7 @@ export async function createCampaignAction(
           CREATIVE_FILE_ALREADY_BOUND: "that file is already attached elsewhere",
           CREATIVE_FILE_NOT_CLEARED: "that file has not passed its security scan",
           CREATIVE_TYPE_MISMATCH: "that file does not match the selected creative type",
+          CAMPAIGN_ARTWORK_LOCKED: "This campaign's artwork is locked. Ask Terrax to change it.",
         },
         "the attachment result is not yet confirmed",
       );

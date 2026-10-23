@@ -317,7 +317,7 @@ def test_cancel_and_driver_deactivation_serialize_postgres(
         assert [event.event_type for event in events] == ["deactivated", "cancelled"]
         assert [event.previous_status for event in events] == [
             CampaignAssignmentStatus.ACTIVE.value,
-            CampaignAssignmentStatus.DEACTIVATED.value,
+            CampaignAssignmentStatus.CANCELLED.value,
         ]
     else:
         assert len(events) == 1
@@ -608,7 +608,7 @@ def test_lost_trip_start_race_returns_active_trip_envelope(
         driver_profile_id=blocking_profile.id,
         vehicle_id=blocking_vehicle.id,
         assigned_by_user_id=admin.id,
-        assignment_status=CampaignAssignmentStatus.DEACTIVATED,
+        assignment_status=CampaignAssignmentStatus.CANCELLED,
     )
     create_test_trip_session(
         db_sessionmaker,
@@ -754,7 +754,7 @@ def test_postgres_trip_uniqueness_conflict_preserves_outer_write(
         driver_profile_id=profile.id,
         vehicle_id=vehicle.id,
         assigned_by_user_id=admin.id,
-        assignment_status=CampaignAssignmentStatus.DEACTIVATED,
+        assignment_status=CampaignAssignmentStatus.CANCELLED,
     )
 
     if same_driver:
@@ -785,7 +785,7 @@ def test_postgres_trip_uniqueness_conflict_preserves_outer_write(
         driver_profile_id=second_profile.id,
         vehicle_id=second_vehicle.id,
         assigned_by_user_id=admin.id,
-        assignment_status=CampaignAssignmentStatus.DEACTIVATED,
+        assignment_status=CampaignAssignmentStatus.CANCELLED,
     )
     attempts = (
         (first_assignment.id, campaigns[0].id, driver.id, profile.id, vehicle.id),
@@ -860,7 +860,7 @@ def test_postgres_trip_savepoint_does_not_translate_unexpected_constraint(
         driver_profile_id=profile.id,
         vehicle_id=vehicle.id,
         assigned_by_user_id=admin.id,
-        assignment_status=CampaignAssignmentStatus.DEACTIVATED,
+        assignment_status=CampaignAssignmentStatus.CANCELLED,
     )
 
     async def exercise() -> int:

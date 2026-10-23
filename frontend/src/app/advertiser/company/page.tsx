@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { createApiClient } from "@/lib/api/client";
-import { isAdvertiserViewer, requireRole } from "@/lib/auth/current-user";
+import { requireRole } from "@/lib/auth/current-user";
 import { getSessionToken } from "@/lib/auth/session";
 import { CompanyProfileForm } from "@/components/company/company-profile-form";
 import { PageHeader } from "@/components/ui/page-header";
@@ -14,7 +14,7 @@ export default async function CompanyPage({
   searchParams: Promise<{ saved?: string; error?: string }>;
 }) {
   const notice = await searchParams;
-  const viewer = isAdvertiserViewer(await requireRole("advertiser"));
+  await requireRole("advertiser");
   const api = createApiClient(await getSessionToken());
   const { data: company } = await api.GET("/api/v1/advertiser/company");
   if (!company) return null;
@@ -28,11 +28,10 @@ export default async function CompanyPage({
       {notice.saved ? <p className="text-green mb-4 text-sm">Company profile saved.</p> : null}
       {notice.error ? <p className="text-coral mb-4 text-sm">{notice.error}</p> : null}
       <p className="text-muted mb-4 text-sm">
-        {viewer
-          ? "You have view-only access. Only company owners and managers can change these details."
-          : "These are contact details only. When email is switched on, campaign update emails go to each team member's sign-in email."}
+        These are contact details only. Campaign update emails go to your sign-in email when email
+        is switched on.
       </p>
-      <CompanyProfileForm company={company} action={updateCompanyAction} readOnly={viewer} />
+      <CompanyProfileForm company={company} action={updateCompanyAction} />
     </div>
   );
 }

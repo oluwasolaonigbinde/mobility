@@ -137,7 +137,7 @@ const createVehicleSchema = z.object({
     .trim()
     .toUpperCase()
     .pipe(z.string().length(2, "Use a 2-letter code (e.g. NG)")),
-  vehicle_type: z.enum(["car", "van", "minibus", "bus", "motorcycle", "tricycle", "other"]),
+  vehicle_type: z.enum(["car"]),
   make: z
     .string()
     .trim()

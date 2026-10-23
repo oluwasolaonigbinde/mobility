@@ -5,8 +5,6 @@ const mocks = vi.hoisted(() => ({ get: vi.fn(), role: vi.fn() }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: mocks.get }) }));
 vi.mock("@/lib/auth/current-user", () => ({
   requireRole: mocks.role,
-  isAdvertiserViewer: (me: { advertiser_organization?: { membership_role?: string } }) =>
-    me.advertiser_organization?.membership_role === "viewer",
 }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
 vi.mock("next/navigation", () => ({
@@ -49,7 +47,7 @@ beforeEach(() => {
   mocks.get.mockReset().mockImplementation(async (path: string) => ready(path));
   mocks.role.mockResolvedValue({
     user: { full_name: "Ada", role: "advertiser" },
-    advertiser_organization: { name: "Marula", membership_role: "owner", currency: "NGN" },
+    advertiser_organization: { name: "Marula", membership_role: "advertiser", currency: "NGN" },
   });
 });
 it("shows the two running figures, no booked total and one running card", async () => {
@@ -108,21 +106,6 @@ it("does not replace an inventory failure with an empty state or financial zero"
   expect(screen.queryByText("No campaigns running")).toBeNull();
   expect(figures()).toHaveTextContent("Running campaigns—");
   expect(figures()).not.toHaveTextContent(/Running campaigns0/);
-});
-it("shows a friendly illustrated empty state and hides create for viewers", async () => {
-  mocks.role.mockResolvedValue({
-    user: { full_name: "Ada" },
-    advertiser_organization: { membership_role: "viewer" },
-  });
-  mocks.get.mockImplementation(async (path: string) =>
-    path.endsWith("/campaigns") ? { data: { items: [], total: 0 } } : ready(path),
-  );
-  render(await Home());
-  expect(screen.getByText("No campaigns running")).toBeInTheDocument();
-  expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Welcome back, Ada");
-  expect(screen.getByText("No campaigns are running right now.")).toBeInTheDocument();
-  expect(screen.queryByRole("link", { name: /Start a new campaign/ })).toBeNull();
-  expect(figures()).toHaveTextContent("Running campaigns0");
 });
 it("keeps one primary start action when nothing is running", async () => {
   mocks.get.mockImplementation(async (path: string) =>

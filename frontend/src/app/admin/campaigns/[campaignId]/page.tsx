@@ -362,9 +362,7 @@ export default async function CampaignHub({
             {
               label: "Details approved",
               state: adminStatus(campaign.status, "campaign"),
-              done: ["approved", "scheduled", "active", "paused", "completed"].includes(
-                campaign.status,
-              ),
+              done: ["approved", "active", "paused", "completed"].includes(campaign.status),
               section: "overview",
             },
             {
@@ -672,7 +670,7 @@ export default async function CampaignHub({
               <>
                 {selectedReadiness.data ? (
                   <div className="mb-4">
-                    <p>Ready to start? {selectedReadiness.data.message}</p>
+                    <p>Job start: {selectedReadiness.data.message}</p>
                     {selectedReadiness.data.ready ? (
                       <ActivateAssignmentButton assignmentId={selectedJob.job.id} />
                     ) : null}

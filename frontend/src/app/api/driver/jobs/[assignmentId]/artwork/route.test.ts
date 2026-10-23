@@ -81,18 +81,18 @@ it.each(["text/html", "image/svg+xml", "application/javascript"])(
     expect((await GET(request(), input)).status).toBe(404);
   },
 );
-it.each([
-  ["application/pdf", "pdf"],
-  ["video/mp4", "mp4"],
-])("delivers %s only as a sandboxed attachment", async (mime, extension) => {
-  mocks.fetch.mockResolvedValue(new Response("file", { headers: { "content-type": mime } }));
-  const response = await GET(request(), input);
-  expect(response.status).toBe(200);
-  expect(response.headers.get("content-disposition")).toBe(
-    `attachment; filename="campaign-advert.${extension}"`,
-  );
-  expect(response.headers.get("content-security-policy")).toContain("sandbox");
-});
+it.each([["application/pdf", "pdf"]])(
+  "delivers %s only as a sandboxed attachment",
+  async (mime, extension) => {
+    mocks.fetch.mockResolvedValue(new Response("file", { headers: { "content-type": mime } }));
+    const response = await GET(request(), input);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-disposition")).toBe(
+      `attachment; filename="campaign-advert.${extension}"`,
+    );
+    expect(response.headers.get("content-security-policy")).toContain("sandbox");
+  },
+);
 it("bounds declared and actual streamed sizes", async () => {
   mocks.fetch.mockResolvedValueOnce(
     new Response("bytes", {

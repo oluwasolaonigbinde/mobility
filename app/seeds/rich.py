@@ -102,13 +102,13 @@ DRIVER_AREAS = (
 VEHICLE_DETAILS = (
     ("Toyota", "Corolla", "White", VehicleType.CAR),
     ("Honda", "Accord", "Silver", VehicleType.CAR),
-    ("Toyota", "Sienna", "Blue", VehicleType.MINIBUS),
+    ("Toyota", "Yaris", "Blue", VehicleType.CAR),
     ("Hyundai", "Elantra", "Black", VehicleType.CAR),
     ("Kia", "Rio", "Red", VehicleType.CAR),
-    ("Nissan", "Urvan", "White", VehicleType.VAN),
+    ("Nissan", "Sentra", "White", VehicleType.CAR),
     ("Toyota", "Camry", "Grey", VehicleType.CAR),
     ("Honda", "Civic", "Blue", VehicleType.CAR),
-    ("Suzuki", "Every", "Silver", VehicleType.MINIBUS),
+    ("Suzuki", "Swift", "Silver", VehicleType.CAR),
 )
 
 CAMPAIGN_SPECS = (
@@ -342,7 +342,7 @@ async def _ensure_creative(session: AsyncSession, campaign: Campaign, index: int
                 width_px=1600,
                 height_px=900,
                 checksum=None,
-                status=CreativeStatus.READY.value,
+                status=CreativeStatus.DRAFT.value,
                 creative_metadata=f7_metadata(campaign_index=index),
             )
         )
@@ -1254,7 +1254,7 @@ async def _ensure_advertiser_directory(session, *, settings):
             session,
             organization=organization,
             user=person,
-            role=MembershipRole.OWNER,
+            role=MembershipRole.ADVERTISER,
         )
     await session.flush()
 
@@ -1271,7 +1271,7 @@ async def business_owner(session, campaign_name):
         .join(OrganizationMembership)
         .where(
             OrganizationMembership.organization_id == organization.id,
-            OrganizationMembership.role == "owner",
+            OrganizationMembership.role == "advertiser",
             OrganizationMembership.status == "active",
         )
     )

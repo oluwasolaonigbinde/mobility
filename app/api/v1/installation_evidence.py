@@ -377,7 +377,7 @@ async def admin_approve_evidence(
     session: SessionDependency,
     settings: SettingsDependency,
 ) -> InstallationEvidenceRead:
-    submission = await review_installation_evidence(
+    submission, activation = await review_installation_evidence(
         session,
         actor_user_id=user.id,
         submission_id=submission_id,
@@ -386,7 +386,9 @@ async def admin_approve_evidence(
         settings=settings,
     )
     await session.commit()
-    return await evidence_response(session, submission)
+    return (await evidence_response(session, submission)).model_copy(
+        update={"activation": activation}
+    )
 
 
 @router.post(
@@ -400,7 +402,7 @@ async def admin_reject_evidence(
     session: SessionDependency,
     settings: SettingsDependency,
 ) -> InstallationEvidenceRead:
-    submission = await review_installation_evidence(
+    submission, _ = await review_installation_evidence(
         session,
         actor_user_id=user.id,
         submission_id=submission_id,

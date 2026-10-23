@@ -250,12 +250,10 @@ def test_admin_can_create_advertiser_organization_with_owner(
     assert data["organization"]["name"] == "Acme Ads"
     assert data["organization"]["country_code"] == "NG"
     assert data["organization"]["currency"] == "NGN"
-    assert data["owner_membership"] == {"role": "owner", "status": "active"}
+    assert data["owner_membership"] == {"role": "advertiser", "status": "active"}
 
     audit_events = fetch_audit_events(db_sessionmaker)
-    assert [event.action for event in audit_events] == [
-        "admin.advertiser_organization.created"
-    ]
+    assert [event.action for event in audit_events] == ["admin.advertiser_organization.created"]
 
 
 def test_organization_owner_attachment_rejects_non_advertiser_user(
@@ -323,7 +321,7 @@ def test_advertiser_can_retrieve_only_own_organization_context(
     data = response.json()
     assert data["organization"]["id"] == str(own_organization.id)
     assert data["organization"]["name"] == "Own Org"
-    assert data["membership"] == {"role": "owner", "status": "active"}
+    assert data["membership"] == {"role": "advertiser", "status": "active"}
 
 
 def test_driver_is_rejected_from_advertiser_organization_endpoint(

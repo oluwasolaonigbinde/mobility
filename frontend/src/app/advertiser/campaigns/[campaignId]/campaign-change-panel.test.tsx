@@ -113,7 +113,7 @@ describe("CampaignChangePanel", () => {
     expect(screen.queryByRole("button", { name: "Preview change" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Reason")).not.toBeInTheDocument();
     expect(
-      screen.getByText(/only be requested while a campaign is scheduled, live or paused/),
+      screen.getByText(/only be requested while a campaign is approved, live or paused/),
     ).toBeInTheDocument();
     expect(screen.getByText("Applied")).toBeInTheDocument();
   });

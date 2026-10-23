@@ -68,7 +68,6 @@ PARTY_REFERENCES: dict[ComplaintParty, frozenset[ComplaintReferenceType]] = {
 DRIVER_CAMPAIGN_STATUSES = (
     CampaignAssignmentStatus.ACCEPTED.value,
     CampaignAssignmentStatus.ACTIVE.value,
-    CampaignAssignmentStatus.DEACTIVATED.value,
     CampaignAssignmentStatus.CANCELLED.value,
     CampaignAssignmentStatus.COMPLETED.value,
 )

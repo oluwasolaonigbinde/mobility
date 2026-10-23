@@ -30,7 +30,6 @@ const ZONE_TYPE_META: Record<
   { label: string; tone: "amber" | "cyan" | "coral"; hint: string }
 > = {
   target: { label: "Main area", tone: "amber", hint: "Where you'd like drivers to focus" },
-  bonus: { label: "Extra area", tone: "cyan", hint: "An area with an extra driving incentive" },
   exclusion: { label: "Avoid", tone: "coral", hint: "Leave this area out of results" },
 };
 
@@ -145,8 +144,6 @@ export function ZonesEditor({
           ["get", "zone_type"],
           "target",
           zc.target,
-          "bonus",
-          zc.bonus,
           "exclusion",
           zc.exclusion,
           zc.neutral,
@@ -164,8 +161,6 @@ export function ZonesEditor({
           ["get", "zone_type"],
           "target",
           zc.target,
-          "bonus",
-          zc.bonus,
           "exclusion",
           zc.exclusion,
           zc.neutral,

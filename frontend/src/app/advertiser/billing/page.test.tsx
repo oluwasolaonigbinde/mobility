@@ -9,8 +9,6 @@ vi.mock("./actions", () => ({ startInvoicePayment: vi.fn() }));
 const role = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/auth/current-user", () => ({
   requireRole: role,
-  isAdvertiserViewer: (me: { advertiser_organization?: { membership_role?: string } }) =>
-    me.advertiser_organization?.membership_role === "viewer",
 }));
 
 import AdvertiserBillingPage from "./page";
@@ -82,21 +80,8 @@ describe("AdvertiserBillingPage", () => {
     get.mockReset();
     role.mockResolvedValue({
       user: { role: "advertiser" },
-      advertiser_organization: { membership_role: "owner" },
+      advertiser_organization: { membership_role: "advertiser" },
     });
-  });
-
-  it("lets a company viewer see what is owed without a payment button", async () => {
-    role.mockResolvedValue({
-      user: { role: "advertiser" },
-      advertiser_organization: { membership_role: "viewer" },
-    });
-    mockBilling([], [invoice({})]);
-    render(await AdvertiserBillingPage({}));
-    expect(
-      within(screen.getByRole("region", { name: "To pay" })).getByText("Invoice INV-2026-0007"),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Pay invoice online" })).toBeNull();
   });
 
   it("shows billing as unavailable rather than empty when a read fails", async () => {
@@ -284,7 +269,7 @@ describe("AdvertiserBillingPage money rules", () => {
     get.mockReset();
     role.mockResolvedValue({
       user: { role: "advertiser" },
-      advertiser_organization: { membership_role: "owner" },
+      advertiser_organization: { membership_role: "advertiser" },
     });
   });
 

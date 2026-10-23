@@ -144,7 +144,7 @@ async def enforce_campaign_budget(
         .order_by(BudgetCampaignTransition.created_at.desc(), BudgetCampaignTransition.id.desc())
         .limit(1)
     )
-    if check.state == "pause_threshold" and campaign.status in {"scheduled", "active"}:
+    if check.state == "pause_threshold" and campaign.status in {"approved", "active"}:
         prior = campaign.status
         campaign.status = CampaignStatus.PAUSED.value
         transition = BudgetCampaignTransition(
@@ -205,7 +205,12 @@ async def resume_campaign_after_budget_pause(
         .limit(1)
     )
     if campaign.status != "paused":
-        if latest and latest.action == "resume" and latest.new_status == campaign.status:
+        if (
+            latest
+            and latest.action == "resume"
+            and ("approved" if latest.new_status == "scheduled" else latest.new_status)
+            == campaign.status
+        ):
             if latest.actor_user_id == actor_user_id and latest.reason == reason:
                 return latest
             raise AppError(
@@ -235,19 +240,21 @@ async def resume_campaign_after_budget_pause(
             status_code=409,
         )
     now = max(check.evaluated_at, _stored_aware_utc(latest.created_at) + timedelta(microseconds=1))
+    # Historical transitions are immutable; translate their old live-state name.
+    resumed_status = "approved" if latest.prior_status == "scheduled" else latest.prior_status
     transition = BudgetCampaignTransition(
         campaign_id=campaign.id,
         pause_transition_id=latest.id,
         action="resume",
         prior_status="paused",
-        new_status=latest.prior_status,
+        new_status=resumed_status,
         actor_user_id=actor_user_id,
         reason=reason,
         budget_amount=check.campaign_budget_amount,
         funding_fingerprint=check.funding_fingerprint,
         created_at=now,
     )
-    campaign.status = latest.prior_status
+    campaign.status = resumed_status
     session.add(transition)
     await session.flush()
     await create_audit_event(

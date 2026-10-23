@@ -3729,11 +3729,6 @@
             "title": "Completed",
             "type": "integer"
           },
-          "deactivated": {
-            "default": 0,
-            "title": "Deactivated",
-            "type": "integer"
-          },
           "offered": {
             "default": 0,
             "title": "Offered",
@@ -5665,7 +5660,6 @@
           "declined",
           "expired",
           "active",
-          "deactivated",
           "cancelled",
           "completed"
         ],
@@ -7597,7 +7591,8 @@
             "$ref": "#/components/schemas/CampaignStatus"
           },
           "prior_status": {
-            "$ref": "#/components/schemas/CampaignStatus"
+            "title": "Prior Status",
+            "type": "string"
           },
           "rejection_reason": {
             "anyOf": [
@@ -7682,7 +7677,6 @@
           "pending_review",
           "approved",
           "rejected",
-          "scheduled",
           "active",
           "paused",
           "completed",
@@ -7731,11 +7725,6 @@
           "rejected": {
             "default": 0,
             "title": "Rejected",
-            "type": "integer"
-          },
-          "scheduled": {
-            "default": 0,
-            "title": "Scheduled",
             "type": "integer"
           },
           "total": {
@@ -8116,8 +8105,7 @@
       "CampaignZoneType": {
         "enum": [
           "target",
-          "exclusion",
-          "bonus"
+          "exclusion"
         ],
         "title": "CampaignZoneType",
         "type": "string"
@@ -9215,10 +9203,7 @@
       "CreativePlacement": {
         "enum": [
           "vehicle_exterior",
-          "vehicle_interior",
-          "digital_screen",
-          "print",
-          "other"
+          "vehicle_interior"
         ],
         "title": "CreativePlacement",
         "type": "string"
@@ -9439,7 +9424,8 @@
             "$ref": "#/components/schemas/CreativeStatus"
           },
           "prior_status": {
-            "$ref": "#/components/schemas/CreativeStatus"
+            "title": "Prior Status",
+            "type": "string"
           },
           "rejection_reason": {
             "anyOf": [
@@ -9524,7 +9510,6 @@
           "pending_review",
           "approved",
           "rejected",
-          "ready",
           "archived"
         ],
         "title": "CreativeStatus",
@@ -9532,6 +9517,11 @@
       },
       "CreativeStatusCounts": {
         "properties": {
+          "approved": {
+            "default": 0,
+            "title": "Approved",
+            "type": "integer"
+          },
           "archived": {
             "default": 0,
             "title": "Archived",
@@ -9542,9 +9532,14 @@
             "title": "Draft",
             "type": "integer"
           },
-          "ready": {
+          "pending_review": {
             "default": 0,
-            "title": "Ready",
+            "title": "Pending Review",
+            "type": "integer"
+          },
+          "rejected": {
+            "default": 0,
+            "title": "Rejected",
             "type": "integer"
           },
           "total": {
@@ -9559,10 +9554,7 @@
       "CreativeType": {
         "enum": [
           "image",
-          "video",
-          "html",
-          "text",
-          "other"
+          "pdf"
         ],
         "title": "CreativeType",
         "type": "string"
@@ -14228,6 +14220,16 @@
       },
       "InstallationEvidenceRead": {
         "properties": {
+          "activation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssignmentReadinessRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "approved_until": {
             "anyOf": [
               {
@@ -15933,9 +15935,7 @@
       },
       "MembershipRole": {
         "enum": [
-          "owner",
-          "manager",
-          "viewer"
+          "advertiser"
         ],
         "title": "MembershipRole",
         "type": "string"
@@ -22739,13 +22739,7 @@
       },
       "VehicleType": {
         "enum": [
-          "car",
-          "van",
-          "minibus",
-          "bus",
-          "motorcycle",
-          "tricycle",
-          "other"
+          "car"
         ],
         "title": "VehicleType",
         "type": "string"
@@ -23068,11 +23062,6 @@
       },
       "ZoneTypeCounts": {
         "properties": {
-          "bonus": {
-            "default": 0,
-            "title": "Bonus",
-            "type": "integer"
-          },
           "exclusion": {
             "default": 0,
             "title": "Exclusion",

@@ -972,8 +972,9 @@ class BudgetCampaignTransition(Base):
     __table_args__ = (
         CheckConstraint("action IN ('pause', 'resume')", name="ck_budget_transitions_action"),
         CheckConstraint(
-            "prior_status IN ('scheduled', 'active', 'paused') AND "
-            "new_status IN ('scheduled', 'active', 'paused') AND prior_status <> new_status",
+            "prior_status IN ('approved', 'scheduled', 'active', 'paused') AND "
+            "new_status IN ('approved', 'scheduled', 'active', 'paused') "
+            "AND prior_status <> new_status",
             name="ck_budget_transitions_statuses",
         ),
         CheckConstraint(

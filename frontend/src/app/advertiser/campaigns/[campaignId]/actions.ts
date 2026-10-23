@@ -19,7 +19,7 @@ const creativeSubmitSchema = submitSchema.extend({
 
 const creativeReplaceSchema = creativeSubmitSchema.extend({
   storedFileId: z.string().uuid(),
-  creativeType: z.enum(["image", "video", "other"]),
+  creativeType: z.enum(["image", "pdf"]),
 });
 
 const optionalLagosDateTime = z
@@ -71,6 +71,7 @@ export interface CampaignReviewActionState {
 }
 
 const campaignActionErrors = {
+  CAMPAIGN_ARTWORK_LOCKED: "This campaign's artwork is locked. Ask Terrax to change it.",
   CAMPAIGN_CHANGE_NOOP: "Enter a change that differs from the current campaign.",
   CAMPAIGN_CHANGE_RETROACTIVE_DATE: "Choose a future campaign date.",
   INVALID_CAMPAIGN_WINDOW: "The campaign start must remain before its end.",
@@ -107,7 +108,8 @@ const EDITABLE_FIELDS = [
 const campaignEditErrors = {
   CAMPAIGN_REVIEW_STATE_CONFLICT:
     "This campaign can no longer be edited. Open it again to see its current status.",
-  ORGANIZATION_WRITE_FORBIDDEN: "Only company owners and managers can edit campaigns.",
+  ORGANIZATION_WRITE_FORBIDDEN:
+    "Your advertiser access is unavailable. Ask Terrax to check your account.",
   INVALID_CAMPAIGN_BUDGET: "The daily budget cannot exceed the total budget.",
   INVALID_CAMPAIGN_DATES: "The campaign start must be before its end.",
   INVALID_CAMPAIGN_UPDATE: "Check the campaign details and try again.",

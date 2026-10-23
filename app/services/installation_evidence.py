@@ -12,6 +12,7 @@ from starlette import status
 from app.core.config import Settings
 from app.core.errors import AppError
 from app.db.integrity import integrity_constraint_name
+from app.models.campaign import Campaign
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
 from app.models.driver import DriverProfile
 from app.models.installation_evidence import (
@@ -21,12 +22,14 @@ from app.models.installation_evidence import (
 )
 from app.models.stored_file import FilePurpose, FileScanStatus, StoredFile
 from app.models.vehicle import Vehicle
+from app.schemas.campaign_assignments import AssignmentReadinessRead, CampaignAssignmentTransition
 from app.schemas.installation_evidence import (
     InstallationEvidenceCreate,
 )
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
+from app.services.vehicle_onboarding import acquire_work_eligibility_lock
 
 # Client rule (installation photos, client answers item 4): the driver or an admin uploads
 # these five views, and an approval is valid for seven days.
@@ -127,7 +130,6 @@ async def submit_installation_evidence(  # noqa: C901
     if assignment.status not in {
         CampaignAssignmentStatus.ACCEPTED.value,
         CampaignAssignmentStatus.ACTIVE.value,
-        CampaignAssignmentStatus.DEACTIVATED.value,
     }:
         raise _error(
             "INSTALLATION_EVIDENCE_NOT_ALLOWED",
@@ -334,12 +336,17 @@ async def review_installation_evidence(
     approve: bool,
     reason: str | None,
     settings: Settings,
-) -> InstallationEvidenceSubmission:
-    campaign_id = await session.scalar(
-        select(InstallationEvidenceSubmission.campaign_id).where(
-            InstallationEvidenceSubmission.id == submission_id
+) -> tuple[InstallationEvidenceSubmission, AssignmentReadinessRead | None]:
+    context = (
+        await session.execute(
+            select(
+                InstallationEvidenceSubmission.campaign_id,
+                InstallationEvidenceSubmission.driver_profile_id,
+                InstallationEvidenceSubmission.vehicle_id,
+            ).where(InstallationEvidenceSubmission.id == submission_id)
         )
-    )
+    ).one_or_none()
+    campaign_id = context[0] if context else None
     if campaign_id is not None:
         await acquire_campaign_terms_lock(session, campaign_id)
     await require_active_admin(session, actor_user_id)
@@ -349,6 +356,11 @@ async def review_installation_evidence(
             "Installation evidence was not found",
             status.HTTP_404_NOT_FOUND,
         )
+    assert context is not None
+    await acquire_work_eligibility_lock(
+        session, driver_profile_id=context[1], vehicle_id=context[2]
+    )
+    await session.scalar(select(Campaign).where(Campaign.id == campaign_id).with_for_update())
     submission = await session.scalar(
         select(InstallationEvidenceSubmission)
         .where(InstallationEvidenceSubmission.id == submission_id)
@@ -437,7 +449,47 @@ async def review_installation_evidence(
             "reason": reason if not approve else None,
         },
     )
-    return submission
+    activation = None
+    if approve:
+        await session.flush()
+        activation = await _activate_approved_installation(
+            session,
+            actor_user_id=actor_user_id,
+            assignment_id=submission.assignment_id,
+            settings=settings,
+        )
+    return submission, activation
+
+
+async def _activate_approved_installation(
+    session: AsyncSession, *, actor_user_id: UUID, assignment_id: UUID, settings: Settings
+) -> AssignmentReadinessRead:
+    from app.services.campaign_assignments import activate_admin_assignment
+
+    # Only activation rolls back: approval and its audit were flushed first.
+    try:
+        async with session.begin_nested():
+            await activate_admin_assignment(
+                session,
+                admin_user_id=actor_user_id,
+                assignment_id=assignment_id,
+                payload=CampaignAssignmentTransition(),
+                settings=settings,
+            )
+    except AppError as exc:
+        if exc.status_code in {401, 403, 404}:
+            raise
+        return AssignmentReadinessRead(
+            assignment_id=assignment_id,
+            ready=False,
+            blocker_code=exc.code,
+            message=exc.message,
+        )
+    return AssignmentReadinessRead(
+        assignment_id=assignment_id,
+        ready=True,
+        message="Installation approved and job started.",
+    )
 
 
 async def ensure_current_approved_installation_evidence(

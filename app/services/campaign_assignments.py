@@ -87,7 +87,6 @@ NON_TERMINAL_ASSIGNMENT_STATUSES = {
     CampaignAssignmentStatus.OFFERED.value,
     CampaignAssignmentStatus.ACCEPTED.value,
     CampaignAssignmentStatus.ACTIVE.value,
-    CampaignAssignmentStatus.DEACTIVATED.value,
 }
 
 TERMINAL_DECISION_STATUSES = {
@@ -254,14 +253,17 @@ async def flush_translating_exclusivity_conflict(session: AsyncSession) -> None:
         envelope = ASSIGNMENT_CONFLICT_ENVELOPES.get(integrity_constraint_name(exc) or "")
         if envelope is None:
             raise
-        await session.rollback()
+        # A photo approval may isolate activation in a savepoint. Let that
+        # savepoint unwind without discarding the already approved evidence.
+        if not session.in_nested_transaction():
+            await session.rollback()
         code, message = envelope
         raise AppError(code, message, status_code=status.HTTP_409_CONFLICT) from exc
 
 
 def ensure_campaign_assignable(campaign: Campaign, now: datetime) -> None:
     if campaign.status not in {
-        CampaignStatus.SCHEDULED.value,
+        CampaignStatus.APPROVED.value,
         CampaignStatus.ACTIVE.value,
         CampaignStatus.PAUSED.value,
     }:
@@ -386,7 +388,7 @@ async def activation_production_start(
 
 
 def ensure_campaign_activatable(campaign: Campaign, now: datetime) -> None:
-    if campaign.status not in {CampaignStatus.SCHEDULED.value, CampaignStatus.ACTIVE.value}:
+    if campaign.status not in {CampaignStatus.APPROVED.value, CampaignStatus.ACTIVE.value}:
         raise AppError(
             "CAMPAIGN_NOT_ACTIVE",
             "Campaign must be active before activation",
@@ -512,9 +514,7 @@ async def create_campaign_assignment(
             "Vehicle was not found",
             status_code=status.HTTP_404_NOT_FOUND,
         )
-    schedule_campaign = campaign.status == CampaignStatus.APPROVED.value
-    if not schedule_campaign:
-        ensure_campaign_assignable(campaign, now)
+    ensure_campaign_assignable(campaign, now)
     if campaign.start_at is None or campaign.end_at is None:
         raise AppError(
             "COMPLETE_CAMPAIGN_WINDOW_REQUIRED",
@@ -567,20 +567,6 @@ async def create_campaign_assignment(
     )
     session.add(assignment)
     await flush_translating_exclusivity_conflict(session)
-    if schedule_campaign:
-        campaign.status = CampaignStatus.SCHEDULED.value
-        await create_audit_event(
-            session,
-            actor_user_id=admin_user_id,
-            action="admin.campaign.scheduled",
-            entity_type="campaign",
-            entity_id=str(campaign.id),
-            metadata={
-                "status_before": CampaignStatus.APPROVED.value,
-                "status_after": campaign.status,
-                "assignment_id": str(assignment.id),
-            },
-        )
     await create_activation_event(
         session,
         assignment=assignment,
@@ -705,7 +691,7 @@ async def list_assignment_recommendations(
         Campaign.id == campaign_id,
         Campaign.status.in_(
             {
-                CampaignStatus.SCHEDULED.value,
+                CampaignStatus.APPROVED.value,
                 CampaignStatus.ACTIVE.value,
                 CampaignStatus.PAUSED.value,
             }
@@ -1464,11 +1450,6 @@ async def build_offer_terms(
             "target": target_rows,
             "premium": target_rows,
             "exclusion": exclusion_rows,
-            "bonus": [
-                {"id": str(row[0]), "name": row[2], "wkt": str(row[3])}
-                for row in rows
-                if row[1] == CampaignZoneType.BONUS.value
-            ],
         },
         # The detector policy marker is part of the offer evidence, while the
         # numeric classifier snapshot records the complete daily-rate binding
@@ -1889,11 +1870,10 @@ async def activate_admin_assignment(  # noqa: C901
     if assignment.status not in {
         CampaignAssignmentStatus.ACCEPTED.value,
         CampaignAssignmentStatus.ACTIVE.value,
-        CampaignAssignmentStatus.DEACTIVATED.value,
     }:
         raise AppError(
             "INVALID_ASSIGNMENT_TRANSITION",
-            "Only accepted, active or deactivated assignments can be activated",
+            "Only accepted or active assignments can be activated",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     if advisory_only and assignment.status == CampaignAssignmentStatus.ACTIVE.value:
@@ -2078,7 +2058,7 @@ async def activate_admin_assignment(  # noqa: C901
         campaign_id=campaign.id,
     )
     previous_status = assignment.status
-    activate_campaign = campaign.status == CampaignStatus.SCHEDULED.value
+    activate_campaign = campaign.status == CampaignStatus.APPROVED.value
     assignment.status = CampaignAssignmentStatus.ACTIVE.value
     assignment.activated_at = now
     if activate_campaign:
@@ -2139,7 +2119,7 @@ async def activate_admin_assignment(  # noqa: C901
             entity_type="campaign",
             entity_id=str(campaign.id),
             metadata={
-                "status_before": CampaignStatus.SCHEDULED.value,
+                "status_before": CampaignStatus.APPROVED.value,
                 "status_after": campaign.status,
                 "assignment_id": str(assignment.id),
                 "activation_snapshot_sha256": event_metadata["activation_snapshot_sha256"],
@@ -2199,8 +2179,9 @@ async def deactivate_driver_assignment(
             status_code=status.HTTP_400_BAD_REQUEST,
         )
     previous_status = assignment.status
-    assignment.status = CampaignAssignmentStatus.DEACTIVATED.value
+    assignment.status = CampaignAssignmentStatus.CANCELLED.value
     assignment.deactivated_at = now
+    assignment.cancelled_at = now
     await session.flush()
     await create_activation_event(
         session,

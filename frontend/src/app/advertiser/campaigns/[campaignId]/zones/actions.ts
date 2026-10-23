@@ -8,7 +8,7 @@ import { getSessionToken } from "@/lib/auth/session";
 import { validateZoneGeometry, type ZoneGeometry } from "@/lib/zones/geometry";
 import type { components } from "@/lib/api/schema";
 
-const ZONE_TYPES = ["target", "bonus", "exclusion"] as const;
+const ZONE_TYPES = ["target", "exclusion"] as const;
 
 const baseFields = {
   campaignId: z.string().uuid(),

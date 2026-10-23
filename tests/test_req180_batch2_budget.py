@@ -110,8 +110,9 @@ def test_normal_fixed_price_campaign_never_warns_or_pauses(
     asyncio.run(exercise())
 
 
+@pytest.mark.parametrize("pause_origin", ["active", "historical_scheduled"])
 def test_extra_charges_warn_then_pause_and_resume_after_a_budget_increase(
-    db_sessionmaker, settings
+    db_sessionmaker, settings, pause_origin
 ):
     admin, owner, organization, campaign = actors(db_sessionmaker)
 
@@ -155,6 +156,17 @@ def test_extra_charges_warn_then_pause_and_resume_after_a_budget_increase(
                     reason="No confirmed changes",
                 )
             assert unchanged.value.code == "BUDGET_RESUME_NOT_AUTHORIZED"
+            if pause_origin == "historical_scheduled":
+                historical = await session.scalar(
+                    select(BudgetCampaignTransition).where(
+                        BudgetCampaignTransition.campaign_id == campaign.id,
+                        BudgetCampaignTransition.action == "pause",
+                    )
+                )
+                # Metadata fixture has no immutable DB trigger: represent a row
+                # genuinely written before0114, never mutate one in production.
+                historical.prior_status = "scheduled"
+                await session.flush()
             row = await session.get(Campaign, campaign.id)
             row.budget_amount = Decimal("1200.00")
             await session.flush()
@@ -164,7 +176,11 @@ def test_extra_charges_warn_then_pause_and_resume_after_a_budget_increase(
                 actor_user_id=admin.id,
                 reason="Confirmed budget increase",
             )
-            assert resumed.new_status == "active"
+            assert resumed.new_status == (
+                "approved" if pause_origin == "historical_scheduled" else "active"
+            )
+            if pause_origin == "historical_scheduled":
+                assert historical.prior_status == "scheduled"
             assert (
                 await budget.resume_campaign_after_budget_pause(
                     session,
@@ -271,11 +287,11 @@ def test_enforcement_rechecks_new_scheduling_and_ignores_stored_daily_budgets(
             )
             await correct(session, invoice=invoice, admin=admin, reference="SCHED", amount="500.01")
             row = await session.get(Campaign, campaign.id)
-            row.status = "approved"
+            row.status = "draft"
             await session.flush()
             before = await budget.enforce_campaign_budget(session, campaign_id=campaign.id)
             assert before.state == "pause_threshold" and before.pause_applied is False
-            row.status = "scheduled"
+            row.status = "approved"
             await session.flush()
             evaluations = await budget.sweep_campaign_budgets(session)
             # A daily-only draft has no enforced budget and is not swept.

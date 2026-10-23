@@ -132,27 +132,6 @@ export const sources: Source[] = [
       ),
   ),
   source(
-    "jobs",
-    "Operations",
-    "campaigns",
-    "Accepted jobs",
-    "/admin/campaigns?tab=live",
-    (api, limit, offset) =>
-      api.GET("/api/v1/admin/campaign-assignments", {
-        params: { query: { limit, offset, status: "accepted", oldest_first: true } },
-      }),
-    (r) =>
-      task(
-        `job:${r.id}`,
-        "campaigns",
-        r.accepted_at,
-        "Accepted",
-        `${present(r.driver_profile?.full_name)} · ${present(r.vehicle?.plate_number)}`,
-        `Accepted job waiting to start on ${present(r.campaign?.name)}`,
-        `/admin/campaigns/${r.campaign_id}?drawer=job&job=${r.id}#drivers`,
-      ),
-  ),
-  source(
     "trips",
     "Operations",
     "trips",

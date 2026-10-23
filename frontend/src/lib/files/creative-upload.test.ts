@@ -15,7 +15,10 @@ function json(body: unknown, status = 200) {
 describe("uploadCreativeFile", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it("hashes, uploads privately, confirms, and waits for a clean scan", async () => {
+  it.each([
+    ["image/png", "image"],
+    ["application/pdf", "pdf"],
+  ] as const)("uploads and checks %s artwork", async (mime, creativeType) => {
     vi.stubGlobal("crypto", {
       randomUUID: () => "00000000-0000-4000-8000-000000000001",
       subtle: { digest: async () => new Uint8Array(32).fill(10).buffer },
@@ -32,7 +35,7 @@ describe("uploadCreativeFile", () => {
     const phases: string[] = [];
 
     const result = await uploadCreativeFile(
-      new File([new Uint8Array([1, 2, 3])], "wrap.png", { type: "image/png" }),
+      new File([new Uint8Array([1, 2, 3])], "wrap", { type: mime }),
       (phase) => phases.push(phase),
       {
         pollDelayMs: 0,
@@ -40,7 +43,7 @@ describe("uploadCreativeFile", () => {
       },
     );
 
-    expect(result).toEqual({ storedFileId: "file-1", creativeType: "image" });
+    expect(result).toEqual({ storedFileId: "file-1", creativeType });
     expect(phases).toEqual(["hashing", "uploading", "scanning", "clean"]);
     expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)).client_request_id).toBe(
       "00000000-0000-4000-8000-000000000099",
@@ -132,7 +135,7 @@ describe("uploadCreativeFile", () => {
     ).rejects.toThrow("Malware was detected");
     await expect(
       uploadCreativeFile(
-        new File([new Uint8Array([1])], "bad.svg", { type: "image/svg+xml" }),
+        new File([new Uint8Array([1])], "bad.mp4", { type: "video/mp4" }),
         () => undefined,
       ),
     ).rejects.toThrow("Choose a PNG");

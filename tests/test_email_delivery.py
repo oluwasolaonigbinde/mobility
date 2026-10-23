@@ -152,7 +152,7 @@ async def _seed_advertiser(sessionmaker, *, enabled: bool | None = True):
             OrganizationMembership(
                 organization_id=organization.id,
                 user_id=user.id,
-                role=MembershipRole.OWNER,
+                role=MembershipRole.ADVERTISER,
                 status=MembershipStatus.ACTIVE,
             )
         )

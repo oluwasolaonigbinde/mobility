@@ -718,7 +718,7 @@ def test_advertiser_notification_preference_is_shared_audited_and_cross_org_hidd
                 OrganizationMembership(
                     organization_id=organization.id,
                     user_id=colleague.id,
-                    role=MembershipRole.MANAGER,
+                    role=MembershipRole.ADVERTISER,
                     status=MembershipStatus.ACTIVE,
                 )
             )

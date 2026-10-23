@@ -26,7 +26,7 @@ export function CreativeStatusActions({
   );
   const [replacement, setReplacement] = useState<{
     storedFileId?: string;
-    creativeType?: "image" | "video" | "other";
+    creativeType?: "image" | "pdf";
     phase?: CreativeUploadPhase;
     error?: string;
   }>({});
@@ -101,7 +101,7 @@ export function CreativeStatusActions({
         Replace artwork
         <input
           type="file"
-          accept="image/png,image/jpeg,image/webp,video/mp4,application/pdf"
+          accept="image/png,image/jpeg,image/webp,application/pdf"
           className="border-edge mt-1 block w-full rounded border p-1 text-xs"
           onChange={(event) => void uploadReplacement(event.currentTarget.files?.[0])}
         />

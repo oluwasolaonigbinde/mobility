@@ -8,7 +8,7 @@ export function JobArtwork({
   compact,
 }: {
   assignmentId?: string;
-  kind: "image" | "document" | "video" | null;
+  kind: "image" | "document" | null;
   compact: boolean;
 }) {
   const [failed, setFailed] = useState(false);
@@ -41,7 +41,7 @@ export function JobArtwork({
           />
         ) : null}
       </div>
-      {source && (kind === "document" || kind === "video") ? (
+      {source && kind === "document" ? (
         <a
           className="text-green inline-block p-3 text-sm underline"
           href={source}

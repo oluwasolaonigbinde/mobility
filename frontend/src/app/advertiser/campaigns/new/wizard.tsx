@@ -26,18 +26,12 @@ const STEPS = ["Basics", "Areas", "Your advert design", "Review"] as const;
 
 const CREATIVE_TYPES = [
   { value: "image", label: "Image" },
-  { value: "video", label: "Video" },
-  { value: "html", label: "HTML" },
-  { value: "text", label: "Text" },
-  { value: "other", label: "Other" },
+  { value: "pdf", label: "PDF" },
 ] as const;
 
 const PLACEMENTS = [
   { value: "vehicle_exterior", label: "Vehicle exterior" },
   { value: "vehicle_interior", label: "Vehicle interior" },
-  { value: "digital_screen", label: "Digital screen" },
-  { value: "print", label: "Print" },
-  { value: "other", label: "Other" },
 ] as const;
 
 /** Fields validated before leaving each step. */
@@ -432,7 +426,7 @@ export function CampaignWizard({
                     <input
                       id={`cr-file-${i}`}
                       type="file"
-                      accept="image/png,image/jpeg,image/webp,video/mp4,application/pdf"
+                      accept="image/png,image/jpeg,image/webp,application/pdf"
                       disabled={Boolean(
                         uploadState[field.id]?.phase && uploadState[field.id]?.phase !== "clean",
                       )}

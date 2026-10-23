@@ -428,7 +428,7 @@ async def upsert_creative(session: AsyncSession, *, campaign: Campaign) -> Campa
         "height_px": 900,
         "duration_seconds": None,
         "checksum": None,
-        "status": CreativeStatus.READY.value,
+        "status": CreativeStatus.DRAFT.value,
         "creative_metadata": demo_metadata(),
     }
     if creative is None:
@@ -459,22 +459,6 @@ def zone_geometries() -> list[tuple[str, str, dict[str, Any]]]:
                         [7.5238, 9.0748],
                         [7.4438, 9.0748],
                         [7.4438, 8.9848],
-                    ]
-                ],
-            },
-        ),
-        (
-            "Ahmadu Bello Way offices",
-            CampaignZoneType.BONUS.value,
-            {
-                "type": "Polygon",
-                "coordinates": [
-                    [
-                        [7.4638, 9.0048],
-                        [7.5038, 9.0048],
-                        [7.5038, 9.0548],
-                        [7.4638, 9.0548],
-                        [7.4638, 9.0048],
                     ]
                 ],
             },
@@ -857,22 +841,6 @@ def palmpay_zone_specs() -> list[tuple[str, str, dict[str, Any]]]:
                 ],
             },
         ),
-        (
-            "Aminu Kano Crescent",
-            CampaignZoneType.BONUS.value,
-            {
-                "type": "Polygon",
-                "coordinates": [
-                    [
-                        [7.455, 9.05],
-                        [7.49, 9.05],
-                        [7.49, 9.09],
-                        [7.455, 9.09],
-                        [7.455, 9.05],
-                    ]
-                ],
-            },
-        ),
     ]
 
 
@@ -890,22 +858,6 @@ def palmpay_market_zone_specs() -> list[tuple[str, str, dict[str, Any]]]:
                         [7.5188, 9.1498],
                         [7.4238, 9.1498],
                         [7.4238, 8.9998],
-                    ]
-                ],
-            },
-        ),
-        (
-            "Wuse Market shops",
-            CampaignZoneType.BONUS.value,
-            {
-                "type": "Polygon",
-                "coordinates": [
-                    [
-                        [7.4538, 9.0298],
-                        [7.4988, 9.0298],
-                        [7.4988, 9.1198],
-                        [7.4538, 9.1198],
-                        [7.4538, 9.0298],
                     ]
                 ],
             },
@@ -1504,7 +1456,7 @@ async def upsert_palmpay_graph(  # noqa: C901
         "height_px": 900,
         "duration_seconds": None,
         "checksum": None,
-        "status": CreativeStatus.READY.value,
+        "status": CreativeStatus.DRAFT.value,
         "creative_metadata": demo_metadata(showcase="palmpay_wuse"),
     }
     if creative is None:
@@ -1685,13 +1637,13 @@ async def _build_demo_graph(session: AsyncSession, settings: Settings) -> DemoGr
         session,
         organization=organization,
         user=advertiser,
-        role=MembershipRole.OWNER,
+        role=MembershipRole.ADVERTISER,
     )
     await upsert_membership(
         session,
         organization=organization,
         user=viewer,
-        role=MembershipRole.VIEWER,
+        role=MembershipRole.ADVERTISER,
     )
     driver_profile = await upsert_driver_profile(session, driver=driver)
     vehicle = await upsert_vehicle(session, profile=driver_profile)

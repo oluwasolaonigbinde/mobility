@@ -5843,11 +5843,6 @@ export interface components {
              */
             completed: number;
             /**
-             * Deactivated
-             * @default 0
-             */
-            deactivated: number;
-            /**
              * Offered
              * @default 0
              */
@@ -6562,7 +6557,7 @@ export interface components {
          * CampaignAssignmentStatus
          * @enum {string}
          */
-        CampaignAssignmentStatus: "offered" | "accepted" | "declined" | "expired" | "active" | "deactivated" | "cancelled" | "completed";
+        CampaignAssignmentStatus: "offered" | "accepted" | "declined" | "expired" | "active" | "cancelled" | "completed";
         /** CampaignAssignmentTransition */
         CampaignAssignmentTransition: {
             /** Metadata */
@@ -7239,7 +7234,8 @@ export interface components {
              */
             id: string;
             new_status: components["schemas"]["CampaignStatus"];
-            prior_status: components["schemas"]["CampaignStatus"];
+            /** Prior Status */
+            prior_status: string;
             /** Rejection Reason */
             rejection_reason: string | null;
             /** Reviewed Snapshot */
@@ -7260,7 +7256,7 @@ export interface components {
          * CampaignStatus
          * @enum {string}
          */
-        CampaignStatus: "draft" | "pending_review" | "approved" | "rejected" | "scheduled" | "active" | "paused" | "completed" | "cancelled";
+        CampaignStatus: "draft" | "pending_review" | "approved" | "rejected" | "active" | "paused" | "completed" | "cancelled";
         /** CampaignStatusCounts */
         CampaignStatusCounts: {
             /**
@@ -7303,11 +7299,6 @@ export interface components {
              * @default 0
              */
             rejected: number;
-            /**
-             * Scheduled
-             * @default 0
-             */
-            scheduled: number;
             /**
              * Total
              * @default 0
@@ -7434,7 +7425,7 @@ export interface components {
          * CampaignZoneType
          * @enum {string}
          */
-        CampaignZoneType: "target" | "exclusion" | "bonus";
+        CampaignZoneType: "target" | "exclusion";
         /** CampaignZoneUpdate */
         CampaignZoneUpdate: {
             /** Description */
@@ -7792,7 +7783,7 @@ export interface components {
          * CreativePlacement
          * @enum {string}
          */
-        CreativePlacement: "vehicle_exterior" | "vehicle_interior" | "digital_screen" | "print" | "other";
+        CreativePlacement: "vehicle_exterior" | "vehicle_interior";
         /** CreativeRead */
         CreativeRead: {
             /**
@@ -7879,7 +7870,8 @@ export interface components {
              */
             id: string;
             new_status: components["schemas"]["CreativeStatus"];
-            prior_status: components["schemas"]["CreativeStatus"];
+            /** Prior Status */
+            prior_status: string;
             /** Rejection Reason */
             rejection_reason: string | null;
             /** Reviewed Snapshot */
@@ -7900,9 +7892,14 @@ export interface components {
          * CreativeStatus
          * @enum {string}
          */
-        CreativeStatus: "draft" | "pending_review" | "approved" | "rejected" | "ready" | "archived";
+        CreativeStatus: "draft" | "pending_review" | "approved" | "rejected" | "archived";
         /** CreativeStatusCounts */
         CreativeStatusCounts: {
+            /**
+             * Approved
+             * @default 0
+             */
+            approved: number;
             /**
              * Archived
              * @default 0
@@ -7914,10 +7911,15 @@ export interface components {
              */
             draft: number;
             /**
-             * Ready
+             * Pending Review
              * @default 0
              */
-            ready: number;
+            pending_review: number;
+            /**
+             * Rejected
+             * @default 0
+             */
+            rejected: number;
             /**
              * Total
              * @default 0
@@ -7928,7 +7930,7 @@ export interface components {
          * CreativeType
          * @enum {string}
          */
-        CreativeType: "image" | "video" | "html" | "text" | "other";
+        CreativeType: "image" | "pdf";
         /** CreativeUpdate */
         CreativeUpdate: {
             creative_type?: components["schemas"]["CreativeType"] | null;
@@ -9742,6 +9744,7 @@ export interface components {
         };
         /** InstallationEvidenceRead */
         InstallationEvidenceRead: {
+            activation?: components["schemas"]["AssignmentReadinessRead"] | null;
             /** Approved Until */
             approved_until: string | null;
             /**
@@ -10437,7 +10440,7 @@ export interface components {
          * MembershipRole
          * @enum {string}
          */
-        MembershipRole: "owner" | "manager" | "viewer";
+        MembershipRole: "advertiser";
         /**
          * MembershipStatus
          * @enum {string}
@@ -12996,7 +12999,7 @@ export interface components {
          * VehicleType
          * @enum {string}
          */
-        VehicleType: "car" | "van" | "minibus" | "bus" | "motorcycle" | "tricycle" | "other";
+        VehicleType: "car";
         /** VehicleUpdate */
         VehicleUpdate: {
             /** Color */
@@ -13121,11 +13124,6 @@ export interface components {
         };
         /** ZoneTypeCounts */
         ZoneTypeCounts: {
-            /**
-             * Bonus
-             * @default 0
-             */
-            bonus: number;
             /**
              * Exclusion
              * @default 0

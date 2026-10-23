@@ -295,7 +295,7 @@ def test_ended_window_ingest_skips_assignment_active_gate(db_client, db_sessionm
     payload = make_batch_payload("post-deactivation")
     remember_batch(trip_id, payload)
     end_trip(db_client, trip_id)
-    update_assignment_status(db_sessionmaker, assignment.id, CampaignAssignmentStatus.DEACTIVATED)
+    update_assignment_status(db_sessionmaker, assignment.id, CampaignAssignmentStatus.CANCELLED)
 
     late = db_client.post(
         f"/api/v1/driver/trips/{trip_id}/pings",

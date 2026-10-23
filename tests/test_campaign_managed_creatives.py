@@ -4,6 +4,7 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
+import pytest
 from conftest import auth_headers, create_test_campaign, create_test_campaign_creative
 from sqlalchemy import func, select, update
 from starlette import status as http_status
@@ -47,9 +48,7 @@ def test_clean_managed_file_binding_derives_identity_and_same_retry_converges(
     db_client, db_sessionmaker, file_boundaries
 ) -> None:
     storage, scanner = file_boundaries
-    advertiser, organization = advertiser_with_org(
-        db_sessionmaker, "managed-creative@example.com"
-    )
+    advertiser, organization = advertiser_with_org(db_sessionmaker, "managed-creative@example.com")
     campaign = create_test_campaign(
         db_sessionmaker,
         organization_id=organization.id,
@@ -85,7 +84,7 @@ def test_clean_managed_file_binding_derives_identity_and_same_retry_converges(
     type_change = db_client.patch(
         f"{url}/{first.json()['id']}",
         headers=headers,
-        json={"creative_type": "video"},
+        json={"creative_type": "pdf"},
     )
     assert type_change.status_code == http_status.HTTP_409_CONFLICT
     assert type_change.json()["error"]["code"] == "CREATIVE_TYPE_MISMATCH"
@@ -95,12 +94,8 @@ def test_pending_infected_cross_tenant_and_url_only_files_cannot_bind(
     db_client, db_sessionmaker, file_boundaries
 ) -> None:
     storage, scanner = file_boundaries
-    owner_a, organization_a = advertiser_with_org(
-        db_sessionmaker, "managed-owner-a@example.com"
-    )
-    owner_b, organization_b = advertiser_with_org(
-        db_sessionmaker, "managed-owner-b@example.com"
-    )
+    owner_a, organization_a = advertiser_with_org(db_sessionmaker, "managed-owner-a@example.com")
+    owner_b, organization_b = advertiser_with_org(db_sessionmaker, "managed-owner-b@example.com")
     campaign_a = create_test_campaign(
         db_sessionmaker,
         organization_id=organization_a.id,
@@ -149,8 +144,8 @@ def test_pending_infected_cross_tenant_and_url_only_files_cannot_bind(
     assert cross_tenant.status_code == http_status.HTTP_404_NOT_FOUND
     assert cross_tenant.json()["error"]["code"] == "STORED_FILE_NOT_FOUND"
     assert url_only.status_code == http_status.HTTP_422_UNPROCESSABLE_CONTENT
-    assert ready_claim.status_code == http_status.HTTP_409_CONFLICT
-    assert ready_claim.json()["error"]["code"] == "CREATIVE_READY_REQUIRES_REVIEW"
+    assert ready_claim.status_code == http_status.HTTP_422_UNPROCESSABLE_CONTENT
+    assert ready_claim.json()["error"]["code"] == "VALIDATION_ERROR"
 
 
 def test_legacy_url_creative_remains_readable_but_has_no_managed_authority(
@@ -206,7 +201,10 @@ def test_legacy_ready_url_cannot_authorize_a_new_offer(db_client, db_sessionmake
     assert response.json()["error"]["code"] == "MANAGED_CLEAN_CREATIVE_REQUIRED"
 
 
-def test_concurrent_same_file_create_converges_on_postgres(postgis_db_sessionmaker) -> None:
+@pytest.mark.parametrize("mime,creative_type", [("image/png", "image"), ("application/pdf", "pdf")])
+def test_concurrent_same_file_create_converges_on_postgres(
+    postgis_db_sessionmaker, mime, creative_type
+) -> None:
     advertiser, organization = advertiser_with_org(
         postgis_db_sessionmaker, "managed-race@example.com"
     )
@@ -225,8 +223,8 @@ def test_concurrent_same_file_create_converges_on_postgres(postgis_db_sessionmak
                 client_request_id=uuid4(),
                 request_fingerprint="b" * 64,
                 purpose=FilePurpose.CREATIVE.value,
-                original_filename="race.png",
-                declared_content_type="image/png",
+                original_filename=f"race.{creative_type}",
+                declared_content_type=mime,
                 declared_size_bytes=128,
                 declared_sha256="a" * 64,
                 object_key=f"test-intents/{stored_file_id}",
@@ -242,13 +240,13 @@ def test_concurrent_same_file_create_converges_on_postgres(postgis_db_sessionmak
                     organization_id=organization.id,
                     uploader_user_id=advertiser.id,
                     purpose=FilePurpose.CREATIVE.value,
-                    original_filename="race.png",
+                    original_filename=f"race.{creative_type}",
                     storage_key=f"test-files/{stored_file_id}",
-                    content_type="image/png",
+                    content_type=mime,
                     size_bytes=128,
                     checksum_sha256="a" * 64,
                     scan_status=FileScanStatus.CLEAN.value,
-                    actual_content_type="image/png",
+                    actual_content_type=mime,
                     scan_attempts=1,
                     scanned_at=datetime.now(UTC),
                 )
@@ -267,7 +265,9 @@ def test_concurrent_same_file_create_converges_on_postgres(postgis_db_sessionmak
                     session,
                     user_id=advertiser.id,
                     campaign_id=campaign.id,
-                    payload=CreativeCreate(**managed_payload(str(stored_file_id))),
+                    payload=CreativeCreate(
+                        **managed_payload(str(stored_file_id), creative_type=creative_type)
+                    ),
                 )
                 await session.commit()
                 return creative.id, created
@@ -278,9 +278,9 @@ def test_concurrent_same_file_create_converges_on_postgres(postgis_db_sessionmak
         results = await asyncio.gather(first, second)
         async with postgis_db_sessionmaker() as session:
             count = await session.scalar(
-                select(func.count()).select_from(CampaignCreative).where(
-                    CampaignCreative.stored_file_id == stored_file_id
-                )
+                select(func.count())
+                .select_from(CampaignCreative)
+                .where(CampaignCreative.stored_file_id == stored_file_id)
             )
         return results, int(count or 0)
 

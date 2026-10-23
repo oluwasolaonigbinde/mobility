@@ -26,7 +26,6 @@ class CampaignAssignmentStatus(StrEnum):
     DECLINED = "declined"
     EXPIRED = "expired"
     ACTIVE = "active"
-    DEACTIVATED = "deactivated"
     CANCELLED = "cancelled"
     COMPLETED = "completed"
 
@@ -47,7 +46,7 @@ class CampaignAssignment(Base):
     __table_args__ = (
         CheckConstraint(
             "status IN ('offered', 'accepted', 'declined', 'expired', 'active', "
-            "'deactivated', 'cancelled', 'completed')",
+            "'cancelled', 'completed')",
             name="ck_campaign_assignments_status",
         ),
         CheckConstraint(
@@ -63,8 +62,7 @@ class CampaignAssignment(Base):
             name="ck_campaign_assignments_accepted_timestamp",
         ),
         CheckConstraint(
-            "accepted_at IS NULL OR status IN "
-            "('accepted', 'active', 'deactivated', 'cancelled', 'completed')",
+            "accepted_at IS NULL OR status IN ('accepted', 'active', 'cancelled', 'completed')",
             name="ck_campaign_assignments_accepted_status_coherence",
         ),
         CheckConstraint(
@@ -104,7 +102,7 @@ class CampaignAssignment(Base):
             "campaign_id",
             "vehicle_id",
             unique=True,
-            postgresql_where=text("status IN ('offered', 'accepted', 'active', 'deactivated')"),
+            postgresql_where=text("status IN ('offered', 'accepted', 'active')"),
         ),
     )
 

@@ -260,6 +260,16 @@ emails come only when extra charges go past the agreed price (D104).
 
 ### Campaign lifecycle and changes
 
+**Implementation checkpoint (REQ-215):** photo approval runs the full funded
+activation check automatically. Staff see a missing prerequisite and may retry
+starting the approved job after fixing it; no Accepted jobs queue. The campaign
+production-start record locks advertiser artwork changes, with the Terrax
+replacement message. Current artwork is image/PDF, current vehicles are cars,
+and the company login has one advertiser role. Issued report files and money
+history are unchanged. B4 money and security checkpoints PASS (GPT-6.1-Sol,
+high); focused activation, production-race, PDF, tenant, migration, exact-pay
+and frontend checks pass. Final integrated reviews remain pending.
+
 **Current rule:** D116 merges Scheduled into Approved, removes bonus zones/unreachable enums and advertiser company roles. Artwork retains PNG/JPEG/WebP images and PDF using explicit image/pdf types; remove video/html/text/other. Fitted artwork cannot be added/swapped after production starts; replacement goes through Terrax (client, 20 Oct), enforced by a shared create/update production-lock guard. Photo approval activates only after all existing checks. D118 derives Finished from end date. Campaign daily metrics use Nigeria calendar days; the owned seven-day read includes partial today and zero empty days. Funding, cancellations, D104 budget rules and change approvals remain. Owner-approved 20 October 2026, REQ-210–218; implementation pending.
 
 **Previous rule (ended 20 October 2026; retained history):** Advertisers create a draft and submit it for admin approval

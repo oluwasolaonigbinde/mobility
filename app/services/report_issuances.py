@@ -187,10 +187,10 @@ async def _authorize_scope(
     )
     if membership is None or membership.status != MembershipStatus.ACTIVE:
         raise _not_found()
-    if write and membership.role not in {MembershipRole.OWNER, MembershipRole.MANAGER}:
+    if write and membership.role != MembershipRole.ADVERTISER:
         raise _error(
             "REPORT_ISSUANCE_ROLE_FORBIDDEN",
-            "Owner or manager access is required for report issuance",
+            "Active advertiser access is required for report issuance",
             status.HTTP_403_FORBIDDEN,
         )
     return user

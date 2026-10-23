@@ -44,7 +44,7 @@ from app.services.report_issuances import (
 
 @pytest.mark.parametrize(
     "revocation",
-    ["user_status", "user_role", "organization", "membership_status", "membership_role"],
+    ["user_status", "user_role", "organization", "membership_status"],
 )
 def test_locked_report_authorization_refreshes_preloaded_state(postgis_db_sessionmaker, revocation):
     from conftest import create_test_campaign
@@ -76,7 +76,6 @@ def test_locked_report_authorization_refreshes_preloaded_state(postgis_db_sessio
                 "user_role": (User, actor.id, "role", "driver"),
                 "organization": (AdvertiserOrganization, organization.id, "status", "disabled"),
                 "membership_status": (OrganizationMembership, membership.id, "status", "disabled"),
-                "membership_role": (OrganizationMembership, membership.id, "role", "viewer"),
             }[revocation]
             async with postgis_db_sessionmaker() as writer:
                 row = await writer.get(model, identity)
@@ -501,35 +500,34 @@ def test_report_scope_and_revocation_remain_enforced_without_legal_gate(
     cross_tenant = request_issuance(db_client, outsider, run["id"])
     assert cross_tenant.status_code == 404
 
-    viewer = create_test_user(
+    disabled_member = create_test_user(
         db_sessionmaker,
-        email="report-viewer@example.com",
+        email="report-disabled-member@example.com",
         password=PASSWORD,
         role=UserRole.ADVERTISER,
     )
 
-    async def add_viewer() -> None:
+    async def add_disabled_member() -> None:
         async with db_sessionmaker() as session:
             session.add(
                 OrganizationMembership(
                     organization_id=UUID(run["organization_id"]),
-                    user_id=viewer.id,
-                    role=MembershipRole.VIEWER,
-                    status=MembershipStatus.ACTIVE,
+                    user_id=disabled_member.id,
+                    role=MembershipRole.ADVERTISER,
+                    status=MembershipStatus.DISABLED,
                 )
             )
             await session.commit()
 
-    asyncio.run(add_viewer())
-    forbidden = request_issuance(db_client, viewer, run["id"])
-    assert forbidden.status_code == 403
-    assert forbidden.json()["error"]["code"] == "REPORT_ISSUANCE_ROLE_FORBIDDEN"
+    asyncio.run(add_disabled_member())
+    forbidden = request_issuance(db_client, disabled_member, run["id"])
+    assert forbidden.status_code == 404
 
     issuance = request_issuance(db_client, advertiser, run["id"])
     assert issuance.status_code == 202
     viewer_status = db_client.get(
         f"/api/v1/advertiser/report-issuances/{issuance.json()['id']}",
-        headers=auth_headers(db_client, viewer.email, PASSWORD),
+        headers=auth_headers(db_client, disabled_member.email, PASSWORD),
     )
     assert viewer_status.status_code == 404
     settings_copy = settings.model_copy(update={})
@@ -612,9 +610,9 @@ def test_changed_authority_and_requester_can_discover_only_the_current_reissue_p
         password=PASSWORD,
         role=UserRole.ADVERTISER,
     )
-    viewer = create_test_user(
+    disabled_member = create_test_user(
         db_sessionmaker,
-        email="report-parent-viewer@example.com",
+        email="report-parent-disabled-member@example.com",
         password=PASSWORD,
         role=UserRole.ADVERTISER,
     )
@@ -633,14 +631,14 @@ def test_changed_authority_and_requester_can_discover_only_the_current_reissue_p
                     OrganizationMembership(
                         organization_id=UUID(run["organization_id"]),
                         user_id=successor.id,
-                        role=MembershipRole.MANAGER,
+                        role=MembershipRole.ADVERTISER,
                         status=MembershipStatus.ACTIVE,
                     ),
                     OrganizationMembership(
                         organization_id=UUID(run["organization_id"]),
-                        user_id=viewer.id,
-                        role=MembershipRole.VIEWER,
-                        status=MembershipStatus.ACTIVE,
+                        user_id=disabled_member.id,
+                        role=MembershipRole.ADVERTISER,
+                        status=MembershipStatus.DISABLED,
                     ),
                 ]
             )
@@ -706,7 +704,7 @@ def test_changed_authority_and_requester_can_discover_only_the_current_reissue_p
     assert recovered.status_code == 202, recovered.text
     assert recovered.json()["version"] == 3
 
-    for hidden_user in (viewer, outsider):
+    for hidden_user in (disabled_member, outsider):
         hidden_parent = db_client.get(
             f"/api/v1/advertiser/measurement-runs/{run['id']}/report-issuances",
             headers=auth_headers(db_client, hidden_user.email, PASSWORD),

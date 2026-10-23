@@ -7,7 +7,6 @@ vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: mocks.get })
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
 vi.mock("@/lib/auth/current-user", () => ({
   requireRole: mocks.role,
-  isAdvertiserViewer: (me: { viewer?: boolean }) => Boolean(me.viewer),
 }));
 vi.mock("next/navigation", () => ({
   notFound: () => {
@@ -189,12 +188,6 @@ it.each(["draft", "completed", "cancelled"])(
     expect(screen.queryByRole("button", { name: "Ask Terrax to cancel" })).toBeNull();
   },
 );
-it("withholds write controls for a company viewer", async () => {
-  mocks.role.mockResolvedValue({ viewer: true });
-  render(await Page(input));
-  expect(screen.queryByText("Manage")).toBeNull();
-  expect(screen.queryByRole("link", { name: "Edit artwork" })).toBeNull();
-});
 it("uses an available invoice as the next step before launch", async () => {
   mocks.get.mockImplementation(async (path: string) =>
     path.endsWith("/commercial")
@@ -218,7 +211,7 @@ it("uses an available invoice as the next step before launch", async () => {
             data: { items: [{ id: "art", status: "approved", name: "Art", stored_file_id: null }] },
           }
         : path.endsWith("/campaigns/{campaign_id}")
-          ? { data: { ...campaign, status: "scheduled" } }
+          ? { data: { ...campaign, status: "approved" } }
           : ready(path),
   );
   render(await Page(input));
@@ -237,52 +230,6 @@ it("returns not found for an unowned campaign", async () => {
   mocks.get.mockRejectedValue(new ApiError(404, { code: "MISSING", message: "Missing" }));
   await expect(Page(input)).rejects.toThrow("notFound");
 });
-it.each(["prepared", "incomplete"])(
-  "gives a viewer a reachable read-only next step for a %s draft",
-  async (state) => {
-    mocks.role.mockResolvedValue({ viewer: true });
-    mocks.get.mockImplementation(async (path: string) => {
-      if (path.endsWith("/campaigns/{campaign_id}"))
-        return {
-          data: {
-            ...campaign,
-            status: "draft",
-            start_at: state === "prepared" ? "2026-10-01T00:00:00Z" : null,
-            end_at: state === "prepared" ? "2026-11-01T00:00:00Z" : null,
-          },
-        };
-      if (path.endsWith("/zones"))
-        return {
-          data: {
-            items: state === "prepared" ? [{ id: "area", name: "Wuse II" }] : [],
-            total: state === "prepared" ? 1 : 0,
-          },
-        };
-      if (path.endsWith("/creatives"))
-        return {
-          data: {
-            items:
-              state === "prepared"
-                ? [{ id: "art", name: "Art", status: "approved", stored_file_id: null }]
-                : [],
-          },
-        };
-      return ready(path);
-    });
-    render(await Page(input));
-    expect(
-      within(screen.getByRole("region", { name: "Next step" })).getByRole("link", {
-        name: "View campaign details",
-      }),
-    ).toHaveAttribute("href", "/advertiser/campaigns/one?details=campaign#details");
-    expect(screen.queryByText("Manage")).toBeNull();
-    expect(
-      screen.queryByRole("link", {
-        name: /Review and submit|Add campaign details|Choose your area|Add or update artwork/,
-      }),
-    ).toBeNull();
-  },
-);
 it.each(["draft", "rejected"])(
   "never implies %s readiness when the area read failed",
   async (status) => {
@@ -314,34 +261,3 @@ it.each(["draft", "rejected"])(
     expect(document.body).not.toHaveTextContent("Private area failure");
   },
 );
-it("lets a viewer read an outstanding invoice without offering payment as the next step", async () => {
-  mocks.role.mockResolvedValue({ viewer: true });
-  mocks.get.mockImplementation(async (path: string) =>
-    path.endsWith("/campaigns/{campaign_id}")
-      ? { data: { ...campaign, status: "scheduled" } }
-      : path.endsWith("/commercial")
-        ? {
-            data: {
-              terms: {},
-              invoices: [
-                {
-                  id: "invoice",
-                  status: "issued",
-                  payment_status: "unpaid",
-                  effective_obligation_amount: "100.00",
-                  funded_amount: "0.00",
-                },
-              ],
-              budget_evaluations: [],
-            },
-          }
-        : ready(path),
-  );
-  render(await Page(input));
-  expect(
-    within(screen.getByRole("region", { name: "Next step" })).getByRole("link", {
-      name: "View invoice",
-    }),
-  ).toHaveAttribute("href", "/advertiser/campaigns/one/invoices/invoice");
-  expect(screen.queryByRole("link", { name: "Pay invoice" })).toBeNull();
-});

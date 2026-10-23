@@ -340,7 +340,7 @@ Current OpenAPI: **282 operations across 254 paths**; **281 operations under `/a
 | `/health` | 1 | 1 |
 
 SQLAlchemy metadata contains **111 mapped tables**.
-Alembic contains **8 linear revisions**, from base `0106_development_baseline` to the single head `0113_remove_pilot_audiences`.
+Alembic contains **9 linear revisions**, from base `0106_development_baseline` to the single head `0114_simplify_campaign_authority`.
 
 Required public driver-onboarding paths:
 
@@ -675,7 +675,7 @@ Notes:
 
 ### 7.2 Migration policy **[BUILT]**
 
-- Alembic has **8 linear revisions**, from base `0106_development_baseline` to the single head `0113_remove_pilot_audiences`.
+- Alembic has **9 linear revisions**, from base `0106_development_baseline` to the single head `0114_simplify_campaign_authority`.
   <!-- verified by scripts/update_architecture_inventory.py from Alembic's ScriptDirectory -->
 - The baseline enables `pgcrypto` + `postgis`.
 - D83 authorizes the one-time development squash because there is no live data.
@@ -1932,6 +1932,28 @@ nothing.
 
 ## 18. Approval workflows
 
+**D116 / REQ-215 (20 October direction):** installation approval invokes the
+existing activation service inside the same transaction, under the campaign
+production-authority and work-eligibility locks. An eligible job starts and
+reserves liability once; a missing prerequisite leaves the photos approved and
+returns `activation: {assignment_id, ready: false, blocker_code, message}`.
+The ordinary second click and Accepted jobs queue are removed. Staff may use
+**Retry start** in the existing campaign drawer after fixing a prerequisite;
+that recovery command runs every original check again.
+
+Creative create and update acquire the same campaign terms lock as production
+start, refresh the owned campaign, and check the canonical `production_starts`
+record. Recorded production, running or terminal status returns
+`409 CAMPAIGN_ARTWORK_LOCKED`: “This campaign's artwork is locked. Ask Terrax
+to change it.” The commercial projection remains
+`production_start: ProductionStartRead | null`, with `started_at`.
+Artwork types are `image` (PNG/JPEG/WebP) and `pdf` (`application/pdf`), exterior
+or interior. Bonus zones, Scheduled, Ready, non-car values and Deactivated job
+status are removed; a stopped job is Cancelled. Append-only past events and
+issued report JSON/bytes are retained unchanged. Historical Scheduled budget
+pause authority resumes into current Approved, without changing that history.
+
+
 **[BUILT — Cardvert Phase II review context]:** focused application detail
 combines named review context and history without bulk sensitive disclosure.
 Approval-purpose NIN, document and bank reads reject superseded evidence;
@@ -1955,12 +1977,12 @@ evidence and atomic-activation contracts.
   requires a reason when rejected, and writes complete audit metadata in the
   same transaction. Advertisers see tenant-scoped history and admins review the
   cross-tenant queue at `/admin/approvals`. Approval deliberately does **not**
-  schedule or activate: the later `approved → scheduled` edge remains [TARGET]
-  behind W2-03C/D's complete launch gate. There is no parallel `is_approved`
-  flag.
+  activate: it remains Approved through offers and acceptance. Approved photo
+  review invokes the complete activation gate above. There is no parallel
+  `is_approved` flag.
 - **Creative approval [BUILT — W2-03B]:** migration `0056` extends the status
   authority to `draft | rejected → pending_review → approved | rejected` while
-  preserving legacy `ready` as readable but never launch-authoritative. Generic
+  retaining old status strings only in immutable history. Generic
   advertiser writes cannot enter a review state; pending/approved definitions
   freeze, while a rejected definition becomes draft when corrected and may be
   resubmitted. Each submission binds the exact tenant-owned, scan-clean managed
@@ -1969,27 +1991,16 @@ evidence and atomic-activation contracts.
   rejection reason, and bind the one undecided submission in append-only
   `creative_review_events`. Advertiser history and the combined admin approvals
   queue expose the governed flow. Offer and activation consumers require
-  `approved` and independently recheck the managed clean identity, so legacy
-  `ready`, rejected, replaced or unsafe assets fail closed. Creative approval
-  alone does not activate work; W2-03C/D remain required.
-- **Installation evidence gate [BUILT — W2-03C] (Q15/Q17):** a campaign-
-  assignment requires evidence
-  before the vehicle starts earning — installation photo(s) uploaded by the
-  configured pilot operator/driver role, reviewed by admin, recorded against
-  the assignment (§19.3). Exact uploader/views/renewal values are settings/
-  operations inputs, not a different lifecycle.
-  Migration `0057` stores immutable revisions and exact clean-file view links,
-  with serialized admin approval and expiry. A driver on the evidence-bound
-  device obtains a one-use server nonce only for an active assignment, uploads
-  a fresh clean image after issuance, and consumes it into an immutable proof
-  bound to the same assignment, campaign, driver, vehicle, device and evidence
-  revision. Trip start rechecks freshness and stores the exact proof ID. Missing
-  policy, approval or proof fails closed. This is a predicate on activation and
-  earning, not a parallel assignment state machine; W2-03D consumes it in the
-  one atomic activation command and snapshot, and W2-03G owns recurring/missed
-  challenges and physical spot checks.
+  `approved` and independently recheck the managed clean identity, so draft,
+  rejected, replaced or unsafe assets fail closed. Creative approval alone
+  does not activate work; installation review runs the complete gate.
+- **Installation evidence gate (D108/D116):** driver or admin uploads five
+  clean photos (front, back, left, right and close-up). Staff approve a revision
+  for seven days. Approval calls the full activation gate; trip start requires
+  current approved photos. There is no daily display photo, challenge or nonce.
 - **Atomic assignment activation [BUILT — W2-03D] (Q15/Q24):** the existing
-  admin-only command owns the final transition. Under the shared commercial
+  admin-only service owns the final transition, normally called by photo
+  approval. Under the shared commercial
   advisory lock it takes stable campaign, assignment, driver and vehicle row
   locks and re-reads the approved campaign, exact accepted creative/offer and
   payout binding, funded liability reservation, current standard-wait,
@@ -2002,7 +2013,7 @@ evidence and atomic-activation contracts.
   on an already-active assignment rechecks current gates and returns the same
   activation without duplicating the event. Trip start requires a valid
   snapshot and still independently rechecks current financial authority and
-  fresh proof; receipt reversal uses the same lock chronology and therefore
+  current approved photos; receipt reversal uses the same lock chronology and therefore
   either follows a committed activation cutoff or makes new work fail closed.
   W2-03F's built cancellation command now uses this same authority.
 - **Governed mid-flight changes [BUILT — W2-03E] (Q9/Q24):** one
@@ -2423,9 +2434,9 @@ records the status each message left behind).
 **[CONFIRMED — D88 / REQ-179 / Q19]:** The pilot is car-only; motorcycles
 are deferred until the owner or client raises them again. This owner decision
 supersedes D43(h)'s pilot motorcycle permission. Existing car-only Apply and
-matching behavior already implements the current direction; this amendment is
-docs only. Keep vehicle_type plumbing and all other eligibility, documentation
-and approval requirements unchanged.
+matching behavior implements the direction. D116 removes non-car values from
+current schemas/forms; all other eligibility, documentation and approval
+requirements remain unchanged.
 
 **[BUILT — Cardvert Phase II operator readiness]:** paginated named campaign,
 driver, vehicle and creative selectors preserve immutable selected IDs. The
@@ -2477,26 +2488,10 @@ policy; it does not block the recommendation/offer/assignment architecture.
   pilot. The product and documentation do not promise later overlapping or
   multiple-brand compatibility; any such future change requires a new client
   decision and explicit compatibility rules.
-- Activity floor (Q20) **[BUILT]:** one bounded rolling-cursor worker evaluates
-  active assignments under the established campaign→assignment lock order and
-  commits each assignment independently. The immediately completed
-  Monday-to-Monday UTC window sums `active_tracking_seconds` only from current,
-  computed, sealed, correctly linked analytics whose formula exactly matches
-  `ROUTE_ANALYTICS_FORMULA_VERSION`; that expected identity is retained in
-  current and append-only evidence. The positive verified-hours
-  floor has no invented default and is skipped visibly until operations sets
-  `VERIFIED_HOURS_FLOOR_PER_WEEK`. Independently, the exact seven-day
-  database-clock boundary starts at activation or the latest verified activity.
-  Dedicated operations flags retain append-only opened/recovered evidence and
-  event-scoped driver notices. Resumed verified activity recovers the current
-  flag without deleting history; if the same authoritative condition later
-  regresses, the locked flag identity reopens, clears only `recovered_at`, and
-  appends a new opened event/notice while preserving its original detection and
-  prior history. Cursor decode/load/persist failures fail the worker run visibly;
-  per-assignment commits remain idempotently retryable and no run reports an
-  advanced/wrapped cursor before persistence succeeds. Admin assignment views expose only sanitized
-  review fields. Neither rule cancels/deactivates assignments nor mutates trip,
-  earnings, hold, payee, reservation or payout authority.
+- **Activity (D109/REQ-211):** the unconfigured verified-hours floor is
+  removed. Seven days without verified activity opens one staff inactivity
+  notice; activity closes the flag. It never cancels a job, changes money or
+  releases a hold. The original detection time and staff audit remain.
 
 ## 22. Advertiser disclosure and report privacy (D107/D115)
 
@@ -3631,7 +3626,7 @@ failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
 
-- **v1.148 — 20 October 2026 (D108–D119 / REQ-210–219):** Owner-approved pilot simplification and client-selected CSV/PDF reports. §1.1 supersedes conflicting earlier designs; B1/B6 are locally committed; B7 implements §§15–17 trip-net/manual money and late-data simplification with a money checkpoint PASS. B2 removes pilot audiences/ROI while preserving issued files; its privacy checkpoint and focused runtime/contracts pass. B4/B5/B3 and final integrated reviews pending. No external action, progress or REQ-196 change.
+- **v1.148 — 20 October 2026 (D108–D119 / REQ-210–219):** Owner-approved pilot simplification and client-selected CSV/PDF reports. §1.1 supersedes conflicting earlier designs; B1/B6 are locally committed; B7 implements §§15–17 trip-net/manual money and late-data simplification with a money checkpoint PASS. B2 removes pilot audiences/ROI while preserving issued files; its privacy checkpoint and focused runtime/contracts pass. B4 implements automatic funded activation after photo approval, production-locked artwork, image/PDF and car-only types, one advertiser role and simplified live statuses; its money/security checkpoints and focused checks pass. B5/B3 and final integrated reviews pending. No external action, progress or REQ-196 change.
 
 - **v1.147 — 20 October 2026 (REQ-208 / D106–D107; extends D105):** Owner-approved pre-push fixes from the read-only Fable review. D107 makes three distinct cars the whole disclosure rule for every governed output (audience policy schema v2, reason `minimum_cars`; trip/day/contributor-share settings removed). A fresh deployment needs no feature switches: Apply and the enquiry form are always on with their rate limits, and the installation-photo rule is code; display-proof windows stay deployment inputs that trips need. A shell command creates the first staff admin. D106 sets the approved-driver set-up link to 24 hours and makes `DRIVER_ACCOUNT_SETUP_PUBLIC_URL` a required release value. Plain recovery emails; staff header reads Terrax Media operations. Speed: one `GET /driver/earnings/days` read (days plus today/this week/total/on hold), company outstanding invoice money on the staff company list, card artwork on the advertiser campaign list, and one cached commercial read per staff campaign hub request. All three API baselines move together. No push, provider or deployment claim.
 

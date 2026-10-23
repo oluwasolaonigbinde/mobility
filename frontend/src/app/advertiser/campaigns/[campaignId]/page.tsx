@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
-import { requireRole, isAdvertiserViewer } from "@/lib/auth/current-user";
+import { requireRole } from "@/lib/auth/current-user";
 import { loadAdvertiserPageData } from "@/lib/advertiser/page-data";
 import { DataUnavailable } from "@/components/ui/data-unavailable";
 import { getSessionToken } from "@/lib/auth/session";
@@ -30,7 +30,6 @@ const sentences: Record<string, string> = {
   pending_review: "Terrax Media is reviewing your campaign.",
   rejected: "Terrax Media has asked for a few changes.",
   approved: "Your campaign is approved. Terrax Media is arranging the next steps.",
-  scheduled: "Your campaign is ready for its start date.",
   active: "Your campaign is running.",
   paused: "Your campaign is paused. Contact Terrax Media about the next steps.",
   completed: "Your campaign has finished.",
@@ -46,8 +45,7 @@ export default async function CampaignDetailPage({
 }) {
   const { campaignId } = await params;
   const query = await searchParams;
-  const me = await requireRole("advertiser");
-  const canWrite = !isAdvertiserViewer(me);
+  await requireRole("advertiser");
   const api = createApiClient(await getSessionToken());
   const base = `/advertiser/campaigns/${campaignId}`;
   const loaded = await loadAdvertiserPageData(() =>
@@ -136,7 +134,7 @@ export default async function CampaignDetailPage({
   );
   const terminal = ["completed", "cancelled"].includes(campaign.status);
   const editable = ["draft", "rejected"].includes(campaign.status);
-  const changeable = ["scheduled", "active", "paused"].includes(campaign.status);
+  const changeable = ["approved", "active", "paused"].includes(campaign.status);
   const invoice = commercial.available
     ? commercial.data.invoices?.find(isOutstandingInvoice)
     : undefined;
@@ -144,10 +142,6 @@ export default async function CampaignDetailPage({
   if (campaign.status === "cancelled") next = { label: "View invoices", href: `${base}/invoices` };
   else if (campaign.status === "paused")
     next = { label: "Contact Terrax Media", href: "/advertiser/help" };
-  else if (!canWrite && !terminal && campaign.status !== "active")
-    next = invoice
-      ? { label: "View invoice", href: `${base}/invoices/${invoice.id}` }
-      : { label: "View campaign details", href: `${base}?details=campaign#details` };
   else if (!terminal && campaign.status !== "active") {
     if (editable && (!campaign.start_at || !campaign.end_at || !campaign.budget_amount))
       next = { label: "Add campaign details", href: `${base}/edit` };
@@ -200,7 +194,7 @@ export default async function CampaignDetailPage({
         <Panel className="overflow-hidden">
           <div className="border-edge flex items-center justify-between border-b px-5 py-4">
             <h2 className="font-semibold">Your advert</h2>
-            {canWrite && !terminal ? (
+            {!terminal ? (
               <Link
                 href={`/advertiser/campaigns/new?campaignId=${campaign.id}`}
                 className="text-green text-sm"
@@ -282,8 +276,8 @@ export default async function CampaignDetailPage({
               {commercial.available ? (
                 <CommercialPanel
                   campaignId={campaign.id}
-                  canRequestQuotation={canWrite && !terminal}
-                  canPay={canWrite && campaign.status !== "cancelled"}
+                  canRequestQuotation={!terminal}
+                  canPay={campaign.status !== "cancelled"}
                   commercial={commercial.data}
                   error={
                     query.commercial_error
@@ -331,7 +325,7 @@ export default async function CampaignDetailPage({
                           </p>
                         ) : null}
                       </div>
-                      {canWrite && !terminal ? (
+                      {!terminal ? (
                         <CreativeStatusActions
                           campaignId={campaign.id}
                           creativeId={item.id}
@@ -369,7 +363,7 @@ export default async function CampaignDetailPage({
             )}
           </div>
         </details>
-        {canWrite && !terminal ? (
+        {!terminal ? (
           <details id="manage" className="brand-disclosure" open={Boolean(query.manage)}>
             <summary>
               Manage{" "}
@@ -400,12 +394,6 @@ export default async function CampaignDetailPage({
               )}
               {cancellation}
             </div>
-          </details>
-        ) : null}
-        {!canWrite && cancellation ? (
-          <details className="brand-disclosure">
-            <summary>Ask Terrax to cancel</summary>
-            <div className="disclosure-body">{cancellation}</div>
           </details>
         ) : null}
       </div>

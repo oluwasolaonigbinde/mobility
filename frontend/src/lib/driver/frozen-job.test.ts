@@ -26,7 +26,7 @@ it.each([
   ["image/jpeg", "image"],
   ["image/webp", "image"],
   ["application/pdf", "document"],
-  ["video/mp4", "video"],
+  ["video/mp4", null],
   ["image/svg+xml", null],
   [undefined, null],
 ])("uses only the frozen safe artwork MIME %s", (mime, kind) => {

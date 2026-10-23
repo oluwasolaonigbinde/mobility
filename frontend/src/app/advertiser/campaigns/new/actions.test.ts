@@ -79,7 +79,7 @@ describe("createCampaignAction", () => {
     expect(mocks.redirect).toHaveBeenCalledWith(`/advertiser/campaigns/${CAMPAIGN_ID}`);
   });
 
-  it("tells a viewer they lack permission instead of offering an uncertain retry", async () => {
+  it("explains unavailable write access instead of offering an uncertain retry", async () => {
     mocks.post.mockRejectedValueOnce(
       new ApiError(403, {
         code: "ADVERTISER_MEMBERSHIP_WRITE_FORBIDDEN",
@@ -104,8 +104,7 @@ describe("createCampaignAction", () => {
     );
 
     expect(state).toEqual({
-      error:
-        "Only company owners and managers can create campaigns. Ask one of them to create it or to change your access.",
+      error: "Your advertiser access is unavailable. Ask Terrax to check your account.",
     });
     expect(mocks.redirect).not.toHaveBeenCalled();
   });

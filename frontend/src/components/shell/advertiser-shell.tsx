@@ -39,9 +39,7 @@ export function AdvertiserShell({ me, children }: { me: MeResponse; children: Re
             <NotificationCenter
               compact
               sessionScope={me.user.id}
-              canManageAdvertiserPreferences={
-                org?.membership_role === "owner" || org?.membership_role === "manager"
-              }
+              canManageAdvertiserPreferences={org?.membership_role === "advertiser"}
             />
           </div>
         </header>

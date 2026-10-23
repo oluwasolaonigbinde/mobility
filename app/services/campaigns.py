@@ -10,6 +10,7 @@ from sqlalchemy.orm import aliased
 from starlette import status
 
 from app.core.errors import AppError
+from app.models.billing import ProductionStart
 from app.models.campaign import (
     Campaign,
     CampaignCreative,
@@ -31,6 +32,7 @@ from app.schemas.campaigns import CampaignCreate, CampaignUpdate, CreativeCreate
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
 from app.services.organizations import get_advertiser_organization_for_user
+from app.services.payout_rule_serialization import acquire_campaign_terms_lock
 
 
 def comparable_campaign_datetime(value: datetime) -> datetime:
@@ -54,8 +56,7 @@ async def get_required_advertiser_context(
         )
     organization, membership = context
     if require_write and (
-        membership.status != MembershipStatus.ACTIVE
-        or membership.role not in {MembershipRole.OWNER, MembershipRole.MANAGER}
+        membership.status != MembershipStatus.ACTIVE or membership.role != MembershipRole.ADVERTISER
     ):
         raise AppError(
             "ADVERTISER_MEMBERSHIP_WRITE_FORBIDDEN",
@@ -670,6 +671,38 @@ async def get_admin_campaign(
     return row[0], row[1]
 
 
+async def _lock_campaign_artwork(
+    session: AsyncSession, *, user_id: UUID, campaign_id: UUID
+) -> Campaign:
+    """Serialize advertiser artwork changes with the production-start record."""
+    organization, _ = await get_required_advertiser_context(session, user_id, require_write=True)
+    await acquire_campaign_terms_lock(session, campaign_id)
+    campaign = await session.scalar(
+        select(Campaign)
+        .where(Campaign.id == campaign_id, Campaign.organization_id == organization.id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if campaign is None:
+        raise AppError(
+            "CAMPAIGN_NOT_FOUND", "Campaign was not found", status_code=status.HTTP_404_NOT_FOUND
+        )
+    production_id = await session.scalar(
+        select(ProductionStart.id).where(ProductionStart.campaign_id == campaign.id)
+    )
+    if production_id is not None or campaign.status in {
+        CampaignStatus.ACTIVE.value,
+        CampaignStatus.COMPLETED.value,
+        CampaignStatus.CANCELLED.value,
+    }:
+        raise AppError(
+            "CAMPAIGN_ARTWORK_LOCKED",
+            "This campaign's artwork is locked. Ask Terrax to change it.",
+            status_code=status.HTTP_409_CONFLICT,
+        )
+    return campaign
+
+
 async def create_campaign_creative(
     session: AsyncSession,
     *,
@@ -677,24 +710,7 @@ async def create_campaign_creative(
     campaign_id: UUID,
     payload: CreativeCreate,
 ) -> tuple[CampaignCreative, bool]:
-    organization, _ = await get_required_advertiser_context(session, user_id, require_write=True)
-    campaign = await session.scalar(
-        select(Campaign)
-        .where(Campaign.id == campaign_id, Campaign.organization_id == organization.id)
-        .with_for_update()
-    )
-    if campaign is None:
-        raise AppError(
-            "CAMPAIGN_NOT_FOUND",
-            "Campaign was not found",
-            status_code=status.HTTP_404_NOT_FOUND,
-        )
-    if payload.status == CreativeStatus.READY:
-        raise AppError(
-            "CREATIVE_READY_REQUIRES_REVIEW",
-            "A managed creative can become ready only through creative review",
-            status_code=status.HTTP_409_CONFLICT,
-        )
+    campaign = await _lock_campaign_artwork(session, user_id=user_id, campaign_id=campaign_id)
     if payload.status != CreativeStatus.DRAFT:
         raise AppError(
             "CREATIVE_CREATE_STATUS_INVALID",
@@ -763,16 +779,20 @@ async def create_campaign_creative(
 
 
 def _creative_type_for_content_type(content_type: str) -> str:
-    normalized = content_type.lower()
-    if normalized.startswith("image/"):
-        return CreativeType.IMAGE.value
-    if normalized.startswith("video/"):
-        return CreativeType.VIDEO.value
-    if normalized == "text/html":
-        return CreativeType.HTML.value
-    if normalized.startswith("text/"):
-        return CreativeType.TEXT.value
-    return CreativeType.OTHER.value
+    artwork_types = {
+        "image/png": CreativeType.IMAGE.value,
+        "image/jpeg": CreativeType.IMAGE.value,
+        "image/webp": CreativeType.IMAGE.value,
+        "application/pdf": CreativeType.PDF.value,
+    }
+    creative_type = artwork_types.get(content_type.lower())
+    if creative_type is None:
+        raise AppError(
+            "CREATIVE_CONTENT_TYPE_UNSUPPORTED",
+            "Artwork must be a PNG, JPEG, WebP image or PDF.",
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        )
+    return creative_type
 
 
 def _creative_create_matches(
@@ -868,7 +888,7 @@ async def update_campaign_creative(  # noqa: C901
     creative_id: UUID,
     payload: CreativeUpdate,
 ) -> tuple[CampaignCreative, list[str]]:
-    await get_required_advertiser_context(session, user_id, require_write=True)
+    await _lock_campaign_artwork(session, user_id=user_id, campaign_id=campaign_id)
     creative = await get_campaign_creative(
         session,
         user_id=user_id,
@@ -886,14 +906,13 @@ async def update_campaign_creative(  # noqa: C901
         raise creative_review_state_conflict(creative.status, None)
 
     if update_values.get("status") in {
-        CreativeStatus.READY,
         CreativeStatus.PENDING_REVIEW,
         CreativeStatus.APPROVED,
         CreativeStatus.REJECTED,
     }:
         raise AppError(
             "CREATIVE_READY_REQUIRES_REVIEW",
-            "A managed creative can become ready only through creative review",
+            "Artwork must go through creative review before approval",
             status_code=status.HTTP_409_CONFLICT,
         )
 

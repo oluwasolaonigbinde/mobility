@@ -71,7 +71,7 @@ def advertiser_with_org(db_sessionmaker, email: str):
     organization, _ = create_test_organization(
         db_sessionmaker,
         owner_user_id=user.id,
-        membership_role=MembershipRole.OWNER,
+        membership_role=MembershipRole.ADVERTISER,
     )
     return user, organization
 

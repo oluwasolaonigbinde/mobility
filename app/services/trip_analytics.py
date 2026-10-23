@@ -257,13 +257,6 @@ async def measure_segment(
                     SELECT 1
                     FROM campaign_zones
                     WHERE campaign_id = :campaign_id
-                      AND zone_type = :bonus_zone_type
-                      AND ST_Intersects(ST_MakeLine(start_ping.geom, end_ping.geom), geom)
-                ) AS bonus_intersects,
-                EXISTS (
-                    SELECT 1
-                    FROM campaign_zones
-                    WHERE campaign_id = :campaign_id
                       AND zone_type = :exclusion_zone_type
                       AND ST_Intersects(ST_MakeLine(start_ping.geom, end_ping.geom), geom)
                 ) AS exclusion_intersects
@@ -282,7 +275,6 @@ async def measure_segment(
             "end_recorded_at": end_recorded_at,
             "campaign_id": campaign_id,
             "target_zone_type": CampaignZoneType.TARGET.value,
-            "bonus_zone_type": CampaignZoneType.BONUS.value,
             "exclusion_zone_type": CampaignZoneType.EXCLUSION.value,
         },
     )
@@ -290,7 +282,7 @@ async def measure_segment(
     return SegmentMeasurement(
         distance_m=decimal_from_number(row["distance_m"], DECIMAL_4),
         target_intersects=bool(row["target_intersects"]),
-        bonus_intersects=bool(row["bonus_intersects"]),
+        bonus_intersects=False,
         exclusion_intersects=bool(row["exclusion_intersects"]),
     )
 

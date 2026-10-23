@@ -411,7 +411,7 @@ def test_email_sweep_isolates_unexpected_failure_and_preserves_claim_recovery(
                     OrganizationMembership(
                         organization_id=organization.id,
                         user_id=user.id,
-                        role=MembershipRole.OWNER,
+                        role=MembershipRole.ADVERTISER,
                         status=MembershipStatus.ACTIVE,
                     ),
                     AdvertiserOrganizationNotificationPreference(

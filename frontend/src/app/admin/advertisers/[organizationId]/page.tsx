@@ -147,8 +147,7 @@ export default async function CompanyHub({
                         <p className="font-medium">{user.full_name}</p>
                         <p className="text-muted text-sm">{user.email}</p>
                         <p className="text-muted text-sm">
-                          {membership.role === "owner" ? "Company owner" : "Company member"} ·
-                          Membership: {adminStatus(membership.status)} · Login:{" "}
+                          Advertiser · Membership: {adminStatus(membership.status)} · Login:{" "}
                           {adminStatus(user.status)}
                         </p>
                       </div>

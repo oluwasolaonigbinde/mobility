@@ -135,7 +135,6 @@ async def _additional_window_liability(
                 {
                     CampaignAssignmentStatus.ACCEPTED.value,
                     CampaignAssignmentStatus.ACTIVE.value,
-                    CampaignAssignmentStatus.DEACTIVATED.value,
                 }
             ),
         )
@@ -159,13 +158,13 @@ async def _locked_campaign(session: AsyncSession, campaign_id: UUID) -> Campaign
     if campaign is None:
         raise _error("CAMPAIGN_NOT_FOUND", "Campaign was not found", 404)
     if campaign.status not in {
-        CampaignStatus.SCHEDULED.value,
+        CampaignStatus.APPROVED.value,
         CampaignStatus.ACTIVE.value,
         CampaignStatus.PAUSED.value,
     }:
         raise _error(
             "CAMPAIGN_CHANGE_NOT_AVAILABLE",
-            "Mid-flight changes require a scheduled, active or paused campaign",
+            "Campaign changes require an approved, active or paused campaign",
         )
     return campaign
 
@@ -175,13 +174,13 @@ async def _campaign_for_preview(session: AsyncSession, campaign_id: UUID) -> Cam
     if campaign is None:
         raise _error("CAMPAIGN_NOT_FOUND", "Campaign was not found", 404)
     if campaign.status not in {
-        CampaignStatus.SCHEDULED.value,
+        CampaignStatus.APPROVED.value,
         CampaignStatus.ACTIVE.value,
         CampaignStatus.PAUSED.value,
     }:
         raise _error(
             "CAMPAIGN_CHANGE_NOT_AVAILABLE",
-            "Mid-flight changes require a scheduled, active or paused campaign",
+            "Campaign changes require an approved, active or paused campaign",
         )
     return campaign
 

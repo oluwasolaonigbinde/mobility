@@ -36,9 +36,7 @@ export function frozenJob(terms: unknown) {
         ? ("image" as const)
         : mime === "application/pdf"
           ? ("document" as const)
-          : mime === "video/mp4"
-            ? ("video" as const)
-            : null,
+          : null,
     rate:
       payout?.formula_version === "payout_v4" &&
       typeof rate === "string" &&

@@ -5,6 +5,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.installation_evidence import InstallationEvidenceStatus
+from app.schemas.campaign_assignments import AssignmentReadinessRead
 from app.schemas.campaigns import ensure_timezone_aware
 from app.schemas.drivers import normalize_optional_text
 
@@ -53,6 +54,7 @@ class InstallationEvidencePhotoRead(BaseModel):
 
 
 class InstallationEvidenceRead(BaseModel):
+    activation: AssignmentReadinessRead | None = None
     driver_name: str | None = None
     campaign_name: str | None = None
     id: UUID

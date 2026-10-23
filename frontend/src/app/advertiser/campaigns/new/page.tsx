@@ -4,10 +4,10 @@ import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { ApiError } from "@/lib/api/errors";
 import type { Metadata } from "next";
-import Link from "next/link";
-import { isAdvertiserViewer, requireRole } from "@/lib/auth/current-user";
+
+import { requireRole } from "@/lib/auth/current-user";
 import { PageHeader } from "@/components/ui/page-header";
-import { Panel } from "@/components/ui/panel";
+
 import { CampaignWizard } from "./wizard";
 import { toLagosDatetimeLocal } from "@/lib/campaigns/schema";
 import { DataUnavailable } from "@/components/ui/data-unavailable";
@@ -22,22 +22,6 @@ export default async function NewCampaignPage({
   searchParams: Promise<{ campaignId?: string; requestId?: string }>;
 }) {
   const me = await requireRole("advertiser");
-  if (isAdvertiserViewer(me)) {
-    return (
-      <div className="animate-rise mx-auto max-w-4xl">
-        <PageHeader title="New campaign" eyebrow="View-only access" />
-        <Panel className="p-5 text-sm">
-          <p>Only company owners and managers can create campaigns or add creatives.</p>
-          <p className="text-muted mt-1">
-            Ask one of them to do it, or to change your access.{" "}
-            <Link href="/advertiser/campaigns" className="text-amber hover:underline">
-              Back to campaigns
-            </Link>
-          </p>
-        </Panel>
-      </div>
-    );
-  }
   const { campaignId, requestId } = await searchParams;
   if (requestId !== undefined && !z.uuid().safeParse(requestId).success) notFound();
   let existingCampaign;

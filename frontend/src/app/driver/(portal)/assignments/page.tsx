@@ -31,12 +31,11 @@ const statusMeta: Record<
   declined: { label: "Declined", tone: "coral" },
   expired: { label: "Expired", tone: "default" },
   active: { label: "Running", tone: "green" },
-  deactivated: { label: "Stopped", tone: "default" },
   cancelled: { label: "Cancelled", tone: "coral" },
   completed: { label: "Finished", tone: "default" },
 };
 
-const CURRENT: AssignmentStatus[] = ["active", "accepted", "deactivated"];
+const CURRENT: AssignmentStatus[] = ["active", "accepted"];
 const OFFERS: AssignmentStatus[] = ["offered"];
 
 function JobTerms({ a }: { a: Assignment }) {
@@ -85,7 +84,6 @@ function JobCard({
   else if (a.status === "accepted")
     sentence = "Your photos are approved. Terrax Media will confirm when to start.";
   else if (readyToDrive) sentence = "You’re ready to drive. Start your trip from Home.";
-  else if (a.status === "deactivated") sentence = "Contact Terrax Media about restarting this job.";
   return (
     <Panel className="p-5" id={`photos-${a.id}`}>
       <p className="mb-4 rounded-xl bg-[#f0f7ed] p-3 text-sm leading-6">{sentence}</p>

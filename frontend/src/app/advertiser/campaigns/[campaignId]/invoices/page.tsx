@@ -5,7 +5,7 @@ import { loadAdvertiserPageData } from "@/lib/advertiser/page-data";
 import { CommercialHistory } from "@/lib/billing/commercial-history";
 import { DataUnavailable } from "@/components/ui/data-unavailable";
 import { EmptyState } from "@/components/ui/empty-state";
-import { requireRole, isAdvertiserViewer } from "@/lib/auth/current-user";
+import { requireRole } from "@/lib/auth/current-user";
 
 export const metadata = { title: "Campaign invoices" };
 export default async function CampaignInvoicesPage({
@@ -14,7 +14,7 @@ export default async function CampaignInvoicesPage({
   params: Promise<{ campaignId: string }>;
 }) {
   const { campaignId } = await params;
-  const me = await requireRole("advertiser");
+  await requireRole("advertiser");
   const api = createApiClient(await getSessionToken());
   const [result, campaign] = await Promise.all([
     loadAdvertiserPageData(() =>
@@ -61,7 +61,7 @@ export default async function CampaignInvoicesPage({
         <CommercialHistory
           invoices={result.data.invoices}
           settlements={result.data.settlements}
-          showPayment={!isAdvertiserViewer(me) && campaign.data.status !== "cancelled"}
+          showPayment={campaign.data.status !== "cancelled"}
         />
       )}
     </div>

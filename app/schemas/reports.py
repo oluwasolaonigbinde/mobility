@@ -46,7 +46,6 @@ class CampaignStatusCounts(BaseModel):
     pending_review: int = 0
     approved: int = 0
     rejected: int = 0
-    scheduled: int = 0
     active: int = 0
     paused: int = 0
     completed: int = 0
@@ -58,7 +57,6 @@ class AssignmentStatusCounts(BaseModel):
     offered: int = 0
     accepted: int = 0
     active: int = 0
-    deactivated: int = 0
     cancelled: int = 0
     completed: int = 0
 
@@ -138,7 +136,9 @@ class CampaignReadSummary(DecimalStringMixin):
 
 class CreativeStatusCounts(BaseModel):
     total: int = 0
-    ready: int = 0
+    pending_review: int = 0
+    approved: int = 0
+    rejected: int = 0
     draft: int = 0
     archived: int = 0
 
@@ -146,7 +146,6 @@ class CreativeStatusCounts(BaseModel):
 class ZoneTypeCounts(BaseModel):
     total: int = 0
     target: int = 0
-    bonus: int = 0
     exclusion: int = 0
 
 

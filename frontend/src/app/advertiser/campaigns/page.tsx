@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createApiClient } from "@/lib/api/client";
-import { isAdvertiserViewer, requireRole } from "@/lib/auth/current-user";
+import { requireRole } from "@/lib/auth/current-user";
 import { getSessionToken } from "@/lib/auth/session";
 import { formatDateRange, formatMoney } from "@/lib/format";
 import { isCampaignStatus, statusLabel, statusTone } from "@/lib/campaigns/status";
@@ -51,7 +51,7 @@ const groups = {
   running: { label: "Running", statuses: ["active", "paused"] },
   setup: {
     label: "Being set up",
-    statuses: ["draft", "pending_review", "approved", "rejected", "scheduled"],
+    statuses: ["draft", "pending_review", "approved", "rejected"],
   },
   finished: { label: "Finished", statuses: ["completed", "cancelled"] },
 } as const;
@@ -75,7 +75,7 @@ export default async function CampaignsPage({
   const rawOffset = Number(params.offset ?? 0);
   const offset = Number.isFinite(rawOffset) && rawOffset > 0 ? Math.floor(rawOffset) : 0;
 
-  const canWrite = !isAdvertiserViewer(await requireRole("advertiser"));
+  await requireRole("advertiser");
   const api = createApiClient(await getSessionToken());
   const loaded = await loadAllAdvertiserPages((next) =>
     api.GET("/api/v1/advertiser/campaigns", { params: { query: { limit: 100, offset: next } } }),
@@ -103,18 +103,12 @@ export default async function CampaignsPage({
         title="Campaigns"
         eyebrow={`${total} campaign${total === 1 ? "" : "s"} · ${groups[group].label}`}
         actions={
-          canWrite ? (
-            <Link
-              href="/advertiser/campaigns/new"
-              className="bg-amber text-bg hover:bg-amber-soft shadow-glow-amber inline-flex h-11 items-center rounded-lg px-5 text-sm font-medium transition-colors"
-            >
-              + New campaign
-            </Link>
-          ) : (
-            <p className="micro text-faint max-w-56 text-right">
-              View only — company owners and managers create campaigns
-            </p>
-          )
+          <Link
+            href="/advertiser/campaigns/new"
+            className="bg-amber text-bg hover:bg-amber-soft shadow-glow-amber inline-flex h-11 items-center rounded-lg px-5 text-sm font-medium transition-colors"
+          >
+            + New campaign
+          </Link>
         }
       />
 

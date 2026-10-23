@@ -27,11 +27,10 @@ const tabs = [
   {
     id: "getting-ready",
     title: "Getting ready",
-    statuses: ["draft", "approved", "scheduled"],
+    statuses: ["draft", "approved"],
     sources: [
       { id: "draft", title: "Draft" },
       { id: "approved", title: "Approved" },
-      { id: "scheduled", title: "Scheduled" },
     ],
   },
   {

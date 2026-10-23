@@ -264,7 +264,7 @@ def test_non_active_assignment_is_skipped_without_mutating_assignment(db_session
     async def deactivate():
         async with db_sessionmaker() as session:
             assignment = await session.get(CampaignAssignment, graph.assignment.id)
-            assignment.status = CampaignAssignmentStatus.DEACTIVATED.value
+            assignment.status = CampaignAssignmentStatus.CANCELLED.value
             await session.commit()
             await session.refresh(assignment)
             return assignment.updated_at
@@ -284,7 +284,7 @@ def test_non_active_assignment_is_skipped_without_mutating_assignment(db_session
             return assignment.status, assignment.updated_at
 
     status, after = asyncio.run(read())
-    assert status == CampaignAssignmentStatus.DEACTIVATED.value
+    assert status == CampaignAssignmentStatus.CANCELLED.value
     assert after == updated_at
 
 

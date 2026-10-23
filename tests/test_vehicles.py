@@ -266,7 +266,7 @@ def test_admin_can_list_get_and_update_vehicles(db_client, db_sessionmaker) -> N
         json={
             "plate_number": " new 456 ",
             "plate_country_code": "ng",
-            "vehicle_type": "van",
+            "vehicle_type": "car",
             "make": "Honda",
             "model": "Odyssey",
             "year": 2020,
@@ -293,10 +293,17 @@ def test_admin_can_list_get_and_update_vehicles(db_client, db_sessionmaker) -> N
     assert updated["plate_number"] == "new 456"
     assert updated["plate_number_normalized"] == "NEW456"
     assert updated["plate_country_code"] == "NG"
-    assert updated["vehicle_type"] == "van"
+    assert updated["vehicle_type"] == "car"
     assert updated["status"] == "active"
     assert updated["metadata"] == {"inspection": "passed"}
 
+    for removed in ("van", "minibus", "bus", "motorcycle", "tricycle", "other"):
+        refused = db_client.patch(
+            f"/api/v1/admin/vehicles/{vehicle.id}",
+            headers=headers,
+            json={"vehicle_type": removed},
+        )
+        assert refused.status_code == 422, refused.text
     audit_events = fetch_audit_events(db_sessionmaker)
     assert [event.action for event in audit_events] == ["admin.vehicle.updated"]
 

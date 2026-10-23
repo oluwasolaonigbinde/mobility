@@ -50,7 +50,7 @@ def deactivate_assignment(db_sessionmaker, assignment_id, *, at=None) -> datetim
         async with db_sessionmaker() as session:
             assignment = await session.get(CampaignAssignment, UUID(str(assignment_id)))
             previous_status = assignment.status
-            assignment.status = CampaignAssignmentStatus.DEACTIVATED.value
+            assignment.status = CampaignAssignmentStatus.CANCELLED.value
             assignment.deactivated_at = moment
             session.add(
                 CampaignActivationEvent(
@@ -58,7 +58,7 @@ def deactivate_assignment(db_sessionmaker, assignment_id, *, at=None) -> datetim
                     actor_user_id=None,
                     event_type=CampaignActivationEventType.DEACTIVATED.value,
                     previous_status=previous_status,
-                    new_status=CampaignAssignmentStatus.DEACTIVATED.value,
+                    new_status=CampaignAssignmentStatus.CANCELLED.value,
                     occurred_at=moment,
                 )
             )
@@ -199,7 +199,7 @@ def test_captured_evidence_survives_deactivation_and_lands_after_end(
     delivered = send(db_client, trip_id, payload)
     assert delivered.status_code == http_status.HTTP_200_OK
     assert delivered.json()["accepted_count"] == 1
-    assert delivered.json()["quarantined"] is False
+    assert delivered.json()["evidence_scope"] == "manifest"
 
     reconciled = db_client.post(
         f"/api/v1/driver/trips/{trip_id}/evidence/reconcile",

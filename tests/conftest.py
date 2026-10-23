@@ -282,7 +282,7 @@ def create_test_organization(
     currency: str = "NGN",
     organization_status: OrganizationStatus = OrganizationStatus.ACTIVE,
     owner_user_id: UUID | None = None,
-    membership_role: MembershipRole = MembershipRole.OWNER,
+    membership_role: MembershipRole = MembershipRole.ADVERTISER,
     membership_status: MembershipStatus = MembershipStatus.ACTIVE,
     legacy_schema: bool = False,
 ) -> tuple[AdvertiserOrganization, OrganizationMembership | None]:
@@ -322,7 +322,7 @@ def create_test_organization(
                             "id": membership_id,
                             "organization_id": organization_id,
                             "user_id": owner_user_id,
-                            "role": membership_role.value,
+                            "role": "owner",  # The actual pre-0114 storage value.
                             "status": membership_status.value,
                         },
                     )
@@ -330,7 +330,7 @@ def create_test_organization(
                         id=membership_id,
                         organization_id=organization_id,
                         user_id=owner_user_id,
-                        role=membership_role,
+                        role="owner",
                         status=membership_status,
                     )
                 await session.commit()
@@ -1220,7 +1220,7 @@ def create_test_campaign_creative(
             managed_file = None
             persisted_checksum = checksum
             persisted_asset_url = asset_url
-            if creative_status in {CreativeStatus.READY, CreativeStatus.APPROVED}:
+            if creative_status == CreativeStatus.APPROVED:
                 campaign = await session.get(Campaign, campaign_id)
                 assert campaign is not None
                 file_id = uuid4()

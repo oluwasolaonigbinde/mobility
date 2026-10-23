@@ -26,9 +26,7 @@ class OrganizationStatus(StrEnum):
 
 
 class MembershipRole(StrEnum):
-    OWNER = "owner"
-    MANAGER = "manager"
-    VIEWER = "viewer"
+    ADVERTISER = "advertiser"
 
 
 class MembershipStatus(StrEnum):
@@ -86,7 +84,7 @@ class OrganizationMembership(Base):
     __tablename__ = "organization_memberships"
     __table_args__ = (
         CheckConstraint(
-            "role IN ('owner', 'manager', 'viewer')",
+            "role = 'advertiser'",
             name="ck_organization_memberships_role",
         ),
         CheckConstraint(

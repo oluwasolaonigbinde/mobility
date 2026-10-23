@@ -255,7 +255,7 @@ class CampaignReviewEventRead(BaseModel):
     id: UUID
     campaign_id: UUID
     actor_user_id: UUID
-    prior_status: CampaignStatus
+    prior_status: str
     new_status: CampaignStatus
     rejection_reason: str | None
     reviewed_snapshot: dict[str, Any] | None
@@ -358,7 +358,7 @@ class CreativeReviewEventRead(BaseModel):
     id: UUID
     creative_id: UUID
     actor_user_id: UUID
-    prior_status: CreativeStatus
+    prior_status: str
     new_status: CreativeStatus
     rejection_reason: str | None
     reviewed_snapshot: dict[str, Any] | None

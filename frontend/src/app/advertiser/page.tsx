@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { requireRole, isAdvertiserViewer } from "@/lib/auth/current-user";
+import { requireRole } from "@/lib/auth/current-user";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { formatCount, formatDateRange } from "@/lib/format";
@@ -50,12 +50,11 @@ export default async function AdvertiserOverviewPage() {
   }
   // The list read carries each card's picture and area count, so cards need no more reads (REQ-208).
   const cards = inventory.available ? inventory.data.items : [];
-  const canWrite = !isAdvertiserViewer(me);
-  const start = canWrite ? (
+  const start = (
     <Link href="/advertiser/campaigns/new" className="brand-action w-full sm:w-auto">
       Start a new campaign <span aria-hidden="true">→</span>
     </Link>
-  ) : null;
+  );
   return (
     <div className="animate-rise mx-auto max-w-6xl">
       <div className="mb-7 flex flex-wrap items-end justify-between gap-5">

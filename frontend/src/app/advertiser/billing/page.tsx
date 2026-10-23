@@ -14,7 +14,7 @@ import {
   isOutstandingInvoice,
 } from "@/lib/billing/commercial-history";
 import { invoiceAmountLeftToPay, paidTowards } from "@/lib/billing/history";
-import { requireRole, isAdvertiserViewer } from "@/lib/auth/current-user";
+import { requireRole } from "@/lib/auth/current-user";
 import {
   loadAdvertiserPageData,
   loadAllAdvertiserPages,
@@ -49,8 +49,7 @@ export default async function AdvertiserBillingPage({
   searchParams?: Promise<{ payment?: string; message?: string }>;
 }) {
   const paymentResult = (await searchParams) ?? {};
-  const me = await requireRole("advertiser");
-  const canPay = !isAdvertiserViewer(me);
+  await requireRole("advertiser");
   const api = createApiClient(await getSessionToken());
   const [historyResult, campaignResult] = await Promise.all([
     loadAdvertiserPageData(() => api.GET("/api/v1/advertiser/billing")),
@@ -195,7 +194,7 @@ export default async function AdvertiserBillingPage({
                       </StatusChip>
                     </div>
                   </div>
-                  {canPay ? <InvoicePayForm invoice={invoice} showNote={false} /> : null}
+                  <InvoicePayForm invoice={invoice} showNote={false} />
                 </li>
               ))}
             </ul>
