@@ -265,12 +265,14 @@ def test_summary_endpoints_enforce_roles_and_zero_counts(db_client, db_sessionma
     badges = db_client.get("/api/v1/admin/badge-summary", headers=ah)
     assert badges.status_code == 200, badges.text
     assert badges.json()["total"] == 0
-    assert len(badges.json()["source_counts"]) == 17
+    # S16/D114 removes the late-data queue; S32/D109 removes pending spot checks.
+    assert len(badges.json()["source_counts"]) == 15
     assert db_client.get("/api/v1/admin/badge-summary", headers=dh).status_code == 403
     assert db_client.get("/api/v1/driver/current-job", headers=ah).status_code == 403
     current = db_client.get("/api/v1/driver/current-job", headers=dh)
     assert current.status_code == 200, current.text
     assert current.json()["assignment"] is None
+    # S22/D116 removes deactivated; S23/D118 replaces stored completed with read finished.
     assert current.json()["counts"] == {
         key: 0
         for key in [
@@ -279,9 +281,8 @@ def test_summary_endpoints_enforce_roles_and_zero_counts(db_client, db_sessionma
             "active",
             "declined",
             "expired",
-            "deactivated",
             "cancelled",
-            "completed",
+            "finished",  # S23/D118: derived read status, never stored completed.
         ]
     }
 

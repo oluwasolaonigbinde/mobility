@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/errors";
+import type { components } from "@/lib/api/schema";
 
 const mocks = vi.hoisted(() => ({ get: vi.fn() }));
 vi.mock("server-only", () => ({}));
@@ -111,6 +112,37 @@ describe("loadDriverCampaignJourney", () => {
       await expect(loadDriverCampaignJourney()).rejects.toMatchObject({ status });
     },
   );
+
+  it("accepts the ended-only current-job read shape without an offer error", async () => {
+    const ready = mocks.get.getMockImplementation();
+    mocks.get.mockImplementation(async (path: string, options?: Record<string, unknown>) => {
+      if (path === "/api/v1/driver/current-job") {
+        return {
+          data: {
+            assignment: null,
+            photo_status: "unavailable",
+            counts: {
+              offered: 0,
+              accepted: 0,
+              active: 0,
+              declined: 1,
+              expired: 1,
+              cancelled: 1,
+              finished: 3,
+            },
+          } satisfies components["schemas"]["DriverCurrentJob"],
+        };
+      }
+      return ready?.(path, options);
+    });
+
+    const result = await loadDriverCampaignJourney();
+    expect(result.journey.standing).toBe("PENDING");
+    expect(result.journey.canStart).toBe(false);
+    expect(result.trackerAssignment).toBeNull();
+    expect(result.journey.steps.find((step) => step.id === "offer")?.state).toBe("pending");
+    expect(result.journey.steps.find((step) => step.id === "activation")?.state).toBe("pending");
+  });
 
   it.each([
     "/api/v1/driver/kyc/current",

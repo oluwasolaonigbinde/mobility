@@ -1,5 +1,8 @@
 import asyncio
+from datetime import datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
+import pytest
 from conftest import (
     auth_headers,
     create_test_campaign,
@@ -104,7 +107,11 @@ def test_navigation_counts_match_filtered_lists_and_group_pages_without_fanout(
     vh = auth_headers(db_client, advertiser.email, password)
     summary = db_client.get("/api/v1/driver/current-job", headers=dh)
     assert summary.status_code == 200, summary.text
-    assert summary.json()["counts"] == {status.value: 1 for status in CampaignAssignmentStatus}
+    # S22/D116 removes deactivated; S23/D118 replaces stored completed with read finished.
+    assert summary.json()["counts"] == {
+        **{status.value: 1 for status in CampaignAssignmentStatus},
+        "finished": 0,
+    }
     assert summary.json()["assignment"]["id"] == active_id
     for status in CampaignAssignmentStatus:
         listed = db_client.get(
@@ -120,7 +127,7 @@ def test_navigation_counts_match_filtered_lists_and_group_pages_without_fanout(
     assert badges["source_counts"]["paused"] == 1
     assert badges["total"] == 4
     listed = db_client.get("/api/v1/advertiser/campaigns", headers=vh).json()
-    assert listed["total"] == 8
+    assert listed["total"] == len(CampaignAssignmentStatus)
     assert all(
         row["id"] != str(foreign.id) and row["assignment_count"] == 1 for row in listed["items"]
     )
@@ -135,7 +142,7 @@ def test_navigation_counts_match_filtered_lists_and_group_pages_without_fanout(
     ).json()
     assert companies["total"] == 1
     assert companies["items"][0]["member_count"] == 1
-    assert companies["items"][0]["live_campaign_count"] == 7
+    assert companies["items"][0]["live_campaign_count"] == len(CampaignAssignmentStatus) - 1
 
     async def query_bound():
         engine = db_sessionmaker.kw["bind"]
@@ -158,3 +165,96 @@ def test_navigation_counts_match_filtered_lists_and_group_pages_without_fanout(
             event.remove(engine.sync_engine, "before_cursor_execute", record)
 
     asyncio.run(query_bound())
+
+
+@pytest.mark.parametrize("window", ["ended", "ongoing", "undated"])
+def test_current_job_counts_use_finished_read_status_and_driver_scope(
+    db_client, db_sessionmaker, window
+):
+    password = "current-job-read-status-password"
+    admin = create_test_user(db_sessionmaker, email="job-admin@example.test", password=password)
+    driver = create_test_user(
+        db_sessionmaker, email="job-driver@example.test", password=password, role=UserRole.DRIVER
+    )
+    other_driver = create_test_user(
+        db_sessionmaker, email="job-other@example.test", password=password, role=UserRole.DRIVER
+    )
+    profile = create_test_driver_profile(db_sessionmaker, user_id=driver.id)
+    other_profile = create_test_driver_profile(db_sessionmaker, user_id=other_driver.id)
+    car = create_test_vehicle(db_sessionmaker, driver_profile_id=profile.id)
+    other_car = create_test_vehicle(
+        db_sessionmaker, driver_profile_id=other_profile.id, plate_number="OTHER-123"
+    )
+    org, _ = create_test_organization(db_sessionmaker, name="Job read statuses")
+    now = datetime.now(ZoneInfo("Africa/Lagos"))
+    midnight = datetime.combine(now.date(), time.min, tzinfo=ZoneInfo("Africa/Lagos"))
+    end_at = {
+        "ended": midnight,
+        "ongoing": midnight + timedelta(days=2),
+        "undated": None,
+    }[window]
+    campaigns = [
+        create_test_campaign(
+            db_sessionmaker,
+            organization_id=org.id,
+            created_by_user_id=admin.id,
+            name=f"Job {status.value}",
+            campaign_status=CampaignStatus.ACTIVE,
+            end_at=end_at,
+        )
+        for status in CampaignAssignmentStatus
+    ]
+
+    async def assignments():
+        async with db_sessionmaker() as session:
+            for campaign, status in zip(campaigns, CampaignAssignmentStatus, strict=True):
+                session.add(
+                    CampaignAssignment(
+                        campaign_id=campaign.id,
+                        driver_profile_id=profile.id,
+                        vehicle_id=car.id,
+                        assigned_by_user_id=admin.id,
+                        status=status,
+                        offered_at=now,
+                        **(
+                            {f"{status.value}_at": now}
+                            if status
+                            in {CampaignAssignmentStatus.DECLINED, CampaignAssignmentStatus.EXPIRED}
+                            else {}
+                        ),
+                    )
+                )
+            session.add(
+                CampaignAssignment(
+                    campaign_id=campaigns[0].id,
+                    driver_profile_id=other_profile.id,
+                    vehicle_id=other_car.id,
+                    assigned_by_user_id=admin.id,
+                    status=CampaignAssignmentStatus.ACTIVE,
+                    offered_at=now,
+                )
+            )
+            await session.commit()
+
+    asyncio.run(assignments())
+    headers = auth_headers(db_client, driver.email, password)
+    response = db_client.get("/api/v1/driver/current-job", headers=headers)
+    assert response.status_code == 200, response.text
+    counts = response.json()["counts"]
+    expected = {
+        "offered": 0 if window == "ended" else 1,
+        "accepted": 0 if window == "ended" else 1,
+        "active": 0 if window == "ended" else 1,
+        "declined": 1,
+        "expired": 1,
+        "cancelled": 1,
+        "finished": 3 if window == "ended" else 0,
+    }
+    assert counts == expected
+    assert (response.json()["assignment"] is None) == (window == "ended")
+    for status, count in expected.items():
+        listed = db_client.get(
+            "/api/v1/driver/campaign-assignments", headers=headers, params={"status": status}
+        )
+        assert listed.status_code == 200, listed.text
+        assert listed.json()["total"] == count

@@ -91,3 +91,38 @@ Revised contract presented in chat; proceed under the existing explicit owner ap
 
 Reassessment: independent plan reviewer gpt-6.1-sol/high returned PASS on the revised
 contract, with no further necessary corrections. Implementation/review gates remain open.
+
+## B3 current-job correction - owner follow-up, 23 October 2026
+
+This corrects the existing D118/REQ-217 contract at 589cbc9d; it changes no
+product rule. The write enum and raw grouped statuses made the real response
+omit finished, violating the already-approved frontend loader contract.
+Reuse assignment_status_expression and the existing read-status list; retain
+current driver scoping, offer expiry, active-job selection and photo authority.
+The campaign end is an aware instant (including Africa/Lagos inputs); finished
+begins at end_at <= now, using the existing helper, with no second calendar rule.
+
+- A19: Every current-job response includes the six stored read statuses plus
+  finished, including zeros. Schema and all three generated baselines agree.
+- A20: Ended offered/accepted/active assignments count as finished, never active;
+  terminal statuses remain terminal, open/no-end campaigns retain their status,
+  and other drivers contribute nothing. Counts match the existing filtered list.
+- A21: Real PostgreSQL/FastAPI regression fails on the original backend and
+  passes after correction; existing zero/role checks and a frontend loader test
+  exercise the complete response, including ended-only and missing-key cases.
+- A22: Focused backend/frontend tests, OpenAPI drift tests, R14-B, scoped static
+  checks and independent minimal-change review pass. Record evidence once in the
+  existing receipt; no separate evidence-only commit.
+
+Scope: navigation endpoint/schema, focused tests, three generated baselines,
+this contract, existing request notes and receipt. No migration, UI restyle,
+money calculations, privacy disclosure or security authority changes. No new
+specialist review is required for a status-only correction; driver isolation and
+role gates are explicitly verified. Independent plan review precedes source edits;
+post-build review covers the final diff and all four criteria. Owner approval of
+this exact correction authorizes proceeding without another confirmation.
+Runtime retains the existing atomic lock, 3 GB, one-heavy-process/800 MiB floor,
+45-minute limit and own-container/database cleanup rules.
+
+Follow-up independent plan review: gpt-6.1-sol/high/priority PASS, 23 October.
+Actual criterion evidence and review commit gate are in the REQ-210 receipt.

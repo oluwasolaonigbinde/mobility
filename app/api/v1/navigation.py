@@ -8,9 +8,11 @@ from app.api.v1.dependencies import (
     SessionDependency,
     SettingsDependency,
 )
-from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
+from app.models.campaign_assignment import CampaignAssignment
 from app.models.driver import DriverProfile
 from app.schemas.navigation import AdminBadgeSummary, DriverCurrentJob
+from app.schemas.reports import ASSIGNMENT_STATUSES
+from app.services.campaign_lifecycle import assignment_status_expression
 from app.services.navigation import admin_badge_summary
 
 router = APIRouter(tags=["Navigation summaries"])
@@ -29,12 +31,13 @@ async def current_job(
 ) -> DriverCurrentJob:
     # Reuse the exact active-job/photo authority and offer-expiry treatment.
     active = await driver_get_active_campaign_assignment(user, session, settings)
+    status_column = assignment_status_expression()
     rows = await session.execute(
-        select(CampaignAssignment.status, func.count())
+        select(status_column, func.count())
         .join(DriverProfile, DriverProfile.id == CampaignAssignment.driver_profile_id)
         .where(DriverProfile.user_id == user.id)
-        .group_by(CampaignAssignment.status)
+        .group_by(status_column)
     )
-    counts = {status: 0 for status in CampaignAssignmentStatus}
-    counts.update({CampaignAssignmentStatus(status): count for status, count in rows})
+    counts = dict.fromkeys(ASSIGNMENT_STATUSES, 0)
+    counts.update({status: count for status, count in rows})
     return DriverCurrentJob(**active.model_dump(), counts=counts)

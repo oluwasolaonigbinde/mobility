@@ -10455,9 +10455,6 @@
             "additionalProperties": {
               "type": "integer"
             },
-            "propertyNames": {
-              "$ref": "#/components/schemas/CampaignAssignmentStatus"
-            },
             "title": "Counts",
             "type": "object"
           },
