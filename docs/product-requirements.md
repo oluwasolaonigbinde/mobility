@@ -62,6 +62,21 @@ the software behaviour exists, and live use waits on the named gate.
 
 ---
 
+### 1.5 Current pilot amendment (20 October decisions)
+
+D108–D119 supersede conflicting older requirement descriptions below: five-view
+installation approval lasts seven days, with no daily display proof, nonce,
+challenge or weekly hours floor; spot checks are pass/fail with a note. Personal-data
+requests are manual pending the lawyer's rules. One active admin may approve/apply
+and reconcile money actions with reasons and audit; overpayments use add-only
+manual adjustments, with no automatic debt recovery. Pilot retargeting, audience,
+export/activation and ROI are removed. Phone verification keeps the support number
+and existing expiry/attempt/audit/consent controls without an operator setting.
+Chosen-period reports use Nigeria days, charts and labelled estimates, with no
+financial figures. D119 fixes terminal KYC retention at six calendar months;
+all other legal, provider, method and physical-evidence gates remain unresolved.
+G-06, G-16 and G-21a are retired identities, not current launch gates.
+
 ## 2. Product overview and roles
 
 ### 2.1 What Cardvert is
@@ -1113,20 +1128,17 @@ numbers (G-03, G-04, G-07, G-13) are intentionally left unassigned.
 | G-01 | Online payment gateway provider, account, sandbox and signing credentials | Online checkout; provider refunds | Terrax Media |
 | G-02 | Approved automated bank-transfer (payout) provider, account, sandbox, signing and callback credentials, production approval | Any real driver payout submission | Terrax Media |
 | G-05 | Transactional email provider and verified sending identity | Live advertiser email, password reset, onboarding-code and setup-link delivery | Terrax Media |
-| G-06 | Named phone-verification operator and approved WhatsApp/voice account | Live phone verification and manual driver contact | Terrax Media |
 | G-08 | Production key custody (key vault) and custodian | Production storage of identity and bank data | Terrax Media |
 | G-09 | Production object-storage provider, account and region | Production file storage | Terrax Media |
 | G-10 | Malware scanner provider | Production upload scanning | Terrax Media |
 | G-11 | Production basemap provider, licence and key | Live maps | Terrax Media |
-| G-12 | Legal and privacy approvals: named privacy owner, notices, consent, driver agreement, retention periods, data-subject rules, required disclosures | Real GPS, identity checks, advertiser outputs, retargeting | Terrax Media's legal/compliance adviser |
-| G-14 | Legal approval of advertiser disclosure thresholds, history retention and retargeting/export | Live reports, maps, planning sources, export, activation | Terrax Media's legal/compliance adviser |
-| G-15 | Client approval of the estimate methodology and labels, the target-area coverage rule, and any ROI inputs and method | First live issued report; coverage measure; ROI | Terrax Media |
-| G-16 | Ad-platform accounts, legal approval, API access, credentials and activation budget | Aggregate ad-platform activation | Terrax Media |
+| G-12 | Named adviser/privacy owner, driver agreement/consent wording (Q26), required disclosures, notices and lawful bases including driver phone/WhatsApp consent; manual-request deadline, redaction and retention exceptions; non-KYC GPS/evidence/backup retention. KYC is fixed at six months (D119). | Real GPS, identity checks and advertiser outputs; privacy restoration remains required before real users | Terrax Media legal/compliance adviser |
+| G-14 | Legal approval of advertiser disclosure and history retention, plus restoration of overlap/differencing protections before real users | Live reports and maps | Terrax Media legal/compliance adviser |
+| G-15 | Client approval of the live impression-estimation methodology and labels, and the target-area coverage rule | First live issued report; coverage measure; no pilot ROI or attribution | Terrax Media |
 | G-17 | Registered issuer name, tax identification number, billing address, invoice wording and numbering, accountant confirmation | Real invoice issuance | Terrax Media |
 | G-18 | Quotation components, commissions, driver base and premium rates, production and vendor values | Real commercial and payout use | Terrax Media |
 | G-19 | Settlement bank-account details with secure intake and verification; approved advertiser payment instructions | Live settlement; payment instructions shown to advertisers | Terrax Media |
 | G-21 | Whether printing and fixed costs consume the campaign budget | Production commercial configuration | Terrax Media |
-| G-21a | Evidence and activity policy: display-check windows and spot-check thresholds, weekly verified-hours floor (installation photo views, uploaders and 7-day renewal are built in, REQ-208) | Pilot evidence and activity enforcement | Terrax Media operations |
 | G-22 | Approved file types and maximum sizes per upload | Live upload policy | Terrax Media |
 | G-23 | Approved sender name and email/WhatsApp/voice message copy | Live communications | Terrax Media |
 | G-24 | Approved expedited-production waiver wording | Live waiver use | Terrax Media's legal adviser |
@@ -1242,19 +1254,16 @@ external prerequisite register. It is for reviewers; it adds no requirements.
 | G-01 | EXT-PAYMENT-PROVIDER |
 | G-02 | EXT-DISBURSEMENT-PROVIDER |
 | G-05 | EXT-EMAIL-PROVIDER |
-| G-06 | EXT-PHONE-OPERATOR |
 | G-08 | EXT-KMS-CUSTODY |
 | G-09 | EXT-STORAGE-PROVIDER |
 | G-10 | EXT-MALWARE-SCANNER |
 | G-11 | EXT-BASEMAP |
-| G-12, G-14 | EXT-LEGAL-PRIVACY |
+| G-12, G-14 | EXT-LEGAL-PRIVACY; EXT-PRIVACY-RESTORATION before real users |
 | G-15 | EXT-REPORT-METHOD |
-| G-16 | EXT-AD-PLATFORM |
 | G-17 | EXT-Q28-COMPANY |
 | G-18 | EXT-COMMERCIAL-VALUES |
 | G-19 | EXT-SETTLEMENT-BANK |
 | G-21 | EXT-CAMPAIGN-BUDGET-SCOPE |
-| G-21a | EXT-EVIDENCE-POLICY (plus the weekly verified-hours floor operations parameter) |
 | G-22 | EXT-UPLOAD-POLICY |
 | G-23 | EXT-MESSAGE-COPY |
 | G-24 | Not separately registered; recorded here as an open wording approval |

@@ -17,19 +17,16 @@ completed handover. Every `MISSING` item remains unresolved.
 | EXT-MALWARE-SCANNER | MISSING | Direct security/live gate | Select approved fail-closed scanner/provider. |
 | EXT-KMS-CUSTODY | MISSING | Direct credential/live gate | Assign production key/vault custody and rotation authority. |
 | EXT-EMAIL-PROVIDER | MISSING | Adjacent communications gate | Select provider and approved sending identity before live email. |
-| EXT-PHONE-OPERATOR | MISSING | Direct pilot/live gate | Select approved verification/manual messaging operator and account. |
 | EXT-BASEMAP | MISSING | Direct report/live gate | Select production basemap licence/account and protected key custody. |
 | EXT-STORE-ASSETS | MISSING | Post-MVP distribution input | Native signing/listing assets remain Phase 2, not PWA-pilot authority. |
 | EXT-RELEASE-ENV | MISSING | Direct release/handover gate | Supply client-owned account/domain/provider/budget/access action. |
 | EXT-PILOT-FACTS | PRESENT | Direct pilot fact | Confirmed cohort/goals remain facts; they do not prove pilot execution or ROI. |
-| EXT-REPORT-METHOD | MISSING | Direct reporting/live gate | Approve labels/method and any qualified ROI input/attribution method. |
+| EXT-REPORT-METHOD | MISSING | Direct reporting/live gate | Approve the live estimate methodology and labels; no pilot ROI or attribution (D115/D118). |
 | EXT-Q28-COMPANY | MISSING | Direct statutory/commercial gate | Supply approved issuer facts and accountant confirmation. |
 | EXT-COMMERCIAL-VALUES | MISSING | Direct money/commercial gate | Supply approved quotation, commission, payout, and vendor values. |
-| EXT-EVIDENCE-POLICY | MISSING | Direct pilot/privacy gate | Approve display-proof challenge/proof windows and the spot-check policy. Installation upload, views and 7-day renewal are built in (REQ-208). Trips need the display-proof windows. |
-| EXT-LEGAL-PRIVACY | MISSING | Direct privacy/live gate | Supply wording, privacy owner, retention/DSR decisions, and approval. |
+| EXT-LEGAL-PRIVACY | MISSING | Direct privacy/live gate | Supply the named adviser, driver agreement/consent wording (Q26), required disclosures, notices/lawful bases including driver WhatsApp/phone consent, manual-request deadline/redaction/retention-exception rules, and non-KYC GPS/evidence/backup retention approval. KYC is fixed at six months (D119). |
 | EXT-PRIVACY-RESTORATION | MISSING | Direct privacy/live gate | Restore legal/privacy protections for GPS, ID collection and advertiser results, including overlap/differencing controls, before real users (D56/REQ-072/089). |
 | EXT-DISBURSEMENT-PROVIDER | MISSING | Direct money/live gate | Select approved transfer provider and protected integration custody. |
-| EXT-AD-PLATFORM | MISSING | Direct activation/live gate | Supply approved aggregate contextual activation account, access, and budget. |
 | EXT-PILOT-PERMITS | MISSING | Direct pilot gate | Supply approved authority/permit evidence for selected pilot activity. |
 | EXT-RM2-CALIBRATION-DATA | MISSING | Optional post-build validation | Field corpora may support a later reviewed revision; current build is not blocked. |
 | EXT-BRAND-APPROVAL | MISSING | Direct release/handover gate | Supply final brand assets and approved client review. |

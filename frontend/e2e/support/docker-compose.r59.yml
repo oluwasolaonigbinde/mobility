@@ -29,7 +29,6 @@ services:
       ALLOW_DEMO_SEED: "true"
       TRIP_EVIDENCE_SIGNING_KEYRING_B64: '{"1":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}'
       TRIP_EVIDENCE_SIGNING_KEY_VERSION: "1"
-      PHONE_OPERATOR_EXTERNAL_APPROVED: "false"
 
   worker:
     image: "${R59_PROJECT}-backend:${R59_GIT_SHA}"

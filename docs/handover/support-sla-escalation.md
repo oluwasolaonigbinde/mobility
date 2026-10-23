@@ -13,7 +13,7 @@ target below remains proposed until recorded owner approval.
 | Incident command | `<INCIDENT_COMMANDER_ROLE>` | Contains first; cannot close privacy/money/security decisions alone. |
 | Security and custody | `<SECURITY_OWNER_ROLE>` | Uses the protected access/custody system, never Git. |
 | Privacy/legal | `<PRIVACY_DECISION_ROLE>` | Supplies notification/retention/live-use decisions only after approval. |
-| Money | `<MONEY_CHECKER_ROLE>` | Preserves maker/checker/reconciler separation and ledger authority. |
+| Money | `<MONEY_OPERATOR_ROLE>` | One active admin may prepare, approve/apply and reconcile; reasons, audit, holds and provider/ledger authority remain mandatory (D112). |
 | Reporting/method | `<REPORT_METHOD_AUTHORITY_ROLE>` | Keeps live issuance closed without current method/privacy authority. |
 
 ## Proposed SLA fields
@@ -82,6 +82,6 @@ presigned URLs, report contents, or backup plaintext.
 | --- | --- | --- | --- |
 | Privacy | Suspected unauthorized processing, missing retention/DSR authority, or breach uncertainty. | `<PRIVACY_DECISION_ROLE>`, `<SECURITY_OWNER_ROLE>`, `<INCIDENT_COMMANDER_ROLE>` | [Privacy operating model](../privacy-operating-model.md#breach-register-and-escalation) |
 | Security/credentials | Exposure, custody uncertainty, failed rotation/revocation, or unsafe secret location. | `<SECURITY_OWNER_ROLE>`, `<CREDENTIAL_CUSTODIAN_ROLE>`, `<CREDENTIAL_CHECKER_ROLE>` | [Release incident playbooks](../w4-03a-release-operations.md#incident-playbooks) |
-| Money | Identity/value/currency drift, failed conservation, role collapse, or absent provider finality. | `<MONEY_MAKER_ROLE>`, `<MONEY_CHECKER_ROLE>`, `<MONEY_RECONCILER_ROLE>` | [Payout replay preparation](../pilot-operations/operations-pack.md#domain-payout-replay) |
+| Money | Identity/value/currency drift, failed conservation, missing action authority or audit, or absent provider finality. | `<MONEY_OPERATOR_ROLE>` | [Payout replay preparation](../pilot-operations/operations-pack.md#domain-payout-replay) |
 | Reporting | Frozen-authority mismatch, privacy/method revocation, partial pair, tamper, or storage failure. | `<REPORT_METHOD_AUTHORITY_ROLE>`, `<PRIVACY_DECISION_ROLE>`, `<EVIDENCE_CHECKER_ROLE>` | [Report replay preparation](../pilot-operations/operations-pack.md#domain-report-replay) |
 | Release/recovery | Revision/config mismatch, failed readiness/restore/compatibility, or uncertain traffic state. | `<RELEASE_OPERATOR_ROLE>`, `<INCIDENT_COMMANDER_ROLE>`, `<SECURITY_OWNER_ROLE>` | [Release recovery](../w4-03a-release-operations.md#recovery-never-downgrade) |

@@ -58,17 +58,17 @@ DOMAIN_FIELDS = {
         "amount",
         "currency",
         "ledger_finality_after",
-        "maker_id",
-        "checker_id",
-        "reconciler_id",
+        "actor_id",
+        "reason",
         "external_provider_actions",
     ),
     "report-replay": (
-        "request_id",
+        "report_id",
+        "client_request_id",
         "request_fingerprint",
-        "measurement_run_id",
-        "issuance_version",
-        "reissue_of_id",
+        "snapshot_sha256",
+        "version",
+        "rerun_of_id",
         "csv_artifact_id",
         "csv_sha256",
         "pdf_artifact_id",
@@ -118,8 +118,8 @@ EXERCISE_NODES = {
         "tests/test_payout_batches.py::test_submission_fails_closed_without_approved_provider",
     ),
     "report-replay": (
-        "tests/test_report_issuances.py::test_lost_response_replay_does_not_recompose_mutable_latest_projection",
-        "tests/test_report_issuances.py::test_partial_storage_failure_exposes_no_artifact_and_retry_recovers_pair",
+        "tests/test_req217_reports.py::test_publication_retries_same_keys_and_ready_files_never_change",
+        "tests/test_req217_report_failures.py::test_expired_publisher_cannot_finalize_and_retry_adopts_exact_keys",
     ),
     "incident-escalation": (
         "tests/test_privacy_operating_model.py::test_privacy_register_is_fail_closed_and_complete",
@@ -134,9 +134,7 @@ ROLE_PLACEHOLDER_RE = re.compile(r"<[A-Z0-9_-]+_ROLE>")
 REQUIRED_SEPARATION_ROLES = {
     "<INCIDENT_COMMANDER_ROLE>",
     "<SECURITY_OWNER_ROLE>",
-    "<MONEY_MAKER_ROLE>",
-    "<MONEY_CHECKER_ROLE>",
-    "<MONEY_RECONCILER_ROLE>",
+    "<MONEY_OPERATOR_ROLE>",
 }
 PROHIBITED_CLAIMS = (
     re.compile(r"\bW4-03C (?:is )?DONE\b", re.IGNORECASE),

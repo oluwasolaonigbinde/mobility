@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Evaluate the six Cardvert live-use gates without performing live actions."""
+"""Evaluate the five Cardvert live-use gates without performing live actions."""
 
 from __future__ import annotations
 
@@ -97,8 +97,6 @@ GATES = (
             "EXT-STORAGE-PROVIDER",
             "EXT-MALWARE-SCANNER",
             "EXT-KMS-CUSTODY",
-            "EXT-PHONE-OPERATOR",
-            "EXT-EVIDENCE-POLICY",
             "EXT-LEGAL-PRIVACY",
             "EXT-PRIVACY-RESTORATION",
             "EXT-UPLOAD-POLICY",
@@ -123,7 +121,6 @@ GATES = (
             "EXT-MALWARE-SCANNER",
             "EXT-Q28-COMPANY",
             "EXT-COMMERCIAL-VALUES",
-            "EXT-EVIDENCE-POLICY",
             "EXT-CAMPAIGN-BUDGET-SCOPE",
             "EXT-UPLOAD-POLICY",
         ),
@@ -140,17 +137,6 @@ GATES = (
         ),
     ),
     Gate(
-        name="G-moduleG",
-        checklists=("W3-00C", "W3-00E", "W3-01D"),
-        evidence=("RM15", "RM16", "D18", "D20"),
-        required_inputs=(
-            "EXT-REPORT-METHOD",
-            "EXT-LEGAL-PRIVACY",
-            "EXT-PRIVACY-RESTORATION",
-            "EXT-AD-PLATFORM",
-        ),
-    ),
-    Gate(
         name="G-pilot",
         checklists=("R17-A", "W4-01D", "W4-02B", "W4-03A"),
         evidence=(
@@ -158,7 +144,6 @@ GATES = (
             "G-GPS",
             "G-commercial",
             "G-advertiser",
-            "G-moduleG",
             "RM17",
             "D18",
             "D19",
@@ -172,8 +157,6 @@ GATES = (
             "EXT-STORAGE-PROVIDER",
             "EXT-MALWARE-SCANNER",
             "EXT-KMS-CUSTODY",
-            "EXT-PHONE-OPERATOR",
-            "EXT-EVIDENCE-POLICY",
             "EXT-LEGAL-PRIVACY",
             "EXT-PRIVACY-RESTORATION",
             "EXT-UPLOAD-POLICY",
@@ -183,7 +166,6 @@ GATES = (
             "EXT-CAMPAIGN-BUDGET-SCOPE",
             "EXT-BASEMAP",
             "EXT-REPORT-METHOD",
-            "EXT-AD-PLATFORM",
             "EXT-RELEASE-ENV",
             "EXT-STAGING-APPROVAL",
             "EXT-PILOT-FACTS",
@@ -201,10 +183,6 @@ CONTROLLED_CHECKLISTS: Mapping[str, tuple[str, ...]] = {
     "W4-03A": ("EXT-RELEASE-ENV", "DV-STAGING-LIVE"),
 }
 
-
-BOOLEAN_RUNTIME_CLAIMS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("PHONE_OPERATOR_EXTERNAL_APPROVED", ("EXT-PHONE-OPERATOR",)),
-)
 
 REFERENCE_RUNTIME_CLAIMS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE", ("EXT-Q28-COMPANY",)),
@@ -342,13 +320,6 @@ def parse_authority(
 
 def _runtime_claims(runtime: Mapping[str, str]) -> set[str]:
     claimed: set[str] = set()
-    for name, external_ids in BOOLEAN_RUNTIME_CLAIMS:
-        value = runtime.get(name, "").strip().lower()
-        if value not in {"", "true", "false", "0", "1"}:
-            gate = next(gate for gate in GATES if external_ids[0] in gate.required_inputs)
-            raise AuthorityError(f"malformed runtime claim for {gate.name} / {external_ids[0]}")
-        if value in {"true", "1"}:
-            claimed.update(external_ids)
     for name, external_ids in REFERENCE_RUNTIME_CLAIMS:
         if runtime.get(name, "").strip():
             claimed.update(external_ids)
@@ -406,7 +377,7 @@ def _load_head_authority(
 
 
 def _runtime_snapshot(environment: Mapping[str, str]) -> dict[str, str]:
-    names = {name for name, _external_ids in BOOLEAN_RUNTIME_CLAIMS + REFERENCE_RUNTIME_CLAIMS}
+    names = {name for name, _external_ids in REFERENCE_RUNTIME_CLAIMS}
     names.update(name for group, _external_ids in GROUP_RUNTIME_CLAIMS for name in group)
     return {name: environment.get(name, "") for name in names}
 

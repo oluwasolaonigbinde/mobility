@@ -39,9 +39,7 @@ ROLE_PLACEHOLDERS = {
     "<INCIDENT_COMMANDER_ROLE>",
     "<SECURITY_OWNER_ROLE>",
     "<PRIVACY_DECISION_ROLE>",
-    "<MONEY_MAKER_ROLE>",
-    "<MONEY_CHECKER_ROLE>",
-    "<MONEY_RECONCILER_ROLE>",
+    "<MONEY_OPERATOR_ROLE>",
     "<REPORT_METHOD_AUTHORITY_ROLE>",
     "<EVIDENCE_RECORDER_ROLE>",
     "<EVIDENCE_CHECKER_ROLE>",
@@ -62,9 +60,7 @@ CROSS_PACK_ROLE_FILES = {
 REQUIRED_CROSS_PACK_SEPARATION_ROLES = {
     "<INCIDENT_COMMANDER_ROLE>",
     "<SECURITY_OWNER_ROLE>",
-    "<MONEY_MAKER_ROLE>",
-    "<MONEY_CHECKER_ROLE>",
-    "<MONEY_RECONCILER_ROLE>",
+    "<MONEY_OPERATOR_ROLE>",
 }
 
 BACKUP_FIELDS = {
@@ -74,8 +70,8 @@ BACKUP_FIELDS = {
         "`<OPERATIONS_OWNER_ROLE>` — assignment and approval required"
     ),
     "Retention source": (
-        "`<RETENTION_SOURCE — EXT-LEGAL-PRIVACY AND "
-        "EXT-EVIDENCE-POLICY APPROVAL REQUIRED>`"
+        "`<RETENTION_SOURCE — "
+        "EXT-LEGAL-PRIVACY APPROVAL REQUIRED>`"
     ),
     "Protected evidence pointer": "`<PROTECTED_EVIDENCE_POINTER>`",
     "Recovery verification evidence": (
@@ -137,7 +133,7 @@ CUSTODY_FAMILIES = {
     "Session signing and application cryptography",
     "Email, phone, and messaging",
     "Payment, disbursement, and settlement",
-    "Basemap and aggregate ad platform",
+    "Basemap",
     "Monitoring and error tracking",
     "Backup encryption and off-host recovery",
 }
@@ -149,7 +145,7 @@ ROADMAP_PLACEMENTS = {
         "recovery preparation"
     ): "Integrated capability",
     "Training and controlled-pilot operations preparation": "Integrated capability",
-    "Privacy/DSR fail-closed build controls": "Integrated capability",
+    "Privacy controls and manual personal-data requests": "Integrated capability",
     "Provider-neutral money/payout conservation and replay": "Integrated capability",
     (
         "Reproducible Campaign Performance Analysis and bounded CSV/PDF issuance"
@@ -159,7 +155,7 @@ ROADMAP_PLACEMENTS = {
         "live recovery evidence, and approved support ownership"
     ): "External/live activation",
     (
-        "Production providers, commercial/statutory values, upload/evidence rules, "
+        "Production providers, commercial/statutory values, upload rules, "
         "privacy/method authority, permits, and brand approval"
     ): "External/live activation",
     (
@@ -170,7 +166,7 @@ ROADMAP_PLACEMENTS = {
         "handover, and named-owner acceptance"
     ): "External/live activation",
     "Automated driver transfers": "External/live activation",
-    "Aggregate geography/time/context ad-platform activation": "External/live activation",
+    "Aggregate geography/time/context ad-platform activation": "Removed from pilot (D115)",
     "Person-level activation": "External/live activation",
     "Native background driver application and store distribution": "Post-MVP idea",
     "Expanded recurring billing": "Post-MVP idea",
@@ -301,9 +297,9 @@ def _validate_external_and_deferred(repo_root: Path, risk_text: str) -> list[str
         errors.append(
             f"external gate parity mismatch (missing={missing}, extra={extra}, changed={changed})"
         )
-    if len(expected) != 30 or sum(state == "PRESENT" for state in expected.values()) != 2:
+    if len(expected) != 26 or sum(state == "PRESENT" for state in expected.values()) != 2:
         errors.append(
-            "authoritative relevant external set is not 30 rows with exactly two PRESENT states"
+            "authoritative relevant external set is not 26 rows with exactly two PRESENT states"
         )
     if "deliberately excluded" not in risk_text or EXCLUDED_EXTERNAL_GATE not in risk_text:
         errors.append(f"historical exclusion reason is missing for {EXCLUDED_EXTERNAL_GATE}")
@@ -635,7 +631,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print(
         "W4-04B handover preparation audit: PASS "
-        "(7 files, 30 external gates, 3 deferred validations)"
+        "(7 files, 26 external gates, 3 deferred validations)"
     )
     return 0
 

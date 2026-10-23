@@ -14,7 +14,7 @@ how an operator uses it.
 D56/REQ-072/089 opens built development GPS/ID collection and advertiser results without runtime legal locks; tenant isolation, aggregation limits and query recording remain, and legal/privacy plus advertiser overlap/differencing protections must be restored before real users (`EXT-PRIVACY-RESTORATION`), superseding the runtime-gate wording below without claiming legal approval.
 
 `EXT-LEGAL-PRIVACY` is MISSING. The client has been asked for Q26/Q31 wording,
-the named privacy owner, retention/DSR decisions, and legal approval; no answer
+the named adviser, notices and lawful bases (including driver WhatsApp/phone consent), manual-request deadline/redaction/retention-exception rules, non-KYC GPS/evidence/backup retention, and legal approval; no answer
 or evidence has been supplied. The register therefore sets
 `live_use_authorized=false`, leaves every legal approval MISSING, and does not
 claim that a candidate lawful basis is valid.
@@ -22,15 +22,13 @@ claim that a candidate lawful basis is valid.
 Until qualified Nigerian privacy/legal review approves the relevant rows:
 
 - no real-driver GPS or live KYC collection;
-- no advertiser heatmap, issued report, retargeting ingestion/display/export,
-  or ad-platform activation;
+- no live advertiser map or issued report without the remaining method/privacy authority;
 - no production provider or region is treated as an approved subprocessor;
 - no draft notice, checkbox, synthetic fixture, or configured threshold opens
   a live-use gate.
 
 The owner-requested Cardvert document proves these inputs were requested only.
-It does not clear `EXT-LEGAL-PRIVACY`, `EXT-REPORT-METHOD`, or
-`EXT-AD-PLATFORM`.
+It does not clear `EXT-LEGAL-PRIVACY` or `EXT-REPORT-METHOD`. Retargeting and ad-platform activation were removed from the pilot by D115.
 
 ## Controller and processor allocation
 
@@ -42,7 +40,7 @@ business role's documented instructions; this does not turn the developer into
 the legal approver.
 
 Every external hosting, storage, scanner, messaging, monitoring, payment,
-disbursement, or ad-platform allocation remains MISSING with `live_use=false`.
+or disbursement allocation remains MISSING with `live_use=false`.
 The register must be updated with the provider, region, agreement/transfer
 control, purpose, data classes and approved owner before that processor handles
 live data.

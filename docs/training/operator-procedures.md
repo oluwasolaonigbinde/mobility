@@ -9,8 +9,7 @@ Use the canonical placeholders in the handover
 [role registry](../handover/roles-and-responsibilities.md#role-registry) until
 the protected operating record contains approved named assignments. In
 particular, `<INCIDENT_COMMANDER_ROLE>` remains distinct from
-`<SECURITY_OWNER_ROLE>`, and `<MONEY_MAKER_ROLE>`, `<MONEY_CHECKER_ROLE>`, and
-`<MONEY_RECONCILER_ROLE>` remain three distinct roles. Never replace a
+`<SECURITY_OWNER_ROLE>`. One active admin may perform the money actions through `<MONEY_OPERATOR_ROLE>` (D112); independent evidence and credential checks remain distinct. Never replace a
 placeholder with a person, provider, account, domain, credential, or approval
 inside the repository.
 
@@ -18,12 +17,11 @@ inside the repository.
 
 ### Authorized role and entry point
 
-An active admin operates the API sequence under the separate decisions of
-`<PRIVACY_DECISION_ROLE>`. There is no shipped browser DSR console. The entry
-point is `POST /api/v1/admin/privacy/dsr-requests`; the full authority is the
+Terrax staff handle personal-data requests manually under the separate decisions
+of `<PRIVACY_DECISION_ROLE>`. D110 removed the in-app workflow. Follow the
 [DSR runbook](../data-subject-request-runbook.md) and
-[privacy operating model](../privacy-operating-model.md). An admin role alone
-does not supply legal authority.
+[privacy operating model](../privacy-operating-model.md); an admin role is not
+legal authority. No request endpoint or console is available.
 
 ### Prerequisites
 
@@ -36,32 +34,21 @@ does not supply legal authority.
 
 ### Ordered actions
 
-1. Open an `access`, `rectification`, or `erasure` case with a unique client
-   request UUID and a timezone-bearing request time.
-2. Perform proportionate identity verification outside Cardvert, retain no
-   identity evidence in the case, then call
-   `POST /api/v1/admin/privacy/dsr-requests/{requestId}/verify-identity`.
-3. Call `GET /api/v1/admin/privacy/dsr-requests/{requestId}/inventory`; stop on
-   any database, private-object, or metadata mismatch.
-4. Record exactly one assessment for each of the six locations through
-   `POST /api/v1/admin/privacy/dsr-requests/{requestId}/locations/{location}`.
-   Do not claim erasure while rows/objects remain, and use
-   `retained_exception` only for an exact configured approved reference.
-5. Call `POST /api/v1/admin/privacy/dsr-requests/{requestId}/complete` only after
-   all six locations have immutable evidence.
+1. Record the request and received time in an approved protected operating record.
+2. Verify the requester proportionately outside Cardvert; expose no identity evidence in Git.
+3. Assess database records, private objects, devices, logs, backups and processors.
+4. Obtain the lawyer's deadline, redaction and retention-exception rules before promising a response.
+5. Record the actual action, remaining data, approved exceptions and safe response; never claim erasure without evidence.
 
 ### Retry identity
 
-Repeat an identical failed action with the same client request UUID. Reusing
-that UUID with changed facts must conflict. Leave a failed case at
-`identity_verified`, repair the affected store, and retry without manufacturing
-an assessment.
+Keep the same protected case reference after response loss. Check actual store
+state before repeating an action; do not fabricate an assessment or completion.
 
 ### Expected safe result
 
-A synthetic case either remains visibly incomplete at the failed location or
-reaches the service's complete state with six non-sensitive evidence pointers.
-Immutable money, fraud, audit, and privacy history remains unchanged.
+Each location has an honest evidence pointer or an unresolved stop. Immutable
+money, fraud and audit facts remain unchanged. Legal rules remain MISSING.
 
 ### Stop conditions and escalation
 
@@ -193,7 +180,7 @@ their dispute/reply.
 Stop on stale assessment, unexpected status, tenant/driver mismatch, missing
 evidence, duplicated reversal, changed money effect, or any proposed automatic
 release. Preserve flag/dispute/trip identifiers and escalate to
-`<MONEY_CHECKER_ROLE>` and `<OPERATIONS_OWNER_ROLE>` without sharing raw route or
+`<MONEY_OPERATOR_ROLE>` and `<OPERATIONS_OWNER_ROLE>` without sharing raw route or
 fraud evidence.
 
 ### Synthetic rehearsal note
@@ -206,14 +193,11 @@ operator decision involving a real person is recorded.
 
 ### Authorized role and entry point
 
-An active admin uses `/admin/payouts`, `/admin/payouts/rules`,
-`/admin/payouts/corrections`, and `/admin/payouts/batches`. A driver reads only
+An active admin uses `/admin/money` and campaign pay settings. A driver reads only
 their own ledger and breakdown at `/driver/earnings`. The shipped
 [payout router](../../app/api/v1/payouts.py) and
 [disbursement router](../../app/api/v1/disbursements.py) remain authoritative.
-The prepared exercise assigns separate `<MONEY_MAKER_ROLE>`,
-`<MONEY_CHECKER_ROLE>`, and `<MONEY_RECONCILER_ROLE>` participants; none may
-substitute for another.
+The prepared exercise uses `<MONEY_OPERATOR_ROLE>`; the same active admin may prepare, approve/apply and reconcile with reasons and audit (D112).
 
 ### Prerequisites
 
@@ -226,15 +210,11 @@ substitute for another.
 
 ### Ordered actions
 
-1. Inspect the calculation and ledger lineage at `/admin/payouts`; process only
+1. Inspect the calculation and ledger lineage at `/admin/money`; process only
    the documented synthetic trip when the current pipeline requires it.
-2. Review rule history at `/admin/payouts/rules`. Create only a new effective
-   revision for future acceptances; never edit a frozen historical rule.
-3. Project a correction at `/admin/payouts/corrections`; one admin creates and
-   submits it, and a different authorized admin approves/rejects before the
-   executable state. Recheck the exact value-complete effect before execution.
-4. At `/admin/payouts/batches`, draft and reserve only eligible synthetic ledger
-   entries. Reconcile debt/credit conservation before approval.
+2. Review the frozen campaign pay settings; never reprice accepted work.
+3. Preview the exact correction and use Approve and apply with a reason. The same active admin may perform it; stale changes require a fresh review.
+4. Reserve only eligible synthetic ledger entries. Use an audited add-only manual negative adjustment for an overpayment, on its actual Nigeria day (D113); no automatic debt recovery.
 5. Stop before provider submission. A disabled adapter or missing live gate is
    the expected provider-neutral boundary, not an error to bypass.
 6. As driver, confirm the own-ledger projection matches the governed state and
@@ -249,18 +229,16 @@ mark an instruction paid without its frozen provider receipt.
 
 ### Expected safe result
 
-Synthetic money history remains conserved and append-only. Creator and approver
-remain distinct, stale calculations fail clearly, held money stays unavailable,
+Synthetic money history remains conserved and append-only. Actors and reasons are recorded, stale calculations fail clearly, held money stays unavailable,
 and the provider call count stays zero.
 
 ### Stop conditions and escalation
 
-Stop on stale calculation, missing ledger lineage, creator-equals-approver,
-currency/value mismatch, unexplained debt, duplicate correction/reversal,
+Stop on stale calculation, missing ledger lineage, missing actor/reason,
+currency/value mismatch, unexplained adjustment, duplicate correction/reversal,
 unresolved fraud hold, disabled provider, or missing settlement authority.
 Preserve only synthetic IDs and expected/observed totals, then escalate to
-`<MONEY_CHECKER_ROLE>`, `<MONEY_RECONCILER_ROLE>`, and
-`<OPERATIONS_OWNER_ROLE>`.
+`<MONEY_OPERATOR_ROLE>` and `<OPERATIONS_OWNER_ROLE>`.
 
 ### Synthetic rehearsal note
 
@@ -279,18 +257,19 @@ operator acceptance record.
 
 An authorized advertiser enters
 `/advertiser/campaigns/{campaignId}/report` and the governed map at
-`/advertiser/campaigns/{campaignId}/map`. Owner/manager membership or an active
-admin may request bounded issuance through the shipped
-[report issuance API](../../app/api/v1/report_issuances.py). Use the
+`/advertiser/campaigns/{campaignId}/map`. Owner/manager membership may request
+chosen-period reports for one or all owned campaigns; staff may re-run them
+through the shipped [reports API](../../app/api/v1/campaign_reports.py). Use the
 [governed report evidence](../pkg-08-w4-02a-governed-maps-report.md) and
 [bounded issuance evidence](../pkg-08-w4-02b-bounded-issuance.md).
 
 ### Prerequisites
 
-- Use an authorized synthetic tenant/campaign with one exact reproducible
-  measurement run and ready disclosure-cleared projection.
-- Confirm the frozen run/result title, period, schema, formula, method/proof
-  hashes, metric set, score provenance, and conditional-ROI decision.
+- Use an authorized synthetic tenant/campaign and complete retained data, or
+  preserve the explicit unavailable/withheld result.
+- Confirm the chosen Nigeria-day period, frozen snapshot hash, metric set and
+  clearly labelled estimates. CSV has chart data and advert references; PDF has
+  graphical charts and advert pictures. Absolute references use PUBLIC_ORIGIN.
 - Live request/publication/download remains closed without approved privacy and
   report-method authority. A local schematic map is not a production basemap.
 
@@ -298,22 +277,20 @@ admin may request bounded issuance through the shipped
 
 1. Open the synthetic Campaign Performance Analysis and distinguish verified
    operational results from clearly labelled modelled results.
-2. Confirm performance-only output contains no ROI section. Include a
-   conditional financial result only when the frozen run explicitly qualifies
-   it under the same non-empty method revision.
+2. Confirm reports contain no CTR, website visits beyond QR scans, ROI or financial figures (D115/D118).
 3. Open the governed map; suppressed, stale, empty, inconsistent, or
    unauthorized output must mount no geometry.
 4. As an authorized owner/manager advertiser, request the CSV/PDF pair. Persist
    the client request identity, poll the existing issuance, and withhold access
-   until both private artifacts and hashes agree.
+   until both private artifacts and hashes agree with the frozen report.
 5. Retry a lost response with the same request identity. Create a new version
-   only through the explicit append-only reissue action.
+   only through staff's explicit append-only re-run action.
 6. Verify cross-tenant, viewer, revoked-gate, partial-pair, tampered-object, and
    generic-file-route attempts remain denied without disclosing existence.
 
 ### Retry identity
 
-An identical actor/request fingerprint replays one issuance. Changed facts with
+An identical actor/request fingerprint replays one report. Changed facts with
 the same identity conflict. Worker lease recovery and object writes converge on
 the stored request; operators never fabricate completion or publish one member
 of the pair.
@@ -322,25 +299,25 @@ of the pair.
 
 The authorized synthetic participant sees one frozen, provenance-bearing
 analysis and either a complete immutable CSV/PDF pair or an explicit unavailable
-state. Raw routes, people, private URLs, hidden zones, and unqualified ROI remain
+state. Raw routes, people, private URLs, hidden zones, and ROI remain
 absent.
 
 ### Stop conditions and escalation
 
 Stop on tenant/membership loss, missing/revoked privacy or method authority,
-source/proof mismatch, stale disclosure, unexpected ROI, partial/tampered
+source mismatch, stale disclosure, unexpected ROI, partial/tampered
 objects, worker/storage failure, or map-provider confusion. Preserve sanitized
 run/issuance/request IDs and hashes, then escalate to
 `<PRIVACY_DECISION_ROLE>`, `<REPORT_METHOD_AUTHORITY_ROLE>`,
-`<MONEY_CHECKER_ROLE>` when financial output is implicated, and
+`<MONEY_OPERATOR_ROLE>` when financial output is implicated, and
 `<OPERATIONS_OWNER_ROLE>`.
 
 ### Synthetic rehearsal note
 
 Use the same provider-neutral journey command listed in the payout section and
 reserved `.invalid` synthetic identities. Do not call a live ad platform,
-publish a real campaign report, or represent a synthetic financial result as
-customer ROI.
+publish a real campaign report, or represent a synthetic estimate as
+measured customer results.
 
 ## Incidents
 
@@ -403,7 +380,7 @@ Stop on unknown release identity, missing owner/approver, possible data loss,
 unverified backup/object agreement, schema mismatch, unredacted evidence,
 unavailable custody, or any need to touch a live provider/account. Preserve the
 minimum sanitized record and escalate to `<INCIDENT_COMMANDER_ROLE>`,
-`<SECURITY_OWNER_ROLE>`, `<PRIVACY_DECISION_ROLE>`, `<MONEY_CHECKER_ROLE>` when
+`<SECURITY_OWNER_ROLE>`, `<PRIVACY_DECISION_ROLE>`, `<MONEY_OPERATOR_ROLE>` when
 money is implicated, and `<OPERATIONS_OWNER_ROLE>`.
 
 ### Synthetic rehearsal note

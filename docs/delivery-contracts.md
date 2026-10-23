@@ -96,8 +96,7 @@ This is the binding detail for the package and checklist entries in [progress.md
 
 ### PKG-02 — money integrity and payout operations
 
-- **Owns:** checklist 10–18. One plan integrates assessment/hold, release,
-  protected payee, reservation/reconciliation and post-payment debt semantics.
+- **Owns:** checklist 10–18. Assessment/hold, release, protected payee, reservation/reconciliation and audited manual adjustments; one active admin may perform approval and reconciliation (D112/D113).
 - **Package plan (activated 21 Aug 2026, canonical branch `feat/pkg-02`):**
   controller Lane A owns MNY-08A → MNY-09A → MNY-08B, then MNY-08C and
   MNY-03A. The separately commissioned GPT-5.6 Pro Lane B attempt produced no
@@ -693,8 +692,7 @@ This is the binding detail for the package and checklist entries in [progress.md
 
 ### PKG-05 — privacy, measurement and retargeting
 
-- **Owns:** checklist 44–54. The privacy operating model, disclosure service,
-  measurement runs, sources, segments, recommendations and scores are one chain.
+- **Owns:** checklist 44–54. Privacy controls, manual personal-data requests, shared disclosure and chosen-period reports; pilot retargeting/activation and ROI are removed (D110/D115/D118).
 - **Package plan (activated 24 Aug 2026, canonical branch `feat/pkg-05`):**
   the controller serializes the dependency-safe frontier W3-00A → W3-00D →
   W3-00C → W3-01A → W3-01B and owns all authority, migration, disclosure,
@@ -1526,13 +1524,9 @@ names never authorize work or replace the package queue.
 
 #### MNY-06C — maker-checker correction orders
 
-- **Scope / authority:** named adjuster creates projected correction order;
-  separate approver submits/rejects/executes it; positive deltas remain pending
-  with their own release date (§16.1/16.2, RM6, Q22).
-- **Acceptance:** creator cannot approve; stale projection re-reviews;
-  execution is idempotent; old/new values, reason and actors are audited.
-- **Verify / review:** permission, delta, DB constraint, concurrency/retry and
-  admin e2e; independent money/security review.
+- **Scope / authority:** One active admin previews a value-complete correction and uses Approve and apply with a reason (D112 / REQ-213). Positive deltas retain their own release date; frozen accepted rates and original credits remain immutable.
+- **Acceptance:** Actor and reason are audited; stale projections require fresh review; execution and exact retry are idempotent. Same-admin approval is permitted; holds remain authoritative.
+- **Verify / review:** Run correction projection, stale/add-only, concurrency, retry and admin-flow tests; independent money/security review. Removed separate-maker/checker enforcement by D112 (REQ-213).
 
 #### MNY-08A — current fraud assessments
 
@@ -1607,15 +1601,9 @@ names never authorize work or replace the package queue.
 
 #### MNY-10B — batch reservation and provider submission
 
-- **Scope / authority:** draft→reserved→submitted batch, atomic one-active-line
-  reservation, frozen payee/account/amount/instruction hash, stable idempotency
-  key, approved disbursement adapter and maker-checker before submission
-  (§16.3, RM10, D18/Q22/Q23/Q27). Provider-neutral tests do not require live
-  credentials.
-- **Acceptance:** concurrent runs cannot double-reserve; total equals lines;
-  exported snapshot is immutable and any prior change invalidates its hash.
-- **Verify / review:** uniqueness/concurrency/property/instruction-hash,
-  retry-idempotency, fake-provider/API/UI tests; independent money/security review.
+- **Scope / authority:** Draft/reserve/submit batches with one-active-line reservation, frozen verified payee/account/amount/instruction hash and stable provider idempotency (D112 / REQ-213). One active admin may approve and reconcile; automated transfer still needs the approved provider and settlement bank.
+- **Acceptance:** Concurrent runs cannot double-reserve; totals equal lines; holds and first-new-bank human handling stay; unavailable provider authority refuses financially effective submission.
+- **Verify / review:** Run reservation/concurrency, instruction-hash, fake-provider and retry tests; independent money/security review. Removed money actor separation by D112 (REQ-213).
 
 #### MNY-10C — provider line reconciliation and paid finality
 
@@ -1631,18 +1619,9 @@ names never authorize work or replace the package queue.
 
 #### MNY-11A — carry-forward post-payment debt
 
-- **Scope / authority:** explicit earned-net/released/cash-paid/debt/
-  batch-payable balances allocate later reversals against future credit
-  (§16.2/16.3, RM11, Q22/Q27). No collections or negative transfer.
-- **Acceptance:** reversal never increases balance; paid history is immutable;
-  future credit clears debt before becoming batchable; currencies never mix.
-- **Projection boundary:** economic/provenance totals retain every non-voided
-  source and subtract reversals, while `debt_remainder` contributes zero.
-  Settlement totals separately report released credit, cash paid, carried debt
-  and debt-aware batch-payable amount; status changes made for allocation do
-  not rewrite economics.
-- **Verify / review:** cross-payment-boundary property and multi-period
-  recompute→debt→batch e2e; independent money review.
+- **Scope / authority:** Keep paid history immutable and record overpayments through audited add-only manual negative adjustments on the actual Nigeria earning day (D113 / REQ-213). No automatic debt recovery or negative provider transfer.
+- **Acceptance:** A negative adjustment caps only its own trip/day's next payment; existing cash remains counted, currencies never mix and retries cannot duplicate the adjustment.
+- **Verify / review:** Run manual-negative, conservation, reservation/replacement and concurrency tests; independent money review. Removed automatic carry-forward debt by D113 (REQ-213).
 
 ### W2 commercial and operations
 
@@ -1842,13 +1821,9 @@ names never authorize work or replace the package queue.
 
 #### W2-03C — installation evidence and proof-of-display
 
-- **Scope / authority:** assignment-bound installation revisions, admin review,
-  vehicle/device metadata and server-nonce start-of-shift proof with expiry/
-  renewal (§18/§19/§21, RM9/RM13c, Q15/Q17).
-- **Acceptance:** evidence binds exact assignment/vehicle; stale/rejected/
-  missed proof blocks activation/earning; nonce cannot replay; reads audit.
-- **Verify / review:** binding/replay/expiry/race and driver→admin e2e;
-  independent fraud/security/privacy review.
+- **Scope / authority:** Assignment-bound installation revisions use the shared private scanned-file service, five views (front, back, left, right, close-up) and admin approval valid for seven days (D108 / REQ-210; REQ-208). The driver or active admin may upload.
+- **Acceptance:** Current clean approved installation evidence is required; wrong assignment/vehicle, expired/replaced/rejected evidence fails closed. Approval activates eligible accepted cars automatically, under existing locks.
+- **Verify / review:** Run installation binding/expiry/review/activation races and driver/admin tests; fraud/security/privacy review. Removed daily display proof and nonce challenges by D108 (REQ-210).
 
 #### W2-03D — atomic activation
 
@@ -1886,13 +1861,9 @@ names never authorize work or replace the package queue.
 
 #### W2-03G — proof challenges and spot checks
 
-- **Scope / authority:** configurable high-earner evidence renewal, missed
-  challenge/concurrent-session day hold, physical spot-check queue/result and
-  audit, consuming MNY-09A evidence (§17/§19/§21, RM9).
-- **Acceptance:** hold uses MNY-08B state machine; dismissal/release is
-  authoritative; no claim that phone GPS proves the branded vehicle moved.
-- **Verify / review:** synthetic challenge/false-positive/worker/hold-release
-  and ops e2e; independent fraud/money/privacy review.
+- **Scope / authority:** Physical spot checks record passed/failed with a note; a failed check holds pay through the existing fraud authority (D109/D114 / REQ-211/213).
+- **Acceptance:** No claim that phone GPS proves the branded car moved. Confirm/dismiss actions preserve authoritative holds; overdue cases never auto-release.
+- **Verify / review:** Run spot-check, fraud-hold and retry tests; independent fraud/money/privacy review. Removed high-earner/concurrent-session challenges by D109 (REQ-211).
 
 #### W2-04A — notification core and role surfaces
 
@@ -1926,20 +1897,9 @@ names never authorize work or replace the package queue.
 
 #### W2-04D — account recovery and verified contact preferences
 
-- **Scope / authority:** advertiser/admin password reset uses single-use,
-  expiring, rate-limited email tokens. Driver phone verification follows the
-  §20.3 pilot flow: server creates a hashed short-lived challenge and ops work
-  item; ops manually sends the code to the claimed number; the driver enters it
-  in-product. Versioned WhatsApp opt-in/withdrawal then authorizes manual contact
-  (§20/§23/§30, Q34). Automated WhatsApp/SMS remains post-MVP.
-- **Acceptance:** tokens are hashed, one-use and non-enumerating; password reset
-  revokes existing sessions; phone challenges are rate/attempt limited, expire,
-  record sender/channel/timestamps without storing plaintext codes, and verify
-  only the claimed phone version; unverified or withdrawn numbers cannot create
-  a normal manual-contact task; consent history is auditable and purpose-limited.
-- **Verify / review:** expiry/replay/enumeration/rate-limit/session-revocation,
-  phone/consent transitions and role e2e; independent auth/security/privacy
-  review.
+- **Scope / authority:** Keep hashed, expiring, rate/attempt-limited password reset and driver-only phone-code disclosure with staff recording the received code/sender. D117 / REQ-216 keeps only the support-number phone setting; manual WhatsApp contact still requires current phone verification and versioned opt-in.
+- **Acceptance:** Reset is one-use/non-enumerating and revokes sessions; wrong/expired/replayed codes fail; withdrawn or mismatched phone consent cannot authorize contact; attempts and actors are audited.
+- **Verify / review:** Run recovery, phone expiry/attempt/race, consent/withdrawal and audit tests; security/privacy review. Removed the external phone-operator setting/gate by D117 (REQ-216).
 
 ### W3 reach and measurement
 
@@ -1956,102 +1916,51 @@ names never authorize work or replace the package queue.
 
 #### W3-00B — end-to-end retention and DSR
 
-- **Scope / authority:** per-class retention and tested access/rectification/
-  erasure process spanning DB, object storage, device queue, logs, backups and
-  processors (§24.2, RM15/RM18, Q31). No automated DSR portal.
-- **Acceptance:** synthetic request leaves traceable evidence without deleting
-  required ledger/audit facts; every exception/location is documented.
-- **Verify / review:** DSR dry run plus backup/object/device/provider checks;
-  independent privacy/data-loss/operations review.
+- **Scope / authority:** Retain the file lifecycle and six-calendar-month terminal KYC policy (D119 / REQ-218). Staff handle personal-data requests manually under the runbook pending the named lawyer's deadline, redaction, retention-exception and non-KYC GPS/evidence/backup rules (D110 / REQ-211).
+- **Acceptance:** Current references protect files; dry-run and durable deletion evidence remain; no request may rewrite immutable money, fraud or audit facts or claim erasure without evidence.
+- **Verify / review:** Run file lifecycle/current-reference/deletion-receipt tests and manual-request tabletop; privacy/data-loss review. Removed the in-app DSR workflow by D110 (REQ-211).
 
 #### W3-00C — central disclosure-control service
 
-- **Scope / authority:** one service gates existing heatmap, future audience
-  queries, reports and exports with coarse buckets, minimum distinct
-  vehicles (D107 removed the trip/day/contributor-cap floors), restricted filters,
-  query history and differencing defense (§22.2, RM15).
-- **Acceptance:** no caller bypass; current advertiser heatmap remains disabled
-  until migrated; thresholds remain config pending pilot-density evidence.
-- **Verify / review:** adversarial suppression/complementary/differencing
-  fixtures across all endpoints; independent privacy/security/architecture review.
+- **Scope / authority:** Existing maps and reports use shared ownership/disclosure controls, the three-car rule where applicable and query recording. Privacy and overlap/differencing protections remain an external pre-real-user restoration obligation (D56/D107/D110).
+- **Acceptance:** No tenant bypass or raw advertiser route access; withheld data is distinct from zero. Remaining legal and restoration gates are not cleared by synthetic tests.
+- **Verify / review:** Run ownership, suppression, query-recording and restoration-gate tests; independent privacy/security review. Removed audience/export callers by D115 (REQ-214).
 
 #### W3-00D — measurement methodology contract
 
-- **Scope / authority:** define modelled potential contacts, measured-vs-
-  modelled hierarchy, units, provenance/vintage, missing-data rules,
-  uncertainty, correction/reissue and prohibited view/reach/attribution claims
-  (§22.4/§27, RM16, Q12/Q30, D20). Define Campaign Performance Analysis as
-  the standard deliverable. Define true ROI only when advertiser conversion
-  and revenue inputs plus an approved reproducible ROI method are all present;
-  otherwise the ROI section and claim are omitted.
-- **Acceptance:** every visible metric/label maps to a definition and
-  uncertainty treatment; the ROI gate fails closed; terminology audit finds no
-  overclaim.
-- **Verify / review:** golden performance-only and true-ROI methodology
-  fixtures, missing-input/method cases and copy audit; independent measurement/
-  legal/commercial review.
+- **Scope / authority:** Document the current estimate methodology, measured-versus-estimated labels, provenance, units, uncertainty, missing-data and correction rules (D115/D118 / REQ-214/217). Client approval of the live estimate method and labels remains EXT-REPORT-METHOD.
+- **Acceptance:** Every visible metric maps to a definition; estimates are labelled. Pilot reports contain no CTR, website visits beyond QR scans, ROI or financial figures.
+- **Verify / review:** Run current renderer/methodology and copy tests; independent measurement/privacy review. Removed ROI and attribution methodology stages by D115/D118 (REQ-214/217).
 
 #### W3-00E — immutable measurement runs and proof manifests
 
-- **Scope / authority:** immutable formula-versioned run plus proof manifest
-  linking creative, approved installation evidence, assignment, period,
-  inputs/provenance and correction lineage (§22/§27, RM16, D20). The frozen
-  input manifest records whether the report is performance-only or ROI-enabled
-  and the approved method revision when enabled.
-- **Acceptance:** frozen input reproduces result; changed input creates new
-  run/reissue; missing proof or ROI prerequisite fails closed without silently
-  relabelling performance as ROI.
-- **Verify / review:** migration/reproducibility/fingerprint/lineage and report
-  integration tests; independent measurement/architecture/audit review.
+- **Scope / authority:** Freeze chosen-period campaign report data, provenance and artwork references in one versioned report object, shared by worker publication, reads and downloads (D118 / REQ-217).
+- **Acceptance:** Period uses Africa/Lagos days; immutable ready files cannot be recomposed. Zero requires complete retained data; suppressed/unavailable results remain explicit. Changed facts require a new version.
+- **Verify / review:** Run frozen-period, retry/lease, file/hash, ownership and re-run tests; measurement/privacy/security review. Removed old ROI-enabled measurement stages by D115/D118 (REQ-214/217).
 
 #### W3-01A — typed retargeting source registry
 
-- **Scope / authority:** advertiser manages five D11 planning-source types;
-  admin monitors; metadata is typed/allowlisted with provenance, basis, expiry
-  and DSR fields; identifiers/uploads/free text are rejected (§22.4, RM16,
-  D11/Q11).
-- **Acceptance:** all types and lifecycle work; organization isolation holds;
-  identity-like/free-text input fails clearly.
-- **Verify / review:** API/UI/validation/expiry/provenance and admin-advertiser
-  e2e; independent privacy/security review.
+- **Scope / authority:** Removed from the pilot by D115 (REQ-214): retargeting sources, links, segments, recommendations, export and activation are absent. This historical checklist identity is retained for traceability.
+- **Acceptance:** No route, UI, job, schema or adapter reintroduces the removed workflow; tenant isolation and the remaining map/report privacy controls stay.
+- **Verify / review:** Run the pilot-scope removal tests and current map/report privacy checks. This does not reopen or promote a package.
 
 #### W3-01B — source/campaign/zone linkage
 
-- **Scope / authority:** owned planning sources link to campaigns, target zones
-  and time windows without raw-ping access (§22.4, D11/Q11).
-- **Acceptance:** ownership/date/zone compatibility is server-enforced;
-  cross-org and raw-data joins reject; link history is auditable.
-- **Verify / review:** authorization/compatibility/lifecycle and advertiser
-  setup e2e; privacy/authorization review.
+- **Scope / authority:** Removed from the pilot by D115 (REQ-214): retargeting sources, links, segments, recommendations, export and activation are absent. This historical checklist identity is retained for traceability.
+- **Acceptance:** No route, UI, job, schema or adapter reintroduces the removed workflow; tenant isolation and the remaining map/report privacy controls stay.
+- **Verify / review:** Run the pilot-scope removal tests and current map/report privacy checks. This does not reopen or promote a package.
 
 #### W3-01C — governed exposure segments
 
-- **Scope / authority:** worker materializes versioned campaign coverage-cell/
-  time-window aggregates from approved analytics and applies disclosure
-  suppression; no export activation (§22.1–22.3, Q11).
-- **Acceptance:** retries converge; provenance/fingerprint drift makes stale;
-  below-threshold cells suppress; organizations isolate.
-- **Verify / review:** frozen-time/worker/idempotency/provenance/suppression
-  tests; independent privacy/measurement/concurrency review.
+- **Scope / authority:** Removed from the pilot by D115 (REQ-214): retargeting sources, links, segments, recommendations, export and activation are absent. This historical checklist identity is retained for traceability.
+- **Acceptance:** No route, UI, job, schema or adapter reintroduces the removed workflow; tenant isolation and the remaining map/report privacy controls stay.
+- **Verify / review:** Run the pilot-scope removal tests and current map/report privacy checks. This does not reopen or promote a package.
 
 #### W3-01D — recommendations, export and gated activation
 
-- **Scope / authority:** advertiser reports/dashboard and admin monitoring show
-  contextual geography/time recommendations derived from governed segments,
-  with provenance/disclaimer/uncertainty; the same approved aggregate supports
-  controlled export and an auditable ad-platform activation adapter
-  (§22.3/22.4, D11/D18/D20/Q11). The outbound schema allowlists only aggregate
-  geography/cell, time-window and contextual campaign fields; identifiers,
-  raw routes and person-level payloads reject. No identity resolution. Live
-  push fails closed
-  until `EXT-AD-PLATFORM` supplies accounts, legal approval, API access,
-  credentials and budget.
-- **Acceptance:** no driver/trip/precise timestamp or person identifier is
-  exposed; rejected payloads never reach the adapter; suppressed/empty states
-  and access boundaries are correct.
-- **Verify / review:** API/UI/report/export, fake-adapter approval/idempotency
-  and fail-closed gate e2e plus terminology audit; independent privacy/
-  measurement/security/claims review.
+- **Scope / authority:** Removed from the pilot by D115 (REQ-214): retargeting sources, links, segments, recommendations, export and activation are absent. This historical checklist identity is retained for traceability.
+- **Acceptance:** No route, UI, job, schema or adapter reintroduces the removed workflow; tenant isolation and the remaining map/report privacy controls stay.
+- **Verify / review:** Run the pilot-scope removal tests and current map/report privacy checks. This does not reopen or promote a package.
 
 #### W3-02A — exposure score v1
 
@@ -2094,13 +2003,9 @@ names never authorize work or replace the package queue.
 
 #### W3-03C — activity floor and inactivity handling
 
-- **Scope / authority:** configurable verified-hours/week and seven-day
-  inactivity sweep create operations flag/notification without silently
-  terminating assignment or earnings (§21, Q20).
-- **Acceptance:** exact boundaries, retry and missing-analytics behavior hold;
-  resumed activity recovers as designed.
-- **Verify / review:** frozen-time/idempotent-worker/admin UI/e2e; money/
-  operations review.
+- **Scope / authority:** Seven consecutive inactive days create one operations notice/flag; renewed activity closes it automatically (D109 / REQ-211). No silent termination or earnings rewrite.
+- **Acceptance:** Retry does not duplicate the notice; missing analytics is not invented activity and resumed activity clears the flag.
+- **Verify / review:** Run activity boundary, retry and self-close tests; independent operations/privacy review. Removed the weekly verified-hours floor by D109 (REQ-211).
 
 #### W3-04A — public driver application
 
@@ -2195,34 +2100,15 @@ names never authorize work or replace the package queue.
 
 #### W4-02A — governed maps and report experience
 
-- **Scope / authority:** existing admin/advertiser maps and reports consume
-  measurement runs, disclosure controls, safe labels, high zones, exposure
-  score and contextual follow-up; admin raw route remains purpose-scoped
-  (§27, RM15/RM16, D20). The standard title is Campaign Performance Analysis;
-  ROI appears only when the frozen run records all required inputs and an
-  approved method revision.
-- **Acceptance:** no raw advertiser bypass or attribution/view/ROI overclaim;
-  missing ROI prerequisites omit ROI; correct suppression/empty/access states
-  and acceptable map latency.
-- **Verify / review:** browser, performance-only and true-ROI golden fixtures,
-  permission/load/terminology tests;
-  independent privacy/measurement/maps review.
+- **Scope / authority:** Advertiser/staff campaign results show chosen-period charts and clearly labelled estimates with existing coverage history and governed map controls (D118 / REQ-217). No financial report figures, ROI, audience or follow-up recommendations.
+- **Acceptance:** No raw route/identity or cross-tenant bypass; withheld/empty/error states are honest, and suppressed values never become zero. Local schematic maps do not claim a street basemap.
+- **Verify / review:** Run current report/chart, access, privacy, renderer and portal tests; independent privacy/measurement review. Removed contextual activation and ROI presentation by D115/D118 (REQ-214/217).
 
 #### W4-02B — bounded CSV/PDF issuance
 
-- **Scope / authority:** worker-generated basic CSV/PDF from frozen measurement
-  run with hash/version/access/suppression/reissue; segment export remains
-  disabled until Q31 (§27/§30, D11/D20/Q11/Q12/Q27/Q30/Q31). Issuance uses the
-  Campaign Performance Analysis title by default and reproduces the frozen ROI
-  gate decision. Build/test is synthetic performance-only per the register:
-  `EXT-REPORT-METHOD` gates first live issuance at the W4-03B pilot gate, not
-  this item's build entry.
-- **Acceptance:** file reproduces source run, cannot leak suppressed data,
-  authorization holds, legal switch fails closed and ROI is absent unless both
-  required data and approved method are present.
-- **Verify / review:** performance-only/true-ROI golden files, missing-input/
-  method, hash/tamper/RBAC/worker retry/load/browser download tests; independent
-  privacy/measurement/security review.
+- **Scope / authority:** Worker publication creates immutable CSV/PDF pairs for a chosen period and one/all owned campaigns (D118 / REQ-217). CSV carries chart data and artwork references; PDF carries graphical charts and advert pictures. Absolute references use the existing PUBLIC_ORIGIN. Live method approval remains EXT-REPORT-METHOD.
+- **Acceptance:** Ownership and current access are rechecked; hidden values remain hidden; partial or tampered files never publish/download; ready versions remain immutable. No financial figures or ROI.
+- **Verify / review:** Run exact-period, hash/tamper, storage/retry, re-run, tenant and download tests; independent privacy/security review. Removed segment export and ROI issuance by D115/D118 (REQ-214/217).
 
 #### W4-03A — client-owned release environment
 
@@ -2236,22 +2122,9 @@ names never authorize work or replace the package queue.
 
 #### W4-03B — pilot gate and acceptance suite
 
-- **Scope / authority:** one launch checklist mechanically proves G-money,
-  G-GPS, G-commercial, G-advertiser, G-moduleG and G-pilot; records the real
-  company/commercial facts, evidence policy, the approved measurement/ROI
-  methodology (`EXT-REPORT-METHOD` — the live-issuance gate W4-02B builds
-  against synthetically), Q26/Q31 legal/privacy approval,
-  automated-disbursement provider readiness, D19 permit evidence and D18/D20
-  Cardvert/Abuja pilot facts, reporting rule and owners (§35.3).
-- **Acceptance:** full advertiser→admin→PWA→GPS→measurement→retargeting/export
-  or aggregate contextual gated activation→Campaign Performance Analysis
-  (plus ROI only when its gate passes)→automated payout→incident/recovery
-  simulation passes or
-  reports an explicit blocker. The planned cohort is Abuja, 10 vehicles, five
-  paying advertisers and three months; coverage target is at least 60% of the
-  target area.
-- **Verify / review:** whole-system acceptance suite and independent launch
-  review spanning privacy, money, security, architecture and operations.
+- **Scope / authority:** Mechanically evaluate G-money, G-GPS, G-commercial, G-advertiser and G-pilot. Keep company/commercial facts, approved live estimate methodology (EXT-REPORT-METHOD), manual-request/legal/privacy rules, restoration, provider/settlement, D19 permits and D18/D20 pilot facts as gates.
+- **Acceptance:** Synthetic advertiser → admin → PWA → GPS → measurement → Campaign Performance Analysis → payout instruction → incident/recovery passes or names an explicit blocker. Abuja, ten cars, five paying advertisers, three months and the existing at-least-60% target-area goal remain facts, not execution evidence.
+- **Verify / review:** Run whole-system acceptance and gate-contradiction tests; independent privacy/money/security/operations review. Removed display-proof/phone/ad-platform gates, contextual activation and conditional ROI stages by D108/D109/D115/D117/D118 (REQ-210/211/214/216/217).
 
 #### W4-04A — role-based onboarding and training
 

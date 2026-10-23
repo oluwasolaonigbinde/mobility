@@ -20,9 +20,7 @@ operating authority.
 | `<INCIDENT_COMMANDER_ROLE>` | Separate from affected-system implementer where practicable. | Coordinates containment and evidence preservation. | Cannot declare privacy, money, or recovery closure without required authorities. |
 | `<SECURITY_OWNER_ROLE>` | Separate from credential custodians when approving access. | Reviews least privilege, rotation, revocation, and recovery evidence. | Authorizes security actions only through the protected operating record. |
 | `<PRIVACY_DECISION_ROLE>` | Separate from platform operations. | Reviews privacy gates, DSR, retention, and breach templates. | Supplies legal/privacy decisions only after `EXT-LEGAL-PRIVACY`. |
-| `<MONEY_MAKER_ROLE>` | Must differ from checker and reconciler. | Prepares a frozen synthetic correction/batch/instruction. | Cannot approve, reconcile, submit, or mark paid. |
-| `<MONEY_CHECKER_ROLE>` | Must differ from maker and reconciler. | Checks identity, value, currency, authority, and conservation. | Cannot self-approve or invent provider/bank evidence. |
-| `<MONEY_RECONCILER_ROLE>` | Must differ from maker and checker. | Reconciles immutable provider-neutral evidence. | Cannot manufacture provider finality or rewrite history. |
+| `<MONEY_OPERATOR_ROLE>` | The same active admin may prepare, approve/apply and reconcile (D112). | Checks exact value, currency, lineage, holds and provider evidence; records actor and reason. | Cannot invent provider/bank evidence, bypass a hold or rewrite history. |
 | `<REPORT_METHOD_AUTHORITY_ROLE>` | Separate from report operator and advertiser requester. | Reviews methodology, provenance, disclosure, and correction templates. | Live issuance remains closed until report/privacy approvals exist. |
 | `<EVIDENCE_RECORDER_ROLE>` | Must differ from evidence checker. | Records sanitized pointers, hashes, times, and source authority. | Cannot store protected evidence or credentials in Git. |
 | `<EVIDENCE_CHECKER_ROLE>` | Must differ from evidence recorder. | Checks completeness, conservation, classification, and redaction. | Cannot convert missing evidence into closure. |
@@ -39,9 +37,9 @@ operating authority.
 | Release and recovery | `<RELEASE_OPERATOR_ROLE>` | `<INCIDENT_COMMANDER_ROLE>` | `<SECURITY_OWNER_ROLE>` | `<OPERATIONS_OWNER_ROLE>` | Provider-neutral rehearsal evidence exists; external run is gated. |
 | Training | `<TRAINING_FACILITATOR_ROLE>` | `<OPERATIONS_OWNER_ROLE>` | `<PRIVACY_DECISION_ROLE>` | `<BUSINESS_ACCOUNTABLE_ROLE>` | Materials exist; facilitated rehearsal and acceptance are not performed. |
 | Privacy and DSR | `<OPERATIONS_OWNER_ROLE>` | `<PRIVACY_DECISION_ROLE>` | `<SECURITY_OWNER_ROLE>` | `<BUSINESS_ACCOUNTABLE_ROLE>` | Build-only controls exist; legal/live authority is missing. |
-| Money preparation | `<MONEY_MAKER_ROLE>` | `<MONEY_CHECKER_ROLE>` | `<MONEY_RECONCILER_ROLE>` | `<OPERATIONS_OWNER_ROLE>` | Synthetic/provider-neutral only; no transfer or settlement. |
+| Money preparation | `<MONEY_OPERATOR_ROLE>` | `<MONEY_OPERATOR_ROLE>` | `<MONEY_OPERATOR_ROLE>` | `<OPERATIONS_OWNER_ROLE>` | Synthetic/provider-neutral only; no transfer or settlement. |
 | Reporting | `<OPERATIONS_OWNER_ROLE>` | `<REPORT_METHOD_AUTHORITY_ROLE>` | `<PRIVACY_DECISION_ROLE>` | `<BUSINESS_ACCOUNTABLE_ROLE>` | Reproducible build output exists; live issuance is gated. |
-| Incident response | `<INCIDENT_COMMANDER_ROLE>` | `<OPERATIONS_OWNER_ROLE>` | `<SECURITY_OWNER_ROLE>`, `<PRIVACY_DECISION_ROLE>`, `<MONEY_CHECKER_ROLE>` | `<BUSINESS_ACCOUNTABLE_ROLE>` | Templates exist; live incident action and closure are not performed. |
+| Incident response | `<INCIDENT_COMMANDER_ROLE>` | `<OPERATIONS_OWNER_ROLE>` | `<SECURITY_OWNER_ROLE>`, `<PRIVACY_DECISION_ROLE>`, `<MONEY_OPERATOR_ROLE>` | `<BUSINESS_ACCOUNTABLE_ROLE>` | Templates exist; live incident action and closure are not performed. |
 | Credential custody | `<CREDENTIAL_CUSTODIAN_ROLE>` | `<SECURITY_OWNER_ROLE>` | `<CREDENTIAL_CHECKER_ROLE>` | `<OPERATIONS_OWNER_ROLE>` | Checklist only; custody and transfer are not performed. |
 | Support and escalation | `<SERVICE_SUPPORT_COORDINATOR_ROLE>` | `<OPERATIONS_OWNER_ROLE>` | `<INCIDENT_COMMANDER_ROLE>` | `<BUSINESS_ACCOUNTABLE_ROLE>` | Proposed template only; no approved SLA or rota. |
 | Brand/release acceptance | `<BRAND_RELEASE_APPROVER_ROLE>` | `<BUSINESS_ACCOUNTABLE_ROLE>` | `<OPERATIONS_OWNER_ROLE>` | `<EVIDENCE_CHECKER_ROLE>` | Final approval and acceptance remain external. |
@@ -52,8 +50,8 @@ operating authority.
   decisions; admin or developer access is not legal authority.
 - Security: `<SECURITY_OWNER_ROLE>` governs access/containment decisions, while
   `<CREDENTIAL_CUSTODIAN_ROLE>` and `<CREDENTIAL_CHECKER_ROLE>` remain distinct.
-- Money: maker, checker, and reconciler remain three distinct roles; no role may
-  manufacture submission, settlement, or paid finality.
+- Money: the same active admin may prepare, approve/apply and reconcile (D112).
+  Reasons, audit, stale checks, holds and provider finality remain mandatory.
 - Operations: `<OPERATIONS_OWNER_ROLE>` cannot be inferred from repository
   authorship and remains unresolved until `EXT-OPERATIONS-OWNER` is supplied.
 - Acceptance: `<BUSINESS_ACCOUNTABLE_ROLE>` and

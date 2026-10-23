@@ -10,7 +10,9 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 
 def _fixture_repo(tmp_path: Path) -> Path:
     root = tmp_path / "repo"
-    shutil.copytree(REPO_ROOT / "docs", root / "docs")
+    shutil.copytree(
+        REPO_ROOT / "docs", root / "docs", ignore=shutil.ignore_patterns("account-access.md")
+    )
     shutil.copy2(REPO_ROOT / "README.md", root / "README.md")
     (root / "scripts").mkdir()
     shutil.copy2(
@@ -63,7 +65,7 @@ def test_missing_required_domain_and_role_fail(tmp_path: Path) -> None:
         "\n".join(
             line
             for line in roles.read_text(encoding="utf-8").splitlines()
-            if not line.startswith("| `<MONEY_RECONCILER_ROLE>` |")
+            if not line.startswith("| `<MONEY_OPERATOR_ROLE>` |")
         )
         + "\n",
         encoding="utf-8",
@@ -98,10 +100,10 @@ def test_cross_pack_role_alias_or_separation_drift_fails(tmp_path: Path) -> None
         "<SECURITY_OWNER_ROLE>",
         "<SECURITY_INCIDENT_ROLE>",
     )
-    _replace(
+    _replace_all(
         root / "docs/pilot-operations/operations-pack.md",
-        "<MONEY_MAKER_ROLE>",
-        "<MONEY_CHECKER_ROLE>",
+        "<MONEY_OPERATOR_ROLE>",
+        "<EVIDENCE_RECORDER_ROLE>",
     )
     errors = validate_repository(root)
     assert any("training uses non-canonical role placeholders" in error for error in errors)

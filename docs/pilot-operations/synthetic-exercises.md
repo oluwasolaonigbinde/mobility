@@ -86,7 +86,7 @@ issuance/artifact/stored-file rows under the
 Happy command:
 
 ```sh
-python3 -m pytest -q tests/test_report_issuances.py::test_lost_response_replay_does_not_recompose_mutable_latest_projection
+python3 -m pytest -q tests/test_req217_reports.py::test_publication_retries_same_keys_and_ready_files_never_change
 ```
 
 Expected evidence: identical request replay converges on the frozen issuance and
@@ -95,7 +95,7 @@ changed reuse conflicts.
 Stop/failure command:
 
 ```sh
-python3 -m pytest -q tests/test_report_issuances.py::test_partial_storage_failure_exposes_no_artifact_and_retry_recovers_pair
+python3 -m pytest -q tests/test_req217_report_failures.py::test_expired_publisher_cannot_finalize_and_retry_adopts_exact_keys
 ```
 
 Expected evidence: a partial CSV/PDF write exposes neither artifact; the same
@@ -126,22 +126,20 @@ be represented as approved or closed.
 
 ## Domain: evidence-chain
 
-Authoritative source/state: immutable request/location assessments and protected
-store pointers under the [DSR runbook](../data-subject-request-runbook.md).
+Authoritative source/state: terminal KYC retention dry-run and immutable object-deletion receipts. Manual personal-data requests follow the [DSR runbook](../data-subject-request-runbook.md); D110 removed the software workflow.
 
 Happy command:
 
 ```sh
-python3 -m pytest -q tests/test_data_subject_requests.py::test_admin_access_request_inventories_and_closes_all_locations
+python3 -m pytest -q tests/test_file_kyc_lifecycle.py::test_file_kyc_retention_is_dry_run_first_audited_and_removes_terminal_objects
 ```
 
-Expected evidence: a local synthetic request inventories and accounts for every
-required store through explicit evidence pointers.
+Expected evidence: current-reference checks, dry-run counts and durable deletion evidence protect the existing file lifecycle.
 
 Stop/failure command:
 
 ```sh
-python3 -m pytest -q tests/test_data_subject_requests.py::test_completion_requires_every_store
+python3 -m pytest -q tests/test_schema_stored_object_deletions.py::test_stored_object_deletion_receipt_identity_is_append_only
 ```
 
-Expected evidence: closure is rejected while any required store lacks evidence.
+Expected evidence: deletion receipt identity cannot be rewritten or used to claim an unperformed action.

@@ -109,7 +109,7 @@ def test_r59_compose_is_local_isolated_and_uses_production_commands() -> None:
         "docker-compose.yml"
     )
     assert "BUDGET_POLICY_" not in compose
-    assert 'PHONE_OPERATOR_EXTERNAL_APPROVED: "false"' in compose
+    assert 'PHONE_OPERATOR_EXTERNAL_APPROVED' not in compose
 
 
 def test_wrapper_scopes_every_compose_mutation_and_always_tears_down() -> None:
@@ -147,7 +147,6 @@ def test_stack_helper_enforces_project_scope_and_sanitized_receipt() -> None:
     assert "R59_REAL_STACK_RECEIPT.json" in helper
     for live_value in (
         'BUDGET_POLICY_EXTERNAL_APPROVED: "true"',
-        'PHONE_OPERATOR_EXTERNAL_APPROVED: "true"',
     ):
         assert live_value not in helper
 

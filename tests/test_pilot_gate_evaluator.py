@@ -81,27 +81,25 @@ def test_current_authority_has_exact_ordered_honest_blockers(
     assert lines == (
         "G-money: BLOCKED — EXT-DISBURSEMENT-PROVIDER, EXT-SETTLEMENT-BANK",
         "G-GPS: BLOCKED — EXT-STORAGE-PROVIDER, EXT-MALWARE-SCANNER, "
-        "EXT-KMS-CUSTODY, EXT-PHONE-OPERATOR, EXT-EVIDENCE-POLICY, "
+        "EXT-KMS-CUSTODY, "
         "EXT-LEGAL-PRIVACY, EXT-PRIVACY-RESTORATION, EXT-UPLOAD-POLICY, DV-PWA-PHYSICAL-MATRIX, "
         "DV-PWA-ROUTE-BATTERY",
         "G-commercial: BLOCKED — EXT-PAYMENT-PROVIDER, EXT-STORAGE-PROVIDER, "
         "EXT-MALWARE-SCANNER, EXT-Q28-COMPANY, "
-        "EXT-COMMERCIAL-VALUES, EXT-EVIDENCE-POLICY, "
+        "EXT-COMMERCIAL-VALUES, "
         "EXT-CAMPAIGN-BUDGET-SCOPE, EXT-UPLOAD-POLICY",
         "G-advertiser: BLOCKED — EXT-BASEMAP, EXT-REPORT-METHOD, "
         "EXT-LEGAL-PRIVACY, EXT-PRIVACY-RESTORATION",
-        "G-moduleG: BLOCKED — EXT-REPORT-METHOD, EXT-LEGAL-PRIVACY, EXT-PRIVACY-RESTORATION, "
-        "EXT-AD-PLATFORM",
         "G-pilot: BLOCKED — EXT-DISBURSEMENT-PROVIDER, EXT-SETTLEMENT-BANK, "
         "EXT-STORAGE-PROVIDER, EXT-MALWARE-SCANNER, EXT-KMS-CUSTODY, "
-        "EXT-PHONE-OPERATOR, EXT-EVIDENCE-POLICY, EXT-LEGAL-PRIVACY, EXT-PRIVACY-RESTORATION, "
+        "EXT-LEGAL-PRIVACY, EXT-PRIVACY-RESTORATION, "
         "EXT-UPLOAD-POLICY, EXT-PAYMENT-PROVIDER, "
         "EXT-Q28-COMPANY, EXT-COMMERCIAL-VALUES, EXT-CAMPAIGN-BUDGET-SCOPE, "
-        "EXT-BASEMAP, EXT-REPORT-METHOD, EXT-AD-PLATFORM, EXT-RELEASE-ENV, "
+        "EXT-BASEMAP, EXT-REPORT-METHOD, EXT-RELEASE-ENV, "
         "EXT-STAGING-APPROVAL, EXT-PILOT-PERMITS, DV-PWA-PHYSICAL-MATRIX, "
         "DV-PWA-ROUTE-BATTERY, DV-STAGING-LIVE",
     )
-    assert len(lines) == 6
+    assert len(lines) == 5
 
 
 def test_gate_manifest_matches_architecture_once_and_controls_live_adapter(
@@ -110,7 +108,7 @@ def test_gate_manifest_matches_architecture_once_and_controls_live_adapter(
     snapshot = _snapshot(authority_texts)
 
     assert tuple(gate.name for gate in evaluator.GATES) == snapshot.architecture_gates
-    assert len(snapshot.architecture_gates) == len(set(snapshot.architecture_gates)) == 6
+    assert len(snapshot.architecture_gates) == len(set(snapshot.architecture_gates)) == 5
     commercial = next(gate for gate in evaluator.GATES if gate.name == "G-commercial")
     assert "W2-01C" in commercial.checklists
     assert "EXT-PAYMENT-PROVIDER" in commercial.required_inputs
@@ -149,7 +147,7 @@ def test_restoration_obligation_cannot_be_overridden_by_runtime_settings(
     snapshot = _snapshot(authority_texts)
     assert snapshot.external_states["EXT-PRIVACY-RESTORATION"] == "MISSING"
     lines = evaluator.evaluate_gates(snapshot, {"PRIVACY_RESTORATION_COMPLETE": "true"})
-    for gate in ("G-GPS", "G-advertiser", "G-moduleG", "G-pilot"):
+    for gate in ("G-GPS", "G-advertiser", "G-pilot"):
         assert "EXT-PRIVACY-RESTORATION" in next(
             line for line in lines if line.startswith(gate + ":")
         )
@@ -162,7 +160,7 @@ def test_incomplete_deferred_validation_never_passes(
 
     assert "DV-PWA-PHYSICAL-MATRIX" in lines[1]
     assert "DV-PWA-ROUTE-BATTERY" in lines[1]
-    assert "DV-STAGING-LIVE" in lines[5]
+    assert "DV-STAGING-LIVE" in lines[4]
 
 
 def test_present_input_needs_exact_trusted_committed_evidence(
@@ -236,7 +234,7 @@ def test_malformed_or_duplicate_authority_fails_closed(
         evaluator.parse_authority(duplicated, architecture, decisions)
 
 
-def test_all_complete_snapshot_emits_six_passes_and_cli_returns_zero(
+def test_all_complete_snapshot_emits_five_passes_and_cli_returns_zero(
     authority_texts: tuple[str, str, str],
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
@@ -256,22 +254,17 @@ def test_all_complete_snapshot_emits_six_passes_and_cli_returns_zero(
     assert captured.err == ""
 
 
-@pytest.mark.parametrize("failure", ["authority", "runtime"])
 def test_cli_malformed_input_returns_one_sanitized_diagnostic(
     authority_texts: tuple[str, str, str],
     capsys: pytest.CaptureFixture[str],
-    failure: str,
 ) -> None:
     progress, architecture, decisions = authority_texts
-    if failure == "authority":
-        progress = progress.replace(
-            "## External prerequisite register",
-            "## External prerequisite register\n\n## External prerequisite register",
-            1,
-        )
-        environment = {}
-    else:
-        environment = {"PHONE_OPERATOR_EXTERNAL_APPROVED": "CANARY-MALFORMED-SECRET"}
+    progress = progress.replace(
+        "## External prerequisite register",
+        "## External prerequisite register\n\n## External prerequisite register",
+        1,
+    )
+    environment = {}
     returned = iter((progress, architecture, decisions))
 
     def fake_run(command, **kwargs):
@@ -285,7 +278,6 @@ def test_cli_malformed_input_returns_one_sanitized_diagnostic(
     assert captured.out == ""
     assert len(captured.err.splitlines()) == 1
     assert "pilot-gate evaluation failed:" in captured.err
-    assert "CANARY-MALFORMED-SECRET" not in captured.err
 
 
 def test_cli_reads_only_committed_authorities_and_sanitizes_environment(
@@ -311,7 +303,7 @@ def test_cli_reads_only_committed_authorities_and_sanitizes_environment(
     captured = capsys.readouterr()
 
     assert exit_code == 1
-    assert len(captured.out.splitlines()) == 6
+    assert len(captured.out.splitlines()) == 5
     assert captured.err == ""
     assert "never-print-this-secret" not in captured.out
     assert calls == [

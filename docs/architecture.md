@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.149 — 2026-10-20. Canonical source of truth: current state AND target state.**
+**Version 1.150 — 2026-10-23. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -52,8 +52,7 @@ Owner direction on 20 October supersedes conflicting designs in §§8, 14–24,
 criterion verification follow [the contract](req210-slimdown-delivery.md).
 Local implementation and focused verification are recorded in
 [the receipt](../issues/testing/req210-slimdown-2026-10-20.md). Full CI, merge
-and external launch evidence remain controller-owned; inherited Python type
-diagnostics are explicitly documented rather than hidden in a baseline.
+and external launch evidence remain controller-owned. REQ-230 resolves the 35 unbaselined Python type diagnostics in source using the CI installation and exact basedpyright command; the baseline only prunes resolved entries.
 Earlier descriptions below are historical where they conflict with this amendment.
 
 - D108–D110: remove daily display proof entirely, high-earner/concurrent
@@ -2185,13 +2184,11 @@ Migration `0057` adds `installation_evidence` to that same subject-user file
 scope. Driver or configured active-admin uploads still use the one private
 storage/scanner flow. Evidence photos become immutable assignment revisions;
 admin review rechecks the exact clean image set, and installation-purpose reads
-require an audited `installation_review` reason. Challenge rows retain only a
-nonce digest and allow one null-to-consumed transition; proofs and photo links
-are append-only. REQ-208 builds the client's installation rule into
-`services/installation_evidence.py`: views front, back, left, right and
-close-up; the driver or an active admin uploads; approval lasts 7 days. Only the
-display-proof challenge/proof windows remain deployment values under
-`EXT-EVIDENCE-POLICY`; trips need them, and local/synthetic tests inject them.
+require an audited `installation_review` reason. REQ-208 and D108 keep front, back, left, right and close-up installation photos,
+uploaded by the driver or an active admin; approval lasts seven days. D108/D109
+remove daily display proofs, nonce/high-earner/concurrent-session challenges and
+the weekly verified-hours floor. Spot checks record passed/failed plus a note;
+failure holds pay through the existing fraud authority (D114).
 
 
 **[BUILT locally — D58 / REQ-105] Driver-application and vehicle staff review:** the person/bank and vehicle document rows use direct View submission as the acknowledgment. Every click uses the existing purpose-scoped, individually audited read: NIN/bank map to `person_payee_approval`; person files use `kyc_review` with `person_payee_approval:<submission_id>` reason; vehicle files use `kyc_review` with `vehicle_approval:<submission_id>` reason. The UI describes the respective purposes as Driver application review and Vehicle review. Keep Show NIN as its distinct reveal, at-most-60-second hiding, pagehide/hidden-visibility clearing and record-bound state resets. There is no separate need checkbox or purpose selection on these rows. Both consumers use the same direct-read lifecycle; the obsolete confirmation path is removed. Vehicle approval/expiry/rejection and eligibility rules are unchanged. No backend/API acknowledgment field or access rule is removed. Local focused verification is recorded in `issues/testing/client-polish-2026-10-04.md`; Person/bank and the owner-approved vehicle extension have passed focused verification, consolidated minimal-change review and the bounded implemented privacy/security review. Owner authorization covers the resulting local commit; it does not authorize merge or live use.
@@ -2374,9 +2371,7 @@ delivery remains post-MVP. Verification uses a reverse check:
    are durably counted. Codes and sender values never enter audits or logs.
 3. A successful staff action marks only the current phone version verified
    and records its actor/time. Replacement, expiry, exhaustion and replay fail
-   closed. Live issuance and recording require approved WhatsApp wording
-   (REQ-032) and `EXT-PHONE-OPERATOR`; registered synthetic development/preview
-   configuration may demonstrate the flow without enabling live contact.
+   closed. D117 keeps the support-number setting and fixed expiry/attempt limits; no external phone-operator setting or gate remains. Production consent/notices and legal approval remain unresolved under EXT-LEGAL-PRIVACY.
 4. WhatsApp opt-in is a separate versioned consent record (purpose, notice
    version, `granted_at`, `withdrawn_at`). Normal manual-contact tasks require a
    currently verified phone and active consent matching the task's exact purpose
@@ -3527,9 +3522,9 @@ blocking answers have landed.
 | **W0 — review remediation (§35)** *(new, 6 Aug 2026, D13)* | **PKG-01 built-code defects complete.** Cap-day allocation RM1, stationary farming RM2, trip seal + client queue RM3/RM4/RM5, admin correction authority RM6 and integrity mapping RM7 are closed. The specification rows each owning slice must honour (RM8–RM18) remain. Production-PWA and provider-neutral release/recovery foundations are built; physical-device and live-staging validation remain deferred under D23. | D22 supplies the versioned stationary policy; no build prerequisite remains for W0 |
 | **W1 — money correctness** | Worker substrate + trip-processing pipeline (§14) **[BUILT]** → immutable payout v2 history plus D18/D22 `payout_v3` base/premium zone and stationary rules (§16.1) **[BUILT]** → fraud review + authoritative holds (§17/RM8) → clean-immediate and flagged-seven-day-SLA release (§16.2) → automated provider submission/reconciliation (§16.3/RM10/RM11). Plus pre-pilot data-infra chores: retention/partitioning and audit backfill | Q4/Q5/Q21/Q22/Q27 confirmed; only the named later live/provider inputs remain gates |
 | **W2 — the commercial layer** | Accepted per-campaign custom-quotation terms, VAT-inclusive/itemised billing/invoices/payments, the standard 24-hour production wait and audited expedited-waiver path (§15) → file storage (§19) → approval workflows (§18) → notification channel adapters + triggers (§20) | Product choices confirmed by D18/D20; company/provider/legal artifacts gate live use |
-| **W3 — reach** | Retargeting per Q11/D18/D20 + D11 Module G scope (§22: exposure segments + source records + campaign linkage + follow-up insights + governed aggregate contextual export/activation) → exposure score + high-exposure zone views (§22.4) → matching recommender + activity sweeps (§21) → driver self-reg (§23) | Q7/Q11/Q13/Q20 confirmed; legal approval gates export and `EXT-AD-PLATFORM` gates live aggregate contextual push |
+| **W3 — reports and driver operations** | Chosen-period, charted one/all-campaign CSV/PDF reports with Nigeria-day data and clearly labelled estimates (D118), existing governed coverage history, matching and seven-day inactivity handling, and driver self-registration | D115 removes pilot retargeting, audience, export/activation and ROI. Live estimate methodology, legal/privacy and restoration approvals remain external gates. |
 | **W4 — production PWA + pilot readiness (D18)** | Harden the installable screen-on driver PWA on real Android/iOS devices (§23) → basic CSV/PDF export where still missing → client-owned pilot deployment (§25) → automated disbursement readiness → onboarding/training with Somto's operations team → Abuja pilot acceptance and post-pilot roadmap | W1–W3; client cloud/domain, provider, permit, legal/privacy and other external launch gates |
-| **Phase 2 (post-pilot)** | Native driver app with background GPS, secure native credentials/storage, push and store review; edge-AI counting; multi-city optimisation; expanded recurring billing. Aggregate contextual ad-platform activation is pilot-capable when its gate is satisfied; any person-level activation requires a separately approved identity/location-data partner and lawful contract. Automated payouts are pilot scope, not Phase 2 | Pilot results and separate approval |
+| **Phase 2 (post-pilot)** | Native driver app with background GPS, secure native credentials/storage, push and store review; edge-AI counting; multi-city optimisation; expanded recurring billing. D115 removes ad-platform activation from the pilot; any later activation requires a separately approved scope and lawful contract. Automated payouts are pilot scope, not Phase 2 | Pilot results and separate approval |
 
 Sequencing rationale: W1 first because D2/D4/D5 change **how money is
 computed** — every week built on `payout_v1` deepens the rework; W2 second
@@ -3683,11 +3678,10 @@ The explicit dependencies in `docs/progress.md` still control build order.
 
 | Gate | Blocks | Rows |
 |------|--------|------|
-| **G-money** | Any real earnings release, export, or transfer; owning slices may implement/test synthetically in dependency order | ~~RM1, RM6, RM8, RM10, RM11~~ fixed; financially effective provider transfer still requires `EXT-DISBURSEMENT-PROVIDER` |
+| **G-money** | Any real earnings release, export, or transfer; owning slices may implement/test synthetically in dependency order | ~~RM1, RM6, RM8, RM10, RM11~~ fixed; financially effective provider transfer still requires `EXT-DISBURSEMENT-PROVIDER` and `EXT-SETTLEMENT-BANK`; D112 allows one admin with reasons/audit, and D113 uses manual adjustments rather than automatic debt recovery |
 | **G-GPS** | Any real-driver tracking, PWA or native | ~~RM2~~ ~~RM3~~ ~~RM4~~ ~~RM5~~ (fixed), RM9, RM15 (privacy artifacts), RM18 |
 | **G-commercial** | Real invoice issuance, production spend, or live campaign activation; owning slices may implement/test synthetically | RM12, RM13 |
-| **G-advertiser** | Any live advertiser heatmap (**including the existing one**) or issued report | RM15 (disclosure control), RM16 |
-| **G-moduleG** | Any live retargeting ingestion, display, or export | RM15, RM16 |
+| **G-advertiser** | Any live advertiser map or issued report | RM15 (disclosure control), RM16; EXT-BASEMAP, EXT-LEGAL-PRIVACY, EXT-PRIVACY-RESTORATION and client approval of the live estimate methodology/labels (EXT-REPORT-METHOD); no ROI or activation gate |
 | **G-pilot** | Production pilot | all of the above + RM17 + the D18 production-PWA acceptance replacing RM14's former native gate |
 
 ### Development database baseline (D83 / REQ-169) [TARGET ? verification pending]
@@ -3729,6 +3723,8 @@ within one hour. Simultaneous Redis/database failure can only emit the fixed
 failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
+
+- **v1.150 — 23 October 2026 (REQ-230):** Reconcile the launch-gate register, five-gate evaluator, binding criteria and preparation validators with D108–D119. Remaining external/deferred states and controller pointers are unchanged. Resolve CI type diagnostics in source; prune only resolved baseline entries. No product behavior or external approval is added.
 
 - **v1.149 — 20 October 2026 (D120–129 / REQ-220–229):** Lane B approved
   background-additions design, white minimal admin, artwork/status/car preview,

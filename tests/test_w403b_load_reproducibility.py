@@ -5,8 +5,21 @@ import json
 import socket
 
 import pytest
+from test_w403b_synthetic_runner import reviewed_evaluator
 
 from scripts import run_w403b_load_reproducibility as harness
+
+
+@pytest.fixture(autouse=True)
+def reviewed_gate_authority(monkeypatch) -> None:
+    # Evaluate this integrated source before the controller commits it, using
+    # the existing runner-test authority reader. The production CLI stays HEAD-only.
+    evaluate = harness.journey.evaluate_live_boundaries
+    monkeypatch.setattr(
+        harness.journey,
+        "evaluate_live_boundaries",
+        lambda environment: evaluate(environment, evaluator=reviewed_evaluator),
+    )
 
 
 def test_confirmed_cohort_and_frozen_inputs_are_exact() -> None:
