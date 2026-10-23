@@ -50,7 +50,7 @@ issuance, while visibility never grants another organization's data.
 | advertiser | /advertiser/campaigns/{campaignId}/report | View verified/modelled results and, for authorized owner/manager membership, request the bounded CSV/PDF pair. | Omit ROI without qualified frozen authority; no partial pair, revoked gate, or raw route may be exposed. | [Campaign report](../../frontend/src/app/advertiser/campaigns/[campaignId]/report/page.tsx) |
 | advertiser | /advertiser/planning-sources | Record aggregate-only sources and link them to owned campaigns/zones. | Person-level identifiers, raw routes, and live ad-platform push remain unavailable. | [Planning sources](../../frontend/src/app/advertiser/planning-sources/page.tsx) |
 | advertiser | /advertiser/billing | Read the tenant's commercial history. | Advertiser cannot reconcile bank transfers, issue receipts, or mutate settlement lineage. | [Billing history](../../frontend/src/app/advertiser/billing/page.tsx) |
-| advertiser | /advertiser/company | Maintain allowed company and operational contact fields. | Profile edits do not supply statutory issuer approval or another tenant's facts. | [Company profile](../../frontend/src/app/advertiser/company/page.tsx) |
+| advertiser | /advertiser/account | Maintain allowed company/contact fields and personal sign-in controls. | Profile edits do not supply statutory issuer approval or another tenant's facts. | [Account](../../frontend/src/app/advertiser/account/page.tsx) |
 
 ## Driver
 

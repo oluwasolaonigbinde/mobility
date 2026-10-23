@@ -8,9 +8,9 @@ import { poppins } from "@/fonts/families/poppins";
 /**
  * The Cardvert type system, self-hosted (zero external font requests, at build
  * time as well as in the browser):
- * - Fraunces — retained admin display face
+ * - Fraunces — available display face; staff screens use Inter
  * - Inter — UI text and body copy
- * - IBM Plex Mono — retained admin data and labels
+ * - IBM Plex Mono — available data face; staff labels use Inter
  * - Poppins — advertiser/driver headings and the public Terrax site
  *
  * The additional vendored families retain their provenance and licences;

@@ -116,7 +116,10 @@ export function CommercialHistory({
   if (!invoices.length && !settlements.length) return null;
 
   return (
-    <Panel className={campaign ? "mt-4 overflow-hidden" : "mt-6 overflow-hidden"}>
+    <Panel
+      id={campaign ? `campaign-${campaign.id}` : undefined}
+      className={campaign ? "mt-4 scroll-mt-24 overflow-hidden" : "mt-6 overflow-hidden"}
+    >
       <div className="border-edge flex flex-wrap items-start justify-between gap-3 border-b px-6 py-4">
         {campaign ? (
           <Link
@@ -141,7 +144,7 @@ export function CommercialHistory({
                   </p>
                   <InvoiceAmounts invoice={invoice} />
                   <Link
-                    href={`/advertiser/campaigns/${invoice.campaign_id}/invoices/${invoice.id}`}
+                    href={`/advertiser/billing/${invoice.campaign_id}/invoices/${invoice.id}`}
                     className="micro text-amber mt-1 inline-block hover:underline"
                   >
                     View invoice

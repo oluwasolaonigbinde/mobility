@@ -64,6 +64,7 @@ it("writes the recovery UUID before dispatch, freezes the payload and reuses bot
   expect(await screen.findByRole("alert")).toHaveTextContent("Draft result unknown");
   expect(name).toBeDisabled();
   expect(mocks.areas).not.toHaveBeenCalled();
+  await waitFor(() => expect(screen.getByRole("button", { name: "Continue →" })).toBeEnabled());
   await user.click(screen.getByRole("button", { name: "Continue →" }));
   expect(mocks.create).toHaveBeenCalledTimes(2);
   expect(mocks.create.mock.calls[1]).toEqual(mocks.create.mock.calls[0]);

@@ -37,7 +37,7 @@ it("shows only three campaign groups and marks the selected tab", async () => {
 it.each([
   ["running", ["active", "paused"]],
   ["setup", ["draft", "pending_review", "approved", "rejected"]],
-  ["finished", ["completed", "cancelled"]],
+  ["finished", ["finished", "cancelled"]],
 ])("groups every campaign status under %s", async (group, expected) => {
   mocks.role.mockResolvedValue({ advertiser_organization: { membership_role: "advertiser" } });
   const statuses = [
@@ -47,7 +47,7 @@ it.each([
     "pending_review",
     "approved",
     "rejected",
-    "completed",
+    "finished",
     "cancelled",
   ];
   mocks.get.mockResolvedValue({

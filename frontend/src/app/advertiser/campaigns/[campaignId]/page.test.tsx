@@ -5,6 +5,9 @@ import { ApiError } from "@/lib/api/errors";
 const mocks = vi.hoisted(() => ({ get: vi.fn(), role: vi.fn() }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: mocks.get }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
+vi.mock("@/components/campaigns/campaign-map", () => ({
+  CampaignMap: () => <div>Campaign map</div>,
+}));
 vi.mock("@/lib/auth/current-user", () => ({
   requireRole: mocks.role,
 }));
@@ -44,7 +47,7 @@ const campaign = {
 const input = { params: Promise.resolve({ campaignId: "one" }), searchParams: Promise.resolve({}) };
 function ready(path: string) {
   if (path.endsWith("/commercial"))
-    return { data: { invoices: [], terms: {}, budget_evaluations: [] } };
+    return { data: { invoices: [], terms: {}, budget_check: null, production_start: null } };
   if (path.endsWith("/summary")) return { data: { assignments: { active: 8 } } };
   if (
     ["/creatives", "/zones", "/review-history", "/change-requests", "/complaints"].some((suffix) =>
@@ -56,7 +59,7 @@ function ready(path: string) {
 }
 beforeEach(() => {
   mocks.get.mockReset().mockImplementation(async (path: string) => ready(path));
-  mocks.role.mockResolvedValue({ viewer: false });
+  mocks.role.mockResolvedValue({});
 });
 it("leads with status and one next action, keeping quotation and changes closed", async () => {
   const { container } = render(await Page(input));
@@ -72,15 +75,15 @@ it("leads with status and one next action, keeping quotation and changes closed"
     /driver pay|GPS signal quality|fraud flags|cancel permanently/i,
   );
 });
-it("keeps campaign visuals and safe controls when the summary is gated", async () => {
+it("keeps campaign visuals and safe controls when performance is unavailable", async () => {
   mocks.get.mockImplementation(async (path: string) => {
-    if (path.endsWith("/summary"))
+    if (path.endsWith("/report"))
       throw new ApiError(409, { code: "DISCLOSURE_SUPPRESSED", message: "Sensitive detail" });
     return ready(path);
   });
   render(await Page(input));
   expect(screen.getByRole("heading", { name: "Your advert" })).toBeInTheDocument();
-  expect(screen.getByRole("heading", { name: "Where your advert goes" })).toBeInTheDocument();
+  expect(screen.getByRole("heading", { name: "On the road now" })).toBeInTheDocument();
   expect(screen.getByRole("link", { name: /See results/ })).toBeInTheDocument();
   expect(document.body).not.toHaveTextContent("Sensitive detail");
 });
@@ -143,9 +146,9 @@ it.each(["open", "answered"])(
     const user = userEvent.setup();
     render(await Page(input));
     await user.click(screen.getByText("Manage"));
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Cancellation requested. Your campaign continues until Terrax confirms.",
-    );
+    expect(
+      screen.getByText("Cancellation requested. Your campaign continues until Terrax confirms."),
+    ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View cancellation request" })).toHaveAttribute(
       "href",
       "/advertiser/help/thread",
@@ -175,7 +178,7 @@ it("never offers a possibly duplicate request when the request list fails", asyn
   expect(screen.queryByRole("button", { name: "Ask Terrax to cancel" })).toBeNull();
   expect(document.body).not.toHaveTextContent("Private failure");
 });
-it.each(["draft", "completed", "cancelled"])(
+it.each(["draft", "finished", "cancelled"])(
   "does not read cancellation requests for a %s campaign",
   async (status) => {
     mocks.get.mockImplementation(async (path: string) =>
@@ -203,7 +206,7 @@ it("uses an available invoice as the next step before launch", async () => {
                 funded_amount: "0.00",
               },
             ],
-            budget_evaluations: [],
+            budget_check: null,
           },
         }
       : path.endsWith("/creatives")
@@ -217,7 +220,7 @@ it("uses an available invoice as the next step before launch", async () => {
   render(await Page(input));
   expect(screen.getByRole("link", { name: /Pay invoice/ })).toHaveAttribute(
     "href",
-    "/advertiser/campaigns/one/invoices/invoice",
+    "/advertiser/billing/one/invoices/invoice",
   );
 });
 it("keeps quotation errors visible by opening Details", async () => {

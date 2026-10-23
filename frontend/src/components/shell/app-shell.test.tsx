@@ -74,6 +74,7 @@ it("names Terrax Media operations and the signed-in person, never a currency", (
     </AppShell>,
   );
   expect(screen.getByText("Terrax Media operations")).toBeInTheDocument();
+  expect(screen.getByRole("img", { name: "Terrax Media" })).toHaveAttribute("alt", "Terrax Media");
   expect(screen.getByLabelText("Account context")).toHaveTextContent("Avery User");
   expect(document.querySelector("header")).not.toHaveTextContent(/NGN|Network|Workspace/);
 });

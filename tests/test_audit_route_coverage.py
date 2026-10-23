@@ -45,6 +45,10 @@ AUDITED = {
     ("POST", "/api/v1/admin/earnings-ledger/{entry_id}/negative-adjustments"): (
         "admin.earnings.negative_adjustment"
     ),
+    (
+        "PUT",
+        "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}/website",
+    ): "creative.website_updated",
     ("POST", "/api/v1/admin/campaigns/{campaign_id}/cancel"): "admin.campaign.cancelled",
     (
         "POST",

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180">
+  <!-- Flowing vertical stripes taken from the Terrax mark, for a very faint texture. -->
+  <g fill="none" stroke="#256f1a" stroke-opacity=".028" stroke-width="9" stroke-linecap="round">
+    <path d="M18 -10 C34 40 6 90 22 190"/>
+    <path d="M58 -10 C70 50 44 110 62 190"/>
+    <path d="M98 -10 C104 40 132 100 104 190"/>
+    <path d="M140 -10 C150 60 124 120 146 190"/>
+    <path d="M172 -10 C162 50 186 110 172 190"/>
+  </g>
+</svg>

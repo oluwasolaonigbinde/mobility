@@ -2463,6 +2463,23 @@ export interface paths {
         patch: operations["advertiser_update_campaign_creative_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__patch"];
         trace?: never;
     };
+    "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}/qr.svg": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download Qr */
+        get: operations["download_qr_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__qr_svg_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}/review-history": {
         parameters: {
             query?: never;
@@ -2491,6 +2508,24 @@ export interface paths {
         put?: never;
         /** Submit a managed creative for admin review */
         post: operations["advertiser_submit_creative_review_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__submit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}/website": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Website */
+        get: operations["get_website_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__website_get"];
+        /** Put Website */
+        put: operations["put_website_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__website_put"];
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2563,6 +2598,40 @@ export interface paths {
         };
         /** Read advertiser campaign impression summary */
         get: operations["advertiser_get_campaign_impression_summary_api_v1_advertiser_campaigns__campaign_id__impressions_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/campaigns/{campaign_id}/live-positions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Live Positions */
+        get: operations["get_live_positions_api_v1_advertiser_campaigns__campaign_id__live_positions_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/advertiser/campaigns/{campaign_id}/qr-scans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Campaign Scans */
+        get: operations["get_campaign_scans_api_v1_advertiser_campaigns__campaign_id__qr_scans_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -4274,6 +4343,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/qr/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Qr Redirect */
+        get: operations["qr_redirect_api_v1_qr__code__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/webhooks/payments": {
         parameters: {
             query?: never;
@@ -5440,6 +5526,13 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /** AnonymousPosition */
+        AnonymousPosition: {
+            /** Latitude */
+            latitude: number;
+            /** Longitude */
+            longitude: number;
+        };
         /** ApplicantFileUploadConfirm */
         ApplicantFileUploadConfirm: {
             /**
@@ -5566,6 +5659,27 @@ export interface components {
              * @enum {string}
              */
             step: "details" | "car";
+        };
+        /** ArtworkLinkRead */
+        ArtworkLinkRead: {
+            /**
+             * Creative Id
+             * Format: uuid
+             */
+            creative_id: string;
+            /** Days */
+            days: components["schemas"]["ScanDayRead"][];
+            /** Destination */
+            destination: string | null;
+            /** Scans */
+            scans: number;
+            /** Short Path */
+            short_path: string | null;
+        };
+        /** ArtworkLinkWrite */
+        ArtworkLinkWrite: {
+            /** Destination */
+            destination: string;
         };
         /**
          * AssignmentActivityFlagRead
@@ -7215,6 +7329,18 @@ export interface components {
         CampaignReviewReject: {
             /** Reason */
             reason: string;
+        };
+        /** CampaignScansRead */
+        CampaignScansRead: {
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /** Days */
+            days: components["schemas"]["ScanDayRead"][];
+            /** Scans */
+            scans: number;
         };
         /**
          * CampaignStatus
@@ -9781,6 +9907,21 @@ export interface components {
          * @enum {string}
          */
         KycSubmissionStatus: "pending_review" | "approved" | "rejected" | "expired";
+        /** LivePositionsRead */
+        LivePositionsRead: {
+            /**
+             * Campaign Id
+             * Format: uuid
+             */
+            campaign_id: string;
+            /**
+             * Delay Minutes
+             * @default 15
+             */
+            delay_minutes: number;
+            /** Positions */
+            positions: components["schemas"]["AnonymousPosition"][];
+        };
         /** LocationPingBatchCreate */
         LocationPingBatchCreate: {
             /** Batch Sequence */
@@ -11413,6 +11554,16 @@ export interface components {
             target_zone_distance_m: string | null;
             /** Total Distance M */
             total_distance_m: string | null;
+        };
+        /** ScanDayRead */
+        ScanDayRead: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Scans */
+            scans: number;
         };
         /** SensitiveRevealRequest */
         SensitiveRevealRequest: {
@@ -17882,6 +18033,38 @@ export interface operations {
             };
         };
     };
+    download_qr_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__qr_svg_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+                creative_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/svg+xml": unknown;
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     advertiser_creative_review_history_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__review_history_get: {
         parameters: {
             query?: {
@@ -17936,6 +18119,74 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CreativeRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_website_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__website_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+                creative_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtworkLinkRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    put_website_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__website_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+                creative_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ArtworkLinkWrite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ArtworkLinkRead"];
                 };
             };
             /** @description Request validation failed */
@@ -18081,6 +18332,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CampaignImpressionSummary"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_live_positions_api_v1_advertiser_campaigns__campaign_id__live_positions_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LivePositionsRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_campaign_scans_api_v1_advertiser_campaigns__campaign_id__qr_scans_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                campaign_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CampaignScansRead"];
                 };
             };
             /** @description Request validation failed */
@@ -21554,6 +21867,35 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["NotificationFeedItemRead"];
                 };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    qr_redirect_api_v1_qr__code__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                code: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            302: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Request validation failed */
             422: {

@@ -78,6 +78,44 @@ reviews pass, with full branch verification `38539599622` green.
 
 ### Product and brand
 
+**20 October orchestrator screenshot review (D129):** Keep the approved direction,
+with compact Home cards, whole hero vans and wrapped names, Running/Finished state
+words and Dates headings. Refresh belongs inside populated map cards; no Home
+campaign selector. Show map/performance before campaign assets, then the unchanged
+Booked and Details/Manage. Every asset has an image thumbnail or honest PDF tile,
+with one artwork-change entry point. Fill the driver van's panel with the real
+image; show a real job area/Avoid map only from existing frozen geometry, without
+a new endpoint. Use Cardvert's existing mark in the white admin shell. These are
+orchestrator refinements, not new client decisions. Unavailable and privacy-withheld
+figures must have distinct, plain explanations; cars say As of about 15 minutes
+ago, with D118's Nigeria-day chart and no advertiser UTC wording. On the Areas
+page, preserve D116's removal of bonus areas, use the title Areas and the plain
+intro: Draw the areas where you want your advert seen. Mark any places cars
+should avoid. No extra-area legend or pill remains after integration.
+
+**23 October taste round 2 (orchestrator, D129):** Style advertiser and staff
+report presentation with the existing shared cards, stacked fields, buttons,
+headings and download rows. Keep report logic, dates, validation and accessible
+names unchanged; explain charts, spreadsheets and hidden results in plain words.
+Refit Home maps after panel-size changes so every real boundary has padding.
+Staff section tabs sit directly below the header with an opaque background.
+
+**20 October approved additions (D120, D125–128 / REQ-220/221/226–229):** Use
+the approved background-additions look: soft decorative Abuja skyline, faint
+Terrax stripes, cream/green backgrounds and white content. Advertiser Home has
+a fixed Terrax-van hero and actual artwork alongside the real campaign map;
+driver jobs put the actual frozen advert on the same van with Where to drive
+and Avoid chips. Wallet for money figures; megaphone for campaigns. Maps show
+actual areas with the existing component and activeMapStyle; no drawn roads or
+landmarks for a real campaign. MapTiler remains REQ-050. Admin is plain white,
+minimal and spacious through shared styling, with existing behaviour/drawers.
+One Account combines company and sign-in details; invoices live only in Billing,
+linked from campaigns; Billing's approved design stays. Campaigns has a simple
+date timeline and advertiser/staff campaign pages/rows show Day X of Y using
+current campaign dates, including extensions, with no new usage/delivery warning.
+The existing per-campaign Booked figure, bar, percent and over-budget colour stay
+unchanged under D103/D104; its only visual addition is a wallet icon.
+
 **Current rule:** The business is **Terrax Media**; the product and app are
 **Cardvert** (Q29). Signed-in screens say "Terrax Media" when a person acts
 (reviews, approvals, payments) and "Cardvert" for automatic actions; times read
@@ -86,8 +124,8 @@ run IDs or fingerprints; staff screens and downloads may (D38c). One white and
 brand-green signed-in design replaces the switchable directions and picker
 (D98/REQ-181/185). Advertiser and driver screens use friendly sans type and the
 Terrax mark beside Cardvert. Advertisers use a side list and a left phone drawer;
-campaign sub-pages are tabs. Admin receives the palette only, retaining its
-layout and side panels. Operational changes are limited to the owner-approved audit items, including enquiry handling, report re-runs and staff cancellation (D97). The public site's separate styling stays.
+campaign sub-pages are tabs. Admin uses the minimal white shared styling approved
+on 20 October, retaining its operations and side panels. Operational changes are limited to the owner-approved audit items, including enquiry handling, report re-runs and staff cancellation (D97). The public site's separate styling stays.
 The public website uses **Request a Quote** for its on-site advertiser
 enquiry, **Apply to drive** for `/apply`, and **Sign in** for `/login` (D52,
 REQ-070). Advertiser account setup remains operator-led; the enquiry creates
@@ -114,6 +152,8 @@ small labels use sans, and past jobs do not repeat their dated status. Demo
 work days use realistic qualifying mileage and separate next-day payments.
 
 **History:**
+- **2026-10-20** — Orchestrator screenshot review refines compact cards, hierarchy, hero composition, honest withholding, consistent state words, existing-geometry driver map and the admin mark (D129). Shared worker repair verified in production builds. Local taste, privacy/security and consolidated review PASS; [receipt](../issues/testing/req220-client-feedback-2026-10-20.md). Full CI/merge remain pending.
+- **2026-10-20** — Client approved the background-additions mockups with the above changes (D120/D125–128); the earlier palette-only admin and separate Company/campaign-invoice surfaces are superseded within this work. Local implementation/reviews PASS on Lane B; full CI/merge remain pending.
 - **2026-10-20** — Owner-approved pre-push fix (REQ-208): the website enquiry form no longer needs the `CAMPAIGN_ENQUIRY_ENABLED` switch, which a fresh deployment left off. The staff header reads Terrax Media operations instead of an empty company and currency.
 - **2026-10-18** — D93 / REQ-191 replaces email-only website enquiries with saved staff New enquiries and explicit advertiser-company conversion; public submission creates no account.
 - **2026-10-18** — Terrax's feedback asks for more white, brand colours, graphics and simpler advertiser/driver navigation; the owner directs implementation now without a further client approval step (REQ-181/185, D98). This supersedes D37's Ivory Ledger default and REQ-071's six switchable candidates. Phase 1 is being implemented on `design/brand-look-mockup`; rollout/merge is not yet claimed.
@@ -583,13 +623,28 @@ Built locally in `f85ffbb8`; final integrated delivery review and merge remain p
 
 ### Advertiser reporting and privacy
 
+**20 October pilot additions (D121–124 / REQ-222–225):** Campaign assets show
+the current thumbnail, upload date, approval status and rejection reason,
+Upload/Replace and See it on a car. Once printed or running, replacement asks
+Terrax through existing support; it never swaps the fitted design. Each artwork
+may have one validated https website URL with a downloadable QR through a
+rate-limited Cardvert short redirect. Count scans per day without retaining IP,
+user agent or other personal scan data. Home/campaign performance shows estimated
+views (labelled), cars, a seven-day distance/cars chart and QR scans when positive;
+no CTR, website visits or pilot ROI. Live maps show anonymous dots for currently
+driving cars only inside campaign areas, delayed at least 15 minutes: no identity,
+car IDs, per-car filters or trails. Only campaign filtering; empty says No cars
+driving right now. Coverage history remains on the existing map. Privacy and
+security review required; no claim of real-use approval. These individual delayed
+dots have no three-car minimum, as confirmed by the owner via orchestrator.
+
 **Current rule:** D118: weekly/final campaign reports with staff Re-run; issued files immutable and old downloads retained (D71). Advertisers choose period and one/all own campaigns, CSV/PDF with charts: dates, three-car areas, cars, verified distance/driving days/trips/time, labelled estimated views, creative previews and status. Measured and estimated sections visibly distinct. No money/budget/CTR/ROI. Fixed estimates; Finished derives from date. D115 removes audience recommendations. Owner-approved 20 October 2026, REQ-210–218; implemented locally. See the REQ-210 verification receipt; full CI and merge remain pending.
 
 **Previous rule (ended 20 October 2026; retained history):** The standard report is a **Campaign Performance Analysis**:
 verified operations, clearly labelled estimated exposure and target-area
-coverage. Financial ROI appears only when an advertiser supplies conversion or
-revenue data and an approved method exists (Q12, Q30, D20c). Advertisers do not
-see driver names or profiles.
+coverage. Pilot outputs have no CTR, website visits beyond QR scans, or ROI
+(D123, replacing the earlier conditional ROI rule). Advertisers do not see
+driver names or profiles.
 New CSV/PDF issuances say "Not enough data" for unavailable totals. Existing
 issued reports, stored snapshots, bytes and integrity hashes retain their original
 wording; the export snapshot version changes for new issuances (D71, REQ-141).
@@ -600,16 +655,19 @@ Under D90/D91 (REQ-188/189), every campaign shows distance, completed trips,
 Nigeria driving days and estimated views, including small campaigns. An area
 row needs at least three cars; that is the only area rule, and showing areas
 never blocks the dashboard, summaries, trips, maps or audience exports (D105).
-Three distinct cars is the whole rule for every result, including heatmap and
+Three distinct cars is the whole rule for aggregate results, including heatmap and
 audience cells: there are no extra trip, day or largest-contributor conditions,
 so a three-car campaign shows its areas from its first day (D107, REQ-208).
+D124's individual delayed, in-area live dots have no three-car minimum, as
+explicitly confirmed by the owner via orchestrator on 20 October.
 Reports are prepared weekly and at campaign end; staff can re-run them. New v4
 exports freeze the same coarse totals and three-car areas, retaining governed optional
-recommendations and the existing conditional ROI authority.
+recommendations; D123 excludes ROI from pilot output.
 
 **Still open:** [REQ-018](requests.md) — confirm no driver identity in reports.
 
 **History:**
+- **2026-10-20** — Client pilot feedback (D123) replaces the earlier conditional ROI rule: ROI was allowed only with advertiser conversion/revenue inputs and an approved method (D20c/Q12/Q30); the pilot now has no CTR, website visits beyond QR scans, or ROI. D124 separately approves individual delayed in-area dots with no three-car minimum, without changing aggregate area rules.
 - **2026-10-20** — Owner-approved pre-push fix (REQ-208): three distinct cars now governs every result (D107). Previously areas and map cells also needed several trips, more than one day and no car above a share of the total, so a three-car, one-day campaign showed no areas despite D105.
 - **2026-10-19** — Owner decision: area results need only three cars (D105, REQ-197). Previously areas also needed "safe composition with other released detail", which hid areas in common cases and, once a report showed areas, made the advertiser dashboard and other results unavailable. The owner keeps rules simple until the client or legal sets real privacy requirements.
 - **2026-10-18** — D90/D91 / REQ-188/189 replace the blanket campaign-total floor with coarse totals for all campaigns and protected three-car areas, plus weekly/final automatic reports and a staff rerun. Earlier reports required manual preparation and small campaigns could have no totals.

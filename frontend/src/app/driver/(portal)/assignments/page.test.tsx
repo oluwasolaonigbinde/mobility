@@ -33,7 +33,7 @@ describe("DriverAssignmentsPage history availability", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent(/campaign history is unavailable/i);
     expect(screen.getByRole("alert")).toHaveTextContent(
-      /couldn't load your current or completed jobs\. Try again shortly\./i,
+      /couldn't load your current or finished jobs\. Try again shortly\./i,
     );
     expect(screen.queryByText("No jobs yet")).not.toBeInTheDocument();
   });

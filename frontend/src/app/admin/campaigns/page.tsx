@@ -1,5 +1,6 @@
 export const metadata = { title: "Campaigns" };
 import Link from "next/link";
+import { campaignDay } from "@/lib/campaigns/day-progress";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { adminStatus } from "@/lib/status/admin";
@@ -35,10 +36,10 @@ const tabs = [
   },
   {
     id: "live",
-    title: "Live",
+    title: "Running",
     statuses: ["active", "paused"],
     sources: [
-      { id: "active", title: "Live" },
+      { id: "active", title: "Running" },
       { id: "paused", title: "Paused" },
     ],
   },
@@ -324,6 +325,9 @@ async function CampaignList(
                       <p className="text-muted text-sm">{campaign.organization.name}</p>
                       <p className="text-muted mt-1 text-sm">
                         {formatDateRange(campaign.start_at, campaign.end_at)}
+                      </p>
+                      <p className="text-muted mt-1 text-sm">
+                        {campaignDay(campaign.start_at, campaign.end_at)}
                       </p>
                     </div>
                     <div>

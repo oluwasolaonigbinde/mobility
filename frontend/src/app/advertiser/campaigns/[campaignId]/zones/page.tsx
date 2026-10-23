@@ -8,7 +8,7 @@ import { statusLabel, statusTone } from "@/lib/campaigns/status";
 import { StatusChip } from "@/components/ui/status-chip";
 import { ZonesEditor } from "./zones-editor";
 
-export const metadata: Metadata = { title: "Zones" };
+export const metadata: Metadata = { title: "Areas" };
 
 export default async function CampaignZonesPage({
   params,
@@ -44,15 +44,15 @@ export default async function CampaignZonesPage({
         <Link href={`/advertiser/campaigns/${campaign.id}`} className="hover:text-muted">
           {campaign.name}
         </Link>{" "}
-        / <span className="text-muted">Zones</span>
+        / <span className="text-muted">Areas</span>
       </nav>
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <h1 className="font-display text-3xl font-semibold tracking-tight">Targeting zones</h1>
+        <h1 className="font-display text-3xl font-semibold tracking-tight">Areas</h1>
         <StatusChip tone={statusTone[campaign.status]}>{statusLabel[campaign.status]}</StatusChip>
       </div>
       <p className="text-muted mb-6 max-w-2xl text-sm">
-        Draw the campaign’s target areas and any areas drivers should avoid.
+        Draw the areas where you want your advert seen. Mark any places cars should avoid.
       </p>
 
       <ZonesEditor key={campaign.id} campaignId={campaign.id} zones={zones?.items ?? []} />

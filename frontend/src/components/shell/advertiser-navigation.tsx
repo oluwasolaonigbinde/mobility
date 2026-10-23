@@ -5,14 +5,15 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, type ReactNode } from "react";
 import { SidebarNav } from "./sidebar-nav";
 import { BrandWordmark } from "./brand-wordmark";
+import { PortalIcon } from "@/components/brand/portal-icon";
 
 const items = [
-  { href: "/advertiser", label: "Home", exact: true },
-  { href: "/advertiser/campaigns", label: "Campaigns" },
-  { href: "/advertiser/reports", label: "Reports" },
-  { href: "/advertiser/billing", label: "Billing" },
-  { href: "/advertiser/help", label: "Help" },
-  { href: "/advertiser/account", label: "Account" },
+  { href: "/advertiser", label: "Home", exact: true, icon: <PortalIcon name="home" /> },
+  { href: "/advertiser/campaigns", label: "Campaigns", icon: <PortalIcon name="megaphone" /> },
+  { href: "/advertiser/reports", label: "Reports", icon: <PortalIcon name="chart" /> },
+  { href: "/advertiser/billing", label: "Billing", icon: <PortalIcon name="bill" /> },
+  { href: "/advertiser/help", label: "Help", icon: <PortalIcon name="help" /> },
+  { href: "/advertiser/account", label: "Account", icon: <PortalIcon name="user" /> },
 ];
 
 export function AdvertiserNavigation({ account }: { account: ReactNode }) {
@@ -48,12 +49,14 @@ export function AdvertiserNavigation({ account }: { account: ReactNode }) {
     <>
       <aside
         ref={desktop}
-        className="border-edge sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r bg-white md:flex"
+        className="portal-sidebar border-edge hidden w-64 shrink-0 border-r md:block"
       >
-        <Link href="/advertiser" className="px-8 pt-8 pb-10">
-          <BrandWordmark />
-        </Link>
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pb-6">{list}</div>
+        <div className="sticky top-0 flex h-dvh flex-col">
+          <Link href="/advertiser" className="px-8 pt-8 pb-10">
+            <BrandWordmark />
+          </Link>
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pb-6">{list}</div>
+        </div>
       </aside>
       <button
         ref={trigger}

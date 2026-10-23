@@ -1,3 +1,10 @@
+{
+	log qr_private_errors {
+		include http.log.error.qr_private
+		output discard
+	}
+}
+
 {$EDGE_HOSTNAME} {
 	log {
 		output stdout
@@ -10,6 +17,13 @@
 			}
 		}
 	}
+	log_name /q/* qr_private
+	log_skip /q/*
+	header /q/* {
+		Referrer-Policy "no-referrer"
+		Cache-Control "no-store"
+	}
+	header /q/* >Referrer-Policy "no-referrer"
 	log_append request_id {http.request.uuid}
 	log_append request_path {http.request.uri.path}
 	log_append release_revision {$RELEASE_REVISION:unbound}

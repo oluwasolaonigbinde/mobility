@@ -1,5 +1,6 @@
 import { JobArtwork } from "./job-artwork";
 import { frozenJob } from "@/lib/driver/frozen-job";
+import { CampaignMap } from "@/components/campaigns/campaign-map";
 
 export function JobVisual({
   job,
@@ -12,12 +13,20 @@ export function JobVisual({
 }) {
   return (
     <div className="border-edge mt-4 overflow-hidden rounded-2xl border">
+      <h3 className="bg-[#f8f3e7] px-4 pt-4 pb-3 text-base font-semibold">
+        The advert on your car
+      </h3>
       <JobArtwork
         key={assignmentId ?? "unavailable"}
         assignmentId={assignmentId}
         kind={job.artworkKind}
         compact={compact}
       />
+      {job.mapAreas ? (
+        <div className="border-edge h-48 overflow-hidden border-t" aria-label="Your job area map">
+          <CampaignMap areas={job.mapAreas} />
+        </div>
+      ) : null}
       <section aria-label="Job areas" className="bg-[#f3f8f0] p-4">
         <h3 className="text-sm font-semibold">Where to drive</h3>
         {job.areas ? (
@@ -42,7 +51,19 @@ export function JobVisual({
             driving.
           </p>
         ) : job.excluded.length ? (
-          <p className="text-muted mt-3 text-sm">Avoid: {job.excluded.join(", ")}</p>
+          <div className="mt-4">
+            <h3 className="text-sm font-semibold">Avoid</h3>
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {job.excluded.map((name) => (
+                <li
+                  key={name}
+                  className="rounded-full border border-[#edc8cd] bg-[#fff1f2] px-3 py-1.5 text-sm text-[#9c2330]"
+                >
+                  {name}
+                </li>
+              ))}
+            </ul>
+          </div>
         ) : null}
       </section>
     </div>

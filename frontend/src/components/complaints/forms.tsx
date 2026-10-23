@@ -76,10 +76,14 @@ export function RaiseComplaintForm({
   party,
   action,
   references,
+  initialCategory = "",
+  initialReference = "",
 }: {
   party: ComplaintParty;
   action: Action;
   references: ReferenceGroups | null;
+  initialCategory?: string;
+  initialReference?: string;
 }) {
   const [state, formAction, pending] = useIdempotentAction(action);
   const categoryId = useId();
@@ -94,7 +98,13 @@ export function RaiseComplaintForm({
         <label htmlFor={categoryId} className="micro text-muted">
           What is it about?
         </label>
-        <select id={categoryId} name="category" required defaultValue="" className={inputClass}>
+        <select
+          id={categoryId}
+          name="category"
+          required
+          defaultValue={initialCategory}
+          className={inputClass}
+        >
           <option value="" disabled>
             Choose one
           </option>
@@ -109,7 +119,12 @@ export function RaiseComplaintForm({
         <label htmlFor={referenceId} className="micro text-muted">
           Which {party === "driver" ? "job" : "campaign"} is this about? (optional)
         </label>
-        <select id={referenceId} name="reference" defaultValue="" className={inputClass}>
+        <select
+          id={referenceId}
+          name="reference"
+          defaultValue={initialReference}
+          className={inputClass}
+        >
           <option value="">It’s about something else</option>
           {groups
             .filter(([, , options]) => options.length > 0)

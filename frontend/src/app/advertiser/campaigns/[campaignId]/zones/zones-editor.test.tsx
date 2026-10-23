@@ -27,12 +27,10 @@ vi.mock("@/lib/map/config", () => ({
   DEFAULT_ZOOM: 11,
   ZONE_COLOR_VARS: {
     target: "var(--color-amber)",
-    bonus: "var(--color-cyan)",
     exclusion: "var(--color-coral)",
   },
   zoneColors: () => ({
     target: "#f90",
-    bonus: "#0cf",
     exclusion: "#f66",
     neutral: "#999",
   }),
@@ -212,7 +210,7 @@ describe("ZonesEditor MapLibre compatibility", () => {
     expect(
       await screen.findByRole("button", { name: "Reload areas to check" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Save area" })).toBeDisabled();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save area" })).toBeDisabled());
     expect(createZoneAction).toHaveBeenCalledTimes(1);
     expect(
       screen.getByText("No areas yet. Draw your first main area on the preview."),

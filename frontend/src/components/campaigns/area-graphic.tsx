@@ -1,9 +1,17 @@
 import { geometryBounds, validateZoneGeometry, type ZoneGeometry } from "@/lib/zones/geometry";
+import { useId } from "react";
 
-type Area = { id: string; name: string; geometry: Record<string, unknown> };
+type Area = { id: string; name: string; geometry: unknown; zone_type?: string };
 
 /** Actual campaign boundaries on a quiet drawn grid; no streets or tile sources. */
-export function AreaGraphic({ areas }: { areas: Area[] }) {
+export function AreaGraphic({
+  areas,
+  positions = [],
+}: {
+  areas: Area[];
+  positions?: { longitude: number; latitude: number }[];
+}) {
+  const hatch = useId();
   const valid = areas.filter((area) => validateZoneGeometry(area.geometry).ok);
   if (!valid.length)
     return (
@@ -31,6 +39,12 @@ export function AreaGraphic({ areas }: { areas: Area[] }) {
         className="area-graphic"
         preserveAspectRatio="xMidYMid meet"
       >
+        <defs>
+          <pattern id={hatch} width="8" height="8" patternUnits="userSpaceOnUse">
+            <rect width="8" height="8" fill="#fff1f2" />
+            <path d="M-2 2L2-2M0 8L8 0M6 10L10 6" stroke="#b02030" strokeWidth="1.5" />
+          </pattern>
+        </defs>
         {[40, 80, 120, 160, 200, 240, 280, 320, 360].map((v) => (
           <path key={`v${v}`} d={`M${v} 0V220`} stroke="#e2ebdf" strokeWidth="1" />
         ))}
@@ -59,21 +73,27 @@ export function AreaGraphic({ areas }: { areas: Area[] }) {
                     .join(" "),
                 )
                 .join(" ")}
-              fill="#c8edbf"
+              fill={area.zone_type === "exclusion" ? `url(#${hatch})` : "#c8edbf"}
               fillOpacity="0.85"
               fillRule="evenodd"
-              stroke="#256f1a"
+              stroke={area.zone_type === "exclusion" ? "#b02030" : "#256f1a"}
               strokeWidth="2"
             />
           );
         })}
+        {positions.map((point, index) => (
+          <circle
+            key={index}
+            cx={x(point.longitude)}
+            cy={y(point.latitude)}
+            r="5"
+            fill="#256f1a"
+            stroke="#fff"
+            strokeWidth="2"
+          />
+        ))}
         <path d="m365 37 5-15 5 15-5-4Z" fill="#0a1c09" />
       </svg>
-      {/* HTML, not SVG text, so the label stays readable at any picture size. */}
-      <span className="text-ink absolute bottom-3 left-3 inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-[15px] font-semibold">
-        <span aria-hidden="true" className="bg-green size-2 rounded-full" />
-        Campaign area
-      </span>
     </div>
   );
 }

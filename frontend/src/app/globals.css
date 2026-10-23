@@ -102,13 +102,32 @@
   background: var(--atmosphere);
 }
 
-/* Admin keeps its existing type, panel geometry, navigation and drawers. */
+/* Admin shares a quiet white working surface; operations and drawers are unchanged. */
+.admin-portal {
+  --font-display: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --radius-panel: 0.75rem;
+  --shadow-panel: 0 2px 10px rgb(10 28 9 / 0.025);
+  background: white;
+}
 .admin-portal .font-display {
   letter-spacing: -0.01em;
-  font-weight: 550;
+  font-weight: 600;
 }
-.admin-portal .rounded-panel.border-edge {
-  border-top: 3px double var(--color-edge-strong);
+.admin-portal .micro {
+  font-family: var(--font-sans);
+  letter-spacing: normal;
+  text-transform: none;
+  font-size: 0.8125rem;
+}
+.admin-portal main {
+  width: 100%;
+  max-width: 1440px;
+  margin-inline: auto;
+  padding: clamp(1.25rem, 3vw, 2.5rem);
+}
+.admin-portal :is(th, td) {
+  padding-block: 1rem;
 }
 aside.bg-panel nav p.micro {
   font-size: 0.8125rem;
@@ -186,21 +205,179 @@ aside.bg-panel nav p.micro {
 }
 .brand-nav a[aria-current="page"] {
   color: #185311;
-  background: #edf5e9;
+  background: white;
+  box-shadow: inset 3px 0 0 #256f1a;
 }
 .brand-nav a[aria-current="page"]::before {
-  display: inline-block;
-  content: "";
-  width: 4px;
-  height: 1.2rem;
-  background: #256f1a;
-  border-radius: 3px;
+  content: none;
 }
 .brand-nav a[aria-current="page"] > span:first-child {
   margin-right: auto;
 }
 .brand-nav nav {
   padding: 0;
+}
+
+/* Approved background additions. Skyline is decorative; campaign maps use real geometry. */
+.advertiser-portal {
+  background: #fbf8f1;
+  border-top: 4px solid #32833b;
+}
+.portal-sidebar {
+  background:
+    url("/portal/stripes.svg") 0 0 / 180px,
+    linear-gradient(180deg, #f0f6e9, #f8f4ea);
+}
+.portal-top {
+  height: 150px;
+  background:
+    url("/portal/abuja-skyline.svg") center bottom / cover no-repeat,
+    url("/portal/stripes.svg") 0 0 / 180px,
+    linear-gradient(180deg, #e9f3e2, #f6f4ea 80%, #fbf8f1);
+}
+.portal-main {
+  margin-top: -30px;
+}
+.portal-hero {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 1.5rem;
+  background: radial-gradient(ellipse at top left, #205d15, #0e3a0a 65%, #082606);
+  color: white;
+  min-height: 245px;
+  box-shadow: 0 10px 30px rgb(14 58 10 / 0.07);
+}
+.portal-hero-copy {
+  position: relative;
+  z-index: 1;
+  width: 52%;
+  max-width: 34rem;
+  overflow-wrap: anywhere;
+  padding: 2rem 0 2rem 2.5rem;
+}
+.portal-hero h1 {
+  font-size: clamp(1.65rem, 2.5vw, 2.2rem);
+  font-weight: 600;
+}
+.portal-hero h1 em {
+  color: #f2c94c;
+  font-style: normal;
+}
+.portal-hero-art {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: 47%;
+  background: url("/portal/welcome-van.svg") center / contain no-repeat;
+}
+.portal-hero .brand-action {
+  background: #f2c94c;
+  color: #0a1c09;
+  box-shadow: 0 6px 18px rgb(242 201 76 / 0.25);
+  min-height: 3rem;
+}
+.portal-hero .brand-action:hover {
+  background: #ffda65;
+}
+.portal-icon-tile {
+  display: inline-flex;
+  width: 46px;
+  height: 46px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+}
+.portal-icon-green {
+  background: #e3f4dd;
+  color: #256f1a;
+}
+.portal-icon-gold {
+  background: #fdf3d3;
+  color: #7a5230;
+}
+.portal-icon-coral {
+  background: #fde4e6;
+  color: #c4202f;
+}
+.portal-zone {
+  border: 1px solid #e4ecdb;
+  border-radius: 1.75rem;
+  background: linear-gradient(180deg, #eef5e8, #f6f3ea);
+  padding: 1.5rem;
+}
+.portal-card {
+  box-shadow: 0 8px 24px rgb(14 58 10 / 0.05);
+}
+.van-preview {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: #fbe8b3;
+}
+.driver-portal {
+  background: #fbf8f1;
+  border-top: 4px solid #32833b;
+  box-shadow: 0 0 60px rgb(14 58 10 / 0.04);
+}
+.driver-portal main {
+  background:
+    url("/portal/abuja-skyline.svg") center top / auto 145px no-repeat,
+    url("/portal/stripes.svg") 0 0 / 180px;
+}
+.driver-portal .rounded-panel {
+  border-radius: 1.25rem;
+  box-shadow: 0 6px 22px rgb(14 58 10 / 0.045);
+}
+.campaign-card-visuals {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+}
+.campaign-card-visuals > div {
+  min-width: 0;
+  min-height: 235px;
+  display: flex;
+  flex-direction: column;
+}
+.campaign-card-visuals .campaign-artwork {
+  object-fit: contain;
+  padding: 0.5rem;
+  min-height: 0;
+  flex: 1;
+  height: 205px;
+  background: #f5f0e5;
+}
+@media (max-width: 767px) {
+  .portal-top {
+    height: 130px;
+  }
+  .portal-main {
+    margin-top: -35px;
+  }
+  .portal-hero {
+    padding-bottom: 0;
+  }
+  .portal-hero-copy {
+    width: 100%;
+    max-width: none;
+    padding: 1.5rem;
+  }
+  .portal-hero-art {
+    display: none;
+  }
+  .portal-zone {
+    padding: 1rem;
+    border-radius: 1.5rem;
+  }
+  .campaign-card-visuals {
+    grid-template-columns: 1fr;
+  }
+  .campaign-card-visuals > div {
+    min-height: 195px;
+  }
+  .campaign-card-visuals .campaign-artwork {
+    height: 165px;
+  }
 }
 .brand-disclosure {
   border: 1px solid var(--color-edge);
@@ -249,4 +426,9 @@ aside.bg-panel nav p.micro {
   .animate-rise {
     animation: none;
   }
+}
+
+/* Native campaign selectors must fit narrow advertiser panels. */
+.advertiser-portal select {
+  max-width: 100%;
 }

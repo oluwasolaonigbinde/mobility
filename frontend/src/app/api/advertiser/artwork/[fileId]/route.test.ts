@@ -36,10 +36,11 @@ it.each([401, 403, 404])("does not fetch another tenant's or denied file: %s", a
   mocks.post.mockRejectedValue(new ApiError(status, { code: "DENIED", message: "Private detail" }));
   const response = await GET(new Request("http://localhost/artwork"), input);
   expect(response.status).toBe(status);
+  expect(response.headers.get("cache-control")).toBe("private, no-store");
   expect(await response.text()).toBe("");
   expect(mocks.fetch).not.toHaveBeenCalled();
 });
-it.each(["text/html", "image/svg+xml", "application/pdf"])(
+it.each(["text/html", "image/svg+xml", "video/mp4"])(
   "refuses active or unsupported content %s",
   async (contentType) => {
     mocks.fetch.mockResolvedValue(
@@ -48,6 +49,16 @@ it.each(["text/html", "image/svg+xml", "application/pdf"])(
     expect((await GET(new Request("http://localhost/artwork"), input)).status).toBe(404);
   },
 );
+it("opens a managed PDF as a private file without treating it as an image", async () => {
+  mocks.fetch.mockResolvedValue(
+    new Response("%PDF-test", { headers: { "content-type": "application/pdf" } }),
+  );
+  const response = await GET(new Request("http://localhost/artwork"), input);
+  expect(response.status).toBe(200);
+  expect(response.headers.get("content-type")).toBe("application/pdf");
+  expect(response.headers.get("content-disposition")).toContain("inline");
+  expect(response.headers.get("cache-control")).toBe("private, no-store");
+});
 it("bounds declared image sizes", async () => {
   mocks.fetch.mockResolvedValue(
     new Response("bytes", {

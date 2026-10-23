@@ -19,7 +19,18 @@ it("reads the agreed dates, rate, currency and area names without mutable campai
     areas: ["Wuse II", "Maitama"],
     excluded: ["Airport restricted area"],
     artworkKind: null,
+    mapAreas: null,
   });
+});
+it("passes only the complete frozen target and Avoid geometry to the job map", () => {
+  const target = { name: "Wuse", wkt: "POLYGON((7 9,7.5 9,7.5 9.5,7 9))" };
+  const exclusion = { name: "Avoid", wkt: "POLYGON((7.1 9.1,7.2 9.1,7.2 9.2,7.1 9.1))" };
+  expect(
+    frozenJob({ zones: { target: [target], exclusion: [exclusion] } }).mapAreas?.map(
+      (a) => a.zone_type,
+    ),
+  ).toEqual(["target", "exclusion"]);
+  expect(frozenJob({ zones: { target: [target], exclusion: [{}] } }).mapAreas).toBeNull();
 });
 it.each([
   ["image/png", "image"],
@@ -30,7 +41,9 @@ it.each([
   ["image/svg+xml", null],
   [undefined, null],
 ])("uses only the frozen safe artwork MIME %s", (mime, kind) => {
-  expect(frozenJob({ ...terms, creative: { mime_type: mime } }).artworkKind).toBe(kind);
+  expect(
+    frozenJob({ ...terms, creative: { content_identity: { mime_type: mime } } }).artworkKind,
+  ).toBe(kind);
 });
 it.each([undefined, null, {}, { zones: { target: [{ name: "Wuse II" }, {}] } }])(
   "does not invent paying areas when terms are absent or incomplete",

@@ -34,7 +34,11 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.role.mockResolvedValue({ advertiser_organization: { currency: "NGN" } });
   mocks.get.mockImplementation(async (path: string) => ({
-    data: path.endsWith("/zones") ? { items: [], total: 0 } : { id, name: "Existing draft" },
+    data: path.endsWith("/zones")
+      ? { items: [], total: 0 }
+      : path.endsWith("/commercial")
+        ? { production_start: null }
+        : { id, name: "Existing draft", status: "draft" },
   }));
 });
 it("keeps ordinary new campaign creation available", async () => {
@@ -78,7 +82,11 @@ it.each(["campaign", "areas"])(
     mocks.get.mockImplementation(async (path: string) => {
       if (path.endsWith("/zones") === (failing === "areas"))
         throw new ApiError(401, { code: "UNAUTHORIZED", message: "Expired" });
-      return { data: { id, name: "Existing draft" } };
+      return {
+        data: path.endsWith("/commercial")
+          ? { production_start: null }
+          : { id, name: "Existing draft", status: "draft" },
+      };
     });
     await expect(Page({ searchParams: Promise.resolve({ campaignId: id }) })).rejects.toThrow(
       "redirect:/login",
@@ -92,4 +100,27 @@ it("shows unavailable authority without presenting a create fallback", async () 
     screen.getByRole("status", { name: "Your saved draft couldn't be confirmed" }),
   ).toBeInTheDocument();
   expect(screen.queryByTestId("wizard")).toBeNull();
+});
+it.each(["approved", "paused"])(
+  "offers the existing support path after production for %s",
+  async (status) => {
+    mocks.get.mockImplementation(async (path: string) => ({
+      data: path.endsWith("/commercial")
+        ? { production_start: { started_at: "2026-10-20T09:00Z" } }
+        : { id, name: "Printed campaign", status },
+    }));
+    render(await Page({ searchParams: Promise.resolve({ campaignId: id }) }));
+    expect(screen.queryByTestId("wizard")).toBeNull();
+    expect(screen.getByRole("link", { name: /Ask Terrax to change it/ })).toHaveAttribute(
+      "href",
+      `/advertiser/campaigns/${id}#artwork-change`,
+    );
+  },
+);
+it("never opens the artwork wizard for a running campaign, even if commercial data is unavailable", async () => {
+  mocks.get.mockResolvedValue({ data: { id, name: "Running campaign", status: "active" } });
+  render(await Page({ searchParams: Promise.resolve({ campaignId: id }) }));
+  expect(screen.queryByTestId("wizard")).toBeNull();
+  expect(screen.getByRole("link", { name: /Ask Terrax to change it/ })).toBeInTheDocument();
+  expect(mocks.get).toHaveBeenCalledTimes(1);
 });

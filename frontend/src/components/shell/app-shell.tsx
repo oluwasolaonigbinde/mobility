@@ -5,6 +5,7 @@ import type { MeResponse } from "@/lib/auth/current-user";
 import { SessionLogoutButton } from "@/components/driver/logout-button";
 import { NotificationCenter } from "@/components/notifications/notification-center";
 import { SidebarNav, type NavItem } from "./sidebar-nav";
+import { BrandWordmark } from "./brand-wordmark";
 
 export type { NavItem };
 
@@ -39,30 +40,27 @@ export function AppShell({
       </a>
 
       {/* Sidebar */}
-      <aside className="border-edge bg-panel sticky top-0 hidden h-dvh w-52 shrink-0 flex-col border-r md:flex">
-        <Link href="/" className="flex items-center gap-2 px-5 pt-5 pb-6">
-          <span className="font-display text-amber text-lg font-bold" aria-hidden>
-            C
-          </span>
-          <span className="font-display text-lg font-semibold tracking-tight">
-            Cardvert<span className="text-amber">.</span>
-          </span>
-        </Link>
-        <SidebarNav items={nav} />
-        <div className="border-edge mt-auto border-t p-4">
-          <p className="truncate text-sm font-medium">{me.user.full_name}</p>
-          <p className="micro text-faint mt-0.5">{roleLabel[me.user.role] ?? me.user.role}</p>
-          <SessionLogoutButton
-            label="Sign out"
-            className="text-muted hover:text-coral text-sm font-medium transition-colors"
-            formClassName="mt-3"
-          />
+      <aside className="border-edge bg-panel hidden w-52 shrink-0 border-r md:block">
+        <div className="sticky top-0 flex h-dvh flex-col">
+          <Link href="/" className="flex items-center gap-2 px-5 pt-5 pb-6">
+            <BrandWordmark />
+          </Link>
+          <SidebarNav items={nav} />
+          <div className="border-edge mt-auto border-t p-4">
+            <p className="truncate text-sm font-medium">{me.user.full_name}</p>
+            <p className="micro text-faint mt-0.5">{roleLabel[me.user.role] ?? me.user.role}</p>
+            <SessionLogoutButton
+              label="Sign out"
+              className="text-muted hover:text-coral text-sm font-medium transition-colors"
+              formClassName="mt-3"
+            />
+          </div>
         </div>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Topbar */}
-        <header className="border-edge bg-bg/85 sticky top-0 z-40 flex min-h-14 flex-wrap items-center justify-between gap-3 border-b px-4 py-2 backdrop-blur md:px-6">
+        <header className="border-edge bg-panel sticky top-0 z-40 flex min-h-14 flex-wrap items-center justify-between gap-3 border-b px-4 py-2 md:px-6">
           <div className={search ? "hidden" : "flex items-center gap-3 md:hidden"}>
             <Link href="/" className="font-display text-lg font-semibold">
               Cardvert<span className="text-amber">.</span>

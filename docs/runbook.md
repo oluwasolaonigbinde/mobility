@@ -1,5 +1,42 @@
 # Mobility operations runbook
 
+## Artwork QR scans and delayed campaign dots (REQ-223/225)
+
+Artwork website destinations are validated public https URLs. An advertiser's
+saved link keeps its random `/q/<code>` when the destination changes; the QR
+download encodes `PUBLIC_ORIGIN` plus that path, never a request Host. Set the
+existing app origin correctly before downloading printable codes. Encoding runs
+locally. Redirect GETs commit a Nigeria-date aggregate count before responding;
+HEAD never counts. These are scans, not distinct people or website conversions.
+No scan event, IP or user-agent column exists. Redis link/global counters contain
+only the artwork code/count, expire after one minute and fail closed on outage
+(120 redirects per link and 5,000 globally per minute). Do not add visitor keys.
+
+The new public scan handler suppresses Uvicorn scan access records and scan error
+telemetry; the frontend suppresses `/q/` error telemetry and relays no visitor
+headers or cookies. **External release gate:** verify the actual trusted edge,
+any hosting access logs and monitoring keep no QR-scan IP/user agent, and preserve
+no-referrer/no-store on redirects. Repository Caddy excludes access logs for
+`/q/*` only, under the orchestrator's narrow ownership exception. A QR-specific
+named logger discards its proxy-error records; other paths retain their normal
+access logs and error diagnostics. Scoped immediate/deferred headers preserve
+no-referrer/no-store. A frontend outage keeps Caddy's plain 502 with an empty
+body, an orchestrator-approved trade-off to preserve other paths' logging. The internal
+`/api/v1/qr/*` route is not forwarded by the public edge. Local application and
+Caddy validation checks do not prove a deployed edge. No provider call or real
+scan-data collection is authorized by this feature.
+
+Live campaign maps read a fresh snapshot of active work only. Each dot uses the
+latest delay-eligible point (recorded and received at least 15 minutes ago), is
+no more than 30 minutes old, moving, in a target area and outside exclusions.
+Responses contain no driver/car identity or stable dot identifier and are not
+cached. Refresh replaces the dots; there is no historical query, trail or per-car
+filter. Disclosure history keeps only policy/window and salted result hashes,
+not coordinates. This reduces disclosure; legal real-use approval remains open.
+An empty snapshot says No cars driving right now; a failed read stays unavailable.
+The basemap stays schematic until the MapTiler account/style (REQ-050) is ready;
+never add invented streets or landmarks to a campaign map.
+
 This runbook covers the Docker Compose pilot stack. Run commands from the repository root. Production-like environments must use externally supplied credentials and explicit hostnames, require TLS and authentication for both PostgreSQL and Redis, keep both private, and put the frontend behind a trusted TLS edge. Bundled and managed data services are both permitted; do not infer provider values from this repository.
 
 ## Stack overview

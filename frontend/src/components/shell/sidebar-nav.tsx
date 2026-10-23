@@ -14,6 +14,7 @@ export interface NavItem {
   group?: string;
   count?: number;
   badge?: ReactNode;
+  icon?: ReactNode;
 }
 
 export function SidebarNav({
@@ -49,7 +50,8 @@ export function SidebarNav({
                 horizontal && "py-2",
               )}
             >
-              <span>
+              <span className="flex items-center gap-3">
+                {item.icon}
                 {item.label}
                 {item.badge}
               </span>

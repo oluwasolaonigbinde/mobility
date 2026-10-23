@@ -71,10 +71,74 @@ it("places the existing safe Start control under today's job and car", async () 
   expect(screen.queryByText("Go to Start")).not.toBeInTheDocument();
 });
 
+it("keeps an unknown offer status quiet and never offers Start without readiness", async () => {
+  mocks.journey.mockResolvedValue({
+    ...ready,
+    trackerAssignment: null,
+    journey: {
+      canStart: false,
+      steps: [
+        {
+          id: "offer",
+          state: "degraded",
+          title: "Offer status unavailable",
+          detail: "Cardvert couldn't check your offers right now.",
+          href: "/driver/assignments",
+        },
+      ],
+    },
+  });
+  render(await Home());
+  expect(screen.getByText(/Offer status unavailable/)).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "Check details" })).toBeInTheDocument();
+  expect(screen.queryByRole("link", { name: "Offer status unavailable" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Start trip" })).toBeNull();
+});
+
 it("adds only the matching authoritative job's frozen areas", async () => {
   render(await Home());
   expect(screen.getByText("Wuse II")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Start trip" })).toBeVisible();
+});
+it("welcomes a waiting driver with the Terrax van and only confirmed completed steps", async () => {
+  mocks.journey.mockResolvedValue({
+    ...ready,
+    activationAssignment: null,
+    needsServiceCity: false,
+    journey: {
+      canStart: false,
+      steps: [
+        { id: "application", state: "complete" },
+        { id: "person_payee", state: "pending" },
+        { id: "vehicle", state: "complete" },
+        { id: "offer", state: "current", title: "No current offer", href: "/driver/assignments" },
+      ],
+    },
+  });
+  // A pending earlier step stays the next action, so don't claim a waiting state.
+  const first = render(await Home());
+  expect(screen.queryByRole("img", { name: "Terrax Media van illustration" })).toBeNull();
+  first.unmount();
+  mocks.journey.mockResolvedValue({
+    ...ready,
+    activationAssignment: null,
+    needsServiceCity: false,
+    journey: {
+      canStart: false,
+      steps: [
+        { id: "application", state: "complete" },
+        { id: "person_payee", state: "complete" },
+        { id: "vehicle", state: "complete" },
+        { id: "offer", state: "current", title: "No current offer", href: "/driver/assignments" },
+      ],
+    },
+  });
+  render(await Home());
+  expect(screen.getByRole("img", { name: "Terrax Media van illustration" })).toBeInTheDocument();
+  expect(screen.getByText("Your driver account is active")).toBeInTheDocument();
+  expect(screen.getByText("Your identity and bank details are approved")).toBeInTheDocument();
+  expect(screen.getByText("Your car is approved")).toBeInTheDocument();
+  expect(screen.getByRole("link", { name: "See jobs" })).toBeInTheDocument();
 });
 it("never borrows areas from a different job or lets visual failure remove safe Start", async () => {
   mocks.journey.mockResolvedValue({

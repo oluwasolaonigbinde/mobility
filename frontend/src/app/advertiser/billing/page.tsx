@@ -124,7 +124,7 @@ export default async function AdvertiserBillingPage({
         eyebrow="What you owe, what you have paid, and your invoices"
         actions={
           <Link
-            href="/advertiser/company"
+            href="/advertiser/account#company"
             className="border-edge bg-raised rounded-lg border px-4 py-2.5 text-sm"
           >
             Billing details
@@ -173,7 +173,7 @@ export default async function AdvertiserBillingPage({
                       <p className="text-base font-semibold">{campaign.name}</p>
                       <p className="text-muted mt-1 text-xs">Invoice {invoice.invoice_number}</p>
                       <Link
-                        href={`/advertiser/campaigns/${invoice.campaign_id}/invoices/${invoice.id}`}
+                        href={`/advertiser/billing/${invoice.campaign_id}/invoices/${invoice.id}`}
                         className="text-amber mt-1 inline-block text-sm hover:underline"
                       >
                         View invoice

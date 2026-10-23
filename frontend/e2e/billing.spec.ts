@@ -55,14 +55,14 @@ test("admin company update persists and is visible to the advertiser", async ({ 
 
   await page.context().clearCookies();
   await login(page, "advertiser@demo.mobility.local", "DemoAdvertiser12345!", "advertiser");
-  await page.goto("/advertiser/company");
+  await page.goto("/advertiser/account");
   await expect(page.getByLabel("Billing contact")).toHaveValue(billingContact);
 });
 
 test("advertiser sees canonical company, billing and accepted terms", async ({ page }) => {
   await login(page, "advertiser@demo.mobility.local", "DemoAdvertiser12345!", "advertiser");
-  await page.getByRole("link", { name: "Company", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Company profile" })).toBeVisible();
+  await page.getByRole("link", { name: "Account", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Company details" })).toBeVisible();
   await expect(page.getByLabel("Legal or trading name")).toHaveValue("Marula Kitchens");
   await page.getByRole("link", { name: "Billing", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Invoice history" })).toBeVisible();

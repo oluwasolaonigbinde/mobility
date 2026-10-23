@@ -93,7 +93,7 @@ describe("CommercialHistory", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "View invoice" })).toHaveAttribute(
       "href",
-      "/advertiser/campaigns/00000000-0000-0000-0000-000000000002/invoices/00000000-0000-0000-0000-000000000001",
+      "/advertiser/billing/00000000-0000-0000-0000-000000000002/invoices/00000000-0000-0000-0000-000000000001",
     );
     expect(container.textContent).not.toMatch(/Persisted|lineage|_/);
   });

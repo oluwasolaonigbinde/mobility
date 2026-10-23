@@ -67,6 +67,12 @@ const common: Record<string, string> = {
   approved_for_execution: "Ready to run",
 };
 const contexts: Record<string, Record<string, string>> = {
+  report_kind: {
+    weekly: "Weekly report",
+    final: "Final report",
+    custom: "Custom report",
+    issued: "Issued report",
+  },
   payment_outcome: {
     reserved: "Waiting for approval",
     queued: "Queued — not submitted",
@@ -95,8 +101,8 @@ const contexts: Record<string, Record<string, string>> = {
     empty: "No matching audience",
   },
   driver: { pending: "Applicant", rejected: "Not approved" },
-  campaign: { active: "Live", pending_review: "For review", finished: "Finished" },
-  job: { active: "Live", accepted: "Accepted" },
+  campaign: { active: "Running", pending_review: "For review", finished: "Finished" },
+  job: { active: "Running", accepted: "Accepted" },
   review: { pending: "Needs review", pending_review: "Needs review" },
   report: { queued: "Being prepared", processing: "Being prepared", ready: "Ready" },
   complaint: { open: "Needs a reply", answered: "Waiting on them", resolved: "Resolved" },

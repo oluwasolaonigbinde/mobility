@@ -436,6 +436,9 @@ export function CampaignWizard({
                       }
                     />
                     <input type="hidden" {...form.register(`creatives.${i}.stored_file_id`)} />
+                    <p className="text-muted mt-2 text-xs">
+                      Add a PNG or JPG to see it on the car.
+                    </p>
                     <input type="hidden" {...form.register(`creatives.${i}.original_filename`)} />
                     {uploadState[field.id]?.phase ? (
                       <p className="text-muted mt-1 text-xs" aria-live="polite">

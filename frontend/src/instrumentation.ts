@@ -1,5 +1,6 @@
 import * as Sentry from "@sentry/nextjs";
 import { scrubSentryEvent } from "@/lib/observability";
+import { isPublicScanPath, isScanEvent } from "@/lib/qr/privacy";
 
 export function register() {
   const dsn = process.env.SENTRY_DSN?.trim();
@@ -12,8 +13,11 @@ export function register() {
     release: process.env.RELEASE_REVISION?.trim() || undefined,
     tracesSampleRate: 0,
     sendDefaultPii: false,
-    beforeSend: scrubSentryEvent,
+    beforeSend: (event) => (isScanEvent(event) ? null : scrubSentryEvent(event)),
   });
 }
 
-export const onRequestError = Sentry.captureRequestError;
+export const onRequestError: typeof Sentry.captureRequestError = (...args) => {
+  if (isPublicScanPath(args[1].path)) return;
+  return Sentry.captureRequestError(...args);
+};

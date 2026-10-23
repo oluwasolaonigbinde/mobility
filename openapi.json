@@ -3034,6 +3034,24 @@
         "title": "AnalyticsRecomputeRequest",
         "type": "object"
       },
+      "AnonymousPosition": {
+        "properties": {
+          "latitude": {
+            "title": "Latitude",
+            "type": "number"
+          },
+          "longitude": {
+            "title": "Longitude",
+            "type": "number"
+          }
+        },
+        "required": [
+          "longitude",
+          "latitude"
+        ],
+        "title": "AnonymousPosition",
+        "type": "object"
+      },
       "ApplicantFileUploadConfirm": {
         "additionalProperties": false,
         "properties": {
@@ -3319,6 +3337,73 @@
           "expires_at"
         ],
         "title": "ApplicationContinuationRead",
+        "type": "object"
+      },
+      "ArtworkLinkRead": {
+        "properties": {
+          "creative_id": {
+            "format": "uuid",
+            "title": "Creative Id",
+            "type": "string"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/ScanDayRead"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination"
+          },
+          "scans": {
+            "minimum": 0.0,
+            "title": "Scans",
+            "type": "integer"
+          },
+          "short_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Short Path"
+          }
+        },
+        "required": [
+          "creative_id",
+          "destination",
+          "short_path",
+          "scans",
+          "days"
+        ],
+        "title": "ArtworkLinkRead",
+        "type": "object"
+      },
+      "ArtworkLinkWrite": {
+        "additionalProperties": false,
+        "properties": {
+          "destination": {
+            "maxLength": 2048,
+            "title": "Destination",
+            "type": "string"
+          }
+        },
+        "required": [
+          "destination"
+        ],
+        "title": "ArtworkLinkWrite",
         "type": "object"
       },
       "AssignmentActivityFlagRead": {
@@ -7754,6 +7839,34 @@
           "reason"
         ],
         "title": "CampaignReviewReject",
+        "type": "object"
+      },
+      "CampaignScansRead": {
+        "properties": {
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/ScanDayRead"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "scans": {
+            "minimum": 0.0,
+            "title": "Scans",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "campaign_id",
+          "scans",
+          "days"
+        ],
+        "title": "CampaignScansRead",
         "type": "object"
       },
       "CampaignStatus": {
@@ -14617,6 +14730,33 @@
         "title": "KycSubmissionStatus",
         "type": "string"
       },
+      "LivePositionsRead": {
+        "properties": {
+          "campaign_id": {
+            "format": "uuid",
+            "title": "Campaign Id",
+            "type": "string"
+          },
+          "delay_minutes": {
+            "default": 15,
+            "title": "Delay Minutes",
+            "type": "integer"
+          },
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/AnonymousPosition"
+            },
+            "title": "Positions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "campaign_id",
+          "positions"
+        ],
+        "title": "LivePositionsRead",
+        "type": "object"
+      },
       "LocationPingBatchCreate": {
         "additionalProperties": false,
         "properties": {
@@ -18666,6 +18806,26 @@
           "average_quality_score"
         ],
         "title": "RouteAnalyticsSummary",
+        "type": "object"
+      },
+      "ScanDayRead": {
+        "properties": {
+          "day": {
+            "format": "date",
+            "title": "Day",
+            "type": "string"
+          },
+          "scans": {
+            "minimum": 0.0,
+            "title": "Scans",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "day",
+          "scans"
+        ],
+        "title": "ScanDayRead",
         "type": "object"
       },
       "SensitiveRevealRequest": {
@@ -32373,6 +32533,60 @@
         ]
       }
     },
+    "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}/qr.svg": {
+      "get": {
+        "operationId": "download_qr_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__qr_svg_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "creative_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Creative Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/svg+xml": {}
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Download Qr",
+        "tags": [
+          "Campaign engagement"
+        ]
+      }
+    },
     "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}/review-history": {
       "get": {
         "operationId": "advertiser_creative_review_history_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__review_history_get",
@@ -32509,6 +32723,130 @@
         "summary": "Submit a managed creative for admin review",
         "tags": [
           "Campaigns"
+        ]
+      }
+    },
+    "/api/v1/advertiser/campaigns/{campaign_id}/creatives/{creative_id}/website": {
+      "get": {
+        "operationId": "get_website_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__website_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "creative_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Creative Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtworkLinkRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Website",
+        "tags": [
+          "Campaign engagement"
+        ]
+      },
+      "put": {
+        "operationId": "put_website_api_v1_advertiser_campaigns__campaign_id__creatives__creative_id__website_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "creative_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Creative Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtworkLinkWrite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArtworkLinkRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Put Website",
+        "tags": [
+          "Campaign engagement"
         ]
       }
     },
@@ -32887,6 +33225,102 @@
         "summary": "Read advertiser campaign impression summary",
         "tags": [
           "Impressions"
+        ]
+      }
+    },
+    "/api/v1/advertiser/campaigns/{campaign_id}/live-positions": {
+      "get": {
+        "operationId": "get_live_positions_api_v1_advertiser_campaigns__campaign_id__live_positions_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LivePositionsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Live Positions",
+        "tags": [
+          "Campaign engagement"
+        ]
+      }
+    },
+    "/api/v1/advertiser/campaigns/{campaign_id}/qr-scans": {
+      "get": {
+        "operationId": "get_campaign_scans_api_v1_advertiser_campaigns__campaign_id__qr_scans_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "campaign_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Campaign Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignScansRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Get Campaign Scans",
+        "tags": [
+          "Campaign engagement"
         ]
       }
     },
@@ -38216,6 +38650,42 @@
         "summary": "Read Notification",
         "tags": [
           "Notifications"
+        ]
+      }
+    },
+    "/api/v1/qr/{code}": {
+      "get": {
+        "operationId": "qr_redirect_api_v1_qr__code__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "code",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-f0-9]{32}$",
+              "title": "Code",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "302": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "summary": "Qr Redirect",
+        "tags": [
+          "Campaign engagement"
         ]
       }
     },

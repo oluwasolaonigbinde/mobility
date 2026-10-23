@@ -8,6 +8,7 @@ import { Panel } from "@/components/ui/panel";
 import { DriverDataUnavailable } from "@/components/driver/data-unavailable";
 import { FreshDriverAuthority } from "@/components/driver/fresh-authority";
 import { loadDailyEarnings } from "@/lib/driver/load-daily-earnings";
+import { PortalIcon } from "@/components/brand/portal-icon";
 
 export const metadata: Metadata = { title: "Earnings" };
 export default async function DriverEarningsPage() {
@@ -21,7 +22,10 @@ export default async function DriverEarningsPage() {
       retryHref="/driver/earnings"
     >
       <div className="animate-rise flex flex-col gap-4">
-        <h1 className="font-display text-2xl font-semibold">Earnings</h1>
+        <h1 className="font-display flex items-center gap-3 text-2xl font-semibold">
+          <PortalIcon name="wallet" className="size-6" />
+          Earnings
+        </h1>
         {result.state !== "ready" ? (
           <DriverDataUnavailable
             title="Earnings unavailable"

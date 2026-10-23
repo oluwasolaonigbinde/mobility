@@ -19,7 +19,7 @@ export const statusLabel: Record<CampaignStatus, string> = {
   pending_review: "Pending review",
   approved: "Approved",
   rejected: "Changes requested",
-  active: "Live",
+  active: "Running",
   paused: "Paused",
   finished: "Finished",
   cancelled: "Cancelled",

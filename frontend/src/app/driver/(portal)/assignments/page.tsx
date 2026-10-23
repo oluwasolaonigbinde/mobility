@@ -14,6 +14,7 @@ import { DriverDataUnavailable } from "@/components/driver/data-unavailable";
 import { FreshDriverAuthority } from "@/components/driver/fresh-authority";
 import { frozenJob } from "@/lib/driver/frozen-job";
 import { JobVisual } from "@/components/driver/job-visual";
+import { PortalIcon } from "@/components/brand/portal-icon";
 
 export const metadata: Metadata = { title: "Jobs" };
 
@@ -41,7 +42,8 @@ const OFFERS: AssignmentStatus[] = ["offered"];
 function JobTerms({ a }: { a: Assignment }) {
   const terms = frozenJob(a.offer_terms);
   return (
-    <p className="mt-3 text-base font-semibold">
+    <p className="mt-3 flex items-center gap-2 text-base font-semibold">
+      <PortalIcon name="wallet" />
       {terms.rate && terms.currency
         ? `${formatMoney(terms.rate, terms.currency)} / day`
         : "Pay terms unavailable"}
@@ -202,7 +204,7 @@ export default async function DriverAssignmentsPage({
         <h1 className="font-display text-2xl font-semibold tracking-tight">Jobs</h1>
         <DriverDataUnavailable
           title="Campaign history is unavailable"
-          detail="Cardvert couldn't load your current or completed jobs. Try again shortly."
+          detail="Cardvert couldn't load your current or finished jobs. Try again shortly."
           retryHref="/driver/assignments"
         />
       </div>
@@ -291,7 +293,7 @@ export default async function DriverAssignmentsPage({
     <FreshDriverAuthority
       refreshKey={crypto.randomUUID()}
       title="Current campaign history hidden while offline"
-      detail="Reconnect to check your current and completed jobs."
+      detail="Reconnect to check your current and finished jobs."
       retryHref="/driver/assignments"
     >
       <div className="animate-rise flex flex-col gap-6">

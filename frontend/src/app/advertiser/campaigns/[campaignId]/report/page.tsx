@@ -5,6 +5,7 @@ import { requireRole } from "@/lib/auth/current-user";
 import { Reports } from "../../../reports/report-list";
 import { loadAdvertiserPageData } from "@/lib/advertiser/page-data";
 import { DataUnavailable } from "@/components/ui/data-unavailable";
+import { PageHeader } from "@/components/ui/page-header";
 
 export const metadata = { title: "Campaign reports" };
 
@@ -36,7 +37,7 @@ export default async function CampaignReportPage({
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos" }).format(new Date());
   return (
     <div className="space-y-6">
-      <h1>{data.name} reports</h1>
+      <PageHeader title={`${data.name} reports`} />
       <Reports
         key={sessionScope}
         sessionScope={sessionScope}

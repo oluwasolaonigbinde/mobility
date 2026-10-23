@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { campaignDay } from "@/lib/campaigns/day-progress";
 import { readCampaign, readCampaignCommercial } from "../../entity-reads";
 import { readPayTerms } from "../pay-terms-read";
 import { notFound, redirect } from "next/navigation";
@@ -258,7 +259,12 @@ export default async function CampaignHub({
       </Link>
       <PageHeader
         title={campaign.name}
-        eyebrow={formatDateRange(campaign.start_at, campaign.end_at)}
+        eyebrow={[
+          formatDateRange(campaign.start_at, campaign.end_at),
+          campaignDay(campaign.start_at, campaign.end_at),
+        ]
+          .filter(Boolean)
+          .join(" · ")}
         actions={
           campaign.status === "pending_review" ? (
             <ReviewActions campaignId={campaignId} />
@@ -326,7 +332,7 @@ export default async function CampaignHub({
             {
               label: "Details approved",
               state: adminStatus(campaign.status, "campaign"),
-              done: ["approved", "active", "paused", "completed"].includes(campaign.status),
+              done: ["approved", "active", "paused", "finished"].includes(campaign.status),
               section: "overview",
             },
             {
@@ -540,11 +546,12 @@ export default async function CampaignHub({
                 <p>No reports recorded.</p>
               ) : (
                 results.data.items.map((report) => (
-                  <div key={report.id} className="border-edge mb-3 rounded-lg border p-3">
-                    <p>
-                      {report.start_date} to {report.end_date} | WAT | Version {report.version}
+                  <div key={report.id} className="border-edge mb-3 space-y-3 rounded-lg border p-5">
+                    <p className="text-ink text-sm font-medium">
+                      {formatDateRange(report.start_date, report.end_date)} ·{" "}
+                      {adminStatus(report.kind, "report_kind")} · Version {report.version}
                     </p>
-                    <p>
+                    <p className="text-muted text-sm">
                       {report.status === "queued"
                         ? "Preparing report"
                         : report.status === "ready"

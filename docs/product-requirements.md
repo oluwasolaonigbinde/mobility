@@ -1294,7 +1294,7 @@ external prerequisite register. It is for reviewers; it adds no requirements.
 | Advertiser | Campaign list and new campaign | `/advertiser/campaigns`, `/advertiser/campaigns/new` |
 | Advertiser | Campaign detail (preparation, terms, changes, artwork, cancellation) | `/advertiser/campaigns/{campaign}` |
 | Advertiser | Zones, report, coverage map | `/advertiser/campaigns/{campaign}/zones`, `/report`, `/map` |
-| Advertiser | Company profile, billing, planning sources | `/advertiser/company`, `/advertiser/billing`, `/advertiser/planning-sources` |
+| Advertiser | Account and company details, billing, planning sources | `/advertiser/account`, `/advertiser/billing`, `/advertiser/planning-sources` |
 | Driver | Home, assignments, track, earnings, trip detail, profile | `/driver`, `/driver/assignments`, `/driver/track`, `/driver/earnings`, `/driver/earnings/trips/{trip}`, `/driver/profile` |
 | Driver | Phone diagnostics | `/driver/capabilities` |
 | Operator | Overview, users, drivers, vehicles | `/admin`, `/admin/users`, `/admin/drivers`, `/admin/vehicles` (each with `/new`) |

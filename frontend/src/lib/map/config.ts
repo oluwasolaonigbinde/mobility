@@ -9,7 +9,13 @@
  * URL with a domain-restricted public key, frozen into the frontend build.
  * Go-live provider/account/licence gates remain in docs/deployment-templates.md.
  */
-import type { StyleSpecification } from "maplibre-gl";
+import { setWorkerUrl, type StyleSpecification } from "maplibre-gl";
+import mapLibrePackage from "maplibre-gl/package.json";
+
+// prebuild/predev copy both worker dependencies from this installed version.
+// Keep the worker same-origin and independent of the page's current URL.
+export const MAP_WORKER_URL = `/maplibre/${mapLibrePackage.version}/maplibre-gl-worker.mjs`;
+if (typeof window !== "undefined") setWorkerUrl(MAP_WORKER_URL);
 
 export const LOCAL_SCHEMATIC_STYLE: StyleSpecification = {
   version: 8,
@@ -47,14 +53,12 @@ export const DEFAULT_ZOOM = 11;
 
 export const ZONE_COLORS = {
   target: "#256f1a", // accent
-  bonus: "#286961", // secondary
   exclusion: "#b02030", // danger
 } as const satisfies Record<string, string>;
 
 /** CSS-var forms for DOM elements (legend chips) — track the active theme. */
 export const ZONE_COLOR_VARS = {
   target: "var(--color-amber)",
-  bonus: "var(--color-cyan)",
   exclusion: "var(--color-coral)",
 } as const satisfies Record<keyof typeof ZONE_COLORS, string>;
 
@@ -69,7 +73,6 @@ export function zoneColors(): Record<keyof typeof ZONE_COLORS, string> & { neutr
   const read = (name: string, fb: string) => styles.getPropertyValue(name).trim() || fb;
   return {
     target: read("--color-amber", fallback.target),
-    bonus: read("--color-cyan", fallback.bonus),
     exclusion: read("--color-coral", fallback.exclusion),
     neutral: read("--color-muted", fallback.neutral),
   };

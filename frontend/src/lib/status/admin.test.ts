@@ -4,7 +4,7 @@ import { advertiserStatus } from "./advertiser";
 it("uses context-specific staff words without leaking internal keys", () => {
   expect(adminStatus("pending", "driver")).toBe("Applicant");
   expect(adminStatus("pending_review", "campaign")).toBe("For review");
-  expect(adminStatus("active", "campaign")).toBe("Live");
+  expect(adminStatus("active", "campaign")).toBe("Running");
   expect(adminStatus("reserved")).toBe("Waiting for approval");
   expect(adminStatus("open", "review")).toBe("Needs attention");
   expect(adminStatus("confirmed", "review")).toBe("Problem confirmed");
@@ -47,7 +47,7 @@ it.each([
 });
 
 it("retains advertiser labels and its fallback outside the two approved change states", () => {
-  expect(advertiserStatus("active")).toBe("Live");
+  expect(advertiserStatus("active")).toBe("Running");
   expect(advertiserStatus("applied")).toBe("Applied");
   expect(advertiserStatus("pending")).toBe("Waiting");
   expect(advertiserStatus("held")).toBe("Status unavailable");

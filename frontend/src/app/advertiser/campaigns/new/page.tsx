@@ -4,6 +4,8 @@ import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { ApiError } from "@/lib/api/errors";
 import type { Metadata } from "next";
+import Link from "next/link";
+import { Panel } from "@/components/ui/panel";
 
 import { requireRole } from "@/lib/auth/current-user";
 import { PageHeader } from "@/components/ui/page-header";
@@ -37,27 +39,74 @@ export default async function NewCampaignPage({
   const recoveryId = campaignId ?? requestId;
   if (recoveryId !== undefined) {
     if (!z.uuid().safeParse(recoveryId).success) notFound();
+    let data: components["schemas"]["AdvertiserCampaignRead"] | undefined;
     try {
-      const { data } = await api.GET("/api/v1/advertiser/campaigns/{campaign_id}", {
+      ({ data } = await api.GET("/api/v1/advertiser/campaigns/{campaign_id}", {
         params: { path: { campaign_id: recoveryId } },
-      });
-      if (!data || data.id !== recoveryId) return recoveryUnavailable();
-      existingCampaign = {
-        id: data.id,
-        name: data.name,
-        basics: {
-          name: data.name,
-          description: data.description ?? "",
-          start_at: toLagosDatetimeLocal(data.start_at),
-          end_at: toLagosDatetimeLocal(data.end_at),
-          budget_amount: data.budget_amount ?? "",
-          daily_budget_amount: data.daily_budget_amount ?? "",
-        },
-      };
+      }));
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) redirect("/login");
       return recoveryUnavailable();
     }
+    if (!data || data.id !== recoveryId) return recoveryUnavailable();
+    if (["finished", "cancelled"].includes(data.status)) {
+      return (
+        <div className="mx-auto max-w-3xl">
+          <PageHeader title={data.name} />
+          <Panel className="p-6">
+            <p>This campaign {data.status === "cancelled" ? "was cancelled" : "has finished"}.</p>
+            <Link href={`/advertiser/campaigns/${recoveryId}`} className="brand-action mt-5">
+              View campaign →
+            </Link>
+          </Panel>
+        </div>
+      );
+    }
+    const askTerrax = () => (
+      <div className="mx-auto max-w-3xl">
+        <PageHeader title={data.name} />
+        <Panel className="p-6">
+          <h2 className="font-display text-xl font-semibold">Ask Terrax to change the artwork</h2>
+          <p className="text-muted mt-3">
+            This campaign&apos;s artwork is locked. Ask Terrax to change it. New artwork means
+            reprinting and refitting each car.
+          </p>
+          <Link
+            href={`/advertiser/campaigns/${recoveryId}#artwork-change`}
+            className="brand-action mt-5"
+          >
+            Ask Terrax to change it →
+          </Link>
+        </Panel>
+      </div>
+    );
+    if (data.status === "active") return askTerrax();
+    let commercial: components["schemas"]["CampaignCommercialRead"] | undefined;
+    try {
+      ({ data: commercial } = await api.GET(
+        "/api/v1/advertiser/campaigns/{campaign_id}/commercial",
+        {
+          params: { path: { campaign_id: recoveryId } },
+        },
+      ));
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) redirect("/login");
+      return recoveryUnavailable();
+    }
+    if (!commercial || !("production_start" in commercial)) return recoveryUnavailable();
+    if (commercial.production_start?.started_at) return askTerrax();
+    existingCampaign = {
+      id: data.id,
+      name: data.name,
+      basics: {
+        name: data.name,
+        description: data.description ?? "",
+        start_at: toLagosDatetimeLocal(data.start_at),
+        end_at: toLagosDatetimeLocal(data.end_at),
+        budget_amount: data.budget_amount ?? "",
+        daily_budget_amount: data.daily_budget_amount ?? "",
+      },
+    };
     // Outside the try so its sign-in redirect is not swallowed.
     const zones = await loadCampaignAreas(api, recoveryId, true);
     if (!zones.available) return recoveryUnavailable();

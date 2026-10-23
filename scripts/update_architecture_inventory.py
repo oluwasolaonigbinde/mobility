@@ -32,6 +32,7 @@ GROUPS = (
     ("/api/v1/driver/*", "/api/v1/driver"),
     ("/api/v1/health*", "/api/v1/health"),
     ("/api/v1/notifications/*", "/api/v1/notifications"),
+    ("/api/v1/qr/*", "/api/v1/qr"),
     ("/api/v1/webhooks/*", "/api/v1/webhooks"),
 )
 EXACT_GROUPS = {"/api/v1/me", "/api/v1/campaign-enquiries", "/health"}

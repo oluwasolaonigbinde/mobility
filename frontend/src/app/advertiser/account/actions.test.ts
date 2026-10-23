@@ -28,21 +28,21 @@ beforeEach(() => {
 });
 
 it("saves the advertiser's own company and returns to the page", async () => {
-  await expect(updateCompanyAction(form())).rejects.toThrow("REDIRECT /advertiser/company?saved=1");
+  await expect(updateCompanyAction(form())).rejects.toThrow("REDIRECT /advertiser/account?saved=1");
   expect(mocks.patch).toHaveBeenCalledWith("/api/v1/advertiser/company", {
     body: expect.objectContaining({ name: "Demo Advertiser Ltd", billing_email: null }),
   });
-  expect(mocks.revalidatePath).toHaveBeenCalledWith("/advertiser/company");
+  expect(mocks.revalidatePath).toHaveBeenCalledWith("/advertiser/account");
 });
 
 it("returns the API message, or a generic one, on failure", async () => {
   mocks.patch.mockRejectedValue(new ApiError(403, { code: "FORBIDDEN", message: "Not allowed" }));
   await expect(updateCompanyAction(form())).rejects.toThrow(
-    "REDIRECT /advertiser/company?error=Not%20allowed",
+    "REDIRECT /advertiser/account?error=Not%20allowed",
   );
   mocks.patch.mockRejectedValue(new Error("network"));
   await expect(updateCompanyAction(form())).rejects.toThrow(
-    "REDIRECT /advertiser/company?error=Could%20not%20update%20company%20profile",
+    "REDIRECT /advertiser/account?error=Could%20not%20update%20company%20profile",
   );
   expect(mocks.revalidatePath).not.toHaveBeenCalled();
 });

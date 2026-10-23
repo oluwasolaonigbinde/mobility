@@ -23,7 +23,7 @@ export function HubNav({ sections }: { sections: { id: string; title: string }[]
   return (
     <nav
       aria-label="Page sections"
-      className="border-edge bg-bg/95 sticky top-32 z-20 mb-5 overflow-x-auto overflow-y-hidden rounded-lg border p-1.5 backdrop-blur md:top-16"
+      className="border-edge bg-panel sticky top-32 z-20 mb-5 overflow-x-auto overflow-y-hidden rounded-lg border p-1.5 md:top-14"
     >
       <div className="flex min-w-max gap-1 lg:min-w-0">
         {sections.map((s) => (

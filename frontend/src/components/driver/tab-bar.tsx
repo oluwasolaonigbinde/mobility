@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cx } from "@/lib/cx";
+import { PortalIcon } from "@/components/brand/portal-icon";
 
 const TABS = [
-  { href: "/driver", label: "Home", icon: "⌂", exact: true },
-  { href: "/driver/assignments", label: "Jobs", icon: "▤" },
-  { href: "/driver/track", label: "Track", icon: "◉" },
-  { href: "/driver/earnings", label: "Earnings", icon: "₦" },
-  { href: "/driver/profile", label: "Profile", icon: "◍" },
+  { href: "/driver", label: "Home", icon: "home", exact: true },
+  { href: "/driver/assignments", label: "Jobs", icon: "megaphone" },
+  { href: "/driver/track", label: "Track", icon: "pin" },
+  { href: "/driver/earnings", label: "Earnings", icon: "wallet" },
+  { href: "/driver/profile", label: "Profile", icon: "user" },
 ] as const;
 
 /** App-style bottom tab bar — thumb-reach navigation, safe-area aware. */
@@ -38,7 +39,7 @@ export function TabBar() {
               )}
             >
               <span aria-hidden className="text-lg leading-none">
-                {tab.icon}
+                <PortalIcon name={tab.icon} />
               </span>
               <span className="text-xs font-medium">{tab.label}</span>
             </Link>

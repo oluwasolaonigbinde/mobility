@@ -284,7 +284,9 @@ it("shows immutable ready report versions with both downloads", async () => {
     return original(path);
   });
   render(await page());
-  expect(screen.getByText(/Version 2/)).toHaveTextContent("WAT");
+  expect(screen.getByText(/Version 2/)).toHaveTextContent(
+    "1 Sept 2026 → 1 Oct 2026 · Weekly report · Version 2",
+  );
   expect(screen.getByText("Ready")).toBeInTheDocument();
   expect(screen.getByText("Report downloads")).toBeInTheDocument();
   expect(mocks.get.mock.calls.some(([path]) => String(path).includes("measurement-runs"))).toBe(

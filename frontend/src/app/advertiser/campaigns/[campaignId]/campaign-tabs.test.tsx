@@ -1,11 +1,11 @@
 import { render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
-const path = vi.hoisted(() => ({ value: "/advertiser/campaigns/one/invoices/invoice" }));
+const path = vi.hoisted(() => ({ value: "/advertiser/campaigns/one" }));
 vi.mock("next/navigation", () => ({ usePathname: () => path.value }));
 import { CampaignTabs } from "./campaign-tabs";
-it("keeps invoice detail under the selected Invoices tab", () => {
+it("keeps invoices in Billing and the campaign Overview selected", () => {
   render(<CampaignTabs campaignId="one" />);
-  expect(screen.getByRole("link", { name: "Invoices" })).toHaveAttribute("aria-current", "page");
-  expect(screen.getByRole("link", { name: "Overview" })).not.toHaveAttribute("aria-current");
+  expect(screen.queryByRole("link", { name: "Invoices" })).toBeNull();
   expect(screen.queryByRole("link", { name: "Reach these people again" })).toBeNull();
+  expect(screen.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
 });

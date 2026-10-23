@@ -10,6 +10,7 @@ from app.api.v1.billing import router as billing_router
 from app.api.v1.campaign_assignments import router as campaign_assignments_router
 from app.api.v1.campaign_cancellations import router as campaign_cancellations_router
 from app.api.v1.campaign_changes import router as campaign_changes_router
+from app.api.v1.campaign_engagement import router as campaign_engagement_router
 from app.api.v1.campaign_enquiries import router as campaign_enquiries_router
 from app.api.v1.campaign_reports import router as campaign_reports_router
 from app.api.v1.campaign_zones import router as campaign_zones_router
@@ -56,6 +57,7 @@ api_router.include_router(campaign_assignments_router)
 api_router.include_router(campaign_cancellations_router)
 api_router.include_router(campaign_changes_router)
 api_router.include_router(campaign_enquiries_router)
+api_router.include_router(campaign_engagement_router)
 api_router.include_router(campaign_zones_router)
 api_router.include_router(complaints_router)
 api_router.include_router(contacts_router)

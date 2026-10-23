@@ -1,3 +1,5 @@
+import { frozenGeometry } from "@/lib/zones/frozen-geometry";
+
 type ObjectValue = Record<string, unknown>;
 function object(value: unknown): ObjectValue | null {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -17,6 +19,21 @@ function names(value: unknown): string[] | null {
   return [...new Set(result)];
 }
 
+function mapAreas(target: unknown, exclusion: unknown) {
+  if (!Array.isArray(target) || !target.length || !Array.isArray(exclusion)) return null;
+  const rows = [
+    ...target.map((row) => ({ row, zone_type: "target" })),
+    ...exclusion.map((row) => ({ row, zone_type: "exclusion" })),
+  ].map(({ row, zone_type }, index) => {
+    const area = object(row);
+    const geometry = frozenGeometry(area?.wkt);
+    return geometry && typeof area?.name === "string" && area.name.trim()
+      ? { id: String(index), name: area.name.trim(), zone_type, geometry }
+      : null;
+  });
+  return rows.every((row) => row !== null) ? rows : null;
+}
+
 export function frozenJob(terms: unknown) {
   const source = object(terms);
   const zones = object(source?.zones);
@@ -25,12 +42,13 @@ export function frozenJob(terms: unknown) {
   const excluded = names(zones?.exclusion);
   const currency = payout?.currency ?? source?.currency;
   const rate = payout?.daily_rate_naira;
-  const mime = object(source?.creative)?.mime_type;
+  const mime = object(object(source?.creative)?.content_identity)?.mime_type;
   return {
     startAt: date(source?.campaign_window_start_at),
     endAt: date(source?.campaign_window_end_at),
     areas: target?.length ? target : null,
     excluded,
+    mapAreas: mapAreas(zones?.target, zones?.exclusion),
     artworkKind:
       typeof mime === "string" && ["image/png", "image/jpeg", "image/webp"].includes(mime)
         ? ("image" as const)

@@ -28,7 +28,7 @@ export function AdvertiserShell({ me, children }: { me: MeResponse; children: Re
       </a>
       <AdvertiserNavigation account={account} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="border-edge sticky top-0 z-40 flex h-[70px] shrink-0 items-center justify-between gap-3 border-b bg-white/95 px-5 backdrop-blur md:px-10">
+        <header className="portal-top relative flex shrink-0 items-start justify-between gap-3 px-5 pt-5 md:px-10 md:pt-7">
           <div className="ml-14 md:hidden">
             <Link href="/advertiser">
               <BrandWordmark />
@@ -43,7 +43,7 @@ export function AdvertiserShell({ me, children }: { me: MeResponse; children: Re
             />
           </div>
         </header>
-        <main id="main" className="min-w-0 flex-1 px-5 pt-7 pb-12 md:px-10 md:pt-10">
+        <main id="main" className="portal-main relative min-w-0 flex-1 px-5 pb-12 md:px-10">
           {children}
         </main>
       </div>

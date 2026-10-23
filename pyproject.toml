@@ -22,6 +22,7 @@ dependencies = [
     "PyJWT>=2.9,<3.0",
     "pydantic==2.13.4",
     "pydantic-settings>=2.4,<3.0",
+    "qrcode==8.2",
     "redis>=5,<7",
     # Charts and clean artwork previews in the client-requested PDF reports (D118).
     "reportlab==5.1.0",

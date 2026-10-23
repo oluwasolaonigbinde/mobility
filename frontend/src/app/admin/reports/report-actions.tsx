@@ -2,6 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
 
 function subscribeToStorage(callback: () => void) {
   window.addEventListener("storage", callback);
@@ -72,16 +73,16 @@ export function RerunReportForm({ campaignId, staffId }: { campaignId: string; s
     }
   }
   return (
-    <section className="border-edge mb-6 rounded-xl border p-4">
-      <h2>Campaign reports</h2>
-      <p>
+    <section className="border-edge bg-raised mb-6 space-y-3 rounded-xl border p-5">
+      <h2 className="font-display text-lg font-semibold">Campaign reports</h2>
+      <p className="text-muted max-w-3xl text-sm leading-relaxed">
         One report each week and a final report when the campaign ends. Re-run prepares a new
         version for the latest due period. Issued files stay unchanged.
       </p>
-      <button type="button" disabled={busy} onClick={() => void rerun()}>
+      <Button variant="ghost" type="button" disabled={busy} onClick={() => void rerun()}>
         {busy ? "Checking…" : requestId ? "Check request" : "Re-run"}
-      </button>
-      <p role="status">
+      </Button>
+      <p role="status" className="text-muted text-sm">
         {message || (previous ? "Check the previous request before re-running again." : "")}
       </p>
     </section>
@@ -90,10 +91,11 @@ export function RerunReportForm({ campaignId, staffId }: { campaignId: string; s
 
 export function ReportDownloads({ reportId, legacy }: { reportId: string; legacy: boolean }) {
   return (
-    <div className="flex gap-4">
+    <div className="flex flex-wrap gap-3">
       {["csv", "pdf"].map((format) => (
         <a
           key={format}
+          className="border-edge bg-raised text-ink hover:border-edge-strong inline-flex h-11 items-center justify-center rounded-lg border px-5 text-sm font-medium transition-colors"
           href={`/api/admin/reports/${reportId}/download?format=${format}&legacy=${legacy}`}
         >
           Download {format.toUpperCase()}

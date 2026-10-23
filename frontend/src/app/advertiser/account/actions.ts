@@ -13,8 +13,8 @@ export async function updateCompanyAction(formData: FormData) {
     await api.PATCH("/api/v1/advertiser/company", { body: companyProfileUpdate(formData) });
   } catch (error) {
     const message = error instanceof ApiError ? error.message : "Could not update company profile";
-    redirect(`/advertiser/company?error=${encodeURIComponent(message)}`);
+    redirect(`/advertiser/account?error=${encodeURIComponent(message)}`);
   }
-  revalidatePath("/advertiser/company");
-  redirect("/advertiser/company?saved=1");
+  revalidatePath("/advertiser/account");
+  redirect("/advertiser/account?saved=1");
 }

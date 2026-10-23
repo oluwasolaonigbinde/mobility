@@ -15,6 +15,8 @@ import { watDay } from "@/lib/driver/daily-earnings";
 import { TripTracker } from "./track/trip-tracker";
 import { JobVisual } from "@/components/driver/job-visual";
 import { frozenJob } from "@/lib/driver/frozen-job";
+import { VanPreview } from "@/components/brand/van-preview";
+import { IconTile, PortalIcon } from "@/components/brand/portal-icon";
 
 export const metadata: Metadata = { title: "Home" };
 const actionClass =
@@ -54,7 +56,7 @@ export default async function DriverHomePage() {
       retryHref="/driver"
     >
       <div className="animate-rise flex flex-col gap-4">
-        <div>
+        <div className="pt-3 pb-5">
           <p className="text-ink mb-1 text-base font-medium">
             Hello, {me.user.full_name.split(" ")[0]}
           </p>
@@ -69,18 +71,48 @@ export default async function DriverHomePage() {
           </h1>
         </div>
         <Panel className="p-5">
+          {noOffer ? (
+            <div className="-mx-5 -mt-5 mb-5 h-48 overflow-hidden rounded-t-[1.25rem]">
+              <VanPreview terrax label="Terrax Media van illustration" />
+            </div>
+          ) : null}
           <h2 className="font-display text-xl font-semibold">
             {assignment?.campaignName ?? "Your next job"}
           </h2>
           {assignment ? (
-            <p className="text-ink mt-1 text-base">Car {assignment.plateNumber}</p>
+            <p className="text-ink border-edge mt-3 inline-flex items-center gap-2 rounded-full border bg-white px-3 py-1.5 text-sm">
+              <PortalIcon name="car" className="size-4" />
+              Car {assignment.plateNumber}
+            </p>
           ) : null}
           {noOffer ? (
-            <p className="text-ink mt-3 text-base leading-6">
-              {work.needsServiceCity
-                ? "Add the city you drive in so Terrax Media can find a job for you."
-                : "You’re all set. We’ll message you when a job is ready."}
-            </p>
+            <>
+              <p className="text-ink mt-3 text-base leading-6">
+                {work.needsServiceCity
+                  ? "Add the city you drive in so Terrax Media can find a job for you."
+                  : "You’re all set. We’ll message you when a job is ready."}
+              </p>
+              <ul className="mt-4 grid gap-3 text-sm">
+                {work.journey.steps
+                  .filter(
+                    (step) =>
+                      step.state === "complete" &&
+                      ["application", "person_payee", "vehicle"].includes(step.id),
+                  )
+                  .map((step) => (
+                    <li key={step.id} className="flex items-center gap-3">
+                      <span className="text-green rounded-full bg-[#e3f4dd] p-1">
+                        <PortalIcon name="check" className="size-4" />
+                      </span>
+                      {step.id === "application"
+                        ? "Your driver account is active"
+                        : step.id === "vehicle"
+                          ? "Your car is approved"
+                          : "Your identity and bank details are approved"}
+                    </li>
+                  ))}
+              </ul>
+            </>
           ) : null}
           {assignment ? (
             <JobVisual
@@ -105,6 +137,13 @@ export default async function DriverHomePage() {
                 driverId={me.user.id}
                 compact
               />
+            ) : next?.state === "degraded" ? (
+              <p className="text-muted text-sm" role="status">
+                {next.title}. {next.detail}{" "}
+                <Link href={next.href} className="text-green font-semibold">
+                  Check details
+                </Link>
+              </p>
             ) : (
               <Link
                 href={
@@ -137,6 +176,10 @@ export default async function DriverHomePage() {
           />
         ) : (
           <Panel className="p-5">
+            <div className="mb-4 flex items-center gap-3">
+              <IconTile name="wallet" tone="gold" />
+              <h2 className="font-semibold">Your earnings</h2>
+            </div>
             {todayDays.length ? (
               todayDays.map((day) => (
                 <div key={day.currency}>

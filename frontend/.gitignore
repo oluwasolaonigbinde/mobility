@@ -39,3 +39,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+# Derived from the installed maplibre-gl package by prebuild/predev.
+/public/maplibre/

@@ -33,7 +33,9 @@ export default async function DriverPortalLayout({ children }: { children: React
         </div>
       </header>
 
-      <main className="flex-1 px-4 pt-5 pb-24">{children}</main>
+      <main className="flex-1 px-4 pt-5 pb-[calc(6rem+env(safe-area-inset-bottom))]">
+        {children}
+      </main>
 
       <TabBar />
     </div>

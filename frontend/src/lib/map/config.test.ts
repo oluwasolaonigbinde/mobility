@@ -1,7 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { activeMapStyle, basemapMode } from "./config";
+const workerURL = vi.hoisted(() => vi.fn());
+vi.mock("maplibre-gl", () => ({ setWorkerUrl: workerURL }));
+import { activeMapStyle, basemapMode, MAP_WORKER_URL } from "./config";
+import mapLibrePackage from "maplibre-gl/package.json";
 
 describe("provider-neutral map configuration", () => {
+  it("configures the installed package worker before either map is constructed", () => {
+    expect(workerURL).toHaveBeenCalledWith(MAP_WORKER_URL);
+    expect(MAP_WORKER_URL).toBe(`/maplibre/${mapLibrePackage.version}/maplibre-gl-worker.mjs`);
+    expect(MAP_WORKER_URL).not.toMatch(/cdn|unpkg|jsdelivr/);
+  });
   afterEach(() => {
     vi.unstubAllEnvs();
   });

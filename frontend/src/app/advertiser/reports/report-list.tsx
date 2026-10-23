@@ -3,6 +3,10 @@
 import { useState, useSyncExternalStore } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Panel } from "@/components/ui/panel";
+import { Button } from "@/components/ui/button";
+import { Field } from "@/components/ui/field";
+import { formatDateRange } from "@/lib/format";
+import { adminStatus } from "@/lib/status/admin";
 import type { components } from "@/lib/api/schema";
 
 type ReportList = components["schemas"]["CampaignReportList"];
@@ -131,7 +135,7 @@ export function Reports({
 
   return (
     <div className="space-y-6">
-      <Panel>
+      <Panel className="p-5 md:p-6">
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -139,27 +143,30 @@ export function Reports({
           }}
           className="space-y-4"
         >
-          <h2>Download a report</h2>
-          <p>Choose Nigeria calendar dates (WAT). Today includes results verified so far.</p>
-          <label className="block">
-            Campaign
-            <select
-              aria-label="Campaign"
-              value={pending ? pending.campaign_id || "all" : selection}
-              disabled={busy || !!pending || !!campaignId}
-              onChange={(event) => setSelection(event.target.value)}
-            >
-              {!campaignId ? <option value="all">All my campaigns</option> : null}
-              {campaigns.map((campaign) => (
-                <option key={campaign.id} value={campaign.id}>
-                  {campaign.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            From
-            <input
+          <h2 className="font-display text-xl font-semibold">Download a report</h2>
+          <p className="text-muted text-sm">
+            Choose Nigeria calendar dates (WAT). Today includes results verified so far.
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="text-ink flex min-w-0 flex-col gap-1.5 text-sm font-medium md:col-span-2">
+              Campaign
+              <select
+                aria-label="Campaign"
+                className="border-edge bg-raised focus:border-amber h-11 min-w-0 rounded-lg border px-3.5 text-sm font-normal focus:outline-none"
+                value={pending ? pending.campaign_id || "all" : selection}
+                disabled={busy || !!pending || !!campaignId}
+                onChange={(event) => setSelection(event.target.value)}
+              >
+                {!campaignId ? <option value="all">All my campaigns</option> : null}
+                {campaigns.map((campaign) => (
+                  <option key={campaign.id} value={campaign.id}>
+                    {campaign.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Field
+              label="From"
               aria-label="From"
               type="date"
               required
@@ -168,10 +175,8 @@ export function Reports({
               disabled={busy || !!pending}
               onChange={(event) => setStart(event.target.value)}
             />
-          </label>
-          <label className="block">
-            To
-            <input
+            <Field
+              label="To"
               aria-label="To"
               type="date"
               required
@@ -181,50 +186,58 @@ export function Reports({
               disabled={busy || !!pending}
               onChange={(event) => setEnd(event.target.value)}
             />
-          </label>
-          <button type="submit" disabled={busy || !campaigns.length}>
+          </div>
+          <Button type="submit" disabled={busy || !campaigns.length}>
             {busy ? "Checking…" : pending ? "Check request" : "Create report"}
-          </button>
-          <p role="status">
+          </Button>
+          <p role="status" className="text-muted text-sm">
             {message ||
               (restored
                 ? "A previous request needs checking. Check it before creating another report."
                 : "")}
           </p>
-          <p>
-            PDF includes charts and creative previews; PDF artwork uses a file tile. CSV contains
-            the results, chart data and artwork references. Measured driving is separate from
-            estimated views. Results need at least three cars in each campaign, day or area; a
-            withheld result is unavailable, not zero.
+          <p className="text-muted max-w-3xl text-sm leading-relaxed">
+            The PDF has charts and pictures of your advert. For PDF artwork, it shows the file name.
+            The CSV has the same results for a spreadsheet, including chart data and links to your
+            advert. Distance driven is measured; views are estimates. To protect drivers’ privacy,
+            we only show a result when at least three cars drove in that campaign, day or area. A
+            hidden result means not enough data, not zero.
           </p>
         </form>
       </Panel>
-      <section aria-label="Reports">
-        <h2>Reports</h2>
+      <section aria-label="Reports" className="space-y-4">
+        <h2 className="font-display text-xl font-semibold">Reports</h2>
         {reports.isPending ? (
-          <p role="status">Loading reports…</p>
+          <p role="status" className="text-muted text-sm">
+            Loading reports…
+          </p>
         ) : reports.isError ? (
-          <div role="alert">
+          <div role="alert" className="space-y-3">
             <p>Reports could not be loaded.</p>
-            <button onClick={() => void reports.refetch()}>Try again</button>
+            <Button variant="ghost" onClick={() => void reports.refetch()}>
+              Try again
+            </Button>
           </div>
         ) : (
           <>
             {!reports.data.items.length ? (
-              <p>No reports yet.</p>
+              <Panel className="text-muted p-5 text-sm">No reports yet.</Panel>
             ) : (
               reports.data.items.map((report) => (
-                <Panel key={report.id}>
-                  <h3>{report.campaigns.map((campaign) => campaign.name).join(", ")}</h3>
-                  <p>
-                    {report.start_date} to {report.end_date} · WAT ·{" "}
-                    {report.kind === "issued" ? "Issued" : report.kind} · Version {report.version}
+                <Panel key={report.id} className="space-y-3 p-5">
+                  <h3 className="text-ink font-semibold">
+                    {report.campaigns.map((campaign) => campaign.name).join(", ")}
+                  </h3>
+                  <p className="text-muted text-sm">
+                    {formatDateRange(report.start_date, report.end_date)} ·{" "}
+                    {adminStatus(report.kind, "report_kind")} · Version {report.version}
                   </p>
                   {report.status === "ready" ? (
-                    <div className="flex gap-4">
+                    <div className="flex flex-wrap gap-3">
                       {["csv", "pdf"].map((format) => (
                         <a
                           key={format}
+                          className="border-edge bg-raised text-ink hover:border-edge-strong inline-flex h-11 items-center justify-center rounded-lg border px-5 text-sm font-medium transition-colors"
                           href={`/api/advertiser/reports/${report.id}/download?format=${format}&legacy=${report.legacy}`}
                         >
                           Download {format.toUpperCase()}
@@ -232,7 +245,7 @@ export function Reports({
                       ))}
                     </div>
                   ) : (
-                    <p role="status">
+                    <p role="status" className="text-muted text-sm">
                       {report.status === "queued" ? "Preparing report…" : report.error}
                     </p>
                   )}
@@ -240,15 +253,20 @@ export function Reports({
               ))
             )}
             <div className="flex gap-4">
-              <button disabled={!offset} onClick={() => setOffset(Math.max(0, offset - 25))}>
+              <Button
+                variant="ghost"
+                disabled={!offset}
+                onClick={() => setOffset(Math.max(0, offset - 25))}
+              >
                 Previous
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
                 disabled={offset + 25 >= reports.data.total}
                 onClick={() => setOffset(offset + 25)}
               >
                 Next
-              </button>
+              </Button>
             </div>
           </>
         )}

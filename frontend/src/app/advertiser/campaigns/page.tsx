@@ -14,6 +14,9 @@ import { FilterChips } from "@/components/ui/tabs";
 import { DataUnavailable } from "@/components/ui/data-unavailable";
 import { loadAllAdvertiserPages, type UnavailableReason } from "@/lib/advertiser/page-data";
 import { bookedBudget, minorDecimal, type BudgetDisplay } from "@/lib/advertiser/budget-display";
+import { campaignDay } from "@/lib/campaigns/day-progress";
+import { CampaignTimeline } from "@/components/campaigns/campaign-timeline";
+import { PortalIcon } from "@/components/brand/portal-icon";
 
 export const metadata: Metadata = { title: "Campaigns" };
 
@@ -112,6 +115,7 @@ export default async function CampaignsPage({
         }
       />
 
+      <CampaignTimeline campaigns={campaigns} />
       <FilterChips
         label="Campaign groups"
         items={(Object.keys(groups) as Group[]).map((key) => ({
@@ -143,8 +147,13 @@ export default async function CampaignsPage({
                   <tr className="border-edge micro text-muted border-b text-left">
                     <th className="px-5 py-3.5 font-normal">Campaign</th>
                     <th className="px-5 py-3.5 font-normal">Status</th>
-                    <th className="px-5 py-3.5 font-normal">Window</th>
-                    <th className="px-5 py-3.5 text-right font-normal">Booked</th>
+                    <th className="px-5 py-3.5 font-normal">Dates</th>
+                    <th className="px-5 py-3.5 text-right font-normal">
+                      <span className="inline-flex items-center gap-2">
+                        <PortalIcon name="wallet" className="size-4" />
+                        Booked
+                      </span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -171,6 +180,9 @@ export default async function CampaignsPage({
                       </td>
                       <td className="text-muted px-5 py-4 text-[15px]">
                         {formatDateRange(c.start_at, c.end_at)}
+                        <p className="text-green mt-1 text-sm font-semibold">
+                          {campaignDay(c.start_at, c.end_at)}
+                        </p>
                       </td>
                       <td className="px-5 py-4 text-right text-[15px] tabular-nums">
                         <BookedCell value={bookedBudget(c)} />

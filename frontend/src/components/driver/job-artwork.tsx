@@ -1,6 +1,4 @@
-"use client";
-import Image from "next/image";
-import { useState } from "react";
+import { VanPreview } from "@/components/brand/van-preview";
 
 export function JobArtwork({
   assignmentId,
@@ -11,36 +9,22 @@ export function JobArtwork({
   kind: "image" | "document" | null;
   compact: boolean;
 }) {
-  const [failed, setFailed] = useState(false);
-  const [loaded, setLoaded] = useState(false);
   const source = assignmentId ? `/api/driver/jobs/${assignmentId}/artwork` : null;
   return (
     <div>
-      <div className={`relative overflow-hidden ${compact ? "h-28" : "h-36"}`}>
-        {!loaded ? (
-          <Image
-            src="/marketing/terrax/hero-vehicle-placeholder.svg"
-            width={1024}
-            height={1280}
-            alt="Illustration of a car carrying an advert"
-            className="h-full w-full object-cover object-[center_95%]"
-          />
-        ) : null}
-        {source && kind === "image" && !failed ? (
-          // eslint-disable-next-line @next/next/no-img-element -- authenticated no-store preview; never give a signed URL to the image optimizer
-          <img
-            src={source}
-            loading="lazy"
-            alt={loaded ? "Advert for this job" : ""}
-            className={`absolute inset-0 h-full w-full object-cover ${loaded ? "" : "opacity-0"}`}
-            onLoad={() => setLoaded(true)}
-            onError={() => {
-              setFailed(true);
-              setLoaded(false);
-            }}
-          />
-        ) : null}
+      <div className={`overflow-hidden ${compact ? "h-48" : "h-56"}`}>
+        <VanPreview
+          source={kind === "image" ? source : null}
+          label={
+            source && kind === "image"
+              ? "Advert for this job on a car"
+              : "Illustration of a car carrying an advert"
+          }
+        />
       </div>
+      {source && kind !== "image" ? (
+        <p className="text-muted px-4 pt-3 text-sm">Preview shows image files</p>
+      ) : null}
       {source && kind === "document" ? (
         <a
           className="text-green inline-block p-3 text-sm underline"

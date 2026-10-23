@@ -33,8 +33,8 @@ it("shows the empty state and clearly explains charts, estimates and withheld re
   fetchMock.mockImplementation(async () => Response.json(empty));
   show();
   expect(await screen.findByText("No reports yet.")).toBeInTheDocument();
-  expect(screen.getByText(/PDF includes charts and creative previews/)).toBeInTheDocument();
-  expect(screen.getByText(/withheld result is unavailable, not zero/)).toBeInTheDocument();
+  expect(screen.getByText(/The PDF has charts and pictures of your advert/)).toBeInTheDocument();
+  expect(screen.getByText(/not enough data, not zero/)).toBeInTheDocument();
   expect(screen.queryByText(/ROI|CTR|budget figures|money figures/)).not.toBeInTheDocument();
 });
 
@@ -114,6 +114,9 @@ it("offers both immutable downloads when ready and retains the old-issued identi
   expect(screen.getByRole("link", { name: "Download PDF" })).toHaveAttribute(
     "href",
     "/api/advertiser/reports/issued/download?format=pdf&legacy=true",
+  );
+  expect(screen.getByText(/Version 1/)).toHaveTextContent(
+    "1 Oct 2026 → 7 Oct 2026 · Issued report · Version 1",
   );
 });
 
