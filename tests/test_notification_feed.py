@@ -445,7 +445,6 @@ def _insert_notice(
                     payload=payload,
                 ),
                 created_at=created_at,
-                delivered_at=created_at,
             )
             session.add(notice)
             await session.commit()
@@ -478,7 +477,6 @@ def test_notification_creator_replays_exactly_rejects_changed_facts_and_freezes_
             assert first.id == replay.id
             assert first.status == "sent"
             assert first.sent_at is not None
-            assert first.delivered_at is None
             assert first.provider_message_id is None
             with pytest.raises(AppError) as conflict:
                 await create_notification(

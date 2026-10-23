@@ -29,7 +29,6 @@ class Action(StrEnum):
     DELETE = "delete"
     TRANSITION = "transition"
     DOWNLOAD = "download"
-    EXPORT = "export"
     JOB = "job"
     CALLBACK = "callback"
 
@@ -84,7 +83,6 @@ MACHINE_ROUTES = frozenset(
     {
         ("POST", "/api/v1/webhooks/payments"),
         ("POST", "/api/v1/webhooks/paystack"),
-        ("POST", "/api/v1/notifications/email/delivery-receipts"),
     }
 )
 
@@ -172,8 +170,6 @@ def _action(method: str, path: str, principal: Principal) -> Action:
     final = path.rstrip("/").rsplit("/", 1)[-1]
     if final == "download":
         return Action.DOWNLOAD
-    if "export" in final:
-        return Action.EXPORT
     if any(term in path for term in ("recompute", "estimate", "evaluation")):
         return Action.JOB
     if final in _TRANSITION_TERMS:

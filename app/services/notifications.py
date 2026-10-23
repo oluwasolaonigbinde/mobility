@@ -1,5 +1,4 @@
 import hashlib
-import hmac
 import json
 from datetime import UTC, datetime
 from typing import Any
@@ -24,7 +23,6 @@ from app.models.driver_application import DriverAccountSetupToken, DriverApplica
 from app.models.notification import (
     Notification,
     NotificationChannel,
-    NotificationDeliveryReceipt,
     NotificationStatus,
     NotificationType,
 )
@@ -310,115 +308,6 @@ async def create_advertiser_email_notification(
         channel=NotificationChannel.TRANSACTIONAL_EMAIL,
         template_version=template_version,
     )
-
-
-def email_receipt_fingerprint(payload: dict[str, Any]) -> tuple[bytes, str]:
-    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
-    return canonical, hashlib.sha256(canonical).hexdigest()
-
-
-async def record_email_delivery_receipt(  # noqa: C901
-    session: AsyncSession,
-    *,
-    payload: dict[str, Any],
-    signature: str,
-    signing_key_id: str,
-    signing_secret: bytes | None,
-    configured_key_id: str,
-) -> NotificationDeliveryReceipt:
-    if not signing_secret or not configured_key_id:
-        raise AppError(
-            "EMAIL_RECEIPTS_UNCONFIGURED",
-            "Email delivery receipts are not configured",
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        )
-    canonical, fingerprint = email_receipt_fingerprint(payload)
-    supplied = signature.removeprefix("sha256=")
-    expected = hmac.new(signing_secret, canonical, hashlib.sha256).hexdigest()
-    if signing_key_id != configured_key_id or not hmac.compare_digest(expected, supplied):
-        raise AppError(
-            "INVALID_EMAIL_RECEIPT_SIGNATURE",
-            "Email delivery receipt signature is invalid",
-            status_code=status.HTTP_401_UNAUTHORIZED,
-        )
-    existing_event = await session.scalar(
-        select(NotificationDeliveryReceipt).where(
-            NotificationDeliveryReceipt.provider_event_id == payload["provider_event_id"]
-        )
-    )
-    if existing_event is not None:
-        if existing_event.evidence_fingerprint != fingerprint:
-            raise AppError(
-                "EMAIL_RECEIPT_REPLAY_CONFLICT",
-                "Email delivery receipt retry does not match the original event",
-                status_code=status.HTTP_409_CONFLICT,
-            )
-        return existing_event
-    notice = await session.scalar(
-        select(Notification)
-        .where(Notification.provider_message_id == payload["provider_message_id"])
-        .with_for_update()
-    )
-    if notice is None:
-        raise AppError(
-            "EMAIL_NOTIFICATION_NOT_FOUND",
-            "Email delivery receipt does not match a notification",
-            status_code=status.HTTP_404_NOT_FOUND,
-        )
-    existing_notice = await session.scalar(
-        select(NotificationDeliveryReceipt).where(
-            NotificationDeliveryReceipt.notification_id == notice.id
-        )
-    )
-    if existing_notice is not None:
-        raise AppError(
-            "EMAIL_RECEIPT_TERMINAL_CONFLICT",
-            "A terminal receipt already exists for this notification",
-            status_code=status.HTTP_409_CONFLICT,
-        )
-    if notice.status != NotificationStatus.SENT.value:
-        raise AppError(
-            "EMAIL_RECEIPT_INVALID_STATE",
-            "Email notification is not awaiting a delivery receipt",
-            status_code=status.HTTP_409_CONFLICT,
-        )
-    receipt = NotificationDeliveryReceipt(
-        notification_id=notice.id,
-        provider_event_id=payload["provider_event_id"],
-        provider_message_id=payload["provider_message_id"],
-        outcome=payload["outcome"],
-        occurred_at=(
-            datetime.fromisoformat(payload["occurred_at"].replace("Z", "+00:00"))
-            if isinstance(payload["occurred_at"], str)
-            else payload["occurred_at"]
-        ),
-        evidence_fingerprint=fingerprint,
-        signing_key_id=signing_key_id,
-    )
-    try:
-        async with session.begin_nested():
-            session.add(receipt)
-            notice.status = payload["outcome"]
-            if payload["outcome"] == NotificationStatus.DELIVERED.value:
-                notice.delivered_at = receipt.occurred_at
-            else:
-                notice.failed_at = receipt.occurred_at
-                notice.last_error_code = "provider_delivery_failed"
-            await session.flush()
-    except IntegrityError:
-        concurrent = await session.scalar(
-            select(NotificationDeliveryReceipt).where(
-                NotificationDeliveryReceipt.provider_event_id == payload["provider_event_id"]
-            )
-        )
-        if concurrent is None or concurrent.evidence_fingerprint != fingerprint:
-            raise AppError(
-                "EMAIL_RECEIPT_REPLAY_CONFLICT",
-                "Email delivery receipt conflicts with an accepted receipt",
-                status_code=status.HTTP_409_CONFLICT,
-            ) from None
-        return concurrent
-    return receipt
 
 
 async def _recipient_for_flag(session: AsyncSession, flag: FraudFlag) -> UUID:

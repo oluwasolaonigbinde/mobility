@@ -3,12 +3,11 @@ from datetime import UTC, datetime, timedelta
 from urllib.parse import quote, urlsplit
 from uuid import UUID, uuid4
 
-from sqlalchemy import String, case, cast, func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.adapters.messaging import EmailAdapter, EmailMessage, EmailSendError
 from app.core.config import Settings
-from app.models.audit import AuditEvent
 from app.models.campaign_assignment import CampaignAssignment
 from app.models.contact import PasswordResetToken
 from app.models.driver_application import (
@@ -191,6 +190,15 @@ async def _claim(
                 and _utc(notice.delivery_claim_expires_at) > _utc(now)
             )
         ):
+            return None
+        if notice.attempt_count >= settings.email_delivery_max_attempts:
+            notice.status = NotificationStatus.FAILED.value
+            notice.failed_at = now
+            notice.last_error_code = "email_attempts_exhausted"
+            notice.next_attempt_at = None
+            notice.delivery_claim_token = None
+            notice.delivery_claim_expires_at = None
+            await session.commit()
             return None
         allowed, recipient_or_error = await _preference_allows_delivery(session, notice)
         if not allowed:
@@ -422,25 +430,6 @@ async def process_email_notification(  # noqa: C901
 
 
 logger = logging.getLogger(__name__)
-
-
-def email_sweep_visit_order(session: AsyncSession):
-    """Rotate durably failed prefixes without changing uncertain delivery claims."""
-    event_entity_id = AuditEvent.entity_id
-    last_failure_at = (
-        select(func.max(AuditEvent.created_at))
-        .where(
-            AuditEvent.action == "worker.email_delivery.failed",
-            AuditEvent.entity_type == "notification",
-            event_entity_id == cast(Notification.id, String),
-        )
-        .correlate(Notification)
-        .scalar_subquery()
-    )
-    return case(
-        (last_failure_at > Notification.created_at, last_failure_at),
-        else_=Notification.created_at,
-    )
 
 
 async def record_unexpected_email_failure(

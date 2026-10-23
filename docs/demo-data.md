@@ -228,9 +228,10 @@ separate audited reads. Bank approval still requires verification authority.
 For the phone demonstration, save the driver's fictional number, tap Verify my
 phone, then enter the displayed code and that same sender in Phone → Record
 phone verification, or Support → Driver contact. Staff never fetch the code.
-Production/staging destinations remain blank; real use additionally requires
-`PHONE_OPERATOR_EXTERNAL_APPROVED`, `PHONE_OPERATOR_NAME` and
-`PHONE_WHATSAPP_NOTICE_APPROVAL_REFERENCE` with REQ-032 approved wording.
+D117/REQ-216 supersedes the old temporary destination and operator settings:
+all default examples use the client Terrax support number +2347074200080
+(07074200080). Code expiry, attempt limits and staff audit remain. Approved
+message wording remains a controller launch-checklist responsibility.
 Preview deployment is a separate owner action; this change provides configuration
 and source only.
 

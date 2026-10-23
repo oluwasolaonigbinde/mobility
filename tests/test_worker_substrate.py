@@ -9,7 +9,6 @@ import pytest
 import sentry_sdk
 import yaml
 from arq.connections import RedisSettings
-from pydantic import ValidationError
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
@@ -27,31 +26,6 @@ def test_worker_settings_defaults() -> None:
     assert settings.fraud_review_sla_days == 7
     assert WorkerSettings.health_check_interval == 30
     assert EntryWorkerSettings.health_check_interval == 30
-
-
-@pytest.mark.parametrize("invalid_value", [0, 7, 13, 61, -5])
-def test_worker_sweep_interval_rejects_non_divisors_of_60(invalid_value: int) -> None:
-    with pytest.raises(ValidationError):
-        Settings(worker_sweep_interval_minutes=invalid_value)
-
-
-@pytest.mark.parametrize("valid_value", [1, 5, 6, 10, 12, 15, 20, 30, 60])
-def test_worker_sweep_interval_accepts_divisors_of_60(valid_value: int) -> None:
-    settings = Settings(worker_sweep_interval_minutes=valid_value)
-
-    assert settings.worker_sweep_interval_minutes == valid_value
-
-
-@pytest.mark.parametrize("invalid_value", [0, -1])
-def test_worker_sweep_batch_size_must_be_positive(invalid_value: int) -> None:
-    with pytest.raises(ValidationError):
-        Settings(worker_sweep_batch_size=invalid_value)
-
-
-@pytest.mark.parametrize("invalid_value", [0, -1])
-def test_fraud_review_sla_days_must_be_positive(invalid_value: int) -> None:
-    with pytest.raises(ValidationError, match="FRAUD_REVIEW_SLA_DAYS must be positive"):
-        Settings(fraud_review_sla_days=invalid_value)
 
 
 def test_sweep_cron_minutes_tiles_the_hour() -> None:
@@ -196,13 +170,16 @@ def test_worker_entry_exposes_configured_worker_settings() -> None:
     assert result.stdout.strip() == "redis.example 8"
 
 
-def test_compose_worker_uses_strict_entry_and_passes_sweep_settings() -> None:
+def test_compose_worker_uses_strict_entry_without_fixed_setting_knobs() -> None:
     compose_path = Path(__file__).parents[1] / "docker-compose.yml"
     compose = yaml.safe_load(compose_path.read_text())
 
     backend_env = compose["x-backend-env"]
-    assert backend_env["WORKER_SWEEP_INTERVAL_MINUTES"] == ("${WORKER_SWEEP_INTERVAL_MINUTES:-5}")
-    assert backend_env["WORKER_SWEEP_BATCH_SIZE"] == "${WORKER_SWEEP_BATCH_SIZE:-25}"
-    assert backend_env["FRAUD_REVIEW_SLA_DAYS"] == "${FRAUD_REVIEW_SLA_DAYS:-7}"
+    for fixed in (
+        "WORKER_SWEEP_INTERVAL_MINUTES",
+        "WORKER_SWEEP_BATCH_SIZE",
+        "FRAUD_REVIEW_SLA_DAYS",
+    ):
+        assert fixed not in backend_env
     assert compose["services"]["worker"]["command"] == ("arq app.jobs.worker_entry.WorkerSettings")
     assert "ports" not in compose["services"]["worker"]

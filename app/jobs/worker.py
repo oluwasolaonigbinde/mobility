@@ -26,7 +26,7 @@ from app.jobs.disbursements import (
     sweep_payout_provider_events,
 )
 from app.jobs.earnings_release import sweep_earnings_release_reviews
-from app.jobs.email_delivery import deliver_email, sweep_email_notifications
+from app.jobs.email_delivery import deliver_email, enqueue_pending_email
 from app.jobs.file_lifecycle import (
     purge_expired_file_kyc,
     purge_orphaned_file_uploads,
@@ -164,7 +164,7 @@ class WorkerSettings:
             unique=True,
         ),
         cron(
-            sweep_email_notifications,
+            enqueue_pending_email,
             minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
             unique=True,
         ),

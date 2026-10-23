@@ -397,10 +397,6 @@ EXEMPT = {
         "campaign, request, revision, allocation or audit row; the separately confirmed command "
         "is the audited authority mutation."
     ),
-    ("POST", "/api/v1/notifications/email/delivery-receipts"): (
-        "Provider-authenticated machine callback: the signed, fingerprinted, append-only "
-        "notification_delivery_receipts row is the canonical delivery evidence."
-    ),
     ("POST", "/api/v1/webhooks/payments"): (
         "Provider-authenticated machine callback: the append-only payment_gateway_events row "
         "is the canonical ingestion evidence and downstream receipt/allocation mutations are "

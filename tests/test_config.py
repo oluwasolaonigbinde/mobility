@@ -256,12 +256,13 @@ def test_short_jwt_secret_rejected() -> None:
     ],
 )
 @pytest.mark.parametrize("invalid_value", [0, -1])
-def test_location_tracking_settings_must_be_positive(
+def test_location_tracking_limits_cannot_be_overridden(
     setting_name: str,
     invalid_value: int,
 ) -> None:
-    with pytest.raises(ValidationError):
-        Settings(**{setting_name: invalid_value})
+    assert getattr(Settings(**{setting_name: invalid_value}), setting_name) == getattr(
+        Settings(), setting_name
+    )
 
 
 @pytest.mark.parametrize(
@@ -349,33 +350,22 @@ def test_impression_min_confidence_must_not_exceed_max() -> None:
         Settings(impression_min_confidence=0.9, impression_max_confidence=0.5)
 
 
-def test_email_provider_and_receipt_authority_have_no_production_defaults() -> None:
+def test_email_provider_have_no_production_defaults() -> None:
     settings = Settings(
         email_provider="",
         email_sender_address="",
         email_smtp_host="",
-        email_receipt_signing_secret=None,
-        email_receipt_key_id="",
     )
 
     assert settings.email_provider == ""
     assert settings.email_sender_address == ""
     assert settings.email_smtp_host == ""
-    assert settings.email_receipt_signing_secret is None
-    assert settings.email_receipt_key_id == ""
 
 
 @pytest.mark.parametrize("invalid_provider", ["ses", "sendgrid", "unknown"])
 def test_email_provider_rejects_unimplemented_live_choices(invalid_provider: str) -> None:
     with pytest.raises(ValidationError):
         Settings(email_provider=invalid_provider)
-
-
-def test_email_receipt_secret_rejects_short_values() -> None:
-    with pytest.raises(ValidationError):
-        Settings(email_receipt_signing_secret="too-short")
-
-    assert Settings(email_receipt_signing_secret="").email_receipt_signing_secret is None
 
 
 @pytest.mark.parametrize(
@@ -388,8 +378,13 @@ def test_email_receipt_secret_rejects_short_values() -> None:
     ],
 )
 def test_email_delivery_numeric_settings_must_be_positive(setting_name: str) -> None:
-    with pytest.raises(ValidationError):
-        Settings(**{setting_name: 0})
+    if setting_name == "email_smtp_port":
+        with pytest.raises(ValidationError):
+            Settings(**{setting_name: 0})
+    else:
+        assert getattr(Settings(**{setting_name: 0}), setting_name) == getattr(
+            Settings(), setting_name
+        )
 
 
 def test_default_currency_must_be_three_letters() -> None:

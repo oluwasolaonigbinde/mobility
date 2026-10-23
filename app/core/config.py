@@ -4,7 +4,7 @@ import ipaddress
 import json
 import re
 from functools import lru_cache
-from typing import Annotated
+from typing import Annotated, ClassVar
 from urllib.parse import parse_qsl, urlsplit
 
 from pydantic import BeforeValidator, Field, SecretStr, field_validator, model_validator
@@ -145,22 +145,22 @@ class Settings(BaseSettings):
     redis_url: str | None = None
     sentry_dsn: str = ""
     release_revision: str = ""
-    login_rate_limit_ip_max_failures: int = 150
-    login_rate_limit_ip_window_seconds: int = 300
-    login_rate_limit_account_max_failures: int = 5
-    login_rate_limit_account_window_seconds: int = 900
-    login_rate_limit_global_max_failures: int = 250
-    login_rate_limit_global_window_seconds: int = 300
+    login_rate_limit_ip_max_failures: ClassVar[int] = 150
+    login_rate_limit_ip_window_seconds: ClassVar[int] = 300
+    login_rate_limit_account_max_failures: ClassVar[int] = 5
+    login_rate_limit_account_window_seconds: ClassVar[int] = 900
+    login_rate_limit_global_max_failures: ClassVar[int] = 250
+    login_rate_limit_global_window_seconds: ClassVar[int] = 300
     login_rate_limit_trust_client_ip_header: bool = False
     login_rate_limit_trusted_proxy_cidrs: str = ""
     # Registration keeps separate buckets from login so a public applicant can
     # never consume or refund a credential-guessing allowance.
-    driver_registration_rate_limit_ip_max_attempts: int = 10
-    driver_registration_rate_limit_ip_window_seconds: int = 3600
-    driver_registration_rate_limit_email_max_attempts: int = 3
-    driver_registration_rate_limit_email_window_seconds: int = 3600
-    driver_onboarding_access_ttl_seconds: int = 86400
-    driver_account_setup_ttl_seconds: int = 86400
+    driver_registration_rate_limit_ip_max_attempts: ClassVar[int] = 10
+    driver_registration_rate_limit_ip_window_seconds: ClassVar[int] = 3600
+    driver_registration_rate_limit_email_max_attempts: ClassVar[int] = 3
+    driver_registration_rate_limit_email_window_seconds: ClassVar[int] = 3600
+    driver_onboarding_access_ttl_seconds: ClassVar[int] = 86400
+    driver_account_setup_ttl_seconds: ClassVar[int] = 86400
     driver_account_setup_public_url: str = ""
     driver_registration_rate_limit_trust_client_ip_header: bool = False
     driver_registration_rate_limit_trusted_proxy_cidrs: str = ""
@@ -171,9 +171,9 @@ class Settings(BaseSettings):
     request_id_header: str = "X-Request-ID"
     jwt_secret_key: str = DEFAULT_JWT_SECRET
     jwt_algorithm: str = "HS256"
-    access_token_expire_minutes: int = 60
-    session_absolute_lifetime_minutes: int = 720
-    password_min_length: int = 12
+    access_token_expire_minutes: ClassVar[int] = 60
+    session_absolute_lifetime_minutes: ClassVar[int] = 720
+    password_min_length: ClassVar[int] = 12
     default_currency: str = "NGN"
     invoice_issuer_external_input_reference: str = ""
     payout_crypto_keyring_b64: SecretStr
@@ -186,16 +186,16 @@ class Settings(BaseSettings):
     object_storage_bucket: str = ""
     object_storage_access_key_id: SecretStr | None = None
     object_storage_secret_access_key: SecretStr | None = None
-    object_storage_presign_ttl_seconds: int = 300
-    object_storage_orphan_ttl_hours: int = 24
-    object_storage_download_ttl_seconds: int = 60
+    object_storage_presign_ttl_seconds: ClassVar[int] = 300
+    object_storage_orphan_ttl_hours: ClassVar[int] = 24
+    object_storage_download_ttl_seconds: ClassVar[int] = 60
     # The installation-photo rule is built into installation_evidence.py (REQ-208).
     # Production provider and verified sender identity are external inputs.
-    # Empty values keep provider dispatch and receipt handling fail closed.
+    # Empty provider values keep dispatch fail closed. Security limits are fixed.
     email_provider: str = ""
-    campaign_enquiry_rate_limit_ip_max_attempts: int = Field(default=5, ge=1)
-    campaign_enquiry_rate_limit_global_max_attempts: int = Field(default=100, ge=1)
-    campaign_enquiry_rate_limit_window_seconds: int = Field(default=3600, ge=1)
+    campaign_enquiry_rate_limit_ip_max_attempts: ClassVar[int] = 5
+    campaign_enquiry_rate_limit_global_max_attempts: ClassVar[int] = 100
+    campaign_enquiry_rate_limit_window_seconds: ClassVar[int] = 3600
     email_sender_address: str = ""
     email_sender_name: str = "Cardvert"
     email_smtp_host: str = ""
@@ -203,36 +203,31 @@ class Settings(BaseSettings):
     email_smtp_username: str = ""
     email_smtp_password: OptionalSecret = None
     email_smtp_starttls: bool = False
-    email_receipt_signing_secret: OptionalSecret = None
-    email_receipt_key_id: str = ""
-    email_delivery_max_attempts: int = 5
-    email_delivery_retry_base_seconds: int = 60
-    email_delivery_claim_seconds: int = 120
+    email_delivery_max_attempts: ClassVar[int] = 5
+    email_delivery_retry_base_seconds: ClassVar[int] = 60
+    email_delivery_claim_seconds: ClassVar[int] = 120
     # EXT-PAYMENT-PROVIDER: blank keeps every Paystack path on the disabled adapters.
     paystack_secret_key: OptionalSecret = None
     paystack_checkout_return_url: str = ""
-    phone_operator_external_approved: bool = False
-    phone_operator_name: str = ""
-    phone_whatsapp_notice_approval_reference: str = ""
-    phone_verification_terrax_number: str = ""
-    phone_verification_ttl_seconds: int = 600
-    phone_verification_max_code_attempts: int = 5
-    phone_verification_request_max_attempts: int = 3
-    phone_verification_request_window_seconds: int = 3600
-    password_reset_ttl_seconds: int = 1800
-    password_reset_account_max_attempts: int = 3
-    password_reset_ip_max_attempts: int = 10
-    password_reset_rate_window_seconds: int = 3600
+    phone_verification_terrax_number: str = "+2347074200080"
+    phone_verification_ttl_seconds: ClassVar[int] = 600
+    phone_verification_max_code_attempts: ClassVar[int] = 5
+    phone_verification_request_max_attempts: ClassVar[int] = 3
+    phone_verification_request_window_seconds: ClassVar[int] = 3600
+    password_reset_ttl_seconds: ClassVar[int] = 1800
+    password_reset_account_max_attempts: ClassVar[int] = 3
+    password_reset_ip_max_attempts: ClassVar[int] = 10
+    password_reset_rate_window_seconds: ClassVar[int] = 3600
     password_reset_public_url: str = ""
     malware_scanner_host: str = ""
-    malware_scanner_port: int = 3310
-    malware_scanner_timeout_seconds: int = 30
-    max_campaign_zone_area_sq_km: int = 5000
-    max_location_pings_per_batch: int = 500
-    location_ping_future_skew_seconds: int = 300
-    location_ping_start_skew_seconds: int = 900
-    max_location_accuracy_m: int = 10000
-    max_location_speed_mps: int = 120
+    malware_scanner_port: ClassVar[int] = 3310
+    malware_scanner_timeout_seconds: ClassVar[int] = 30
+    max_campaign_zone_area_sq_km: ClassVar[int] = 5000
+    max_location_pings_per_batch: ClassVar[int] = 500
+    location_ping_future_skew_seconds: ClassVar[int] = 300
+    location_ping_start_skew_seconds: ClassVar[int] = 900
+    max_location_accuracy_m: ClassVar[int] = 10000
+    max_location_speed_mps: ClassVar[int] = 120
     route_analytics_formula_version: str = "route_analytics_v1"
     route_analytics_min_valid_pings: int = 2
     route_analytics_moving_speed_mps: float = 1.0
@@ -274,12 +269,12 @@ class Settings(BaseSettings):
     # RM3 seal protocol: recovery window after an incomplete/legacy trip end
     # before the sweep force-seals; and how far past ended_at a late ping's
     # recorded_at may fall (matches location_ping_future_skew tolerance).
-    trip_seal_grace_seconds: int = 600
-    location_ping_end_skew_seconds: int = 300
-    worker_sweep_interval_minutes: int = 5
-    worker_sweep_batch_size: int = 25
+    trip_seal_grace_seconds: ClassVar[int] = 600
+    location_ping_end_skew_seconds: ClassVar[int] = 300
+    worker_sweep_interval_minutes: ClassVar[int] = 5
+    worker_sweep_batch_size: ClassVar[int] = 25
 
-    fraud_review_sla_days: int = 7
+    fraud_review_sla_days: ClassVar[int] = 7
     ping_retention_months: int = 12
     partition_premake_months: int = 4
 
@@ -298,13 +293,6 @@ class Settings(BaseSettings):
             raise ValueError("Wildcard CORS origins are not allowed outside local/test")
         return value
 
-    @field_validator("access_token_expire_minutes", "session_absolute_lifetime_minutes")
-    @classmethod
-    def validate_access_token_expire_minutes(cls, value: int) -> int:
-        if value <= 0:
-            raise ValueError("ACCESS_TOKEN_EXPIRE_MINUTES must be positive")
-        return value
-
     @field_validator("release_revision")
     @classmethod
     def validate_release_revision(cls, value: str, info) -> str:
@@ -321,47 +309,12 @@ class Settings(BaseSettings):
             raise ValueError("LOG_FORMAT must be text or json")
         return normalized
 
-    @field_validator(
-        "login_rate_limit_ip_max_failures",
-        "login_rate_limit_ip_window_seconds",
-        "login_rate_limit_account_max_failures",
-        "login_rate_limit_account_window_seconds",
-        "login_rate_limit_global_max_failures",
-        "login_rate_limit_global_window_seconds",
-        "driver_registration_rate_limit_ip_max_attempts",
-        "driver_registration_rate_limit_ip_window_seconds",
-        "driver_registration_rate_limit_email_max_attempts",
-        "driver_registration_rate_limit_email_window_seconds",
-        "phone_verification_ttl_seconds",
-        "phone_verification_max_code_attempts",
-        "phone_verification_request_max_attempts",
-        "phone_verification_request_window_seconds",
-        "password_reset_ttl_seconds",
-        "driver_onboarding_access_ttl_seconds",
-        "driver_account_setup_ttl_seconds",
-        "password_reset_account_max_attempts",
-        "password_reset_ip_max_attempts",
-        "password_reset_rate_window_seconds",
-    )
-    @classmethod
-    def validate_positive_rate_limit_settings(cls, value: int) -> int:
-        if value <= 0:
-            raise ValueError("Login rate-limit settings must be positive")
-        return value
-
     @model_validator(mode="after")
     def validate_runtime_dependency_urls(self):
         if self.environment.lower() not in LOCAL_ENVIRONMENTS:
             _validate_database_url(self.database_url)
             _validate_redis_url(self.redis_url)
         return self
-
-    @field_validator("password_min_length")
-    @classmethod
-    def validate_password_min_length(cls, value: int) -> int:
-        if value < 12:
-            raise ValueError("PASSWORD_MIN_LENGTH must be at least 12")
-        return value
 
     @field_validator("jwt_secret_key")
     @classmethod
@@ -386,41 +339,6 @@ class Settings(BaseSettings):
             raise ValueError("PAYSTACK_SECRET_KEY live keys are refused outside production")
         if environment == "production" and secret.startswith("sk_test_"):
             raise ValueError("PAYSTACK_SECRET_KEY test keys are refused in production")
-        return value
-
-    @field_validator("max_campaign_zone_area_sq_km")
-    @classmethod
-    def validate_max_campaign_zone_area_sq_km(cls, value: int) -> int:
-        if value <= 0:
-            raise ValueError("MAX_CAMPAIGN_ZONE_AREA_SQ_KM must be positive")
-        return value
-
-    @field_validator(
-        "object_storage_presign_ttl_seconds",
-        "object_storage_orphan_ttl_hours",
-        "object_storage_download_ttl_seconds",
-        "malware_scanner_port",
-        "malware_scanner_timeout_seconds",
-    )
-    @classmethod
-    def validate_positive_file_boundary_settings(cls, value: int) -> int:
-        if value <= 0:
-            raise ValueError("File-boundary numeric settings must be positive")
-        return value
-
-    @field_validator(
-        "max_location_pings_per_batch",
-        "location_ping_future_skew_seconds",
-        "location_ping_start_skew_seconds",
-        "location_ping_end_skew_seconds",
-        "trip_seal_grace_seconds",
-        "max_location_accuracy_m",
-        "max_location_speed_mps",
-    )
-    @classmethod
-    def validate_positive_tracking_settings(cls, value: int) -> int:
-        if value <= 0:
-            raise ValueError("Location tracking settings must be positive")
         return value
 
     @field_validator(
@@ -523,28 +441,7 @@ class Settings(BaseSettings):
             raise ValueError("Privacy disclosure settings must be positive")
         return value
 
-    @field_validator("worker_sweep_interval_minutes")
-    @classmethod
-    def validate_worker_sweep_interval_minutes(cls, value: int) -> int:
-        if not (1 <= value <= 60 and 60 % value == 0):
-            raise ValueError(
-                "WORKER_SWEEP_INTERVAL_MINUTES must be a divisor of 60 between 1 and 60"
-            )
-        return value
-
-    @field_validator("worker_sweep_batch_size")
-    @classmethod
-    def validate_worker_sweep_batch_size(cls, value: int) -> int:
-        if value <= 0:
-            raise ValueError("WORKER_SWEEP_BATCH_SIZE must be positive")
-        return value
-
-    @field_validator(
-        "email_smtp_port",
-        "email_delivery_max_attempts",
-        "email_delivery_retry_base_seconds",
-        "email_delivery_claim_seconds",
-    )
+    @field_validator("email_smtp_port")
     @classmethod
     def validate_positive_email_settings(cls, value: int) -> int:
         if value <= 0:
@@ -558,20 +455,6 @@ class Settings(BaseSettings):
         if normalized not in {"", "smtp"}:
             raise ValueError("EMAIL_PROVIDER must be blank or smtp")
         return normalized
-
-    @field_validator("email_receipt_signing_secret")
-    @classmethod
-    def validate_email_receipt_signing_secret(cls, value: SecretStr | None) -> SecretStr | None:
-        if value is not None and len(value.get_secret_value()) < 32:
-            raise ValueError("EMAIL_RECEIPT_SIGNING_SECRET must be at least 32 characters")
-        return value
-
-    @field_validator("fraud_review_sla_days")
-    @classmethod
-    def validate_fraud_review_sla_days(cls, value: int) -> int:
-        if value <= 0:
-            raise ValueError("FRAUD_REVIEW_SLA_DAYS must be positive")
-        return value
 
     @field_validator("ping_retention_months")
     @classmethod

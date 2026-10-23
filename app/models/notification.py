@@ -65,7 +65,6 @@ class NotificationChannel(StrEnum):
 class NotificationStatus(StrEnum):
     PENDING = "pending"
     SENT = "sent"
-    DELIVERED = "delivered"
     FAILED = "failed"
 
 
@@ -86,7 +85,7 @@ class Notification(Base):
             name="ck_notifications_channel",
         ),
         CheckConstraint(
-            "status IN ('pending', 'sent', 'delivered', 'failed')",
+            "status IN ('pending', 'sent', 'failed')",
             name="ck_notifications_status",
         ),
         CheckConstraint("attempt_count >= 0", name="ck_notifications_attempt_count"),
@@ -155,49 +154,10 @@ class Notification(Base):
     dedupe_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
     failed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-
-
-class NotificationDeliveryReceipt(Base):
-    __tablename__ = "notification_delivery_receipts"
-    __table_args__ = (
-        CheckConstraint(
-            "outcome IN ('delivered', 'failed')",
-            name="ck_notification_delivery_receipts_outcome",
-        ),
-        UniqueConstraint("notification_id", name="uq_notification_receipts_notification"),
-        UniqueConstraint("provider_event_id", name="uq_notification_receipts_provider_event"),
-    )
-
-    id: Mapped[UUID] = mapped_column(
-        primary_key=True, default=uuid4, server_default=text("gen_random_uuid()")
-    )
-    notification_id: Mapped[UUID] = mapped_column(
-        ForeignKey("notifications.id", ondelete="RESTRICT"), nullable=False
-    )
-    provider_event_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    provider_message_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    outcome: Mapped[str] = mapped_column(String(32), nullable=False)
-    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    evidence_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
-    signing_key_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    verified_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
-
-
-@event.listens_for(NotificationDeliveryReceipt, "before_update")
-def reject_notification_receipt_update(_mapper, _connection, _target) -> None:
-    raise ValueError("notification delivery receipts are immutable")
-
-
-@event.listens_for(NotificationDeliveryReceipt, "before_delete")
-def reject_notification_receipt_delete(_mapper, _connection, _target) -> None:
-    raise ValueError("notification delivery receipts are append-only")
 
 
 _FROZEN_EVIDENCE_FIELDS = frozenset(

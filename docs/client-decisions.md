@@ -510,6 +510,7 @@ seven-day review target and are never released automatically; unresolved cases
 escalate after day seven (Q22).
 
 **History:**
+- **2026-10-20** — D117 supersedes operator provisioning and signed email receipts, using the client support number and fixed existing security values; REQ-216. The previous rule required a named approved operator and approval reference for live phone verification.
 - **2026-10-07** — Owner Claude polish review clarifies the earnings presentation: Ready to pay, Waiting for review and Paid consistently, no repeated page-count summary and one short explanation (REQ-142); amount and payment authority are unchanged. Superseded by the later D65/D66 driver design: Paid with its date, Paying tonight, Being checked and On hold – contact support; the pay explanation lives only in Help. Built in `78ad5580`; the superseding master design is retained by `21239a6d`.
 - **2026-07** — Hold-and-review adopted (D5); client confirmed 2026-08-14 (Q21, Q22, D18).
 
@@ -536,7 +537,7 @@ company-wide visibility, [REQ-024](requests.md) erasure.
 
 ### Notifications and contact
 
-**7 Oct demo correction (D73, REQ-145):** Nigerian-format synthetic driver phones; the owner’s +2347068369842 is the temporary local/preview Terrax destination. The PM’s real preview WhatsApp number is [REQ-143](requests.md). Live operator/wording gates remain.
+**Historical 7 Oct demo correction (D73, REQ-145; superseded 20 Oct by D117):** Nigerian-format synthetic driver phones; the owner’s +2347068369842 is the temporary local/preview Terrax destination. The PM’s real preview WhatsApp number is [REQ-143](requests.md). Live operator/wording gates remain.
 
 
 
@@ -556,10 +557,22 @@ For phone verification, only the signed-in driver sees a one-time code and
 sends it by WhatsApp or SMS to the configured Terrax number. Customer Service
 records the received code and sender number; Cardvert verifies the current
 phone once, limits attempts and logs the staff action. No configured number
-means no driver button. Live use waits for approved wording (REQ-032) and a
-named operator (D70, REQ-138).
+means no driver button. D117 (20 October, REQ-216) makes the client support
+number 07074200080 the only phone setting, stored as +2347074200080 for WhatsApp;
+operator-approved/name/reference switches are removed. Code expiry (10 minutes),
+five code attempts, three requests per hour and the staff audit remain.
+
+**20 October implementation checkpoint (REQ-216):** the 45 existing numeric
+security/tracking/infrastructure limits are fixed at identical defaults; email
+uses queued sends and bounded retries with sent/failed outcomes and no signed
+receipts. Queue-only durable outbox recovery never sends mail. Advertiser opt-out
+and active company/user/membership checks still run before dispatch. The fraud
+review target is fixed at seven days and never auto-releases held pay. B5 focused
+runtime verification and independent security checkpoint PASS (gpt-6.1-sol/high);
+final integrated review remains pending.
 
 **History:**
+- **2026-10-20** — D117 supersedes operator provisioning and signed email receipts, using the client support number and fixed existing security values; REQ-216. The previous rule required a named approved operator and approval reference for live phone verification.
 - **2026-10-07** — Owner Claude polish review requires sentence-case notification titles/body in the body font, retaining capitals for small labels (REQ-139); notification content and access checks are unchanged. Built in `78ad5580` and real integration `21239a6d`.
 - **2026-10-07** — Owner W2-D brief replaces generic campaign notices with currently authorized campaign names and Open links (D71, REQ-139); immutable notification payloads and delivery channels remain. Built in `78ad5580` and real integration `21239a6d`.
 - **2026-10-06** — The earlier Mark read investigation, accessible panel close/focus and simpler company-preference wording are integrated (REQ-073/074/076). Built in `c2ab2d9`; full CI, including the real preference-change browser case, passed. REQ-075 retains its separate unread-inbox walkthrough obligation.

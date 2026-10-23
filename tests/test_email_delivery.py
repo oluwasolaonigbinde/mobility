@@ -1,12 +1,9 @@
 import asyncio
-import hashlib
-import hmac
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import func, select
-from starlette import status
 
 from app.adapters.messaging import (
     DisabledEmailAdapter,
@@ -15,12 +12,10 @@ from app.adapters.messaging import (
     EmailSubmission,
 )
 from app.core.config import Settings
-from app.core.errors import AppError
 from app.models.driver_application import DriverApplicationStatus
 from app.models.notification import (
     Notification,
     NotificationChannel,
-    NotificationDeliveryReceipt,
     NotificationStatus,
     NotificationType,
 )
@@ -41,8 +36,6 @@ from app.services.driver_applications import (
 from app.services.email_delivery import process_email_notification
 from app.services.notifications import (
     create_advertiser_email_notification,
-    email_receipt_fingerprint,
-    record_email_delivery_receipt,
 )
 
 
@@ -279,7 +272,7 @@ def test_email_worker_retries_with_same_idempotency_key_then_sends(db_sessionmak
                 notification_id=notice_id,
                 settings=settings,
                 email_adapter=adapter,
-                now=now + timedelta(seconds=10),
+                now=now + timedelta(seconds=61),
             )
             == "sent"
         )
@@ -786,7 +779,7 @@ def test_email_service_claim_time_eligibility_is_not_revoked_in_flight(
     asyncio.run(run())
 
 
-def test_email_service_expired_claim_remains_reclaimable_above_attempt_cap(
+def test_email_service_expired_claim_stops_at_attempt_cap(
     postgis_db_sessionmaker,
 ) -> None:
     async def run() -> None:
@@ -808,21 +801,24 @@ def test_email_service_expired_claim_remains_reclaimable_above_attempt_cap(
             await session.commit()
             notice_id = notice.id
 
+        adapter = RecordingEmailAdapter()
         assert (
             await process_email_notification(
                 postgis_db_sessionmaker,
                 notification_id=notice_id,
                 settings=settings,
-                email_adapter=RecordingEmailAdapter(),
+                email_adapter=adapter,
                 now=now,
             )
-            == "sent"
+            == "skipped"
         )
         async with postgis_db_sessionmaker() as session:
             stored = await session.get(Notification, notice_id)
             assert stored is not None
-            assert stored.status == NotificationStatus.SENT.value
-            assert stored.attempt_count == settings.email_delivery_max_attempts + 1
+            assert stored.status == NotificationStatus.FAILED.value
+            assert stored.attempt_count == settings.email_delivery_max_attempts
+
+        assert adapter.messages == []
 
     asyncio.run(run())
 
@@ -891,119 +887,5 @@ def test_email_service_adapter_failures_clear_claim_and_respect_attempt_cap(
                 assert stored.next_attempt_at is None
                 assert stored.delivery_claim_token is None
                 assert stored.delivery_claim_expires_at is None
-
-    asyncio.run(run())
-
-
-def test_signed_receipt_is_exactly_idempotent_and_first_terminal_wins(
-    db_sessionmaker,
-) -> None:
-    async def run() -> None:
-        user_id, organization_id = await _seed_advertiser(db_sessionmaker)
-        async with db_sessionmaker() as session:
-            notice = await create_advertiser_email_notification(
-                session,
-                advertiser_organization_id=organization_id,
-                recipient_user_id=user_id,
-                type_key=NotificationType.FRAUD_HOLD_RAISED,
-                payload={},
-                dedupe_key="email:receipt:1",
-            )
-            notice.status = NotificationStatus.SENT.value
-            notice.provider_message_id = "provider-message-1"
-            notice.sent_at = datetime.now(UTC)
-            await session.commit()
-        payload = {
-            "provider_event_id": "provider-event-1",
-            "provider_message_id": "provider-message-1",
-            "outcome": "delivered",
-            "occurred_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
-        }
-        canonical, _ = email_receipt_fingerprint(payload)
-        signature = hmac.new(b"receipt-secret", canonical, hashlib.sha256).hexdigest()
-        async with db_sessionmaker() as session:
-            first = await record_email_delivery_receipt(
-                session,
-                payload=payload,
-                signature=f"sha256={signature}",
-                signing_key_id="local-v1",
-                signing_secret=b"receipt-secret",
-                configured_key_id="local-v1",
-            )
-            await session.commit()
-            retry = await record_email_delivery_receipt(
-                session,
-                payload=payload,
-                signature=signature,
-                signing_key_id="local-v1",
-                signing_secret=b"receipt-secret",
-                configured_key_id="local-v1",
-            )
-            assert retry.id == first.id
-            assert (
-                await session.scalar(select(func.count()).select_from(NotificationDeliveryReceipt))
-                == 1
-            )
-            notice = await session.scalar(
-                select(Notification).where(Notification.provider_message_id == "provider-message-1")
-            )
-            assert notice.status == NotificationStatus.DELIVERED.value
-            with pytest.raises(ValueError, match="immutable"):
-                first.outcome = "failed"
-                await session.flush()
-            await session.rollback()
-
-        changed = dict(payload, outcome="failed")
-        changed_canonical, _ = email_receipt_fingerprint(changed)
-        changed_signature = hmac.new(
-            b"receipt-secret", changed_canonical, hashlib.sha256
-        ).hexdigest()
-        async with db_sessionmaker() as session:
-            with pytest.raises(AppError) as caught:
-                await record_email_delivery_receipt(
-                    session,
-                    payload=changed,
-                    signature=changed_signature,
-                    signing_key_id="local-v1",
-                    signing_secret=b"receipt-secret",
-                    configured_key_id="local-v1",
-                )
-            assert caught.value.status_code == status.HTTP_409_CONFLICT
-
-    asyncio.run(run())
-
-
-def test_receipt_verification_fails_closed_without_config_or_valid_signature(
-    db_sessionmaker,
-) -> None:
-    payload = {
-        "provider_event_id": "event",
-        "provider_message_id": "message",
-        "outcome": "delivered",
-        "occurred_at": datetime.now(UTC).isoformat(),
-    }
-
-    async def run() -> None:
-        async with db_sessionmaker() as session:
-            with pytest.raises(AppError) as unconfigured:
-                await record_email_delivery_receipt(
-                    session,
-                    payload=payload,
-                    signature="bad",
-                    signing_key_id="",
-                    signing_secret=None,
-                    configured_key_id="",
-                )
-            assert unconfigured.value.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
-            with pytest.raises(AppError) as invalid:
-                await record_email_delivery_receipt(
-                    session,
-                    payload=payload,
-                    signature="bad",
-                    signing_key_id="local-v1",
-                    signing_secret=b"secret",
-                    configured_key_id="local-v1",
-                )
-            assert invalid.value.status_code == status.HTTP_401_UNAUTHORIZED
 
     asyncio.run(run())

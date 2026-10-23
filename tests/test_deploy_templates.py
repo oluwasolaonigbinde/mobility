@@ -21,7 +21,6 @@ SECRET_NAMES = {
     "OBJECT_STORAGE_SECRET_ACCESS_KEY",
     "EMAIL_SMTP_USERNAME",
     "EMAIL_SMTP_PASSWORD",
-    "EMAIL_RECEIPT_SIGNING_SECRET",
     "PAYSTACK_SECRET_KEY",
     "SENTRY_DSN",
     "NEXT_PUBLIC_SENTRY_DSN",
@@ -44,7 +43,7 @@ def test_secrets_are_blank_and_unapproved_policies_stay_unset(name: str) -> None
         assert environment[key] == "false"
     assert environment["MALWARE_SCANNER_HOST"] == "clamav"
     assert environment["WEB_CONCURRENCY"] == "2"
-    assert environment["DRIVER_ONBOARDING_ACCESS_TTL_SECONDS"] == "86400"
+    assert "DRIVER_ONBOARDING_ACCESS_TTL_SECONDS" not in environment
     assert not any(
         key.startswith("BUDGET_POLICY_") or (key.startswith("BUDGET_") and key.endswith("_RATIO"))
         for key in environment
@@ -111,8 +110,6 @@ def test_scanner_topology_and_configurable_workers() -> None:
         "volume_readonly",
         "api_host",
         "worker_host",
-        "api_port",
-        "worker_port",
         "api_dependency",
         "worker_dependency",
     ],
@@ -146,8 +143,6 @@ def test_release_rejects_unsafe_scanner(fault: str) -> None:
         service = model["services"][name]
         if field == "host":
             service["environment"]["MALWARE_SCANNER_HOST"] = "external.invalid"
-        elif field == "port":
-            service["environment"]["MALWARE_SCANNER_PORT"] = "9999"
         else:
             service["depends_on"]["clamav"]["condition"] = "service_started"
     with pytest.raises(ContractError):

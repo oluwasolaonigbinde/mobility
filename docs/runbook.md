@@ -66,9 +66,10 @@ blank or false. Placeholder values are always rejected.
 
 Before staging or production can start, the live path additionally requires a
 configured scanner, retained trip-evidence signing keyring, approved privacy
-collection reference, authenticated STARTTLS SMTP adapter with an independent
-receipt key, an approved HTTPS basemap build input, and complete evidence and
-activity-policy inputs. The checked-in examples intentionally contain blanks,
+collection reference, authenticated STARTTLS SMTP adapter, an approved HTTPS basemap build input, and complete evidence and
+activity-policy inputs. D117 fixes numeric security/worker/scanner limits in code; retired email receipt
+keys and phone operator approval/name/reference are not deployment prerequisites.
+Phone support defaults to +2347074200080. The checked-in examples intentionally contain blanks,
 false gates, and `EXAMPLE-ONLY` markers, so neither file is deployable. Replace
 them only with externally approved values in the mode-0600 copy outside the
 repository; never weaken preflight to make an example pass.

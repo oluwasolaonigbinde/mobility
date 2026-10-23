@@ -21,7 +21,6 @@ from conftest import (
     create_test_organization,
     create_test_user,
 )
-from pydantic import SecretStr
 from sqlalchemy import func, select
 
 from app.adapters.disbursement import FakeDisbursementAdapter
@@ -300,14 +299,6 @@ def test_machine_callbacks_reject_forged_authority_without_effects(
         PaystackPaymentGatewayAdapter(PaystackClient("sk_test_synthetic_matrix_key"))
     )
     db_client.app.dependency_overrides[get_payment_event_enqueuer] = ForbiddenEnqueuer
-    settings.email_receipt_signing_secret = SecretStr("matrix-email-secret")
-    settings.email_receipt_key_id = "matrix-v1"
-    callback_payload = {
-        "provider_event_id": "matrix-event",
-        "provider_message_id": "matrix-message",
-        "outcome": "delivered",
-        "occurred_at": "2026-09-02T12:00:00Z",
-    }
     before = _database_fingerprint(db_sessionmaker)
 
     responses = {
@@ -320,14 +311,6 @@ def test_machine_callbacks_reject_forged_authority_without_effects(
             "/api/v1/webhooks/paystack",
             content=b"{}",
             headers={"X-Paystack-Signature": "forged"},
-        ),
-        ("POST", "/api/v1/notifications/email/delivery-receipts"): db_client.post(
-            "/api/v1/notifications/email/delivery-receipts",
-            json=callback_payload,
-            headers={
-                "X-Email-Receipt-Signature": "forged",
-                "X-Email-Receipt-Key-Id": "matrix-v1",
-            },
         ),
     }
 
