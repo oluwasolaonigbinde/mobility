@@ -4,6 +4,7 @@ import hmac
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import cast
 from uuid import UUID, uuid4
 
 from sqlalchemy import func, select
@@ -288,7 +289,11 @@ async def continue_driver_application(session: AsyncSession, *, token: str, sett
     application = await application_from_access_token(
         session, token=token, settings=settings, lock=True
     )
-    access = await session.get(DriverApplicationAccessToken, _access_token_id(token.strip()))
+    # application_from_access_token validated and locked this token in this transaction.
+    access = cast(
+        DriverApplicationAccessToken,
+        await session.get(DriverApplicationAccessToken, _access_token_id(token.strip())),
+    )
     step = await current_application_step(session, application)
     state, reason = await (_car_state if step == "car" else _details_state)(session, application)
     return {

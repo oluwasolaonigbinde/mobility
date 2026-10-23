@@ -2,6 +2,7 @@ from uuid import UUID
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.config import Settings
 from app.core.errors import AppError
@@ -41,7 +42,7 @@ async def save_campaign_enquiry(session: AsyncSession, enquiry: CampaignEnquiryC
 
 async def staff_enquiries(session, *, actor_user_id, status, q, limit, offset):
     await require_active_admin(session, actor_user_id)
-    filters = (
+    filters: list[ColumnElement[bool]] = (
         [CampaignEnquiry.organization_id.is_(None)]
         if status == "new"
         else [CampaignEnquiry.organization_id.is_not(None)]

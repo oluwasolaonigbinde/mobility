@@ -1,6 +1,7 @@
+from collections.abc import Callable
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters.crypto import EnvelopeCryptoProvider
 from app.adapters.disbursement import DisbursementInstruction
@@ -12,7 +13,7 @@ from app.services.payees import read_frozen_payout_bank_account
 
 def build_paystack_destination_resolver(
     settings: Settings,
-    sessionmaker: async_sessionmaker[AsyncSession],
+    sessionmaker: Callable[[], AsyncSession],
 ):
     """Build the audited resolver used only by provider submission workers."""
 

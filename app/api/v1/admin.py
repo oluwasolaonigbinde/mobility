@@ -177,13 +177,15 @@ async def admin_list_advertiser_organizations(
     outstanding = await outstanding_invoice_totals(session, identities)
     return AdminOrganizationListResponse(
         items=[
-            AdminOrganizationListItemRead(
-                **AdvertiserOrganizationRead.model_validate(org).model_dump(),
-                **counts[org.id],
-                outstanding=outstanding[org.id],
-                billing_contact_name=org.billing_contact_name,
-                operational_contact_name=org.operational_contact_name,
-                operational_contact_email=org.operational_contact_email,
+            AdminOrganizationListItemRead.model_validate(
+                {
+                    **AdvertiserOrganizationRead.model_validate(org).model_dump(),
+                    **counts[org.id],
+                    "outstanding": outstanding[org.id],
+                    "billing_contact_name": org.billing_contact_name,
+                    "operational_contact_name": org.operational_contact_name,
+                    "operational_contact_email": org.operational_contact_email,
+                }
             )
             for org in organizations
         ],

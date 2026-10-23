@@ -257,7 +257,9 @@ def test_cancelled_campaigns_keep_a_truthful_booked_amount_and_no_repeat_notices
         db_sessionmaker,
         organization_id=organization.id,
         created_by_user_id=owner.id,
-        campaign_status="completed",
+        campaign_status="active",
+        start_at=datetime.now(UTC) - timedelta(days=2),
+        end_at=datetime.now(UTC) - timedelta(days=1),
         budget_amount="100.00",
         name="Already finished",
     )
@@ -267,7 +269,7 @@ def test_cancelled_campaigns_keep_a_truthful_booked_amount_and_no_repeat_notices
         json={"client_request_id": str(uuid4()), "reason": "Too late"},
     )
     assert refused.status_code == 409
-    assert refused.json()["error"]["code"] == "CAMPAIGN_CANCELLATION_NOT_AVAILABLE"
+    assert refused.json()["error"]["code"] == "CAMPAIGN_FINISHED"
 
 
 def test_pending_cancellation_read_is_tenant_scoped_and_survives_the_list_limit(

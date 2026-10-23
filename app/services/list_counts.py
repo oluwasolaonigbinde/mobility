@@ -4,6 +4,8 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import InstrumentedAttribute
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.models.campaign import Campaign, CampaignCreative
 from app.models.campaign_assignment import CampaignAssignment
@@ -12,13 +14,18 @@ from app.models.organization import OrganizationMembership
 from app.models.stored_file import FileScanStatus, StoredFile
 
 
-async def grouped_counts(session: AsyncSession, column, identities: list[UUID], *filters) -> dict:
+async def grouped_counts(
+    session: AsyncSession,
+    column: InstrumentedAttribute[UUID],
+    identities: list[UUID],
+    *filters: ColumnElement[bool],
+) -> dict[UUID, int]:
     if not identities:
         return {}
     rows = await session.execute(
         select(column, func.count()).where(column.in_(identities), *filters).group_by(column)
     )
-    return dict(rows.all())
+    return {identity: count for identity, count in rows.all()}
 
 
 async def campaign_list_counts(session: AsyncSession, identities: list[UUID]) -> dict:

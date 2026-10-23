@@ -40,4 +40,4 @@ async def current_job(
     )
     counts = dict.fromkeys(ASSIGNMENT_STATUSES, 0)
     counts.update({status: count for status, count in rows})
-    return DriverCurrentJob(**active.model_dump(), counts=counts)
+    return DriverCurrentJob.model_validate({**active.model_dump(), "counts": counts})

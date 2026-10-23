@@ -100,8 +100,9 @@ def test_worker_settings_importable_without_broker_or_database() -> None:
         "process_payment_gateway_event",
         "process_payout_provider_event",
         "process_trip",
+        "generate_campaign_report",
     }
-    assert len(WorkerSettings.cron_jobs) == 22
+    assert len(WorkerSettings.cron_jobs) == 21
     assert WorkerSettings.keep_result == 0
     assert WorkerSettings.on_startup is worker.on_startup
     assert WorkerSettings.on_shutdown is worker.on_shutdown

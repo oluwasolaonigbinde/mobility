@@ -122,9 +122,11 @@ async def advertiser_campaign_response(
 ) -> AdvertiserCampaignRead:
     if now is None:
         now = await database_clock(session)
-    return AdvertiserCampaignRead(
-        **campaign_response(campaign).model_dump(),
-        budget_used=await campaign_budget_used(session, campaign=campaign, now=now),
+    return AdvertiserCampaignRead.model_validate(
+        {
+            **campaign_response(campaign).model_dump(),
+            "budget_used": await campaign_budget_used(session, campaign=campaign, now=now),
+        }
     )
 
 

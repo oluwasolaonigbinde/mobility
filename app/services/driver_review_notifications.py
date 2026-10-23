@@ -1,6 +1,7 @@
 """Review messages resolve current recipient-owned facts, never payload copy/URLs."""
 
 from datetime import datetime
+from typing import cast as type_cast
 from uuid import UUID
 
 from sqlalchemy import String, and_, cast, or_, select
@@ -24,7 +25,10 @@ REVIEW_TYPES = {
     NotificationType.DRIVER_CAR_APPROVED,
     NotificationType.DRIVER_CAR_REJECTED,
 }
-REASONS = {
+type ReviewDecision = DriverKycReviewDecision | VehicleEvidenceReviewDecision
+type ReviewSubmission = DriverKycSubmission | VehicleEvidenceSubmission
+
+REASONS: dict[str | None, str] = {
     "missing_evidence": "Some documents are missing.",
     "rejected_evidence": "Please replace the documents we could not approve.",
     "expired_evidence": "Some documents have expired. Please send current copies.",
@@ -92,27 +96,41 @@ async def review_notice_context(
         NotificationType.DRIVER_CAR_APPROVED,
         NotificationType.DRIVER_CAR_REJECTED,
     }
-    decision_model = VehicleEvidenceReviewDecision if vehicle else DriverKycReviewDecision
-    submission_model = VehicleEvidenceSubmission if vehicle else DriverKycSubmission
+    decision_model: type[ReviewDecision] = (
+        VehicleEvidenceReviewDecision if vehicle else DriverKycReviewDecision
+    )
+    submission_model: type[ReviewSubmission] = (
+        VehicleEvidenceSubmission if vehicle else DriverKycSubmission
+    )
+    scope_column = "vehicle_id" if vehicle else "driver_profile_id"
+    order_column = "sequence" if vehicle else "created_at"
     try:
         decision_id = UUID(str(notice.payload["review_decision_id"]))
     except (KeyError, TypeError, ValueError):
         return None
-    decision = await session.get(decision_model, decision_id)
-    submission = await session.get(submission_model, decision.submission_id) if decision else None
-    car = await session.get(Vehicle, submission.vehicle_id) if vehicle and submission else None
+    decision: ReviewDecision | None = await session.get(decision_model, decision_id)
+    submission: ReviewSubmission | None = (
+        await session.get(submission_model, decision.submission_id) if decision else None
+    )
+    scope_id = getattr(submission, scope_column) if submission else None
+    car = await session.get(Vehicle, scope_id) if vehicle and submission else None
     profile_id = (
-        car.driver_profile_id
-        if car
-        else (submission.driver_profile_id if submission and not vehicle else None)
+        car.driver_profile_id if car else (scope_id if submission and not vehicle else None)
     )
     profile = await session.get(DriverProfile, profile_id) if profile_id else None
-    if profile is None or profile.user_id != user.id or submission.purged_at is not None:
+    # A profile is resolved only through an existing decision/submission pair above.
+    if (
+        profile is None
+        or profile.user_id != user.id
+        or type_cast(ReviewSubmission, submission).purged_at is not None
+    ):
         return None
+    submission = type_cast(ReviewSubmission, submission)
+    decision = type_cast(ReviewDecision, decision)
     scope = (
-        [submission_model.vehicle_id == car.id]
+        [getattr(submission_model, scope_column) == type_cast(Vehicle, car).id]
         if vehicle
-        else [submission_model.driver_profile_id == profile.id]
+        else [getattr(submission_model, scope_column) == profile.id]
     )
     latest = await session.scalar(
         select(submission_model.id).where(*scope).order_by(submission_model.version.desc()).limit(1)
@@ -121,7 +139,7 @@ async def review_notice_context(
         select(decision_model.id)
         .where(decision_model.submission_id == submission.id)
         .order_by(
-            decision_model.sequence.desc() if vehicle else decision_model.created_at.desc(),
+            getattr(decision_model, order_column).desc(),
             decision_model.id.desc(),
         )
         .limit(1)
@@ -148,10 +166,13 @@ async def review_notice_context(
         if vehicle:
             from app.services.vehicle_onboarding import _aware_utc, _snapshot_matches
 
+            vehicle_decision = type_cast(VehicleEvidenceReviewDecision, decision)
             if (
-                decision.valid_until is None
-                or _aware_utc(decision.valid_until) <= now
-                or not _snapshot_matches(car, submission)
+                vehicle_decision.valid_until is None
+                or _aware_utc(vehicle_decision.valid_until) <= now
+                or not _snapshot_matches(
+                    type_cast(Vehicle, car), type_cast(VehicleEvidenceSubmission, submission)
+                )
             ):
                 return None
     title = (
@@ -187,13 +208,16 @@ def _current_review_reference(*, vehicle: bool):
     newer_submission = aliased(submission)
     newer_decision = aliased(decision)
     scope_column = "vehicle_id" if vehicle else "driver_profile_id"
+    order_column = "sequence" if vehicle else "created_at"
+    newer_order = getattr(newer_decision, order_column)
+    current_order = getattr(decision, order_column)
     query = select(decision.id).join(submission, submission.id == decision.submission_id)
     if vehicle:
-        query = query.join(Vehicle, Vehicle.id == submission.vehicle_id).join(
+        query = query.join(Vehicle, Vehicle.id == getattr(submission, scope_column)).join(
             DriverProfile, DriverProfile.id == Vehicle.driver_profile_id
         )
     else:
-        query = query.join(DriverProfile, DriverProfile.id == submission.driver_profile_id)
+        query = query.join(DriverProfile, DriverProfile.id == getattr(submission, scope_column))
     query = query.where(
         cast(decision.id, String) == Notification.payload["review_decision_id"].as_string(),
         DriverProfile.user_id == Notification.recipient_user_id,
@@ -209,12 +233,12 @@ def _current_review_reference(*, vehicle: bool):
         ~select(newer_decision.id)
         .where(
             newer_decision.submission_id == submission.id,
-            newer_decision.sequence > decision.sequence
+            newer_order > current_order
             if vehicle
             else or_(
-                newer_decision.created_at > decision.created_at,
+                newer_order > current_order,
                 and_(
-                    newer_decision.created_at == decision.created_at,
+                    newer_order == current_order,
                     newer_decision.id > decision.id,
                 ),
             ),
