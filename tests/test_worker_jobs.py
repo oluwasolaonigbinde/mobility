@@ -50,7 +50,6 @@ from app.models.notification import (
     NotificationType,
 )
 from app.models.user import User, UserRole, UserStatus
-from app.services import report_issuances as report_issuance_jobs
 from app.services import report_scheduling as report_scheduling_jobs
 from app.services.trip_processing import DueTrip, process_ended_trip
 
@@ -69,7 +68,7 @@ def make_ctx(sessionmaker, settings) -> dict:
 
 
 def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
-    assert len(WorkerSettings.functions) == 6
+    assert len(WorkerSettings.functions) == 7
     for index, name, coroutine in (
         (0, "scan_file", file_scanning_jobs.scan_file),
         (1, "deliver_email", email_delivery_jobs.deliver_email),
@@ -78,27 +77,27 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
         assert task.name == name
         assert task.coroutine is coroutine
         assert task.keep_result_s == 0
-    registered = WorkerSettings.functions[2]
+    registered = WorkerSettings.functions[3]
     assert isinstance(registered, Function)
     assert registered.name == "process_trip"
     assert registered.keep_result_s == 0
     assert registered.coroutine is jobs.process_trip
-    gateway = WorkerSettings.functions[3]
+    gateway = WorkerSettings.functions[4]
     assert isinstance(gateway, Function)
     assert gateway.name == "process_payment_gateway_event"
     assert gateway.keep_result_s == 0
-    disbursement = WorkerSettings.functions[4]
+    disbursement = WorkerSettings.functions[5]
     assert isinstance(disbursement, Function)
     assert disbursement.name == "process_disbursement_intent"
     assert disbursement.coroutine is disbursement_jobs.process_disbursement_intent_job
     assert disbursement.keep_result_s == 0
-    payout_event = WorkerSettings.functions[5]
+    payout_event = WorkerSettings.functions[6]
     assert isinstance(payout_event, Function)
     assert payout_event.name == "process_payout_provider_event"
     assert payout_event.coroutine is disbursement_jobs.process_payout_provider_event_job
     assert payout_event.keep_result_s == 0
 
-    assert len(WorkerSettings.cron_jobs) == 22
+    assert len(WorkerSettings.cron_jobs) == 21
     health_crons = [
         job
         for job in WorkerSettings.cron_jobs
@@ -108,7 +107,7 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert health_crons[0].minute == set(range(0, 60, 5))
     assert health_crons[0].unique is True
     existing_crons = [job for job in WorkerSettings.cron_jobs if job not in health_crons]
-    assert len(existing_crons) == 21
+    assert len(existing_crons) == 20
     cron_job = existing_crons[0]
     assert isinstance(cron_job, CronJob)
     assert inspect.unwrap(cron_job.coroutine) is jobs.process_unprocessed_trips
@@ -181,17 +180,12 @@ def test_worker_settings_registers_process_trip_and_sweep_cron() -> None:
     assert scan_sweep.unique is True
     assert scan_sweep.minute == sweep_cron_minutes(get_settings().worker_sweep_interval_minutes)
 
-    report_sweep = existing_crons[10]
-    assert isinstance(report_sweep, CronJob)
-    assert inspect.unwrap(report_sweep.coroutine) is report_issuance_jobs.sweep_report_issuances
-    assert report_sweep.unique is True
-
-    scheduled = existing_crons[11]
+    scheduled = existing_crons[10]
     assert inspect.unwrap(scheduled.coroutine) is report_scheduling_jobs.sweep_scheduled_reports
     assert scheduled.unique is True
 
     lifecycle_crons = {
-        inspect.unwrap(cron_job.coroutine): cron_job for cron_job in existing_crons[12:-3]
+        inspect.unwrap(cron_job.coroutine): cron_job for cron_job in existing_crons[11:-3]
     }
     assert set(lifecycle_crons) == {
         data_lifecycle_jobs.premake_ping_partitions,

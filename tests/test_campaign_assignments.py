@@ -1135,7 +1135,6 @@ def test_admin_assignment_creation_validates_eligibility_and_duplicates(
 
     for rejected_status in [
         CampaignStatus.DRAFT,
-        CampaignStatus.COMPLETED,
         CampaignStatus.CANCELLED,
     ]:
         _, rejected_campaign, _, rejected_profile, rejected_vehicle = create_assignment_ready_graph(
@@ -2683,7 +2682,6 @@ def test_accept_rejects_cancelled_completed_and_expired_campaigns(
 ) -> None:
     for campaign_status, expected_code in [
         (CampaignStatus.CANCELLED, "CAMPAIGN_NOT_ACCEPTABLE"),
-        (CampaignStatus.COMPLETED, "CAMPAIGN_NOT_ACCEPTABLE"),
     ]:
         admin, campaign, _, profile, vehicle = create_assignment_ready_graph(
             db_sessionmaker,

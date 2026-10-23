@@ -17,7 +17,7 @@ import { JobVisual } from "@/components/driver/job-visual";
 
 export const metadata: Metadata = { title: "Jobs" };
 
-type AssignmentStatus = components["schemas"]["CampaignAssignmentStatus"];
+type AssignmentStatus = components["schemas"]["CampaignAssignmentRead"]["status"];
 type Assignment = components["schemas"]["CampaignAssignmentRead"];
 type EvidencePolicy = components["schemas"]["InstallationEvidencePolicyRead"];
 type Evidence = components["schemas"]["InstallationEvidenceRead"];
@@ -32,7 +32,7 @@ const statusMeta: Record<
   expired: { label: "Expired", tone: "default" },
   active: { label: "Running", tone: "green" },
   cancelled: { label: "Cancelled", tone: "coral" },
-  completed: { label: "Finished", tone: "default" },
+  finished: { label: "Finished", tone: "default" },
 };
 
 const CURRENT: AssignmentStatus[] = ["active", "accepted"];
@@ -125,7 +125,7 @@ function JobCard({
             status={a.status}
           />
         </details>
-      ) : a.status === "accepted" ? null : (
+      ) : a.status === "accepted" || a.status === "finished" ? null : (
         <AssignmentActions
           assignmentId={a.id}
           campaignName={a.campaign?.name ?? "this job"}
@@ -139,7 +139,11 @@ function JobCard({
 
 function PastJob({ a }: { a: Assignment }) {
   const endedAt =
-    a.completed_at ?? a.deactivated_at ?? a.cancelled_at ?? a.declined_at ?? a.expired_at;
+    (a.status === "finished" ? a.campaign?.end_at : undefined) ??
+    a.deactivated_at ??
+    a.cancelled_at ??
+    a.declined_at ??
+    a.expired_at;
   const startedAt = a.activated_at ?? a.accepted_at ?? a.offered_at;
   const dates = endedAt
     ? `${statusMeta[a.status].label} ${formatDate(endedAt)}`

@@ -9,6 +9,7 @@ import { BrandWordmark } from "./brand-wordmark";
 const items = [
   { href: "/advertiser", label: "Home", exact: true },
   { href: "/advertiser/campaigns", label: "Campaigns" },
+  { href: "/advertiser/reports", label: "Reports" },
   { href: "/advertiser/billing", label: "Billing" },
   { href: "/advertiser/help", label: "Help" },
   { href: "/advertiser/account", label: "Account" },

@@ -4,7 +4,7 @@ from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import pytest
 from database_helpers import (
@@ -635,10 +635,11 @@ def test_demo_seed_command_runs_the_guarded_seed_and_prints_its_summary(
     monkeypatch.setattr(demo, "build_demo_graph", build)
     monkeypatch.setattr(demo, "counts", count_seeded_records)
     monkeypatch.setattr(demo, "print_summary", summary)
-    from app.services import report_issuances
+    from app.services import campaign_report_delivery
 
     publication = AsyncMock()
-    monkeypatch.setattr(report_issuances, "sweep_report_issuances", publication)
+    monkeypatch.setattr(campaign_report_delivery, "publish_campaign_report", publication)
+    session.scalars = AsyncMock(return_value=[uuid4()])
     from app.adapters import storage
 
     monkeypatch.setattr(storage, "build_storage_provider", lambda selected: object())
@@ -783,15 +784,19 @@ def seed_demo_graph(
             graph = await build_demo_graph(session, settings)
             await session.commit()
         from app.adapters.storage import build_storage_provider
-        from app.services.report_issuances import sweep_report_issuances
+        from app.models.campaign_report import CampaignReport
+        from app.services.campaign_report_delivery import publish_campaign_report
 
-        await sweep_report_issuances(
-            {
-                "sessionmaker": sessionmaker,
-                "settings": settings,
-                "storage": build_storage_provider(settings),
-            }
-        )
+        async with sessionmaker() as session:
+            report_ids = list(
+                await session.scalars(
+                    select(CampaignReport.id).where(CampaignReport.status == "queued")
+                )
+            )
+        for report_id in report_ids:
+            await publish_campaign_report(
+                sessionmaker, report_id=report_id, storage=build_storage_provider(settings)
+            )
         return graph
 
     return asyncio.run(seed())
@@ -1272,7 +1277,7 @@ def fetch_lifecycle_violation_count(
                         or_(
                             TripSession.started_at < Campaign.start_at,
                             TripSession.ended_at > Campaign.end_at,
-                            CampaignAssignment.status.not_in(["active", "completed"]),
+                            CampaignAssignment.status != "active",
                         )
                     )
                 )
@@ -1683,6 +1688,7 @@ def test_seed_business_ownership_and_applicant_financial_separation(
         Invoice,
         PaymentReceipt,
     )
+    from app.models.campaign_report import CampaignReport
     from app.models.disbursement import PayoutAutomaticAlert, PayoutBatch, PayoutBatchLine
     from app.models.driver_application import DriverApplication, DriverApplicationAccessToken
     from app.models.installation_evidence import (
@@ -1698,7 +1704,6 @@ def test_seed_business_ownership_and_applicant_financial_separation(
         PayeeBankAccountPayoutVerification,
         PayeeBankAccountVersion,
     )
-    from app.models.report_issuance import ReportIssuance
     from app.models.stored_file import StoredFile
 
     monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
@@ -1731,7 +1736,6 @@ def test_seed_business_ownership_and_applicant_financial_separation(
                 "approved",
                 "active",
                 "paused",
-                "completed",
                 "cancelled",
             } <= {row.status for row in marula}
             assert max(row.created_at for row in campaigns) - min(
@@ -1776,7 +1780,7 @@ def test_seed_business_ownership_and_applicant_financial_separation(
                 swept = {row.id: row.status for row in await sweep.scalars(select(Campaign))}
                 assert swept == statuses
                 await sweep.rollback()
-            for model in (CommercialQuotationRevision, MeasurementRun, ReportIssuance):
+            for model in (CommercialQuotationRevision, MeasurementRun, CampaignReport):
                 for row in await session.scalars(select(model)):
                     campaign = await session.get(Campaign, row.campaign_id)
                     assert row.organization_id == campaign.organization_id
@@ -1964,11 +1968,17 @@ def test_seed_business_ownership_and_applicant_financial_separation(
                         assert (
                             submission.created_at <= verification.created_at <= decision.created_at
                         )
-            reports = list(await session.scalars(select(ReportIssuance)))
+            reports = list(await session.scalars(select(CampaignReport)))
             ready_campaigns = {row.campaign_id for row in reports if row.status == "ready"}
-            assert {row.id for row in campaigns if row.status == "completed"} <= ready_campaigns
+            assert {
+                row.id
+                for row in campaigns
+                if row.status in {"active", "paused"} and row.end_at <= now
+            } <= ready_campaigns
             in_progress = [
-                row for row in campaigns if row.status == "active" and row.id not in ready_campaigns
+                row
+                for row in campaigns
+                if row.status == "active" and row.end_at > now and row.id not in ready_campaigns
             ]
             assert [row.name for row in in_progress] == ["Marula Kitchens — Wuse Lunch Rush"]
             notifications = list(await session.scalars(select(Notification)))
@@ -2016,17 +2026,19 @@ def test_seed_business_ownership_and_applicant_financial_separation(
         assert own_list.json()["items"]
         assert all(item["name"].startswith(company + " — ") for item in own_list.json()["items"])
         for item in own_list.json()["items"]:
-            if item["status"] == "completed":
+            if item["status"] == "finished":
                 report = postgis_db_client.get(
                     f"/api/v1/advertiser/campaigns/{item['id']}/report", headers=own_headers
                 )
                 assert report.status_code == 200
                 assert Decimal(report.json()["totals"]["estimated_views"]) > 0
                 daily = postgis_db_client.get(
-                    f"/api/v1/advertiser/campaigns/{item['id']}/daily-metrics", headers=own_headers
+                    f"/api/v1/advertiser/campaigns/{item['id']}/daily-metrics",
+                    headers=own_headers,
+                    params={"start_at": item["start_at"], "end_at": item["end_at"]},
                 )
                 assert daily.json()["items"]
-                assert all(row["trip_count"] >= 5 for row in daily.json()["items"])
+                assert any((row["trip_count"] or 0) >= 5 for row in daily.json()["items"])
         assert (
             postgis_db_client.get(
                 f"/api/v1/advertiser/campaigns/{graph.campaign.id}", headers=own_headers
@@ -2034,17 +2046,26 @@ def test_seed_business_ownership_and_applicant_financial_separation(
             == 404
         )
     for campaign in campaigns:
-        if campaign.organization_id == graph.organization.id and campaign.status == "completed":
+        if (
+            campaign.organization_id == graph.organization.id
+            and campaign.status in {"active", "paused"}
+            and campaign.end_at <= datetime.now(UTC)
+        ):
             report = postgis_db_client.get(
                 f"/api/v1/advertiser/campaigns/{campaign.id}/report", headers=headers
             )
             assert report.status_code == 200
             assert Decimal(report.json()["totals"]["estimated_views"]) > 0
             daily = postgis_db_client.get(
-                f"/api/v1/advertiser/campaigns/{campaign.id}/daily-metrics", headers=headers
+                f"/api/v1/advertiser/campaigns/{campaign.id}/daily-metrics",
+                headers=headers,
+                params={
+                    "start_at": campaign.start_at.isoformat(),
+                    "end_at": campaign.end_at.isoformat(),
+                },
             )
             assert daily.json()["items"]
-            assert all(row["trip_count"] >= 5 for row in daily.json()["items"])
+            assert any((row["trip_count"] or 0) >= 5 for row in daily.json()["items"])
         if campaign.organization_id != graph.organization.id:
             assert (
                 postgis_db_client.get(
@@ -2097,7 +2118,7 @@ def test_demo_seed_is_idempotent_with_postgis(
     assert first_legacy == second_legacy
     assert first_palmpay_market == second_palmpay_market
     assert first_evidence == second_evidence
-    assert second_palmpay_market["assignment_status"] == "completed"
+    assert second_palmpay_market["assignment_status"] == "active"
     assert second_palmpay_market["creatives"] == 1
     assert second_palmpay_market["zones"] == 2
     assert second_palmpay_market["trips"] == 15
@@ -2120,7 +2141,7 @@ def test_demo_seed_is_idempotent_with_postgis(
     assert second_rich["vehicles"] == 9
     assert second_rich["campaigns"] == 4
     assert second_rich["assignments"] == 19
-    assert second_rich["campaign_statuses"] == {"active", "paused", "completed", "draft"}
+    assert second_rich["campaign_statuses"] == {"active", "paused", "draft"}
     assert len(second_rich["trip_days"]) >= 25
     assert second_rich["trips"] == 379
     assert all(key.startswith(f"{F7_SEED_VERSION}:f7:") for key in second_rich["batch_keys"])

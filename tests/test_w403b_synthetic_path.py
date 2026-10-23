@@ -13,18 +13,18 @@ from uuid import UUID, uuid5
 
 import pytest
 from conftest import auth_headers, create_test_organization, create_test_user
+from report_fixtures import DAY_1, PASSWORD, create_report_fixture
 from sqlalchemy import func, select
 from test_heatmaps import add_ping_batch
-from test_measurement_runs import DAY_1, PASSWORD, create_measurement_graph, issue_payload
 
 from app.adapters.crypto import EnvelopeCryptoProvider
 from app.adapters.disbursement import FakeDisbursementAdapter
+from app.models.campaign_report import CampaignReport
 from app.models.campaign_zone import CampaignZone, CampaignZoneType
 from app.models.disbursement import PayoutBatch, PayoutBatchLine
 from app.models.driver import DriverProfile
-from app.models.measurement import MeasurementRun
 from app.models.payout import EarningsLedgerEntry, PayoutCalculation
-from app.models.report_issuance import ReportArtifact, ReportIssuance
+from app.models.report_issuance import ReportArtifact
 from app.models.trip import TripSession
 from app.models.trip_analytics import TripAnalytics
 from app.models.user import User, UserRole
@@ -56,7 +56,7 @@ IDENTITY_DOMAIN = "cardvert.invalid"
 class FrozenReceipt:
     correlation_id: str
     campaign_id: str
-    measurement_run_id: str
+    report_id: str
     result_sha256: str
     report_issuance_count: int
     report_artifact_count: int
@@ -229,17 +229,17 @@ async def _receipt(
     live_gps_claims: int,
 ) -> FrozenReceipt:
     async with db_sessionmaker() as session:
-        run = await session.get(MeasurementRun, run_id)
+        run = await session.get(CampaignReport, run_id)
         batch = await session.get(PayoutBatch, batch_id)
         assert run is not None and batch is not None
         counts = []
-        for model in (ReportIssuance, ReportArtifact, PayoutBatchLine):
+        for model in (CampaignReport, ReportArtifact, PayoutBatchLine):
             counts.append(int(await session.scalar(select(func.count()).select_from(model)) or 0))
         return FrozenReceipt(
             correlation_id=CORRELATION_ID,
             campaign_id=str(campaign_id),
-            measurement_run_id=str(run_id),
-            result_sha256=run.result_manifest_sha256,
+            report_id=str(run_id),
+            result_sha256=run.snapshot_sha256,
             report_issuance_count=counts[0],
             report_artifact_count=counts[1],
             payout_instruction_count=counts[2],
@@ -256,7 +256,7 @@ def test_correlated_synthetic_pilot_journey(
     db_client = postgis_db_client
     db_sessionmaker = postgis_db_sessionmaker
     completed: list[str] = []
-    admin, advertiser, campaign = create_measurement_graph(
+    admin, advertiser, campaign = create_report_fixture(
         db_sessionmaker,
         identity_tag=CORRELATION_ID,
         identity_domain=IDENTITY_DOMAIN,
@@ -294,13 +294,17 @@ def test_correlated_synthetic_pilot_journey(
     assert browser_receipt["live_gps_claims"] == 0
     completed.extend(("PWA", "synthetic GPS"))
 
-    payload = issue_payload(campaign.id, uuid5(campaign.id, CORRELATION_ID))
     run = db_client.post(
-        "/api/v1/admin/measurement-runs",
-        headers=auth_headers(db_client, admin.email, PASSWORD),
-        json=payload,
+        "/api/v1/advertiser/reports",
+        headers=advertiser_headers,
+        json={
+            "client_request_id": str(uuid5(campaign.id, CORRELATION_ID)),
+            "campaign_id": str(campaign.id),
+            "start_date": DAY_1.date().isoformat(),
+            "end_date": DAY_1.date().isoformat(),
+        },
     )
-    assert run.status_code == 201, run.text
+    assert run.status_code == 202, run.text
     completed.append("measurement")
 
     report = db_client.get(
@@ -313,8 +317,7 @@ def test_correlated_synthetic_pilot_journey(
     )
     assert report.status_code == 200, report.text
     # The advertiser sees the coarse projection; the title lives on the frozen run.
-    assert report.json()["measurement_run_id"] == run.json()["id"]
-    assert run.json()["result_manifest"]["title"] == "Campaign Performance Analysis"
+    assert run.json()["campaigns"][0]["id"] == str(campaign.id)
     completed.append("Campaign Performance Analysis")
 
     outsider = create_test_user(
@@ -369,7 +372,7 @@ def test_correlated_synthetic_pilot_journey(
             live_gps_claims=int(browser_receipt["live_gps_claims"]),
         )
     )
-    assert before.report_issuance_count == before.report_artifact_count == 0
+    assert before.report_issuance_count == 1 and before.report_artifact_count == 0
     assert len(fake_disbursement.calls) == before.disbursement_provider_calls == 0
     assert before.live_gps_claims == 0
 

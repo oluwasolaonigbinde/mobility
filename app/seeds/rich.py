@@ -34,11 +34,6 @@ from app.models.campaign import (
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
 from app.models.campaign_zone import CampaignZone, CampaignZoneType
 from app.models.driver import DriverOnboardingStatus, DriverProfile
-from app.models.impression import (
-    TrafficDensityProfile,
-    TrafficDensityProfileStatus,
-    TrafficDensityProfileType,
-)
 from app.models.organization import AdvertiserOrganization
 from app.models.payout import CampaignPayoutRule, CampaignPayoutRuleStatus
 from app.models.trip import (
@@ -114,7 +109,7 @@ VEHICLE_DETAILS = (
 CAMPAIGN_SPECS = (
     ("Aster Vale Foods — Garki Deliveries", CampaignStatus.ACTIVE, "rolling"),
     ("Cedar Bay Furnishings — Jabi Showroom", CampaignStatus.PAUSED, "paused"),
-    ("Oriole Books — Maitama Reading Week", CampaignStatus.COMPLETED, "completed"),
+    ("Oriole Books — Maitama Reading Week", CampaignStatus.ACTIVE, "completed"),
     ("Sable Ridge Travel — Airport Arrivals", CampaignStatus.DRAFT, "draft"),
 )
 
@@ -491,7 +486,6 @@ async def _ensure_assignment(
     # postdate the seed run.
     offered_at = min(campaign.start_at or now, now)
     is_offered = status_value == CampaignAssignmentStatus.OFFERED
-    is_completed = status_value == CampaignAssignmentStatus.COMPLETED
     from app.seeds.demo_authority import prepare_daily_offer
 
     terms, digest = await prepare_daily_offer(
@@ -514,7 +508,6 @@ async def _ensure_assignment(
         offered_at=offered_at,
         accepted_at=None if is_offered else offered_at + timedelta(minutes=10),
         activated_at=None if is_offered else offered_at + timedelta(minutes=20),
-        completed_at=min(campaign.end_at - timedelta(minutes=1), now) if is_completed else None,
         notes="Collect the door panels at the Wuse office.",
         assignment_metadata=f7_metadata(driver_index=asset.index),
     )
@@ -625,13 +618,13 @@ def _assert_trip_lifecycle(
     allowed_campaign_statuses = {
         "rolling": {CampaignStatus.ACTIVE.value},
         "paused": {CampaignStatus.PAUSED.value},
-        "completed": {CampaignStatus.COMPLETED.value},
+        "completed": {CampaignStatus.ACTIVE.value},
     }
     if campaign.status not in allowed_campaign_statuses[kind]:
         raise AppError("F7_SEED_INVALID_LIFECYCLE", "Campaign status cannot own this trip class")
     if assignment.status not in {
         CampaignAssignmentStatus.ACTIVE.value,
-        CampaignAssignmentStatus.COMPLETED.value,
+        CampaignAssignmentStatus.ACTIVE.value,
     }:
         raise AppError("F7_SEED_INVALID_LIFECYCLE", "Assignment status cannot own trips")
 
@@ -866,7 +859,6 @@ async def build_rich_seed(
     admin: User,
     advertiser: User,
     organization: AdvertiserOrganization,
-    traffic_profile: TrafficDensityProfile,
 ) -> RichSeedResult:
     now = utc_now()
     density = max_trips_per_day()
@@ -898,8 +890,8 @@ async def build_rich_seed(
 
     assignment_specs = (
         (0, range(0, 5), CampaignAssignmentStatus.ACTIVE),
-        (1, range(4, 7), CampaignAssignmentStatus.COMPLETED),
-        (2, range(0, 3), CampaignAssignmentStatus.COMPLETED),
+        (1, range(4, 7), CampaignAssignmentStatus.ACTIVE),
+        (2, range(0, 3), CampaignAssignmentStatus.ACTIVE),
         (3, range(0, 2), CampaignAssignmentStatus.OFFERED),
     )
     assignments: list[CampaignAssignment] = []
@@ -980,7 +972,6 @@ async def build_rich_seed(
                 estimate = await estimate_trip_impressions(
                     session,
                     trip_id=trip.id,
-                    traffic_density_profile_id=traffic_profile.id,
                     metadata=f7_metadata(seed_step="impressions"),
                     settings=settings,
                 )
@@ -1204,7 +1195,6 @@ async def ensure_portal_people(session, *, graph, settings):
             )
     await session.flush()
     await _ensure_contact_work(session, graph=graph, staff=staff)
-    await _ensure_reach_profiles(session)
     return staff
 
 
@@ -1335,45 +1325,6 @@ async def _ensure_contact_work(session, *, graph, staff):
     await session.flush()
 
 
-async def _ensure_reach_profiles(session):
-    from app.schemas.impressions import TrafficDensityProfileCreate
-    from app.services.impressions import create_traffic_density_profile
-
-    for name, description, state, density in (
-        ("Abuja office traffic", "Weekday traffic around Wuse and Garki offices.", "active", "180"),
-        (
-            "Abuja weekend traffic",
-            "Weekend traffic around Wuse and Jabi shopping streets.",
-            "inactive",
-            "140",
-        ),
-    ):
-        if await session.scalar(
-            select(TrafficDensityProfile.id).where(TrafficDensityProfile.name == name)
-        ):
-            continue
-        await create_traffic_density_profile(
-            session,
-            TrafficDensityProfileCreate(
-                name=name,
-                description=description,
-                profile_type=TrafficDensityProfileType.URBAN,
-                status=TrafficDensityProfileStatus(state),
-                traffic_density_per_km=Decimal(density),
-                dwell_impressions_per_minute=Decimal("4"),
-                road_category_weight=Decimal("1"),
-                morning_weight=Decimal("1.2"),
-                midday_weight=Decimal("1"),
-                evening_weight=Decimal("1.3"),
-                night_weight=Decimal("0.7"),
-                target_zone_weight=Decimal("1.2"),
-                bonus_zone_weight=Decimal("1.35"),
-                exclusion_zone_weight=Decimal("0"),
-                is_default=False,
-            ),
-        )
-
-
 async def ensure_golden_contributors(session, *, graph, settings):
     from app.seeds.demo import (
         trip_specs,
@@ -1472,7 +1423,6 @@ async def ensure_golden_contributors(session, *, graph, settings):
             await estimate_trip_impressions(
                 session,
                 trip_id=trip.id,
-                traffic_density_profile_id=graph.traffic_profile.id,
                 metadata=f7_metadata(),
                 settings=settings,
             )
@@ -1959,7 +1909,9 @@ async def ensure_completed_report_contributors(session, *, graph, settings):
     campaigns = await session.scalars(
         select(Campaign).where(
             Campaign.campaign_metadata["driver_story"].as_boolean() == True,  # noqa: E712
-            Campaign.status.in_(("completed", "active")),
+            # S23 maps former completed campaigns to stored active. Keep the
+            # original active/finished cohort; paused campaigns were excluded.
+            Campaign.status == "active",
         )
     )
     for campaign in campaigns:
@@ -1994,7 +1946,7 @@ async def ensure_completed_report_contributors(session, *, graph, settings):
                 admin=graph.admin,
                 advertiser=advertiser,
                 settings=settings,
-                status_value=CampaignAssignmentStatus.COMPLETED,
+                status_value=CampaignAssignmentStatus.ACTIVE,
             )
             await _ensure_assignment_authority(
                 session,
@@ -2035,7 +1987,6 @@ async def ensure_completed_report_contributors(session, *, graph, settings):
                 await estimate_trip_impressions(
                     session,
                     trip_id=trip.id,
-                    traffic_density_profile_id=graph.traffic_profile.id,
                     metadata=demo_metadata(driver_story=True),
                     settings=settings,
                 )
@@ -2049,14 +2000,15 @@ async def ensure_completed_report_contributors(session, *, graph, settings):
 
 
 async def ensure_portal_reports(session, *, graph, settings):
-    from app.models.measurement import MeasurementRun
     from app.models.payout import EarningsLedgerEntry, PayoutCalculation
-    from app.schemas.measurement import MeasurementRunCreate
-    from app.schemas.report_issuances import ReportIssuanceCreate
-    from app.services.measurement import issue_measurement_run
-    from app.services.report_issuances import request_report_issuance
 
-    campaigns = list(await session.scalars(select(Campaign).where(Campaign.status == "completed")))
+    campaigns = list(
+        await session.scalars(
+            select(Campaign).where(
+                Campaign.end_at <= utc_now(), Campaign.status.in_(("active", "paused"))
+            )
+        )
+    )
     campaigns += [graph.campaign, graph.rich.campaigns[0]]
     campaigns += list(
         await session.scalars(
@@ -2105,37 +2057,23 @@ async def ensure_portal_reports(session, *, graph, settings):
             select(TripSession.id).where(TripSession.campaign_id == campaign.id).limit(1)
         ):
             continue
-        key = uuid5(NAMESPACE_URL, f"cardvert-preview:measurement:{campaign.id}")
-        run = await session.scalar(
-            select(MeasurementRun).where(MeasurementRun.client_request_id == key)
-        )
-        if run is None:
-            period_start = campaign.start_at
-            period_end = min(utc_now(), campaign.end_at)
-            if campaign.status != "completed":
-                # Keep the seeded report period aligned to whole hours.
-                aligned_start = period_start.replace(minute=0, second=0, microsecond=0)
-                period_start = aligned_start + timedelta(hours=period_start != aligned_start)
-                period_end = period_end.replace(minute=0, second=0, microsecond=0)
-            run = await issue_measurement_run(
-                session,
-                actor_user_id=graph.admin.id,
-                settings=settings,
-                payload=MeasurementRunCreate(
-                    campaign_id=campaign.id,
-                    client_request_id=key,
-                    period_start_at=period_start,
-                    period_end_at=period_end,
-                    test_only=False,
-                ),
-            )
-        await request_report_issuance(
+        from app.adapters.storage import build_storage_provider
+        from app.services.campaign_reports import create_report
+        from app.services.disclosure import _canonical_hash
+
+        key = uuid5(NAMESPACE_URL, f"cardvert-preview:report:{campaign.id}")
+        await create_report(
             session,
             actor_user_id=graph.admin.id,
-            measurement_run_id=run.id,
-            payload=ReportIssuanceCreate(client_request_id=uuid5(key, "publication")),
+            campaigns=[campaign],
+            request_id=key,
+            request_fingerprint=_canonical_hash(str(key)),
+            start=campaign.start_at,
+            end=campaign.end_at,
+            kind="final",
             settings=settings,
-            admin=True,
+            storage=build_storage_provider(settings),
+            now=utc_now(),
         )
 
 

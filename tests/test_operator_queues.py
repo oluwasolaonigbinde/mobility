@@ -9,10 +9,10 @@ from conftest import (
     create_test_user,
     create_test_vehicle,
 )
+from report_fixtures import create_report_fixture
 from sqlalchemy import func, select
 from test_driver_applications import enable_registration
 from test_kyc import NIN, PASSWORD, _payload, _seed_driver_authority
-from test_measurement_runs import create_measurement_graph, issue_payload
 from test_stored_files import FakeStorageProvider
 
 from app.adapters.storage import ObjectMetadata
@@ -137,33 +137,21 @@ def test_named_search_reaches_beyond_first_hundred_and_matches_literal_context(
     )
 
 
-def test_measurement_discovery_is_named_paginated_authorized_and_does_not_issue(
-    db_client, db_sessionmaker
-):
-    admin, advertiser, campaign = create_measurement_graph(db_sessionmaker, identity_tag="ops-list")
-    headers = auth_headers(db_client, admin.email, PASSWORD)
-    empty = db_client.get("/api/v1/admin/measurement-runs", headers=headers).json()
-    assert empty["items"] == [] and empty["total"] == 0
-    issued = db_client.post(
-        "/api/v1/admin/measurement-runs", headers=headers, json=issue_payload(campaign.id)
+def test_report_discovery_is_paginated_authorized_and_does_not_issue(db_client, db_sessionmaker):
+    admin, owner, _ = create_report_fixture(db_sessionmaker, identity_tag="ops-list")
+    response = db_client.get(
+        "/api/v1/admin/reports",
+        headers=auth_headers(db_client, admin.email, PASSWORD),
+        params={"limit": 1, "offset": 1},
     )
-    assert issued.status_code == 201, issued.text
-    page = db_client.get(
-        "/api/v1/admin/measurement-runs", headers=headers, params={"q": campaign.name, "limit": 1}
-    ).json()
-    assert page["total"] == 1 and page["items"][0]["campaign_name"] == campaign.name
-    assert page["items"][0]["reproducible"] is True
-    assert page["items"][0]["report_status"] is None
-    assert "result_manifest" not in page["items"][0]
-    past = db_client.get(
-        "/api/v1/admin/measurement-runs", headers=headers, params={"offset": 1}
-    ).json()
-    assert past["total"] == 1 and past["items"] == []
-    denied = db_client.get(
-        "/api/v1/admin/measurement-runs",
-        headers=auth_headers(db_client, advertiser.email, PASSWORD),
+    assert response.status_code == 200, response.text
+    assert response.json()["items"] == [] and response.json()["total"] == 0
+    assert (
+        db_client.get(
+            "/api/v1/admin/reports", headers=auth_headers(db_client, owner.email, PASSWORD)
+        ).status_code
+        == 403
     )
-    assert denied.status_code == 403
 
 
 def test_approval_reveal_denies_superseded_nin_without_read_audit(db_client, db_sessionmaker):

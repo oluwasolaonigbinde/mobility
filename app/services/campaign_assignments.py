@@ -50,6 +50,7 @@ from app.services.billing.authority import (
     assert_new_work_authorized,
     reserve_assignment_liability,
 )
+from app.services.campaign_lifecycle import assignment_status_expression, assignment_window_open
 from app.services.campaigns import comparable_campaign_datetime
 from app.services.drivers import get_driver_profile_by_user_id
 from app.services.installation_evidence import ensure_current_approved_installation_evidence
@@ -137,7 +138,7 @@ def as_aware_utc(value: datetime) -> datetime:
 
 
 def ensure_not_expired(campaign: Campaign, now: datetime, *, code: str) -> None:
-    if campaign.end_at is not None and as_aware_utc(campaign.end_at) < now:
+    if campaign.end_at is not None and as_aware_utc(campaign.end_at) <= now:
         raise AppError(
             code,
             "This campaign has already ended",
@@ -209,6 +210,7 @@ async def ensure_no_other_active_assignment_for_vehicle(
         select(CampaignAssignment.id).where(
             CampaignAssignment.vehicle_id == vehicle_id,
             CampaignAssignment.status == CampaignAssignmentStatus.ACTIVE.value,
+            assignment_window_open(),
             CampaignAssignment.id != assignment_id,
         )
     )
@@ -230,6 +232,7 @@ async def ensure_no_other_active_assignment_for_driver(
         select(CampaignAssignment.id).where(
             CampaignAssignment.driver_profile_id == driver_profile_id,
             CampaignAssignment.status == CampaignAssignmentStatus.ACTIVE.value,
+            assignment_window_open(),
             CampaignAssignment.id != assignment_id,
         )
     )
@@ -276,7 +279,7 @@ def ensure_campaign_assignable(campaign: Campaign, now: datetime) -> None:
 
 
 def ensure_campaign_acceptable(campaign: Campaign, now: datetime) -> None:
-    if campaign.status in {CampaignStatus.COMPLETED.value, CampaignStatus.CANCELLED.value}:
+    if campaign.status in {CampaignStatus.CANCELLED.value}:
         raise AppError(
             "CAMPAIGN_NOT_ACCEPTABLE",
             "Campaign can no longer be accepted",
@@ -653,7 +656,10 @@ async def list_assignment_recommendations(
             CampaignAssignment.vehicle_id.label("vehicle_id"),
             func.count().label("vehicle_load"),
         )
-        .where(CampaignAssignment.status.in_(NON_TERMINAL_ASSIGNMENT_STATUSES))
+        .where(
+            CampaignAssignment.status.in_(NON_TERMINAL_ASSIGNMENT_STATUSES),
+            assignment_window_open(),
+        )
         .group_by(CampaignAssignment.vehicle_id)
         .subquery()
     )
@@ -662,7 +668,10 @@ async def list_assignment_recommendations(
             CampaignAssignment.driver_profile_id.label("driver_profile_id"),
             func.count().label("driver_load"),
         )
-        .where(CampaignAssignment.status.in_(NON_TERMINAL_ASSIGNMENT_STATUSES))
+        .where(
+            CampaignAssignment.status.in_(NON_TERMINAL_ASSIGNMENT_STATUSES),
+            assignment_window_open(),
+        )
         .group_by(CampaignAssignment.driver_profile_id)
         .subquery()
     )
@@ -937,7 +946,7 @@ async def list_admin_assignments(
             )
         )
     if assignment_status is not None:
-        filters.append(CampaignAssignment.status == assignment_status)
+        filters.append(assignment_status_expression() == assignment_status)
     if campaign_id is not None:
         filters.append(CampaignAssignment.campaign_id == campaign_id)
     if driver_profile_id is not None:
@@ -982,7 +991,7 @@ async def list_driver_assignments(
     )
     filters = [CampaignAssignment.driver_profile_id == driver_profile.id, ~due_offer]
     if assignment_status is not None:
-        filters.append(CampaignAssignment.status == assignment_status)
+        filters.append(assignment_status_expression() == assignment_status)
 
     statement = select(CampaignAssignment)
     count_statement = select(func.count()).select_from(CampaignAssignment)
@@ -2178,6 +2187,7 @@ async def deactivate_driver_assignment(
             "Only active assignments can be deactivated",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
+    ensure_not_expired(campaign, now, code="ASSIGNMENT_FINISHED")
     previous_status = assignment.status
     assignment.status = CampaignAssignmentStatus.CANCELLED.value
     assignment.deactivated_at = now
@@ -2243,6 +2253,7 @@ async def cancel_admin_assignment(
     if locked_driver_profile is None or locked_vehicle is None:
         raise assignment_not_found()
     now = await database_clock(session)
+    ensure_not_expired(campaign, now, code="ASSIGNMENT_FINISHED")
     if await expire_assignment_if_due(session, assignment, now=now):
         raise OfferExpiredError("The assignment offer expired before it could be cancelled")
     if assignment.status == CampaignAssignmentStatus.OFFERED.value and _offer_terms_complete(
@@ -2255,7 +2266,6 @@ async def cancel_admin_assignment(
         )
     if assignment.status in {
         CampaignAssignmentStatus.CANCELLED.value,
-        CampaignAssignmentStatus.COMPLETED.value,
         CampaignAssignmentStatus.DECLINED.value,
         CampaignAssignmentStatus.EXPIRED.value,
     }:
@@ -2294,6 +2304,7 @@ async def get_current_active_driver_assignment(
         select(CampaignAssignment).where(
             CampaignAssignment.driver_profile_id == driver_profile.id,
             CampaignAssignment.status == CampaignAssignmentStatus.ACTIVE.value,
+            assignment_window_open(),
         )
     )
     assignments = list(result.scalars().all())

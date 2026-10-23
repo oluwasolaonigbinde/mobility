@@ -12,7 +12,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.measurement import canonical_sha256
+from app.services.report_integrity import canonical_sha256
 
 SCHEMA_VERSION = "synthetic-target-area-coverage-v1"
 HEATMAP_AGGREGATION_VERSION = "heatmap_v1"

@@ -32,6 +32,16 @@ from app.services.audit import create_audit_event
 from app.services.trip_evidence import manifest_root
 
 AUDITED = {
+    # S9/S10/D118: one report; retained issued-file downloads above remain.
+    ("POST", "/api/v1/advertiser/reports"): "campaign_report.requested",
+    (
+        "POST",
+        "/api/v1/advertiser/reports/{report_id}/artifacts/{artifact_format}/download",
+    ): "stored_file.read|campaign_report.downloaded",
+    (
+        "POST",
+        "/api/v1/admin/reports/{report_id}/artifacts/{artifact_format}/download",
+    ): "stored_file.read|campaign_report.downloaded",
     ("POST", "/api/v1/admin/earnings-ledger/{entry_id}/negative-adjustments"): (
         "admin.earnings.negative_adjustment"
     ),
@@ -48,7 +58,7 @@ AUDITED = {
     (
         "POST",
         "/api/v1/admin/campaigns/{campaign_id}/reports/re-run",
-    ): "measurement_run.issued|report_issuance.requested",
+    ): "campaign_report.requested|campaign_report.rerun",
     ("POST", "/api/v1/admin/campaigns/{campaign_id}/resume"): "admin.campaign.resumed",
     ("POST", "/api/v1/auth/login"): "auth.login.*",
     ("POST", "/api/v1/auth/change-password"): "auth.password.*",
@@ -251,10 +261,6 @@ AUDITED = {
     ("POST", "/api/v1/admin/payouts/automatic/alerts/{alert_id}/resolve"): (
         "admin.payout_automatic_alert.resolved"
     ),
-    ("POST", "/api/v1/admin/traffic-density-profiles"): ("admin.traffic_density_profile.created"),
-    ("PATCH", "/api/v1/admin/traffic-density-profiles/{profile_id}"): (
-        "admin.traffic_density_profile.updated"
-    ),
     ("POST", "/api/v1/admin/trips/{trip_id}/estimate-impressions"): (
         "admin.impression_estimate.computed"
     ),
@@ -327,7 +333,6 @@ AUDITED = {
     ("POST", "/api/v1/admin/manual-driver-contact-tasks/{task_id}/complete"): (
         "operations.driver_contact_task.completed"
     ),
-    ("POST", "/api/v1/admin/measurement-runs"): "measurement_run.issued",
     # W3-04B/C driver-application onboarding and review (public applicant
     # capability token in the request body; each router commits once):
     ("POST", "/api/v1/auth/driver-onboarding/files/uploads"): ("stored_file.upload_requested"),
@@ -358,12 +363,6 @@ AUDITED = {
         "admin.bank_account.payout_verified"
     ),
     # Report issuance request/download (advertiser and admin share one service):
-    ("POST", "/api/v1/advertiser/measurement-runs/{run_id}/report-issuances"): (
-        "report_issuance.requested|report_issuance.replayed"
-    ),
-    ("POST", "/api/v1/admin/measurement-runs/{run_id}/report-issuances"): (
-        "report_issuance.requested|report_issuance.replayed"
-    ),
     (
         "POST",
         "/api/v1/advertiser/report-issuances/{issuance_id}/artifacts/{artifact_format}/download",
@@ -610,7 +609,6 @@ def test_analytics_recompute_and_impression_estimate_write_audit_events(
 
     from conftest import (
         auth_headers,
-        create_test_traffic_density_profile,
         create_test_trip_session,
     )
 
@@ -646,7 +644,7 @@ def test_analytics_recompute_and_impression_estimate_write_audit_events(
     assert recompute.status_code == http_status.HTTP_200_OK, recompute.text
     analytics_id = recompute.json()["id"]
 
-    create_test_traffic_density_profile(db_sessionmaker, is_default=True)
+    # S10 / D118 uses fixed estimate factors, with no profile prerequisite.
     estimate = db_client.post(
         f"/api/v1/admin/trips/{trip.id}/estimate-impressions", headers=headers, json={}
     )
@@ -667,37 +665,6 @@ def test_analytics_recompute_and_impression_estimate_write_audit_events(
     assert asyncio.run(audited_entities("admin.impression_estimate.computed")) == {
         estimate.json()["id"]
     }
-
-
-def test_traffic_density_profile_mutations_write_audit_events(db_client, db_sessionmaker) -> None:
-    from conftest import auth_headers, create_test_user
-
-    create_test_user(
-        db_sessionmaker, email="audit-admin@example.com", password="long-secure-password"
-    )
-    headers = auth_headers(db_client, "audit-admin@example.com", "long-secure-password")
-
-    created = db_client.post(
-        "/api/v1/admin/traffic-density-profiles",
-        headers=headers,
-        json={
-            "name": "Audit Profile",
-            "traffic_density_per_km": "120",
-            "dwell_impressions_per_minute": "3",
-        },
-    )
-    assert created.status_code == http_status.HTTP_200_OK, created.text
-    profile_id = created.json()["id"]
-    updated = db_client.patch(
-        f"/api/v1/admin/traffic-density-profiles/{profile_id}",
-        headers=headers,
-        json={"description": "updated"},
-    )
-    assert updated.status_code == http_status.HTTP_200_OK, updated.text
-
-    actions = audit_actions(db_sessionmaker)
-    assert "admin.traffic_density_profile.created" in actions
-    assert "admin.traffic_density_profile.updated" in actions
 
 
 def test_applicant_file_status_probe_stays_exempt(db_client, db_sessionmaker, settings) -> None:

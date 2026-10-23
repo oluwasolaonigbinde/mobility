@@ -53,6 +53,7 @@ import app.models.campaign_assignment  # noqa: E402,F401
 import app.models.campaign_cancellation  # noqa: E402,F401
 import app.models.campaign_change  # noqa: E402,F401
 import app.models.campaign_enquiry  # noqa: E402,F401
+import app.models.campaign_report  # noqa: E402,F401
 import app.models.campaign_zone  # noqa: E402,F401
 import app.models.complaint  # noqa: E402,F401
 import app.models.contact  # noqa: E402,F401

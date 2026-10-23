@@ -1,31 +1,28 @@
-"""Durable weekly/end obligations over the existing immutable report pipeline."""
+"""D118: weekly and final reports use the same request and publisher."""
 
-import logging
-from datetime import UTC, timedelta
-from uuid import UUID, uuid4
+from datetime import timedelta
+from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
+from app.adapters.storage import StorageError
 from app.core.errors import AppError
+from app.core.outbox_enqueue import pending_job
 from app.models.campaign import Campaign
 from app.models.campaign_cancellation import CampaignCancellation
-from app.models.report_schedule import ReportSchedule, ReportScheduleCursor
-from app.schemas.measurement import MeasurementRunCreate
-from app.schemas.report_issuances import ReportIssuanceCreate
-from app.services.measurement import issue_measurement_run
-from app.services.payout_rule_serialization import database_clock
-from app.services.report_authorization import REPORT_ACTOR_ID
-from app.services.report_issuances import request_report_issuance
-
-logger = logging.getLogger(__name__)
+from app.models.campaign_report import CampaignReport
+from app.models.report_schedule import ReportScheduleCursor
+from app.services.audit import create_audit_event
+from app.services.campaign_report_data import aware
+from app.services.campaign_reports import _request_lock, create_report
+from app.services.disclosure import _canonical_hash
+from app.services.fraud_holds import lock_fraud_reconciliation_gate
+from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
+from app.services.report_authorization import REPORT_ACTOR_ID, require_report_operator
 
 WEEK = timedelta(days=7)
-ELIGIBLE = ("active", "paused", "completed", "cancelled")
-
-
-def aware(value):
-    return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
+ELIGIBLE = ("active", "paused", "cancelled")
 
 
 async def report_cutoff(session, campaign):
@@ -52,12 +49,81 @@ def next_due_window(start, end, now, existing):
         if due not in existing:
             return due, "weekly"
         due += WEEK
-    if end <= now and end not in existing:
+    return (end, "final") if end <= now and end not in existing else None
+
+
+def latest_due_window(start, end, now):
+    if start >= end or now < min(start + WEEK, end):
+        return None
+    if end <= now:
         return end, "final"
-    return None
+    weeks = (now - start) // WEEK
+    return start + weeks * WEEK, "weekly"
 
 
-async def discover_report_obligations(session, *, limit):
+async def rerun_campaign_report(
+    session, *, actor_user_id, campaign_id, request_id, settings, storage
+):
+    await lock_fraud_reconciliation_gate(session, exclusive=True)
+    await require_report_operator(session, actor_user_id)
+    await _request_lock(session, actor_user_id, request_id)
+    fingerprint = _canonical_hash({"campaign_id": str(campaign_id), "action": "rerun"})
+    replay = await session.scalar(
+        select(CampaignReport).where(
+            CampaignReport.requested_by_user_id == actor_user_id,
+            CampaignReport.client_request_id == request_id,
+        )
+    )
+    if replay:
+        if replay.request_fingerprint != fingerprint:
+            raise AppError(
+                "REPORT_REQUEST_CONFLICT",
+                "This request was already used for another report",
+                status_code=409,
+            )
+        return replay
+    await acquire_campaign_terms_lock(session, campaign_id)
+    campaign = await session.get(Campaign, campaign_id, populate_existing=True)
+    if campaign is None:
+        raise AppError("CAMPAIGN_NOT_FOUND", "Campaign was not found", status_code=404)
+    now = await database_clock(session)
+    end = await report_cutoff(session, campaign)
+    due = (
+        latest_due_window(aware(campaign.start_at), end, now) if campaign.start_at and end else None
+    )
+    if campaign.status not in ELIGIBLE or due is None:
+        raise AppError(
+            "REPORT_NOT_DUE", "The first weekly or final report is not due yet", status_code=409
+        )
+    prior = await session.scalar(
+        select(CampaignReport)
+        .where(
+            CampaignReport.campaign_id == campaign.id,
+            CampaignReport.kind == due[1],
+            CampaignReport.period_end_at == due[0],
+        )
+        .order_by(CampaignReport.version.desc())
+        .limit(1)
+    )
+    return await create_report(
+        session,
+        actor_user_id=actor_user_id,
+        campaigns=[campaign],
+        request_id=request_id,
+        request_fingerprint=fingerprint,
+        start=aware(campaign.start_at),
+        end=due[0],
+        kind=due[1],
+        settings=settings,
+        storage=storage,
+        now=now,
+        rerun_of=prior,
+    )
+
+
+async def discover_reports(session, *, settings, storage, limit):
+    await lock_fraud_reconciliation_gate(session, exclusive=True)
+    await require_report_operator(session, REPORT_ACTOR_ID)
     await session.execute(
         insert(ReportScheduleCursor)
         .values(name="campaigns")
@@ -88,174 +154,81 @@ async def discover_report_obligations(session, *, limit):
         rows = list(await session.scalars(query))
     now = await database_clock(session)
     created = 0
+    last_campaign_id = rows[-1].id if rows else None
     for campaign in rows:
+        await acquire_campaign_terms_lock(session, campaign.id)
+        await session.refresh(campaign)
         end = await report_cutoff(session, campaign)
-        if end is None:
+        if end is None or campaign.status not in ELIGIBLE:
             continue
-        known = set(
+        known = {
             aware(value)
             for value in await session.scalars(
-                select(ReportSchedule.period_end_at).where(
-                    ReportSchedule.campaign_id == campaign.id,
-                    ReportSchedule.period_start_at == campaign.start_at,
+                select(CampaignReport.period_end_at).where(
+                    CampaignReport.campaign_id == campaign.id,
+                    CampaignReport.kind.in_(("weekly", "final")),
                 )
             )
-        )
+        }
         due = next_due_window(aware(campaign.start_at), end, now, known)
         if due:
-            await session.execute(
-                insert(ReportSchedule)
-                .values(
-                    id=uuid4(),
-                    campaign_id=campaign.id,
-                    period_start_at=campaign.start_at,
-                    period_end_at=due[0],
-                    kind=due[1],
-                    measurement_request_id=uuid4(),
-                    issuance_request_id=uuid4(),
+            request_id = uuid4()
+            campaign_id = campaign.id
+            try:
+                async with session.begin_nested():
+                    await create_report(
+                        session,
+                        actor_user_id=REPORT_ACTOR_ID,
+                        campaigns=[campaign],
+                        request_id=request_id,
+                        request_fingerprint=_canonical_hash(str(request_id)),
+                        start=aware(campaign.start_at),
+                        end=due[0],
+                        kind=due[1],
+                        settings=settings,
+                        storage=storage,
+                        now=now,
+                    )
+                created += 1
+            except (AppError, StorageError) as error:
+                await create_audit_event(
+                    session,
+                    actor_user_id=REPORT_ACTOR_ID,
+                    action="campaign_report.preparation_failed",
+                    entity_type="campaign",
+                    entity_id=str(campaign_id),
+                    metadata={"error_code": getattr(error, "code", "REPORT_STORAGE_UNAVAILABLE")},
                 )
-                .on_conflict_do_nothing(constraint="uq_report_schedule_window")
-            )
-            created += 1
-    if rows:
-        cursor.campaign_id = rows[-1].id
-    await session.flush()
+    if last_campaign_id:
+        cursor.campaign_id = last_campaign_id
     return created
-
-
-async def prepare_report(
-    session,
-    *,
-    actor_user_id,
-    campaign_id,
-    start,
-    end,
-    measurement_request_id,
-    issuance_request_id,
-    settings,
-):
-    run = await issue_measurement_run(
-        session,
-        actor_user_id=actor_user_id,
-        payload=MeasurementRunCreate(
-            campaign_id=campaign_id,
-            client_request_id=measurement_request_id,
-            period_start_at=start,
-            period_end_at=end,
-        ),
-        settings=settings,
-    )
-    issuance = await request_report_issuance(
-        session,
-        actor_user_id=actor_user_id,
-        measurement_run_id=run.id,
-        payload=ReportIssuanceCreate(client_request_id=issuance_request_id),
-        settings=settings,
-        admin=True,
-    )
-    return run, issuance
 
 
 async def sweep_scheduled_reports(ctx):
     settings, maker = ctx["settings"], ctx["sessionmaker"]
-    async with maker() as session:
-        discovered = await discover_report_obligations(
-            session, limit=settings.worker_sweep_batch_size
-        )
-        await session.commit()
+    # Lost queue hints and expired leases recover even when discovery is blocked.
     async with maker() as session:
         now = await database_clock(session)
-        ids = list(
-            await session.scalars(
-                select(ReportSchedule.id)
-                .where(ReportSchedule.state != "complete", ReportSchedule.next_attempt_at <= now)
-                .order_by(ReportSchedule.next_attempt_at, ReportSchedule.id)
-                .limit(settings.worker_sweep_batch_size)
+        ids = await session.scalars(
+            select(CampaignReport.id)
+            .where(
+                CampaignReport.status == "queued",
+                CampaignReport.next_attempt_at <= now,
+                (CampaignReport.lease_expires_at.is_(None))
+                | (CampaignReport.lease_expires_at <= now),
             )
+            .order_by(CampaignReport.next_attempt_at, CampaignReport.id)
+            .limit(settings.worker_sweep_batch_size)
         )
-    queued = failed = 0
-    for identity in ids:
-        async with maker() as session:
-            now = await database_clock(session)
-            obligation = await session.scalar(
-                select(ReportSchedule)
-                .where(
-                    ReportSchedule.id == identity,
-                    ReportSchedule.state != "complete",
-                    ReportSchedule.next_attempt_at <= now,
-                )
-                .with_for_update(skip_locked=True)
-            )
-            if obligation is None:
-                continue
-            obligation.attempts += 1
-            try:
-                async with session.begin_nested():
-                    run, issuance = await prepare_report(
-                        session,
-                        actor_user_id=REPORT_ACTOR_ID,
-                        campaign_id=obligation.campaign_id,
-                        start=obligation.period_start_at,
-                        end=obligation.period_end_at,
-                        measurement_request_id=obligation.measurement_request_id,
-                        issuance_request_id=obligation.issuance_request_id,
-                        settings=settings,
-                    )
-                    obligation.measurement_run_id, obligation.report_issuance_id = (
-                        run.id,
-                        issuance.id,
-                    )
-                    obligation.state, obligation.error_code = "complete", None
-                queued += 1
-            except Exception as error:
-                if not isinstance(error, AppError):
-                    logger.warning(
-                        "job=sweep_report_schedules schedule=%s error=%s",
-                        obligation.id,
-                        type(error).__name__,
-                    )
-                obligation.state = "error"
-                obligation.error_code = (
-                    error.code if isinstance(error, AppError) else "REPORT_PREPARATION_FAILED"
-                )
-                obligation.next_attempt_at = now + timedelta(
-                    minutes=settings.worker_sweep_interval_minutes
-                )
-                failed += 1
-            await session.commit()
-    return {"discovered": discovered, "queued": queued, "failed": failed}
-
-
-async def rerun_campaign_report(session, *, actor_user_id: UUID, campaign_id: UUID, settings):
-    from app.services.admin_authorization import require_active_admin
-    from app.services.payout_rule_serialization import acquire_campaign_terms_lock
-
-    await acquire_campaign_terms_lock(session, campaign_id)
-    await require_active_admin(session, actor_user_id)
-    campaign = await session.get(Campaign, campaign_id)
-    if campaign is None:
-        raise AppError("CAMPAIGN_NOT_FOUND", "Campaign was not found", status_code=404)
-    end = await report_cutoff(session, campaign)
-    now = await database_clock(session)
-    if campaign.start_at is None or end is None or min(now, end) <= aware(campaign.start_at):
-        raise AppError(
-            "REPORT_PERIOD_UNAVAILABLE",
-            "This campaign has no completed reporting period yet",
-            status_code=409,
+        for identity in ids:
+            pending_job(session, "generate_campaign_report", identity)
+        await session.commit()
+    async with maker() as session:
+        count = await discover_reports(
+            session,
+            settings=settings,
+            storage=ctx["storage"],
+            limit=settings.worker_sweep_batch_size,
         )
-    start = aware(campaign.start_at)
-    if now < end and now - start >= WEEK:
-        end = start + ((now - start) // WEEK) * WEEK
-    else:
-        end = min(now, end)
-    _, issuance = await prepare_report(
-        session,
-        actor_user_id=actor_user_id,
-        campaign_id=campaign_id,
-        start=start,
-        end=end,
-        measurement_request_id=uuid4(),
-        issuance_request_id=uuid4(),
-        settings=settings,
-    )
-    return issuance
+        await session.commit()
+        return count

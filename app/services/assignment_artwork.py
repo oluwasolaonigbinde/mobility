@@ -37,7 +37,6 @@ def _unavailable():
 
 def _deadline(assignment, campaign, *, now):
     if assignment.status not in {"offered", "accepted", "active"} or campaign.status in {
-        "completed",
         "cancelled",
         "rejected",
     }:

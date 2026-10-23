@@ -33,6 +33,7 @@ from app.services.audit import create_audit_event
 from app.services.billing.queries import _commercial_terms_for_campaign
 from app.services.billing.settlements import _refund_window
 from app.services.campaign_assignments import create_activation_event
+from app.services.campaign_lifecycle import ensure_campaign_not_finished
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
 
 
@@ -170,6 +171,7 @@ async def request_campaign_cancellation(
         )
 
     now = await database_clock(session)
+    ensure_campaign_not_finished(campaign, now=now, action="cancelled")
     terms: CommercialTerms | None = await _commercial_terms_for_campaign(
         session, campaign_id, lock=True
     )

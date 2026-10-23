@@ -389,7 +389,9 @@ def test_campaign_lifecycle_blocks_mutation_but_allows_reads(
     for blocked_status in [
         CampaignStatus.PENDING_REVIEW,
         CampaignStatus.APPROVED,
-        CampaignStatus.COMPLETED,
+        # S23 / D118 keeps stored active/paused; Finished is a date projection.
+        CampaignStatus.ACTIVE,
+        CampaignStatus.PAUSED,
         CampaignStatus.CANCELLED,
     ]:
         _, _, campaign = create_advertiser_campaign(

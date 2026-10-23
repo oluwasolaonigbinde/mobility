@@ -85,6 +85,7 @@ async def record_negative_adjustment(
         )
     await lock_fraud_hold_scope(session, source.trip_session_id)
     trip = await session.get(TripSession, source.trip_session_id)
+    assert trip is not None  # The immutable source credit retains its trip FK.
     lagos_day = _adjustment_day(trip, lagos_day)
     chain = await lock_payout_chains(session, trip_ids=(source.trip_session_id,))
     await lock_driver_money_scope(
@@ -98,6 +99,7 @@ async def record_negative_adjustment(
         .with_for_update()
         .execution_options(populate_existing=True)
     )
+    assert source is not None and source.trip_session_id is not None
     if source.status == "voided":
         raise AppError(
             "PAYOUT_ADJUSTMENT_SOURCE_INVALID", "Choose an existing trip credit", status_code=409

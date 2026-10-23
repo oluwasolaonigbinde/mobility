@@ -76,7 +76,9 @@ async def _locked_assignment(
     campaign = await session.scalar(
         select(Campaign).where(Campaign.id == assignment_ref.campaign_id).with_for_update()
     )
-    if campaign is None:
+    if campaign is None or (
+        campaign.end_at and _utc(campaign.end_at) <= _utc(await database_clock(session))
+    ):
         return None
     return await session.scalar(
         select(CampaignAssignment).where(CampaignAssignment.id == assignment_id).with_for_update()

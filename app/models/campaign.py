@@ -45,7 +45,6 @@ class CampaignStatus(StrEnum):
     REJECTED = "rejected"
     ACTIVE = "active"
     PAUSED = "paused"
-    COMPLETED = "completed"
     CANCELLED = "cancelled"
 
 
@@ -72,7 +71,7 @@ class Campaign(Base):
     __table_args__ = (
         CheckConstraint(
             "status IN ('draft', 'pending_review', 'approved', 'rejected', "
-            "'active', 'paused', 'completed', 'cancelled')",
+            "'active', 'paused', 'cancelled')",
             name="ck_campaigns_status",
         ),
         CheckConstraint(

@@ -21,6 +21,7 @@ from app.services.billing.queries import (
     _commercial_terms_for_campaign,
     effective_invoice_obligation,
 )
+from app.services.campaign_lifecycle import ensure_campaign_not_finished
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
 
 logger = logging.getLogger(__name__)
@@ -225,6 +226,7 @@ async def resume_campaign_after_budget_pause(
             "Campaign pause is not owned by budget enforcement",
             status_code=409,
         )
+    ensure_campaign_not_finished(campaign, now=await database_clock(session), action="restarted")
     check = await campaign_budget_check(session, campaign=campaign)
     if (
         check is None

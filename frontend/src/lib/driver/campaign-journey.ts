@@ -34,7 +34,7 @@ export interface OfferAuthority {
   declined: number;
   expired: number;
   cancelled: number;
-  completed: number;
+  finished: number;
 }
 
 export interface DriverJourneyFacts {

@@ -60,7 +60,6 @@ def test_direct_calculation_refuses_equal_start_higher_id_before_lower_id(
             await estimate_trip_impressions(
                 session,
                 trip_id=current_id,
-                traffic_density_profile_id=None,
                 metadata={"source": "test"},
                 settings=settings,
             )

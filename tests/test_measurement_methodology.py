@@ -81,7 +81,7 @@ def test_contract_is_complete_and_live_use_fails_closed() -> None:
 def test_frozen_disclosure_wording_is_taken_from_the_contract() -> None:
     # R47: the frozen result must reproduce the contract's own clauses verbatim so a
     # run stays reproducible from its manifest without reading this file at runtime.
-    from app.services.measurement import (
+    from app.services.historical_measurement import (
         DENSITY_PARAMETER_CALIBRATION,
         DENSITY_PARAMETER_SOURCE,
         MODELLED_CONTACTS_UNCERTAINTY,
@@ -136,10 +136,11 @@ def test_advertiser_copy_uses_safe_measurement_terms() -> None:
     copy = "\n".join(copy_files.values())
 
     assert "Estimated views" in copy
-    report_page = (
-        ADVERTISER_DIR / "campaigns" / "[campaignId]" / "report" / "page.tsx"
-    ).read_text()
-    assert "{report.uncertainty}" in report_page
+    # S9/D118 moves issued-report uncertainty into the CSV/PDF renderer.
+    from app.services.campaign_report_rendering import UNCERTAINTY
+
+    assert "not measured people or guaranteed views" in UNCERTAINTY
+    assert "no independent traffic survey or field calibration" in UNCERTAINTY
     for path, text in copy_files.items():
         if DIAGNOSTIC_PATTERN.search(text):
             assert (

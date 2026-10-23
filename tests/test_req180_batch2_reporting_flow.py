@@ -1,28 +1,29 @@
+"""S9/D118: current report publication retains D105 shared three-car area outputs."""
+
 import asyncio
 from datetime import timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
 from conftest import auth_headers, create_test_installation_evidence
-from sqlalchemy import func, select
+from report_fixtures import create_report_fixture
+from sqlalchemy import select
 from test_advertiser_reports import DAY_1, PASSWORD, create_report_graph
 from test_heatmaps import add_ping_batch
-from test_measurement_runs import create_measurement_graph, issue_payload
-from test_report_issuances import ReportStorage
+from test_stored_files import FakeStorageProvider
 
 from app.models.campaign import CampaignCreative
 from app.models.campaign_assignment import CampaignActivationEvent
+from app.models.campaign_report import CampaignReport
 from app.models.campaign_zone import CampaignZone
-from app.models.disclosure import DisclosureQueryDecision
 from app.models.installation_evidence import InstallationEvidenceSubmission
-from app.models.report_issuance import ReportIssuance
 from app.models.trip import TripSession
 from app.services.campaign_assignments import activation_snapshot_digest
-from app.services.report_issuances import sweep_report_issuances
+from app.services.campaign_report_delivery import publish_campaign_report
 
 
 def three_car_run(db_client, maker, *, vehicle_count=3, dominant=False):
-    admin, advertiser, campaign = create_measurement_graph(maker)
+    admin, advertiser, campaign = create_report_fixture(maker)
     for index in range(2, vehicle_count + 1):
         *_, assignment, _, _, _ = create_report_graph(
             maker,
@@ -92,16 +93,24 @@ def three_car_run(db_client, maker, *, vehicle_count=3, dominant=False):
         add_ping_batch(
             maker,
             trip_id=trip,
-            points=[(DAY_1 + timedelta(minutes=10), 6.05, 3.05)],
+            points=[
+                (DAY_1 + timedelta(minutes=10), 6.05, 3.05),
+                (DAY_1 + timedelta(minutes=11), 6.051, 3.051),
+            ],
             idempotency_key=f"area-{trip}",
         )
     headers = auth_headers(db_client, advertiser.email, PASSWORD)
     response = db_client.post(
-        "/api/v1/admin/measurement-runs",
-        json=issue_payload(campaign.id),
-        headers=auth_headers(db_client, admin.email, PASSWORD),
+        "/api/v1/advertiser/reports",
+        headers=headers,
+        json={
+            "client_request_id": str(uuid4()),
+            "campaign_id": str(campaign.id),
+            "start_date": DAY_1.date().isoformat(),
+            "end_date": DAY_1.date().isoformat(),
+        },
     )
-    assert response.status_code == 201, response.text
+    assert response.status_code == 202, response.text
     return advertiser, campaign, response.json(), headers
 
 
@@ -113,24 +122,10 @@ def test_released_areas_never_block_other_advertiser_outputs(
     # D105: three-car areas are shown, and every other output still answers.
     advertiser, campaign, run, headers = three_car_run(db_client, db_sessionmaker)
 
-    async def ready():
-        async with db_sessionmaker() as session:
-            # Private measurement/segment construction is not a public disclosure.
-            assert (
-                await session.scalar(select(func.count()).select_from(DisclosureQueryDecision)) == 0
-            )
-
-    asyncio.run(ready())
     path = f"/api/v1/advertiser/campaigns/{campaign.id}/report"
     params = {"start_at": DAY_1.isoformat(), "end_at": (DAY_1 + timedelta(days=1)).isoformat()}
     first = db_client.get(path, params=params, headers=headers)
     assert first.status_code == 200 and len(first.json()["areas"]) == 1, first.text
-    issuance = db_client.post(
-        f"/api/v1/advertiser/measurement-runs/{run['id']}/report-issuances",
-        headers=headers,
-        json={"client_request_id": str(uuid4())},
-    )
-    assert issuance.status_code == 202, issuance.text
     result = db_client.get(path, params=params, headers=headers)
     assert result.status_code == 200, result.text
     assert result.json()["totals"] == {
@@ -143,22 +138,20 @@ def test_released_areas_never_block_other_advertiser_outputs(
 
     async def publish():
         async with db_sessionmaker() as session:
-            row = await session.get(ReportIssuance, UUID(issuance.json()["id"]))
+            row = await session.get(CampaignReport, UUID(run["id"]))
             assert "linked_source_recommendations" not in row.snapshot
-            assert len(row.snapshot["exposure"]["zones"]) == 1
-        storage = ReportStorage()
+            assert len(row.snapshot["campaigns"][0]["areas"]) == 1
+        storage = FakeStorageProvider()
         assert (
-            await sweep_report_issuances(
-                {"sessionmaker": db_sessionmaker, "settings": settings, "storage": storage}
-            )
-            == 1
+            await publish_campaign_report(db_sessionmaker, report_id=run["id"], storage=storage)
+            == "ready"
         )
         async with db_sessionmaker() as session:
-            row = await session.get(ReportIssuance, UUID(issuance.json()["id"]))
+            row = await session.get(CampaignReport, UUID(run["id"]))
             assert row.status == "ready"
         assert len(storage.contents) == 2
         csv = next(
-            content for content in storage.contents.values() if content.startswith(b"section,")
+            content for content in storage.contents.values() if not content.startswith(b"%PDF-")
         )
         for value in (b"30000.00", b"1500.00", b"Driving days", b"Estimated views"):
             assert value in csv

@@ -15,9 +15,6 @@ from app.core.errors import AppError
 from app.models.impression import (
     ImpressionEstimate,
     ImpressionEstimateStatus,
-    TrafficDensityProfile,
-    TrafficDensityProfileStatus,
-    TrafficDensityProfileType,
 )
 from app.schemas.campaigns import ensure_timezone_aware
 from app.schemas.impressions import (
@@ -25,20 +22,12 @@ from app.schemas.impressions import (
     EstimateImpressionsRequest,
     ImpressionEstimateListResponse,
     ImpressionEstimateRead,
-    TrafficDensityProfileCreate,
-    TrafficDensityProfileListResponse,
-    TrafficDensityProfileRead,
-    TrafficDensityProfileUpdate,
 )
 from app.services.audit import create_audit_event
 from app.services.impressions import (
     advertiser_campaign_impression_summary,
-    create_traffic_density_profile,
     estimate_trip_impressions,
-    get_traffic_density_profile,
     list_impression_estimates,
-    list_traffic_density_profiles,
-    update_traffic_density_profile,
 )
 
 router = APIRouter(tags=["Impressions"])
@@ -71,35 +60,6 @@ def ensure_impression_date_range(
     return start_at, end_at
 
 
-def profile_response(profile: TrafficDensityProfile) -> TrafficDensityProfileRead:
-    return TrafficDensityProfileRead(
-        id=profile.id,
-        lineage_id=profile.lineage_id,
-        revision=profile.revision,
-        effective_from=profile.effective_from,
-        supersedes_id=profile.supersedes_id,
-        value_fingerprint=profile.value_fingerprint,
-        name=profile.name,
-        description=profile.description,
-        profile_type=profile.profile_type,
-        traffic_density_per_km=profile.traffic_density_per_km,
-        dwell_impressions_per_minute=profile.dwell_impressions_per_minute,
-        road_category_weight=profile.road_category_weight,
-        morning_weight=profile.morning_weight,
-        midday_weight=profile.midday_weight,
-        evening_weight=profile.evening_weight,
-        night_weight=profile.night_weight,
-        target_zone_weight=profile.target_zone_weight,
-        bonus_zone_weight=profile.bonus_zone_weight,
-        exclusion_zone_weight=profile.exclusion_zone_weight,
-        is_default=profile.is_default,
-        status=profile.status,
-        metadata=profile.profile_metadata,
-        created_at=profile.created_at,
-        updated_at=profile.updated_at,
-    )
-
-
 def estimate_response(estimate: ImpressionEstimate) -> ImpressionEstimateRead:
     return ImpressionEstimateRead(
         id=estimate.id,
@@ -109,7 +69,6 @@ def estimate_response(estimate: ImpressionEstimate) -> ImpressionEstimateRead:
         campaign_id=estimate.campaign_id,
         driver_profile_id=estimate.driver_profile_id,
         vehicle_id=estimate.vehicle_id,
-        traffic_density_profile_id=estimate.traffic_density_profile_id,
         formula_version=estimate.formula_version,
         is_authoritative=estimate.is_authoritative,
         status=estimate.status,
@@ -132,106 +91,6 @@ def estimate_response(estimate: ImpressionEstimate) -> ImpressionEstimateRead:
 
 
 @router.post(
-    "/admin/traffic-density-profiles",
-    response_model=TrafficDensityProfileRead,
-    summary="Create a traffic density profile",
-)
-async def admin_create_traffic_density_profile(
-    payload: TrafficDensityProfileCreate,
-    current_user: AdminUserDependency,
-    session: SessionDependency,
-) -> TrafficDensityProfileRead:
-    profile = await create_traffic_density_profile(session, payload)
-    await create_audit_event(
-        session,
-        actor_user_id=current_user.id,
-        action="admin.traffic_density_profile.created",
-        entity_type="traffic_density_profile",
-        entity_id=str(profile.id),
-        metadata={"name": profile.name, "profile_type": profile.profile_type},
-    )
-    await session.commit()
-    return profile_response(profile)
-
-
-@router.get(
-    "/admin/traffic-density-profiles",
-    response_model=TrafficDensityProfileListResponse,
-    summary="List traffic density profiles",
-)
-async def admin_list_traffic_density_profiles(
-    current_user: AdminUserDependency,
-    session: SessionDependency,
-    limit: Annotated[int, Query(ge=1, le=100)] = 50,
-    offset: Annotated[int, Query(ge=0)] = 0,
-    status: TrafficDensityProfileStatus | None = None,
-    profile_type: TrafficDensityProfileType | None = None,
-    is_default: bool | None = None,
-) -> TrafficDensityProfileListResponse:
-    del current_user
-    profiles, total = await list_traffic_density_profiles(
-        session,
-        limit=limit,
-        offset=offset,
-        profile_status=status,
-        profile_type=profile_type,
-        is_default=is_default,
-    )
-    return TrafficDensityProfileListResponse(
-        items=[profile_response(profile) for profile in profiles],
-        total=total,
-        limit=limit,
-        offset=offset,
-    )
-
-
-@router.get(
-    "/admin/traffic-density-profiles/{profile_id}",
-    response_model=TrafficDensityProfileRead,
-    summary="Read a traffic density profile",
-)
-async def admin_get_traffic_density_profile(
-    profile_id: UUID,
-    current_user: AdminUserDependency,
-    session: SessionDependency,
-) -> TrafficDensityProfileRead:
-    del current_user
-    return profile_response(await get_traffic_density_profile(session, profile_id))
-
-
-@router.patch(
-    "/admin/traffic-density-profiles/{profile_id}",
-    response_model=TrafficDensityProfileRead,
-    summary="Update a traffic density profile",
-)
-async def admin_update_traffic_density_profile(
-    profile_id: UUID,
-    payload: TrafficDensityProfileUpdate,
-    current_user: AdminUserDependency,
-    session: SessionDependency,
-) -> TrafficDensityProfileRead:
-    profile = await update_traffic_density_profile(session, profile_id=profile_id, payload=payload)
-    await create_audit_event(
-        session,
-        actor_user_id=current_user.id,
-        action="admin.traffic_density_profile.updated",
-        entity_type="traffic_density_profile",
-        entity_id=str(profile.id),
-        metadata={
-            "changed_fields": sorted(
-                set(payload.model_dump(exclude_unset=True))
-                - {"expected_revision", "expected_value_fingerprint"}
-            ),
-            "supersedes_id": str(profile.supersedes_id),
-            "revision": profile.revision,
-            "value_fingerprint": profile.value_fingerprint,
-        },
-    )
-    await session.commit()
-    return profile_response(profile)
-
-
-@router.post(
     "/admin/trips/{trip_id}/estimate-impressions",
     response_model=ImpressionEstimateRead,
     summary="Estimate impressions for one analyzed trip",
@@ -246,9 +105,6 @@ async def admin_estimate_trip_impressions(
     estimate = await estimate_trip_impressions(
         session,
         trip_id=trip_id,
-        traffic_density_profile_id=(
-            payload.traffic_density_profile_id if payload is not None else None
-        ),
         metadata=payload.metadata if payload is not None else {},
         settings=settings,
     )
@@ -282,7 +138,6 @@ async def admin_list_impression_estimates(
     driver_profile_id: UUID | None = None,
     vehicle_id: UUID | None = None,
     status: ImpressionEstimateStatus | None = None,
-    traffic_density_profile_id: UUID | None = None,
 ) -> ImpressionEstimateListResponse:
     del current_user
     estimates, total = await list_impression_estimates(
@@ -294,7 +149,6 @@ async def admin_list_impression_estimates(
         driver_profile_id=driver_profile_id,
         vehicle_id=vehicle_id,
         estimate_status=status,
-        traffic_density_profile_id=traffic_density_profile_id,
     )
     return ImpressionEstimateListResponse(
         items=[estimate_response(estimate) for estimate in estimates],

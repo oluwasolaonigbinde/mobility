@@ -366,7 +366,8 @@ const server = createServer(async (request, response) => {
         declined: 0,
         expired: 0,
         cancelled: 0,
-        completed: 0,
+        // S23 / D118 replaces stored Completed with the date-derived Finished read.
+        finished: 0,
       },
     });
   }

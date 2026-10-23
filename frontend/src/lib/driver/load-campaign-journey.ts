@@ -17,7 +17,7 @@ import {
   type VehicleAuthority,
 } from "./campaign-journey";
 
-type AssignmentStatus = components["schemas"]["CampaignAssignmentStatus"];
+type AssignmentStatus = components["schemas"]["CampaignAssignmentRead"]["status"];
 type CurrentJob = components["schemas"]["DriverCurrentJob"];
 
 export interface LoadedDriverCampaignJourney {
@@ -181,7 +181,7 @@ export async function loadDriverCampaignJourney(): Promise<LoadedDriverCampaignJ
     "declined",
     "expired",
     "cancelled",
-    "completed",
+    "finished",
   ];
   const [profile, personPayee, vehicles, activeAssignment, currentTrip] = await Promise.all([
     read(api.GET("/api/v1/driver/profile"), { notFoundIsAbsent: true }),

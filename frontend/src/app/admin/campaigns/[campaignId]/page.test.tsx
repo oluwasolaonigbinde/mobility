@@ -10,7 +10,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: mocks.get }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
 vi.mock("next/navigation", () => ({ notFound: mocks.notFound, redirect: mocks.redirect }));
-vi.mock("@/lib/auth/current-user", () => ({ requireRole: async () => ({ role: "admin" }) }));
+vi.mock("@/lib/auth/current-user", () => ({
+  requireRole: async () => ({ user: { id: "staff", role: "admin" } }),
+}));
 vi.mock("./cancel-campaign-form", () => ({
   CancelCampaignForm: () => <p>Whole campaign cancellation</p>,
 }));
@@ -62,14 +64,10 @@ vi.mock("../../billing/[campaignId]/closeout/content", () => ({
     return <p>Close-out details</p>;
   },
 }));
-vi.mock("../../measurement/[runId]/content", () => ({
-  default: async () => {
-    if (mocks.sectionFailure === "results") throw new Error("results failed");
-    return <p>Results details</p>;
-  },
-}));
-vi.mock("../../measurement/issue-form", () => ({
+// S9/D118 replaces the measurement drawer with the single report list/Re-run.
+vi.mock("../../reports/report-actions", () => ({
   RerunReportForm: () => <p>Results form</p>,
+  ReportDownloads: () => <p>Report downloads</p>,
 }));
 vi.mock("../resume-form", () => ({ ResumeForm: () => <button>Resume</button> }));
 vi.mock("../artwork-preview", () => ({ ArtworkPreview: () => <button>View artwork</button> }));
@@ -93,7 +91,7 @@ import CampaignHub from "./page";
 import { ApiError } from "@/lib/api/errors";
 const id = "00000000-0000-4000-8000-000000000001";
 const jobId = "00000000-0000-4000-8000-000000000002";
-const runId = "00000000-0000-4000-8000-000000000003";
+
 const campaign = {
   id,
   name: "PalmPay Wuse",
@@ -148,7 +146,8 @@ function reads({
         data: {
           terms: null,
           financial_authority: { authority_type: "corporate_credit" },
-          budget_evaluations: [{ resume_allowed: resume, billing_spend_amount: "100000.00" }],
+          // S14 / D114 retains D104 through the single budget_check projection.
+          budget_check: { resume_allowed: resume, billing_spend_amount: "100000.00" },
           invoices: [{ id: "invoice" }],
         },
       };
@@ -158,9 +157,7 @@ function reads({
     if (path.endsWith("/readiness")) return { data: { ready, message: "Check installation" } };
     if (path.endsWith("/installation-evidence"))
       return { data: { items: [{ id: "photo", revision: 1, status: photoStatus, photos: [] }] } };
-    if (path.endsWith("/measurement-runs")) return { data: { items: [], total: 0 } };
-    if (path.endsWith("/measurement-runs/{run_id}"))
-      return { data: { id: runId, campaign_id: parent } };
+
     return { data: { items: [], total: 0 } };
   });
 }
@@ -191,7 +188,6 @@ it.each(["terms", "billing"])("keeps siblings usable if the %s section throws", 
 it.each([
   ["invoice", { drawer: "invoice", invoice: "invoice" }, "Invoice"],
   ["closeout", { drawer: "closeout" }, "Close-out"],
-  ["results", { run: runId }, "Results and reports"],
 ] as const)(
   "contains a failed %s panel without crashing the campaign",
   async (failure, query, title) => {
@@ -236,7 +232,7 @@ it("shows one drawer even when a URL includes several selections, and keeps pagi
       drawer: "invoice",
       invoice: "invoice",
       job: jobId,
-      run: runId,
+
       jobs_offset: "25",
     }),
   );
@@ -251,7 +247,6 @@ it("shows one drawer even when a URL includes several selections, and keeps pagi
 it.each([
   { drawer: "invoice", invoice: "elsewhere" },
   { job: "00000000-0000-4000-8000-000000000004" },
-  { run: runId },
 ])("refuses a detail selected from another campaign", async (query) => {
   reads({ parent: "other-campaign" });
   render(await page(query));
@@ -264,22 +259,23 @@ it("does not render or fan out for a denied campaign", async () => {
   await expect(page()).rejects.toThrow("not found");
   expect(mocks.get).toHaveBeenCalledOnce();
 });
-it("retains result reproducibility, replacement and report download state in the hub", async () => {
+// S9/D118: one report list replaces measurement selection/reproducibility controls.
+it("shows immutable ready report versions with both downloads", async () => {
   const original = mocks.get.getMockImplementation()!;
   mocks.get.mockImplementation(async (path: string) => {
-    if (path.endsWith("/measurement-runs"))
+    if (path.endsWith("/reports"))
       return {
         data: {
           items: [
             {
-              id: runId,
-              period_start_at: "2026-09-01T00:00:00Z",
-              period_end_at: "2026-10-01T00:00:00Z",
-              test_only: true,
-              superseded: true,
-              reproducible: false,
-              report_status: "published",
-              report_issuance_id: "report-1",
+              id: "report-1",
+              kind: "weekly",
+              status: "ready",
+              start_date: "2026-09-01",
+              end_date: "2026-10-01",
+              version: 2,
+              legacy: false,
+              campaigns: [{ id, name: campaign.name }],
             },
           ],
           total: 1,
@@ -288,13 +284,11 @@ it("retains result reproducibility, replacement and report download state in the
     return original(path);
   });
   render(await page());
-  const result = screen.getByRole("link", { name: /Replaced results/ });
-  expect(result).not.toHaveTextContent("Synthetic test");
-  expect(result).toHaveTextContent("cannot be reproduced — do not issue a report");
-  expect(result).toHaveTextContent("Report: Published");
-  expect(result).toHaveAttribute(
-    "href",
-    `/admin/campaigns/${id}?run=${runId}&report=report-1#results`,
+  expect(screen.getByText(/Version 2/)).toHaveTextContent("WAT");
+  expect(screen.getByText("Ready")).toBeInTheDocument();
+  expect(screen.getByText("Report downloads")).toBeInTheDocument();
+  expect(mocks.get.mock.calls.some(([path]) => String(path).includes("measurement-runs"))).toBe(
+    false,
   );
 });
 it("preserves job activity problems alongside readiness", async () => {
@@ -333,7 +327,7 @@ it("shows unavailable sections without inventing empty records or completed prer
   render(await page());
   expect(screen.getAllByRole("alert").length).toBeGreaterThan(5);
   expect(screen.queryByText("No driver jobs recorded.")).toBeNull();
-  expect(screen.queryByText("No results calculations recorded.")).toBeNull();
+  expect(screen.queryByText("No reports recorded.")).toBeNull();
   expect(screen.queryByText("Artwork status unavailable")).toBeNull();
   expect(screen.queryByRole("region", { name: "Launch checklist" })).toBeNull();
 });

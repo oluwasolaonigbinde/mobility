@@ -25,10 +25,10 @@ def test_default_aggregation_supports_navigation_frozen_reports_and_maps(
     from datetime import timedelta
 
     from conftest import auth_headers, create_test_installation_evidence
+    from report_fixtures import DAY_1, PASSWORD, create_report_fixture
     from sqlalchemy import select
     from test_advertiser_reports import create_report_graph
     from test_heatmaps import add_ping_batch
-    from test_measurement_runs import DAY_1, PASSWORD, create_measurement_graph, issue_payload
 
     from app.core.config import get_settings
     from app.models.campaign import CampaignCreative
@@ -43,7 +43,7 @@ def test_default_aggregation_supports_navigation_frozen_reports_and_maps(
     assert (baseline.privacy_min_vehicles_per_cell, baseline.privacy_min_resolution_m) == (3, 500)
     assert baseline.privacy_legal_approval_reference == ""
     postgis_db_client.app.dependency_overrides[get_settings] = lambda: baseline
-    admin, advertiser, campaign = create_measurement_graph(postgis_db_sessionmaker)
+    admin, advertiser, campaign = create_report_fixture(postgis_db_sessionmaker)
     for day in range(2):
         for index in range(6):
             *_, assignment, trip, _, _ = create_report_graph(
@@ -112,7 +112,10 @@ def test_default_aggregation_supports_navigation_frozen_reports_and_maps(
         add_ping_batch(
             postgis_db_sessionmaker,
             trip_id=trip.id,
-            points=[(trip.started_at + timedelta(minutes=10), 6.05, 3.05)],
+            points=[
+                (trip.started_at + timedelta(minutes=10), 6.05, 3.05),
+                (trip.started_at + timedelta(minutes=11), 6.051, 3.051),
+            ],
             idempotency_key=f"navigation-{trip.id}",
         )
     headers = auth_headers(postgis_db_client, advertiser.email, PASSWORD)
@@ -127,19 +130,10 @@ def test_default_aggregation_supports_navigation_frozen_reports_and_maps(
         assert response.status_code == 200, response.text
         replay = postgis_db_client.get(path, headers=headers, params=dates)
         assert replay.json() == response.json()
-    payload = issue_payload(campaign.id)
-    payload.update(period_end_at=dates["end_at"], test_only=False)
-    run = postgis_db_client.post(
-        "/api/v1/admin/measurement-runs",
-        headers=auth_headers(postgis_db_client, admin.email, PASSWORD),
-        json=payload,
-    )
-    assert run.status_code == 201, run.text
     report = postgis_db_client.get(
         f"/api/v1/advertiser/campaigns/{campaign.id}/report", headers=headers, params=dates
     )
     assert report.status_code == 200, report.text
-    assert report.json()["measurement_run_id"] == run.json()["id"]
     assert report.json()["totals"]["trip_count"] == 13
     heatmap = postgis_db_client.get(
         f"/api/v1/advertiser/campaigns/{campaign.id}/heatmap",

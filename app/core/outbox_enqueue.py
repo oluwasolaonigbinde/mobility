@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 
-JobKind = Literal["scan_file", "deliver_email"]
+JobKind = Literal["scan_file", "deliver_email", "generate_campaign_report"]
 logger = logging.getLogger(__name__)
 _pools: dict[str, ArqRedis] = {}
 ENQUEUE_TIMEOUT_SECONDS = 1.0

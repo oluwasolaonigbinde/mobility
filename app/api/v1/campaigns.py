@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
@@ -237,7 +237,7 @@ async def advertiser_list_campaigns(
     session: SessionDependency,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
-    status: CampaignStatus | None = None,
+    status: CampaignStatus | Literal["finished"] | None = None,
     start_at_from: datetime | None = None,
     start_at_to: datetime | None = None,
 ) -> CampaignListResponse:
@@ -641,7 +641,7 @@ async def admin_list_campaigns_endpoint(
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
     organization_id: UUID | None = None,
-    status: CampaignStatus | None = None,
+    status: CampaignStatus | Literal["finished"] | None = None,
     q: Annotated[str | None, Query(max_length=120)] = None,
     oldest_first: bool = False,
 ) -> AdminCampaignListResponse:

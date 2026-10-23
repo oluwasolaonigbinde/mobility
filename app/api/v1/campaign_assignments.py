@@ -1,4 +1,4 @@
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Query, Response, status
@@ -179,7 +179,6 @@ async def assignment_response(
         activated_at=assignment.activated_at,
         deactivated_at=assignment.deactivated_at,
         cancelled_at=assignment.cancelled_at,
-        completed_at=assignment.completed_at,
         notes=assignment.notes,
         metadata=assignment.assignment_metadata,
         offer_terms=assignment.offer_terms,
@@ -283,7 +282,7 @@ async def admin_list_campaign_assignments(
     session: SessionDependency,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
-    status: CampaignAssignmentStatus | None = None,
+    status: CampaignAssignmentStatus | Literal["finished"] | None = None,
     campaign_id: UUID | None = None,
     driver_profile_id: UUID | None = None,
     vehicle_id: UUID | None = None,
@@ -417,7 +416,7 @@ async def driver_list_campaign_assignments(
     session: SessionDependency,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
-    status: CampaignAssignmentStatus | None = None,
+    status: CampaignAssignmentStatus | Literal["finished"] | None = None,
 ) -> CampaignAssignmentListResponse:
     await expire_due_assignment_offers(session)
     await session.commit()

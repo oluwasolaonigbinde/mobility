@@ -45,9 +45,9 @@ const tabs = [
   {
     id: "ended",
     title: "Ended",
-    statuses: ["completed", "cancelled", "rejected"],
+    statuses: ["finished", "cancelled", "rejected"],
     sources: [
-      { id: "completed", title: "Completed" },
+      { id: "finished", title: "Completed" },
       { id: "cancelled", title: "Cancelled" },
       { id: "rejected", title: "Not approved" },
     ],

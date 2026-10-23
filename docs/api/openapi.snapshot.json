@@ -347,7 +347,16 @@
             "title": "Start At"
           },
           "status": {
-            "$ref": "#/components/schemas/CampaignStatus"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CampaignStatus"
+              },
+              {
+                "const": "finished",
+                "type": "string"
+              }
+            ],
+            "title": "Status"
           },
           "target_zone_count": {
             "minimum": 0.0,
@@ -581,7 +590,16 @@
             "title": "Start At"
           },
           "status": {
-            "$ref": "#/components/schemas/CampaignStatus"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CampaignStatus"
+              },
+              {
+                "const": "finished",
+                "type": "string"
+              }
+            ],
+            "title": "Status"
           },
           "updated_at": {
             "format": "date-time",
@@ -1520,161 +1538,6 @@
           "money_effect"
         ],
         "title": "AdminFraudFlagRead",
-        "type": "object"
-      },
-      "AdminMeasurementRunList": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/AdminMeasurementRunSummary"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "limit": {
-            "title": "Limit",
-            "type": "integer"
-          },
-          "offset": {
-            "title": "Offset",
-            "type": "integer"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "total",
-          "limit",
-          "offset"
-        ],
-        "title": "AdminMeasurementRunList",
-        "type": "object"
-      },
-      "AdminMeasurementRunSummary": {
-        "properties": {
-          "campaign_id": {
-            "format": "uuid",
-            "title": "Campaign Id",
-            "type": "string"
-          },
-          "campaign_name": {
-            "title": "Campaign Name",
-            "type": "string"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "formula_version": {
-            "title": "Formula Version",
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "input_manifest_sha256": {
-            "title": "Input Manifest Sha256",
-            "type": "string"
-          },
-          "method_revision": {
-            "title": "Method Revision",
-            "type": "string"
-          },
-          "period_end_at": {
-            "format": "date-time",
-            "title": "Period End At",
-            "type": "string"
-          },
-          "period_start_at": {
-            "format": "date-time",
-            "title": "Period Start At",
-            "type": "string"
-          },
-          "proof_manifest_sha256": {
-            "title": "Proof Manifest Sha256",
-            "type": "string"
-          },
-          "reissue_of_run_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reissue Of Run Id"
-          },
-          "report_issuance_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Report Issuance Id"
-          },
-          "report_snapshot_sha256": {
-            "title": "Report Snapshot Sha256",
-            "type": "string"
-          },
-          "report_status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Report Status"
-          },
-          "reproducible": {
-            "title": "Reproducible",
-            "type": "boolean"
-          },
-          "result_manifest_sha256": {
-            "title": "Result Manifest Sha256",
-            "type": "string"
-          },
-          "superseded": {
-            "title": "Superseded",
-            "type": "boolean"
-          },
-          "test_only": {
-            "title": "Test Only",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "id",
-          "formula_version",
-          "method_revision",
-          "period_start_at",
-          "period_end_at",
-          "input_manifest_sha256",
-          "result_manifest_sha256",
-          "proof_manifest_sha256",
-          "report_snapshot_sha256",
-          "reissue_of_run_id",
-          "created_at",
-          "campaign_id",
-          "campaign_name",
-          "test_only",
-          "reproducible",
-          "superseded"
-        ],
-        "title": "AdminMeasurementRunSummary",
         "type": "object"
       },
       "AdminOrganizationCreateResponse": {
@@ -2885,7 +2748,16 @@
             "title": "Start At"
           },
           "status": {
-            "$ref": "#/components/schemas/CampaignStatus"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CampaignStatus"
+              },
+              {
+                "const": "finished",
+                "type": "string"
+              }
+            ],
+            "title": "Status"
           },
           "updated_at": {
             "format": "date-time",
@@ -3624,7 +3496,16 @@
             "title": "Start At"
           },
           "status": {
-            "$ref": "#/components/schemas/CampaignStatus"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CampaignStatus"
+              },
+              {
+                "const": "finished",
+                "type": "string"
+              }
+            ],
+            "title": "Status"
           }
         },
         "required": [
@@ -3724,9 +3605,9 @@
             "title": "Cancelled",
             "type": "integer"
           },
-          "completed": {
+          "finished": {
             "default": 0,
-            "title": "Completed",
+            "title": "Finished",
             "type": "integer"
           },
           "offered": {
@@ -5275,18 +5156,6 @@
             ],
             "title": "Cancelled At"
           },
-          "completed_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Completed At"
-          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -5417,7 +5286,16 @@
             "type": "string"
           },
           "status": {
-            "$ref": "#/components/schemas/CampaignAssignmentStatus"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CampaignAssignmentStatus"
+              },
+              {
+                "const": "finished",
+                "type": "string"
+              }
+            ],
+            "title": "Status"
           },
           "updated_at": {
             "format": "date-time",
@@ -5455,7 +5333,6 @@
           "activated_at",
           "deactivated_at",
           "cancelled_at",
-          "completed_at",
           "notes",
           "offer_terms_sha256",
           "created_at",
@@ -5660,8 +5537,7 @@
           "declined",
           "expired",
           "active",
-          "cancelled",
-          "completed"
+          "cancelled"
         ],
         "title": "CampaignAssignmentStatus",
         "type": "string"
@@ -6799,7 +6675,16 @@
             "title": "Start At"
           },
           "status": {
-            "$ref": "#/components/schemas/CampaignStatus"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CampaignStatus"
+              },
+              {
+                "const": "finished",
+                "type": "string"
+              }
+            ],
+            "title": "Status"
           },
           "target_zone_count": {
             "minimum": 0.0,
@@ -7330,41 +7215,6 @@
             ],
             "title": "End At"
           },
-          "measurement_run_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Measurement Run Id"
-          },
-          "report_issuance_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Report Issuance Id"
-          },
-          "report_status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Report Status"
-          },
           "start_at": {
             "anyOf": [
               {
@@ -7400,13 +7250,27 @@
       "CampaignPerformanceTotals": {
         "properties": {
           "distance_m": {
-            "title": "Distance M",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance M"
           },
           "driving_days": {
-            "minimum": 0.0,
-            "title": "Driving Days",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driving Days"
           },
           "estimated_views": {
             "anyOf": [
@@ -7420,9 +7284,16 @@
             "title": "Estimated Views"
           },
           "trip_count": {
-            "minimum": 0.0,
-            "title": "Trip Count",
-            "type": "integer"
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trip Count"
           }
         },
         "required": [
@@ -7496,7 +7367,16 @@
             "title": "Start At"
           },
           "status": {
-            "$ref": "#/components/schemas/CampaignStatus"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CampaignStatus"
+              },
+              {
+                "const": "finished",
+                "type": "string"
+              }
+            ],
+            "title": "Status"
           }
         },
         "required": [
@@ -7510,6 +7390,211 @@
           "currency"
         ],
         "title": "CampaignReadSummary",
+        "type": "object"
+      },
+      "CampaignReportCampaignRead": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "CampaignReportCampaignRead",
+        "type": "object"
+      },
+      "CampaignReportCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "campaign_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Id"
+          },
+          "client_request_id": {
+            "format": "uuid",
+            "title": "Client Request Id",
+            "type": "string"
+          },
+          "end_date": {
+            "format": "date",
+            "title": "End Date",
+            "type": "string"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_request_id",
+          "start_date",
+          "end_date"
+        ],
+        "title": "CampaignReportCreate",
+        "type": "object"
+      },
+      "CampaignReportList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/CampaignReportRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "limit": {
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "title": "Offset",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "total",
+          "limit",
+          "offset"
+        ],
+        "title": "CampaignReportList",
+        "type": "object"
+      },
+      "CampaignReportRead": {
+        "properties": {
+          "campaigns": {
+            "items": {
+              "$ref": "#/components/schemas/CampaignReportCampaignRead"
+            },
+            "title": "Campaigns",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "end_date": {
+            "format": "date",
+            "title": "End Date",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "weekly",
+              "final",
+              "custom",
+              "issued"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "legacy": {
+            "default": false,
+            "title": "Legacy",
+            "type": "boolean"
+          },
+          "ready_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ready At"
+          },
+          "start_date": {
+            "format": "date",
+            "title": "Start Date",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "ready",
+              "failed"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "timezone": {
+            "const": "Africa/Lagos",
+            "default": "Africa/Lagos",
+            "title": "Timezone",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "start_date",
+          "end_date",
+          "campaigns",
+          "version",
+          "created_at",
+          "ready_at"
+        ],
+        "title": "CampaignReportRead",
+        "type": "object"
+      },
+      "CampaignReportRerun": {
+        "additionalProperties": false,
+        "properties": {
+          "client_request_id": {
+            "format": "uuid",
+            "title": "Client Request Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_request_id"
+        ],
+        "title": "CampaignReportRerun",
         "type": "object"
       },
       "CampaignResumeRequest": {
@@ -7679,7 +7764,6 @@
           "rejected",
           "active",
           "paused",
-          "completed",
           "cancelled"
         ],
         "title": "CampaignStatus",
@@ -7702,14 +7786,14 @@
             "title": "Cancelled",
             "type": "integer"
           },
-          "completed": {
-            "default": 0,
-            "title": "Completed",
-            "type": "integer"
-          },
           "draft": {
             "default": 0,
             "title": "Draft",
+            "type": "integer"
+          },
+          "finished": {
+            "default": 0,
+            "title": "Finished",
             "type": "integer"
           },
           "paused": {
@@ -9736,32 +9820,6 @@
       },
       "DailyMetricItem": {
         "properties": {
-          "analyzed_trip_count": {
-            "title": "Analyzed Trip Count",
-            "type": "integer"
-          },
-          "average_confidence_score": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Average Confidence Score"
-          },
-          "average_quality_score": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Average Quality Score"
-          },
           "date": {
             "format": "date",
             "title": "Date",
@@ -9778,6 +9836,17 @@
             ],
             "title": "Distance M"
           },
+          "driving_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driving Seconds"
+          },
           "estimated_impressions": {
             "anyOf": [
               {
@@ -9789,48 +9858,41 @@
             ],
             "title": "Estimated Impressions"
           },
-          "final_payout_total": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Final Payout Total"
-          },
-          "gross_payout_total": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Gross Payout Total"
-          },
-          "open_fraud_flag_count": {
-            "title": "Open Fraud Flag Count",
-            "type": "integer"
+          "suppressed": {
+            "default": false,
+            "title": "Suppressed",
+            "type": "boolean"
           },
           "trip_count": {
-            "title": "Trip Count",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trip Count"
+          },
+          "vehicle_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicle Count"
           }
         },
         "required": [
           "date",
-          "trip_count",
-          "analyzed_trip_count",
           "distance_m",
-          "estimated_impressions",
-          "average_confidence_score",
-          "final_payout_total",
-          "gross_payout_total",
-          "open_fraud_flag_count",
-          "average_quality_score"
+          "vehicle_count",
+          "trip_count",
+          "driving_seconds",
+          "estimated_impressions"
         ],
         "title": "DailyMetricItem",
         "type": "object"
@@ -9880,6 +9942,11 @@
               }
             ],
             "title": "Start At"
+          },
+          "timezone": {
+            "default": "Africa/Lagos",
+            "title": "Timezone",
+            "type": "string"
           },
           "total": {
             "title": "Total",
@@ -12213,18 +12280,6 @@
             "additionalProperties": true,
             "title": "Metadata",
             "type": "object"
-          },
-          "traffic_density_profile_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Traffic Density Profile Id"
           }
         },
         "title": "EstimateImpressionsRequest",
@@ -12372,383 +12427,6 @@
         ],
         "title": "EvidenceVerificationType",
         "type": "string"
-      },
-      "ExposureScoreConstantsRead": {
-        "properties": {
-          "active_tracking_cap_seconds": {
-            "const": 3600,
-            "title": "Active Tracking Cap Seconds",
-            "type": "integer"
-          },
-          "active_tracking_weight": {
-            "const": "0.40",
-            "title": "Active Tracking Weight",
-            "type": "string"
-          },
-          "distance_cap_m": {
-            "const": "10000",
-            "title": "Distance Cap M",
-            "type": "string"
-          },
-          "distance_weight": {
-            "const": "0.60",
-            "title": "Distance Weight",
-            "type": "string"
-          }
-        },
-        "required": [
-          "distance_cap_m",
-          "active_tracking_cap_seconds",
-          "distance_weight",
-          "active_tracking_weight"
-        ],
-        "title": "ExposureScoreConstantsRead",
-        "type": "object"
-      },
-      "ExposureScoreFormulaRead": {
-        "properties": {
-          "campaign_calculation": {
-            "title": "Campaign Calculation",
-            "type": "string"
-          },
-          "constants": {
-            "$ref": "#/components/schemas/ExposureScoreConstantsRead"
-          },
-          "formula_version": {
-            "const": "exposure_v1",
-            "title": "Formula Version",
-            "type": "string"
-          },
-          "inputs": {
-            "items": {
-              "enum": [
-                "distance_m",
-                "active_tracking_seconds",
-                "quality_score"
-              ],
-              "type": "string"
-            },
-            "title": "Inputs",
-            "type": "array"
-          },
-          "missing_data": {
-            "title": "Missing Data",
-            "type": "string"
-          },
-          "range": {
-            "$ref": "#/components/schemas/ExposureScoreRangeRead"
-          },
-          "rounding": {
-            "const": "ROUND_HALF_UP to 2 decimal places",
-            "title": "Rounding",
-            "type": "string"
-          },
-          "route_calculation": {
-            "title": "Route Calculation",
-            "type": "string"
-          },
-          "scope": {
-            "const": "campaign_route",
-            "title": "Scope",
-            "type": "string"
-          },
-          "unit": {
-            "const": "points",
-            "title": "Unit",
-            "type": "string"
-          }
-        },
-        "required": [
-          "formula_version",
-          "scope",
-          "unit",
-          "range",
-          "inputs",
-          "constants",
-          "route_calculation",
-          "campaign_calculation",
-          "missing_data",
-          "rounding"
-        ],
-        "title": "ExposureScoreFormulaRead",
-        "type": "object"
-      },
-      "ExposureScoreProvenanceRead": {
-        "properties": {
-          "measurement_input_sha256": {
-            "title": "Measurement Input Sha256",
-            "type": "string"
-          },
-          "measurement_proof_sha256": {
-            "title": "Measurement Proof Sha256",
-            "type": "string"
-          },
-          "measurement_result_sha256": {
-            "title": "Measurement Result Sha256",
-            "type": "string"
-          },
-          "measurement_run_id": {
-            "format": "uuid",
-            "title": "Measurement Run Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "measurement_run_id",
-          "measurement_input_sha256",
-          "measurement_result_sha256",
-          "measurement_proof_sha256"
-        ],
-        "title": "ExposureScoreProvenanceRead",
-        "type": "object"
-      },
-      "ExposureScoreRangeRead": {
-        "properties": {
-          "maximum": {
-            "const": "100.00",
-            "title": "Maximum",
-            "type": "string"
-          },
-          "minimum": {
-            "const": "0.00",
-            "title": "Minimum",
-            "type": "string"
-          }
-        },
-        "required": [
-          "minimum",
-          "maximum"
-        ],
-        "title": "ExposureScoreRangeRead",
-        "type": "object"
-      },
-      "ExposureScoreRead": {
-        "properties": {
-          "campaign_id": {
-            "format": "uuid",
-            "title": "Campaign Id",
-            "type": "string"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "formula_fingerprint": {
-            "title": "Formula Fingerprint",
-            "type": "string"
-          },
-          "formula_version": {
-            "title": "Formula Version",
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "input_fingerprint": {
-            "title": "Input Fingerprint",
-            "type": "string"
-          },
-          "issued_by_user_id": {
-            "format": "uuid",
-            "title": "Issued By User Id",
-            "type": "string"
-          },
-          "measurement_input_sha256": {
-            "title": "Measurement Input Sha256",
-            "type": "string"
-          },
-          "measurement_proof_sha256": {
-            "title": "Measurement Proof Sha256",
-            "type": "string"
-          },
-          "measurement_result_sha256": {
-            "title": "Measurement Result Sha256",
-            "type": "string"
-          },
-          "measurement_run_id": {
-            "format": "uuid",
-            "title": "Measurement Run Id",
-            "type": "string"
-          },
-          "organization_id": {
-            "format": "uuid",
-            "title": "Organization Id",
-            "type": "string"
-          },
-          "reissue_of_score_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reissue Of Score Id"
-          },
-          "reproducible": {
-            "title": "Reproducible",
-            "type": "boolean"
-          },
-          "result": {
-            "$ref": "#/components/schemas/ExposureScoreResultRead"
-          },
-          "result_fingerprint": {
-            "title": "Result Fingerprint",
-            "type": "string"
-          },
-          "stale": {
-            "title": "Stale",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "id",
-          "organization_id",
-          "campaign_id",
-          "measurement_run_id",
-          "issued_by_user_id",
-          "formula_version",
-          "formula_fingerprint",
-          "input_fingerprint",
-          "result_fingerprint",
-          "measurement_input_sha256",
-          "measurement_result_sha256",
-          "measurement_proof_sha256",
-          "result",
-          "reissue_of_score_id",
-          "reproducible",
-          "stale",
-          "created_at"
-        ],
-        "title": "ExposureScoreRead",
-        "type": "object"
-      },
-      "ExposureScoreResultRead": {
-        "properties": {
-          "formula": {
-            "$ref": "#/components/schemas/ExposureScoreFormulaRead"
-          },
-          "formula_fingerprint": {
-            "title": "Formula Fingerprint",
-            "type": "string"
-          },
-          "formula_version": {
-            "const": "exposure_v1",
-            "title": "Formula Version",
-            "type": "string"
-          },
-          "input_fingerprint": {
-            "title": "Input Fingerprint",
-            "type": "string"
-          },
-          "label": {
-            "const": "Exposure score",
-            "title": "Label",
-            "type": "string"
-          },
-          "metric_class": {
-            "const": "operational_composite_index",
-            "title": "Metric Class",
-            "type": "string"
-          },
-          "missing_route_count": {
-            "title": "Missing Route Count",
-            "type": "integer"
-          },
-          "provenance": {
-            "$ref": "#/components/schemas/ExposureScoreProvenanceRead"
-          },
-          "range": {
-            "$ref": "#/components/schemas/ExposureScoreRangeRead"
-          },
-          "route_count": {
-            "title": "Route Count",
-            "type": "integer"
-          },
-          "route_scores": {
-            "items": {
-              "$ref": "#/components/schemas/RouteExposureScoreRead"
-            },
-            "title": "Route Scores",
-            "type": "array"
-          },
-          "schema_version": {
-            "const": "exposure-score-result-v1",
-            "title": "Schema Version",
-            "type": "string"
-          },
-          "score": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Score"
-          },
-          "status": {
-            "enum": [
-              "scored",
-              "insufficient_data"
-            ],
-            "title": "Status",
-            "type": "string"
-          },
-          "uncertainty": {
-            "$ref": "#/components/schemas/ExposureScoreUncertaintyRead"
-          },
-          "unit": {
-            "const": "points",
-            "title": "Unit",
-            "type": "string"
-          }
-        },
-        "required": [
-          "schema_version",
-          "label",
-          "metric_class",
-          "formula_version",
-          "formula_fingerprint",
-          "input_fingerprint",
-          "unit",
-          "range",
-          "status",
-          "score",
-          "route_count",
-          "missing_route_count",
-          "route_scores",
-          "formula",
-          "uncertainty",
-          "provenance"
-        ],
-        "title": "ExposureScoreResultRead",
-        "type": "object"
-      },
-      "ExposureScoreUncertaintyRead": {
-        "properties": {
-          "classification": {
-            "const": "synthetic_uncalibrated_index",
-            "title": "Classification",
-            "type": "string"
-          },
-          "statement": {
-            "title": "Statement",
-            "type": "string"
-          }
-        },
-        "required": [
-          "classification",
-          "statement"
-        ],
-        "title": "ExposureScoreUncertaintyRead",
-        "type": "object"
       },
       "FileAccessPurpose": {
         "enum": [
@@ -13879,11 +13557,6 @@
             ],
             "title": "Target Zone Impressions"
           },
-          "traffic_density_profile_id": {
-            "format": "uuid",
-            "title": "Traffic Density Profile Id",
-            "type": "string"
-          },
           "trip_analytics_id": {
             "format": "uuid",
             "title": "Trip Analytics Id",
@@ -13913,7 +13586,6 @@
           "campaign_id",
           "driver_profile_id",
           "vehicle_id",
-          "traffic_density_profile_id",
           "formula_version",
           "is_authoritative",
           "status",
@@ -15629,231 +15301,6 @@
           "advertiser_organization"
         ],
         "title": "MeResponse",
-        "type": "object"
-      },
-      "MeasurementProofBindingRead": {
-        "properties": {
-          "activation_event_id": {
-            "format": "uuid",
-            "title": "Activation Event Id",
-            "type": "string"
-          },
-          "activation_snapshot_sha256": {
-            "title": "Activation Snapshot Sha256",
-            "type": "string"
-          },
-          "assignment_id": {
-            "format": "uuid",
-            "title": "Assignment Id",
-            "type": "string"
-          },
-          "binding_fingerprint": {
-            "title": "Binding Fingerprint",
-            "type": "string"
-          },
-          "creative_id": {
-            "format": "uuid",
-            "title": "Creative Id",
-            "type": "string"
-          },
-          "installation_evidence_submission_id": {
-            "format": "uuid",
-            "title": "Installation Evidence Submission Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "assignment_id",
-          "activation_event_id",
-          "creative_id",
-          "installation_evidence_submission_id",
-          "activation_snapshot_sha256",
-          "binding_fingerprint"
-        ],
-        "title": "MeasurementProofBindingRead",
-        "type": "object"
-      },
-      "MeasurementRunCreate": {
-        "additionalProperties": false,
-        "properties": {
-          "campaign_id": {
-            "format": "uuid",
-            "title": "Campaign Id",
-            "type": "string"
-          },
-          "client_request_id": {
-            "format": "uuid",
-            "title": "Client Request Id",
-            "type": "string"
-          },
-          "period_end_at": {
-            "format": "date-time",
-            "title": "Period End At",
-            "type": "string"
-          },
-          "period_start_at": {
-            "format": "date-time",
-            "title": "Period Start At",
-            "type": "string"
-          },
-          "test_only": {
-            "default": false,
-            "title": "Test Only",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "campaign_id",
-          "client_request_id",
-          "period_start_at",
-          "period_end_at"
-        ],
-        "title": "MeasurementRunCreate",
-        "type": "object"
-      },
-      "MeasurementRunRead": {
-        "properties": {
-          "campaign_id": {
-            "format": "uuid",
-            "title": "Campaign Id",
-            "type": "string"
-          },
-          "client_request_id": {
-            "format": "uuid",
-            "title": "Client Request Id",
-            "type": "string"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "created_by_user_id": {
-            "format": "uuid",
-            "title": "Created By User Id",
-            "type": "string"
-          },
-          "exposure_score": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ExposureScoreRead"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "formula_version": {
-            "title": "Formula Version",
-            "type": "string"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "input_manifest": {
-            "additionalProperties": true,
-            "title": "Input Manifest",
-            "type": "object"
-          },
-          "input_manifest_sha256": {
-            "title": "Input Manifest Sha256",
-            "type": "string"
-          },
-          "method_revision": {
-            "title": "Method Revision",
-            "type": "string"
-          },
-          "organization_id": {
-            "format": "uuid",
-            "title": "Organization Id",
-            "type": "string"
-          },
-          "period_end_at": {
-            "format": "date-time",
-            "title": "Period End At",
-            "type": "string"
-          },
-          "period_start_at": {
-            "format": "date-time",
-            "title": "Period Start At",
-            "type": "string"
-          },
-          "proof_bindings": {
-            "items": {
-              "$ref": "#/components/schemas/MeasurementProofBindingRead"
-            },
-            "title": "Proof Bindings",
-            "type": "array"
-          },
-          "proof_manifest": {
-            "additionalProperties": true,
-            "title": "Proof Manifest",
-            "type": "object"
-          },
-          "proof_manifest_sha256": {
-            "title": "Proof Manifest Sha256",
-            "type": "string"
-          },
-          "reissue_of_run_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reissue Of Run Id"
-          },
-          "report_snapshot_sha256": {
-            "title": "Report Snapshot Sha256",
-            "type": "string"
-          },
-          "reproducible": {
-            "title": "Reproducible",
-            "type": "boolean"
-          },
-          "result_manifest": {
-            "additionalProperties": true,
-            "title": "Result Manifest",
-            "type": "object"
-          },
-          "result_manifest_sha256": {
-            "title": "Result Manifest Sha256",
-            "type": "string"
-          },
-          "test_only": {
-            "title": "Test Only",
-            "type": "boolean"
-          }
-        },
-        "required": [
-          "id",
-          "formula_version",
-          "method_revision",
-          "period_start_at",
-          "period_end_at",
-          "input_manifest_sha256",
-          "result_manifest_sha256",
-          "proof_manifest_sha256",
-          "report_snapshot_sha256",
-          "reissue_of_run_id",
-          "created_at",
-          "organization_id",
-          "campaign_id",
-          "created_by_user_id",
-          "client_request_id",
-          "test_only",
-          "input_manifest",
-          "result_manifest",
-          "proof_manifest",
-          "proof_bindings",
-          "reproducible"
-        ],
-        "title": "MeasurementRunRead",
         "type": "object"
       },
       "MembershipRole": {
@@ -19151,211 +18598,6 @@
         "title": "ReportArtifactFormat",
         "type": "string"
       },
-      "ReportArtifactRead": {
-        "properties": {
-          "checksum_sha256": {
-            "title": "Checksum Sha256",
-            "type": "string"
-          },
-          "content_type": {
-            "title": "Content Type",
-            "type": "string"
-          },
-          "filename": {
-            "title": "Filename",
-            "type": "string"
-          },
-          "format": {
-            "$ref": "#/components/schemas/ReportArtifactFormat"
-          },
-          "size_bytes": {
-            "title": "Size Bytes",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "format",
-          "filename",
-          "content_type",
-          "size_bytes",
-          "checksum_sha256"
-        ],
-        "title": "ReportArtifactRead",
-        "type": "object"
-      },
-      "ReportIssuanceCreate": {
-        "additionalProperties": false,
-        "properties": {
-          "client_request_id": {
-            "format": "uuid",
-            "title": "Client Request Id",
-            "type": "string"
-          },
-          "reissue_of_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reissue Of Id"
-          }
-        },
-        "required": [
-          "client_request_id"
-        ],
-        "title": "ReportIssuanceCreate",
-        "type": "object"
-      },
-      "ReportIssuanceCurrentRead": {
-        "properties": {
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "measurement_run_id": {
-            "format": "uuid",
-            "title": "Measurement Run Id",
-            "type": "string"
-          },
-          "status": {
-            "$ref": "#/components/schemas/ReportIssuanceStatus"
-          },
-          "version": {
-            "title": "Version",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "id",
-          "measurement_run_id",
-          "version",
-          "status"
-        ],
-        "title": "ReportIssuanceCurrentRead",
-        "type": "object"
-      },
-      "ReportIssuanceRead": {
-        "properties": {
-          "artifacts": {
-            "items": {
-              "$ref": "#/components/schemas/ReportArtifactRead"
-            },
-            "title": "Artifacts",
-            "type": "array"
-          },
-          "campaign_id": {
-            "format": "uuid",
-            "title": "Campaign Id",
-            "type": "string"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "error_code": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error Code"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "measurement_run_id": {
-            "format": "uuid",
-            "title": "Measurement Run Id",
-            "type": "string"
-          },
-          "ready_at": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Ready At"
-          },
-          "reissue_of_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reissue Of Id"
-          },
-          "renderer_version": {
-            "title": "Renderer Version",
-            "type": "string"
-          },
-          "schema_version": {
-            "title": "Schema Version",
-            "type": "string"
-          },
-          "status": {
-            "$ref": "#/components/schemas/ReportIssuanceStatus"
-          },
-          "synthetic": {
-            "title": "Synthetic",
-            "type": "boolean"
-          },
-          "version": {
-            "title": "Version",
-            "type": "integer"
-          },
-          "worker_attempts": {
-            "title": "Worker Attempts",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "id",
-          "measurement_run_id",
-          "campaign_id",
-          "version",
-          "reissue_of_id",
-          "status",
-          "synthetic",
-          "schema_version",
-          "renderer_version",
-          "worker_attempts",
-          "error_code",
-          "artifacts",
-          "created_at",
-          "ready_at"
-        ],
-        "title": "ReportIssuanceRead",
-        "type": "object"
-      },
-      "ReportIssuanceStatus": {
-        "enum": [
-          "queued",
-          "processing",
-          "ready",
-          "failed"
-        ],
-        "title": "ReportIssuanceStatus",
-        "type": "string"
-      },
       "RouteAnalyticsSummary": {
         "properties": {
           "analyzed_trip_count": {
@@ -19427,31 +18669,6 @@
           "average_quality_score"
         ],
         "title": "RouteAnalyticsSummary",
-        "type": "object"
-      },
-      "RouteExposureScoreRead": {
-        "properties": {
-          "score": {
-            "title": "Score",
-            "type": "string"
-          },
-          "trip_analytics_id": {
-            "format": "uuid",
-            "title": "Trip Analytics Id",
-            "type": "string"
-          },
-          "trip_session_id": {
-            "format": "uuid",
-            "title": "Trip Session Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "trip_analytics_id",
-          "trip_session_id",
-          "score"
-        ],
-        "title": "RouteExposureScoreRead",
         "type": "object"
       },
       "SensitiveRevealRequest": {
@@ -20232,732 +19449,6 @@
           "created_at"
         ],
         "title": "StoredFileRead",
-        "type": "object"
-      },
-      "TrafficDensityProfileCreate": {
-        "additionalProperties": false,
-        "properties": {
-          "bonus_zone_weight": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              }
-            ],
-            "default": "1.25",
-            "title": "Bonus Zone Weight"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          },
-          "dwell_impressions_per_minute": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              }
-            ],
-            "title": "Dwell Impressions Per Minute"
-          },
-          "effective_from": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Effective From"
-          },
-          "evening_weight": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              }
-            ],
-            "default": "1.0",
-            "title": "Evening Weight"
-          },
-          "exclusion_zone_weight": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              }
-            ],
-            "default": "0.0",
-            "title": "Exclusion Zone Weight"
-          },
-          "is_default": {
-            "default": false,
-            "title": "Is Default",
-            "type": "boolean"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "title": "Metadata",
-            "type": "object"
-          },
-          "midday_weight": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              }
-            ],
-            "default": "1.0",
-            "title": "Midday Weight"
-          },
-          "morning_weight": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              }
-            ],
-            "default": "1.0",
-            "title": "Morning Weight"
-          },
-          "name": {
-            "minLength": 1,
-            "title": "Name",
-            "type": "string"
-          },
-          "night_weight": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              }
-            ],
-            "default": "0.7",
-            "title": "Night Weight"
-          },
-          "profile_type": {
-            "$ref": "#/components/schemas/TrafficDensityProfileType",
-            "default": "default"
-          },
-          "road_category_weight": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              }
-            ],
-            "default": "1.0",
-            "title": "Road Category Weight"
-          },
-          "status": {
-            "$ref": "#/components/schemas/TrafficDensityProfileStatus",
-            "default": "active"
-          },
-          "target_zone_weight": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              }
-            ],
-            "default": "1.0",
-            "title": "Target Zone Weight"
-          },
-          "traffic_density_per_km": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              }
-            ],
-            "title": "Traffic Density Per Km"
-          }
-        },
-        "required": [
-          "name",
-          "traffic_density_per_km",
-          "dwell_impressions_per_minute"
-        ],
-        "title": "TrafficDensityProfileCreate",
-        "type": "object"
-      },
-      "TrafficDensityProfileListResponse": {
-        "properties": {
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/TrafficDensityProfileRead"
-            },
-            "title": "Items",
-            "type": "array"
-          },
-          "limit": {
-            "title": "Limit",
-            "type": "integer"
-          },
-          "offset": {
-            "title": "Offset",
-            "type": "integer"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "items",
-          "total",
-          "limit",
-          "offset"
-        ],
-        "title": "TrafficDensityProfileListResponse",
-        "type": "object"
-      },
-      "TrafficDensityProfileRead": {
-        "properties": {
-          "bonus_zone_weight": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bonus Zone Weight"
-          },
-          "created_at": {
-            "format": "date-time",
-            "title": "Created At",
-            "type": "string"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          },
-          "dwell_impressions_per_minute": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Dwell Impressions Per Minute"
-          },
-          "effective_from": {
-            "format": "date-time",
-            "title": "Effective From",
-            "type": "string"
-          },
-          "evening_weight": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Evening Weight"
-          },
-          "exclusion_zone_weight": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Exclusion Zone Weight"
-          },
-          "id": {
-            "format": "uuid",
-            "title": "Id",
-            "type": "string"
-          },
-          "is_default": {
-            "title": "Is Default",
-            "type": "boolean"
-          },
-          "lineage_id": {
-            "format": "uuid",
-            "title": "Lineage Id",
-            "type": "string"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "title": "Metadata",
-            "type": "object"
-          },
-          "midday_weight": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Midday Weight"
-          },
-          "morning_weight": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Morning Weight"
-          },
-          "name": {
-            "title": "Name",
-            "type": "string"
-          },
-          "night_weight": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Night Weight"
-          },
-          "profile_type": {
-            "$ref": "#/components/schemas/TrafficDensityProfileType"
-          },
-          "revision": {
-            "title": "Revision",
-            "type": "integer"
-          },
-          "road_category_weight": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Road Category Weight"
-          },
-          "status": {
-            "$ref": "#/components/schemas/TrafficDensityProfileStatus"
-          },
-          "supersedes_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Supersedes Id"
-          },
-          "target_zone_weight": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target Zone Weight"
-          },
-          "traffic_density_per_km": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Traffic Density Per Km"
-          },
-          "updated_at": {
-            "format": "date-time",
-            "title": "Updated At",
-            "type": "string"
-          },
-          "value_fingerprint": {
-            "title": "Value Fingerprint",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "lineage_id",
-          "revision",
-          "effective_from",
-          "supersedes_id",
-          "value_fingerprint",
-          "name",
-          "description",
-          "profile_type",
-          "traffic_density_per_km",
-          "dwell_impressions_per_minute",
-          "road_category_weight",
-          "morning_weight",
-          "midday_weight",
-          "evening_weight",
-          "night_weight",
-          "target_zone_weight",
-          "bonus_zone_weight",
-          "exclusion_zone_weight",
-          "is_default",
-          "status",
-          "created_at",
-          "updated_at"
-        ],
-        "title": "TrafficDensityProfileRead",
-        "type": "object"
-      },
-      "TrafficDensityProfileStatus": {
-        "enum": [
-          "active",
-          "inactive"
-        ],
-        "title": "TrafficDensityProfileStatus",
-        "type": "string"
-      },
-      "TrafficDensityProfileType": {
-        "enum": [
-          "default",
-          "urban",
-          "suburban",
-          "highway",
-          "custom"
-        ],
-        "title": "TrafficDensityProfileType",
-        "type": "string"
-      },
-      "TrafficDensityProfileUpdate": {
-        "additionalProperties": false,
-        "properties": {
-          "bonus_zone_weight": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Bonus Zone Weight"
-          },
-          "description": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Description"
-          },
-          "dwell_impressions_per_minute": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Dwell Impressions Per Minute"
-          },
-          "effective_from": {
-            "anyOf": [
-              {
-                "format": "date-time",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Effective From"
-          },
-          "evening_weight": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Evening Weight"
-          },
-          "exclusion_zone_weight": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Exclusion Zone Weight"
-          },
-          "expected_revision": {
-            "anyOf": [
-              {
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expected Revision"
-          },
-          "expected_value_fingerprint": {
-            "anyOf": [
-              {
-                "maxLength": 64,
-                "minLength": 64,
-                "pattern": "^[0-9a-f]{64}$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Expected Value Fingerprint"
-          },
-          "is_default": {
-            "anyOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Is Default"
-          },
-          "metadata": {
-            "additionalProperties": true,
-            "title": "Metadata",
-            "type": "object"
-          },
-          "midday_weight": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Midday Weight"
-          },
-          "morning_weight": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Morning Weight"
-          },
-          "name": {
-            "anyOf": [
-              {
-                "minLength": 1,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name"
-          },
-          "night_weight": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Night Weight"
-          },
-          "profile_type": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/TrafficDensityProfileType"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "road_category_weight": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Road Category Weight"
-          },
-          "status": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/TrafficDensityProfileStatus"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "target_zone_weight": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target Zone Weight"
-          },
-          "traffic_density_per_km": {
-            "anyOf": [
-              {
-                "minimum": 0.0,
-                "type": "number"
-              },
-              {
-                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Traffic Density Per Km"
-          }
-        },
-        "title": "TrafficDensityProfileUpdate",
         "type": "object"
       },
       "TripAnalyticsRead": {
@@ -23854,6 +22345,10 @@
                   "$ref": "#/components/schemas/CampaignAssignmentStatus"
                 },
                 {
+                  "const": "finished",
+                  "type": "string"
+                },
+                {
                   "type": "null"
                 }
               ],
@@ -24982,6 +23477,10 @@
                   "$ref": "#/components/schemas/CampaignStatus"
                 },
                 {
+                  "const": "finished",
+                  "type": "string"
+                },
+                {
                   "type": "null"
                 }
               ],
@@ -25986,7 +24485,7 @@
     },
     "/api/v1/admin/campaigns/{campaign_id}/reports/re-run": {
       "post": {
-        "operationId": "admin_rerun_campaign_report_api_v1_admin_campaigns__campaign_id__reports_re_run_post",
+        "operationId": "admin_rerun_report_api_v1_admin_campaigns__campaign_id__reports_re_run_post",
         "parameters": [
           {
             "in": "path",
@@ -25999,12 +24498,22 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampaignReportRerun"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "202": {
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ReportIssuanceRead"
+                  "$ref": "#/components/schemas/CampaignReportRead"
                 }
               }
             },
@@ -26026,9 +24535,9 @@
             "OAuth2PasswordBearer": []
           }
         ],
-        "summary": "Admin Rerun Campaign Report",
+        "summary": "Admin Rerun Report",
         "tags": [
-          "Report Issuances"
+          "Campaign reports"
         ]
       }
     },
@@ -28834,23 +27343,6 @@
               ],
               "title": "Status"
             }
-          },
-          {
-            "in": "query",
-            "name": "traffic_density_profile_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Traffic Density Profile Id"
-            }
           }
         ],
         "responses": {
@@ -29540,251 +28032,6 @@
         "summary": "Admin Complete Contact Task",
         "tags": [
           "Verified contacts"
-        ]
-      }
-    },
-    "/api/v1/admin/measurement-runs": {
-      "get": {
-        "operationId": "admin_list_measurement_runs_api_v1_admin_measurement_runs_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 25,
-              "maximum": 100,
-              "minimum": 1,
-              "title": "Limit",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "offset",
-            "required": false,
-            "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
-            }
-          },
-          {
-            "in": "query",
-            "name": "campaign_id",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "format": "uuid",
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Campaign Id"
-            }
-          },
-          {
-            "in": "query",
-            "name": "q",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "maxLength": 120,
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Q"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AdminMeasurementRunList"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Admin List Measurement Runs",
-        "tags": [
-          "Measurement"
-        ]
-      },
-      "post": {
-        "operationId": "admin_issue_measurement_run_api_v1_admin_measurement_runs_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/MeasurementRunCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MeasurementRunRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Issue an immutable campaign measurement run",
-        "tags": [
-          "Measurement"
-        ]
-      }
-    },
-    "/api/v1/admin/measurement-runs/{run_id}": {
-      "get": {
-        "operationId": "admin_get_measurement_run_api_v1_admin_measurement_runs__run_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "run_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Run Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/MeasurementRunRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Read and reproduce an immutable measurement run",
-        "tags": [
-          "Measurement"
-        ]
-      }
-    },
-    "/api/v1/admin/measurement-runs/{run_id}/report-issuances": {
-      "post": {
-        "operationId": "admin_request_report_issuance_api_v1_admin_measurement_runs__run_id__report_issuances_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "run_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Run Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReportIssuanceCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "202": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReportIssuanceRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Admin Request Report Issuance",
-        "tags": [
-          "Report Issuances"
         ]
       }
     },
@@ -32320,54 +30567,6 @@
         ]
       }
     },
-    "/api/v1/admin/report-issuances/{issuance_id}": {
-      "get": {
-        "operationId": "admin_get_report_issuance_api_v1_admin_report_issuances__issuance_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "issuance_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Issuance Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReportIssuanceRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Admin Get Report Issuance",
-        "tags": [
-          "Report Issuances"
-        ]
-      }
-    },
     "/api/v1/admin/report-issuances/{issuance_id}/artifacts/{artifact_format}/download": {
       "post": {
         "operationId": "admin_download_report_artifact_api_v1_admin_report_issuances__issuance_id__artifacts__artifact_format__download_post",
@@ -32434,16 +30633,33 @@
         ]
       }
     },
-    "/api/v1/admin/traffic-density-profiles": {
+    "/api/v1/admin/reports": {
       "get": {
-        "operationId": "admin_list_traffic_density_profiles_api_v1_admin_traffic_density_profiles_get",
+        "operationId": "admin_list_reports_api_v1_admin_reports_get",
         "parameters": [
+          {
+            "in": "query",
+            "name": "campaign_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campaign Id"
+            }
+          },
           {
             "in": "query",
             "name": "limit",
             "required": false,
             "schema": {
-              "default": 50,
+              "default": 25,
               "maximum": 100,
               "minimum": 1,
               "title": "Limit",
@@ -32460,54 +30676,6 @@
               "title": "Offset",
               "type": "integer"
             }
-          },
-          {
-            "in": "query",
-            "name": "status",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/TrafficDensityProfileStatus"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Status"
-            }
-          },
-          {
-            "in": "query",
-            "name": "profile_type",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/TrafficDensityProfileType"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Profile Type"
-            }
-          },
-          {
-            "in": "query",
-            "name": "is_default",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "boolean"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Is Default"
-            }
           }
         ],
         "responses": {
@@ -32515,7 +30683,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TrafficDensityProfileListResponse"
+                  "$ref": "#/components/schemas/CampaignReportList"
                 }
               }
             },
@@ -32537,114 +30705,32 @@
             "OAuth2PasswordBearer": []
           }
         ],
-        "summary": "List traffic density profiles",
+        "summary": "Admin List Reports",
         "tags": [
-          "Impressions"
-        ]
-      },
-      "post": {
-        "operationId": "admin_create_traffic_density_profile_api_v1_admin_traffic_density_profiles_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TrafficDensityProfileCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TrafficDensityProfileRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Create a traffic density profile",
-        "tags": [
-          "Impressions"
+          "Campaign reports"
         ]
       }
     },
-    "/api/v1/admin/traffic-density-profiles/{profile_id}": {
-      "get": {
-        "operationId": "admin_get_traffic_density_profile_api_v1_admin_traffic_density_profiles__profile_id__get",
+    "/api/v1/admin/reports/{report_id}/artifacts/{artifact_format}/download": {
+      "post": {
+        "operationId": "admin_download_report_api_v1_admin_reports__report_id__artifacts__artifact_format__download_post",
         "parameters": [
           {
             "in": "path",
-            "name": "profile_id",
+            "name": "report_id",
             "required": true,
             "schema": {
               "format": "uuid",
-              "title": "Profile Id",
+              "title": "Report Id",
               "type": "string"
             }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TrafficDensityProfileRead"
-                }
-              }
-            },
-            "description": "Successful Response"
           },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Read a traffic density profile",
-        "tags": [
-          "Impressions"
-        ]
-      },
-      "patch": {
-        "operationId": "admin_update_traffic_density_profile_api_v1_admin_traffic_density_profiles__profile_id__patch",
-        "parameters": [
           {
             "in": "path",
-            "name": "profile_id",
+            "name": "artifact_format",
             "required": true,
             "schema": {
-              "format": "uuid",
-              "title": "Profile Id",
-              "type": "string"
+              "$ref": "#/components/schemas/ReportArtifactFormat"
             }
           }
         ],
@@ -32652,7 +30738,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TrafficDensityProfileUpdate"
+                "$ref": "#/components/schemas/ReportArtifactDownloadRequest"
               }
             }
           },
@@ -32663,7 +30749,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TrafficDensityProfileRead"
+                  "$ref": "#/components/schemas/ReportArtifactDownloadRead"
                 }
               }
             },
@@ -32685,9 +30771,9 @@
             "OAuth2PasswordBearer": []
           }
         ],
-        "summary": "Update a traffic density profile",
+        "summary": "Admin Download Report",
         "tags": [
-          "Impressions"
+          "Campaign reports"
         ]
       }
     },
@@ -33480,6 +31566,10 @@
               "anyOf": [
                 {
                   "$ref": "#/components/schemas/CampaignStatus"
+                },
+                {
+                  "const": "finished",
+                  "type": "string"
                 },
                 {
                   "type": "null"
@@ -34427,7 +32517,7 @@
     },
     "/api/v1/advertiser/campaigns/{campaign_id}/daily-metrics": {
       "get": {
-        "description": "Return UTC daily reporting rows from stored demo or production data.",
+        "description": "Return Nigeria calendar days (WAT); default to seven days including partial today. Empty days are zero; days below three cars are withheld.",
         "operationId": "advertiser_get_campaign_daily_metrics_api_v1_advertiser_campaigns__campaign_id__daily_metrics_get",
         "parameters": [
           {
@@ -36153,118 +34243,6 @@
         ]
       }
     },
-    "/api/v1/advertiser/measurement-runs/{run_id}/report-issuances": {
-      "get": {
-        "operationId": "advertiser_get_current_report_issuance_api_v1_advertiser_measurement_runs__run_id__report_issuances_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "run_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Run Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/components/schemas/ReportIssuanceCurrentRead"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "title": "Response Advertiser Get Current Report Issuance Api V1 Advertiser Measurement Runs  Run Id  Report Issuances Get"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Advertiser Get Current Report Issuance",
-        "tags": [
-          "Report Issuances"
-        ]
-      },
-      "post": {
-        "operationId": "advertiser_request_report_issuance_api_v1_advertiser_measurement_runs__run_id__report_issuances_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "run_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Run Id",
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReportIssuanceCreate"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "202": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReportIssuanceRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Advertiser Request Report Issuance",
-        "tags": [
-          "Report Issuances"
-        ]
-      }
-    },
     "/api/v1/advertiser/notification-preferences": {
       "get": {
         "operationId": "advertiser_notification_preferences_api_v1_advertiser_notification_preferences_get",
@@ -36486,54 +34464,6 @@
         ]
       }
     },
-    "/api/v1/advertiser/report-issuances/{issuance_id}": {
-      "get": {
-        "operationId": "advertiser_get_report_issuance_api_v1_advertiser_report_issuances__issuance_id__get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "issuance_id",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "title": "Issuance Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReportIssuanceRead"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            },
-            "description": "Request validation failed"
-          }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ],
-        "summary": "Advertiser Get Report Issuance",
-        "tags": [
-          "Report Issuances"
-        ]
-      }
-    },
     "/api/v1/advertiser/report-issuances/{issuance_id}/artifacts/{artifact_format}/download": {
       "post": {
         "operationId": "advertiser_download_report_artifact_api_v1_advertiser_report_issuances__issuance_id__artifacts__artifact_format__download_post",
@@ -36597,6 +34527,242 @@
         "summary": "Advertiser Download Report Artifact",
         "tags": [
           "Report Issuances"
+        ]
+      }
+    },
+    "/api/v1/advertiser/reports": {
+      "get": {
+        "operationId": "advertiser_list_reports_api_v1_advertiser_reports_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "campaign_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campaign Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignReportList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser List Reports",
+        "tags": [
+          "Campaign reports"
+        ]
+      },
+      "post": {
+        "operationId": "advertiser_request_report_api_v1_advertiser_reports_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CampaignReportCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignReportRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Request Report",
+        "tags": [
+          "Campaign reports"
+        ]
+      }
+    },
+    "/api/v1/advertiser/reports/{report_id}": {
+      "get": {
+        "operationId": "advertiser_get_report_api_v1_advertiser_reports__report_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Report Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampaignReportRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Get Report",
+        "tags": [
+          "Campaign reports"
+        ]
+      }
+    },
+    "/api/v1/advertiser/reports/{report_id}/artifacts/{artifact_format}/download": {
+      "post": {
+        "operationId": "advertiser_download_report_api_v1_advertiser_reports__report_id__artifacts__artifact_format__download_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "report_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Report Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "artifact_format",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/ReportArtifactFormat"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportArtifactDownloadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportArtifactDownloadRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Advertiser Download Report",
+        "tags": [
+          "Campaign reports"
         ]
       }
     },
@@ -37475,6 +35641,10 @@
               "anyOf": [
                 {
                   "$ref": "#/components/schemas/CampaignAssignmentStatus"
+                },
+                {
+                  "const": "finished",
+                  "type": "string"
                 },
                 {
                   "type": "null"

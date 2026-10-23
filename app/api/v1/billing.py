@@ -35,6 +35,7 @@ from app.models.billing import (
 from app.models.campaign import Campaign
 from app.schemas.billing import (
     BillingHistoryEntry,
+    BudgetCheckRead,
     BudgetResumeCreate,
     BudgetTransitionRead,
     CampaignCommercialRead,
@@ -216,7 +217,7 @@ async def _campaign_commercial_state(
         waiver=waiver,
         production_start=production_start,
         settlements=settlements,
-        budget_check=budget_check,
+        budget_check=BudgetCheckRead.model_validate(budget_check) if budget_check else None,
     )
 
 

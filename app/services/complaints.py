@@ -69,7 +69,6 @@ DRIVER_CAMPAIGN_STATUSES = (
     CampaignAssignmentStatus.ACCEPTED.value,
     CampaignAssignmentStatus.ACTIVE.value,
     CampaignAssignmentStatus.CANCELLED.value,
-    CampaignAssignmentStatus.COMPLETED.value,
 )
 PAYOUT_ENTRY_TYPES = (
     EarningsLedgerEntryType.TRIP_PAYOUT.value,

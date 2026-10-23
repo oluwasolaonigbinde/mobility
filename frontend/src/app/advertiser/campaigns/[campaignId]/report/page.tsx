@@ -1,69 +1,49 @@
-import { notFound } from "next/navigation";
+﻿import { notFound } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
-import { readCampaignPerformance } from "@/lib/api/audit-batch2";
 import { getSessionToken } from "@/lib/auth/session";
+import { requireRole } from "@/lib/auth/current-user";
+import { Reports } from "../../../reports/report-list";
 import { loadAdvertiserPageData } from "@/lib/advertiser/page-data";
-import { formatCount, formatDateRange, formatKm } from "@/lib/format";
 import { DataUnavailable } from "@/components/ui/data-unavailable";
-import { Panel } from "@/components/ui/panel";
-import { ReportIssuancePanel } from "./report-issuance-panel";
-import { PerformanceAreas } from "./performance-areas";
 
-export const metadata = { title: "Campaign results" };
+export const metadata = { title: "Campaign reports" };
+
 export default async function CampaignReportPage({
   params,
 }: {
   params: Promise<{ campaignId: string }>;
 }) {
   const { campaignId } = await params;
+  const me = await requireRole("advertiser");
+  const sessionScope = `${me.user.id}:${me.advertiser_organization?.id}`;
   const api = createApiClient(await getSessionToken());
-  const result = await loadAdvertiserPageData(() => readCampaignPerformance(api, campaignId));
+  const result = await loadAdvertiserPageData(() =>
+    api.GET("/api/v1/advertiser/campaigns/{campaign_id}", {
+      params: { path: { campaign_id: campaignId } },
+    }),
+  );
   if (!result.available) {
     if (result.reason === "missing") notFound();
     return (
       <DataUnavailable
-        title="Results unavailable"
+        title="Reports unavailable"
         reason={result.reason}
         retryHref={`/advertiser/campaigns/${campaignId}/report`}
       />
     );
   }
-  const report = result.data;
-  if (report.campaign_id !== campaignId) notFound();
+  const data = result.data;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos" }).format(new Date());
   return (
-    <div className="animate-rise mx-auto max-w-6xl">
-      <h1 className="font-display text-3xl font-semibold">Campaign results</h1>
-      <p className="text-muted mt-3 text-sm">
-        {report.start_at || report.end_at
-          ? formatDateRange(report.start_at, report.end_at)
-          : "Campaign so far"}
-      </p>
-      <div className="mt-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {[
-          ["Distance driven", formatKm(report.totals.distance_m)],
-          ["Trips", formatCount(report.totals.trip_count)],
-          ["Days on the road", formatCount(report.totals.driving_days)],
-          ["Estimated views", formatCount(report.totals.estimated_views)],
-        ].map(([label, value]) => (
-          <Panel key={label} className="p-5">
-            <p className="text-muted text-sm">{label}</p>
-            <p className="font-display mt-3 text-2xl font-semibold">{value}</p>
-          </Panel>
-        ))}
-      </div>
-      <p className="text-muted mt-5 text-sm">{report.completeness}</p>
-      <p className="text-muted mt-2 text-sm">{report.uncertainty}</p>
-      <PerformanceAreas areas={report.areas} />
-      {report.measurement_run_id ? (
-        <ReportIssuancePanel
-          key={report.measurement_run_id}
-          measurementRunId={report.measurement_run_id}
-        />
-      ) : (
-        <p className="text-muted mt-6 text-sm">
-          Your downloadable report will appear once it’s ready.
-        </p>
-      )}
+    <div className="space-y-6">
+      <h1>{data.name} reports</h1>
+      <Reports
+        key={sessionScope}
+        sessionScope={sessionScope}
+        campaigns={[{ id: data.id, name: data.name }]}
+        today={today}
+        campaignId={campaignId}
+      />
     </div>
   );
 }

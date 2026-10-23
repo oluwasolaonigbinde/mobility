@@ -11,11 +11,12 @@ import pytest
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from conftest import auth_headers, create_test_campaign_assignment, create_test_campaign_creative
+from legacy_report_fixtures import seed_legacy_issued_report
 from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from test_advertiser_reports import PASSWORD
 from test_campaign_assignments import create_assignment_ready_graph
-from test_report_issuances import issue_run, report_storage, request_issuance, run_worker
+from test_report_issuances import report_storage
 
 from app.models.campaign import CreativeStatus, CreativeType
 from app.models.campaign_assignment import CampaignAssignmentStatus
@@ -35,11 +36,10 @@ def apply_revision(sync):
 def test_simplification_keeps_issued_downloads_bytes_and_ledger(
     db_client, db_sessionmaker, settings, report_storage
 ):
-    _, advertiser, campaign, run = issue_run(db_client, db_sessionmaker)
-    response = request_issuance(db_client, advertiser, run["id"])
-    assert response.status_code == 202, response.text
-    issued_id = response.json()["id"]
-    assert run_worker(db_sessionmaker, settings, report_storage) == 1
+    _, advertiser, campaign, run, issued = seed_legacy_issued_report(
+        db_sessionmaker, report_storage
+    )
+    issued_id = str(issued.id)
     frozen_bytes = dict(report_storage.contents)
     pdf = create_test_campaign_creative(
         db_sessionmaker,

@@ -14,7 +14,7 @@ from app.main import create_app
 from app.models.user import UserRole
 
 SNAPSHOT_PATH = Path("docs/api/openapi.snapshot.json")
-EXPECTED_ALEMBIC_HEAD = "0113_remove_pilot_audiences"
+EXPECTED_ALEMBIC_HEAD = "0116_campaign_reports"
 EXPECTED_MIGRATIONS = {
     "0106_development_baseline.py",
     "0107_audience_sweep_cursor.py",
@@ -24,6 +24,9 @@ EXPECTED_MIGRATIONS = {
     "0111_fix_daily_pay_policy.py",
     "0112_simplify_money_operations.py",
     "0113_remove_pilot_audiences.py",
+    "0114_simplify_campaign_authority.py",
+    "0115_fix_limits_and_email.py",
+    "0116_campaign_reports.py",
 }
 MAJOR_CONTRACT_PATHS = {
     "health": "/api/v1/health",
@@ -47,7 +50,7 @@ MAJOR_CONTRACT_PATHS = {
     "advertiser reports": "/api/v1/advertiser/campaigns/{campaign_id}/report",
     "heatmaps": "/api/v1/advertiser/campaigns/{campaign_id}/heatmap",
     "protected KYC": "/api/v1/driver/kyc/submissions",
-    "advertiser report issuance": "/api/v1/advertiser/measurement-runs/{run_id}/report-issuances",
+    "advertiser report request (S9/D118)": "/api/v1/advertiser/reports",
     "advertiser report artifact download": "/api/v1/advertiser/report-issuances/{issuance_id}/artifacts/{artifact_format}/download",  # noqa: E501
 }
 PROTECTED_GET_PATHS = [

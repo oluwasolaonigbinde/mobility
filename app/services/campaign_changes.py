@@ -32,6 +32,7 @@ from app.services.billing.authority import (
     effective_financial_authorization,
     reserved_campaign_liability_total,
 )
+from app.services.campaign_lifecycle import ensure_campaign_not_finished
 from app.services.campaigns import get_required_advertiser_context
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
 
@@ -151,9 +152,14 @@ async def _additional_window_liability(
     return requested.quantize(MONEY, rounding=ROUND_HALF_UP)
 
 
-async def _locked_campaign(session: AsyncSession, campaign_id: UUID) -> Campaign:
+async def _locked_campaign(
+    session: AsyncSession, campaign_id: UUID, *, organization_id: UUID | None = None
+) -> Campaign:
+    scope = [Campaign.id == campaign_id]
+    if organization_id is not None:
+        scope.append(Campaign.organization_id == organization_id)
     campaign = await session.scalar(
-        select(Campaign).where(Campaign.id == campaign_id).with_for_update()
+        select(Campaign).where(*scope).with_for_update().execution_options(populate_existing=True)
     )
     if campaign is None:
         raise _error("CAMPAIGN_NOT_FOUND", "Campaign was not found", 404)
@@ -169,10 +175,17 @@ async def _locked_campaign(session: AsyncSession, campaign_id: UUID) -> Campaign
     return campaign
 
 
-async def _campaign_for_preview(session: AsyncSession, campaign_id: UUID) -> Campaign:
-    campaign = await session.scalar(select(Campaign).where(Campaign.id == campaign_id))
+async def _campaign_for_preview(
+    session: AsyncSession, campaign_id: UUID, *, organization_id: UUID
+) -> Campaign:
+    campaign = await session.scalar(
+        select(Campaign).where(
+            Campaign.id == campaign_id, Campaign.organization_id == organization_id
+        )
+    )
     if campaign is None:
         raise _error("CAMPAIGN_NOT_FOUND", "Campaign was not found", 404)
+    ensure_campaign_not_finished(campaign, now=await database_clock(session), action="changed")
     if campaign.status not in {
         CampaignStatus.APPROVED.value,
         CampaignStatus.ACTIVE.value,
@@ -288,7 +301,7 @@ async def preview_campaign_change(
     payload: CampaignChangePreviewCreate,
 ) -> CampaignChangePreviewRead:
     organization, _ = await get_required_advertiser_context(session, actor_user_id)
-    campaign = await _campaign_for_preview(session, campaign_id)
+    campaign = await _campaign_for_preview(session, campaign_id, organization_id=organization.id)
     if campaign.organization_id != organization.id:
         raise _error("CAMPAIGN_NOT_FOUND", "Campaign was not found", 404)
     return await _build_change_preview(
@@ -308,6 +321,7 @@ async def _apply_if_funded(  # noqa: C901
     review_reason: str | None,
 ) -> CampaignChangeRequest:
     now = await database_clock(session)
+    ensure_campaign_not_finished(campaign, now=now, action="changed")
     new_review = review_reason is not None and request.review_reason is None
     if (
         review_reason is not None
@@ -439,7 +453,7 @@ async def request_campaign_change(
         .where(AdvertiserOrganization.id == organization.id)
         .with_for_update(read=True, key_share=True)
     )
-    campaign = await _locked_campaign(session, campaign_id)
+    campaign = await _locked_campaign(session, campaign_id, organization_id=organization.id)
     if campaign.organization_id != organization.id:
         raise _error("CAMPAIGN_NOT_FOUND", "Campaign was not found", 404)
     raw, reason = _proposal_values(payload)
@@ -467,6 +481,7 @@ async def request_campaign_change(
             "CAMPAIGN_CHANGE_RETRY_CONFLICT",
             "The client request ID was already used for different changes",
         )
+    ensure_campaign_not_finished(campaign, now=await database_clock(session), action="changed")
     preview = await _build_change_preview(
         session,
         campaign=campaign,

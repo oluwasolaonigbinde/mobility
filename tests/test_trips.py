@@ -409,6 +409,50 @@ def test_driver_can_start_get_current_read_and_end_trip(db_client, db_sessionmak
     assert trips[0].status == TripSessionStatus.ENDED.value
 
 
+@pytest.mark.parametrize("offset_ms", [-1, 0, 1])
+def test_shortened_campaign_end_closes_trip_start_without_rewriting_frozen_terms(
+    db_client, db_sessionmaker, monkeypatch, offset_ms
+) -> None:
+    # S23 / D118: Finished closes the campaign at its end even when accepted
+    # assignment terms retain a later immutable end.
+    campaign_end = datetime.now(UTC).replace(microsecond=0) + timedelta(hours=1)
+    frozen_end = campaign_end + timedelta(days=1)
+    _, campaign, _, _, _, assignment = create_trip_ready_graph(db_sessionmaker, end_at=frozen_end)
+
+    async def shorten():
+        async with db_sessionmaker() as session:
+            current = await session.get(Campaign, campaign.id)
+            current.end_at = campaign_end
+            await session.commit()
+
+    asyncio.run(shorten())
+
+    async def at_boundary(_session):
+        return campaign_end + timedelta(milliseconds=offset_ms)
+
+    monkeypatch.setattr(trips_service, "database_clock", at_boundary)
+    response = start_trip(db_client, assignment.id)
+    accepted = offset_ms < 0
+    assert response.status_code == (201 if accepted else 400), response.text
+    if not accepted:
+        assert response.json()["error"]["code"] == "CAMPAIGN_EXPIRED"
+
+    async def inspect():
+        async with db_sessionmaker() as session:
+            assert await session.scalar(select(func.count(TripSession.id))) == int(accepted)
+            assert await session.scalar(
+                select(func.count(AuditEvent.id)).where(AuditEvent.action == "driver.trip.started")
+            ) == int(accepted)
+            binding = await session.scalar(
+                select(AssignmentRuleBinding).where(
+                    AssignmentRuleBinding.assignment_id == assignment.id
+                )
+            )
+            assert binding.campaign_window_end_at == frozen_end
+
+    asyncio.run(inspect())
+
+
 def test_trip_start_rejects_at_frozen_assignment_window_after_campaign_extension(
     db_client,
     db_sessionmaker,

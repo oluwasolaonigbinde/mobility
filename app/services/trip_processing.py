@@ -4,7 +4,6 @@ from uuid import UUID
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased
 
 from app.core.config import Settings
 from app.core.errors import AppError
@@ -13,7 +12,7 @@ from app.models.fraud_assessment import (
     FraudAssessment,
     FraudAssessmentStatus,
 )
-from app.models.impression import ImpressionEstimate, TrafficDensityProfile
+from app.models.impression import ImpressionEstimate
 from app.models.payout import (
     AssignmentRuleBinding,
     EarningsLedgerEntry,
@@ -367,7 +366,6 @@ async def process_ended_trip(  # noqa: C901
         estimate = await estimate_trip_impressions(
             session,
             trip_id=trip.id,
-            traffic_density_profile_id=None,
             metadata=dict(WORKER_METADATA),
             settings=settings,
             now=processing_now,
@@ -605,30 +603,14 @@ async def find_unprocessed_trip_page(
     estimate_high_count = ImpressionEstimate.estimate_metadata["fraud_flag_counts"][
         FraudFlagSeverity.HIGH.value
     ].as_integer()
-    estimate_profile_fingerprint = ImpressionEstimate.estimate_metadata[
-        "traffic_density_profile_fingerprint"
-    ].as_string()
-    successor_profile = aliased(TrafficDensityProfile)
-    successor_profile_exists = (
-        select(successor_profile.id)
-        .where(successor_profile.supersedes_id == TrafficDensityProfile.id)
-        .correlate(TrafficDensityProfile)
-        .exists()
-    )
     current_estimate_exists = (
         select(ImpressionEstimate.id)
         .join(TripAnalytics, TripAnalytics.id == ImpressionEstimate.trip_analytics_id)
-        .join(
-            TrafficDensityProfile,
-            TrafficDensityProfile.id == ImpressionEstimate.traffic_density_profile_id,
-        )
         .where(
             TripAnalytics.trip_session_id == TripSession.id,
             TripAnalytics.formula_version == settings.route_analytics_formula_version,
             ImpressionEstimate.formula_version == settings.impression_formula_version,
             ImpressionEstimate.is_authoritative.is_(True),
-            estimate_profile_fingerprint == TrafficDensityProfile.value_fingerprint,
-            ~successor_profile_exists,
             estimate_low_count == open_low_count,
             estimate_medium_count == open_medium_count,
             estimate_high_count == open_high_count,

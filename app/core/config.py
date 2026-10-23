@@ -228,40 +228,40 @@ class Settings(BaseSettings):
     location_ping_start_skew_seconds: ClassVar[int] = 900
     max_location_accuracy_m: ClassVar[int] = 10000
     max_location_speed_mps: ClassVar[int] = 120
-    route_analytics_formula_version: str = "route_analytics_v1"
-    route_analytics_min_valid_pings: int = 2
-    route_analytics_moving_speed_mps: float = 1.0
-    route_analytics_stationary_speed_mps: float = 0.5
-    route_analytics_impossible_speed_mps: float = 55.0
-    route_analytics_max_ping_gap_seconds: int = 900
-    route_analytics_poor_accuracy_threshold_m: float = 100.0
-    route_analytics_poor_accuracy_ratio_threshold: float = 0.5
-    route_analytics_stationary_ratio_threshold: float = 0.8
-    route_analytics_looping_radius_m: float = 50.0
-    route_analytics_looping_min_distance_m: float = 1000.0
-    route_replay_detector_version: str = "route_replay_v1"
-    route_replay_coordinate_precision: int = 5
-    route_replay_time_tolerance_seconds: int = 5
-    route_replay_min_valid_pings: int = 10
-    route_replay_min_distance_m: float = 250.0
-    route_replay_max_evidence_matches: int = 10
-    fraud_assessment_formula_version: str = "fraud_assessment_v1"
-    impression_formula_version: str = "impressions_v1"
-    impression_default_traffic_density_per_km: float = 120.0
-    impression_default_dwell_impressions_per_minute: float = 3.0
-    impression_high_fraud_multiplier: float = 0.25
-    impression_medium_fraud_multiplier: float = 0.70
-    impression_low_fraud_multiplier: float = 0.90
-    impression_insufficient_data_confidence: float = 0.10
-    impression_min_confidence: float = 0.0
-    impression_max_confidence: float = 1.0
-    heatmap_default_resolution_m: int = 500
-    heatmap_min_resolution_m: int = 50
-    heatmap_max_resolution_m: int = 5000
-    heatmap_max_bbox_area_sq_km: int = 2500
-    heatmap_max_date_range_days: int = 90
-    heatmap_max_cells: int = 5000
-    heatmap_min_trips_per_cell: int = 1
+    route_analytics_formula_version: ClassVar[str] = "route_analytics_v1"
+    route_analytics_min_valid_pings: ClassVar[int] = 2
+    route_analytics_moving_speed_mps: ClassVar[float] = 1.0
+    route_analytics_stationary_speed_mps: ClassVar[float] = 0.5
+    route_analytics_impossible_speed_mps: ClassVar[float] = 55.0
+    route_analytics_max_ping_gap_seconds: ClassVar[int] = 900
+    route_analytics_poor_accuracy_threshold_m: ClassVar[float] = 100.0
+    route_analytics_poor_accuracy_ratio_threshold: ClassVar[float] = 0.5
+    route_analytics_stationary_ratio_threshold: ClassVar[float] = 0.8
+    route_analytics_looping_radius_m: ClassVar[float] = 50.0
+    route_analytics_looping_min_distance_m: ClassVar[float] = 1000.0
+    route_replay_detector_version: ClassVar[str] = "route_replay_v1"
+    route_replay_coordinate_precision: ClassVar[int] = 5
+    route_replay_time_tolerance_seconds: ClassVar[int] = 5
+    route_replay_min_valid_pings: ClassVar[int] = 10
+    route_replay_min_distance_m: ClassVar[float] = 250.0
+    route_replay_max_evidence_matches: ClassVar[int] = 10
+    fraud_assessment_formula_version: ClassVar[str] = "fraud_assessment_v1"
+    impression_formula_version: ClassVar[str] = "impressions_v1"
+    impression_default_traffic_density_per_km: ClassVar[float] = 120.0
+    impression_default_dwell_impressions_per_minute: ClassVar[float] = 3.0
+    impression_high_fraud_multiplier: ClassVar[float] = 0.25
+    impression_medium_fraud_multiplier: ClassVar[float] = 0.7
+    impression_low_fraud_multiplier: ClassVar[float] = 0.9
+    impression_insufficient_data_confidence: ClassVar[float] = 0.1
+    impression_min_confidence: ClassVar[float] = 0.0
+    impression_max_confidence: ClassVar[float] = 1.0
+    heatmap_default_resolution_m: ClassVar[int] = 500
+    heatmap_min_resolution_m: ClassVar[int] = 50
+    heatmap_max_resolution_m: ClassVar[int] = 5000
+    heatmap_max_bbox_area_sq_km: ClassVar[int] = 2500
+    heatmap_max_date_range_days: ClassVar[int] = 90
+    heatmap_max_cells: ClassVar[int] = 5000
+    heatmap_min_trips_per_cell: ClassVar[int] = 1
     privacy_legal_approval_reference: str = ""
     privacy_min_vehicles_per_cell: int = 3
     privacy_min_resolution_m: int = 500
@@ -339,96 +339,6 @@ class Settings(BaseSettings):
             raise ValueError("PAYSTACK_SECRET_KEY live keys are refused outside production")
         if environment == "production" and secret.startswith("sk_test_"):
             raise ValueError("PAYSTACK_SECRET_KEY test keys are refused in production")
-        return value
-
-    @field_validator(
-        "route_analytics_min_valid_pings",
-        "route_analytics_max_ping_gap_seconds",
-        "route_replay_time_tolerance_seconds",
-        "route_replay_min_valid_pings",
-        "route_replay_max_evidence_matches",
-    )
-    @classmethod
-    def validate_positive_route_analytics_ints(cls, value: int) -> int:
-        if value <= 0:
-            raise ValueError("Route analytics integer settings must be positive")
-        return value
-
-    @field_validator(
-        "route_analytics_moving_speed_mps",
-        "route_analytics_stationary_speed_mps",
-        "route_analytics_impossible_speed_mps",
-        "route_analytics_poor_accuracy_threshold_m",
-        "route_analytics_looping_radius_m",
-        "route_analytics_looping_min_distance_m",
-        "route_replay_min_distance_m",
-    )
-    @classmethod
-    def validate_positive_route_analytics_floats(cls, value: float) -> float:
-        if value <= 0:
-            raise ValueError("Route analytics numeric settings must be positive")
-        return value
-
-    @field_validator("route_replay_coordinate_precision")
-    @classmethod
-    def validate_route_replay_coordinate_precision(cls, value: int) -> int:
-        if value < 3 or value > 7:
-            raise ValueError("ROUTE_REPLAY_COORDINATE_PRECISION must be between 3 and 7")
-        return value
-
-    @field_validator(
-        "route_analytics_poor_accuracy_ratio_threshold",
-        "route_analytics_stationary_ratio_threshold",
-    )
-    @classmethod
-    def validate_route_analytics_ratios(cls, value: float) -> float:
-        if value < 0 or value > 1:
-            raise ValueError("Route analytics ratio settings must be between 0 and 1")
-        return value
-
-    @field_validator(
-        "impression_default_traffic_density_per_km",
-        "impression_default_dwell_impressions_per_minute",
-    )
-    @classmethod
-    def validate_nonnegative_impression_defaults(cls, value: float) -> float:
-        if value < 0:
-            raise ValueError("Impression default settings must be nonnegative")
-        return value
-
-    @field_validator(
-        "impression_high_fraud_multiplier",
-        "impression_medium_fraud_multiplier",
-        "impression_low_fraud_multiplier",
-        "impression_insufficient_data_confidence",
-        "impression_min_confidence",
-        "impression_max_confidence",
-    )
-    @classmethod
-    def validate_impression_ratios(cls, value: float) -> float:
-        if value < 0 or value > 1:
-            raise ValueError("Impression ratio settings must be between 0 and 1")
-        return value
-
-    @field_validator(
-        "heatmap_default_resolution_m",
-        "heatmap_min_resolution_m",
-        "heatmap_max_resolution_m",
-        "heatmap_max_bbox_area_sq_km",
-        "heatmap_max_date_range_days",
-        "heatmap_max_cells",
-    )
-    @classmethod
-    def validate_positive_heatmap_settings(cls, value: int) -> int:
-        if value <= 0:
-            raise ValueError("Heatmap settings must be positive")
-        return value
-
-    @field_validator("heatmap_min_trips_per_cell")
-    @classmethod
-    def validate_heatmap_min_trips_per_cell(cls, value: int) -> int:
-        if value < 1:
-            raise ValueError("HEATMAP_MIN_TRIPS_PER_CELL must be at least 1")
         return value
 
     @field_validator(

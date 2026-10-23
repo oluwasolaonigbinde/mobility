@@ -1,3 +1,4 @@
+from typing import Literal, cast
 from uuid import UUID
 
 from fastapi import APIRouter, status
@@ -146,7 +147,7 @@ async def driver_ingest_location_pings(
         payload_hash_version=row.payload_hash_version,
         payload_hash=row.payload_hash,
         outcome=row.receipt_outcome,
-        evidence_scope=row.evidence_scope,
+        evidence_scope=cast(Literal["manifest", "late", "late_dropped"], row.evidence_scope),
         receipt_format_version=row.receipt_format_version,
         receipt_key_version=row.receipt_key_version,
         receipt_signature=row.receipt_signature,

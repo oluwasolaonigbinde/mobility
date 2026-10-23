@@ -41,7 +41,7 @@ from app.models.campaign_assignment import (
 )
 from app.models.campaign_zone import CampaignZone, CampaignZoneType
 from app.models.driver import DriverOnboardingStatus, DriverProfile
-from app.models.impression import ImpressionEstimate, TrafficDensityProfile
+from app.models.impression import ImpressionEstimate
 from app.models.installation_evidence import (
     InstallationEvidencePhoto,
     InstallationEvidenceStatus,
@@ -547,7 +547,6 @@ def create_test_campaign_assignment(
                 activated_at=activated_at,
                 deactivated_at=deactivated_at,
                 cancelled_at=cancelled_at,
-                completed_at=completed_at,
                 notes=notes,
                 assignment_metadata=metadata or {},
             )
@@ -816,6 +815,7 @@ def create_test_trip_analytics(
     distance_m=0,
     active_tracking_seconds: int = 0,
     stationary_seconds: int = 0,
+    moving_seconds: int = 0,
     target_zone_distance_m=0,
     bonus_zone_distance_m=0,
     exclusion_zone_distance_m=0,
@@ -842,7 +842,7 @@ def create_test_trip_analytics(
                 last_ping_at=last_ping_at,
                 duration_seconds=0,
                 active_tracking_seconds=active_tracking_seconds,
-                moving_seconds=0,
+                moving_seconds=moving_seconds,
                 stationary_seconds=stationary_seconds,
                 distance_m=distance_m,
                 avg_speed_mps=None,
@@ -884,7 +884,7 @@ def create_test_impression_estimate(
     campaign_id: UUID,
     driver_profile_id: UUID,
     vehicle_id: UUID,
-    traffic_density_profile_id: UUID,
+    traffic_density_profile_id: UUID | None = None,
     formula_version: str = "impressions_v1",
     status: str = "estimated",
     estimated_impressions=0,
@@ -1152,51 +1152,22 @@ def make_test_campaign_reviewable(
     )
 
 
-def create_test_traffic_density_profile(
-    db_sessionmaker: async_sessionmaker[AsyncSession],
-    *,
-    name: str = "Default Urban",
-    profile_type: str = "default",
-    traffic_density_per_km=120,
-    dwell_impressions_per_minute=3,
-    road_category_weight=1,
-    morning_weight=1,
-    midday_weight=1,
-    evening_weight=1,
-    night_weight=0.7,
-    target_zone_weight=1,
-    bonus_zone_weight=1.25,
-    exclusion_zone_weight=1,
-    is_default: bool = False,
-    status: str = "active",
-    metadata: dict | None = None,
-) -> TrafficDensityProfile:
-    async def create() -> TrafficDensityProfile:
-        async with db_sessionmaker() as session:
-            profile = TrafficDensityProfile(
-                name=name,
-                description=None,
-                profile_type=profile_type,
-                traffic_density_per_km=traffic_density_per_km,
-                dwell_impressions_per_minute=dwell_impressions_per_minute,
-                road_category_weight=road_category_weight,
-                morning_weight=morning_weight,
-                midday_weight=midday_weight,
-                evening_weight=evening_weight,
-                night_weight=night_weight,
-                target_zone_weight=target_zone_weight,
-                bonus_zone_weight=bonus_zone_weight,
-                exclusion_zone_weight=exclusion_zone_weight,
-                is_default=is_default,
-                status=status,
-                profile_metadata=metadata or {},
-            )
-            session.add(profile)
-            await session.commit()
-            await session.refresh(profile)
-            return profile
+def create_test_estimate_source(_db_sessionmaker, **values):
+    """Historical estimate-source facts, not a current profile registry (S10/D118)."""
+    from types import SimpleNamespace
 
-    return asyncio.run(create())
+    from app.services.impressions import FIXED_ESTIMATE_FACTORS
+
+    facts = dict(vars(FIXED_ESTIMATE_FACTORS))
+    facts.update(values)
+    facts.update(
+        id=uuid4(),
+        lineage_id=uuid4(),
+        revision=1,
+        effective_from=datetime.now(UTC),
+        value_fingerprint="a" * 64,
+    )
+    return SimpleNamespace(**facts)
 
 
 def create_test_campaign_creative(

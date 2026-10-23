@@ -31,12 +31,14 @@ from app.services.audit_subjects import (
 def test_measurement_and_campaign_audits_link_only_explicit_proof_or_assignment_subjects(
     postgis_db_client, postgis_db_sessionmaker
 ):
-    from test_report_issuances import issue_run, request_issuance
+    from legacy_report_fixtures import seed_legacy_issued_report
+    from test_stored_files import FakeStorageProvider
 
     factory = postgis_db_sessionmaker
-    admin, advertiser, campaign, run = issue_run(postgis_db_client, factory)
-    issuance = request_issuance(postgis_db_client, advertiser, run["id"])
-    assert issuance.status_code == 202, issuance.text
+    admin, advertiser, campaign, historical, issued = seed_legacy_issued_report(
+        factory, FakeStorageProvider()
+    )
+    run = {"id": str(historical.id)}
     other = create_test_user(factory, email="other-proof-driver@example.test", role=UserRole.DRIVER)
     profile = create_test_driver_profile(factory, user_id=other.id)
     vehicle = create_test_vehicle(factory, driver_profile_id=profile.id)
@@ -77,7 +79,7 @@ def test_measurement_and_campaign_audits_link_only_explicit_proof_or_assignment_
 
             for kind, identity, expected in (
                 ("measurement_run", run["id"], {admin.id, proof_subject}),
-                ("report_issuance", issuance.json()["id"], {advertiser.id, proof_subject}),
+                ("report_issuance", str(issued.id), {advertiser.id, proof_subject}),
             ):
                 event_id = await session.scalar(
                     select(AuditEvent.id).where(
@@ -189,6 +191,7 @@ def test_money_audit_targets_follow_frozen_line_and_correction_trip_ownership(db
                 ("payout_batch_line", lines[0].id),
                 ("payout_submission_intent", intent.id),
                 ("payout_correction_order", order.id),
+                ("earnings_ledger_entry", entry.id),
             ):
                 event = await create_audit_event(
                     session,

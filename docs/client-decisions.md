@@ -270,7 +270,7 @@ history are unchanged. B4 money and security checkpoints PASS (GPT-6.1-Sol,
 high); focused activation, production-race, PDF, tenant, migration, exact-pay
 and frontend checks pass. Final integrated reviews remain pending.
 
-**Current rule:** D116 merges Scheduled into Approved, removes bonus zones/unreachable enums and advertiser company roles. Artwork retains PNG/JPEG/WebP images and PDF using explicit image/pdf types; remove video/html/text/other. Fitted artwork cannot be added/swapped after production starts; replacement goes through Terrax (client, 20 Oct), enforced by a shared create/update production-lock guard. Photo approval activates only after all existing checks. D118 derives Finished from end date. Campaign daily metrics use Nigeria calendar days; the owned seven-day read includes partial today and zero empty days. Funding, cancellations, D104 budget rules and change approvals remain. Owner-approved 20 October 2026, REQ-210–218; implementation pending.
+**Current rule:** D116 merges Scheduled into Approved, removes bonus zones/unreachable enums and advertiser company roles. Artwork retains PNG/JPEG/WebP images and PDF using explicit image/pdf types; remove video/html/text/other. Fitted artwork cannot be added/swapped after production starts; replacement goes through Terrax (client, 20 Oct), enforced by a shared create/update production-lock guard. Photo approval activates only after all existing checks. D118 derives Finished from end date. Campaign daily metrics use Nigeria calendar days; the owned seven-day read includes partial today and zero empty days. Funding, cancellations, D104 budget rules and change approvals remain. Owner-approved 20 October 2026, REQ-210–218; implemented locally. See the REQ-210 verification receipt; full CI and merge remain pending.
 
 **Previous rule (ended 20 October 2026; retained history):** Advertisers create a draft and submit it for admin approval
 (Q6). A campaign can be submitted only with start and end dates, a total budget
@@ -328,7 +328,7 @@ advertiser or campaign information. Screens belong to Worker B.
 
 ### Matching, offers and activity
 
-**Current rule:** D109 removes high-earner/concurrent challenges, weekly hours floor and extra notices. Inspector records passed/failed plus note; failure holds pay. Seven-day inactivity flag self-closes with one staff notice. Owner-approved 20 October 2026, REQ-210–218; implementation pending.
+**Current rule:** D109 removes high-earner/concurrent challenges, weekly hours floor and extra notices. Inspector records passed/failed plus note; failure holds pay. Seven-day inactivity flag self-closes with one staff notice. Owner-approved 20 October 2026, REQ-210–218; implemented locally. See the REQ-210 verification receipt; full CI and merge remain pending.
 
 **Previous rule (ended 20 October 2026; retained history):** Cardvert recommends eligible drivers and vehicles; an admin
 approves the assignment (Q7). The driver gets a full offer and accepts or
@@ -405,7 +405,7 @@ renewal periods stay unset (D69, REQ-137). Mark expired retains the recorded out
 
 ### Installation photos
 
-**Current rule:** D108 removes all daily display proof; keep weekly five-view seven-day approved installation photos. D116 auto-activates on approval only when every existing check passes, otherwise show missing checks. Owner-approved 20 October 2026, REQ-210–218; implementation pending.
+**Current rule:** D108 removes all daily display proof; keep weekly five-view seven-day approved installation photos. D116 auto-activates on approval only when every existing check passes, otherwise show missing checks. Owner-approved 20 October 2026, REQ-210–218; implemented locally. See the REQ-210 verification receipt; full CI and merge remain pending.
 
 **Previous rule (ended 20 October 2026; retained history):** Before campaign hours can earn, installation photos must be
 approved by an admin (Q17). Views: **front, back, left, right and close-up**.
@@ -501,7 +501,7 @@ remain unchanged. Requested hardening: [REQ-036](requests.md), [REQ-040](request
 
 ### Fraud holds and earnings release
 
-**Current rule:** D114 retains only pay-changing flags (speed/stationary/gap/replay/exclusion/failed spot), open to confirmed/dismissed. Never auto-release flagged pay. Late uploads apply before day pay calculation, otherwise audit/drop; corrections remain explicit. D117 fixes seven-day target. Owner-approved 20 October 2026, REQ-210–218; implementation pending.
+**Current rule:** D114 retains only pay-changing flags (speed/stationary/gap/replay/exclusion/failed spot), open to confirmed/dismissed. Never auto-release flagged pay. Late uploads apply before day pay calculation, otherwise audit/drop; corrections remain explicit. D117 fixes seven-day target. Owner-approved 20 October 2026, REQ-210–218; implemented locally. See the REQ-210 verification receipt; full CI and merge remain pending.
 
 **Previous rule (ended 20 October 2026; retained history):** Earnings from flagged trips are held for admin review, with
 reasons and a dispute path; thresholds are configurable (Q21). Clean earnings
@@ -516,7 +516,7 @@ escalate after day seven (Q22).
 
 ### Complaints and support
 
-**Current rule:** D109 removes named staff assignment and its notification. Existing department handling, messages and cancellation requests stay. Owner-approved 20 October 2026, REQ-210–218; implementation pending.
+**Current rule:** D109 removes named staff assignment and its notification. Existing department handling, messages and cancellation requests stay. Owner-approved 20 October 2026, REQ-210–218; implemented locally. See the REQ-210 verification receipt; full CI and merge remain pending.
 
 **Previous rule (ended 20 October 2026; retained history):** Drivers and advertisers raise complaints in the app, with a
 category and an optional reference to one of their own campaigns, trips or
@@ -568,8 +568,8 @@ uses queued sends and bounded retries with sent/failed outcomes and no signed
 receipts. Queue-only durable outbox recovery never sends mail. Advertiser opt-out
 and active company/user/membership checks still run before dispatch. The fraud
 review target is fixed at seven days and never auto-releases held pay. B5 focused
-runtime verification and independent security checkpoint PASS (gpt-6.1-sol/high);
-final integrated review remains pending.
+runtime verification and independent security checkpoint PASS (gpt-6.1-sol/high).
+Built locally in `f85ffbb8`; final integrated delivery review and merge remain pending.
 
 **History:**
 - **2026-10-20** — D117 supersedes operator provisioning and signed email receipts, using the client support number and fixed existing security values; REQ-216. The previous rule required a named approved operator and approval reference for live phone verification.
@@ -583,7 +583,7 @@ final integrated review remains pending.
 
 ### Advertiser reporting and privacy
 
-**Current rule:** D118: weekly/final campaign reports with staff Re-run; issued files immutable and old downloads retained (D71). Advertisers choose period and one/all own campaigns, CSV/PDF with charts: dates, three-car areas, cars, verified distance/driving days/trips/time, labelled estimated views, creative previews and status. Measured and estimated sections visibly distinct. No money/budget/CTR/ROI. Fixed estimates; Finished derives from date. D115 removes audience recommendations. Owner-approved 20 October 2026, REQ-210–218; implementation pending.
+**Current rule:** D118: weekly/final campaign reports with staff Re-run; issued files immutable and old downloads retained (D71). Advertisers choose period and one/all own campaigns, CSV/PDF with charts: dates, three-car areas, cars, verified distance/driving days/trips/time, labelled estimated views, creative previews and status. Measured and estimated sections visibly distinct. No money/budget/CTR/ROI. Fixed estimates; Finished derives from date. D115 removes audience recommendations. Owner-approved 20 October 2026, REQ-210–218; implemented locally. See the REQ-210 verification receipt; full CI and merge remain pending.
 
 **Previous rule (ended 20 October 2026; retained history):** The standard report is a **Campaign Performance Analysis**:
 verified operations, clearly labelled estimated exposure and target-area
@@ -681,7 +681,7 @@ key-management service (D44).
 
 ### Legal, privacy and retention
 
-**Current rule:** D110 removes unrequested DSR workflow/no-op disclosure purge; staff handle requests manually pending legal rules. Company isolation, audited access and three-car rule stay. D119 fixes KYC retention at six months (client item 17, owner confirmed 20 October), so purge runs. Owner-approved 20 October 2026, REQ-210–218; implementation pending.
+**Current rule:** D110 removes unrequested DSR workflow/no-op disclosure purge; staff handle requests manually pending legal rules. Company isolation, audited access and three-car rule stay. D119 fixes KYC retention at six months (client item 17, owner confirmed 20 October), so purge runs. Owner-approved 20 October 2026, REQ-210–218; implemented locally. See the REQ-210 verification receipt; full CI and merge remain pending.
 
 **Previous rule (ended 20 October 2026; retained history):** Built GPS, ID collection, results and reports are accessible during development without legal approval switches; tenant isolation, aggregation limits and query recording remain, and legal/privacy plus overlap/differencing protections must be restored before real users (D56, REQ-072/089). For driver-application and vehicle-document review, the View click is the staff acknowledgment; each read keeps its application or vehicle purpose-scoped audit and one-minute/leave-page hiding, and NIN has its separate reveal (D58, REQ-105). Complete canonical UUID whole tokens are never phone numbers in any audit field or free text; phones beside them, broken/partial UUIDs and sensitive fields retain redaction (D61, REQ-111, superseding D60).
 

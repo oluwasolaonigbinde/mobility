@@ -18,8 +18,8 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from app.services.measurement import calculate_measurement_result, canonical_sha256  # noqa: E402
-from app.services.report_rendering import render_report_csv, render_report_pdf  # noqa: E402
+from app.services.campaign_report_rendering import render_campaign_csv, render_campaign_pdf  # noqa: E402
+from app.services.historical_measurement import calculate_measurement_result, canonical_sha256  # noqa: E402
 from app.services.target_area_coverage import seal_synthetic_target_area_provenance  # noqa: E402
 
 if __package__:
@@ -162,11 +162,11 @@ def verify_reproducibility(fixture: Mapping[str, Any]) -> dict[str, str]:
     try:
         with block_network():
             first_result = calculate_measurement_result(measurement_input)
-            first_csv = render_report_csv(snapshot)
-            first_pdf = render_report_pdf(snapshot)
+            first_csv = render_campaign_csv(snapshot)
+            first_pdf = render_campaign_pdf(snapshot)
             second_result = calculate_measurement_result(measurement_input)
-            second_csv = render_report_csv(snapshot)
-            second_pdf = render_report_pdf(snapshot)
+            second_csv = render_campaign_csv(snapshot)
+            second_pdf = render_campaign_pdf(snapshot)
     except NetworkAttemptError:
         raise
     except Exception as exc:
@@ -207,8 +207,8 @@ def run_harness(*, clock: Callable[[], float] = time.perf_counter) -> dict[str, 
         profile_operation(
             "report_worker_artifact_pair",
             lambda: (
-                render_report_csv(fixture["report_snapshot"]),
-                render_report_pdf(fixture["report_snapshot"]),
+                render_campaign_csv(fixture["report_snapshot"]),
+                render_campaign_pdf(fixture["report_snapshot"]),
             ),
             clock=clock,
         ),

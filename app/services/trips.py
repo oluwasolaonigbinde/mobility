@@ -147,7 +147,7 @@ def ensure_campaign_active_for_trip(campaign: Campaign, now: datetime) -> None:
             "Campaign start_at is in the future",
             status_code=status.HTTP_400_BAD_REQUEST,
         )
-    if campaign.end_at is not None and as_aware_utc(campaign.end_at) < now:
+    if campaign.end_at is not None and as_aware_utc(campaign.end_at) <= now:
         raise AppError(
             "CAMPAIGN_EXPIRED",
             "Campaign end_at is in the past",

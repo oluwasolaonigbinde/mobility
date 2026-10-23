@@ -53,7 +53,7 @@ const groups = {
     label: "Being set up",
     statuses: ["draft", "pending_review", "approved", "rejected"],
   },
-  finished: { label: "Finished", statuses: ["completed", "cancelled"] },
+  finished: { label: "Finished", statuses: ["finished", "cancelled"] },
 } as const;
 type Group = keyof typeof groups;
 function listHref(params: { group?: Group; offset?: number }): string {

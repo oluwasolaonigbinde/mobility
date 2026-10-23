@@ -12,6 +12,7 @@ from app.models.campaign import CampaignStatus
 from app.models.campaign_assignment import CampaignActivationEventType, CampaignAssignmentStatus
 from app.models.driver import DriverOnboardingStatus
 from app.models.vehicle import VehicleStatus, VehicleType
+from app.schemas.campaign_lifecycle import AssignmentLifecycleReadMixin, CampaignLifecycleReadMixin
 from app.schemas.drivers import normalize_optional_text
 from app.schemas.vehicles import normalize_required_text
 
@@ -93,10 +94,10 @@ class CampaignAssignmentCancel(BaseModel):
         return normalized
 
 
-class AssignmentCampaignSummary(BaseModel):
+class AssignmentCampaignSummary(CampaignLifecycleReadMixin, BaseModel):
     id: UUID
     name: str
-    status: CampaignStatus
+    status: CampaignStatus | Literal["finished"]
     start_at: datetime | None
     end_at: datetime | None
 
@@ -135,13 +136,13 @@ class CampaignActivationEventRead(BaseModel):
     offer_terms_sha256: str | None = None
 
 
-class CampaignAssignmentRead(BaseModel):
+class CampaignAssignmentRead(AssignmentLifecycleReadMixin, BaseModel):
     id: UUID
     campaign_id: UUID
     driver_profile_id: UUID
     vehicle_id: UUID
     assigned_by_user_id: UUID
-    status: CampaignAssignmentStatus
+    status: CampaignAssignmentStatus | Literal["finished"]
     offered_at: datetime
     expires_at: datetime | None
     accepted_at: datetime | None
@@ -150,7 +151,6 @@ class CampaignAssignmentRead(BaseModel):
     activated_at: datetime | None
     deactivated_at: datetime | None
     cancelled_at: datetime | None
-    completed_at: datetime | None
     notes: str | None
     metadata: dict[str, Any] = Field(default_factory=dict)
     offer_terms: CampaignAssignmentOfferTerms | None = None

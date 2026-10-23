@@ -9,9 +9,9 @@ from conftest import (
     create_test_campaign,
     create_test_campaign_assignment,
     create_test_driver_profile,
+    create_test_estimate_source,
     create_test_impression_estimate,
     create_test_organization,
-    create_test_traffic_density_profile,
     create_test_trip_analytics,
     create_test_trip_session,
     create_test_user,
@@ -169,7 +169,7 @@ def create_heatmap_graph(
         distance_m=Decimal("1000.00"),
         quality_score=Decimal("0.8000"),
     )
-    density_profile = create_test_traffic_density_profile(
+    density_profile = create_test_estimate_source(
         db_sessionmaker,
         name=f"Heatmap density {plate_number}",
     )

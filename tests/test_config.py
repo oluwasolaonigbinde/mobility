@@ -265,91 +265,6 @@ def test_location_tracking_limits_cannot_be_overridden(
     )
 
 
-@pytest.mark.parametrize(
-    "setting_name",
-    [
-        "route_analytics_min_valid_pings",
-        "route_analytics_max_ping_gap_seconds",
-        "route_analytics_moving_speed_mps",
-        "route_analytics_stationary_speed_mps",
-        "route_analytics_impossible_speed_mps",
-        "route_analytics_poor_accuracy_threshold_m",
-        "route_analytics_looping_radius_m",
-        "route_analytics_looping_min_distance_m",
-        "route_replay_time_tolerance_seconds",
-        "route_replay_min_valid_pings",
-        "route_replay_min_distance_m",
-        "route_replay_max_evidence_matches",
-    ],
-)
-@pytest.mark.parametrize("invalid_value", [0, -1])
-def test_route_analytics_settings_must_be_positive(
-    setting_name: str,
-    invalid_value: int,
-) -> None:
-    with pytest.raises(ValidationError):
-        Settings(**{setting_name: invalid_value})
-
-
-@pytest.mark.parametrize("invalid_value", [2, 8])
-def test_route_replay_coordinate_precision_is_bounded(invalid_value: int) -> None:
-    with pytest.raises(ValidationError):
-        Settings(route_replay_coordinate_precision=invalid_value)
-
-
-@pytest.mark.parametrize(
-    "setting_name",
-    [
-        "route_analytics_poor_accuracy_ratio_threshold",
-        "route_analytics_stationary_ratio_threshold",
-    ],
-)
-@pytest.mark.parametrize("invalid_value", [-0.1, 1.1])
-def test_route_analytics_ratio_settings_must_be_between_zero_and_one(
-    setting_name: str,
-    invalid_value: float,
-) -> None:
-    with pytest.raises(ValidationError):
-        Settings(**{setting_name: invalid_value})
-
-
-@pytest.mark.parametrize(
-    "setting_name",
-    [
-        "impression_default_traffic_density_per_km",
-        "impression_default_dwell_impressions_per_minute",
-    ],
-)
-def test_impression_default_settings_must_be_nonnegative(setting_name: str) -> None:
-    with pytest.raises(ValidationError):
-        Settings(**{setting_name: -1})
-
-
-@pytest.mark.parametrize(
-    "setting_name",
-    [
-        "impression_high_fraud_multiplier",
-        "impression_medium_fraud_multiplier",
-        "impression_low_fraud_multiplier",
-        "impression_insufficient_data_confidence",
-        "impression_min_confidence",
-        "impression_max_confidence",
-    ],
-)
-@pytest.mark.parametrize("invalid_value", [-0.1, 1.1])
-def test_impression_ratio_settings_must_be_between_zero_and_one(
-    setting_name: str,
-    invalid_value: float,
-) -> None:
-    with pytest.raises(ValidationError):
-        Settings(**{setting_name: invalid_value})
-
-
-def test_impression_min_confidence_must_not_exceed_max() -> None:
-    with pytest.raises(ValidationError):
-        Settings(impression_min_confidence=0.9, impression_max_confidence=0.5)
-
-
 def test_email_provider_have_no_production_defaults() -> None:
     settings = Settings(
         email_provider="",
@@ -390,3 +305,49 @@ def test_email_delivery_numeric_settings_must_be_positive(setting_name: str) -> 
 def test_default_currency_must_be_three_letters() -> None:
     with pytest.raises(ValidationError):
         Settings(default_currency="NGNA")
+
+
+# S11/D118: exact pre-change values; removed environment inputs cannot weaken them.
+ANALYTICS_FIXED_DEFAULTS = {
+    "fraud_assessment_formula_version": "fraud_assessment_v1",
+    "heatmap_default_resolution_m": 500,
+    "heatmap_max_bbox_area_sq_km": 2500,
+    "heatmap_max_cells": 5000,
+    "heatmap_max_date_range_days": 90,
+    "heatmap_max_resolution_m": 5000,
+    "heatmap_min_resolution_m": 50,
+    "heatmap_min_trips_per_cell": 1,
+    "impression_default_dwell_impressions_per_minute": 3.0,
+    "impression_default_traffic_density_per_km": 120.0,
+    "impression_formula_version": "impressions_v1",
+    "impression_high_fraud_multiplier": 0.25,
+    "impression_insufficient_data_confidence": 0.1,
+    "impression_low_fraud_multiplier": 0.9,
+    "impression_max_confidence": 1.0,
+    "impression_medium_fraud_multiplier": 0.7,
+    "impression_min_confidence": 0.0,
+    "route_analytics_formula_version": "route_analytics_v1",
+    "route_analytics_impossible_speed_mps": 55.0,
+    "route_analytics_looping_min_distance_m": 1000.0,
+    "route_analytics_looping_radius_m": 50.0,
+    "route_analytics_max_ping_gap_seconds": 900,
+    "route_analytics_min_valid_pings": 2,
+    "route_analytics_moving_speed_mps": 1.0,
+    "route_analytics_poor_accuracy_ratio_threshold": 0.5,
+    "route_analytics_poor_accuracy_threshold_m": 100.0,
+    "route_analytics_stationary_ratio_threshold": 0.8,
+    "route_analytics_stationary_speed_mps": 0.5,
+    "route_replay_coordinate_precision": 5,
+    "route_replay_detector_version": "route_replay_v1",
+    "route_replay_max_evidence_matches": 10,
+    "route_replay_min_distance_m": 250.0,
+    "route_replay_min_valid_pings": 10,
+    "route_replay_time_tolerance_seconds": 5,
+}
+
+
+@pytest.mark.parametrize("name, expected", ANALYTICS_FIXED_DEFAULTS.items())
+def test_fixed_analytics_defaults_ignore_removed_deployment_inputs(name, expected, monkeypatch):
+    monkeypatch.setenv(name.upper(), "0")
+    assert name not in Settings.model_fields
+    assert getattr(Settings(**{name: 0}), name) == expected

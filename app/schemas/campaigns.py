@@ -15,6 +15,7 @@ from pydantic import (
 from app.models.campaign import CampaignStatus, CreativePlacement, CreativeStatus, CreativeType
 from app.models.organization import OrganizationStatus
 from app.models.stored_file import FileScanStatus
+from app.schemas.campaign_lifecycle import CampaignLifecycleReadMixin
 from app.schemas.drivers import normalize_optional_text
 from app.schemas.vehicles import normalize_required_text
 
@@ -141,14 +142,14 @@ class CampaignUpdate(BaseModel):
         return self
 
 
-class CampaignRead(DecimalStringMixin):
+class CampaignRead(CampaignLifecycleReadMixin, DecimalStringMixin):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     organization_id: UUID
     name: str
     description: str | None
-    status: CampaignStatus
+    status: CampaignStatus | Literal["finished"]
     start_at: datetime | None
     end_at: datetime | None
     budget_amount: Decimal | None

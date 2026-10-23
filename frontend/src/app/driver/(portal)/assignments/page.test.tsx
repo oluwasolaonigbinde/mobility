@@ -76,7 +76,7 @@ describe("DriverAssignmentsPage history availability", () => {
             data: {
               id: "selected-job",
               campaign_id: "campaign",
-              status: "completed",
+              status: "finished",
               offered_at: "2026-09-01T09:00:00Z",
               offer_terms: null,
               campaign: { name: "Named selected campaign" },
@@ -231,20 +231,20 @@ describe("DriverAssignmentsPage history availability", () => {
     },
   );
 
-  it("dates past jobs by the driver's assignment instead of the campaign window", async () => {
+  it("dates finished jobs by the derived campaign end (S23/D118)", async () => {
     mockJobs([
       {
         id: "past-job",
         campaign_id: "campaign",
-        status: "completed",
+        status: "finished",
         offered_at: "2026-10-01T09:00:00Z",
         activated_at: "2026-10-02T09:00:00Z",
-        completed_at: "2026-10-03T09:00:00Z",
+
         offer_terms: null,
         campaign: {
-          name: "Finished early",
+          name: "Finished on its end date",
           start_at: "2026-10-01T09:00:00Z",
-          end_at: "2026-12-01T09:00:00Z",
+          end_at: "2026-10-03T09:00:00Z",
         },
         vehicle: { plate_number: "ABC-123" },
       },

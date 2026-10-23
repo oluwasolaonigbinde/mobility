@@ -108,7 +108,10 @@ async def advertiser_get_campaign_summary(
     "/advertiser/campaigns/{campaign_id}/daily-metrics",
     response_model=DailyMetricsResponse,
     summary="List advertiser campaign daily metrics",
-    description="Return UTC daily reporting rows from stored demo or production data.",
+    description=(
+        "Return Nigeria calendar days (WAT); default to seven days including partial today. "
+        "Empty days are zero; days below three cars are withheld."
+    ),
 )
 async def advertiser_get_campaign_daily_metrics(
     campaign_id: UUID,

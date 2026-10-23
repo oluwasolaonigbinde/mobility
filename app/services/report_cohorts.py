@@ -102,6 +102,7 @@ async def select_report_cohort(
     end_at: datetime | None,
     settings: Settings,
     terminal_period: bool = False,
+    include_money: bool = True,
 ) -> ReportCohort:
     """Select terminal-period v2 membership or preserve legacy start-period selection."""
     trip_filters = [TripSession.campaign_id == campaign_id]
@@ -112,7 +113,13 @@ async def select_report_cohort(
             else TripSession.started_at >= start_at
         )
     if end_at is not None:
-        trip_filters.append(TripSession.started_at < end_at)
+        trip_filters.append(
+            TripSession.ended_at < end_at if terminal_period else TripSession.started_at < end_at
+        )
+    if terminal_period:
+        trip_filters.extend(
+            [TripSession.status.in_(("ended", "sealed")), TripSession.ended_at.is_not(None)]
+        )
     trips = tuple(
         (
             await session.scalars(
@@ -157,21 +164,43 @@ async def select_report_cohort(
         ).all()
     )
     estimates = await current_authoritative_estimates(session, estimates, settings=settings)
-    payouts = list(
-        (
-            await session.scalars(
-                select(PayoutCalculation)
-                .execution_options(populate_existing=True)
-                .where(
-                    PayoutCalculation.trip_session_id.in_(trip_ids),
-                    PayoutCalculation.id.in_(latest_payout_calculation_ids(trip_ids=trip_ids)),
-                )
+    trips_by_id = {trip.id: trip for trip in trips}
+    for row in (*analytics, *estimates):
+        trip = trips_by_id[row.trip_session_id]
+        if any(
+            getattr(row, field) != getattr(trip, field)
+            for field in (
+                "assignment_id",
+                "campaign_id",
+                "driver_profile_id",
+                "vehicle_id",
             )
-        ).all()
+        ):
+            raise AppError(
+                "REPORT_SOURCE_INVALID", "Report source could not be verified", status_code=409
+            )
+    analytics = [
+        row for row in analytics if row.formula_version == settings.route_analytics_formula_version
+    ]
+    payouts = (
+        list(
+            (
+                await session.scalars(
+                    select(PayoutCalculation)
+                    .execution_options(populate_existing=True)
+                    .where(
+                        PayoutCalculation.trip_session_id.in_(trip_ids),
+                        PayoutCalculation.id.in_(latest_payout_calculation_ids(trip_ids=trip_ids)),
+                    )
+                )
+            ).all()
+        )
+        if include_money
+        else []
     )
 
     ledger = None
-    if terminal_period:
+    if terminal_period and include_money:
         ledger = tuple(
             (
                 await session.scalars(

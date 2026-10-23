@@ -1,424 +1,36 @@
+"""S9/D118: issuance tests move to test_req217_reports.
+
+Keep historical math and ledger-cohort coverage.
+"""
+
 import asyncio
 import json
 from datetime import timedelta
 from decimal import Decimal
 from pathlib import Path
-from uuid import uuid4
 
 from conftest import (
-    auth_headers,
-    create_test_campaign,
-    create_test_campaign_creative,
-    create_test_installation_evidence,
-    create_test_organization,
     create_test_payout_rule,
-    create_test_user,
 )
-from sqlalchemy import delete, func, select
-from test_advertiser_reports import DAY_1, PASSWORD, add_payout_calculation, create_report_graph
+from report_fixtures import create_report_fixture
+from sqlalchemy import delete, select
+from test_advertiser_reports import DAY_1, add_payout_calculation, create_report_graph
 
-from app.core.config import get_settings
-from app.models.campaign import CampaignStatus, CreativeStatus
-from app.models.campaign_assignment import CampaignActivationEvent
 from app.models.impression import ImpressionEstimate
-from app.models.installation_evidence import InstallationEvidenceSubmission
 from app.models.measurement import MeasurementRun
-from app.models.payout import EarningsLedgerEntry, PayoutCalculation
+from app.models.payout import EarningsLedgerEntry
 from app.models.trip import TripSession
 from app.models.trip_analytics import TripAnalytics
-from app.models.user import UserRole
-from app.schemas.measurement import MeasurementRunCreate
-from app.services.campaign_assignments import activation_snapshot_digest
-from app.services.measurement import issue_measurement_run
+from app.services.historical_measurement import (
+    calculate_measurement_result,
+    measurement_run_reproducible,
+)
 from app.services.report_cohorts import select_report_cohort
-
-
-def create_measurement_graph(
-    db_sessionmaker,
-    *,
-    identity_tag: str = "measurement",
-    identity_domain: str = "example.com",
-    organization_name: str = "Acme Ads",
-    billing_email: str = "billing@acme.test",
-    campaign_name: str = "Launch Campaign",
-    service_city: str = "Lagos",
-    advertiser_first: bool = False,
-):
-    actors = {}
-    actor_roles = (
-        (UserRole.ADVERTISER, UserRole.ADMIN)
-        if advertiser_first
-        else (UserRole.ADMIN, UserRole.ADVERTISER)
-    )
-    for role in actor_roles:
-        actors[role] = create_test_user(
-            db_sessionmaker,
-            email=f"{identity_tag}-{role.value}@{identity_domain}",
-            password=PASSWORD,
-            role=role,
-        )
-    admin = actors[UserRole.ADMIN]
-    advertiser = actors[UserRole.ADVERTISER]
-    organization, _ = create_test_organization(
-        db_sessionmaker,
-        name=organization_name,
-        billing_email=billing_email,
-        owner_user_id=advertiser.id,
-    )
-    campaign = create_test_campaign(
-        db_sessionmaker,
-        organization_id=organization.id,
-        created_by_user_id=advertiser.id,
-        campaign_status=CampaignStatus.ACTIVE,
-        start_at=DAY_1 - timedelta(days=1),
-        end_at=DAY_1 + timedelta(days=10),
-        name=campaign_name,
-    )
-    creative = create_test_campaign_creative(
-        db_sessionmaker,
-        campaign_id=campaign.id,
-        creative_status=CreativeStatus.APPROVED,
-    )
-    *_, assignment, _trip, _analytics, _estimate = create_report_graph(
-        db_sessionmaker,
-        admin=admin,
-        advertiser=advertiser,
-        campaign=campaign,
-        driver_email=f"{identity_tag}-driver@{identity_domain}",
-        plate_number="MEASURE-1",
-        started_at=DAY_1,
-        service_city=service_city,
-        driver_phone=None if identity_domain.endswith(".invalid") else "+234555000",
-    )
-    proof = create_test_installation_evidence(
-        db_sessionmaker,
-        assignment_id=assignment.id,
-        reviewed_by_user_id=admin.id,
-    )
-
-    async def bind_proof() -> None:
-        async with db_sessionmaker() as session:
-            event = await session.scalar(
-                select(CampaignActivationEvent).where(
-                    CampaignActivationEvent.assignment_id == assignment.id
-                )
-            )
-            assert event is not None
-            evidence = await session.get(InstallationEvidenceSubmission, proof.id)
-            assert evidence is not None
-            evidence.reviewed_at = event.occurred_at - timedelta(minutes=1)
-            evidence.approved_until = event.occurred_at + timedelta(days=1)
-            snapshot = dict(event.event_metadata["activation_snapshot"])
-            snapshot["creative_id"] = str(creative.id)
-            snapshot["installation_evidence_submission_id"] = str(proof.id)
-            snapshot["installation_evidence_revision"] = evidence.revision
-            event.event_metadata = {
-                **event.event_metadata,
-                "activation_snapshot": snapshot,
-                "activation_snapshot_sha256": activation_snapshot_digest(snapshot),
-            }
-            await session.commit()
-
-    asyncio.run(bind_proof())
-    return admin, advertiser, campaign
-
-
-def issue_payload(campaign_id, client_request_id=None):
-    return {
-        "campaign_id": str(campaign_id),
-        "client_request_id": str(client_request_id or uuid4()),
-        "period_start_at": DAY_1.isoformat(),
-        "period_end_at": (DAY_1 + timedelta(days=1)).isoformat(),
-        "test_only": True,
-    }
-
-
-def test_measurement_run_replays_reproduces_reissues_and_drives_report(
-    db_client, db_sessionmaker, settings
-) -> None:
-    admin, advertiser, campaign = create_measurement_graph(db_sessionmaker)
-    admin_headers = auth_headers(db_client, admin.email, PASSWORD)
-    advertiser_headers = auth_headers(db_client, advertiser.email, PASSWORD)
-    request_id = uuid4()
-    payload = issue_payload(campaign.id, request_id)
-
-    first = db_client.post("/api/v1/admin/measurement-runs", json=payload, headers=admin_headers)
-    assert first.status_code == 201, first.text
-    first_body = first.json()
-    assert first_body["reproducible"] is True
-    assert "mode" not in first_body
-    assert "roi" not in first_body["result_manifest"]
-    assert first_body["proof_bindings"][0]["creative_id"]
-
-    replay = db_client.post("/api/v1/admin/measurement-runs", json=payload, headers=admin_headers)
-    assert replay.status_code == 201
-    assert replay.json()["id"] == first_body["id"]
-
-    changed = {**payload, "period_end_at": (DAY_1 + timedelta(days=2)).isoformat()}
-    conflict = db_client.post("/api/v1/admin/measurement-runs", json=changed, headers=admin_headers)
-    assert conflict.status_code == 409
-    assert conflict.json()["error"]["code"] == "MEASUREMENT_REQUEST_REUSE_CONFLICT"
-
-    async def change_source() -> None:
-        async with db_sessionmaker() as session:
-            payout = await session.scalar(
-                select(PayoutCalculation).where(PayoutCalculation.campaign_id == campaign.id)
-            )
-            assert payout is not None
-            original = await session.scalar(
-                select(EarningsLedgerEntry).where(
-                    EarningsLedgerEntry.payout_calculation_id == payout.id
-                )
-            )
-            session.add(
-                EarningsLedgerEntry(
-                    driver_profile_id=original.driver_profile_id,
-                    driver_user_id=original.driver_user_id,
-                    campaign_id=campaign.id,
-                    trip_session_id=original.trip_session_id,
-                    vehicle_id=original.vehicle_id,
-                    entry_type="adjustment",
-                    status="pending",
-                    amount=Decimal("100.00"),
-                    currency=original.currency,
-                    occurred_at=DAY_1 + timedelta(days=2),
-                )
-            )
-            await session.commit()
-
-    asyncio.run(change_source())
-    second = db_client.post(
-        "/api/v1/admin/measurement-runs",
-        json=issue_payload(campaign.id),
-        headers=admin_headers,
-    )
-    assert second.status_code == 201, second.text
-    second_body = second.json()
-    assert second_body["id"] != first_body["id"]
-    assert second_body["reissue_of_run_id"] == first_body["id"]
-    assert second_body["result_manifest_sha256"] != first_body["result_manifest_sha256"]
-
-    frozen = db_client.get(
-        f"/api/v1/admin/measurement-runs/{first_body['id']}", headers=admin_headers
-    )
-    assert frozen.status_code == 200
-    assert frozen.json()["reproducible"] is True
-    report = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/report",
-        params={
-            "start_at": DAY_1.isoformat(),
-            "end_at": (DAY_1 + timedelta(days=1)).isoformat(),
-        },
-        headers=advertiser_headers,
-    )
-    assert report.status_code == 200, report.text
-    assert report.json()["measurement_run_id"] == second_body["id"]
-    assert report.json()["totals"] == {
-        "distance_m": "10000.00",
-        "trip_count": 1,
-        "driving_days": 1,
-        "estimated_views": "500.00",
-    }
-    assert report.json()["areas"] == []
-    assert "measurement_result" not in report.json()
-
-    live_settings = settings.model_copy(
-        update={
-            "privacy_legal_approval_reference": "",
-        }
-    )
-    db_client.app.dependency_overrides[get_settings] = lambda: live_settings
-    blocked_live = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/report",
-        params={
-            "start_at": DAY_1.isoformat(),
-            "end_at": (DAY_1 + timedelta(days=1)).isoformat(),
-        },
-        headers=advertiser_headers,
-    )
-    assert blocked_live.status_code == 200, blocked_live.text
-    assert blocked_live.json()["measurement_run_id"] == second_body["id"]
-
-    async def count_runs() -> int:
-        async with db_sessionmaker() as session:
-            return int(
-                await session.scalar(
-                    select(func.count())
-                    .select_from(MeasurementRun)
-                    .where(MeasurementRun.campaign_id == campaign.id)
-                )
-                or 0
-            )
-
-    assert asyncio.run(count_runs()) == 2
-
-
-def test_measurement_and_screen_share_terminal_cohort_when_sources_arrive_late(
-    db_client, db_sessionmaker
-) -> None:
-    admin, advertiser, campaign = create_measurement_graph(
-        db_sessionmaker, identity_tag="measurement-late-sources"
-    )
-
-    async def delay_derivative_sources() -> None:
-        async with db_sessionmaker() as session:
-            estimate = await session.scalar(
-                select(ImpressionEstimate).where(ImpressionEstimate.campaign_id == campaign.id)
-            )
-            payout = await session.scalar(
-                select(PayoutCalculation).where(PayoutCalculation.campaign_id == campaign.id)
-            )
-            assert estimate is not None and payout is not None
-            estimate.estimated_at = estimate.estimated_at + timedelta(days=3)
-            payout.calculated_at = DAY_1 + timedelta(days=4)
-            await session.commit()
-
-    asyncio.run(delay_derivative_sources())
-    response = db_client.post(
-        "/api/v1/admin/measurement-runs",
-        json=issue_payload(campaign.id),
-        headers=auth_headers(db_client, admin.email, PASSWORD),
-    )
-
-    assert response.status_code == 201, response.text
-    run = response.json()
-    assert len(run["input_manifest"]["sources"]["impression_estimates"]) == 1, run["input_manifest"]
-    metrics = {row["id"]: row for row in run["result_manifest"]["metrics"]}
-    assert metrics["modelled_potential_contacts"]["value"] == "500.00"
-    assert metrics["driver_campaign_cost"]["totals_by_currency"] == [
-        {"currency": "NGN", "value": "1200.00"}
-    ]
-    report = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/report",
-        params={
-            "start_at": DAY_1.isoformat(),
-            "end_at": (DAY_1 + timedelta(days=1)).isoformat(),
-        },
-        headers=auth_headers(db_client, advertiser.email, PASSWORD),
-    ).json()
-    assert report["totals"]["estimated_views"] == "500.00"
-    assert "cost_summary" not in report
-    assert len(run["input_manifest"]["cohort"]) == 1
-    assert run["input_manifest"]["cohort"][0]["trip_fingerprint"]
-    for source_rows in run["input_manifest"]["sources"].values():
-        assert all(row["source_fingerprint"] for row in source_rows)
-
-    repeated = db_client.post(
-        "/api/v1/admin/measurement-runs",
-        json=issue_payload(campaign.id),
-        headers=auth_headers(db_client, admin.email, PASSWORD),
-    ).json()
-    assert repeated["input_manifest_sha256"] == run["input_manifest_sha256"]
-    assert repeated["result_manifest_sha256"] == run["result_manifest_sha256"]
-    assert repeated["report_snapshot_sha256"] == run["report_snapshot_sha256"]
-
-
-def test_profile_revision_reissues_current_measurement_without_rewriting_frozen_run(
-    db_client, db_sessionmaker
-) -> None:
-    admin, _, campaign = create_measurement_graph(
-        db_sessionmaker,
-        identity_tag="measurement-profile-drift",
-    )
-    headers = auth_headers(db_client, admin.email, PASSWORD)
-    first = db_client.post(
-        "/api/v1/admin/measurement-runs",
-        json=issue_payload(campaign.id),
-        headers=headers,
-    ).json()
-    impression_source = first["input_manifest"]["sources"]["impression_estimates"][0]
-    profile_id = impression_source["traffic_density_profile_id"]
-    profile = db_client.get(
-        f"/api/v1/admin/traffic-density-profiles/{profile_id}", headers=headers
-    ).json()
-
-    revised_profile = db_client.patch(
-        f"/api/v1/admin/traffic-density-profiles/{profile_id}",
-        headers=headers,
-        json={
-            "traffic_density_per_km": "240",
-            "expected_revision": profile["revision"],
-            "expected_value_fingerprint": profile["value_fingerprint"],
-        },
-    )
-    assert revised_profile.status_code == 200, revised_profile.text
-
-    second = db_client.post(
-        "/api/v1/admin/measurement-runs",
-        json=issue_payload(campaign.id),
-        headers=headers,
-    )
-    assert second.status_code == 201, second.text
-    second_body = second.json()
-    assert second_body["reissue_of_run_id"] == first["id"]
-    assert second_body["input_manifest_sha256"] != first["input_manifest_sha256"]
-    assert second_body["input_manifest"]["sources"]["impression_estimates"] == []
-
-    frozen = db_client.get(f"/api/v1/admin/measurement-runs/{first['id']}", headers=headers).json()
-    assert frozen["input_manifest_sha256"] == first["input_manifest_sha256"]
-    assert frozen["input_manifest"]["sources"]["impression_estimates"] == [impression_source]
-    assert frozen["reproducible"] is True
-
-
-def test_measurement_run_fails_closed_without_proof(db_client, db_sessionmaker) -> None:
-    admin, _, campaign = create_measurement_graph(db_sessionmaker)
-    admin_headers = auth_headers(db_client, admin.email, PASSWORD)
-
-    async def remove_creative_binding() -> None:
-        async with db_sessionmaker() as session:
-            event = await session.scalar(
-                select(CampaignActivationEvent).where(
-                    CampaignActivationEvent.assignment_id.in_(
-                        select(PayoutCalculation.assignment_id).where(
-                            PayoutCalculation.campaign_id == campaign.id
-                        )
-                    )
-                )
-            )
-            assert event is not None
-            snapshot = dict(event.event_metadata["activation_snapshot"])
-            snapshot.pop("creative_id")
-            event.event_metadata = {
-                **event.event_metadata,
-                "activation_snapshot": snapshot,
-                "activation_snapshot_sha256": activation_snapshot_digest(snapshot),
-            }
-            await session.commit()
-
-    asyncio.run(remove_creative_binding())
-    missing_proof = db_client.post(
-        "/api/v1/admin/measurement-runs",
-        json=issue_payload(campaign.id),
-        headers=admin_headers,
-    )
-    assert missing_proof.status_code == 409
-    assert missing_proof.json()["error"]["code"] == "MEASUREMENT_PROOF_REQUIRED"
-
-
-def test_measurement_issuance_does_not_require_legal_or_method_authorization(
-    db_client, db_sessionmaker, settings
-) -> None:
-    admin, _, campaign = create_measurement_graph(db_sessionmaker)
-    headers = auth_headers(db_client, admin.email, PASSWORD)
-    live_settings = settings.model_copy(
-        update={
-            "privacy_legal_approval_reference": "",
-        }
-    )
-    db_client.app.dependency_overrides[get_settings] = lambda: live_settings
-    response = db_client.post(
-        "/api/v1/admin/measurement-runs",
-        json={**issue_payload(campaign.id), "test_only": False},
-        headers=headers,
-    )
-    assert response.status_code == 201, response.text
-    assert response.json()["reproducible"] is True
 
 
 def test_measurement_result_manifest_is_canonical_json() -> None:
     # A small contract guard against non-JSON Decimal/date values leaking into
     # persisted manifests and making fingerprints database-dependent.
-    from app.services.measurement import calculate_measurement_result
 
     manifest = {
         "test_only": True,
@@ -438,7 +50,7 @@ def test_measurement_result_manifest_is_canonical_json() -> None:
 def test_postgres_cohort_orders_trips_and_selects_one_replacement_payout(
     postgis_db_sessionmaker, settings
 ) -> None:
-    admin, advertiser, campaign = create_measurement_graph(
+    admin, advertiser, campaign = create_report_fixture(
         postgis_db_sessionmaker, identity_tag="measurement-pg-cohort"
     )
     create_report_graph(
@@ -513,28 +125,6 @@ def test_postgres_cohort_orders_trips_and_selects_one_replacement_payout(
     first_trip_payouts = [row for row in cohort.payouts if row.trip_session_id == trip.id]
     assert len(first_trip_payouts) == 1
     assert first_trip_payouts[0].final_payout == Decimal("700.00")
-
-
-def test_concurrent_same_request_converges_on_postgres(postgis_db_sessionmaker, settings) -> None:
-    admin, _, campaign = create_measurement_graph(postgis_db_sessionmaker)
-    payload = MeasurementRunCreate.model_validate(issue_payload(campaign.id))
-
-    async def issue_once():
-        async with postgis_db_sessionmaker() as session:
-            run = await issue_measurement_run(
-                session,
-                actor_user_id=admin.id,
-                payload=payload,
-                settings=settings,
-            )
-            await session.commit()
-            return run.id
-
-    async def run_both():
-        return await asyncio.gather(issue_once(), issue_once())
-
-    first_id, second_id = asyncio.run(run_both())
-    assert first_id == second_id
 
 
 def _disclosure_manifest(*, cohort_statuses=("sealed", "sealed"), estimated=True):
@@ -626,7 +216,6 @@ def _disclosure_manifest(*, cohort_statuses=("sealed", "sealed"), estimated=True
 
 def test_frozen_movement_metric_carries_the_exact_advert_viewing_caveat() -> None:
     # MET-001
-    from app.services.measurement import calculate_measurement_result
 
     contract = json.loads(
         (Path(__file__).resolve().parents[1] / "docs" / "measurement-methodology.json").read_text()
@@ -648,7 +237,6 @@ def test_frozen_movement_metric_carries_the_exact_advert_viewing_caveat() -> Non
 
 def test_frozen_metrics_disclose_completeness_and_suppress_unsupported_totals() -> None:
     # MET-002
-    from app.services.measurement import calculate_measurement_result
 
     partial = calculate_measurement_result(
         _disclosure_manifest(cohort_statuses=("sealed", "sealed", "active"))
@@ -677,7 +265,6 @@ def test_frozen_metrics_disclose_completeness_and_suppress_unsupported_totals() 
 def test_a_cohort_with_no_completed_trip_omits_totals_instead_of_publishing_zero() -> None:
     # The contract's completeness rule: omission never substitutes zero. A cohort whose
     # trips are all still running has no denominator and therefore no publishable total.
-    from app.services.measurement import calculate_measurement_result
 
     manifest = _disclosure_manifest(cohort_statuses=("active", "active"))
     # Analytics, estimates and payouts only exist once a trip is terminal.
@@ -695,7 +282,6 @@ def test_a_cohort_with_no_completed_trip_omits_totals_instead_of_publishing_zero
 
 
 def test_completeness_excludes_a_trip_that_ends_at_the_frozen_period_boundary() -> None:
-    from app.services.measurement import calculate_measurement_result
 
     manifest = _disclosure_manifest(cohort_statuses=("sealed",))
     manifest["cohort"][0]["terminal_at"] = manifest["period"]["end_at"]
@@ -712,7 +298,6 @@ def test_completeness_excludes_a_trip_that_ends_at_the_frozen_period_boundary() 
 
 
 def test_density_provenance_missing_a_required_parameter_suppresses_contacts() -> None:
-    from app.services.measurement import calculate_measurement_result
 
     manifest = _disclosure_manifest()
     profile = manifest["sources"]["impression_estimates"][0]["provenance"][
@@ -729,8 +314,19 @@ def test_density_provenance_missing_a_required_parameter_suppresses_contacts() -
     assert contacts["value"] is None
 
 
+def test_missing_historical_density_provenance_withholds_contacts_without_crashing() -> None:
+    manifest = _disclosure_manifest()
+    manifest["sources"]["impression_estimates"][0]["provenance"] = None
+    contacts = next(
+        metric
+        for metric in calculate_measurement_result(manifest)["metrics"]
+        if metric["id"] == "modelled_potential_contacts"
+    )
+    assert contacts["density_provenance"]["profiles"] == []
+    assert contacts["completeness"]["suppressed"] is True
+
+
 def test_mixed_complete_and_incomplete_density_provenance_suppresses_the_total() -> None:
-    from app.services.measurement import calculate_measurement_result
 
     manifest = _disclosure_manifest()
     second_trip_id = manifest["cohort"][1]["trip_session_id"]
@@ -757,7 +353,6 @@ def test_mixed_complete_and_incomplete_density_provenance_suppresses_the_total()
 
 
 def test_cost_completeness_covers_every_currency_without_suppressing_the_totals() -> None:
-    from app.services.measurement import calculate_measurement_result
 
     manifest = _disclosure_manifest(cohort_statuses=("sealed", "sealed"))
     manifest["sources"]["payout_calculations"].append(
@@ -782,7 +377,6 @@ def test_cost_completeness_covers_every_currency_without_suppressing_the_totals(
 
 
 def test_density_provenance_without_a_road_category_method_suppresses_contacts() -> None:
-    from app.services.measurement import calculate_measurement_result
 
     manifest = _disclosure_manifest()
     del manifest["sources"]["impression_estimates"][0]["provenance"]["road_category_method"]
@@ -798,8 +392,7 @@ def test_density_provenance_without_a_road_category_method_suppresses_contacts()
 def test_reproducibility_fails_closed_for_a_manifest_that_predates_this_contract() -> None:
     # A stored run whose manifest no longer satisfies the frozen contract must report
     # "not reproducible" so callers render their fail-closed state, never raise a 500.
-    from app.models.measurement import MeasurementRun
-    from app.services.measurement import canonical_sha256, measurement_run_reproducible
+    from app.services.historical_measurement import canonical_sha256
 
     legacy_manifest = {"schema_version": "measurement-input-manifest-v0"}
     run = MeasurementRun(
@@ -822,7 +415,6 @@ def test_reproducibility_fails_closed_for_a_manifest_that_predates_this_contract
 
 def test_frozen_modelled_contacts_freeze_density_parameter_source_and_calibration() -> None:
     # MET-004
-    from app.services.measurement import calculate_measurement_result
 
     contract = json.loads(
         (Path(__file__).resolve().parents[1] / "docs" / "measurement-methodology.json").read_text()

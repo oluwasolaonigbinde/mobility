@@ -19,7 +19,7 @@ const emptyOffers: OfferAuthority = {
   declined: 0,
   expired: 0,
   cancelled: 0,
-  completed: 0,
+  finished: 0,
 };
 
 function readyFacts(): DriverJourneyFacts {

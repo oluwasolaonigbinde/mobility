@@ -11,6 +11,7 @@ class OutboxSession(AsyncSession):
         await self.flush()
         jobs = self.info.pop("outbox_jobs", set())
         if jobs:
+            from app.models.campaign_report import CampaignReport
             from app.models.notification import (
                 Notification,
                 NotificationChannel,
@@ -37,9 +38,22 @@ class OutboxSession(AsyncSession):
                     )
                 )
             )
-            jobs = {
-                (kind, i) for kind, i in jobs if i in (files if kind == "scan_file" else emails)
+            reports = set(
+                await self.scalars(
+                    select(CampaignReport.id).where(
+                        CampaignReport.id.in_(
+                            [i for kind, i in jobs if kind == "generate_campaign_report"]
+                        ),
+                        CampaignReport.status == "queued",
+                    )
+                )
+            )
+            visible = {
+                "scan_file": files,
+                "deliver_email": emails,
+                "generate_campaign_report": reports,
             }
+            jobs = {(kind, i) for kind, i in jobs if i in visible.get(kind, set())}
         await super().commit()
         settings = self.info.get("enqueue_settings")
         if settings is not None:

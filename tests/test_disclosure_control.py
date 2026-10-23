@@ -11,10 +11,10 @@ from conftest import (
     auth_headers,
     create_test_campaign_assignment,
     create_test_driver_profile,
+    create_test_estimate_source,
     create_test_impression_estimate,
     create_test_organization,
     create_test_payout_rule,
-    create_test_traffic_density_profile,
     create_test_trip_analytics,
     create_test_trip_session,
     create_test_user,
@@ -688,7 +688,7 @@ def test_heatmap_area_shows_at_exactly_the_minimum_distinct_cars_on_one_day(
         last_ping_at=RECORDED_AT.replace(minute=5),
         distance_m=Decimal("1000.00"),
     )
-    density = create_test_traffic_density_profile(
+    density = create_test_estimate_source(
         postgis_db_sessionmaker,
         name="Disclosure threshold density",
     )
@@ -802,7 +802,7 @@ def test_trip_cohort_releases_uneven_metrics_once_enough_cars_drove(
         last_ping_at=RECORDED_AT.replace(minute=5),
         distance_m=Decimal("1.00"),
     )
-    density = create_test_traffic_density_profile(
+    density = create_test_estimate_source(
         postgis_db_sessionmaker,
         name="Report contributor cap density",
     )
@@ -1003,7 +1003,7 @@ def test_heatmap_releases_a_dominated_metric_once_enough_cars_drove_there(
         last_ping_at=RECORDED_AT.replace(minute=5),
         distance_m=Decimal("1000.00"),
     )
-    density = create_test_traffic_density_profile(
+    density = create_test_estimate_source(
         postgis_db_sessionmaker,
         name="Cross-metric disclosure density",
     )
@@ -1226,7 +1226,7 @@ def _add_one_trip_car(sessionmaker, *, admin, campaign, number: int):
         campaign_id=campaign.id,
         driver_profile_id=profile.id,
         vehicle_id=vehicle.id,
-        traffic_density_profile_id=create_test_traffic_density_profile(
+        traffic_density_profile_id=create_test_estimate_source(
             sessionmaker, name=f"Three-car density {number}"
         ).id,
         estimated_impressions=Decimal("5000.00") * number,

@@ -14,6 +14,7 @@ from app.jobs.automatic_payouts import sweep_automatic_payouts
 from app.jobs.budget_enforcement import sweep_campaign_budget_enforcement
 from app.jobs.business_health import sweep_business_health
 from app.jobs.campaign_assignments import sweep_campaign_assignment_expiries
+from app.jobs.campaign_reports import generate_campaign_report
 from app.jobs.data_lifecycle import (
     check_ping_partition_coverage,
     premake_ping_partitions,
@@ -45,7 +46,6 @@ from app.jobs.trip_processing import (
 )
 from app.jobs.vehicle_approvals import sweep_vehicle_approval_expiries
 from app.services.paystack_disbursements import build_paystack_destination_resolver
-from app.services.report_issuances import sweep_report_issuances
 from app.services.report_scheduling import sweep_scheduled_reports
 
 
@@ -107,6 +107,7 @@ class WorkerSettings:
     functions: list = [
         func(scan_file, name="scan_file", keep_result=0),
         func(deliver_email, name="deliver_email", keep_result=0),
+        func(generate_campaign_report, name="generate_campaign_report", max_tries=3, keep_result=0),
         func(process_trip, name="process_trip", keep_result=0),
         func(
             process_payment_gateway_event_job,
@@ -175,11 +176,6 @@ class WorkerSettings:
         ),
         cron(
             scan_pending_files,
-            minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
-            unique=True,
-        ),
-        cron(
-            sweep_report_issuances,
             minute=sweep_cron_minutes(get_settings().worker_sweep_interval_minutes),
             unique=True,
         ),

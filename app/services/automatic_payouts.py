@@ -321,6 +321,7 @@ async def scan_automatic_payout_alerts(session: AsyncSession, *, limit: int = 20
             ).all()
         )
         ledger = await session.get(EarningsLedgerEntry, credit_id)
+        assert ledger is not None  # Successful frozen lines retain the credit FK.
         created += bool(
             await raise_alert(
                 session,

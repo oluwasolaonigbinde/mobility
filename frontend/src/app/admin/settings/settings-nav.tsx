@@ -10,7 +10,6 @@ export function SettingsNav() {
       label="Settings"
       items={[
         ["staff", "Staff logins"],
-        ["reach", "Reach estimates"],
         ["activity", "Activity log"],
         ["support-tools", "Support tools"],
       ].map(([path, label]) => ({

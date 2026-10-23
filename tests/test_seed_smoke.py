@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 from sqlalchemy import select
 
-from app.models.measurement import MeasurementRun
+from app.models.campaign_report import CampaignReport
 from app.seeds.demo import DEMO_BBOX
 from tests.conftest import auth_headers
 from tests.test_seed_demo import seed_demo_graph, seed_private_storage  # noqa: F401
@@ -21,21 +21,19 @@ def test_golden_seed_reports_and_map_meet_default_privacy(
 
     async def inspect():
         async with postgis_db_sessionmaker() as session:
-            run = await session.scalar(
-                select(MeasurementRun).where(MeasurementRun.campaign_id == graph.campaign.id)
+            report = await session.scalar(
+                select(CampaignReport).where(CampaignReport.campaign_id == graph.campaign.id)
             )
-            assert run is not None
-            authority = run.input_manifest["disclosure_authority"]
-            assert authority["passed"]
-            assert authority["vehicle_count"] >= 3
-            daily_sets = {
-                metric: by_vehicle
-                for metric, by_vehicle in authority["contributions"].items()
-                if metric.startswith("daily:trip_count:")
-            }
-            assert daily_sets
-            for metric, by_vehicle in daily_sets.items():
-                assert len(by_vehicle) >= 3, metric
+            # S9 / D118 replaces measurement runs with frozen campaign reports;
+            # retain the same three-car assertion on every disclosed driving day.
+            assert report is not None and report.status == "ready"
+            campaign = report.snapshot["campaigns"][0]
+            assert campaign["measured"]["cars_driven"] >= 3
+            driving_days = [day for day in campaign["daily"] if day["trip_count"]]
+            assert driving_days
+            for day in driving_days:
+                assert day["suppressed"] is False
+                assert day["vehicle_count"] >= 3, day["date"]
 
     asyncio.run(inspect())
     headers = auth_headers(
@@ -100,7 +98,8 @@ def test_demo_seed_frontend_smoke_paths(
     assert palmpay_summary_response.status_code == 200
     palmpay_summary = palmpay_summary_response.json()
     assert palmpay_summary["trips"]["total"] == 3
-    assert palmpay_summary["zones"]["total"] == 2
+    # S12 / D116 removes each story's non-paying bonus zone; target areas remain.
+    assert palmpay_summary["zones"]["total"] == 1
     assert palmpay_summary["assignments"]["active"] == 1
     assert float(palmpay_summary["route_analytics"]["total_distance_m"]) > 0
     assert float(palmpay_summary["route_analytics"]["average_quality_score"]) > 0
@@ -124,8 +123,10 @@ def test_demo_seed_frontend_smoke_paths(
     assert market_routes_summary_response.status_code == 200
     market_routes_summary = market_routes_summary_response.json()
     assert market_routes_summary["creatives"]["total"] == 1
-    assert market_routes_summary["zones"]["total"] == 2
-    assert market_routes_summary["assignments"]["completed"] == 1
+    assert market_routes_summary["zones"]["total"] == 1
+    # S23 / D118: this retired demo job has a future campaign end, so it is
+    # cancelled explicitly; Finished is reserved for dates that have ended.
+    assert market_routes_summary["assignments"]["cancelled"] == 1
     assert market_routes_summary["trips"]["total"] == 3
     assert float(market_routes_summary["route_analytics"]["total_distance_m"]) > 0
     assert float(market_routes_summary["route_analytics"]["target_zone_distance_m"]) > 0
@@ -259,7 +260,12 @@ def test_demo_seed_frontend_smoke_paths(
     assert assignments_response.status_code == 200
     assignments = assignments_response.json()["items"]
     assert assignments_response.json()["total"] == 6
-    assert {item["status"] for item in assignments} == {"active", "completed", "offered"}
+    assert {item["status"] for item in assignments} == {
+        "active",
+        "finished",
+        "offered",
+        "cancelled",
+    }
 
     offered = [item for item in assignments if item["status"] == "offered"]
     assert len(offered) == 1

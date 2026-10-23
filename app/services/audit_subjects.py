@@ -42,6 +42,20 @@ ACTOR_ONLY_TYPES = frozenset(
 # typed target; it also distinguishes a missing historical target from a valid
 # target with no personal subject (for example an organization-scoped file).
 SUBJECT_QUERIES: dict[str, tuple[str, str]] = {
+    "campaign_enquiry": (
+        "campaign_enquiries",
+        "SELECT converted_owner_user_id FROM campaign_enquiries WHERE id=:entity_id",
+    ),
+    "earnings_ledger_entry": (
+        "earnings_ledger_entries",
+        "SELECT driver_user_id FROM earnings_ledger_entries WHERE id=:entity_id",
+    ),
+    "location_ping_batch": (
+        "location_ping_batches",
+        "SELECT d.user_id FROM location_ping_batches b JOIN trip_sessions t "
+        "ON t.id=b.trip_session_id JOIN driver_profiles d ON d.id=t.driver_profile_id "
+        "WHERE b.id=:entity_id",
+    ),
     "notification": (
         "notifications",
         "SELECT recipient_user_id FROM notifications WHERE id=:entity_id",
@@ -173,6 +187,10 @@ SUBJECT_QUERIES.update(
             "ON b.measurement_run_id=r.measurement_run_id JOIN campaign_assignments a "
             "ON a.id=b.assignment_id JOIN driver_profiles d ON d.id=a.driver_profile_id "
             "WHERE r.id=:entity_id",
+        ),
+        "campaign_report": (
+            "campaign_reports",
+            "SELECT requested_by_user_id FROM campaign_reports WHERE id=:entity_id",
         ),
     }
 )

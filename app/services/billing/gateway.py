@@ -224,11 +224,12 @@ async def _confirm_verified_gateway_receipt(
     event: PaymentGatewayEvent,
 ) -> None:
     persisted, terms = await _trusted_confirmed_gateway_event(session, event.id)
-    receipt = await session.scalar(
+    locked_receipt = await session.scalar(
         select(PaymentReceipt).where(PaymentReceipt.id == receipt.id).with_for_update()
     )
-    if receipt is None:
+    if locked_receipt is None:
         raise AppError("RECEIPT_NOT_FOUND", "Receipt was not found", status_code=404)
+    receipt = locked_receipt
     if (
         receipt.method != ReceiptMethod.GATEWAY
         or receipt.organization_id != terms.organization_id

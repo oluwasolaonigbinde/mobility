@@ -40,7 +40,8 @@ from app.core.config import Settings
 from app.core.errors import AppError
 from app.core.security import hash_password
 from app.models.audit import AuditEvent
-from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
+from app.models.campaign import Campaign
+from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.disbursement import (
     CARDVERT_AUTOMATIC_PAYOUT_ACTOR_EMAIL,
     CARDVERT_AUTOMATIC_PAYOUT_ACTOR_ID,
@@ -648,9 +649,8 @@ def second_campaign_trip(db, settings, graph, *, rate="8000.00", started_at, key
     """The same driver works a second daily-rate campaign later the same day."""
     execute(
         db,
-        update(CampaignAssignment)
-        .where(CampaignAssignment.id == graph.assignment.id)
-        .values(status=CampaignAssignmentStatus.COMPLETED.value),
+        # S23 / D118: a finished assignment derives from its campaign end.
+        update(Campaign).where(Campaign.id == graph.campaign.id).values(end_at=started_at),
     )
     campaign = create_test_campaign(
         db,

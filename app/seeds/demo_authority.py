@@ -1079,7 +1079,11 @@ async def ensure_demo_start_authority(
         .order_by(InstallationEvidenceSubmission.revision.desc())
         .limit(1)
     )
-    if evidence is None or evidence.approved_until.replace(tzinfo=UTC) <= now:
+    if (
+        evidence is None
+        or evidence.approved_until is None
+        or evidence.approved_until.replace(tzinfo=UTC) <= now
+    ):
         installation_file = await managed_image("front")
         device_id = uuid4()
         evidence = InstallationEvidenceSubmission(

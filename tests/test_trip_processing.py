@@ -9,11 +9,11 @@ import pytest
 from conftest import (
     create_test_campaign,
     create_test_campaign_assignment,
-    create_test_daily_payout_authority,
+    create_test_campaign_zone,
     create_test_driver_profile,
+    create_test_estimate_source,
     create_test_impression_estimate,
     create_test_organization,
-    create_test_traffic_density_profile,
     create_test_trip_analytics,
     create_test_trip_session,
     create_test_user,
@@ -22,6 +22,9 @@ from conftest import (
     fetch_earnings_ledger_entries,
     fetch_impression_estimates,
     fetch_payout_calculations,
+)
+from conftest import (
+    create_test_daily_payout_authority as seed_daily_terms,
 )
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
@@ -33,17 +36,15 @@ from app.models.campaign import CampaignStatus
 from app.models.campaign_assignment import CampaignAssignmentStatus
 from app.models.driver import DriverOnboardingStatus
 from app.models.fraud_assessment import FraudAssessment, FraudAssessmentStatus
-from app.models.impression import ImpressionEstimate, TrafficDensityProfile
+from app.models.impression import ImpressionEstimate
 from app.models.payout import CampaignPayoutRule, EarningsLedgerEntry, PayoutCalculation
 from app.models.route_replay import RouteReplaySignature
 from app.models.trip import LocationPing, LocationPingBatch, TripSessionStatus
 from app.models.trip_analytics import FraudFlag, FraudFlagStatus, FraudFlagType, TripAnalytics
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
-from app.schemas.impressions import TrafficDensityProfileUpdate
 from app.services import fraud_assessments, route_replay, trip_processing
 from app.services.fraud_holds import resolve_fraud_flag
-from app.services.impressions import update_traffic_density_profile
 from app.services.payouts.engine import calculate_trip_payout
 from app.services.trip_evidence import sign_manifest_receipt
 from app.services.trip_processing import (
@@ -58,6 +59,24 @@ PASSWORD = "long-secure-password"
 BASE_TIME = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 PAST = datetime(2020, 1, 1, tzinfo=UTC)
 FUTURE = datetime(2099, 1, 1, tzinfo=UTC)
+
+
+def create_test_daily_payout_authority(
+    db_sessionmaker, *, campaign_id, created_by_user_id, zone_ids=None
+):
+    # D111 pays in-area miles only. A positive-pay pipeline fixture must freeze
+    # an actual paying area; an empty zone list truthfully produces zero pay.
+    if zone_ids is None:
+        zone = create_test_campaign_zone(
+            db_sessionmaker, campaign_id=campaign_id, created_by_user_id=created_by_user_id
+        )
+        zone_ids = [zone.id]
+    return seed_daily_terms(
+        db_sessionmaker,
+        campaign_id=campaign_id,
+        created_by_user_id=created_by_user_id,
+        zone_ids=zone_ids,
+    )
 
 
 def build_graph(
@@ -301,10 +320,8 @@ def test_happy_path_creates_full_chain_and_audits(postgis_db_sessionmaker, setti
     estimate = fetch_impression_estimates(postgis_db_sessionmaker)[0]
     assert estimate.formula_version == settings.impression_formula_version
 
-    async def default_profile_used() -> bool:
-        async with postgis_db_sessionmaker() as session:
-            profile = await session.get(TrafficDensityProfile, estimate.traffic_density_profile_id)
-            return profile is not None and profile.is_default
+    async def default_profile_used():
+        return estimate.traffic_density_profile_id is None
 
     assert asyncio.run(default_profile_used())
     calculation = fetch_payout_calculations(postgis_db_sessionmaker)[0]
@@ -339,7 +356,9 @@ def test_injected_time_stamps_the_full_postgis_pipeline(
     add_pings(
         postgis_db_sessionmaker,
         trip_id=graph.trip.id,
-        points=[(BASE_TIME, 6.45, 3.39, 10)],
+        # S17/D114 removes the non-pay insufficient-data flag. Exercise the
+        # retained stationary pay flag to prove the injected detection clock.
+        points=[(BASE_TIME, 6.45, 3.39, 10), (BASE_TIME + timedelta(seconds=60), 6.45, 3.39, 10)],
     )
     frozen_now = datetime(2026, 2, 3, 4, 5, tzinfo=UTC)
 
@@ -582,7 +601,7 @@ def test_preexisting_explicit_profile_estimate_is_reused(db_sessionmaker, settin
         created_by_user_id=graph.admin.id,
     )
     analytics = seed_analytics(db_sessionmaker, graph)
-    explicit_profile = create_test_traffic_density_profile(
+    explicit_profile = create_test_estimate_source(
         db_sessionmaker,
         name="Explicit Corridor",
         profile_type="custom",
@@ -626,7 +645,6 @@ def test_preexisting_payout_calculation_is_reused_and_ledger_ensured(
     )
     add_pings(db_sessionmaker, trip_id=graph.trip.id, points=moving_points())
     analytics = seed_analytics(db_sessionmaker, graph)
-    profile = create_test_traffic_density_profile(db_sessionmaker, name="Reuse Profile")
     create_test_impression_estimate(
         db_sessionmaker,
         trip_session_id=graph.trip.id,
@@ -635,7 +653,6 @@ def test_preexisting_payout_calculation_is_reused_and_ledger_ensured(
         campaign_id=graph.campaign.id,
         driver_profile_id=graph.profile.id,
         vehicle_id=graph.vehicle.id,
-        traffic_density_profile_id=profile.id,
         estimated_impressions=Decimal("1000"),
     )
 
@@ -683,7 +700,6 @@ def test_repairs_every_missing_ledger_before_stale_analytics_gate(
     graph = build_graph(db_sessionmaker, "repair-all")
     add_pings(db_sessionmaker, trip_id=graph.trip.id, points=moving_points())
     analytics = seed_analytics(db_sessionmaker, graph)
-    profile = create_test_traffic_density_profile(db_sessionmaker, name="Repair Profile")
     create_test_impression_estimate(
         db_sessionmaker,
         trip_session_id=graph.trip.id,
@@ -692,7 +708,6 @@ def test_repairs_every_missing_ledger_before_stale_analytics_gate(
         campaign_id=graph.campaign.id,
         driver_profile_id=graph.profile.id,
         vehicle_id=graph.vehicle.id,
-        traffic_density_profile_id=profile.id,
         estimated_impressions=Decimal("1000"),
     )
     first_rule = create_test_daily_payout_authority(
@@ -764,7 +779,6 @@ def test_stale_analytics_is_blocked_in_worker_and_shared_services(
         ended_at=BASE_TIME + timedelta(minutes=30),
         distance_m=5000,
     )
-    profile = create_test_traffic_density_profile(db_sessionmaker, name="Stale Profile")
     create_test_impression_estimate(
         db_sessionmaker,
         trip_session_id=graph.trip.id,
@@ -773,7 +787,6 @@ def test_stale_analytics_is_blocked_in_worker_and_shared_services(
         campaign_id=graph.campaign.id,
         driver_profile_id=graph.profile.id,
         vehicle_id=graph.vehicle.id,
-        traffic_density_profile_id=profile.id,
         metadata={"source_analytics_formula_version": "route_analytics_v0"},
     )
     create_test_daily_payout_authority(
@@ -801,7 +814,6 @@ def test_stale_analytics_is_blocked_in_worker_and_shared_services(
                 await estimate_trip_impressions(
                     session,
                     trip_id=graph.trip.id,
-                    traffic_density_profile_id=None,
                     metadata={"source": "admin"},
                     settings=settings,
                 )
@@ -893,7 +905,6 @@ def test_changed_analytics_requires_estimate_refresh_but_preserves_daily_pay(
             await estimate_trip_impressions(
                 session,
                 trip_id=graph.trip.id,
-                traffic_density_profile_id=None,
                 metadata={"source": "admin"},
                 settings=settings,
             )
@@ -929,7 +940,6 @@ def test_formula_only_estimate_provenance_still_requires_timestamp_order(
         ended_at=BASE_TIME + timedelta(minutes=30),
         computed_at=BASE_TIME + timedelta(hours=2),
     )
-    profile = create_test_traffic_density_profile(db_sessionmaker, name="Formula-only")
     create_test_impression_estimate(
         db_sessionmaker,
         trip_session_id=graph.trip.id,
@@ -938,7 +948,6 @@ def test_formula_only_estimate_provenance_still_requires_timestamp_order(
         campaign_id=graph.campaign.id,
         driver_profile_id=graph.profile.id,
         vehicle_id=graph.vehicle.id,
-        traffic_density_profile_id=profile.id,
         estimated_at=BASE_TIME + timedelta(hours=1),
         metadata={
             "source_analytics_formula_version": settings.route_analytics_formula_version,
@@ -1223,7 +1232,9 @@ def test_insufficient_data_terminates_with_zero_payout(postgis_db_sessionmaker, 
         "payout": "created",
     }
     analytics_rows = table_counts(postgis_db_sessionmaker)
-    assert analytics_rows["flags"] >= 1
+    # S17 / D114 removes the non-pay insufficient-data flag; the terminal
+    # zero-pay calculation remains the authority for this one-ping trip.
+    assert analytics_rows["flags"] == 0
     estimate = fetch_impression_estimates(postgis_db_sessionmaker)[0]
     assert estimate.status == "insufficient_data"
     calculation = fetch_payout_calculations(postgis_db_sessionmaker)[0]
@@ -1398,7 +1409,6 @@ def test_impression_savepoint_propagates_unexpected_check_failure(
 
     graph = build_graph(db_sessionmaker, "estimate-check")
     seed_analytics(db_sessionmaker, graph)
-    profile = create_test_traffic_density_profile(db_sessionmaker, name="Invalid Estimate")
     original_estimate_values = impressions.estimate_values
 
     def invalid_estimate_values(**kwargs):
@@ -1414,7 +1424,6 @@ def test_impression_savepoint_propagates_unexpected_check_failure(
                 await impressions.estimate_trip_impressions(
                     session,
                     trip_id=graph.trip.id,
-                    traffic_density_profile_id=profile.id,
                     metadata={"source": "test"},
                     settings=settings,
                 )
@@ -1551,7 +1560,6 @@ def test_admin_and_worker_race_keeps_single_consistent_chain(
             await estimate_trip_impressions(
                 session,
                 trip_id=graph.trip.id,
-                traffic_density_profile_id=None,
                 metadata={"source": "admin"},
                 settings=settings,
             )
@@ -1620,64 +1628,7 @@ def test_due_work_excludes_fully_processed_trip(db_sessionmaker, settings) -> No
     assert find_due(db_sessionmaker, settings) == []
 
 
-def test_profile_replacement_reissues_worker_estimate_and_blocks_stale_payout(
-    db_sessionmaker,
-    settings,
-) -> None:
-    graph = build_graph(db_sessionmaker, "profile-replacement")
-    seed_analytics(db_sessionmaker, graph)
-    run_pipeline(db_sessionmaker, graph.trip.id, settings)
-    original = fetch_impression_estimates(db_sessionmaker)[0]
-
-    async def replace_profile(profile_id) -> None:
-        async with db_sessionmaker() as session:
-            profile = await session.get(TrafficDensityProfile, profile_id)
-            assert profile is not None
-            await update_traffic_density_profile(
-                session,
-                profile_id=profile.id,
-                payload=TrafficDensityProfileUpdate(
-                    description="Replacement profile",
-                    expected_revision=profile.revision,
-                    expected_value_fingerprint=profile.value_fingerprint,
-                ),
-            )
-            await session.commit()
-
-    asyncio.run(replace_profile(original.traffic_density_profile_id))
-
-    assert find_due(db_sessionmaker, settings) == [graph.trip.id]
-    result = run_pipeline(db_sessionmaker, graph.trip.id, settings)
-    assert stage_outcomes(result)["impressions"] == "created"
-    estimates = fetch_impression_estimates(db_sessionmaker)
-    assert len(estimates) == 2
-    assert sum(estimate.is_authoritative for estimate in estimates) == 1
-
-    current = next(estimate for estimate in estimates if estimate.is_authoritative)
-    create_test_daily_payout_authority(
-        db_sessionmaker,
-        campaign_id=graph.campaign.id,
-        created_by_user_id=graph.admin.id,
-    )
-    run_pipeline(db_sessionmaker, graph.trip.id, settings)
-    asyncio.run(replace_profile(current.traffic_density_profile_id))
-
-    async def check_payout() -> None:
-        async with db_sessionmaker() as session:
-            with pytest.raises(AppError) as stale_estimate:
-                await calculate_trip_payout(
-                    session,
-                    trip_id=graph.trip.id,
-                    payout_rule_id=None,
-                    metadata={"source": "admin"},
-                    settings=settings,
-                )
-            assert stale_estimate.value.code == "IMPRESSION_ESTIMATE_STALE"
-
-    asyncio.run(check_payout())
-
-
-def test_due_work_replaces_scenario_only_estimate_with_canonical_authority(
+def test_due_work_repairs_fixed_estimate_authority_without_a_second_scenario(
     db_sessionmaker,
     settings,
 ) -> None:
@@ -1689,18 +1640,12 @@ def test_due_work_replaces_scenario_only_estimate_with_canonical_authority(
     async def demote_to_scenario() -> None:
         async with db_sessionmaker() as session:
             estimate = await session.get(ImpressionEstimate, original.id)
-            profile = await session.get(
-                TrafficDensityProfile,
-                original.traffic_density_profile_id,
-            )
             assert estimate is not None
-            assert profile is not None
             estimate.is_authoritative = False
             estimate.estimate_metadata = {
                 **(estimate.estimate_metadata or {}),
                 "authority": "scenario",
             }
-            profile.is_default = False
             await session.commit()
 
     asyncio.run(demote_to_scenario())
@@ -1711,10 +1656,10 @@ def test_due_work_replaces_scenario_only_estimate_with_canonical_authority(
 
     estimates = fetch_impression_estimates(db_sessionmaker)
     authoritative = [estimate for estimate in estimates if estimate.is_authoritative]
-    assert len(estimates) == 2
-    assert len(authoritative) == 1
-    assert authoritative[0].id != original.id
-    assert authoritative[0].traffic_density_profile_id != original.traffic_density_profile_id
+    # S10/D118 removes alternate profile scenarios. Repair the same fixed row.
+    assert len(estimates) == len(authoritative) == 1
+    assert authoritative[0].id == original.id
+    assert authoritative[0].traffic_density_profile_id is None
 
 
 def test_due_work_reselects_changed_replay_detector_version(
@@ -1809,7 +1754,7 @@ def test_due_work_selects_trip_missing_only_estimate(db_sessionmaker, settings) 
 def test_due_work_ruleless_trip_becomes_due_when_rule_appears(db_sessionmaker, settings) -> None:
     graph = build_graph(db_sessionmaker, "due4")
     analytics = seed_analytics(db_sessionmaker, graph)
-    profile = create_test_traffic_density_profile(db_sessionmaker, name="Due Profile")
+    profile = create_test_estimate_source(db_sessionmaker, name="Due Profile")
     create_test_impression_estimate(
         db_sessionmaker,
         trip_session_id=graph.trip.id,
@@ -1818,7 +1763,6 @@ def test_due_work_ruleless_trip_becomes_due_when_rule_appears(db_sessionmaker, s
         campaign_id=graph.campaign.id,
         driver_profile_id=graph.profile.id,
         vehicle_id=graph.vehicle.id,
-        traffic_density_profile_id=profile.id,
         metadata={
             "fraud_flag_counts": {"low": 0, "medium": 0, "high": 0},
             "traffic_density_profile_fingerprint": profile.value_fingerprint,

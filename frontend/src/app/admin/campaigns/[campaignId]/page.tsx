@@ -30,8 +30,7 @@ import PayTermsSection from "../pay-terms-section";
 import BillingSection from "../../billing/[campaignId]/content";
 import InvoiceContent from "../../billing/[campaignId]/invoices/[invoiceId]/content";
 import CloseoutContent from "../../billing/[campaignId]/closeout/content";
-import MeasurementContent from "../../measurement/[runId]/content";
-import { RerunReportForm } from "../../measurement/issue-form";
+import { RerunReportForm, ReportDownloads } from "../../reports/report-actions";
 import { ResumeForm } from "../resume-form";
 import { ArtworkPreview } from "../artwork-preview";
 
@@ -88,7 +87,7 @@ export default async function CampaignHub({
   params: Promise<{ campaignId: string }>;
   searchParams: Promise<Query>;
 }) {
-  await requireRole("admin");
+  const me = await requireRole("admin");
   const { campaignId } = await params;
   if (!z.string().uuid().safeParse(campaignId).success) notFound();
   const query = await searchParams;
@@ -136,7 +135,7 @@ export default async function CampaignHub({
         })
         .catch(sectionFailure),
       api
-        .GET("/api/v1/admin/measurement-runs", {
+        .GET("/api/v1/admin/reports", {
           params: {
             query: { campaign_id: campaignId, limit: 25, offset: offset(query.results_offset) },
           },
@@ -217,76 +216,41 @@ export default async function CampaignHub({
       ? Math.min(100, Math.max(0, (Number(spent) / Number(budget)) * 100))
       : undefined;
 
-  let selectedRun =
-    drawer === "run" ? results.data?.items.find((run) => run.id === query.run) : undefined;
-  let runLookupFailed = false;
-  if (
-    drawer === "run" &&
-    query.run &&
-    !selectedRun &&
-    z.string().uuid().safeParse(query.run).success
-  ) {
-    const candidate = (
-      await api
-        .GET("/api/v1/admin/measurement-runs/{run_id}", { params: { path: { run_id: query.run } } })
-        .catch(sectionFailure)
-    ).data;
-    runLookupFailed = !candidate;
-    if (candidate?.campaign_id === campaignId)
-      selectedRun = {
-        ...candidate,
-        campaign_name: campaign.name,
-        report_status: null,
-        report_issuance_id: null,
-        superseded: false,
-      };
-  }
-  const [payTermsContent, billingContent, invoiceContent, closeoutContent, measurementContent] =
-    await Promise.all([
-      renderSection(() => PayTermsSection({ campaignId }), `${root}#pay-terms`),
-      commercial.data
-        ? renderSection(
-            () =>
-              BillingSection({
-                embedded: true,
-                params: Promise.resolve({ campaignId }),
-                searchParams: Promise.resolve({ error: query.error, saved: query.saved }),
-              }),
-            `${root}#money`,
-          )
-        : null,
-      drawer === "invoice" &&
-      query.invoice &&
-      commercial.data?.invoices.some((invoice) => invoice.id === query.invoice)
-        ? renderSection(
-            () =>
-              InvoiceContent({
-                params: Promise.resolve({ campaignId, invoiceId: query.invoice! }),
-              }),
-            `${root}?drawer=invoice&invoice=${query.invoice}#money`,
-          )
-        : null,
-      drawer === "closeout"
-        ? renderSection(
-            () =>
-              CloseoutContent({
-                params: Promise.resolve({ campaignId }),
-                searchParams: Promise.resolve({ page: query.page }),
-              }),
-            `${root}?drawer=closeout#money`,
-          )
-        : null,
-      drawer === "run" && selectedRun
-        ? renderSection(
-            () =>
-              MeasurementContent({
-                params: Promise.resolve({ runId: selectedRun!.id }),
-                searchParams: Promise.resolve({ report: query.report }),
-              }),
-            `${root}?run=${selectedRun.id}#results`,
-          )
-        : null,
-    ]);
+  const [payTermsContent, billingContent, invoiceContent, closeoutContent] = await Promise.all([
+    renderSection(() => PayTermsSection({ campaignId }), `${root}#pay-terms`),
+    commercial.data
+      ? renderSection(
+          () =>
+            BillingSection({
+              embedded: true,
+              params: Promise.resolve({ campaignId }),
+              searchParams: Promise.resolve({ error: query.error, saved: query.saved }),
+            }),
+          `${root}#money`,
+        )
+      : null,
+    drawer === "invoice" &&
+    query.invoice &&
+    commercial.data?.invoices.some((invoice) => invoice.id === query.invoice)
+      ? renderSection(
+          () =>
+            InvoiceContent({
+              params: Promise.resolve({ campaignId, invoiceId: query.invoice! }),
+            }),
+          `${root}?drawer=invoice&invoice=${query.invoice}#money`,
+        )
+      : null,
+    drawer === "closeout"
+      ? renderSection(
+          () =>
+            CloseoutContent({
+              params: Promise.resolve({ campaignId }),
+              searchParams: Promise.resolve({ page: query.page }),
+            }),
+          `${root}?drawer=closeout#money`,
+        )
+      : null,
+  ]);
   return (
     <div className="mx-auto max-w-6xl">
       <Link href="/admin/campaigns" className="text-cyan text-sm">
@@ -566,33 +530,31 @@ export default async function CampaignHub({
         <HubSection id="money" title="Money">
           {commercial.data ? billingContent : <QueueUnavailable />}
         </HubSection>
-        <HubSection id="results" title="Results">
-          <RerunReportForm campaignId={campaignId} />
+        <HubSection id="results" title="Reports">
+          <RerunReportForm key={me.user.id} campaignId={campaignId} staffId={me.user.id} />
           {!results.data ? (
             <QueueUnavailable />
           ) : (
             <>
               {!results.data.items.length ? (
-                <p>No results calculations recorded.</p>
+                <p>No reports recorded.</p>
               ) : (
-                results.data.items.map((run) => (
-                  <Link
-                    key={run.id}
-                    className="border-edge mb-3 block rounded-lg border p-3"
-                    href={`${root}?run=${run.id}${run.report_issuance_id ? `&report=${run.report_issuance_id}` : ""}#results`}
-                  >
-                    <p>{formatDateRange(run.period_start_at, run.period_end_at)}</p>
-                    <p className="text-muted text-sm">
-                      {run.superseded ? "Replaced results · " : ""}
-                      {run.reproducible
-                        ? "Saved results can be reproduced"
-                        : "Results cannot be reproduced — do not issue a report"}{" "}
-                      · Report:{" "}
-                      {run.report_status
-                        ? adminStatus(run.report_status, "report")
-                        : "Not requested"}
+                results.data.items.map((report) => (
+                  <div key={report.id} className="border-edge mb-3 rounded-lg border p-3">
+                    <p>
+                      {report.start_date} to {report.end_date} | WAT | Version {report.version}
                     </p>
-                  </Link>
+                    <p>
+                      {report.status === "queued"
+                        ? "Preparing report"
+                        : report.status === "ready"
+                          ? "Ready"
+                          : report.error}
+                    </p>
+                    {report.status === "ready" ? (
+                      <ReportDownloads reportId={report.id} legacy={report.legacy} />
+                    ) : null}
+                  </div>
                 ))
               )}
               <Pagination
@@ -717,17 +679,6 @@ export default async function CampaignHub({
         <HubDrawer title="Close-out" closeHref={closeHref("money")}>
           {closeoutContent}
         </HubDrawer>
-      ) : null}
-      {drawer === "run" ? (
-        selectedRun ? (
-          <HubDrawer title="Results and reports" closeHref={closeHref("results")}>
-            {measurementContent}
-          </HubDrawer>
-        ) : runLookupFailed ? (
-          <QueueUnavailable />
-        ) : (
-          <p role="alert">That results calculation does not belong to this campaign.</p>
-        )
       ) : null}
     </div>
   );

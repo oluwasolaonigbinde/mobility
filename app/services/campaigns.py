@@ -31,6 +31,7 @@ from app.models.stored_file import FilePurpose, FileScanStatus, StoredFile
 from app.schemas.campaigns import CampaignCreate, CampaignUpdate, CreativeCreate, CreativeUpdate
 from app.services.admin_authorization import require_active_admin
 from app.services.audit import create_audit_event
+from app.services.campaign_lifecycle import campaign_status_expression
 from app.services.organizations import get_advertiser_organization_for_user
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock
 
@@ -194,7 +195,7 @@ async def list_advertiser_campaigns(
     organization, _ = await get_required_advertiser_context(session, user_id)
     filters = [Campaign.organization_id == organization.id]
     if campaign_status is not None:
-        filters.append(Campaign.status == campaign_status)
+        filters.append(campaign_status_expression() == campaign_status)
     if start_at_from is not None:
         filters.append(Campaign.start_at >= start_at_from)
     if start_at_to is not None:
@@ -629,7 +630,7 @@ async def list_admin_campaigns(
     if organization_id is not None:
         filters.append(Campaign.organization_id == organization_id)
     if campaign_status is not None:
-        filters.append(Campaign.status == campaign_status)
+        filters.append(campaign_status_expression() == campaign_status)
 
     statement = select(Campaign, AdvertiserOrganization).join(
         AdvertiserOrganization,
@@ -692,7 +693,6 @@ async def _lock_campaign_artwork(
     )
     if production_id is not None or campaign.status in {
         CampaignStatus.ACTIVE.value,
-        CampaignStatus.COMPLETED.value,
         CampaignStatus.CANCELLED.value,
     }:
         raise AppError(

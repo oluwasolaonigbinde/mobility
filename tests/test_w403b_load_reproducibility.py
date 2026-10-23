@@ -12,7 +12,7 @@ from scripts import run_w403b_load_reproducibility as harness
 def test_confirmed_cohort_and_frozen_inputs_are_exact() -> None:
     fixture = harness.load_frozen_fixture()
 
-    assert fixture["report_snapshot"]["measurement"]["input_sha256"] == harness.canonical_sha256(
+    assert fixture["measurement_input_sha256"] == harness.canonical_sha256(
         fixture["measurement_input"]
     )
     assert fixture["profile"]["city"] == "Abuja"
@@ -116,7 +116,7 @@ def test_main_sanitizes_malformed_coverage_fixture(tmp_path, monkeypatch, capsys
 
 
 def test_main_sanitizes_reproducibility_renderer_failure(monkeypatch, capsys) -> None:
-    original_csv = harness.render_report_csv
+    original_csv = harness.render_campaign_csv
     calls = 0
 
     def fail_only_during_reproducibility(snapshot):
@@ -127,7 +127,7 @@ def test_main_sanitizes_reproducibility_renderer_failure(monkeypatch, capsys) ->
         return original_csv(snapshot)
 
     monkeypatch.setattr(harness.journey, "run_build_path", lambda **_kwargs: None)
-    monkeypatch.setattr(harness, "render_report_csv", fail_only_during_reproducibility)
+    monkeypatch.setattr(harness, "render_campaign_csv", fail_only_during_reproducibility)
 
     assert harness.main() == 1
     assert json.loads(capsys.readouterr().out) == {

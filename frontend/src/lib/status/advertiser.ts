@@ -1,7 +1,7 @@
 import type { components } from "@/lib/api/schema";
 import { adminStatus } from "./admin";
 
-export type CampaignStatus = components["schemas"]["CampaignStatus"];
+export type CampaignStatus = components["schemas"]["AdvertiserCampaignRead"]["status"];
 
 export const CAMPAIGN_STATUSES: readonly CampaignStatus[] = [
   "draft",
@@ -10,7 +10,7 @@ export const CAMPAIGN_STATUSES: readonly CampaignStatus[] = [
   "rejected",
   "active",
   "paused",
-  "completed",
+  "finished",
   "cancelled",
 ] as const;
 
@@ -21,7 +21,7 @@ export const statusLabel: Record<CampaignStatus, string> = {
   rejected: "Changes requested",
   active: "Live",
   paused: "Paused",
-  completed: "Completed",
+  finished: "Finished",
   cancelled: "Cancelled",
 };
 
@@ -33,7 +33,7 @@ export const statusTone: Record<CampaignStatus, "default" | "amber" | "cyan" | "
     rejected: "coral",
     active: "green",
     paused: "amber",
-    completed: "default",
+    finished: "default",
     cancelled: "coral",
   };
 

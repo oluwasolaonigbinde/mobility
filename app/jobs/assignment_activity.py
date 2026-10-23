@@ -9,6 +9,7 @@ from sqlalchemy import select
 from app.core.observability import capture_exception
 from app.models.campaign_assignment import CampaignAssignment, CampaignAssignmentStatus
 from app.services.assignment_activity import sweep_activity_flags
+from app.services.campaign_lifecycle import assignment_window_open
 from app.services.payout_rule_serialization import database_clock
 
 SWEEP_CURSOR_KEY = "worker:assignment-activity:sweep-cursor:v1"
@@ -49,7 +50,8 @@ async def _store_sweep_cursor(ctx: dict[str, Any], cursor: UUID | None) -> None:
 
 async def _active_assignment_batch(session, *, limit: int, after: UUID | None) -> list[UUID]:
     query = select(CampaignAssignment.id).where(
-        CampaignAssignment.status == CampaignAssignmentStatus.ACTIVE.value
+        CampaignAssignment.status == CampaignAssignmentStatus.ACTIVE.value,
+        assignment_window_open(),
     )
     if after is not None:
         query = query.where(CampaignAssignment.id > after)

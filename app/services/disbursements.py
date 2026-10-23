@@ -398,6 +398,7 @@ async def reserve_payout_batch(  # noqa: C901
     remaining_by_trip: dict[UUID, Decimal] = {}
     await session.flush()
     for entry in entries:
+        assert entry.trip_session_id is not None  # Checked on the locked source stubs.
         held = await session.scalar(
             select(func.count(FraudFlag.id)).where(
                 FraudFlag.trip_session_id == entry.trip_session_id,
@@ -2393,6 +2394,7 @@ async def retry_failed_payout_lines(  # noqa: C901
                 "PAYOUT_REPLACEMENT_CONFLICT",
                 "A failed payout no longer has its original available ledger authority",
             )
+        assert entry.trip_session_id is not None  # Checked on the locked source stubs.
         held = await session.scalar(
             select(FraudFlag.id)
             .where(

@@ -8,10 +8,10 @@ from conftest import (
     create_test_campaign_assignment,
     create_test_campaign_creative,
     create_test_driver_profile,
+    create_test_estimate_source,
     create_test_impression_estimate,
     create_test_organization,
     create_test_payout_rule,
-    create_test_traffic_density_profile,
     create_test_trip_analytics,
     create_test_trip_session,
     create_test_user,
@@ -34,7 +34,6 @@ from app.models.trip_analytics import FraudFlag, FraudFlagStatus
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus, VehicleType
 from app.services.impressions import profile_metadata
-from app.services.reports import build_measurement_report_snapshot
 
 PASSWORD = "long-secure-password"
 DAY_1 = datetime(2026, 6, 1, 10, 0, tzinfo=UTC)
@@ -126,7 +125,7 @@ def create_report_graph(
         exclusion_zone_distance_m=Decimal("100.00"),
         quality_score=quality_score,
     )
-    density_profile = create_test_traffic_density_profile(
+    density_profile = create_test_estimate_source(
         db_sessionmaker,
         name=f"Traffic {plate_number}",
     )
@@ -356,7 +355,7 @@ def test_advertiser_dashboard_campaign_summary_daily_metrics_and_report(
         name="Draft creative",
         creative_status=CreativeStatus.DRAFT,
     )
-    for zone_type in ["target", "bonus", "exclusion"]:
+    for zone_type in ["target", "exclusion"]:
         add_campaign_zone(
             db_sessionmaker,
             campaign_id=campaign.id,
@@ -449,7 +448,7 @@ def test_advertiser_dashboard_campaign_summary_daily_metrics_and_report(
         headers=headers,
     )
     daily = db_client.get(
-        f"/api/v1/advertiser/campaigns/{campaign.id}/daily-metrics?limit=1",
+        f"/api/v1/advertiser/campaigns/{campaign.id}/daily-metrics?limit=1&start_at=2026-06-01T00:00:00Z&end_at=2026-06-03T00:00:00Z",
         headers=headers,
     )
     report = db_client.get(
@@ -460,7 +459,8 @@ def test_advertiser_dashboard_campaign_summary_daily_metrics_and_report(
     assert dashboard.status_code == http_status.HTTP_200_OK
     dashboard_data = dashboard.json()
     assert dashboard_data["campaigns"]["total"] == 2
-    assert dashboard_data["campaigns"]["active"] == 1
+    assert dashboard_data["campaigns"]["active"] == 0
+    assert dashboard_data["campaigns"]["finished"] == 1
     assert dashboard_data["campaigns"]["draft"] == 1
     assert dashboard_data["trips"] == {"total": 2, "ended": 1, "active": 1}
     assert dashboard_data["impressions"]["estimated_impressions"] == "500.00"
@@ -476,8 +476,15 @@ def test_advertiser_dashboard_campaign_summary_daily_metrics_and_report(
     summary_data = campaign_summary.json()
     assert summary_data["campaign"]["name"] == "Lagos Launch Campaign"
     assert summary_data["campaign"]["budget_amount"] == "500000.00"
-    assert summary_data["creatives"] == {"total": 2, "ready": 0, "draft": 1, "archived": 0}
-    assert summary_data["zones"] == {"total": 3, "target": 1, "bonus": 1, "exclusion": 1}
+    assert summary_data["creatives"] == {
+        "total": 2,
+        "approved": 1,
+        "draft": 1,
+        "archived": 0,
+        "pending_review": 0,
+        "rejected": 0,
+    }
+    assert summary_data["zones"] == {"total": 2, "target": 1, "exclusion": 1}
     assert summary_data["route_analytics"]["analyzed_trip_count"] == 2
     assert summary_data["route_analytics"]["total_distance_m"] == "15000.00"
     assert summary_data["costs"]["totals_by_currency"][0]["calculated_trip_count"] == 1
@@ -486,41 +493,17 @@ def test_advertiser_dashboard_campaign_summary_daily_metrics_and_report(
 
     assert daily.status_code == http_status.HTTP_200_OK
     daily_data = daily.json()
-    assert daily_data["total"] == 2
+    assert daily_data["total"] == 3
     assert daily_data["limit"] == 1
-    assert daily_data["items"][0]["date"] == "2026-06-02"
-    assert daily_data["items"][0]["trip_count"] == 1
-    assert daily_data["items"][0]["average_confidence_score"] == "0.1000"
+    assert daily_data["items"][0]["date"] == "2026-06-01"
+    assert daily_data["items"][0]["trip_count"] is None
+    assert daily_data["items"][0]["suppressed"] is True
 
     assert report.status_code == http_status.HTTP_200_OK, report.text
-    assert report.json()["totals"] == {
-        "distance_m": "10000.00",
-        "trip_count": 1,
-        "driving_days": 1,
-        "estimated_views": "500.00",
-    }
+    # D118: a one-car report remains withheld, even though the staff ledger exists.
+    assert all(value is None for value in report.json()["totals"].values())
     assert report.json()["areas"] == []
     assert "daily_metrics" not in report.json()
-
-    async def snapshot():
-        async with db_sessionmaker() as session:
-            return (
-                await build_measurement_report_snapshot(
-                    session,
-                    user_id=advertiser.id,
-                    campaign_id=campaign.id,
-                    settings=settings,
-                    start_at=None,
-                    end_at=None,
-                )
-            ).model_dump(mode="json")
-
-    report_data = asyncio.run(snapshot())
-    assert "items" not in report_data
-    assert "driver" not in str(report_data).lower()
-    assert report_data["summary"]["id"] == str(campaign.id)
-    assert len(report_data["daily_metrics"]) == 2
-    assert report_data["creative_summary"]["total"] == 2
 
 
 def test_campaign_report_uses_half_open_trip_cohort_and_latest_payout_once(
@@ -605,28 +588,31 @@ def test_campaign_report_uses_half_open_trip_cohort_and_latest_payout_once(
         headers=auth_headers(db_client, advertiser.email, PASSWORD),
     )
 
-    assert response.status_code == http_status.HTTP_409_CONFLICT, response.text
-    assert response.json()["error"]["code"] == "CAMPAIGN_REPORT_PENDING"
+    assert response.status_code == http_status.HTTP_200_OK, response.text
+    assert all(value is None for value in response.json()["totals"].values())
 
-    async def snapshot():
+    # S9 removes money only from the report export. Existing summary/ledger cost
+    # authority still selects exactly one latest calculation, even after late work.
+    async def terminal_cost():
+        from app.services.report_cohorts import select_report_cohort
+        from app.services.reports import campaign_cost_summary_from_cohort
+
         async with db_sessionmaker() as session:
-            return (
-                await build_measurement_report_snapshot(
-                    session,
-                    user_id=advertiser.id,
-                    campaign_id=campaign.id,
-                    settings=settings,
-                    start_at=DAY_1,
-                    end_at=DAY_2,
-                )
-            ).model_dump(mode="json")
+            cohort = await select_report_cohort(
+                session,
+                campaign_id=campaign.id,
+                start_at=DAY_1,
+                end_at=DAY_2,
+                settings=settings,
+                terminal_period=True,
+            )
+            return await campaign_cost_summary_from_cohort(session, cohort, default_currency="NGN")
 
-    report = asyncio.run(snapshot())
-    assert report["trip_summary"]["total"] == 1
-    assert report["impression_summary"]["estimated_impressions"] == "500.00"
-    assert report["cost_summary"]["totals_by_currency"][0]["final_payout_total"] == "700.00"
-    assert report["cost_summary"]["totals_by_currency"][0]["calculated_trip_count"] == 1
-    assert len(report["daily_metrics"]) == 1
+    # Ordinary summary filters calculation timestamps. The retired report's
+    # terminal-trip financial selection is still verified directly (S9/D118).
+    cost = asyncio.run(terminal_cost()).totals_by_currency[0]
+    assert cost.final_payout_total == Decimal("700.00")
+    assert cost.calculated_trip_count == 1
 
 
 def test_campaign_trip_report_is_aggregate_only_and_rbac_protected(
@@ -819,7 +805,10 @@ def test_reporting_empty_cohort_suppression_cross_org_date_validation_and_no_aut
         headers=headers,
     )
 
-    for response in (summary, dashboard, daily, trips):
+    # D118 makes empty calendar days explicit without weakening guarded summaries.
+    assert daily.status_code == 200 and len(daily.json()["items"]) == 7
+    assert all(row["distance_m"] == "0.00" for row in daily.json()["items"])
+    for response in (summary, dashboard, trips):
         assert response.status_code == http_status.HTTP_409_CONFLICT
         assert response.json()["error"]["code"] == "DISCLOSURE_SUPPRESSED"
         assert response.json()["error"]["details"] == {"reason": "minimum_cars"}

@@ -13,9 +13,10 @@ export const readCampaignPerformance = (api: ApiClient, campaignId: string, quer
   api.GET("/api/v1/advertiser/campaigns/{campaign_id}/report", {
     params: { path: { campaign_id: campaignId }, query },
   });
-export const rerunCampaignReport = (api: ApiClient, campaignId: string) =>
+export const rerunCampaignReport = (api: ApiClient, campaignId: string, clientRequestId: string) =>
   api.POST("/api/v1/admin/campaigns/{campaign_id}/reports/re-run", {
     params: { path: { campaign_id: campaignId } },
+    body: { client_request_id: clientRequestId },
   });
 export const readStaffEnquiries = (api: ApiClient, query?: EnquiryQuery) =>
   api.GET("/api/v1/admin/campaign-enquiries", { params: { query } });

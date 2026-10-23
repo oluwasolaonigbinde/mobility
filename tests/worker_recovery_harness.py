@@ -37,7 +37,7 @@ from app.jobs.earnings_release import sweep_earnings_release_reviews
 from app.jobs.file_lifecycle import recover_stored_object_deletions
 from app.jobs.trip_processing import process_unprocessed_trips
 from app.jobs.worker import WorkerSettings
-from app.services.report_issuances import sweep_report_issuances
+from app.services.report_scheduling import sweep_scheduled_reports
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,7 +55,7 @@ RECOVERY_JOB_REGISTRATIONS = (
     RecoveryJobRegistration(
         "cron:recover_stored_object_deletions", recover_stored_object_deletions, 1
     ),
-    RecoveryJobRegistration("cron:sweep_report_issuances", sweep_report_issuances, 1),
+    RecoveryJobRegistration("cron:sweep_scheduled_reports", sweep_scheduled_reports, 1),
     RecoveryJobRegistration("cron:process_unprocessed_trips", process_unprocessed_trips, 1),
 )
 
@@ -299,13 +299,6 @@ class PersistentStorageProvider:
             },
         )
         _append_event("object_put", state_root=self.state_root, object_key=object_key)
-        report_puts = [
-            event
-            for event in read_provider_events(self.state_root)
-            if event["event"] == "object_put" and "/reports/" in event["object_key"]
-        ]
-        if len(report_puts) == 1:
-            await _checkpoint("report_after_first_artifact")
         return await self.stat(object_key)
 
     async def stream(self, object_key: str) -> AsyncIterator[bytes]:
@@ -392,10 +385,8 @@ async def _deletion_job(ctx: dict[str, Any]) -> dict[str, int]:
 
 
 async def _report_job(ctx: dict[str, Any]) -> int:
-    _record_job_start(ctx, "cron:sweep_report_issuances")
-    result = await sweep_report_issuances(ctx)
-    await _checkpoint("report_after_publication_commit")
-    await _checkpoint("report_after_dead_letter")
+    _record_job_start(ctx, "cron:sweep_scheduled_reports")
+    result = await sweep_scheduled_reports(ctx)
     return result
 
 
@@ -445,7 +436,7 @@ async def _run_worker() -> None:
                 "cron:recover_stored_object_deletions",
                 _deletion_job,
             ),
-            _recovery_function("cron:sweep_report_issuances", _report_job),
+            _recovery_function("cron:sweep_scheduled_reports", _report_job),
             _recovery_function("cron:process_unprocessed_trips", _cursor_job),
         ),
         redis_settings=RedisSettings.from_dsn(os.environ["R58_REDIS_URL"]),

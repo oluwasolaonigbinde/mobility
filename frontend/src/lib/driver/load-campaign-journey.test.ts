@@ -18,7 +18,7 @@ const COUNTS = {
   declined: 0,
   expired: 0,
   cancelled: 0,
-  completed: 0,
+  finished: 0,
 };
 
 function installReadyResponses() {
@@ -229,7 +229,7 @@ describe("loadDriverCampaignJourney", () => {
     expect(result.trackerAssignment).toBeNull();
   });
 
-  it.each(["offered", "accepted", "active", "declined", "expired", "cancelled", "completed"])(
+  it.each(["offered", "accepted", "active", "declined", "expired", "cancelled", "finished"])(
     "does not treat a missing %s count as zero",
     async (status) => {
       const ready = mocks.get.getMockImplementation();
