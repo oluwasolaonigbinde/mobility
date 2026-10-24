@@ -111,6 +111,7 @@ function JobCard({
         status={a.status}
         requiredViews={policy.required_views}
         latestEvidenceStatus={evidence?.status}
+        rejectionReason={evidence?.rejection_reason ?? undefined}
         approvedUntil={evidence?.approved_until ?? undefined}
       />
       {readyToDrive ? (

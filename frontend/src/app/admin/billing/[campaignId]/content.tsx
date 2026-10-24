@@ -579,33 +579,36 @@ export default async function AdminCampaignBillingPage({
                     : "Pending funding"}
               </StatusChip>
             </div>
-            {!commercial.financial_authority ? (
-              <form
-                action={recordFinancialAuthorityAction.bind(
-                  null,
-                  campaignId,
-                  commercial.terms.payment_class as
-                    "standard_prepaid" | "approved_corporate_credit",
-                  me.user.id,
+            {commercial.financial_authority ? (
+              <p className="mt-5 text-sm">
+                Current maximum amount owed to drivers:{" "}
+                {formatMoney(
+                  commercial.financial_authority.max_driver_liability,
+                  commercial.terms.currency,
                 )}
-                className="mt-5 grid gap-4"
-              >
-                <Field
-                  name="max_driver_liability"
-                  label="Maximum amount owed to drivers"
-                  required
-                />
-                {commercial.terms.payment_class === "approved_corporate_credit" ? (
-                  <>
-                    <Field name="credit_limit" label="Approved credit limit" required />
-                    <Field name="due_at" label="Credit due at" type="datetime-local" required />
-                    <Field name="credit_terms" label="Approved credit terms" required />
-                  </>
-                ) : null}
-                <Field name="reason" label="Supporting record and reason" required />
-                <Button type="submit">Record funding approval</Button>
-              </form>
-            ) : !commercial.production_start ? (
+              </p>
+            ) : null}
+            <form
+              action={recordFinancialAuthorityAction.bind(
+                null,
+                campaignId,
+                commercial.terms.payment_class as "standard_prepaid" | "approved_corporate_credit",
+                me.user.id,
+              )}
+              className="mt-5 grid gap-4"
+            >
+              <Field name="max_driver_liability" label="Maximum amount owed to drivers" required />
+              {commercial.terms.payment_class === "approved_corporate_credit" ? (
+                <>
+                  <Field name="credit_limit" label="Approved credit limit" required />
+                  <Field name="due_at" label="Credit due at" type="datetime-local" required />
+                  <Field name="credit_terms" label="Approved credit terms" required />
+                </>
+              ) : null}
+              <Field name="reason" label="Supporting record and reason" required />
+              <Button type="submit">Record funding approval</Button>
+            </form>
+            {commercial.financial_authority && !commercial.production_start ? (
               <div className="mt-5">
                 <p className="text-muted mb-3 text-sm">
                   Pay-before-production campaigns start after the full 24-hour waiting period,
@@ -622,12 +625,12 @@ export default async function AdminCampaignBillingPage({
                   <Button type="submit">Record production start</Button>
                 </form>
               </div>
-            ) : (
+            ) : commercial.production_start ? (
               <p className="mt-5 text-sm">
                 Basis:{" "}
                 {adminStatus(commercial.production_start.authority_basis, "production_authority")}
               </p>
-            )}
+            ) : null}
           </Panel>
         </div>
       ) : null}

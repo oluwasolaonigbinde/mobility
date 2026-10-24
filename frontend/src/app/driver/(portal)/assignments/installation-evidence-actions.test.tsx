@@ -121,3 +121,49 @@ describe("InstallationEvidenceActions", () => {
     expect(screen.queryByRole("button", { name: "Send display photo" })).not.toBeInTheDocument();
   });
 });
+it.each(["approved", "pending_review"])(
+  "does not show an old rejection reason for %s photos",
+  (status) => {
+    render(
+      <InstallationEvidenceActions
+        assignmentId={ASSIGNMENT_ID}
+        status="accepted"
+        requiredViews={["front"]}
+        latestEvidenceStatus={status}
+        rejectionReason="Old reason"
+      />,
+    );
+    expect(screen.queryByText("Old reason")).toBeNull();
+  },
+);
+it("shows the saved rejection as plain text before retaking photos", () => {
+  const reason = "<strong>Retake the branding close-up.</strong>";
+  const { container } = render(
+    <InstallationEvidenceActions
+      assignmentId={ASSIGNMENT_ID}
+      status="accepted"
+      requiredViews={["front"]}
+      latestEvidenceStatus="rejected"
+      rejectionReason={reason}
+    />,
+  );
+  const message = screen.getByText(reason);
+  expect(message).toBeVisible();
+  expect(container.querySelector("strong")).toBeNull();
+  expect(
+    message.compareDocumentPosition(container.querySelector('input[type="file"]')!) &
+      Node.DOCUMENT_POSITION_FOLLOWING,
+  ).toBeTruthy();
+});
+it("keeps a useful fallback when a rejected revision has no reason", () => {
+  render(
+    <InstallationEvidenceActions
+      assignmentId={ASSIGNMENT_ID}
+      status="accepted"
+      requiredViews={["front"]}
+      latestEvidenceStatus="rejected"
+    />,
+  );
+  expect(screen.getByText(/Your last photos weren't approved/)).toBeVisible();
+  expect(screen.getByRole("button", { name: "Send installation photos" })).toBeVisible();
+});

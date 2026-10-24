@@ -11,9 +11,11 @@ import { Button } from "@/components/ui/button";
 export function DecisionButtons({
   approveLabel = "Approve",
   rejectLabel = "Reject",
+  allowReject = true,
 }: {
   approveLabel?: string;
   rejectLabel?: string;
+  allowReject?: boolean;
 }) {
   const { pending, data } = useFormStatus();
   const intent = pending ? data?.get("intent") : null;
@@ -29,16 +31,18 @@ export function DecisionButtons({
       >
         {intent === "approve" ? "Approving…" : approveLabel}
       </Button>
-      <Button
-        type="submit"
-        name="intent"
-        value="reject"
-        variant="danger"
-        disabled={pending}
-        className="h-9 px-3 text-xs"
-      >
-        {intent === "reject" ? "Rejecting…" : rejectLabel}
-      </Button>
+      {allowReject ? (
+        <Button
+          type="submit"
+          name="intent"
+          value="reject"
+          variant="danger"
+          disabled={pending}
+          className="h-9 px-3 text-xs"
+        >
+          {intent === "reject" ? "Rejecting…" : rejectLabel}
+        </Button>
+      ) : null}
     </div>
   );
 }

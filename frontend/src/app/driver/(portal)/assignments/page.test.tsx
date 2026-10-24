@@ -67,6 +67,37 @@ describe("DriverAssignmentsPage history availability", () => {
     ).toBeInTheDocument();
   });
 
+  it("passes the latest owned rejection reason through to the photo task", async () => {
+    mockJobs([
+      {
+        id: "owned-job",
+        status: "accepted",
+        offered_at: "2026-10-01T09:00:00Z",
+        offer_terms: null,
+      },
+    ]);
+    const normal = mocks.get.getMockImplementation()!;
+    mocks.get.mockImplementation(async (path, options) =>
+      path.endsWith("/installation-evidence")
+        ? {
+            data: {
+              items: [
+                { status: "rejected", rejection_reason: "Older revision reason" },
+                { status: "rejected", rejection_reason: "Retake the branding close-up." },
+              ],
+            },
+          }
+        : normal(path, options),
+    );
+    render(await DriverAssignmentsPage({}));
+    expect(screen.getByText("Retake the branding close-up.")).toBeVisible();
+    expect(screen.queryByText("Older revision reason")).toBeNull();
+    expect(mocks.get).toHaveBeenCalledWith(
+      "/api/v1/driver/campaign-assignments/{assignment_id}/installation-evidence",
+      { params: { path: { assignment_id: "owned-job" } } },
+    );
+  });
+
   it("opens the exact owned job from a notification even beyond the first history page", async () => {
     mockJobs([]);
     const original = mocks.get.getMockImplementation()!;

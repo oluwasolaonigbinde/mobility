@@ -214,6 +214,18 @@ export async function recordFinancialAuthorityAction(
       },
     });
   } catch (error) {
+    if (error instanceof ApiError) {
+      const messages: Record<string, string> = {
+        FINANCIAL_AUTHORITY_REDUCTION_REQUIRES_GOVERNANCE:
+          "This approval cannot reduce the existing funding or maximum amount owed to drivers. Enter an amount at least as high as the current approval.",
+        DRIVER_LIABILITY_EXCEEDS_AUTHORITY:
+          "The maximum amount owed to drivers cannot exceed the approved funding.",
+        INVALID_FINANCIAL_AUTHORITY_AMOUNT:
+          "The approved funding and maximum amount owed to drivers must both be greater than zero.",
+      };
+      const message = messages[error.code];
+      if (message) redirect(`${path(campaignId)}?error=${encodeURIComponent(message)}#money`);
+    }
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));

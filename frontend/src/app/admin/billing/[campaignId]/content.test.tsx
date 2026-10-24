@@ -201,3 +201,46 @@ it("renders one section failure when its supporting money read fails", async () 
   expect(screen.getByRole("alert")).toHaveTextContent("Couldn't load this section — try again");
   expect(screen.queryByRole("heading", { name: "Quotation" })).toBeNull();
 });
+it.each([false, true])(
+  "shows the current approval and an increase form after production: %s",
+  async (started) => {
+    get.mockImplementation(async (path: string) =>
+      path.endsWith("/commercial")
+        ? {
+            data: {
+              ...commercial,
+              financial_authority: { max_driver_liability: "60000.00" },
+              production_start: started ? { authority_basis: "prepaid_cash" } : null,
+            },
+          }
+        : path === "/api/v1/admin/billing"
+          ? { data: [] }
+          : { data: campaign },
+    );
+    render(
+      await AdminCampaignBillingPage({
+        params: Promise.resolve({ campaignId: "campaign-1" }),
+        searchParams: Promise.resolve({}),
+      }),
+    );
+    expect(screen.getByText(/Current maximum amount owed to drivers:/)).toHaveTextContent(
+      "₦60,000.00",
+    );
+    expect(screen.getByLabelText("Maximum amount owed to drivers")).toBeRequired();
+    expect(screen.getByLabelText("Supporting record and reason")).toBeRequired();
+    expect(screen.getByRole("button", { name: "Record funding approval" })).toBeVisible();
+    expect(Boolean(screen.queryByRole("button", { name: "Record production start" }))).toBe(
+      !started,
+    );
+  },
+);
+it("shows the server's funding refusal in plain words", async () => {
+  render(
+    await AdminCampaignBillingPage({
+      params: Promise.resolve({ campaignId: "campaign-1" }),
+      searchParams: Promise.resolve({ error: "Not enough cleared funding for this approval." }),
+    }),
+  );
+  expect(screen.getByText("Not enough cleared funding for this approval.")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Record funding approval" })).toBeVisible();
+});

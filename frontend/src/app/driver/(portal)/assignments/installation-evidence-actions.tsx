@@ -24,12 +24,14 @@ export function InstallationEvidenceActions({
   status,
   requiredViews,
   latestEvidenceStatus,
+  rejectionReason,
   approvedUntil,
 }: {
   assignmentId: string;
   status: string;
   requiredViews: string[];
   latestEvidenceStatus?: string;
+  rejectionReason?: string;
   approvedUntil?: string;
 }) {
   const router = useRouter();
@@ -102,6 +104,9 @@ export function InstallationEvidenceActions({
           <h4 id={`installation-photos-${assignmentId}`} className="text-sm font-semibold">
             Installation photos
           </h4>
+          {latestEvidenceStatus === "rejected" && rejectionReason?.trim() ? (
+            <p className="mt-2 text-sm leading-5">{rejectionReason}</p>
+          ) : null}
           <p className="text-muted mt-1 text-sm leading-5">
             {latestEvidenceStatus === "expired"
               ? "New photos are due. Take one photo of each side of the car."

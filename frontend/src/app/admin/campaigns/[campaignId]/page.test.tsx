@@ -23,7 +23,9 @@ vi.mock("../../approvals/creative-review-actions", () => ({
   CreativeReviewActions: () => <button>Review artwork</button>,
 }));
 vi.mock("../../approvals/campaign-change-review-actions", () => ({
-  CampaignChangeReviewActions: () => <button>Review change</button>,
+  CampaignChangeReviewActions: ({ pendingFunding }: { pendingFunding?: boolean }) => (
+    <button data-pending-funding={String(pendingFunding)}>Review change</button>
+  ),
 }));
 vi.mock("../../approvals/installation-review-actions", () => ({
   InstallationReviewActions: (props: Record<string, unknown>) => {
@@ -419,6 +421,10 @@ it.each(["pending_admin", "pending_funding"])(
     expect(screen.getByRole("button", { name: "Review artwork" })).toBeTruthy();
     expect(screen.getByText(/Fix artwork/)).toBeTruthy();
     expect(screen.getByRole("button", { name: "Review change" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Review change" })).toHaveAttribute(
+      "data-pending-funding",
+      String(status === "pending_funding"),
+    );
     expect(screen.getByRole("link", { name: /Trip needs checking/ })).toHaveAttribute(
       "href",
       `/admin/trip-checks?tab=suspicious&campaign_id=${id}&flag=review`,

@@ -33,6 +33,7 @@ export default async function CampaignZonesPage({
     throw error;
   }
   if (!campaign) notFound();
+  const editable = ["draft", "rejected"].includes(campaign.status);
 
   return (
     <div className="animate-rise mx-auto max-w-6xl">
@@ -52,14 +53,16 @@ export default async function CampaignZonesPage({
         <StatusChip tone={statusTone[campaign.status]}>{statusLabel[campaign.status]}</StatusChip>
       </div>
       <p className="text-muted mb-6 max-w-2xl text-sm">
-        Draw the areas where you want your advert seen. Mark any places cars should avoid.
+        {editable
+          ? "Draw the areas where you want your advert seen. Mark any places cars should avoid."
+          : "These are the areas for your advert and the places cars should avoid."}
       </p>
 
       <ZonesEditor
         key={campaign.id}
         campaignId={campaign.id}
         zones={zones?.items ?? []}
-        editable={["draft", "rejected"].includes(campaign.status)}
+        editable={editable}
       />
     </div>
   );

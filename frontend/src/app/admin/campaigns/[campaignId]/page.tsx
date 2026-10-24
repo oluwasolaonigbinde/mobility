@@ -421,6 +421,7 @@ export default async function CampaignHub({
                     <CampaignChangeSummary change={change} currency={campaign.currency} />
                     <CampaignChangeReviewActions
                       requestId={change.id}
+                      pendingFunding={change.status === "pending_funding"}
                       initialReason={change.review_reason ?? undefined}
                     />
                   </div>

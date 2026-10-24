@@ -64,3 +64,24 @@ it("still shows genuine zero days when the API permits their figures", () => {
   expect(screen.getByText("0 km")).toBeInTheDocument();
   expect(screen.queryByText("Not enough cars yet to show daily distance.")).toBeNull();
 });
+it("shows no results yet instead of an inverted reporting window", () => {
+  render(
+    <PerformanceCard
+      {...data}
+      period={{ start_at: "2026-10-25T00:00:00Z", end_at: "2026-10-24T12:00:00Z" }}
+    />,
+  );
+  expect(screen.getByText("No results yet")).toBeVisible();
+  expect(document.body).not.toHaveTextContent(/Results start|25 Oct 2026/);
+  expect(document.body).not.toHaveTextContent("24 Oct 2026");
+});
+it.each(["2026-10-20T00:00:00Z", "2026-10-23T00:00:00Z"])(
+  "keeps a valid reporting window ending %s",
+  (end) => {
+    render(
+      <PerformanceCard {...data} period={{ start_at: "2026-10-20T00:00:00Z", end_at: end }} />,
+    );
+    expect(screen.queryByText(/Results start/)).toBeNull();
+    expect(screen.getByText(/20 Oct 2026 →/)).toBeVisible();
+  },
+);

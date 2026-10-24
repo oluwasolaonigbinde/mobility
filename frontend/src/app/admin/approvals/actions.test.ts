@@ -110,6 +110,26 @@ describe("reviewCampaignChangeAction", () => {
     );
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/campaigns");
   });
+
+  it("keeps approval without claiming application when the 200 response is still pending funding", async () => {
+    mocks.post.mockResolvedValue({
+      data: { status: "pending_funding" },
+      response: new Response(null, { status: 200 }),
+    });
+    await expect(
+      reviewCampaignChangeAction({}, changeForm("approve", "Approval retained")),
+    ).resolves.toEqual({
+      notice: "Approval kept. Still waiting for enough funding.",
+    });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/campaigns/[campaignId]", "page");
+  });
+
+  it("retains the normal success feedback when the approved change is applied", async () => {
+    mocks.post.mockResolvedValue({ data: { status: "applied" } });
+    await expect(
+      reviewCampaignChangeAction({}, changeForm("approve", "Funding checked")),
+    ).resolves.toEqual({ done: "Change approved" });
+  });
 });
 
 describe("reviewCreativeAction", () => {

@@ -38,7 +38,9 @@ export function PerformanceCard({
             <h2 className="font-display text-lg font-semibold">Campaign performance</h2>
             <p className="text-muted mt-1 text-sm">
               {period?.start_at && period.end_at
-                ? formatDateRange(period.start_at, period.end_at)
+                ? Date.parse(period.end_at) < Date.parse(period.start_at)
+                  ? "No results yet"
+                  : formatDateRange(period.start_at, period.end_at)
                 : "Campaign results so far"}
             </p>
           </div>

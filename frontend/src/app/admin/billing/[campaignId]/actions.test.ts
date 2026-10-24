@@ -12,7 +12,8 @@ vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
 vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("next/cache", () => ({ revalidatePath }));
 
-import { recordRevisionAction } from "./actions";
+import { recordFinancialAuthorityAction, recordRevisionAction } from "./actions";
+import { ApiError } from "@/lib/api/errors";
 
 describe("recordRevisionAction", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -86,6 +87,57 @@ describe("recordRevisionAction", () => {
           quantity: 1,
           unit_amount: production,
         });
+    },
+  );
+});
+it.each([
+  [
+    "FINANCIAL_AUTHORITY_REDUCTION_REQUIRES_GOVERNANCE",
+    "Package 3 permits funded expansions only; reductions require governed revision",
+    "This approval cannot reduce the existing funding or maximum amount owed to drivers. Enter an amount at least as high as the current approval.",
+  ],
+  [
+    "DRIVER_LIABILITY_EXCEEDS_AUTHORITY",
+    "Maximum driver liability cannot exceed financial authority",
+    "The maximum amount owed to drivers cannot exceed the approved funding.",
+  ],
+  [
+    "INVALID_FINANCIAL_AUTHORITY_AMOUNT",
+    "Authorized amount and maximum driver liability must be positive",
+    "The approved funding and maximum amount owed to drivers must both be greater than zero.",
+  ],
+])("explains funding refusal %s without internal wording", async (code, raw, plain) => {
+  post.mockRejectedValueOnce(new ApiError(409, { code, message: raw }));
+  const form = new FormData();
+  form.set("max_driver_liability", "40000");
+  form.set("reason", "Synthetic approval check");
+  await expect(
+    recordFinancialAuthorityAction("campaign-1", "standard_prepaid", "admin-1", form),
+  ).rejects.toThrow(
+    `redirect:/admin/campaigns/campaign-1?error=${encodeURIComponent(plain)}#money`,
+  );
+});
+it("submits a raised approval to the existing authority command", async () => {
+  post.mockResolvedValueOnce({ data: {} });
+  const form = new FormData();
+  form.set("max_driver_liability", "60000.00");
+  form.set("reason", "Raised approval for funded work");
+  await expect(
+    recordFinancialAuthorityAction("campaign-1", "standard_prepaid", "admin-1", form),
+  ).rejects.toThrow("redirect:/admin/campaigns/campaign-1?saved=authority#money");
+  expect(post).toHaveBeenLastCalledWith(
+    "/api/v1/admin/campaigns/{campaign_id}/financial-authority",
+    {
+      params: { path: { campaign_id: "campaign-1" } },
+      body: {
+        authority_type: "prepaid_cash",
+        max_driver_liability: "60000.00",
+        reason: "Raised approval for funded work",
+        credit_limit: null,
+        due_at: null,
+        approved_by_user_id: null,
+        credit_terms: null,
+      },
     },
   );
 });

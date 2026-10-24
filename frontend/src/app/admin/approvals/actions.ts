@@ -9,6 +9,7 @@ import { getSessionToken } from "@/lib/auth/session";
 export interface CampaignReviewActionState {
   error?: string;
   done?: string;
+  notice?: string;
 }
 
 const campaignChangeReviewSchema = z.object({
@@ -33,18 +34,21 @@ export async function reviewCampaignChangeAction(
     parsed.data.intent === "approve"
       ? "/api/v1/admin/campaign-change-requests/{request_id}/approve"
       : "/api/v1/admin/campaign-change-requests/{request_id}/reject";
+  let waitingForFunding = false;
   try {
     const api = createApiClient(await getSessionToken());
-    await api.POST(endpoint, {
+    const { data } = await api.POST(endpoint, {
       params: { path: { request_id: parsed.data.request_id } },
       body: { reason: parsed.data.reason },
     });
+    waitingForFunding = parsed.data.intent === "approve" && data?.status === "pending_funding";
   } catch (error) {
     if (error instanceof ApiError) return { error: error.message };
     return { error: "Could not reach the server." };
   }
   revalidatePath("/admin/campaigns");
   revalidatePath("/admin/campaigns/[campaignId]", "page");
+  if (waitingForFunding) return { notice: "Approval kept. Still waiting for enough funding." };
   return { done: parsed.data.intent === "approve" ? "Change approved" : "Change rejected" };
 }
 
