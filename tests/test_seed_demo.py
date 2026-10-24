@@ -14,7 +14,7 @@ from database_helpers import (
     upgrade_to,
 )
 from paystack_fixtures import SYNTHETIC_LIVE_KEY
-from sqlalchemy import func, or_, select
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -1277,7 +1277,12 @@ def fetch_lifecycle_violation_count(
                         or_(
                             TripSession.started_at < Campaign.start_at,
                             TripSession.ended_at > Campaign.end_at,
-                            CampaignAssignment.status != "active",
+                            (CampaignAssignment.status != "active")
+                            & (
+                                (CampaignAssignment.status != "cancelled")
+                                | CampaignAssignment.cancelled_at.is_(None)
+                                | (TripSession.ended_at > CampaignAssignment.cancelled_at)
+                            ),
                         )
                     )
                 )
@@ -2103,7 +2108,7 @@ def test_demo_seed_is_idempotent_with_postgis(
         "vehicles": 1,
         "campaigns": 1,
         "creatives": 1,
-        "zones": 3,
+        "zones": 2,
         "assignments": 5,
         "legacy_driver_f7_assignments": 0,
         "trips": 4,
@@ -2120,7 +2125,7 @@ def test_demo_seed_is_idempotent_with_postgis(
     assert first_evidence == second_evidence
     assert second_palmpay_market["assignment_status"] == "active"
     assert second_palmpay_market["creatives"] == 1
-    assert second_palmpay_market["zones"] == 2
+    assert second_palmpay_market["zones"] == 1
     assert second_palmpay_market["trips"] == 15
     assert len(second_palmpay_market["trip_keys"]) == len(set(second_palmpay_market["trip_keys"]))
     assert second_palmpay_market["batches"] == 15
@@ -2297,6 +2302,17 @@ def test_ordinary_demo_driver_can_start_and_end_using_production_authority(
 
     monkeypatch.setenv("F7_SEED_MAX_TRIPS_PER_DAY", "1")
     graph = seed_demo_graph(postgis_db_sessionmaker, settings)
+    # Execute the actual CI preflight against ordinary seed authority.
+    import re
+
+    wrapper = (Path(__file__).parents[1] / "scripts/run_r59_real_stack.sh").read_text()
+    sql = re.search(r'"(SELECT count\(\*\) FROM campaign_assignments.*?)"', wrapper).group(1)
+
+    async def preflight():
+        async with postgis_db_sessionmaker() as session:
+            return await session.scalar(text(sql))
+
+    assert asyncio.run(preflight()) == 1
     headers = auth_headers(
         postgis_db_client, graph.driver.email, DEMO_PASSWORDS[graph.driver.email]
     )

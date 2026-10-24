@@ -46,7 +46,7 @@ def test_three_query_cross_endpoint_and_principal_composition_is_recorded(
         filters={"projection": "issued-report"},
     )
     non_overlapping = DisclosureQuery(
-        route_id="advertiser.audience.export",
+        route_id="advertiser.campaign.live_positions",
         principal_id=uuid4(),
         tenant_id=tenant_id,
         campaign_id=campaign_id,

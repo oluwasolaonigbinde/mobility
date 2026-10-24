@@ -394,7 +394,9 @@ def seed_ping_graph(migration_url: str, *, future_straddling_at: datetime | None
         sessionmaker, email="mig-advertiser@example.com", role=UserRole.ADVERTISER
     )
     driver = create_test_user(sessionmaker, email="mig-driver@example.com", role=UserRole.DRIVER)
-    organization, _ = create_test_organization(sessionmaker, owner_user_id=advertiser.id)
+    organization, _ = create_test_organization(
+        sessionmaker, owner_user_id=advertiser.id, legacy_schema=True
+    )
     campaign = create_test_campaign(
         sessionmaker, organization_id=organization.id, created_by_user_id=advertiser.id
     )

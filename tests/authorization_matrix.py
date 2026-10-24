@@ -269,6 +269,7 @@ def _schema_value(schema: dict[str, Any], root: dict[str, Any], *, field_name: s
         "reason_code": "missing_evidence",
         "sha256": "0" * 64,
         "verification_reference": "matrix-verification-reference-0001",
+        "destination": "https://example.com/matrix",
     }
     if field_name in named_values:
         return named_values[field_name]

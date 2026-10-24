@@ -378,7 +378,7 @@ def test_converting_an_enquiry_never_links_an_existing_user_by_email(
     converted = db_client.post(
         f"/api/v1/admin/campaign-enquiries/{identity}/create-advertiser",
         headers=headers,
-        json={"owner_user_id": None},
+        json={},
     )
     assert converted.status_code == 200, converted.text
 

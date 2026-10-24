@@ -44,6 +44,8 @@ from app.models.trip_analytics import FraudFlag, TripAnalytics
 from app.models.user import UserRole
 from app.models.vehicle import VehicleStatus
 from app.services import (
+    campaign_live_positions,
+    campaign_report_data,
     heatmaps,
     impressions,
     reports,
@@ -181,6 +183,7 @@ def test_route_inventory_covers_every_current_output_at_the_service_boundary() -
         "advertiser.campaign.trips",
         "advertiser.campaign.report",
         "advertiser.campaign.performance",
+        "advertiser.campaign.live_positions",
         "advertiser.campaign.impressions_summary",
         "advertiser.campaign.heatmap",
         "admin.heatmap",
@@ -194,7 +197,8 @@ def test_route_inventory_covers_every_current_output_at_the_service_boundary() -
             inspect.getsource(reports.daily_metrics_for_campaign),
             inspect.getsource(reports.advertiser_campaign_trips),
             inspect.getsource(reports.advertiser_campaign_report),
-            inspect.getsource(reports.build_measurement_report_snapshot),
+            inspect.getsource(campaign_live_positions),
+            inspect.getsource(campaign_report_data.build_report_snapshot),
             inspect.getsource(impressions.advertiser_campaign_impression_summary),
             inspect.getsource(heatmaps.advertiser_campaign_heatmap),
             inspect.getsource(heatmaps.admin_heatmap),

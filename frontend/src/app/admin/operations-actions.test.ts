@@ -71,44 +71,27 @@ describe("resolveOperation", () => {
     expect(mocks.POST.mock.calls[0]![1].body).toEqual({ note: "Voicemail", outcome: "attempted" });
   });
 
-  it("refuses an evidence decision without its trip reference", async () => {
+  it.each(["apply", "discard"])("refuses the removed %s quarantine operation", async (kind) => {
     expect(
-      await resolveOperation({}, form({ kind: "apply", id: TASK, note: "Valid", confirmed: "on" })),
-    ).toEqual({ error: "The trip reference is missing. Reload the work list." });
+      await resolveOperation(
+        {},
+        form({ kind, id: TASK, trip: TRIP, note: "Reviewed", confirmed: "on" }),
+      ),
+    ).toEqual({
+      error: "Confirm the action and provide its reason or recorded contact outcome.",
+    });
     expect(mocks.POST).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
-  it.each(["apply", "discard"] as const)(
-    "sends a %s decision to the exact quarantined batch",
-    async (kind) => {
-      mocks.POST.mockResolvedValue({ data: {} });
-      const result = await resolveOperation(
-        {},
-        form({ kind, id: TASK, trip: TRIP, note: "Reviewed pings", confirmed: "on" }),
-      );
-      expect(mocks.POST).toHaveBeenCalledExactlyOnceWith(
-        `/api/v1/admin/trips/{trip_id}/quarantined-batches/{quarantine_id}/${kind}`,
-        {
-          params: { path: { trip_id: TRIP, quarantine_id: TASK } },
-          body: { note: "Reviewed pings" },
-        },
-      );
-      expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/trip-checks");
-      expect(result).toEqual({
-        done: "Evidence decision recorded. Earnings and issued reports were not repriced or rewritten.",
-      });
-    },
-  );
-
   it("surfaces the API's public error message", async () => {
     mocks.POST.mockRejectedValue(
-      new ApiError(409, { code: "QUARANTINE_ALREADY_RESOLVED", message: "Already resolved." }),
+      new ApiError(409, { code: "CONTACT_ALREADY_COMPLETED", message: "Already resolved." }),
     );
     expect(
       await resolveOperation(
         {},
-        form({ kind: "discard", id: TASK, trip: TRIP, note: "Dupe", confirmed: "on" }),
+        form({ kind: "contact", id: TASK, note: "Called", confirmed: "on" }),
       ),
     ).toEqual({ error: "Already resolved." });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();

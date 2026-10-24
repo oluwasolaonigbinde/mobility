@@ -23,7 +23,7 @@ it("keeps ordinary text and action colours readable on the single white palette"
   expect(contrast(colour("accent-ink"), colour("amber"))).toBeGreaterThanOrEqual(4.5);
 });
 it("has no selectable theme registry, picker or persisted choice bootstrap", () => {
-  expect(css).not.toMatch(/data-theme|ivory-ledger|broadside|dispatch|ledger|wrap/);
+  expect(css).not.toMatch(/\[data-theme[=\]]|ivory-ledger|broadside|THEME_BOOT_SCRIPT/);
   expect(existsSync(path.resolve(__dirname, "themes.ts"))).toBe(false);
   expect(existsSync(path.resolve(__dirname, "../components/ui/theme-switcher.tsx"))).toBe(false);
   expect(readFileSync(path.resolve(__dirname, "../app/layout.tsx"), "utf8")).not.toMatch(

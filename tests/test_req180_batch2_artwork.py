@@ -100,14 +100,17 @@ def test_driver_sees_only_frozen_artwork_for_live_job(db_client, db_sessionmaker
     asyncio.run(audit())
 
 
-@pytest.mark.parametrize("state", ["declined", "expired", "cancelled", "completed", "deactivated"])
+@pytest.mark.parametrize("state", ["declined", "expired", "cancelled", "finished"])
 def test_terminal_or_inactive_jobs_never_sign(db_client, db_sessionmaker, settings, state):
     _, _, driver, identity, _, storage = artwork_graph(db_client, db_sessionmaker, settings)
 
     async def change():
         async with db_sessionmaker() as session:
             assignment = await session.get(CampaignAssignment, identity)
-            assignment.status = state
+            assignment.status = "active" if state == "finished" else state
+            if state == "finished":
+                campaign = await session.get(Campaign, assignment.campaign_id)
+                campaign.end_at = datetime.now(UTC) - timedelta(days=1)
             if state == "declined":
                 assignment.declined_at = datetime.now(UTC)
             if state == "expired":

@@ -1,6 +1,8 @@
 import asyncio
 
 import pytest
+from alembic.config import Config
+from alembic.script import ScriptDirectory
 from test_driver_person_payee_onboarding import (
     _application,
     _register,
@@ -47,7 +49,7 @@ def test_agreement_migration_is_reachable_from_the_real_alembic_chain(monkeypatc
             "bank_name_confirmed",
         } <= columns
         assert asyncio.run(fetch_all(url, "SELECT version_num FROM alembic_version")) == [
-            ("0111_fix_daily_pay_policy",)
+            (ScriptDirectory.from_config(Config("alembic.ini")).get_current_head(),)
         ]
     finally:
         asyncio.run(drop_database(url))

@@ -207,10 +207,14 @@ def test_heatmap_settings_defaults_and_validation() -> None:
     assert settings.heatmap_max_cells == 5000
     assert settings.heatmap_min_trips_per_cell == 1
 
-    with pytest.raises(ValueError):
-        Settings(heatmap_min_resolution_m=1000, heatmap_default_resolution_m=500)
-    with pytest.raises(ValueError):
-        Settings(heatmap_min_trips_per_cell=0)
+    fixed = Settings(
+        heatmap_min_resolution_m=1000,
+        heatmap_default_resolution_m=500,
+        heatmap_min_trips_per_cell=0,
+    )
+    assert fixed.heatmap_min_resolution_m == 50
+    assert fixed.heatmap_default_resolution_m == 500
+    assert fixed.heatmap_min_trips_per_cell == 1
 
 
 def test_heatmap_validation_rbac_cross_org_and_scope_guards(db_client, db_sessionmaker) -> None:

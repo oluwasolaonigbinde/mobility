@@ -992,7 +992,7 @@ def test_pings_require_active_owned_trip_and_active_assignment(db_client, db_ses
     # D25: ended recovery accepts only an exact precommitted descriptor.
     assert ended.status_code == http_status.HTTP_200_OK
     assert ended.json()["accepted_count"] == 1
-    assert ended.json()["quarantined"] is False
+    assert "quarantined" not in ended.json()
     assert inactive_assignment.status_code == http_status.HTTP_400_BAD_REQUEST
     assert inactive_assignment.json()["error"]["code"] == "CAMPAIGN_ASSIGNMENT_NOT_ACTIVE"
 

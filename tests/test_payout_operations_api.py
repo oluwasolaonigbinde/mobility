@@ -65,14 +65,14 @@ def test_payout_projection_routes_are_exact_bounded_and_read_only(
         created = client.post(
             "/api/v1/admin/payout-batches",
             headers=headers,
-            json={"currency": "NGN", "request_id": request_id},
+            json={"currency": "NGN", "request_id": request_id, "reason": "Synthetic manual payout"},
         )
         assert created.status_code == 201
         assert created.json()["id"] == request_id
         reserved = client.post(
             f"/api/v1/admin/payout-batches/{request_id}/reserve",
             headers=headers,
-            json={"ledger_entry_ids": ids},
+            json={"ledger_entry_ids": ids, "reason": "Reserve verified earnings"},
         )
         assert reserved.status_code == 200
     summary = client.get("/api/v1/admin/payout-batches/summaries?limit=1", headers=headers)

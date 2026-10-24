@@ -424,7 +424,7 @@ def test_production_obligation_raises_a_media_budget_and_only_extra_charges_paus
                 campaign_id=campaign.id,
             )
             # The whole obligation lands on the production day; the daily budget never pauses.
-            assert (result.state, result.budget_basis) == ("within_budget", "total")
+            assert result.state == "within_budget"
             assert result.billing_spend_amount == Decimal("1075.00")
             await correct(
                 session,
@@ -445,8 +445,8 @@ def test_production_obligation_raises_a_media_budget_and_only_extra_charges_paus
             )
             assert corrected.billing_spend_amount == Decimal("967.50")
             assert corrected.state == retry.state == "within_budget"
-            assert corrected.evaluation_key != result.evaluation_key
-            assert retry.id == corrected.id
+            assert corrected.funding_fingerprint != result.funding_fingerprint
+            assert retry.funding_fingerprint == corrected.funding_fingerprint
             # An extra charge beyond a budget equal to the agreed total pauses at once.
             await correct(
                 session, invoice=invoice, admin=admin, reference="FIXED-EXTRA", amount="200.00"

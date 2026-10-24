@@ -30,7 +30,7 @@ vi.mock("@/components/shell/advertiser-navigation", () => ({
   AdvertiserNavigation: () => <nav />,
 }));
 
-function me(role: "admin" | "advertiser" | "driver", membershipRole?: "owner" | "viewer") {
+function me(role: "admin" | "advertiser" | "driver", membershipRole?: "advertiser") {
   return {
     user: { full_name: "Avery User", role },
     advertiser_organization:
@@ -54,7 +54,7 @@ describe("notification shell placement", () => {
     expect(screen.getByTestId("notification-centre")).toHaveAttribute("data-compact", "false");
 
     rerender(
-      <AdvertiserShell me={me("advertiser", "owner")}>
+      <AdvertiserShell me={me("advertiser", "advertiser")}>
         <p>Advertiser content</p>
       </AdvertiserShell>,
     );

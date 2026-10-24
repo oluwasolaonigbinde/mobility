@@ -21,6 +21,14 @@ from app.services.email_delivery import process_email_notification
 def test_continuation_email_resolves_current_step_and_body_capability(
     db_client, db_sessionmaker, settings, approved, monkeypatch
 ):
+    issued_at = datetime.now(UTC).replace(microsecond=0)
+
+    class IssuanceClock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return issued_at
+
+    monkeypatch.setattr(driver_applications, "datetime", IssuanceClock)
     if approved:
         token, _, _ = _approved_applicant(
             db_client, db_sessionmaker, settings, suffix="continue-approved"
@@ -56,11 +64,7 @@ def test_continuation_email_resolves_current_step_and_body_capability(
         return access, adapter.messages[0]
 
     access, message = asyncio.run(deliver())
-    assert (
-        timedelta(hours=23, minutes=59)
-        < access.expires_at - datetime.now(UTC)
-        <= timedelta(hours=24)
-    )
+    assert access.expires_at == issued_at + timedelta(hours=24)
     url = html.unescape(re.search(r'href="([^"]+)"', message.html_body).group(1))
     parts = urlsplit(url)
     assert parse_qs(parts.query) == {"step": [expected]}
@@ -129,16 +133,14 @@ def test_renewal_preserves_old_expiry_and_revoked_terminal_access_is_generic(
             fresh_token = driver_applications.synthetic_driver_application_access_token(
                 fresh, settings, synthetic_test_authority=True
             )
-            assert old.expires_at == expiry and old.invalidated_at is None
+            assert old.expires_at == expiry and old.invalidated_at is not None
             await session.commit()
             return fresh_token, application.id
 
     fresh, application_id = asyncio.run(renew())
     path = "/api/v1/auth/driver-onboarding/continue"
-    for capability in (token, fresh):
-        assert (
-            db_client.post(path, json={"application_access_token": capability}).status_code == 200
-        )
+    assert db_client.post(path, json={"application_access_token": token}).status_code == 404
+    assert db_client.post(path, json={"application_access_token": fresh}).status_code == 200
 
     async def invalidate(terminal=False):
         async with db_sessionmaker() as session:

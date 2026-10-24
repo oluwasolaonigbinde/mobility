@@ -16,7 +16,6 @@ from sqlalchemy import func, select
 from app.core.errors import AppError
 from app.db.base import Base
 from app.models.user import User, UserRole, UserStatus
-from app.schemas.measurement import MeasurementRunCreate
 from tests.conftest import create_test_user
 
 SERVICE_ROOT = Path(__file__).parents[1] / "app" / "services"
@@ -56,7 +55,7 @@ MIGRATED_CALL_SITES: dict[str, tuple[str, ...]] = {
     ),
     "campaign_changes": ("decide_campaign_change",),
     "heatmaps": ("admin_heatmap",),
-    "measurement": ("issue_measurement_run",),
+    "report_scheduling": ("rerun_campaign_report",),
     "disbursements": (
         "create_payout_batch_draft",
         "reserve_payout_batch",
@@ -96,7 +95,7 @@ def _canonical_calls(
     ]
 
 
-def test_all_37_sites_import_and_call_only_the_canonical_authority() -> None:
+def test_all_retained_sites_import_and_call_only_the_canonical_authority() -> None:
     assert sum(map(len, MIGRATED_CALL_SITES.values())) == 37
     for service_name, expected_functions in MIGRATED_CALL_SITES.items():
         tree = _service_tree(service_name)
@@ -105,7 +104,7 @@ def test_all_37_sites_import_and_call_only_the_canonical_authority() -> None:
         # human calls still delegate to the same active-admin authority.
         authority_module, authority_name = (
             ("report_authorization", "require_report_operator")
-            if service_name == "measurement"
+            if service_name == "report_scheduling"
             else ("admin_authorization", "require_active_admin")
         )
         imports = [
@@ -115,13 +114,18 @@ def test_all_37_sites_import_and_call_only_the_canonical_authority() -> None:
             and node.module == f"app.services.{authority_module}"
         ]
         assert len(imports) == 1
-        assert [alias.name for alias in imports[0].names] == [authority_name]
+        expected_imports = (
+            ["REPORT_ACTOR_ID", authority_name]
+            if service_name == "report_scheduling"
+            else [authority_name]
+        )
+        assert [alias.name for alias in imports[0].names] == expected_imports
         assert all(
             len(_canonical_calls(functions[name], authority_name)) == 1
             for name in expected_functions
         )
         assert not ({"_active_admin", "_require_active_admin"} & functions.keys())
-        if service_name == "measurement":
+        if service_name == "report_scheduling":
             operator = _named_functions(_service_tree("report_authorization"))[
                 "require_report_operator"
             ]
@@ -217,14 +221,6 @@ def _required_argument(
         return active_admin_id
     if name == "settings":
         return settings
-    if name == "payload" and function.__name__ == "issue_measurement_run":
-        now = datetime.now(UTC)
-        return MeasurementRunCreate(
-            campaign_id=uuid4(),
-            client_request_id=uuid4(),
-            period_start_at=now - timedelta(days=1),
-            period_end_at=now,
-        )
     if name == "source":
         return "poll" if function.__name__ == "_apply_verified_line_evidence" else object()
     if name in {"admin", "require_admin"}:

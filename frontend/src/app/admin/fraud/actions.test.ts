@@ -30,15 +30,10 @@ describe("reviewFraudFlagAction", () => {
     mocks.post.mockResolvedValue({ data: {} });
   });
 
-  it("acknowledges through the typed review endpoint and revalidates the queue", async () => {
-    await expect(reviewFraudFlagAction({}, reviewForm("acknowledge"))).resolves.toEqual({
-      done: "Review started",
-    });
-    expect(mocks.post).toHaveBeenCalledWith(
-      "/api/v1/admin/fraud-flags/{flag_id}/review/acknowledge",
-      { params: { path: { flag_id: FLAG_ID } } },
-    );
-    expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/trip-checks");
+  it("refuses the removed acknowledge step without changing a flag", async () => {
+    expect(await reviewFraudFlagAction({}, reviewForm("acknowledge"))).toHaveProperty("error");
+    expect(mocks.post).not.toHaveBeenCalled();
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
   it("trims the mandatory resolution note before sending it", async () => {

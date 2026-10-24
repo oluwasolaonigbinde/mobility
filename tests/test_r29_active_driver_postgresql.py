@@ -42,6 +42,9 @@ class _FailingFlushSession:
         self.constraint_name = constraint_name
         self.rolled_back = False
 
+    def in_nested_transaction(self):
+        return False
+
     async def flush(self) -> None:
         raise IntegrityError(
             "UPDATE campaign_assignments",
@@ -75,7 +78,7 @@ def test_unknown_assignment_constraint_is_re_raised() -> None:
     assert session.rolled_back is False
 
 
-def test_database_rejects_two_active_assignments_for_one_driver(
+def test_service_rejects_two_current_active_assignments_for_one_driver(
     postgis_db_sessionmaker,
 ) -> None:
     admin, campaign, _, profile, first_vehicle = create_assignment_ready_graph(
@@ -108,16 +111,19 @@ def test_database_rejects_two_active_assignments_for_one_driver(
                     for vehicle_id in (first_vehicle.id, second_vehicle.id)
                 ]
             )
-            with pytest.raises(
-                IntegrityError,
-                match="uq_campaign_assignments_driver_active",
-            ):
-                await session.commit()
+            # D118 removed static active indexes: Finished is date-derived.
+            # The locked service still refuses overlapping current assignments.
+            await session.flush()
+            with pytest.raises(AppError) as conflict:
+                await assignments_service.ensure_no_other_active_assignment_for_driver(
+                    session, driver_profile_id=profile.id, assignment_id=UUID(int=0)
+                )
+            assert conflict.value.code == "ACTIVE_ASSIGNMENT_EXISTS_FOR_DRIVER"
 
     asyncio.run(insert_duplicates())
 
 
-def test_concurrent_activation_and_deactivate_reactivate_are_driver_exclusive(
+def test_concurrent_activation_is_exclusive_and_deactivation_is_terminal(
     postgis_db_sessionmaker,
     settings,
     monkeypatch,
@@ -297,4 +303,4 @@ def test_concurrent_activation_and_deactivate_reactivate_are_driver_exclusive(
 
     asyncio.run(deactivate(first_active_id))
     assert asyncio.run(activate(next_id)) == "active"
-    assert asyncio.run(activate(first_active_id)) == "ACTIVE_ASSIGNMENT_EXISTS_FOR_DRIVER"
+    assert asyncio.run(activate(first_active_id)) == "INVALID_ASSIGNMENT_TRANSITION"

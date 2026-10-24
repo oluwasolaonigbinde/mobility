@@ -108,7 +108,7 @@ wait_for_local_dependencies
 # verifies that result without an R59-only repair.
 
 preflight_count="$("${compose[@]}" exec -T db psql -XAt -v ON_ERROR_STOP=1 -U mobility -d mobility -c \
-  "SELECT count(*) FROM campaign_assignments a JOIN driver_profiles d ON d.id=a.driver_profile_id JOIN users u ON u.id=d.user_id JOIN assignment_rule_bindings b ON b.assignment_id=a.id JOIN campaign_liability_reservations r ON r.assignment_id=a.id JOIN installation_evidence_submissions p ON p.assignment_id=a.id WHERE u.email='driver@demo.mobility.local' AND a.status='active' AND r.status='reserved' AND p.status='approved' AND p.approved_until > now();")"
+  "SELECT count(*) FROM campaign_assignments a JOIN driver_profiles d ON d.id=a.driver_profile_id JOIN users u ON u.id=d.user_id JOIN assignment_rule_bindings b ON b.assignment_id=a.id JOIN campaign_liability_reservations r ON r.assignment_id=a.id JOIN installation_evidence_submissions p ON p.assignment_id=a.id WHERE u.email='driver@demo.mobility.local' AND a.status='active' AND b.campaign_window_start_at <= now() AND b.campaign_window_end_at > now() AND r.status='reserved' AND p.status='approved' AND p.approved_until > now();")"
 if [[ "$preflight_count" != "1" ]]; then
   echo "R59 readiness preflight failed closed" >&2
   exit 1

@@ -426,19 +426,24 @@ def _submitted_paystack_line(db_client, db_sessionmaker, suffix: str):
     )
     db_client.app.dependency_overrides[get_payout_event_enqueuer] = lambda: enqueuer
     batch_id = db_client.post(
-        "/api/v1/admin/payout-batches", headers=maker_headers, json={"currency": "NGN"}
+        "/api/v1/admin/payout-batches",
+        headers=maker_headers,
+        json={"currency": "NGN", "reason": "Synthetic manual payout"},
     ).json()["id"]
     db_client.post(
         f"/api/v1/admin/payout-batches/{batch_id}/reserve",
         headers=maker_headers,
-        json={"ledger_entry_ids": [str(entry_id)]},
+        json={"ledger_entry_ids": [str(entry_id)], "reason": "Reserve verified earnings"},
     )
     db_client.post(
         f"/api/v1/admin/payout-batches/{batch_id}/approve",
         headers=auth_headers(db_client, checker.email),
+        json={"reason": "Approve verified manual payout"},
     )
     queued = db_client.post(
-        f"/api/v1/admin/payout-batches/{batch_id}/submit", headers=maker_headers
+        f"/api/v1/admin/payout-batches/{batch_id}/submit",
+        headers=maker_headers,
+        json={"reason": "Synthetic verified payout action"},
     )
     assert queued.status_code == 200, queued.text
 
@@ -522,6 +527,7 @@ def test_paystack_transfer_webhook_queues_before_reconciliation(db_client, db_se
     polled = db_client.post(
         f"/api/v1/admin/payout-batches/lines/{line['id']}/poll",
         headers=auth_headers(db_client, reconciler.email),
+        json={"reason": "Reconcile verified provider evidence"},
     )
     assert polled.status_code == 200, polled.text
     assert (

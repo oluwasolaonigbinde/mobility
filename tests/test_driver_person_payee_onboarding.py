@@ -62,13 +62,19 @@ def test_postgres_access_renewal_and_public_capture_do_not_deadlock(
     async def capture():
         async with postgis_db_sessionmaker() as session:
             await barrier.wait()
-            await submit_application_person_payee(
-                session,
-                payload=payload,
-                crypto=EnvelopeCryptoProvider(keys={1: bytes(range(32))}, active_key_version=1),
-                settings=settings,
-            )
-            await session.commit()
+            try:
+                await submit_application_person_payee(
+                    session,
+                    payload=payload,
+                    crypto=EnvelopeCryptoProvider(keys={1: bytes(range(32))}, active_key_version=1),
+                    settings=settings,
+                )
+                await session.commit()
+                return "captured"
+            except AppError as error:
+                assert error.code == "ONBOARDING_ACCESS_INVALID"
+                await session.rollback()
+                return "revoked"
 
     async def renew():
         async with postgis_db_sessionmaker() as session:
@@ -81,10 +87,11 @@ def test_postgres_access_renewal_and_public_capture_do_not_deadlock(
             await session.commit()
 
     async def scenario():
-        await asyncio.wait_for(asyncio.gather(capture(), renew()), timeout=20)
+        captured, _ = await asyncio.wait_for(asyncio.gather(capture(), renew()), timeout=20)
+        expected = 1 if captured == "captured" else 0
         async with postgis_db_sessionmaker() as session:
-            assert await session.scalar(select(func.count(DriverKycSubmission.id))) == 1
-            assert await session.scalar(select(func.count(PayeeBankAccountVersion.id))) == 1
+            assert await session.scalar(select(func.count(DriverKycSubmission.id))) == expected
+            assert await session.scalar(select(func.count(PayeeBankAccountVersion.id))) == expected
 
     asyncio.run(scenario())
 

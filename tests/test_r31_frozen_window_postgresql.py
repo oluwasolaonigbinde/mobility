@@ -91,7 +91,7 @@ def test_campaign_extension_and_trip_start_serialize_on_frozen_assignment_window
     settings,
     monkeypatch,
 ) -> None:
-    frozen_end = datetime.now(UTC) + timedelta(seconds=8)
+    frozen_end = datetime.now(UTC) + timedelta(days=2)
     admin, campaign, old_driver, _, _, old_assignment = create_trip_ready_graph(
         postgis_db_sessionmaker,
         end_at=frozen_end,
@@ -184,16 +184,14 @@ def test_campaign_extension_and_trip_start_serialize_on_frozen_assignment_window
 
     request_id = asyncio.run(request_extension())
 
-    async def wait_for_frozen_end() -> None:
-        while True:
-            async with postgis_db_sessionmaker() as session:
-                now = await database_clock(session)
-            remaining = (frozen_end - now).total_seconds()
-            if remaining <= 0:
-                return
-            await asyncio.sleep(min(remaining, 0.1))
+    async def extension_clock(_session):
+        return frozen_end - timedelta(seconds=1)
 
-    asyncio.run(wait_for_frozen_end())
+    async def trip_clock(_session):
+        return frozen_end + timedelta(seconds=1)
+
+    monkeypatch.setattr(changes_service, "database_clock", extension_clock)
+    monkeypatch.setattr(trips_service, "database_clock", trip_clock)
 
     extension_has_lock = asyncio.Event()
     release_extension = asyncio.Event()

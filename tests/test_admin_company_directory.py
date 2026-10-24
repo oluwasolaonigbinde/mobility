@@ -32,6 +32,12 @@ def test_directory_search_pagination_projection_and_read_only(db_client, db_sess
         "country_code",
         "currency",
         "status",
+        "member_count",
+        "live_campaign_count",
+        "outstanding",
+        "billing_contact_name",
+        "operational_contact_name",
+        "operational_contact_email",
     }
     assert len(fetch_audit_events(db_sessionmaker)) == before
     literal = db_client.get(PATH, headers=headers, params={"q": "%"}).json()

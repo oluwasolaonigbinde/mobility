@@ -33,12 +33,12 @@ def test_batch2_migration_matches_models_and_refuses_populated_downgrade(monkeyp
             fetch_all(
                 url,
                 "SELECT numeric_precision, numeric_scale "
-                "FROM information_schema.columns WHERE table_name='budget_policy_evaluations' "
-                "AND column_name='urgent_threshold_amount'",
+                "FROM information_schema.columns WHERE table_name='budget_campaign_transitions' "
+                "AND column_name='budget_amount'",
             )
-        ) == [(16, 4)]
-        command.downgrade(Config("alembic.ini"), "0107_audience_sweep_cursor")
-        upgrade_to(url, "head", monkeypatch)
+        ) == [(14, 2)]
+        with pytest.raises(RuntimeError, match="Retired pilot"):
+            command.downgrade(Config("alembic.ini"), "0107_audience_sweep_cursor")
 
         async def populate():
             engine = create_async_engine(url, poolclass=NullPool)
@@ -56,7 +56,7 @@ def test_batch2_migration_matches_models_and_refuses_populated_downgrade(monkeyp
                 await engine.dispose()
 
         asyncio.run(populate())
-        with pytest.raises(RuntimeError, match="Cannot downgrade populated"):
+        with pytest.raises(RuntimeError, match="Retired pilot"):
             command.downgrade(Config("alembic.ini"), "0107_audience_sweep_cursor")
         assert asyncio.run(fetch_all(url, "SELECT count(*) FROM campaign_enquiries")) == [(1,)]
     finally:

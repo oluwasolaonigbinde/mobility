@@ -3,7 +3,7 @@
 import asyncio
 import hashlib
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
 import boto3
@@ -83,12 +83,11 @@ def test_minio_kyc_delete_reply_loss_recovers_without_restoring_payload(
                 await purge_terminal_file_kyc(
                     session,
                     storage=provider,
-                    retention_days=30,
                     limit=10,
                     dry_run=False,
                     actor_user_id=admin.id,
                     reason="synthetic_minio_retention",
-                    now=now,
+                    now=now + timedelta(days=200),
                 )
             assert failed.value.code == "FILE_STORAGE_UNAVAILABLE"
             await session.rollback()

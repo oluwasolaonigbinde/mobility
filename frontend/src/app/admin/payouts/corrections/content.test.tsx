@@ -32,7 +32,7 @@ const order = {
   id: "selected",
   campaign_id: "campaign",
   created_by_user_id: "creator",
-  status: "approved",
+  status: "draft",
   lagos_day: "2026-10-01",
   reason: "Correct distance",
   projected_delta: {},
@@ -53,7 +53,7 @@ describe("selected pay corrections", () => {
           tab: "corrections",
           correction: "selected",
           correction_offset: "25",
-          correction_status: "approved",
+          correction_status: "draft",
         },
       }),
     );
@@ -64,15 +64,15 @@ describe("selected pay corrections", () => {
     );
     expect(screen.getByText("Correct distance")).toBeVisible();
     expect(mocks.actions).toHaveBeenCalledWith(
-      expect.objectContaining({ orderId: "selected", status: "approved", isCreator: false }),
+      expect.objectContaining({ orderId: "selected", status: "draft" }),
     );
     expect(screen.getByRole("link", { name: "Next →" })).toHaveAttribute(
       "href",
-      "/admin/money?tab=corrections&correction=selected&correction_offset=50&correction_status=approved",
+      "/admin/money?tab=corrections&correction=selected&correction_offset=50&correction_status=draft",
     );
     expect(screen.getByRole("link", { name: "Close" })).toHaveAttribute(
       "href",
-      "/admin/money?tab=corrections&correction_offset=25&correction_status=approved",
+      "/admin/money?tab=corrections&correction_offset=25&correction_status=draft",
     );
   });
   it("never offers actions for a mismatched selected order", async () => {

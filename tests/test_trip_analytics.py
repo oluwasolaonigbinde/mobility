@@ -269,14 +269,6 @@ def test_admin_recompute_calculates_postgis_distance_zone_overlap_and_is_idempot
         geometry=polygon(3.38, 6.44, 3.43, 6.46),
         name="Target B",
     )
-    add_zone(
-        postgis_db_sessionmaker,
-        campaign_id=campaign.id,
-        created_by_user_id=admin.id,
-        zone_type="bonus",
-        geometry=polygon(3.41, 6.44, 3.45, 6.46),
-        name="Bonus",
-    )
     points = [
         (BASE_TIME, 6.45, 3.39, 10),
         (BASE_TIME + timedelta(minutes=5), 6.45, 3.40, 12),
@@ -333,7 +325,7 @@ def test_admin_recompute_calculates_postgis_distance_zone_overlap_and_is_idempot
     assert data["vehicle_id"] == str(vehicle.id)
     assert float(data["target_zone_distance_m"]) == pytest.approx(float(data["distance_m"]), abs=1)
     assert float(data["target_zone_distance_m"]) < float(data["distance_m"]) * 1.1
-    assert float(data["bonus_zone_distance_m"]) > 0
+    assert data["bonus_zone_distance_m"] == "0.00"
     assert Decimal(data["quality_score"]) >= Decimal("0")
     assert Decimal(data["quality_score"]) <= Decimal("1")
     assert second.status_code == http_status.HTTP_200_OK

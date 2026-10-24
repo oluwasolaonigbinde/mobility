@@ -289,6 +289,13 @@ async def reserve_payout_batch(  # noqa: C901
     with session.no_autoflush:
         await require_active_admin(session, actor_user_id)
     reason = _reason(reason)
+    # Check existence without locking; the fraud-scope -> batch lock order below stays intact.
+    if await session.scalar(select(PayoutBatch.id).where(PayoutBatch.id == batch_id)) is None:
+        raise _error(
+            "PAYOUT_BATCH_NOT_FOUND",
+            "Payout batch was not found",
+            http_status=status.HTTP_404_NOT_FOUND,
+        )
     if not ledger_entry_ids or len(set(ledger_entry_ids)) != len(ledger_entry_ids):
         raise _error(
             "PAYOUT_BATCH_ENTRIES_INVALID",

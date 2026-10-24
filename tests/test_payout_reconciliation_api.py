@@ -18,14 +18,12 @@ async def _run_submission_worker(db_sessionmaker, fake) -> None:
     async with db_sessionmaker() as session:
         intent_id = await session.scalar(select(PayoutSubmissionIntent.id))
     assert (
-        await process_payout_submission_intent(
-            db_sessionmaker, intent_id=intent_id, adapter=fake
-        )
+        await process_payout_submission_intent(db_sessionmaker, intent_id=intent_id, adapter=fake)
         == "resolved"
     )
 
 
-def test_reconciliation_api_enforces_separation_and_verified_line_finality(
+def test_reconciliation_api_allows_reasoned_same_admin_and_verified_line_finality(
     db_client, db_sessionmaker
 ) -> None:
     graph = build_graph(db_sessionmaker, f"reconcile-api-{uuid4().hex[:8]}")
@@ -56,31 +54,34 @@ def test_reconciliation_api_enforces_separation_and_verified_line_finality(
     batch_id = db_client.post(
         "/api/v1/admin/payout-batches",
         headers=maker_headers,
-        json={"currency": "NGN"},
+        json={"currency": "NGN", "reason": "Synthetic manual payout"},
     ).json()["id"]
     reserved = db_client.post(
         f"/api/v1/admin/payout-batches/{batch_id}/reserve",
         headers=maker_headers,
-        json={"ledger_entry_ids": [str(entry_id)]},
+        json={"ledger_entry_ids": [str(entry_id)], "reason": "Reserve verified earnings"},
     )
     assert reserved.status_code == 200
     assert (
         db_client.post(
             f"/api/v1/admin/payout-batches/{batch_id}/approve",
             headers=checker_headers,
+            json={"reason": "Synthetic verified payout action"},
         ).status_code
         == 200
     )
     submitted = db_client.post(
-        f"/api/v1/admin/payout-batches/{batch_id}/submit", headers=maker_headers
+        f"/api/v1/admin/payout-batches/{batch_id}/submit",
+        headers=maker_headers,
+        json={"reason": "Synthetic verified payout action"},
     )
     assert submitted.status_code == 200
     assert submitted.json()["lines"][0]["status"] == "reserved"
     assert fake.calls == []
     asyncio.run(_run_submission_worker(db_sessionmaker, fake))
-    line = db_client.get(
-        f"/api/v1/admin/payout-batches/{batch_id}", headers=maker_headers
-    ).json()["lines"][0]
+    line = db_client.get(f"/api/v1/admin/payout-batches/{batch_id}", headers=maker_headers).json()[
+        "lines"
+    ][0]
     assert line["status"] == "submitted"
     fake.set_poll_result(
         provider_transfer_reference=line["provider_transfer_reference"],
@@ -89,12 +90,15 @@ def test_reconciliation_api_enforces_separation_and_verified_line_finality(
         occurred_at=datetime(2026, 8, 23, 12, 0, tzinfo=UTC),
     )
     maker_poll = db_client.post(
-        f"/api/v1/admin/payout-batches/lines/{line['id']}/poll", headers=maker_headers
+        f"/api/v1/admin/payout-batches/lines/{line['id']}/poll",
+        headers=maker_headers,
+        json={"reason": "Synthetic verified payout action"},
     )
-    assert maker_poll.status_code == 403
+    assert maker_poll.status_code == 200
     reconciled = db_client.post(
         f"/api/v1/admin/payout-batches/lines/{line['id']}/poll",
         headers=reconciler_headers,
+        json={"reason": "Synthetic verified payout action"},
     )
     assert reconciled.status_code == 200
     assert reconciled.json()["status"] == "completed"

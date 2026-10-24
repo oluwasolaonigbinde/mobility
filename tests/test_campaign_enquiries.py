@@ -5,7 +5,6 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
-from pydantic import ValidationError
 from redis.asyncio import Redis
 from redis.exceptions import ConnectionError as RedisConnectionError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -171,28 +170,29 @@ def test_real_redis_atomic_limits_expiry_and_global_scope():
         async with Redis.from_url("redis://localhost:6379/0", decode_responses=True) as redis:
             # Unique test namespace; leave unrelated runtime counters untouched.
             prefix = f"test:campaign-enquiry:{uuid4()}"
-            settings = Settings(
-                campaign_enquiry_rate_limit_ip_max_attempts=2,
-                campaign_enquiry_rate_limit_global_max_attempts=3,
-                campaign_enquiry_rate_limit_window_seconds=1,
-            )
+            settings = Settings()
             limiter = RedisEnquiryRateLimiter(redis, settings)
             limiter.keys = lambda ip: [f"{prefix}:ip:{ip}", f"{prefix}:global"]
             results = await asyncio.gather(*(limiter.reserve("a") for _ in range(8)))
-            assert sum(result.allowed for result in results) == 2
-            assert (await limiter.reserve("b")).allowed
+            assert sum(result.allowed for result in results) == 5
+            for index in range(95):
+                assert (await limiter.reserve(f"peer-{index}")).allowed
             assert not (await limiter.reserve("c")).allowed
-            assert 0 < await redis.ttl(f"{prefix}:global") <= 1
-            await asyncio.sleep(1.1)
+            assert 0 < await redis.ttl(f"{prefix}:global") <= 3600
+            await redis.pexpire(f"{prefix}:ip:a", 1)
+            await redis.pexpire(f"{prefix}:global", 1)
+            await asyncio.sleep(0.02)
             assert (await limiter.reserve("a")).allowed
-            await redis.delete(f"{prefix}:ip:a", f"{prefix}:ip:b", f"{prefix}:global")
+            await redis.delete(*[key async for key in redis.scan_iter(match=f"{prefix}:*")])
 
     asyncio.run(run())
 
 
-def test_invalid_rate_policy_is_not_accepted():
-    with pytest.raises(ValidationError):
-        Settings(campaign_enquiry_rate_limit_ip_max_attempts=0)
+def test_fixed_rate_policy_cannot_be_weakened_by_settings():
+    fixed = Settings(campaign_enquiry_rate_limit_ip_max_attempts=0)
+    assert fixed.campaign_enquiry_rate_limit_ip_max_attempts == 5
+    assert fixed.campaign_enquiry_rate_limit_global_max_attempts == 100
+    assert fixed.campaign_enquiry_rate_limit_window_seconds == 3600
 
 
 def test_no_redis_configuration_returns_safe_unavailable():

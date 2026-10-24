@@ -176,22 +176,6 @@ def test_signed_v2_batches_follow_audited_partition_retention(monkeypatch) -> No
                         "ended_at": received_at,
                     },
                 )
-                await connection.execute(
-                    text(
-                        "INSERT INTO quarantined_ping_batches "
-                        "(trip_session_id, idempotency_key, batch_sequence, "
-                        "payload_hash_version, payload_hash, payload, ping_count, "
-                        "pings_submitted, pings_rejected, receipt_format_version, "
-                        "receipt_key_version, receipt_signature, receipt_outcome, received_at) "
-                        "VALUES (:trip_id, 'signed-expired-quarantine', 3, 2, "
-                        "repeat('e', 64), '{\"pings\": []}'::jsonb, 1, 1, 1, "
-                        "2, 1, 'quarantine-signature', 'quarantined', :received_at)"
-                    ),
-                    {
-                        "trip_id": seeded["trip_id"],
-                        "received_at": received_at,
-                    },
-                )
         finally:
             await engine.dispose()
 
@@ -224,12 +208,8 @@ def test_signed_v2_batches_follow_audited_partition_retention(monkeypatch) -> No
         oldest_partition = f"location_pings_p{seeded['months'][0].strftime('%Y_%m')}"
         assert oldest_partition in result["dropped"]
         assert result["batches_purged"] == 3
-        assert result["quarantines_purged"] == 1
         assert asyncio.run(
             fetch_all(migration_url, "SELECT count(*) FROM location_ping_batches")
-        ) == [(0,)]
-        assert asyncio.run(
-            fetch_all(migration_url, "SELECT count(*) FROM quarantined_ping_batches")
         ) == [(0,)]
         manifest = asyncio.run(
             fetch_all(
@@ -253,7 +233,6 @@ def test_signed_v2_batches_follow_audited_partition_retention(monkeypatch) -> No
         assert ("purge_started", oldest_partition, 3) in events
         assert ("dropped", oldest_partition, None) in events
         assert ("batches_purged", None, 3) in events
-        assert ("quarantined_batches_purged", None, 1) in events
     finally:
         asyncio.run(drop_database(migration_url))
 

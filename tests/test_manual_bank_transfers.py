@@ -125,13 +125,13 @@ def test_manual_transfer_mismatch_remains_visible_but_grants_no_authority(
                 observed_at=datetime.now(UTC),
             )
             await session.commit()
-            assert reconciliation.matched is False
+            assert reconciliation is False
             assert allocation is None
             history = await billing_history(
                 session, actor_user_id=admin.id, organization_id=organization.id
             )
             assert history[0]["receipt"].id == receipt.id
-            assert history[0]["current_status"] == "observed"
+            assert history[0]["current_status"] == "recorded"
             assert history[0]["allocations"] == []
 
     asyncio.run(scenario())

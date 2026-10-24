@@ -68,9 +68,12 @@ async def record_negative_adjustment(
             status_code=422,
         )
     source = await session.get(EarningsLedgerEntry, source_entry_id)
+    if source is None:
+        raise AppError(
+            "EARNINGS_LEDGER_ENTRY_NOT_FOUND", "Earnings ledger entry not found", status_code=404
+        )
     if (
-        source is None
-        or source.trip_session_id is None
+        source.trip_session_id is None
         or source.entry_type == "reversal"
         or source.status == "voided"
     ):
