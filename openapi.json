@@ -241,6 +241,113 @@
         "title": "AdminBadgeSummary",
         "type": "object"
       },
+      "AdminCampaignCommercialRead": {
+        "properties": {
+          "budget_check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BudgetCheckRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "expedited_waiver_copy": {
+            "$ref": "#/components/schemas/WaiverCopyRead"
+          },
+          "financial_authority": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FinancialAuthorityRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "invoices": {
+            "items": {
+              "$ref": "#/components/schemas/InvoiceRead"
+            },
+            "title": "Invoices",
+            "type": "array"
+          },
+          "issuing_available": {
+            "title": "Issuing Available",
+            "type": "boolean"
+          },
+          "production_start": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProductionStartRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "quote_request": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/QuoteRequestRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revisions": {
+            "items": {
+              "$ref": "#/components/schemas/QuoteRevisionRead"
+            },
+            "title": "Revisions",
+            "type": "array"
+          },
+          "settlements": {
+            "items": {
+              "$ref": "#/components/schemas/SettlementRead"
+            },
+            "title": "Settlements",
+            "type": "array"
+          },
+          "terms": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CommercialTermsRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "waiver": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WaiverRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "quote_request",
+          "revisions",
+          "terms",
+          "invoices",
+          "financial_authority",
+          "expedited_waiver_copy",
+          "waiver",
+          "production_start",
+          "settlements",
+          "budget_check",
+          "issuing_available"
+        ],
+        "title": "AdminCampaignCommercialRead",
+        "type": "object"
+      },
       "AdminCampaignListItemRead": {
         "properties": {
           "assignment_count": {
@@ -1540,25 +1647,51 @@
         "title": "AdminFraudFlagRead",
         "type": "object"
       },
-      "AdminOrganizationCreateResponse": {
+      "AdminOrganizationCreate": {
+        "additionalProperties": false,
         "properties": {
-          "organization": {
-            "$ref": "#/components/schemas/AdvertiserOrganizationRead"
-          },
-          "owner_membership": {
+          "currency": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/OrganizationMembershipRead"
+                "maxLength": 3,
+                "minLength": 3,
+                "type": "string"
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Currency"
+          },
+          "email": {
+            "maxLength": 254,
+            "minLength": 3,
+            "pattern": "^[^\\s@<>]+@[^\\s@<>]+\\.[^\\s@<>]+$",
+            "title": "Email",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
           }
         },
         "required": [
-          "organization",
-          "owner_membership"
+          "name",
+          "email"
+        ],
+        "title": "AdminOrganizationCreate",
+        "type": "object"
+      },
+      "AdminOrganizationCreateResponse": {
+        "properties": {
+          "organization": {
+            "$ref": "#/components/schemas/AdvertiserOrganizationRead"
+          }
+        },
+        "required": [
+          "organization"
         ],
         "title": "AdminOrganizationCreateResponse",
         "type": "object"
@@ -1715,6 +1848,10 @@
             "title": "Limit",
             "type": "integer"
           },
+          "login_invite_available": {
+            "title": "Login Invite Available",
+            "type": "boolean"
+          },
           "offset": {
             "title": "Offset",
             "type": "integer"
@@ -1728,7 +1865,8 @@
           "items",
           "total",
           "limit",
-          "offset"
+          "offset",
+          "login_invite_available"
         ],
         "title": "AdminOrganizationMemberListResponse",
         "type": "object"
@@ -2735,6 +2873,22 @@
             "title": "Organization Id",
             "type": "string"
           },
+          "pause_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "budget",
+                  "operational",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pause Kind"
+          },
           "start_at": {
             "anyOf": [
               {
@@ -2852,6 +3006,34 @@
         "title": "AdvertiserDashboardSummary",
         "type": "object"
       },
+      "AdvertiserLoginInviteCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "email": {
+            "maxLength": 254,
+            "minLength": 3,
+            "pattern": "^[^\\s@<>]+@[^\\s@<>]+\\.[^\\s@<>]+$",
+            "title": "Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "title": "AdvertiserLoginInviteCreate",
+        "type": "object"
+      },
+      "AdvertiserLoginInviteRead": {
+        "properties": {
+          "message": {
+            "default": "Login invite sent. It works once, for 24 hours.",
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "title": "AdvertiserLoginInviteRead",
+        "type": "object"
+      },
       "AdvertiserNotificationPreferenceRead": {
         "properties": {
           "in_app_enabled": {
@@ -2898,76 +3080,6 @@
           "membership"
         ],
         "title": "AdvertiserOrganizationContextResponse",
-        "type": "object"
-      },
-      "AdvertiserOrganizationCreate": {
-        "additionalProperties": false,
-        "properties": {
-          "billing_email": {
-            "anyOf": [
-              {
-                "maxLength": 255,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Billing Email"
-          },
-          "country_code": {
-            "anyOf": [
-              {
-                "maxLength": 2,
-                "minLength": 2,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Country Code"
-          },
-          "currency": {
-            "anyOf": [
-              {
-                "maxLength": 3,
-                "minLength": 3,
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Currency"
-          },
-          "name": {
-            "maxLength": 255,
-            "minLength": 1,
-            "title": "Name",
-            "type": "string"
-          },
-          "owner_user_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Owner User Id"
-          },
-          "status": {
-            "$ref": "#/components/schemas/OrganizationStatus",
-            "default": "active"
-          }
-        },
-        "required": [
-          "name"
-        ],
-        "title": "AdvertiserOrganizationCreate",
         "type": "object"
       },
       "AdvertiserOrganizationRead": {
@@ -6515,20 +6627,7 @@
       },
       "CampaignEnquiryConversion": {
         "additionalProperties": false,
-        "properties": {
-          "owner_user_id": {
-            "anyOf": [
-              {
-                "format": "uuid",
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Owner User Id"
-          }
-        },
+        "properties": {},
         "title": "CampaignEnquiryConversion",
         "type": "object"
       },
@@ -6734,6 +6833,22 @@
             "format": "uuid",
             "title": "Organization Id",
             "type": "string"
+          },
+          "pause_kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "budget",
+                  "operational",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pause Kind"
           },
           "preview_file_id": {
             "anyOf": [
@@ -14269,20 +14384,6 @@
         "title": "InvoiceDraftCreate",
         "type": "object"
       },
-      "InvoiceIssue": {
-        "properties": {
-          "issuer_profile_id": {
-            "format": "uuid",
-            "title": "Issuer Profile Id",
-            "type": "string"
-          }
-        },
-        "required": [
-          "issuer_profile_id"
-        ],
-        "title": "InvoiceIssue",
-        "type": "object"
-      },
       "InvoiceRead": {
         "properties": {
           "campaign_id": {
@@ -15594,6 +15695,7 @@
           "creative_approved",
           "creative_rejected",
           "quotation_ready",
+          "report_ready",
           "funding_confirmed",
           "budget_alert",
           "budget_urgent_alert",
@@ -15602,6 +15704,7 @@
           "campaign_cancelled",
           "payout_released",
           "password_reset_requested",
+          "advertiser_login_invite",
           "driver_onboarding_access_requested",
           "driver_account_setup_requested",
           "fraud_hold_raised",
@@ -20382,7 +20485,12 @@
             "title": "Phone"
           },
           "role": {
-            "$ref": "#/components/schemas/UserRole"
+            "enum": [
+              "admin",
+              "driver"
+            ],
+            "title": "Role",
+            "type": "string"
           },
           "status": {
             "$ref": "#/components/schemas/UserStatus"
@@ -21957,7 +22065,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/AdvertiserOrganizationCreate"
+                "$ref": "#/components/schemas/AdminOrganizationCreate"
               }
             }
           },
@@ -22097,6 +22205,64 @@
         "summary": "Admin Update Company",
         "tags": [
           "Commercial billing"
+        ]
+      }
+    },
+    "/api/v1/admin/advertiser-organizations/{organization_id}/login-invite": {
+      "post": {
+        "operationId": "admin_send_login_invite_api_v1_admin_advertiser_organizations__organization_id__login_invite_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "organization_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Organization Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdvertiserLoginInviteCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdvertiserLoginInviteRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "summary": "Admin Send Login Invite",
+        "tags": [
+          "Admin Users"
         ]
       }
     },
@@ -24008,7 +24174,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CampaignCommercialRead"
+                  "$ref": "#/components/schemas/AdminCampaignCommercialRead"
                 }
               }
             },
@@ -27877,16 +28043,6 @@
             }
           }
         ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/InvoiceIssue"
-              }
-            }
-          },
-          "required": true
-        },
         "responses": {
           "200": {
             "content": {
@@ -35194,6 +35350,47 @@
         "summary": "Advertiser Download Report",
         "tags": [
           "Campaign reports"
+        ]
+      }
+    },
+    "/api/v1/auth/advertiser-invite/complete": {
+      "post": {
+        "operationId": "advertiser_invite_complete_api_v1_auth_advertiser_invite_complete_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordResetComplete"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasswordResetResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            },
+            "description": "Request validation failed"
+          }
+        },
+        "summary": "Advertiser Invite Complete",
+        "tags": [
+          "Auth"
         ]
       }
     },

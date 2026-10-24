@@ -35,6 +35,14 @@ class AdvertiserOrganizationRead(BaseModel):
     status: OrganizationStatus
 
 
+class AdminOrganizationCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    name: str = Field(min_length=1, max_length=255)
+    email: str = Field(min_length=3, max_length=254, pattern=r"^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$")
+    currency: str | None = Field(default=None, min_length=3, max_length=3)
+
+
 class OrganizationMembershipRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -74,11 +82,20 @@ class AdminOrganizationMemberListResponse(BaseModel):
     total: int
     limit: int
     offset: int
+    login_invite_available: bool
+
+
+class AdvertiserLoginInviteCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    email: str = Field(min_length=3, max_length=254, pattern=r"^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$")
+
+
+class AdvertiserLoginInviteRead(BaseModel):
+    message: str = "Login invite sent. It works once, for 24 hours."
 
 
 class AdminOrganizationCreateResponse(BaseModel):
     organization: AdvertiserOrganizationRead
-    owner_membership: OrganizationMembershipRead | None
 
 
 class AdvertiserOrganizationContextResponse(BaseModel):

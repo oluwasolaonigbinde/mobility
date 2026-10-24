@@ -61,6 +61,36 @@ beforeEach(() => {
   mocks.get.mockReset().mockImplementation(async (path: string) => ready(path));
   mocks.role.mockResolvedValue({});
 });
+it("asks a submitted campaign to add artwork before a quotation exists", async () => {
+  mocks.get.mockImplementation(async (path: string) => {
+    if (path === "/api/v1/advertiser/campaigns/{campaign_id}")
+      return { data: { ...campaign, status: "pending_review" } };
+    if (path.endsWith("/commercial"))
+      return { data: { invoices: [], terms: null, revisions: [], quote_request: {} } };
+    return ready(path);
+  });
+  render(await Page(input));
+  expect(screen.getByRole("link", { name: "Add your artwork" })).toHaveAttribute(
+    "href",
+    "/advertiser/campaigns/new?campaignId=one",
+  );
+  expect(screen.queryByRole("link", { name: "View your quotation" })).toBeNull();
+});
+
+it.each([
+  ["budget", /paused for a budget check/],
+  ["operational", /checks an operational issue/],
+  ["unknown", /Your campaign is paused. Contact Terrax Media/],
+])("shows fixed advertiser wording for a %s pause", async (kind, text) => {
+  mocks.get.mockImplementation(async (path: string) =>
+    path === "/api/v1/advertiser/campaigns/{campaign_id}"
+      ? { data: { ...campaign, status: "paused", pause_kind: kind } }
+      : ready(path),
+  );
+  render(await Page(input));
+  expect(screen.getByText(text)).toBeVisible();
+  expect(document.body).not.toHaveTextContent(/extra charges|automatically resume/i);
+});
 it("leads with status and one next action, keeping quotation and changes closed", async () => {
   const { container } = render(await Page(input));
   expect(screen.getByRole("heading", { name: campaign.name })).toBeInTheDocument();

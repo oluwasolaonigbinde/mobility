@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.150 — 2026-10-23. Canonical source of truth: current state AND target state.**
+**Version 1.151 — 2026-10-24. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -97,6 +97,75 @@ boundaries, exact ledger and kept provider adapters remain. No visual redesign,
 REQ-196 change, S25/S26, Day X of Y or progress edit is authorized. Controller
 must reconcile obsolete launch wording for evidence/DSR/audiences/method gates;
 this amendment makes no launch, CI, merge or provider claim.
+
+### 1.2 Clean-audit repairs (REQ-231–234 / D130–D132)
+
+The approved REQ-209 repair contract supersedes conflicting earlier descriptions
+of enquiry conversion, first-login invitations, application links and report
+notices. Local verification and the independent clean audit remain separate gates;
+the controller owns CI, commits and the independent rerun.
+
+- Migration `0118_installation_review_json_guard` replaces the installed photo
+  submission guard's two raw `json` comparisons with `::jsonb` comparisons.
+  Identity fields remain immutable; approval/rejection/expiry remain mutable.
+  The baseline migration and column types are unchanged. Migrated-schema tests
+  cover the actual review fields, every immutable field and catalog JSON checks.
+- Quotation versions remain immutable. A revision takes the same campaign terms
+  lock as acceptance and refuses after accepted terms exist, before recording a
+  version or notification. Staff Money pre-fills the latest lines and keeps
+  optional production as its own line; a zero production line is omitted.
+  Invoice issue requests select no issuer ID: the server resolves the configured
+  `INVOICE_ISSUER_EXTERNAL_INPUT_REFERENCE`. Only admin commercial reads expose
+  `issuing_available`; verified facts and the test-only synthetic exception retain
+  D42. There is no issuer form and no new bank or accountant value.
+- Staff change review displays existing before/after dates, budgets, the
+  advertiser's reason and funding amount. Advertiser reads expose only
+  `pause_kind` (`budget`, `operational`, `unknown`, or null); fixed UI copy never
+  exposes budget or staff notes. Resume authority is unchanged. Campaign Details
+  links to `/advertiser/billing`, which retains invoices and payments. New
+  enquiries join Customer Service's `support` Work queue area and badge counts.
+  Reset-link recovery, missing-photo labels, artwork next steps and Areas controls
+  use the existing server authority; Areas editing is shown only in draft/rejected.
+- D130: enquiry conversion creates a company without choosing or creating a
+  login, then opens People. The conversion's `owner_user_id`, changed-owner
+  conflict and unused `converted_owner_user_id` are removed; the internal company
+  factory's owner argument stays. Contact email does not establish a login or
+  personal audit subject. Staff explicitly send a login invite only while the
+  active company has no active membership. Existing suspended/disabled logins
+  with active membership are not bypassed. Add company creates the company and
+  sends its invite in one transaction; a refused email leaves no company. The
+  public create request takes `name`, `email` and optional `currency`, with no
+  existing-owner selection or temporary password. `/admin/users` creates only
+  staff and driver accounts. Invited advertisers cannot be activated or have
+  their role changed there; another role cannot become an advertiser there.
+  Staff-created driver logins (D62) and internal fixture/seed factories stay.
+- Migration `0119_advertiser_login_invites` extends `password_reset_tokens` with
+  an invite purpose and company binding. Normal reset tokens still require a
+  reset attempt; invite tokens have none, so no IP or request-attempt value is
+  invented. Both use the existing hashed, single-use, session-version mechanics.
+  Invites expire after a fixed 24 hours. Company locking serializes send/use;
+  resending revokes prior tokens, and changing email disables the prior pending
+  user and membership. Completion activates both, rotates the session version
+  and requires normal sign-in. Invited advertisers cannot use Forgot password.
+  The two commands are `/admin/advertiser-organizations/{organization_id}/login-invite`
+  and `/auth/advertiser-invite/complete` under `/api/v1`; the members read adds
+  `login_invite_available`. Email uses the existing public-origin/reset URL
+  configuration and `/advertiser-invite#token=…`; the browser strips the fragment
+  before monitoring. No new environment variable, role or rate limiter is added.
+- D131: issuing application access locks the application before access rows and
+  invalidates every previous bearer. Old pages fail neutrally on their next read
+  or write. The public recovery form retains its rate limit and same-mailbox
+  delivery; someone who knows the email can therefore invalidate the old link.
+- D132: weekly/final publication creates `report_ready` in-app/email notices
+  inside `_ready`, before its final lease check and commit. The event key is
+  `report_ready:v1:{campaign_id}:{kind}:{period_end_at}` across retries and reruns.
+  Only active users/members of the active company receive them, with the existing
+  business-email opt-out. Custom reports send none. The notice says the report
+  is ready and links to the signed-in campaign report; it has no figures,
+  attachment or driver information. Expired publication rolls the notices back.
+
+All three §9 artifacts move with their API changes, followed by R14-B. No launch
+gate, external approval, provider call, payout rule or driver auto-sign-in changes.
 
 ### The conformance rule
 
@@ -306,7 +375,7 @@ to conflict, the earlier-numbered principle wins.
         └───────────────┬───────────────┘
                         │  Authorization: Bearer <JWT>, internal network
         ┌───────────────▼───────────────┐
-        │  FastAPI  (app/)              │  /api/v1 — 280 operations
+        │  FastAPI  (app/)              │  /api/v1 — 282 operations
         │  SQLAlchemy 2 async + Alembic │  request/response + worker
         │  services layer, audit trail  │  enqueue (§6.5); no WebSockets
         └───────┬───────────────┬───────┘
@@ -327,13 +396,13 @@ of this diagram is §13.
 <!-- architecture-current-state:start -->
 <!-- Generated by scripts/update_architecture_inventory.py; do not edit this block. -->
 
-Current OpenAPI: **281 operations across 255 paths**; **280 operations under `/api/v1`** plus root `/health`.
+Current OpenAPI: **283 operations across 257 paths**; **282 operations under `/api/v1`** plus root `/health`.
 
 | Prefix | Operations | Paths |
 |--------|-----------:|------:|
-| `/api/v1/admin/*` | 144 | 134 |
+| `/api/v1/admin/*` | 145 | 135 |
 | `/api/v1/advertiser/*` | 59 | 46 |
-| `/api/v1/auth/*` | 18 | 18 |
+| `/api/v1/auth/*` | 19 | 19 |
 | `/api/v1/campaign-enquiries` | 1 | 1 |
 | `/api/v1/driver/*` | 47 | 44 |
 | `/api/v1/health*` | 3 | 3 |
@@ -344,7 +413,7 @@ Current OpenAPI: **281 operations across 255 paths**; **280 operations under `/a
 | `/health` | 1 | 1 |
 
 SQLAlchemy metadata contains **109 mapped tables**.
-Alembic contains **12 linear revisions**, from base `0106_development_baseline` to the single head `0117_req220_artwork_links`.
+Alembic contains **14 linear revisions**, from base `0106_development_baseline` to the single head `0119_advertiser_login_invites`.
 
 Required public driver-onboarding paths:
 
@@ -682,7 +751,7 @@ Notes:
 
 ### 7.2 Migration policy **[BUILT]**
 
-- Alembic has **12 linear revisions**, from base `0106_development_baseline` to the single head `0117_req220_artwork_links`.
+- Alembic has **14 linear revisions**, from base `0106_development_baseline` to the single head `0119_advertiser_login_invites`.
   <!-- verified by scripts/update_architecture_inventory.py from Alembic's ScriptDirectory -->
 - The baseline enables `pgcrypto` + `postgis`.
 - D83 authorizes the one-time development squash because there is no live data.
@@ -3035,15 +3104,12 @@ validates company, contact name, email, optional phone and campaign brief.
   **[TARGET — D93 / REQ-191, local verification pending]** The service durably
   saves accepted enquiries before returning success, independent of email.
   Active admins have paginated/searchable New enquiries and exact detail reads.
-  A row-locked create-advertiser command reuses company creation and an optional
-  explicit existing owner; identical choices replay and changed choices conflict.
+  Under D130, the row-locked create-advertiser command creates only the company;
+  retries return that same company. People is the explicit first-login invite path.
   Public submission creates no user, organization or membership and sends no
   automatic reply. Contact details are used only to answer the enquiry; form
-  content is not logged by this path. The DSR inventory counts each enquiry once
-  (`campaign_enquiry_contact`) when its trimmed, case-insensitive email matches
-  the subject's or the subject is its converted owner; staff conversion
-  attribution is not counted, and an email match is a candidate link needing
-  staff verification. Report schedules are operator authority.
+  content is not logged by this path. Conversion does not infer a login identity
+  from the contact email. Report schedules are operator authority.
 Separate atomic Redis IP/global counters expire and fail closed; the existing
 allowlisted login client-IP relay boundary applies. Defaults: disabled, five
   attempts per IP and 100 globally per hour. Enablement requires the database
@@ -3723,6 +3789,18 @@ within one hour. Simultaneous Redis/database failure can only emit the fixed
 failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
+
+- **v1.151 — 24 October 2026 (REQ-231–234 / D130–D132):** Repair migrated photo
+  review, quotation revisions, configured invoice issuing, staff impact displays
+  and advertiser next steps. Keep invoice history in Billing. Add explicit
+  company login invitations using the password-token store, replace earlier
+  application access on resend, and send deduplicated weekly/final report-ready
+  notices. §1.2 records the authority, privacy and API boundaries; §9 artifacts
+  follow the contract changes. Add company creates its company and sends its
+  invite atomically; advertiser temporary-password creation is removed, while
+  staff-created driver accounts are unchanged.
+  Local checks, browser evidence, specialist review and the independent audit
+  are recorded separately; this amendment does not authorize external actions.
 
 - **v1.150 — 23 October 2026 (REQ-230):** Reconcile the launch-gate register, five-gate evaluator, binding criteria and preparation validators with D108–D119. Remaining external/deferred states and controller pointers are unchanged. Resolve CI type diagnostics in source; prune only resolved baseline entries. No product behavior or external approval is added.
 

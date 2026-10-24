@@ -26,7 +26,7 @@ beforeEach(() => {
 });
 it("uses the authorised enquiry conversion without browser-supplied owner/login credentials", async () => {
   await expect(convertEnquiry(enquiryId, {})).rejects.toThrow(
-    `redirect:/admin/advertisers/${organizationId}`,
+    `redirect:/admin/advertisers/${organizationId}#people`,
   );
   expect(mocks.role).toHaveBeenCalledWith("admin");
   expect(mocks.convert).toHaveBeenCalledWith(expect.anything(), enquiryId);
@@ -45,19 +45,19 @@ it.each([
   expect(await convertEnquiry(enquiryId, {})).toHaveProperty("error");
   expect(mocks.redirect).not.toHaveBeenCalled();
 });
-it("shows a plain already-converted conflict without creating a second account", async () => {
+it("keeps an unexpected refusal neutral without echoing private server copy", async () => {
   mocks.convert.mockRejectedValue(
-    new ApiError(409, { code: "ENQUIRY_CONVERSION_CONFLICT", message: "private owner" }),
+    new ApiError(503, { code: "UNAVAILABLE", message: "private note" }),
   );
   const state = await convertEnquiry(enquiryId, {});
-  expect(state.error).toContain("already has an advertiser");
-  expect(state.error).not.toContain("private owner");
+  expect(state.error).toContain("couldn’t confirm");
+  expect(state.error).not.toContain("private note");
   expect(mocks.redirect).not.toHaveBeenCalled();
 });
 it("supports the backend's convergent repeated conversion result", async () => {
   for (let n = 0; n < 2; n++)
     await expect(convertEnquiry(enquiryId, {})).rejects.toThrow(
-      `redirect:/admin/advertisers/${organizationId}`,
+      `redirect:/admin/advertisers/${organizationId}#people`,
     );
   expect(mocks.convert).toHaveBeenCalledTimes(2);
 });

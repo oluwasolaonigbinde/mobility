@@ -99,20 +99,22 @@ async def _preference_allows_delivery(
         return await _driver_business_email_allowed(session, notice)
     if notice.type_key in {
         NotificationType.PASSWORD_RESET_REQUESTED.value,
+        NotificationType.ADVERTISER_LOGIN_INVITE.value,
         NotificationType.DRIVER_ONBOARDING_ACCESS_REQUESTED.value,
         NotificationType.DRIVER_ACCOUNT_SETUP_REQUESTED.value,
     }:
         user = await session.get(User, notice.recipient_user_id)
+        from app.services.account_recovery import _recovery_eligible
+
         password_reset_recipient = (
             notice.type_key == NotificationType.PASSWORD_RESET_REQUESTED.value
+            and _recovery_eligible(user)
+        )
+        invite_recipient = (
+            notice.type_key == NotificationType.ADVERTISER_LOGIN_INVITE.value
             and user is not None
-            and (
-                (
-                    user.role in {UserRole.ADMIN.value, UserRole.ADVERTISER.value}
-                    and user.status in {UserStatus.ACTIVE.value, UserStatus.INVITED.value}
-                )
-                or (user.role == UserRole.DRIVER.value and user.status == UserStatus.ACTIVE.value)
-            )
+            and user.role == UserRole.ADVERTISER
+            and user.status == UserStatus.INVITED
         )
         onboarding_recipient = (
             notice.type_key == NotificationType.DRIVER_ONBOARDING_ACCESS_REQUESTED.value
@@ -126,7 +128,9 @@ async def _preference_allows_delivery(
             and user.role == UserRole.DRIVER.value
             and user.status == UserStatus.INVITED.value
         )
-        if not (password_reset_recipient or onboarding_recipient or setup_recipient):
+        if not (
+            password_reset_recipient or invite_recipient or onboarding_recipient or setup_recipient
+        ):
             return False, "email_recipient_inactive"
         assert user is not None
         return True, user.email
@@ -243,7 +247,11 @@ async def process_email_notification(  # noqa: C901
             for key, value in notice.payload.items()
             if key not in {"campaign_name", "action_url", "title", "body"}
         }
-        if notice.type_key == NotificationType.PASSWORD_RESET_REQUESTED.value:
+        if notice.type_key in {
+            NotificationType.PASSWORD_RESET_REQUESTED.value,
+            NotificationType.ADVERTISER_LOGIN_INVITE.value,
+        }:
+            is_invite = notice.type_key == NotificationType.ADVERTISER_LOGIN_INVITE.value
             try:
                 reset_id = UUID(str(notice.payload["password_reset_request_id"]))
             except (KeyError, TypeError, ValueError) as exc:
@@ -251,9 +259,19 @@ async def process_email_notification(  # noqa: C901
             async with sessionmaker() as session:
                 reset = await session.get(PasswordResetToken, reset_id)
                 user = await session.get(User, notice.recipient_user_id)
+                from app.services.advertiser_invites import pending_invite_membership
+
+                membership = (
+                    await pending_invite_membership(session, reset, user)
+                    if is_invite and reset and user
+                    else None
+                )
             if (
                 reset is None
                 or user is None
+                or reset.user_id != user.id
+                or reset.purpose != ("advertiser_invite" if is_invite else "password_reset")
+                or (is_invite and membership is None)
                 or reset.used_at is not None
                 or _utc(reset.expires_at) <= _utc(now)
                 or reset.session_version != user.session_version
@@ -262,7 +280,18 @@ async def process_email_notification(  # noqa: C901
             from app.services.account_recovery import password_reset_token_for_delivery
 
             reset_token = password_reset_token_for_delivery(reset, user, settings)
-            if settings.password_reset_public_url:
+            if is_invite:
+                link_settings = settings
+                if not settings.public_origin and settings.password_reset_public_url:
+                    parsed = urlsplit(settings.password_reset_public_url)
+                    link_settings = settings.model_copy(
+                        update={"public_origin": f"{parsed.scheme}://{parsed.netloc}"}
+                    )
+                runtime_payload["reset_action"] = (
+                    public_action_url(link_settings, "/advertiser-invite")
+                    + f"#token={quote(reset_token)}"
+                )
+            elif settings.password_reset_public_url:
                 separator = "&" if "?" in settings.password_reset_public_url else "?"
                 runtime_payload["reset_action"] = (
                     f"{settings.password_reset_public_url}{separator}token={quote(reset_token)}"

@@ -266,7 +266,7 @@ def test_summary_endpoints_enforce_roles_and_zero_counts(db_client, db_sessionma
     assert badges.status_code == 200, badges.text
     assert badges.json()["total"] == 0
     # S16/D114 removes the late-data queue; S32/D109 removes pending spot checks.
-    assert len(badges.json()["source_counts"]) == 15
+    assert len(badges.json()["source_counts"]) == 16
     assert db_client.get("/api/v1/admin/badge-summary", headers=dh).status_code == 403
     assert db_client.get("/api/v1/driver/current-job", headers=ah).status_code == 403
     current = db_client.get("/api/v1/driver/current-job", headers=dh)

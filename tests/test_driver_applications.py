@@ -612,6 +612,33 @@ def test_onboarding_access_renewal_is_non_enumerating_and_uses_stored_recipient(
     )
     assert registered.status_code == http_status.HTTP_202_ACCEPTED
 
+    async def current_token():
+        async with db_sessionmaker() as session:
+            rows = list(
+                await session.scalars(
+                    select(DriverApplicationAccessToken)
+                    .join(DriverApplication)
+                    .where(
+                        DriverApplication.email == "renew-driver@example.com",
+                        DriverApplicationAccessToken.invalidated_at.is_(None),
+                    )
+                )
+            )
+            assert len(rows) == 1
+            return synthetic_driver_application_access_token(
+                rows[0], settings, synthetic_test_authority=True
+            )
+
+    old_token = asyncio.run(current_token())
+    assert (
+        db_client.post(
+            "/api/v1/auth/driver-onboarding/continue",
+            json={
+                "application_access_token": old_token,
+            },
+        ).status_code
+        == 200
+    )
     known = db_client.post(
         "/api/v1/auth/driver-onboarding-access/request",
         json={"email": " RENEW-DRIVER@EXAMPLE.COM "},
@@ -623,6 +650,35 @@ def test_onboarding_access_renewal_is_non_enumerating_and_uses_stored_recipient(
     assert known.status_code == unknown.status_code == http_status.HTTP_202_ACCEPTED
     assert known.json() == unknown.json()
     assert set(known.json()) == {"message"}
+    # A page already holding the first bearer must fail on its next read or write.
+    old_read = db_client.post(
+        "/api/v1/auth/driver-onboarding/continue",
+        json={
+            "application_access_token": old_token,
+        },
+    )
+    assert old_read.status_code == 404
+    assert old_read.json()["error"]["code"] == "ONBOARDING_ACCESS_INVALID"
+    assert (
+        db_client.post(
+            f"/api/v1/auth/driver-onboarding/files/{uuid4()}/status",
+            json={
+                "application_access_token": old_token,
+            },
+        ).status_code
+        == 404
+    )
+    new_token = asyncio.run(current_token())
+    assert new_token != old_token
+    assert (
+        db_client.post(
+            "/api/v1/auth/driver-onboarding/continue",
+            json={
+                "application_access_token": new_token,
+            },
+        ).status_code
+        == 200
+    )
 
     async def evidence() -> tuple[int, int, set[str]]:
         async with db_sessionmaker() as session:

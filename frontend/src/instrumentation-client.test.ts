@@ -7,15 +7,18 @@ afterEach(() => {
   initialized.mockReset();
   window.history.replaceState(null, "", "/");
 });
-it("removes Apply's secret before monitoring initializes", async () => {
-  window.history.replaceState(null, "", "/apply?step=details#application_access_token=secret");
-  initialized.mockImplementation(() => {
-    expect(window.location.hash).toBe("");
-    expect(window.location.href).not.toContain("secret");
-  });
-  await import("./instrumentation-client");
-  expect(initialized).toHaveBeenCalledTimes(1);
-});
+it.each(["/apply?step=details#application_access_token=secret", "/advertiser-invite#token=secret"])(
+  "removes the secret from %s before monitoring initializes",
+  async (url) => {
+    window.history.replaceState(null, "", url);
+    initialized.mockImplementation(() => {
+      expect(window.location.hash).toBe("");
+      expect(window.location.href).not.toContain("secret");
+    });
+    await import("./instrumentation-client");
+    expect(initialized).toHaveBeenCalledTimes(1);
+  },
+);
 it("does not initialize monitoring when fragment clearing fails", async () => {
   window.history.replaceState(null, "", "/apply#application_access_token=secret");
   vi.spyOn(window.history, "replaceState").mockImplementation(() => {

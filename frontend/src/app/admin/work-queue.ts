@@ -90,6 +90,27 @@ function source<T extends { id: string }>(
 }
 export const sources: Source[] = [
   source(
+    "enquiries",
+    "Customer Service",
+    "support",
+    "New enquiries",
+    "/admin/enquiries",
+    (api, limit, offset) =>
+      api.GET("/api/v1/admin/campaign-enquiries", {
+        params: { query: { status: "new", limit, offset } },
+      }),
+    (r) =>
+      task(
+        `enquiry:${r.id}`,
+        "support",
+        r.created_at,
+        "Received",
+        r.company,
+        `New enquiry from ${r.contact_name}`,
+        `/admin/enquiries/${r.id}`,
+      ),
+  ),
+  source(
     "applications",
     "Operations",
     "drivers",

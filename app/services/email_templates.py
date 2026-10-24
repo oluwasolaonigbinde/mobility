@@ -46,6 +46,37 @@ def _password_reset(payload: dict[str, Any]) -> RenderedEmail:
     )
 
 
+def _advertiser_login_invite(payload: dict[str, Any]) -> RenderedEmail:
+    action = payload.get("reset_action")
+    if not isinstance(action, str) or not action:
+        raise ValueError("advertiser_invite_action_missing")
+    return _linked(
+        "Your Cardvert login invite",
+        "Terrax Media has invited you to Cardvert. Choose a password, then sign in. "
+        "This link works once, for 24 hours.",
+        action,
+        "Set password",
+    )
+
+
+def _report_ready(payload: dict[str, Any]) -> RenderedEmail:
+    kind = payload.get("report_kind")
+    name = payload.get("campaign_name")
+    if (
+        not isinstance(kind, str)
+        or kind not in {"weekly", "final"}
+        or not isinstance(name, str)
+        or not name
+    ):
+        raise ValueError("report_ready_context_missing")
+    return _linked(
+        "Your Cardvert report is ready",
+        f"Your {kind} report for {name} is ready",
+        payload.get("action_url"),
+        "View report",
+    )
+
+
 def _driver_onboarding_access(payload: dict[str, Any]) -> RenderedEmail:
     action = payload.get("action_url")
     if not isinstance(action, str) or not action:
@@ -87,6 +118,7 @@ _TEMPLATES: dict[NotificationType, Callable[[dict[str, Any]], RenderedEmail]] = 
         "A new job offer", "You have a new job offer. Open Jobs to accept or decline."
     ),
     NotificationType.PASSWORD_RESET_REQUESTED: _password_reset,
+    NotificationType.ADVERTISER_LOGIN_INVITE: _advertiser_login_invite,
     NotificationType.DRIVER_ONBOARDING_ACCESS_REQUESTED: _driver_onboarding_access,
     NotificationType.DRIVER_ACCOUNT_SETUP_REQUESTED: _driver_account_setup,
     NotificationType.CAMPAIGN_APPROVED: _static(
@@ -106,6 +138,7 @@ _TEMPLATES: dict[NotificationType, Callable[[dict[str, Any]], RenderedEmail]] = 
     NotificationType.QUOTATION_READY: _static(
         "Quotation ready for review", "A quotation is ready for your review. Sign in to review it."
     ),
+    NotificationType.REPORT_READY: _report_ready,
     NotificationType.FUNDING_CONFIRMED: _static(
         "Campaign funding confirmed", "Campaign funding has been confirmed."
     ),

@@ -24,14 +24,10 @@ export const readStaffEnquiry = (api: ApiClient, enquiryId: string) =>
   api.GET("/api/v1/admin/campaign-enquiries/{enquiry_id}", {
     params: { path: { enquiry_id: enquiryId } },
   });
-export const createAdvertiserFromEnquiry = (
-  api: ApiClient,
-  enquiryId: string,
-  ownerUserId?: string | null,
-) =>
+export const createAdvertiserFromEnquiry = (api: ApiClient, enquiryId: string) =>
   api.POST("/api/v1/admin/campaign-enquiries/{enquiry_id}/create-advertiser", {
     params: { path: { enquiry_id: enquiryId } },
-    body: { owner_user_id: ownerUserId },
+    body: {},
   });
 export const continueDriverApplication = (api: ApiClient, applicationAccessToken: string) =>
   api.POST("/api/v1/auth/driver-onboarding/continue", {

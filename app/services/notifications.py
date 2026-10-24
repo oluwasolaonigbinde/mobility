@@ -45,6 +45,7 @@ _CAMPAIGN_NOTICE_TYPES = {
     NotificationType.CREATIVE_APPROVED,
     NotificationType.CREATIVE_REJECTED,
     NotificationType.QUOTATION_READY,
+    NotificationType.REPORT_READY,
     NotificationType.FUNDING_CONFIRMED,
     NotificationType.BUDGET_ALERT,
     NotificationType.BUDGET_URGENT_ALERT,
@@ -122,7 +123,8 @@ async def notification_campaign_context(
             )
         except AppError:
             return None
-        return campaign.name, f"/advertiser/campaigns/{campaign.id}"
+        suffix = "/report" if notice.type_key == NotificationType.REPORT_READY else ""
+        return campaign.name, f"/advertiser/campaigns/{campaign.id}{suffix}"
     assignment = await session.scalar(
         select(CampaignAssignment)
         .join(DriverProfile, CampaignAssignment.driver_profile_id == DriverProfile.id)

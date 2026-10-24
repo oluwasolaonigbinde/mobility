@@ -53,8 +53,11 @@ export function InstallationEvidenceActions({
     setDone(undefined);
     startTransition(async () => {
       try {
-        if (requiredViews.some((view) => !files[view])) {
-          throw new Error("Add a photo for every view before sending.");
+        const missing = requiredViews.filter((view) => !files[view]);
+        if (missing.length) {
+          throw new Error(
+            `Add these photos before sending: ${missing.map(installationViewLabel).join(", ")}.`,
+          );
         }
         const photos = [];
         for (const view of requiredViews) {

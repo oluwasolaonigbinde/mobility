@@ -187,29 +187,29 @@ def test_admin_can_create_user_with_normalized_email_and_audit(
         "/api/v1/admin/users",
         headers=auth_headers(db_client, "admin@example.com", PASSWORD),
         json={
-            "email": "Advertiser@Example.com",
+            "email": "Driver@Example.com",
             "password": PASSWORD,
-            "full_name": "Advertiser User",
+            "full_name": "Driver User",
             "phone": None,
-            "role": "advertiser",
+            "role": "driver",
             "status": "active",
         },
     )
 
     assert response.status_code == http_status.HTTP_201_CREATED
     data = response.json()
-    assert data["email"] == "advertiser@example.com"
-    assert data["role"] == "advertiser"
+    assert data["email"] == "driver@example.com"
+    assert data["role"] == "driver"
     assert data["must_change_password"] is True
     assert "password_hash" not in response.text
 
-    stored_user = fetch_user_by_email(db_sessionmaker, "advertiser@example.com")
+    stored_user = fetch_user_by_email(db_sessionmaker, "driver@example.com")
     assert stored_user is not None
     assert stored_user.password_hash != PASSWORD
 
     login_response = db_client.post(
         "/api/v1/auth/login",
-        json={"email": "ADVERTISER@example.com", "password": PASSWORD},
+        json={"email": "DRIVER@example.com", "password": PASSWORD},
     )
     assert login_response.status_code == http_status.HTTP_200_OK
     assert login_response.json()["user"]["must_change_password"] is True
@@ -226,11 +226,11 @@ def test_duplicate_normalized_email_is_rejected(db_client, db_sessionmaker) -> N
         "/api/v1/admin/users",
         headers=headers,
         json={
-            "email": "Advertiser@Example.com",
+            "email": "Driver@Example.com",
             "password": PASSWORD,
-            "full_name": "Advertiser User",
+            "full_name": "Driver User",
             "phone": None,
-            "role": "advertiser",
+            "role": "driver",
             "status": "active",
         },
     )
@@ -238,11 +238,11 @@ def test_duplicate_normalized_email_is_rejected(db_client, db_sessionmaker) -> N
         "/api/v1/admin/users",
         headers=headers,
         json={
-            "email": "advertiser@example.com",
+            "email": "driver@example.com",
             "password": PASSWORD,
             "full_name": "Duplicate User",
             "phone": None,
-            "role": "advertiser",
+            "role": "driver",
             "status": "active",
         },
     )
@@ -453,10 +453,11 @@ def test_successful_elevation_refunds_its_reservation_and_non_elevation_skips_it
     )
     ordinary_target = create_test_user(
         db_sessionmaker,
-        email="other-driver@example.com",
+        email="other-advertiser@example.com",
         password=PASSWORD,
-        role=UserRole.DRIVER,
+        role=UserRole.ADVERTISER,
     )
+    target_headers = auth_headers(db_client, ordinary_target.email, PASSWORD)
     headers = auth_headers(db_client, admin.email, PASSWORD)
     db_client.app.dependency_overrides[get_login_rate_limiter] = lambda: limiter
 
@@ -473,12 +474,19 @@ def test_successful_elevation_refunds_its_reservation_and_non_elevation_skips_it
     ordinary = db_client.patch(
         f"/api/v1/admin/users/{ordinary_target.id}",
         headers=headers,
-        json={"role": "advertiser"},
+        json={"role": "driver"},
     )
 
     assert elevated.status_code == http_status.HTTP_200_OK
     assert replay.status_code == http_status.HTTP_200_OK
     assert ordinary.status_code == http_status.HTTP_200_OK
+    stored = fetch_user_by_email(db_sessionmaker, ordinary_target.email)
+    assert stored is not None
+    assert stored.role == UserRole.DRIVER
+    assert stored.session_version == ordinary_target.session_version
+    assert (
+        db_client.get("/api/v1/me", headers=target_headers).status_code == http_status.HTTP_200_OK
+    )
     assert len(limiter.reserve_calls) == 1
     assert len(limiter.releases) == 1
     assert limiter.reservations == []
@@ -601,10 +609,11 @@ def test_role_noop_and_non_admin_role_changes_do_not_require_password_or_rotate(
     )
     target_user = create_test_user(
         db_sessionmaker,
-        email="driver@example.com",
+        email="advertiser@example.com",
         password=PASSWORD,
-        role=UserRole.DRIVER,
+        role=UserRole.ADVERTISER,
     )
+    target_headers = auth_headers(db_client, target_user.email, PASSWORD)
     headers = auth_headers(db_client, admin.email, PASSWORD)
 
     noop = db_client.patch(
@@ -615,7 +624,7 @@ def test_role_noop_and_non_admin_role_changes_do_not_require_password_or_rotate(
     changed = db_client.patch(
         f"/api/v1/admin/users/{target_user.id}",
         headers=headers,
-        json={"role": "advertiser"},
+        json={"role": "driver"},
     )
 
     assert noop.status_code == http_status.HTTP_200_OK
@@ -624,8 +633,15 @@ def test_role_noop_and_non_admin_role_changes_do_not_require_password_or_rotate(
     stored_target = fetch_user_by_email(db_sessionmaker, target_user.email)
     assert stored_admin is not None and stored_target is not None
     assert stored_admin.session_version == another_admin.session_version
-    assert stored_target.role == UserRole.ADVERTISER
+    assert stored_target.role == UserRole.DRIVER
     assert stored_target.session_version == target_user.session_version
+    assert (
+        db_client.get("/api/v1/me", headers=target_headers).status_code == http_status.HTTP_200_OK
+    )
+    assert (
+        db_client.post("/api/v1/auth/refresh", headers=target_headers).status_code
+        == http_status.HTTP_200_OK
+    )
 
 
 def test_combined_status_and_admin_elevation_rotates_only_once(db_client, db_sessionmaker) -> None:

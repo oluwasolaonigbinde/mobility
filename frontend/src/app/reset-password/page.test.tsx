@@ -52,11 +52,25 @@ describe("password reset completion page", () => {
   it("keeps the form available after a refused reset", async () => {
     completePasswordResetAction.mockResolvedValue({
       error: "This reset link is invalid or has expired.",
+      requestNewLink: true,
     });
     render(await ResetPasswordPage(props("expired-token")));
     await userEvent.click(screen.getByRole("button", { name: "Reset password" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("invalid or has expired");
+    expect(screen.getByRole("link", { name: "Send a new link" })).toHaveAttribute(
+      "href",
+      "/forgot-password",
+    );
     expect(screen.getByRole("button", { name: "Reset password" })).toBeEnabled();
     expect(screen.queryByRole("status")).toBeNull();
   });
+});
+
+it("keeps password-validation errors editable without suggesting a new link", async () => {
+  completePasswordResetAction.mockResolvedValue({ error: "Passwords do not match" });
+  render(await ResetPasswordPage(props("valid-token")));
+  await userEvent.click(screen.getByRole("button", { name: "Reset password" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Passwords do not match");
+  expect(screen.queryByRole("link", { name: "Send a new link" })).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Reset password" })).toBeEnabled();
 });

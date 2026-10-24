@@ -40,6 +40,23 @@ export interface paths {
         patch: operations["admin_update_company_api_v1_admin_advertiser_organizations__organization_id__company_patch"];
         trace?: never;
     };
+    "/api/v1/admin/advertiser-organizations/{organization_id}/login-invite": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin Send Login Invite */
+        post: operations["admin_send_login_invite_api_v1_admin_advertiser_organizations__organization_id__login_invite_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/advertiser-organizations/{organization_id}/members": {
         parameters: {
             query?: never;
@@ -3118,6 +3135,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/advertiser-invite/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Advertiser Invite Complete */
+        post: operations["advertiser_invite_complete_api_v1_auth_advertiser_invite_complete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/change-password": {
         parameters: {
             query?: never;
@@ -4520,6 +4554,24 @@ export interface components {
             /** Trips */
             trips: number;
         };
+        /** AdminCampaignCommercialRead */
+        AdminCampaignCommercialRead: {
+            budget_check: components["schemas"]["BudgetCheckRead"] | null;
+            expedited_waiver_copy: components["schemas"]["WaiverCopyRead"];
+            financial_authority: components["schemas"]["FinancialAuthorityRead"] | null;
+            /** Invoices */
+            invoices: components["schemas"]["InvoiceRead"][];
+            /** Issuing Available */
+            issuing_available: boolean;
+            production_start: components["schemas"]["ProductionStartRead"] | null;
+            quote_request: components["schemas"]["QuoteRequestRead"] | null;
+            /** Revisions */
+            revisions: components["schemas"]["QuoteRevisionRead"][];
+            /** Settlements */
+            settlements: components["schemas"]["SettlementRead"][];
+            terms: components["schemas"]["CommercialTermsRead"] | null;
+            waiver: components["schemas"]["WaiverRead"] | null;
+        };
         /** AdminCampaignListItemRead */
         AdminCampaignListItemRead: {
             /** Assignment Count */
@@ -5013,10 +5065,18 @@ export interface components {
              */
             vehicle_id: string;
         };
+        /** AdminOrganizationCreate */
+        AdminOrganizationCreate: {
+            /** Currency */
+            currency?: string | null;
+            /** Email */
+            email: string;
+            /** Name */
+            name: string;
+        };
         /** AdminOrganizationCreateResponse */
         AdminOrganizationCreateResponse: {
             organization: components["schemas"]["AdvertiserOrganizationRead"];
-            owner_membership: components["schemas"]["OrganizationMembershipRead"] | null;
         };
         /** AdminOrganizationListItemRead */
         AdminOrganizationListItemRead: {
@@ -5064,6 +5124,8 @@ export interface components {
             items: components["schemas"]["AdminOrganizationMemberRead"][];
             /** Limit */
             limit: number;
+            /** Login Invite Available */
+            login_invite_available: boolean;
             /** Offset */
             offset: number;
             /** Total */
@@ -5437,6 +5499,8 @@ export interface components {
              * Format: uuid
              */
             organization_id: string;
+            /** Pause Kind */
+            pause_kind?: ("budget" | "operational" | "unknown") | null;
             /** Start At */
             start_at: string | null;
             /** Status */
@@ -5467,6 +5531,19 @@ export interface components {
             start_at: string | null;
             trips: components["schemas"]["TripStatusCounts"];
         };
+        /** AdvertiserLoginInviteCreate */
+        AdvertiserLoginInviteCreate: {
+            /** Email */
+            email: string;
+        };
+        /** AdvertiserLoginInviteRead */
+        AdvertiserLoginInviteRead: {
+            /**
+             * Message
+             * @default Login invite sent. It works once, for 24 hours.
+             */
+            message: string;
+        };
         /** AdvertiserNotificationPreferenceRead */
         AdvertiserNotificationPreferenceRead: {
             /**
@@ -5486,21 +5563,6 @@ export interface components {
         AdvertiserOrganizationContextResponse: {
             membership: components["schemas"]["OrganizationMembershipRead"];
             organization: components["schemas"]["AdvertiserOrganizationRead"];
-        };
-        /** AdvertiserOrganizationCreate */
-        AdvertiserOrganizationCreate: {
-            /** Billing Email */
-            billing_email?: string | null;
-            /** Country Code */
-            country_code?: string | null;
-            /** Currency */
-            currency?: string | null;
-            /** Name */
-            name: string;
-            /** Owner User Id */
-            owner_user_id?: string | null;
-            /** @default active */
-            status: components["schemas"]["OrganizationStatus"];
         };
         /** AdvertiserOrganizationRead */
         AdvertiserOrganizationRead: {
@@ -6823,10 +6885,7 @@ export interface components {
             unbatched_available: string;
         };
         /** CampaignEnquiryConversion */
-        CampaignEnquiryConversion: {
-            /** Owner User Id */
-            owner_user_id?: string | null;
-        };
+        CampaignEnquiryConversion: Record<string, never>;
         /** CampaignEnquiryConverted */
         CampaignEnquiryConverted: {
             /**
@@ -6911,6 +6970,8 @@ export interface components {
              * Format: uuid
              */
             organization_id: string;
+            /** Pause Kind */
+            pause_kind?: ("budget" | "operational" | "unknown") | null;
             /** Preview File Id */
             preview_file_id: string | null;
             /** Start At */
@@ -9738,14 +9799,6 @@ export interface components {
              */
             commercial_terms_id: string;
         };
-        /** InvoiceIssue */
-        InvoiceIssue: {
-            /**
-             * Issuer Profile Id
-             * Format: uuid
-             */
-            issuer_profile_id: string;
-        };
         /** InvoiceRead */
         InvoiceRead: {
             /**
@@ -10230,7 +10283,7 @@ export interface components {
          * NotificationType
          * @enum {string}
          */
-        NotificationType: "driver_id_approved" | "driver_id_rejected" | "driver_car_approved" | "driver_car_rejected" | "assignment_offered" | "assignment_accepted" | "campaign_approved" | "campaign_rejected" | "creative_approved" | "creative_rejected" | "quotation_ready" | "funding_confirmed" | "budget_alert" | "budget_urgent_alert" | "campaign_budget_paused" | "campaign_budget_resumed" | "campaign_cancelled" | "payout_released" | "password_reset_requested" | "driver_onboarding_access_requested" | "driver_account_setup_requested" | "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied" | "assignment_inactive" | "payout_automatic_alert" | "payout_automatic_paused" | "payout_automatic_resumed" | "complaint_received" | "complaint_replied" | "complaint_resolved";
+        NotificationType: "driver_id_approved" | "driver_id_rejected" | "driver_car_approved" | "driver_car_rejected" | "assignment_offered" | "assignment_accepted" | "campaign_approved" | "campaign_rejected" | "creative_approved" | "creative_rejected" | "quotation_ready" | "report_ready" | "funding_confirmed" | "budget_alert" | "budget_urgent_alert" | "campaign_budget_paused" | "campaign_budget_resumed" | "campaign_cancelled" | "payout_released" | "password_reset_requested" | "advertiser_login_invite" | "driver_onboarding_access_requested" | "driver_account_setup_requested" | "fraud_hold_raised" | "fraud_review_resolved" | "fraud_dispute_replied" | "assignment_inactive" | "payout_automatic_alert" | "payout_automatic_paused" | "payout_automatic_resumed" | "complaint_received" | "complaint_replied" | "complaint_resolved";
         /** NotificationUnreadCountRead */
         NotificationUnreadCountRead: {
             /** Unread Count */
@@ -12151,7 +12204,11 @@ export interface components {
             password: string;
             /** Phone */
             phone?: string | null;
-            role: components["schemas"]["UserRole"];
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "admin" | "driver";
             status: components["schemas"]["UserStatus"];
         };
         /** UserListResponse */
@@ -12700,7 +12757,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["AdvertiserOrganizationCreate"];
+                "application/json": components["schemas"]["AdminOrganizationCreate"];
             };
         };
         responses: {
@@ -12777,6 +12834,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CompanyProfileRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    admin_send_login_invite_api_v1_admin_advertiser_organizations__organization_id__login_invite_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                organization_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdvertiserLoginInviteCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdvertiserLoginInviteRead"];
                 };
             };
             /** @description Request validation failed */
@@ -13747,7 +13839,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CampaignCommercialRead"];
+                    "application/json": components["schemas"]["AdminCampaignCommercialRead"];
                 };
             };
             /** @description Request validation failed */
@@ -15579,11 +15671,7 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["InvoiceIssue"];
-            };
-        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -19501,6 +19589,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReportArtifactDownloadRead"];
+                };
+            };
+            /** @description Request validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    advertiser_invite_complete_api_v1_auth_advertiser_invite_complete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasswordResetComplete"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordResetResponse"];
                 };
             };
             /** @description Request validation failed */

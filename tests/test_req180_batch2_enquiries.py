@@ -9,7 +9,7 @@ from app.core.config import get_settings
 from app.core.rate_limit import RateLimitDecision
 from app.models.audit import AuditEvent
 from app.models.campaign_enquiry import CampaignEnquiry
-from app.models.organization import AdvertiserOrganization
+from app.models.organization import AdvertiserOrganization, OrganizationMembership
 from app.models.user import UserRole
 from app.services.campaign_enquiries import convert_enquiry
 
@@ -56,15 +56,15 @@ def test_enquiries_persist_without_email_and_conversion_is_exact(
         ]
         == PAYLOAD["brief"]
     )
+    # Owner selection is gone; it cannot silently attach an existing login.
     assert (
         db_client.post(
             f"/api/v1/admin/campaign-enquiries/{identity}/create-advertiser",
             headers=headers,
             json={"owner_user_id": str(other.id)},
         ).status_code
-        == 409
+        == 422
     )
-    assert db_client.get("/api/v1/admin/campaign-enquiries", headers=headers).json()["total"] == 2
 
     async def concurrent_conversion():
         async def one():
@@ -75,7 +75,6 @@ def test_enquiries_persist_without_email_and_conversion_is_exact(
                     session,
                     actor_user_id=admin.id,
                     enquiry_id=UUID(identity),
-                    owner_user_id=owner.id,
                     settings=enabled,
                 )
                 await session.commit()
@@ -88,17 +87,9 @@ def test_enquiries_persist_without_email_and_conversion_is_exact(
     repeat = db_client.post(
         f"/api/v1/admin/campaign-enquiries/{identity}/create-advertiser",
         headers=headers,
-        json={"owner_user_id": str(owner.id)},
+        json={},
     )
     assert repeat.json() == {"organization_id": str(organizations[0]), "status": "converted"}
-    assert (
-        db_client.post(
-            f"/api/v1/admin/campaign-enquiries/{identity}/create-advertiser",
-            headers=headers,
-            json={"owner_user_id": None},
-        ).status_code
-        == 409
-    )
     assert db_client.get("/api/v1/admin/campaign-enquiries", headers=headers).json()["total"] == 1
     converted = db_client.get(
         "/api/v1/admin/campaign-enquiries", headers=headers, params={"status": "converted"}
@@ -120,6 +111,13 @@ def test_enquiries_persist_without_email_and_conversion_is_exact(
             assert await session.scalar(select(func.count()).select_from(CampaignEnquiry)) == 2
             org = await session.get(AdvertiserOrganization, organizations[0])
             assert org.billing_email == PAYLOAD["email"]
+            assert not list(
+                await session.scalars(
+                    select(OrganizationMembership).where(
+                        OrganizationMembership.organization_id == org.id,
+                    )
+                )
+            )
             assert (
                 await session.scalar(
                     select(func.count())

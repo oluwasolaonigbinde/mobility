@@ -122,10 +122,16 @@ async def advertiser_campaign_response(
 ) -> AdvertiserCampaignRead:
     if now is None:
         now = await database_clock(session)
+    pause_kind = None
+    if campaign.status == CampaignStatus.PAUSED:
+        from app.services.campaign_resume import pause_info
+
+        pause_kind = (await pause_info(session, campaign))["kind"]
     return AdvertiserCampaignRead.model_validate(
         {
             **campaign_response(campaign).model_dump(),
             "budget_used": await campaign_budget_used(session, campaign=campaign, now=now),
+            "pause_kind": pause_kind,
         }
     )
 

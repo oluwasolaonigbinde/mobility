@@ -137,7 +137,6 @@ async def convert_staff_enquiry(
         session,
         actor_user_id=user.id,
         enquiry_id=enquiry_id,
-        owner_user_id=payload.owner_user_id,
         settings=settings,
     )
     await session.commit()

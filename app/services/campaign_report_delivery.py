@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from app.adapters.storage import StorageObjectConflict, StorageObjectNotFound, StorageUnavailable
 from app.models.campaign_report import CampaignReport
+from app.models.notification import NotificationType
 from app.models.report_issuance import ReportArtifact
 from app.models.stored_file import FilePurpose, FileScanStatus, StoredFile
 from app.services.audit import create_audit_event
@@ -18,6 +19,7 @@ from app.services.campaign_report_rendering import (
     render_campaign_pdf,
 )
 from app.services.disclosure import _canonical_hash
+from app.services.notifications import create_advertiser_business_notifications
 from app.services.payout_rule_serialization import database_clock
 
 # Retain the previous report worker's exact attempt/lease values (S9/D118).
@@ -162,6 +164,17 @@ async def _ready(maker, *, report_id, token, artifacts, storage):
             entity_id=str(report.id),
             metadata={"version": report.version, "snapshot_sha256": report.snapshot_sha256},
         )
+        if report.kind in {"weekly", "final"} and report.campaign_id is not None:
+            await create_advertiser_business_notifications(
+                session,
+                advertiser_organization_id=report.organization_id,
+                type_key=NotificationType.REPORT_READY,
+                event_key=(
+                    f"report_ready:v1:{report.campaign_id}:{report.kind}:"
+                    f"{aware(report.period_end_at).isoformat()}"
+                ),
+                payload={"campaign_id": str(report.campaign_id), "report_kind": report.kind},
+            )
         if lease_end <= await database_clock(session):
             await session.rollback()
             return "skipped"

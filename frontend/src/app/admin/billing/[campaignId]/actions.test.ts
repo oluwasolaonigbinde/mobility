@@ -60,4 +60,32 @@ describe("recordRevisionAction", () => {
       },
     });
   });
+
+  it.each(["0", "25000.00"])(
+    "keeps production as its own optional line (%s)",
+    async (production) => {
+      const form = new FormData();
+      form.append("description", "Media");
+      form.append("quantity", "2");
+      form.append("unit_amount", "50000.00");
+      form.append("line_code", "M");
+      form.append("line_kind", "media");
+      form.append("description", "Printing and fitting");
+      form.append("quantity", "1");
+      form.append("unit_amount", production);
+      form.append("line_code", "P");
+      form.append("line_kind", "production");
+      await expect(recordRevisionAction("campaign-1", "quote-1", form)).rejects.toThrow(
+        "redirect:",
+      );
+      const lines = post.mock.calls[0]![1].body.line_items;
+      expect(lines).toHaveLength(production === "0" ? 1 : 2);
+      if (production !== "0")
+        expect(lines[1]).toMatchObject({
+          kind: "production",
+          quantity: 1,
+          unit_amount: production,
+        });
+    },
+  );
 });

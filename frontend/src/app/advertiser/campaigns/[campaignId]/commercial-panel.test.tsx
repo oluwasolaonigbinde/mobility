@@ -67,6 +67,28 @@ function revision(overrides: Partial<Commercial["revisions"][number]> = {}) {
 }
 
 describe("CommercialPanel copy", () => {
+  it("links to Billing without rendering campaign invoice details", () => {
+    render(
+      <CommercialPanel
+        campaignId={CAMPAIGN_ID}
+        commercial={commercial({
+          invoices: [
+            {
+              id: "invoice-1",
+              invoice_number: "REQ231-INV",
+              gross_amount: "12345.67",
+            } as Commercial["invoices"][number],
+          ],
+        })}
+      />,
+    );
+    expect(
+      screen.getByRole("link", { name: "View invoices and payments in Billing" }),
+    ).toHaveAttribute("href", "/advertiser/billing");
+    expect(screen.queryByRole("link", { name: "View invoice" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Pay invoice/ })).toBeNull();
+    expect(document.body).not.toHaveTextContent(/REQ231-INV|12,345.67|Invoice history/);
+  });
   it("hides new quotation requests for terminal campaigns", () => {
     render(
       <CommercialPanel

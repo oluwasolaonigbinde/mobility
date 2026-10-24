@@ -20,11 +20,13 @@ vi.mock("./wizard", () => ({
   CampaignWizard: ({
     currency,
     existingCampaign,
+    areasEditable,
   }: {
     currency: string;
+    areasEditable: boolean;
     existingCampaign?: { id: string };
   }) => (
-    <p data-testid="wizard">
+    <p data-testid="wizard" data-areas-editable={String(areasEditable)}>
       {currency}:{existingCampaign?.id ?? "new"}
     </p>
   ),
@@ -124,3 +126,21 @@ it("never opens the artwork wizard for a running campaign, even if commercial da
   expect(screen.getByRole("link", { name: /Ask Terrax to change it/ })).toBeInTheDocument();
   expect(mocks.get).toHaveBeenCalledTimes(1);
 });
+
+it.each(["draft", "rejected", "pending_review", "approved", "paused"])(
+  "passes server-compatible area permission for %s",
+  async (status) => {
+    mocks.get.mockImplementation(async (path: string) => ({
+      data: path.endsWith("/zones")
+        ? { items: [], total: 0 }
+        : path.endsWith("/commercial")
+          ? { production_start: null }
+          : { id, name: "Saved campaign", status },
+    }));
+    render(await Page({ searchParams: Promise.resolve({ campaignId: id }) }));
+    expect(screen.getByTestId("wizard")).toHaveAttribute(
+      "data-areas-editable",
+      String(["draft", "rejected"].includes(status)),
+    );
+  },
+);

@@ -162,6 +162,13 @@ def notification_feed_response(
         notice.type_key,
         ("Account notification", "You have a new account notification."),
     )
+    if notice.type_key == NotificationType.REPORT_READY:
+        title = "Report ready"
+        kind = notice.payload.get("report_kind")
+        label = (
+            f"{kind} report" if isinstance(kind, str) and kind in {"weekly", "final"} else "report"
+        )
+        body = f"Your {label} for {context[0]} is ready" if context else "Your report is ready."
     return NotificationFeedItemRead(
         id=notice.id,
         type_key=notice.type_key,

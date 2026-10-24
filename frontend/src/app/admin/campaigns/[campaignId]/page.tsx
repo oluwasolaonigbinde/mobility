@@ -21,6 +21,7 @@ import { QueueUnavailable } from "../../queue-search";
 import { ReviewActions } from "../../approvals/review-actions";
 import { CreativeReviewActions } from "../../approvals/creative-review-actions";
 import { CampaignChangeReviewActions } from "../../approvals/campaign-change-review-actions";
+import { CampaignChangeSummary } from "../../approvals/campaign-change-summary";
 import { InstallationReviewActions } from "../../approvals/installation-review-actions";
 import { ActivateAssignmentButton } from "../../assignments/activate-button";
 import { CancelAssignmentButton } from "../../assignments/cancel-button";
@@ -417,6 +418,7 @@ export default async function CampaignHub({
                     <h3 className="mb-2 font-medium">
                       Change request · {adminStatus(change.status)}
                     </h3>
+                    <CampaignChangeSummary change={change} currency={campaign.currency} />
                     <CampaignChangeReviewActions
                       requestId={change.id}
                       initialReason={change.review_reason ?? undefined}

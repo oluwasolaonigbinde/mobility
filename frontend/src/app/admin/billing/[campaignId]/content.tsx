@@ -17,6 +17,7 @@ import { readCampaign, readCampaignCommercial } from "../../entity-reads";
 import { recordRevisionAction } from "./actions";
 import {
   createInvoiceAction,
+  issueInvoiceAction,
   recordFinancialAuthorityAction,
   recordInvoiceCorrectionAction,
   recordManualTransferAction,
@@ -54,6 +55,17 @@ export default async function AdminCampaignBillingPage({
   }
   if (!campaign || !commercial || !history) return <QueueUnavailable />;
   const latest = commercial.revisions.at(-1);
+  const quoteLines = latest?.line_items.length
+    ? [...latest.line_items]
+    : [{ code: "MEDIA", kind: "media", description: "", quantity: 1, unit_amount: "" }];
+  if (!quoteLines.some((line) => line.kind === "production"))
+    quoteLines.push({
+      code: "PRINT",
+      kind: "production",
+      description: "Printing and fitting",
+      quantity: 1,
+      unit_amount: "0",
+    });
   const invoice = commercial.invoices.at(-1);
   const termsId = commercial.terms?.id;
   const receiptEntries = receiptsAllocatedToTerms(history ?? [], termsId);
@@ -112,6 +124,14 @@ export default async function AdminCampaignBillingPage({
                 </dd>
               </div>
               <div>
+                <dt className="micro text-muted">Net</dt>
+                <dd className="font-mono">{formatMoney(latest.net_amount, latest.currency)}</dd>
+              </div>
+              <div>
+                <dt className="micro text-muted">VAT</dt>
+                <dd className="font-mono">{formatMoney(latest.tax_amount, latest.currency)}</dd>
+              </div>
+              <div>
                 <dt className="micro text-muted">Gross</dt>
                 <dd className="font-mono">{formatMoney(latest.gross_amount, latest.currency)}</dd>
               </div>
@@ -120,69 +140,141 @@ export default async function AdminCampaignBillingPage({
                 <dd>{adminStatus(latest.payment_class, "payment_class")}</dd>
               </div>
             </dl>
-          ) : commercial.quote_request && revisionAction ? (
-            <form action={revisionAction} className="grid gap-4">
-              <Field name="quote_reference" label="Quote reference" required />
-              <Field name="description" label="Services rendered" required />
-              <div className="grid grid-cols-2 gap-4">
-                <Field
-                  name="quantity"
-                  label="Quantity (number of advert campaigns)"
-                  type="number"
-                  min={1}
-                  defaultValue="1"
-                  required
-                />
-                <Field
-                  name="unit_amount"
-                  label="Unit price before VAT"
-                  inputMode="decimal"
-                  required
-                />
-              </div>
+          ) : null}
+          {!commercial.terms && commercial.quote_request && revisionAction ? (
+            <form action={revisionAction} className="mt-4 grid gap-4">
+              <input
+                type="hidden"
+                name="previous_production_scope"
+                value={JSON.stringify(latest?.production_scope ?? {})}
+              />
+              <input
+                type="hidden"
+                name="previous_payment_terms"
+                value={JSON.stringify(latest?.payment_terms ?? {})}
+              />
+              <Field
+                name="quote_reference"
+                label="Quote reference"
+                defaultValue={latest?.quote_reference}
+                required
+              />
+              {quoteLines.map((line, index) => (
+                <div key={index} className="grid gap-3">
+                  <input type="hidden" name="line_code" value={String(line.code)} />
+                  <input type="hidden" name="line_kind" value={String(line.kind)} />
+                  <input
+                    type="hidden"
+                    name="line_metadata"
+                    value={JSON.stringify(line.metadata ?? {})}
+                  />
+                  <Field
+                    name="description"
+                    label={
+                      line.kind === "production" ? "Production description" : "Services rendered"
+                    }
+                    defaultValue={String(line.description ?? "")}
+                    required
+                  />
+                  <div className="grid grid-cols-2 gap-4">
+                    {line.kind === "production" ? (
+                      <input type="hidden" name="quantity" value="1" />
+                    ) : (
+                      <Field
+                        name="quantity"
+                        label="Quantity (number of advert campaigns)"
+                        type="number"
+                        min={1}
+                        defaultValue={String(line.quantity ?? 1)}
+                        required
+                      />
+                    )}
+                    <Field
+                      name="unit_amount"
+                      label={
+                        line.kind === "production"
+                          ? "Production amount before VAT (optional)"
+                          : "Unit price before VAT"
+                      }
+                      inputMode="decimal"
+                      defaultValue={String(
+                        line.kind === "production"
+                          ? (line.amount ?? line.unit_amount ?? "0")
+                          : (line.unit_amount ?? line.amount ?? ""),
+                      )}
+                      required={line.kind !== "production"}
+                    />
+                  </div>
+                </div>
+              ))}
               <div className="grid grid-cols-2 gap-4">
                 <Field
                   name="tax_rate"
                   label="VAT rate (decimal, 0.075 = 7.5 %)"
                   inputMode="decimal"
-                  defaultValue="0.075"
+                  defaultValue={latest?.tax_rate ?? "0.075"}
                   required
                 />
-                <Field name="currency" label="Currency" defaultValue={campaign.currency} required />
+                <Field
+                  name="currency"
+                  label="Currency"
+                  defaultValue={latest?.currency ?? campaign.currency}
+                  required
+                />
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <Field
                   name="campaign_start_date"
                   label="Campaign start date"
                   type="date"
-                  defaultValue={watCalendarDate(campaign.start_at)}
+                  defaultValue={String(
+                    latest?.production_scope.campaign_start_date ??
+                      watCalendarDate(campaign.start_at),
+                  )}
                   required
                 />
                 <Field
                   name="campaign_end_date"
                   label="Campaign end date"
                   type="date"
-                  defaultValue={watCalendarDate(campaign.end_at)}
+                  defaultValue={String(
+                    latest?.production_scope.campaign_end_date ?? watCalendarDate(campaign.end_at),
+                  )}
                   required
                 />
-                <Field name="vehicle_count" label="Vehicle count" type="number" min={1} required />
+                <Field
+                  name="vehicle_count"
+                  label="Vehicle count"
+                  type="number"
+                  min={1}
+                  defaultValue={
+                    latest ? String(latest.production_scope.vehicle_count ?? "") : undefined
+                  }
+                  required
+                />
               </div>
               <label className="micro text-muted">
                 Payment arrangement
                 <select
                   name="payment_class"
+                  defaultValue={latest?.payment_class}
                   className="border-edge bg-raised mt-1.5 h-11 w-full rounded-lg border px-3.5 text-sm"
                 >
                   <option value="standard_prepaid">Pay before production</option>
                   <option value="approved_corporate_credit">Approved company credit</option>
                 </select>
               </label>
-              <Field name="payment_terms" label="Payment terms and supporting notes" required />
+              <Field
+                name="payment_terms"
+                label="Payment terms and supporting notes"
+                defaultValue={latest ? String(latest.payment_terms.notes ?? "") : undefined}
+                required
+              />
               <Button type="submit">Save quotation version</Button>
             </form>
-          ) : (
+          ) : !latest && !commercial.terms ? (
             <p className="text-muted text-sm">The advertiser has not requested a quotation.</p>
-          )}
+          ) : null}
         </Panel>
         <Panel className="p-6">
           <h2 className="font-display text-xl font-semibold">Accepted terms</h2>
@@ -342,12 +434,19 @@ export default async function AdminCampaignBillingPage({
                       Record correction
                     </Button>
                   </form>
-                ) : (
+                ) : invoice.status === "draft" && commercial.issuing_available ? (
+                  <form
+                    action={issueInvoiceAction.bind(null, campaignId, invoice.id)}
+                    className="mt-4"
+                  >
+                    <Button type="submit">Issue invoice</Button>
+                  </form>
+                ) : invoice.status === "draft" ? (
                   <p className="text-amber mt-4 text-sm">
-                    Issuing remains disabled until the required company details are verified,
-                    including the company details and accountant approval.
+                    Invoices can&apos;t be issued yet: Terrax&apos;s bank details and the
+                    accountant&apos;s check are still needed.
                   </p>
-                )}
+                ) : null}
               </div>
             ) : (
               <form

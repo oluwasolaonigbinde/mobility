@@ -112,6 +112,12 @@ async def record_quotation_revision(
         raise AppError("QUOTE_REQUEST_NOT_FOUND", "Quote request was not found", status_code=404)
     assert campaign_id == quote_request.campaign_id
     campaign = await _campaign(session, quote_request.campaign_id, lock=True)
+    if await _commercial_terms_for_campaign(session, campaign.id) is not None:
+        raise AppError(
+            "QUOTATION_ALREADY_ACCEPTED",
+            "This campaign's quotation has been accepted. Request a campaign change instead.",
+            status_code=status.HTTP_409_CONFLICT,
+        )
     reference = quote_reference.strip()
     normalized_currency = currency.strip().upper()
     if not reference or len(normalized_currency) != 3 or normalized_currency != campaign.currency:

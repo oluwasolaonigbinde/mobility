@@ -288,10 +288,6 @@ class InvoiceDraftCreate(BaseModel):
     commercial_terms_id: UUID
 
 
-class InvoiceIssue(BaseModel):
-    issuer_profile_id: UUID
-
-
 class FinancialAuthorityCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     authority_type: FinancialAuthorityType
@@ -448,6 +444,10 @@ class CampaignCommercialRead(BaseModel):
     production_start: ProductionStartRead | None
     settlements: list[SettlementRead]
     budget_check: BudgetCheckRead | None
+
+
+class AdminCampaignCommercialRead(CampaignCommercialRead):
+    issuing_available: bool
 
 
 class PaymentWebhookReceipt(BaseModel):

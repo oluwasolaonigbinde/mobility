@@ -27,6 +27,7 @@ export default async function NewCampaignPage({
   const { campaignId, requestId } = await searchParams;
   if (requestId !== undefined && !z.uuid().safeParse(requestId).success) notFound();
   let existingCampaign;
+  let areasEditable = true;
   let initialZones: components["schemas"]["CampaignZoneRead"][] = [];
   const api = createApiClient(await getSessionToken());
   const recoveryUnavailable = () => (
@@ -95,6 +96,7 @@ export default async function NewCampaignPage({
     }
     if (!commercial || !("production_start" in commercial)) return recoveryUnavailable();
     if (commercial.production_start?.started_at) return askTerrax();
+    areasEditable = ["draft", "rejected"].includes(data.status);
     existingCampaign = {
       id: data.id,
       name: data.name,
@@ -117,10 +119,18 @@ export default async function NewCampaignPage({
   return (
     <div className="animate-rise mx-auto max-w-4xl">
       <PageHeader
-        title={existingCampaign ? `Finish ${existingCampaign.name}` : "New campaign"}
+        title={
+          existingCampaign
+            ? areasEditable
+              ? `Finish ${existingCampaign.name}`
+              : `Add artwork to ${existingCampaign.name}`
+            : "New campaign"
+        }
         eyebrow={
           existingCampaign
-            ? "Your draft is saved. Choose its areas and advert design."
+            ? areasEditable
+              ? "Your draft is saved. Choose its areas and advert design."
+              : "Your campaign is saved. Add its advert design."
             : "Start with the basics, then choose your areas and advert design"
         }
       />
@@ -129,6 +139,7 @@ export default async function NewCampaignPage({
         existingCampaign={existingCampaign}
         campaignRequestId={requestId}
         initialZones={initialZones}
+        areasEditable={areasEditable}
       />
     </div>
   );

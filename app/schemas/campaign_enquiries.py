@@ -51,7 +51,6 @@ class StaffCampaignEnquiryList(BaseModel):
 
 class CampaignEnquiryConversion(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    owner_user_id: UUID | None = None
 
 
 class CampaignEnquiryConverted(BaseModel):

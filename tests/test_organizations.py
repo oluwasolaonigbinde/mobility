@@ -5,7 +5,6 @@ from conftest import (
     auth_headers,
     create_test_organization,
     create_test_user,
-    fetch_audit_events,
 )
 from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
@@ -46,44 +45,15 @@ def _count(sessionmaker, model, *criteria) -> int:
     return asyncio.run(read())
 
 
-def test_advertiser_login_cannot_own_a_second_active_company(
-    db_client,
-    db_sessionmaker,
-) -> None:
-    """D29: one active advertiser company per login, and a refusal leaves no rows."""
-    create_test_user(db_sessionmaker, email="admin@example.com", password=PASSWORD)
-    owner = create_test_user(
-        db_sessionmaker,
-        email="owner@example.com",
-        password=PASSWORD,
-        role=UserRole.ADVERTISER,
-    )
-    headers = auth_headers(db_client, "admin@example.com", PASSWORD)
-    first = db_client.post(
+def test_company_create_rejects_existing_owner_payload_without_rows(db_client, db_sessionmaker):
+    admin = create_test_user(db_sessionmaker, email="admin@example.com", password=PASSWORD)
+    response = db_client.post(
         "/api/v1/admin/advertiser-organizations",
-        headers=headers,
-        json=_company_payload(owner.id, "First Co"),
+        headers=auth_headers(db_client, admin.email, PASSWORD),
+        json=_company_payload(admin.id),
     )
-    assert first.status_code == http_status.HTTP_201_CREATED
-
-    second = db_client.post(
-        "/api/v1/admin/advertiser-organizations",
-        headers=headers,
-        json=_company_payload(owner.id, "Second Co"),
-    )
-
-    assert second.status_code == http_status.HTTP_409_CONFLICT
-    assert second.json()["error"]["code"] == "ADVERTISER_COMPANY_EXISTS"
-    assert _count(db_sessionmaker, AdvertiserOrganization) == 1
-    owner_memberships = _count(
-        db_sessionmaker, OrganizationMembership, OrganizationMembership.user_id == owner.id
-    )
-    assert owner_memberships == 1
-    context = db_client.get(
-        "/api/v1/advertiser/organization",
-        headers=auth_headers(db_client, "owner@example.com", PASSWORD),
-    )
-    assert context.json()["organization"]["name"] == "First Co"
+    assert response.status_code == 422
+    assert _count(db_sessionmaker, AdvertiserOrganization) == 0
 
 
 def test_company_service_refuses_a_second_active_company_for_one_login(db_sessionmaker) -> None:
@@ -130,13 +100,16 @@ def test_advertiser_can_move_to_a_new_company_after_the_old_membership_is_disabl
         membership_status=MembershipStatus.DISABLED,
     )
 
-    response = db_client.post(
-        "/api/v1/admin/advertiser-organizations",
-        headers=auth_headers(db_client, "admin@example.com", PASSWORD),
-        json=_company_payload(owner.id, "New Co"),
-    )
+    async def move():
+        async with db_sessionmaker() as session:
+            await create_advertiser_organization(
+                session,
+                AdvertiserOrganizationCreate(**_company_payload(owner.id, "New Co")),
+                Settings(environment="test"),
+            )
+            await session.commit()
 
-    assert response.status_code == http_status.HTTP_201_CREATED
+    asyncio.run(move())
     context = db_client.get(
         "/api/v1/advertiser/organization",
         headers=auth_headers(db_client, "owner@example.com", PASSWORD),
@@ -220,69 +193,20 @@ def test_a_second_active_membership_cannot_be_written_directly(db_sessionmaker) 
     assert integrity_constraint_name(conflict.value) == "uq_organization_memberships_user_active"
 
 
-def test_admin_can_create_advertiser_organization_with_owner(
-    db_client,
-    db_sessionmaker,
-) -> None:
-    create_test_user(db_sessionmaker, email="admin@example.com", password=PASSWORD)
-    owner = create_test_user(
-        db_sessionmaker,
-        email="owner@example.com",
-        password=PASSWORD,
-        role=UserRole.ADVERTISER,
-    )
+def test_internal_owner_attachment_rejects_non_advertiser_user(db_sessionmaker):
+    driver = create_test_user(db_sessionmaker, email="driver@example.com", role=UserRole.DRIVER)
 
-    response = db_client.post(
-        "/api/v1/admin/advertiser-organizations",
-        headers=auth_headers(db_client, "admin@example.com", PASSWORD),
-        json={
-            "name": "Acme Ads",
-            "billing_email": "billing@acme.test",
-            "country_code": "ng",
-            "currency": "ngn",
-            "status": "active",
-            "owner_user_id": str(owner.id),
-        },
-    )
+    async def attach():
+        async with db_sessionmaker() as session:
+            with pytest.raises(AppError) as denied:
+                await create_advertiser_organization(
+                    session,
+                    AdvertiserOrganizationCreate(**_company_payload(driver.id)),
+                    Settings(environment="test"),
+                )
+            assert denied.value.code == "INVALID_OWNER_USER"
 
-    assert response.status_code == http_status.HTTP_201_CREATED
-    data = response.json()
-    assert data["organization"]["name"] == "Acme Ads"
-    assert data["organization"]["country_code"] == "NG"
-    assert data["organization"]["currency"] == "NGN"
-    assert data["owner_membership"] == {"role": "advertiser", "status": "active"}
-
-    audit_events = fetch_audit_events(db_sessionmaker)
-    assert [event.action for event in audit_events] == ["admin.advertiser_organization.created"]
-
-
-def test_organization_owner_attachment_rejects_non_advertiser_user(
-    db_client,
-    db_sessionmaker,
-) -> None:
-    create_test_user(db_sessionmaker, email="admin@example.com", password=PASSWORD)
-    driver = create_test_user(
-        db_sessionmaker,
-        email="driver@example.com",
-        password=PASSWORD,
-        role=UserRole.DRIVER,
-    )
-
-    response = db_client.post(
-        "/api/v1/admin/advertiser-organizations",
-        headers=auth_headers(db_client, "admin@example.com", PASSWORD),
-        json={
-            "name": "Acme Ads",
-            "billing_email": "billing@acme.test",
-            "country_code": "NG",
-            "currency": "NGN",
-            "status": "active",
-            "owner_user_id": str(driver.id),
-        },
-    )
-
-    assert response.status_code == http_status.HTTP_400_BAD_REQUEST
-    assert response.json()["error"]["code"] == "INVALID_OWNER_USER"
+    asyncio.run(attach())
 
 
 def test_advertiser_can_retrieve_only_own_organization_context(

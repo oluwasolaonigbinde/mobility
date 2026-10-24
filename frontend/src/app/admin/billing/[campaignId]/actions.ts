@@ -22,6 +22,22 @@ export async function recordRevisionAction(
 ) {
   try {
     const api = createApiClient(await getSessionToken());
+    const descriptions = formData.getAll("description");
+    const quantities = formData.getAll("quantity");
+    const amounts = formData.getAll("unit_amount");
+    const codes = formData.getAll("line_code");
+    const kinds = formData.getAll("line_kind");
+    const metadata = formData.getAll("line_metadata");
+    const lineItems = descriptions
+      .map((description, index) => ({
+        code: String(codes[index] ?? "MEDIA"),
+        description: String(description).trim(),
+        kind: String(kinds[index] ?? "media"),
+        quantity: Number(quantities[index] ?? 0),
+        unit_amount: String(amounts[index] ?? "").trim(),
+        ...(metadata[index] ? { metadata: JSON.parse(String(metadata[index])) } : {}),
+      }))
+      .filter((line) => line.kind !== "production" || Number(line.unit_amount) !== 0);
     await api.POST("/api/v1/admin/quote-requests/{quote_request_id}/revisions", {
       params: { path: { quote_request_id: quoteRequestId } },
       body: {
@@ -29,23 +45,19 @@ export async function recordRevisionAction(
         currency: String(formData.get("currency") ?? "")
           .trim()
           .toUpperCase(),
-        line_items: [
-          {
-            code: "MEDIA",
-            description: String(formData.get("description") ?? "").trim(),
-            kind: "media",
-            quantity: Number(formData.get("quantity") ?? 0),
-            unit_amount: String(formData.get("unit_amount") ?? "").trim(),
-          },
-        ],
+        line_items: lineItems,
         production_scope: {
+          ...JSON.parse(String(formData.get("previous_production_scope") ?? "{}")),
           vehicle_count: Number(formData.get("vehicle_count") ?? 0),
           campaign_start_date: String(formData.get("campaign_start_date") ?? "").trim(),
           campaign_end_date: String(formData.get("campaign_end_date") ?? "").trim(),
         },
         payment_class: String(formData.get("payment_class")) as
           "standard_prepaid" | "approved_corporate_credit",
-        payment_terms: { notes: String(formData.get("payment_terms") ?? "").trim() },
+        payment_terms: {
+          ...JSON.parse(String(formData.get("previous_payment_terms") ?? "{}")),
+          notes: String(formData.get("payment_terms") ?? "").trim(),
+        },
         tax_rate: String(formData.get("tax_rate") ?? "").trim(),
       },
     });
@@ -96,6 +108,19 @@ export async function createInvoiceAction(campaignId: string, termsId: string) {
   }
   revalidatePath(path(campaignId));
   redirect(`${path(campaignId)}?saved=invoice#money`);
+}
+
+export async function issueInvoiceAction(campaignId: string, invoiceId: string) {
+  try {
+    const api = createApiClient(await getSessionToken());
+    await api.POST("/api/v1/admin/invoices/{invoice_id}/issue", {
+      params: { path: { invoice_id: invoiceId } },
+    });
+  } catch (error) {
+    fail(campaignId, error);
+  }
+  revalidatePath(path(campaignId));
+  redirect(`${path(campaignId)}?saved=issued#money`);
 }
 
 export async function reverseReceiptAction(

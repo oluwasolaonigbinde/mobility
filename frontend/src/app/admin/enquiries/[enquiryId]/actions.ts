@@ -17,7 +17,7 @@ export async function convertEnquiry(
   if (!z.uuid().safeParse(enquiryId).success) return { error: "This enquiry couldn’t be found." };
   let organizationId: string;
   try {
-    // Let the existing company creation authority choose the owner; email is not proof of ownership.
+    // Conversion creates the company. Staff send its login invite from People.
     const { data } = await createAdvertiserFromEnquiry(
       createApiClient(await getSessionToken()),
       enquiryId,
@@ -29,11 +29,6 @@ export async function convertEnquiry(
     organizationId = data.organization_id;
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) redirect("/login");
-    if (error instanceof ApiError && error.code === "ENQUIRY_CONVERSION_CONFLICT")
-      return {
-        error:
-          "This enquiry already has an advertiser with a different owner. Reload the enquiry to check it.",
-      };
     if (error instanceof ApiError && [403, 404].includes(error.status))
       return { error: "This enquiry isn’t available." };
     return {
@@ -43,5 +38,5 @@ export async function convertEnquiry(
   revalidatePath("/admin/enquiries");
   revalidatePath(`/admin/enquiries/${enquiryId}`);
   revalidatePath("/admin/advertisers");
-  redirect(`/admin/advertisers/${organizationId}`);
+  redirect(`/admin/advertisers/${organizationId}#people`);
 }

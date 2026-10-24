@@ -28,4 +28,3 @@ class CampaignEnquiry(Base):
     organization_id: Mapped[UUID | None] = mapped_column(ForeignKey("advertiser_organizations.id"))
     converted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     converted_by_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"))
-    converted_owner_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"))

@@ -103,19 +103,19 @@ def test_vat_invoice_issues_from_frozen_terms_and_verified_issuer_facts(
                     settings,
                 )
             assert untrusted_verified.value.code == "VERIFIED_ISSUER_GATE_REQUIRED"
-            synthetic = await _issuer(
+            await _issuer(
                 session,
                 admin,
                 IssuerVerificationStatus.SYNTHETIC,
                 "SYNTHETIC-Q28-TEST",
                 settings,
             )
+            settings.invoice_issuer_external_input_reference = "SYNTHETIC-Q28-TEST"
             production_settings = settings.model_copy(update={"environment": "production"})
             with pytest.raises(AppError) as blocked:
                 await issue_invoice(
                     session,
                     invoice_id=draft.id,
-                    issuer_profile_id=synthetic.id,
                     actor_user_id=admin.id,
                     settings=production_settings,
                 )
@@ -127,7 +127,6 @@ def test_vat_invoice_issues_from_frozen_terms_and_verified_issuer_facts(
             issued = await issue_invoice(
                 session,
                 invoice_id=draft.id,
-                issuer_profile_id=synthetic.id,
                 actor_user_id=admin.id,
                 settings=settings,
             )

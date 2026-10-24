@@ -107,3 +107,21 @@ it("keeps exact budget strings through draft save and final review", async () =>
     daily_budget_amount: "10000.00",
   });
 });
+
+it("starts submitted artwork recovery at design and keeps saved areas read-only on Back", async () => {
+  render(
+    <CampaignWizard
+      currency="NGN"
+      existingCampaign={{ id, name: "Submitted" }}
+      areasEditable={false}
+    />,
+  );
+  expect(screen.getByRole("button", { name: "+ Add advert design" })).toBeInTheDocument();
+  expect(mocks.areas).not.toHaveBeenCalled();
+  await userEvent.click(screen.getByRole("button", { name: /Back/ }));
+  expect(mocks.areas).toHaveBeenLastCalledWith(
+    expect.objectContaining({ campaignId: id, editable: false }),
+  );
+  expect(screen.queryByText(/Your draft is saved. Draw/)).not.toBeInTheDocument();
+  expect(screen.getByText(/Contact Terrax if you need to change them/)).toBeInTheDocument();
+});

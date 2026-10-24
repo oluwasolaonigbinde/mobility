@@ -108,6 +108,18 @@ async def issue_driver_application_access(
         or locked_application.status != DriverApplicationStatus.PENDING.value
     ):
         return None
+    # The application lock serializes resends; always lock it before its access rows.
+    prior_accesses = await session.scalars(
+        select(DriverApplicationAccessToken)
+        .where(
+            DriverApplicationAccessToken.application_id == locked_application.id,
+            DriverApplicationAccessToken.invalidated_at.is_(None),
+        )
+        .order_by(DriverApplicationAccessToken.id)
+        .with_for_update()
+    )
+    for prior in prior_accesses:
+        prior.invalidated_at = datetime.now(UTC)
     access = DriverApplicationAccessToken(
         id=uuid4(),
         application_id=locked_application.id,

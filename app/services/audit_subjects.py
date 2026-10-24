@@ -15,6 +15,7 @@ ACTOR_ONLY_TYPES = frozenset(
         "budget_policy_evaluation",
         "campaign_cancellation",
         "campaign_change_request",
+        "campaign_enquiry",
         "campaign_creative",
         "campaign_financial_authorization",
         "campaign_payout_rule",
@@ -42,10 +43,6 @@ ACTOR_ONLY_TYPES = frozenset(
 # typed target; it also distinguishes a missing historical target from a valid
 # target with no personal subject (for example an organization-scoped file).
 SUBJECT_QUERIES: dict[str, tuple[str, str]] = {
-    "campaign_enquiry": (
-        "campaign_enquiries",
-        "SELECT converted_owner_user_id FROM campaign_enquiries WHERE id=:entity_id",
-    ),
     "earnings_ledger_entry": (
         "earnings_ledger_entries",
         "SELECT driver_user_id FROM earnings_ledger_entries WHERE id=:entity_id",

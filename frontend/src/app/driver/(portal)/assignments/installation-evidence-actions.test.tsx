@@ -82,6 +82,28 @@ describe("InstallationEvidenceActions", () => {
     expect(screen.queryByRole("button", { name: "Send display photo" })).not.toBeInTheDocument();
   });
 
+  it("names only the missing views before any upload", async () => {
+    const user = userEvent.setup();
+    const { container } = render(
+      <InstallationEvidenceActions
+        assignmentId={ASSIGNMENT_ID}
+        status="accepted"
+        requiredViews={["front", "back", "close_up"]}
+      />,
+    );
+    await user.upload(
+      container.querySelector<HTMLInputElement>('input[type="file"]')!,
+      new File(["front"], "front.png", { type: "image/png" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Send installation photos" }));
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Back");
+    expect(alert).toHaveTextContent("Close");
+    expect(alert).not.toHaveTextContent("Front");
+    expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.postJson).not.toHaveBeenCalled();
+  });
+
   it("has no daily photo task after weekly photos are approved", async () => {
     render(
       <InstallationEvidenceActions

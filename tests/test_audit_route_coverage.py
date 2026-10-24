@@ -32,6 +32,11 @@ from app.services.audit import create_audit_event
 from app.services.trip_evidence import manifest_root
 
 AUDITED = {
+    ("POST", "/api/v1/auth/advertiser-invite/complete"): "advertiser.login_invite.completed",
+    (
+        "POST",
+        "/api/v1/admin/advertiser-organizations/{organization_id}/login-invite",
+    ): "advertiser.login_invite.sent",
     # S9/S10/D118: one report; retained issued-file downloads above remain.
     ("POST", "/api/v1/advertiser/reports"): "campaign_report.requested",
     (

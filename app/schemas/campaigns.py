@@ -176,6 +176,7 @@ class BudgetUsedRead(BaseModel):
 
 class AdvertiserCampaignRead(CampaignRead):
     budget_used: BudgetUsedRead
+    pause_kind: Literal["budget", "operational", "unknown"] | None = None
 
 
 class CampaignListItemRead(AdvertiserCampaignRead):

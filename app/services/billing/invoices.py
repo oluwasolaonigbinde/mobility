@@ -243,13 +243,38 @@ async def _acquire_invoice_number_lock(
     await session.execute(select(func.pg_advisory_xact_lock(lock_key)))
 
 
+async def configured_invoice_issuer(
+    session: AsyncSession, settings: Settings
+) -> InvoiceIssuerProfile | None:
+    reference = settings.invoice_issuer_external_input_reference
+    if not reference:
+        return None
+    issuer = await session.scalar(
+        select(InvoiceIssuerProfile).where(
+            InvoiceIssuerProfile.external_input_reference == reference
+        )
+    )
+    if issuer is None:
+        return None
+    if (
+        settings.environment == "test"
+        and issuer.verification_status == IssuerVerificationStatus.SYNTHETIC
+    ):
+        return issuer
+    if issuer.verification_status == IssuerVerificationStatus.VERIFIED and all(
+        getattr(issuer, field) for field in ISSUER_VERIFIED_FACT_FIELDS
+    ):
+        return issuer
+    return None
+
+
 async def issue_invoice(
     session: AsyncSession,
     *,
     invoice_id: UUID,
-    issuer_profile_id: UUID,
     actor_user_id: UUID,
     settings: Settings,
+    issuer_profile_id: UUID | None = None,  # Test fixtures only; public issuing uses config.
 ) -> Invoice:
     await require_active_admin(session, actor_user_id)
     invoice = await session.scalar(
@@ -265,7 +290,11 @@ async def issue_invoice(
             "Only a draft invoice can be issued",
             status_code=status.HTTP_409_CONFLICT,
         )
-    issuer = await session.get(InvoiceIssuerProfile, issuer_profile_id)
+    issuer = (
+        await session.get(InvoiceIssuerProfile, issuer_profile_id)
+        if issuer_profile_id is not None
+        else await configured_invoice_issuer(session, settings)
+    )
     synthetic_test_authority = (
         issuer is not None
         and settings.environment == "test"

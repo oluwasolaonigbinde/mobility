@@ -1,12 +1,12 @@
 "use client";
 
 import { useActionState } from "react";
+import Link from "next/link";
 import { formatDate, formatMoney } from "@/lib/format";
 import type { components } from "@/lib/api/schema";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { StatusChip } from "@/components/ui/status-chip";
-import { CommercialHistory } from "@/lib/billing/commercial-history";
 import { formatVatRate } from "@/lib/billing/invoice-document";
 import {
   acceptExpeditedWaiverAction,
@@ -177,13 +177,11 @@ export function CommercialPanel({
   commercial,
   error,
   canRequestQuotation = true,
-  canPay = false,
 }: {
   campaignId: string;
   commercial: Commercial;
   error?: string;
   canRequestQuotation?: boolean;
-  canPay?: boolean;
 }) {
   const latest = commercial.revisions.at(-1);
   const [requestState, requestAction, requesting] = useActionState(
@@ -322,11 +320,12 @@ export function CommercialPanel({
           </form>
         ) : null}
       </Panel>
-      <CommercialHistory
-        invoices={commercial.invoices}
-        settlements={commercial.settlements}
-        showPayment={canPay}
-      />
+      <Link
+        href="/advertiser/billing"
+        className="text-green mt-5 inline-block text-sm font-medium hover:underline"
+      >
+        View invoices and payments in Billing
+      </Link>
     </>
   );
 }

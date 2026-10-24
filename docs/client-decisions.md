@@ -130,9 +130,12 @@ The public website uses **Request a Quote** for its on-site advertiser
 enquiry, **Apply to drive** for `/apply`, and **Sign in** for `/login` (D52,
 REQ-070). Advertiser account setup remains operator-led; the enquiry creates
 neither an account nor a campaign. `/` is the only public landing route.
-Accepted enquiries are saved for staff in New enquiries. Staff can create an
-advertiser company from one, with an explicitly selected existing owner; the
-submission itself creates no login or membership (D93, REQ-191).
+Accepted enquiries are saved for staff in New enquiries, and new ones show in
+the staff Work queue. Staff can create an advertiser company from one; the
+submission itself creates no login or membership (D93, REQ-191). The company's
+first login comes from a staff-sent invite: staff type the email on the
+company's People page, and the person sets their own password through a
+one-time link that lasts 24 hours (D130, REQ-232).
 The enquiry form is always on: there is no deployment switch, and its rate
 limits still apply (REQ-208).
 The enquiry keeps the notice explaining use of contact details and that no
@@ -152,6 +155,7 @@ small labels use sans, and past jobs do not repeat their dated status. Demo
 work days use realistic qualifying mileage and separate next-day payments.
 
 **History:**
+- **2026-10-24** — Owner, after the REQ-209 clean audit: an advertiser's first login comes from a staff-sent invite, including companies made with Add company (D130, REQ-232). Previously enquiry conversion needed an existing owner login, which an empty system did not have, and Add company set a temporary password that staff passed on. Saved enquiries now also appear in the Work queue (REQ-231).
 - **2026-10-20** — Orchestrator screenshot review refines compact cards, hierarchy, hero composition, honest withholding, consistent state words, existing-geometry driver map and the admin mark (D129). Shared worker repair verified in production builds. Local taste, privacy/security and consolidated review PASS; [receipt](../issues/testing/req220-client-feedback-2026-10-20.md). Full CI/merge remain pending.
 - **2026-10-20** — Client approved the background-additions mockups with the above changes (D120/D125–128); the earlier palette-only admin and separate Company/campaign-invoice surfaces are superseded within this work. Local implementation/reviews PASS on Lane B; full CI/merge remain pending.
 - **2026-10-20** — Owner-approved pre-push fix (REQ-208): the website enquiry form no longer needs the `CAMPAIGN_ENQUIRY_ENABLED` switch, which a fresh deployment left off. The staff header reads Terrax Media operations instead of an empty company and currency.
@@ -175,7 +179,9 @@ Compliance, Finance, Customer Service, Admin) are sections of the admin
 "Finance Officer" is whichever admin handles money. One admin may complete all
 driver approval checks; advertiser logins belong to one company (D29).
 For now, set up one advertiser login per company; do not add invitations for
-additional company staff (D47, REQ-060).
+additional company staff (D47, REQ-060). That one login is created by a
+staff-sent invite, which is offered only while the company has no login; staff
+never set an advertiser's password (D130, REQ-232).
 The first staff account on a fresh deployment is created from the server shell
 (`python -m app.operations.create_staff`); it is an active admin with a one-time
 temporary password that must be changed at first sign-in (REQ-208).
@@ -186,6 +192,7 @@ temporary password that must be changed at first sign-in (REQ-208).
 - **2026-09-30** — Owner: no named people per department; everyone uses the one admin role (REQ-031).
 - **2026-10-01** — Owner kept one advertiser login per company for the admin redesign; the proposed additional-person invitation is omitted (D47, REQ-060). Existing membership history and access constraints remain.
 - **2026-10-20** — Owner-approved pre-push fix (REQ-208): a shell command creates the first staff admin, refusing an email that already has an account. Previously a fresh deployment had no way to create its first staff login.
+- **2026-10-24** — Owner (D130, REQ-232): the single advertiser login is created by a staff-sent invite. Previously staff created it with a temporary password, and D47 ruled out invitations altogether.
 
 ### Pricing and quotations
 
@@ -413,7 +420,8 @@ Application emails use a 24-hour continuation link to the current details/car
 step, replacing the pasted code. Expiry, revocation, current approval and
 application ownership remain authoritative (D94, REQ-192). The link also tells
 the applicant whether that step is needed, in review or needs changes, with a
-plain reason when changes are needed (REQ-195).
+plain reason when changes are needed (REQ-195). When a new link is sent, only
+the newest one works (D131, REQ-233).
 Apply is always open: there is no deployment switch, and the existing rate
 limits still apply (REQ-208). An approved driver's account set-up link works
 once, for 24 hours (D106).
@@ -424,6 +432,7 @@ staff review. Work remains blocked until the current reviews pass. Unknown
 renewal periods stay unset (D69, REQ-137). Mark expired retains the recorded outcomes, dates and review history. Actually expired driver or vehicle documents require new clean uploads and audited current approval before work resumes; accepted retained documents remain reusable (D76, REQ-152).
 
 **History:**
+- **2026-10-24** — Owner (D131, REQ-233): sending a new application link makes the older ones stop working. Previously every link worked until it expired after 24 hours.
 - **2026-10-20** — Owner-approved pre-push fixes (REQ-208): the approved-driver account set-up link lasts 24 hours instead of 30 minutes (D106), and Apply no longer needs the `DRIVER_REGISTRATION_ENABLED` switch, which a fresh deployment left off. Rate limits, expiry and single use are unchanged.
 - **2026-10-19** — Owner follow-up to audit D8 (REQ-195): the continuation link now returns the step's state (needed, in review or changes needed) and a plain reason from the existing applicant wording. Previously it returned only the step, so a rejected or expired applicant saw no reason. Authority and expiry are unchanged.
 - **2026-10-18** — D94 / REQ-192 replaces the pasted application code with a 24-hour link to the current step, preserving capability authority and renewal behavior.
@@ -591,7 +600,8 @@ Mark all read clears current unread items, including older pages. Read records
 remain stored; notifications arriving afterward appear normally (D54, REQ-075).
 Campaign notices name the campaign and offer Open only when the recipient can
 currently access its campaign or driver assignment; inaccessible context stays
-generic without a name or link (D71, REQ-139).
+generic without a name or link (D71, REQ-139). A weekly or final report that
+becomes ready sends one short "report ready" notice (D132, REQ-234).
 
 For phone verification, only the signed-in driver sees a one-time code and
 sends it by WhatsApp or SMS to the configured Terrax number. Customer Service
@@ -612,6 +622,7 @@ runtime verification and independent security checkpoint PASS (gpt-6.1-sol/high)
 Built locally in `f85ffbb8`; final integrated delivery review and merge remain pending.
 
 **History:**
+- **2026-10-24** — Owner (D132, REQ-234): weekly and final reports send a report-ready notice. Previously reports appeared in the portal with no notice.
 - **2026-10-20** — D117 supersedes operator provisioning and signed email receipts, using the client support number and fixed existing security values; REQ-216. The previous rule required a named approved operator and approval reference for live phone verification.
 - **2026-10-07** — Owner Claude polish review requires sentence-case notification titles/body in the body font, retaining capitals for small labels (REQ-139); notification content and access checks are unchanged. Built in `78ad5580` and real integration `21239a6d`.
 - **2026-10-07** — Owner W2-D brief replaces generic campaign notices with currently authorized campaign names and Open links (D71, REQ-139); immutable notification payloads and delivery channels remain. Built in `78ad5580` and real integration `21239a6d`.
@@ -639,6 +650,7 @@ security review required; no claim of real-use approval. These individual delaye
 dots have no three-car minimum, as confirmed by the owner via orchestrator.
 
 **Current rule:** D118: weekly/final campaign reports with staff Re-run; issued files immutable and old downloads retained (D71). Advertisers choose period and one/all own campaigns, CSV/PDF with charts: dates, three-car areas, cars, verified distance/driving days/trips/time, labelled estimated views, creative previews and status. Measured and estimated sections visibly distinct. No money/budget/CTR/ROI. Fixed estimates; Finished derives from date. D115 removes audience recommendations. Owner-approved 20 October 2026, REQ-210–218; implemented locally. See the REQ-210 verification receipt; full CI and merge remain pending.
+When a weekly or final report is ready, the company's active login gets one short notice, in-app and by email unless the company switched email off. It links to the campaign's reports, which need sign-in, and carries no figures, attachment or driver details. Re-runs send no repeat; custom reports send none (D132, REQ-234).
 
 **Previous rule (ended 20 October 2026; retained history):** The standard report is a **Campaign Performance Analysis**:
 verified operations, clearly labelled estimated exposure and target-area
@@ -667,6 +679,7 @@ recommendations; D123 excludes ROI from pilot output.
 **Still open:** [REQ-018](requests.md) — confirm no driver identity in reports.
 
 **History:**
+- **2026-10-24** — Owner (D132, REQ-234): weekly and final reports send a short report-ready notice with a link. Previously there was no notice.
 - **2026-10-20** — Client pilot feedback (D123) replaces the earlier conditional ROI rule: ROI was allowed only with advertiser conversion/revenue inputs and an approved method (D20c/Q12/Q30); the pilot now has no CTR, website visits beyond QR scans, or ROI. D124 separately approves individual delayed in-area dots with no three-car minimum, without changing aggregate area rules.
 - **2026-10-20** — Owner-approved pre-push fix (REQ-208): three distinct cars now governs every result (D107). Previously areas and map cells also needed several trips, more than one day and no car above a share of the total, so a three-car, one-day campaign showed no areas despite D105.
 - **2026-10-19** — Owner decision: area results need only three cars (D105, REQ-197). Previously areas also needed "safe composition with other released detail", which hid areas in common cases and, once a report showed areas, made the advertiser dashboard and other results unavailable. The owner keeps rules simple until the client or legal sets real privacy requirements.

@@ -755,8 +755,8 @@ def test_postgres_campaign_change_and_disclosure_snapshot_do_not_deadlock(
         original = campaign_changes._locked_campaign
         reader_pid = None
 
-        async def hold_writer(session, campaign_id):
-            result = await original(session, campaign_id)
+        async def hold_writer(session, campaign_id, **kwargs):
+            result = await original(session, campaign_id, **kwargs)
             locked.set()
             await reader_started.wait()
             async with postgis_db_sessionmaker() as observer:

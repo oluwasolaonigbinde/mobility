@@ -333,77 +333,100 @@ it("shows unavailable sections without inventing empty records or completed prer
   expect(screen.queryByText("Artwork status unavailable")).toBeNull();
   expect(screen.queryByRole("region", { name: "Launch checklist" })).toBeNull();
 });
-it("keeps named artwork, history, reviews and activity within their campaign", async () => {
-  const normal = mocks.get.getMockImplementation()!;
-  mocks.get.mockImplementation(async (path) => {
-    if (path.endsWith("/creatives"))
-      return {
-        data: {
-          items: [
-            {
-              id: "creative",
-              name: "Door wrap",
-              status: "pending_review",
-              stored_file_id: "file",
-              scan_status: "clean",
-            },
-          ],
-          total: 60,
-        },
-      };
-    if (path.endsWith("/review-history"))
-      return {
-        data: {
-          items: [
-            {
-              id: "history",
-              new_status: "rejected",
-              rejection_reason: "Fix artwork",
-              created_at: "2026-09-29T10:00:00Z",
-            },
-          ],
-          total: 60,
-        },
-      };
-    if (path.endsWith("/campaign-change-requests/pending"))
-      return { data: { items: [{ id: "change", campaign_id: id, status: "pending_review" }] } };
-    if (path.endsWith("/fraud-flags"))
-      return {
-        data: {
-          items: [{ id: "review", status: "open", description: "Trip needs checking" }],
-          total: 60,
-        },
-      };
-    if (path.endsWith("/audit-events"))
-      return {
-        data: {
-          items: [
-            { id: "event", action: "admin.campaign.approved", created_at: "2026-09-29T10:00:00Z" },
-          ],
-          total: 60,
-        },
-      };
-    return normal(path);
-  });
-  render(
-    await page({
-      history_offset: "25",
-      artwork_offset: "25",
-      reviews_offset: "25",
-      activity_offset: "25",
-    }),
-  );
-  expect(screen.getByRole("button", { name: "View artwork" })).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Review artwork" })).toBeTruthy();
-  expect(screen.getByText(/Fix artwork/)).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Review change" })).toBeTruthy();
-  expect(screen.getByRole("link", { name: /Trip needs checking/ })).toHaveAttribute(
-    "href",
-    `/admin/trip-checks?tab=suspicious&campaign_id=${id}&flag=review`,
-  );
-  expect(screen.getByText(/Campaign approved/)).toBeTruthy();
-  expect(screen.getAllByRole("link", { name: "Next →" }).length).toBeGreaterThanOrEqual(4);
-});
+it.each(["pending_admin", "pending_funding"])(
+  "keeps named artwork, history, reviews and activity within their campaign for %s",
+  async (status) => {
+    const normal = mocks.get.getMockImplementation()!;
+    mocks.get.mockImplementation(async (path) => {
+      if (path.endsWith("/creatives"))
+        return {
+          data: {
+            items: [
+              {
+                id: "creative",
+                name: "Door wrap",
+                status: "pending_review",
+                stored_file_id: "file",
+                scan_status: "clean",
+              },
+            ],
+            total: 60,
+          },
+        };
+      if (path.endsWith("/review-history"))
+        return {
+          data: {
+            items: [
+              {
+                id: "history",
+                new_status: "rejected",
+                rejection_reason: "Fix artwork",
+                created_at: "2026-09-29T10:00:00Z",
+              },
+            ],
+            total: 60,
+          },
+        };
+      if (path.endsWith("/campaign-change-requests/pending"))
+        return {
+          data: {
+            items: [
+              {
+                id: "change",
+                campaign_id: id,
+                status,
+                requested_liability_amount: "2000.00",
+                impact_preview: {
+                  before: { end_at: "2026-10-24T00:00:00Z", budget_amount: "100000.00" },
+                  after: { end_at: "2026-10-26T00:00:00Z", budget_amount: "120000.00" },
+                  request_reason: "Extend the advert",
+                },
+              },
+            ],
+          },
+        };
+      if (path.endsWith("/fraud-flags"))
+        return {
+          data: {
+            items: [{ id: "review", status: "open", description: "Trip needs checking" }],
+            total: 60,
+          },
+        };
+      if (path.endsWith("/audit-events"))
+        return {
+          data: {
+            items: [
+              {
+                id: "event",
+                action: "admin.campaign.approved",
+                created_at: "2026-09-29T10:00:00Z",
+              },
+            ],
+            total: 60,
+          },
+        };
+      return normal(path);
+    });
+    render(
+      await page({
+        history_offset: "25",
+        artwork_offset: "25",
+        reviews_offset: "25",
+        activity_offset: "25",
+      }),
+    );
+    expect(screen.getByRole("button", { name: "View artwork" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Review artwork" })).toBeTruthy();
+    expect(screen.getByText(/Fix artwork/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Review change" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: /Trip needs checking/ })).toHaveAttribute(
+      "href",
+      `/admin/trip-checks?tab=suspicious&campaign_id=${id}&flag=review`,
+    );
+    expect(screen.getByText(/Campaign approved/)).toBeTruthy();
+    expect(screen.getAllByRole("link", { name: "Next →" }).length).toBeGreaterThanOrEqual(4);
+  },
+);
 it("retains close-out as one drawer on the campaign hub", async () => {
   render(await page({ drawer: "closeout", page: "2" }));
   expect(screen.getByRole("dialog", { name: "Close-out" })).toHaveTextContent("Close-out details");

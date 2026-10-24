@@ -52,14 +52,16 @@ export function CampaignWizard({
   existingCampaign,
   campaignRequestId: initialCampaignRequestId,
   initialZones = [],
+  areasEditable = true,
 }: {
   currency: string;
   existingCampaign?: { id: string; name: string; basics?: CampaignWizardInput["basics"] };
   campaignRequestId?: string;
   initialZones?: components["schemas"]["CampaignZoneRead"][];
+  areasEditable?: boolean;
 }) {
   const [campaignId, setCampaignId] = useState(existingCampaign?.id);
-  const [step, setStep] = useState(existingCampaign ? 1 : 0);
+  const [step, setStep] = useState(existingCampaign ? (areasEditable ? 1 : 2) : 0);
   const [result, setResult] = useState<CreateCampaignState>({});
   const draftBasics = useRef<CampaignWizardInput["basics"] | null>(null);
   const draftSending = useRef(false);
@@ -347,16 +349,22 @@ export function CampaignWizard({
         {step === 1 && campaignId ? (
           <div>
             <p className="text-muted mb-4 text-sm">
-              Your draft is saved. Draw and name the areas where you’d like your advert seen. You
-              can add or change areas later.
+              {areasEditable
+                ? "Your draft is saved. Draw and name the areas where you’d like your advert seen. You can add or change areas later."
+                : "These are your campaign’s saved areas. Contact Terrax if you need to change them."}
             </p>
-            <ZonesEditor key={campaignId} campaignId={campaignId} zones={initialZones} />
+            <ZonesEditor
+              editable={areasEditable}
+              key={campaignId}
+              campaignId={campaignId}
+              zones={initialZones}
+            />
           </div>
         ) : null}
         {step === 2 ? (
           <div className="flex flex-col gap-5">
             <p className="text-muted text-sm">
-              Upload your advert design. We’ll check the file before adding it to your draft.
+              Upload your advert design. We’ll check the file before adding it to your campaign.
             </p>
 
             {creatives.fields.map((field, i) => (

@@ -59,8 +59,30 @@ describe("Bounded Work queue", () => {
     const queue = await collectWorkQueue(api, 1);
     expect(queue.Operations!.total).toBe(120);
     expect(get.mock.calls.every(([, o]) => o.params.query.limit === 1)).toBe(true);
-    expect(get).toHaveBeenCalledTimes(14);
+    expect(get).toHaveBeenCalledTimes(15);
     expect(get.mock.calls.some(([path]) => path.endsWith("/campaign-assignments"))).toBe(false);
+  });
+
+  it("puts new enquiries in Customer Service using the list total", async () => {
+    get.mockImplementation(async (path) =>
+      path.endsWith("/campaign-enquiries")
+        ? {
+            data: {
+              items: [{ id: "enquiry-1", company: "Acme", contact_name: "Ada", created_at: date }],
+              total: 12,
+            },
+          }
+        : { data: { items: [], total: 0 } },
+    );
+    const queue = await collectWorkQueue(api, 1);
+    expect(queue["Customer Service"]!.total).toBe(12);
+    expect(await queue["Customer Service"]![0]!.describe()).toMatchObject({
+      name: "Acme",
+      href: "/admin/enquiries/enquiry-1",
+    });
+    expect(
+      get.mock.calls.find(([path]) => path.endsWith("/campaign-enquiries"))![1].params.query,
+    ).toMatchObject({ status: "new", limit: 1, offset: 0 });
   });
   it("asks the server for actionable contact/change/run rows before totals", async () => {
     await collectWorkQueue(api);

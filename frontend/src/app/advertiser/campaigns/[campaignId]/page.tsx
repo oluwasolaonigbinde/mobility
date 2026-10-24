@@ -39,6 +39,12 @@ const sentences: Record<string, string> = {
   finished: "Your campaign has finished.",
   cancelled: "This campaign has been cancelled.",
 };
+const pauseSentences = {
+  budget: "Your campaign is paused for a budget check. Contact Terrax Media about the next steps.",
+  operational:
+    "Terrax Media has paused your campaign while it checks an operational issue. Contact Terrax Media about the next steps.",
+  unknown: "Your campaign is paused. Contact Terrax Media about the next steps.",
+};
 
 export default async function CampaignDetailPage({
   params,
@@ -170,15 +176,22 @@ export default async function CampaignDetailPage({
       next = { label: "Choose your area", href: `${base}/zones` };
     else if (!commercial.available || !artwork.available || (editable && !areas.available))
       next = { label: "Try again", href: base };
-    else if (!commercial.data.terms)
+    else if (!creativeItems.length)
       next = {
-        label: commercial.data.revisions?.length ? "Review your quotation" : "View your quotation",
+        label: "Add your artwork",
+        href: `/advertiser/campaigns/new?campaignId=${campaignId}`,
+      };
+    else if (!commercial.data.terms && commercial.data.revisions?.length)
+      next = {
+        label: "Review your quotation",
         href: `${base}?details=quotation#quotation`,
       };
-    else if (
-      !creativeItems.length ||
-      creativeItems.some((item) => ["draft", "rejected"].includes(item.status))
-    )
+    else if (!commercial.data.terms)
+      next = {
+        label: commercial.data.quote_request ? "View campaign details" : "Request a quotation",
+        href: `${base}?details=quotation#quotation`,
+      };
+    else if (creativeItems.some((item) => ["draft", "rejected"].includes(item.status)))
       next = {
         label: "Add or update artwork",
         href: `/advertiser/campaigns/new?campaignId=${campaignId}`,
@@ -209,7 +222,11 @@ export default async function CampaignDetailPage({
           <p className="mt-2 text-sm font-semibold text-[#f2c94c]">
             {campaignDay(campaign.start_at, campaign.end_at)}
           </p>
-          <p className="mt-4 text-sm text-[#e4f0df]">{sentences[campaign.status]}</p>
+          <p className="mt-4 text-sm text-[#e4f0df]">
+            {campaign.status === "paused"
+              ? pauseSentences[campaign.pause_kind ?? "unknown"]
+              : sentences[campaign.status]}
+          </p>
           <Link href={next.href} className="brand-action mt-5">
             {next.label} <span aria-hidden="true">→</span>
           </Link>
@@ -307,7 +324,6 @@ export default async function CampaignDetailPage({
                 <CommercialPanel
                   campaignId={campaign.id}
                   canRequestQuotation={!terminal}
-                  canPay={campaign.status !== "cancelled"}
                   commercial={commercial.data}
                   error={
                     query.commercial_error

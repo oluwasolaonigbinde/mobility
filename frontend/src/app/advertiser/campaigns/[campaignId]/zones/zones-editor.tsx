@@ -49,9 +49,11 @@ function zonesToFeatureCollection(zones: Zone[]) {
 export function ZonesEditor({
   campaignId,
   zones: initialZones,
+  editable,
 }: {
   campaignId: string;
   zones: Zone[];
+  editable: boolean;
 }) {
   const [zones, setZones] = useState(initialZones);
   const [unknownOutcome, setUnknownOutcome] = useState(false);
@@ -312,7 +314,11 @@ export function ZonesEditor({
 
   return (
     <div>
-      <p className="text-muted mb-3 text-sm">Draw your areas on this simple preview map.</p>
+      <p className="text-muted mb-3 text-sm">
+        {editable
+          ? "Draw your areas on this simple preview map."
+          : "Your saved areas on this preview map."}
+      </p>
       {unknownOutcome ? (
         <p role="alert" className="mb-4 text-sm">
           Your last area change couldn’t be confirmed.{" "}
@@ -329,32 +335,34 @@ export function ZonesEditor({
         {/* Map */}
         <Panel className="relative overflow-hidden lg:col-span-2">
           <div ref={containerRef} className="h-[520px] w-full" data-testid="zones-map" />
-          <div className="absolute top-3 left-3 z-10 flex gap-2">
-            {!drawing && !pendingGeometry ? (
-              <Button
-                type="button"
-                disabled={unknownOutcome || saving}
-                onClick={startDrawing}
-                className="!h-9 !px-4 !text-xs"
-              >
-                Draw area
-              </Button>
-            ) : drawing ? (
-              <>
-                <span className="micro bg-bg/85 text-amber rounded-lg px-3 py-2 backdrop-blur">
-                  Click to add points · click the first point to close
-                </span>
+          {editable ? (
+            <div className="absolute top-3 left-3 z-10 flex gap-2">
+              {!drawing && !pendingGeometry ? (
                 <Button
                   type="button"
-                  variant="ghost"
-                  onClick={cancelDrawing}
-                  className="!h-9 !px-3 !text-xs"
+                  disabled={unknownOutcome || saving}
+                  onClick={startDrawing}
+                  className="!h-9 !px-4 !text-xs"
                 >
-                  Cancel
+                  Draw area
                 </Button>
-              </>
-            ) : null}
-          </div>
+              ) : drawing ? (
+                <>
+                  <span className="micro bg-bg/85 text-amber rounded-lg px-3 py-2 backdrop-blur">
+                    Click to add points · click the first point to close
+                  </span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={cancelDrawing}
+                    className="!h-9 !px-3 !text-xs"
+                  >
+                    Cancel
+                  </Button>
+                </>
+              ) : null}
+            </div>
+          ) : null}
           {/* Legend */}
           <div className="micro bg-bg/85 absolute bottom-3 left-3 z-10 flex gap-3 rounded-lg px-3 py-2 backdrop-blur">
             {(Object.keys(ZONE_TYPE_META) as ZoneType[]).map((t) => (
@@ -372,7 +380,7 @@ export function ZonesEditor({
 
         {/* Side panel */}
         <div className="flex flex-col gap-4">
-          {pendingGeometry ? (
+          {editable && pendingGeometry ? (
             <Panel className="border-amber/40 p-5">
               <h2 className="micro text-amber mb-3">New area</h2>
               <form action={saveNewZone} className="flex flex-col gap-3">
@@ -435,7 +443,9 @@ export function ZonesEditor({
             </div>
             {zones.length === 0 ? (
               <p className="text-muted px-5 py-8 text-center text-sm">
-                No areas yet. Draw your first main area on the preview.
+                {editable
+                  ? "No areas yet. Draw your first main area on the preview."
+                  : "No areas recorded."}
               </p>
             ) : (
               <ul className="divide-edge/60 max-h-[440px] divide-y overflow-y-auto">
@@ -444,7 +454,7 @@ export function ZonesEditor({
                     key={zone.id}
                     className={cx("px-5 py-3.5", selectedId === zone.id && "bg-raised/60")}
                   >
-                    {editingId === zone.id ? (
+                    {editable && editingId === zone.id ? (
                       <form
                         action={(fd) => saveZoneEdit(zone, fd)}
                         className="flex flex-col gap-2.5"
@@ -493,23 +503,27 @@ export function ZonesEditor({
                           <StatusChip tone={ZONE_TYPE_META[zone.zone_type].tone}>
                             {ZONE_TYPE_META[zone.zone_type].label}
                           </StatusChip>
-                          <button
-                            type="button"
-                            disabled={unknownOutcome || saving}
-                            onClick={() => setEditingId(zone.id)}
-                            className="micro text-muted hover:text-ink"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            disabled={unknownOutcome || saving}
-                            onClick={(event) => removeZone(zone, event.currentTarget)}
-                            className="micro text-muted hover:text-coral"
-                            aria-label={`Delete ${zone.name}`}
-                          >
-                            ✕
-                          </button>
+                          {editable ? (
+                            <>
+                              <button
+                                type="button"
+                                disabled={unknownOutcome || saving}
+                                onClick={() => setEditingId(zone.id)}
+                                className="micro text-muted hover:text-ink"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                disabled={unknownOutcome || saving}
+                                onClick={(event) => removeZone(zone, event.currentTarget)}
+                                className="micro text-muted hover:text-coral"
+                                aria-label={`Delete ${zone.name}`}
+                              >
+                                ✕
+                              </button>
+                            </>
+                          ) : null}
                         </div>
                       </div>
                     )}

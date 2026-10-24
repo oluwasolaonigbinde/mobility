@@ -34,6 +34,7 @@ from app.models.billing import (
 )
 from app.models.campaign import Campaign
 from app.schemas.billing import (
+    AdminCampaignCommercialRead,
     BillingHistoryEntry,
     BudgetCheckRead,
     BudgetResumeCreate,
@@ -48,7 +49,6 @@ from app.schemas.billing import (
     InvoiceCorrectionCreate,
     InvoiceCorrectionRead,
     InvoiceDraftCreate,
-    InvoiceIssue,
     InvoiceRead,
     IssuerProfileCreate,
     IssuerProfileRead,
@@ -97,6 +97,7 @@ from app.services.billing.gateway import (
     ingest_verified_payment_event,
 )
 from app.services.billing.invoices import (
+    configured_invoice_issuer,
     create_invoice_draft,
     invoice_payment_status,
     issue_invoice,
@@ -417,16 +418,21 @@ async def advertiser_campaign_commercial(
 
 @router.get(
     "/admin/campaigns/{campaign_id}/commercial",
-    response_model=CampaignCommercialRead,
+    response_model=AdminCampaignCommercialRead,
 )
 async def admin_campaign_commercial(
     campaign_id: UUID,
     _: AdminUserDependency,
     session: SessionDependency,
-) -> CampaignCommercialRead:
+    settings: SettingsDependency,
+) -> AdminCampaignCommercialRead:
     if await session.get(Campaign, campaign_id) is None:
         raise AppError("CAMPAIGN_NOT_FOUND", "Campaign was not found", status_code=404)
-    return await _campaign_commercial_state(session, campaign_id=campaign_id)
+    state = await _campaign_commercial_state(session, campaign_id=campaign_id)
+    return AdminCampaignCommercialRead(
+        **state.model_dump(),
+        issuing_available=await configured_invoice_issuer(session, settings) is not None,
+    )
 
 
 @router.get("/advertiser/billing", response_model=list[BillingHistoryEntry])
@@ -592,7 +598,6 @@ async def admin_create_invoice(
 @router.post("/admin/invoices/{invoice_id}/issue", response_model=InvoiceRead)
 async def admin_issue_invoice(
     invoice_id: UUID,
-    payload: InvoiceIssue,
     user: AdminUserDependency,
     session: SessionDependency,
     settings: SettingsDependency,
@@ -600,7 +605,6 @@ async def admin_issue_invoice(
     invoice = await issue_invoice(
         session,
         invoice_id=invoice_id,
-        issuer_profile_id=payload.issuer_profile_id,
         actor_user_id=user.id,
         settings=settings,
     )

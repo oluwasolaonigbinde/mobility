@@ -1,3 +1,4 @@
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -12,7 +13,7 @@ class UserCreate(BaseModel):
     password: str = Field(min_length=1)
     full_name: str = Field(min_length=1, max_length=255)
     phone: str | None = Field(default=None, max_length=32)
-    role: UserRole
+    role: Literal[UserRole.ADMIN, UserRole.DRIVER]
     status: UserStatus
     current_password: str | None = Field(
         default=None,

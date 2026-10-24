@@ -54,6 +54,7 @@ from app.services.account_recovery import (
     complete_password_reset,
     request_password_reset,
 )
+from app.services.advertiser_invites import complete_login_invite
 from app.services.audit import create_audit_event
 from app.services.auth import (
     AuthCommandError,
@@ -328,6 +329,19 @@ async def password_reset_complete(
     )
     await session.commit()
     return PasswordResetResponse(message="Password reset completed. Sign in again.")
+
+
+@router.post("/advertiser-invite/complete", response_model=PasswordResetResponse)
+async def advertiser_invite_complete(
+    payload: PasswordResetComplete,
+    session: SessionDependency,
+    settings: SettingsDependency,
+) -> PasswordResetResponse:
+    await complete_login_invite(
+        session, token=payload.token, new_password=payload.new_password, settings=settings
+    )
+    await session.commit()
+    return PasswordResetResponse(message="Your login is ready. Sign in with your new password.")
 
 
 @router.post(

@@ -16,6 +16,7 @@ import { UserStatusMenu } from "../../users/user-status-menu";
 import { updateCompanyAction } from "./company/actions";
 import { exactCompanyMoney, readCompanyInvoices } from "../company-reads";
 import { readAdvertiserCompany } from "../../entity-reads";
+import { LoginInviteForm } from "./invite-form";
 
 export async function generateMetadata({
   params,
@@ -131,6 +132,17 @@ export default async function CompanyHub({
             <QueueUnavailable />
           ) : (
             <>
+              {people.login_invite_available ? (
+                <LoginInviteForm
+                  organizationId={organizationId}
+                  email={
+                    people.items.find(({ membership }) => membership.status === "invited")?.user
+                      .email ??
+                    company.operational_contact_email ??
+                    company.billing_email
+                  }
+                />
+              ) : null}
               <p className="text-muted mb-3 text-sm">
                 {people.total} company sign-in account{people.total === 1 ? "" : "s"}
               </p>
@@ -151,12 +163,16 @@ export default async function CompanyHub({
                           {adminStatus(user.status)}
                         </p>
                       </div>
-                      <UserStatusMenu
-                        userId={user.id}
-                        userLabel={user.full_name}
-                        role={user.role}
-                        status={user.status}
-                      />
+                      {membership.status === "active" ? (
+                        <UserStatusMenu
+                          userId={user.id}
+                          userLabel={user.full_name}
+                          role={user.role}
+                          status={user.status}
+                        />
+                      ) : membership.status === "invited" ? (
+                        <p className="text-muted text-sm">Waiting for password setup</p>
+                      ) : null}
                     </li>
                   ))}
                 </ul>

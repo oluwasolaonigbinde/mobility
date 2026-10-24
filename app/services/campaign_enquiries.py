@@ -83,29 +83,21 @@ async def staff_enquiry(session, *, actor_user_id: UUID, enquiry_id: UUID, lock=
     return row
 
 
-async def convert_enquiry(session, *, actor_user_id, enquiry_id, owner_user_id, settings: Settings):
+async def convert_enquiry(session, *, actor_user_id, enquiry_id, settings: Settings):
     row = await staff_enquiry(
         session, actor_user_id=actor_user_id, enquiry_id=enquiry_id, lock=True
     )
     if row.organization_id is not None:
-        if row.converted_owner_user_id != owner_user_id:
-            raise AppError(
-                "ENQUIRY_CONVERSION_CONFLICT",
-                "This enquiry was already converted with a different owner",
-                status_code=409,
-            )
         return row.organization_id
     organization, _ = await create_advertiser_organization(
         session,
         AdvertiserOrganizationCreate(
             name=row.company,
             billing_email=row.email,
-            owner_user_id=owner_user_id,
         ),
         settings,
     )
     row.organization_id = organization.id
-    row.converted_owner_user_id = owner_user_id
     row.converted_by_user_id = actor_user_id
     row.converted_at = await database_clock(session)
     await create_audit_event(
@@ -116,7 +108,6 @@ async def convert_enquiry(session, *, actor_user_id, enquiry_id, owner_user_id, 
         entity_id=str(row.id),
         metadata={
             "organization_id": str(organization.id),
-            "owner_user_id": str(owner_user_id) if owner_user_id else None,
         },
     )
     await session.flush()

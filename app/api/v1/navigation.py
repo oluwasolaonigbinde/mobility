@@ -20,7 +20,7 @@ router = APIRouter(tags=["Navigation summaries"])
 
 @router.get("/admin/badge-summary", response_model=AdminBadgeSummary)
 async def staff_badges(_user: AdminUserDependency, session: SessionDependency) -> AdminBadgeSummary:
-    return AdminBadgeSummary(**await admin_badge_summary(session))
+    return AdminBadgeSummary(**await admin_badge_summary(session, actor_user_id=_user.id))
 
 
 @router.get("/driver/current-job", response_model=DriverCurrentJob)

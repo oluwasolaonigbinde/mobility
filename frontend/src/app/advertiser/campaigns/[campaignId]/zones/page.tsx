@@ -55,7 +55,12 @@ export default async function CampaignZonesPage({
         Draw the areas where you want your advert seen. Mark any places cars should avoid.
       </p>
 
-      <ZonesEditor key={campaign.id} campaignId={campaign.id} zones={zones?.items ?? []} />
+      <ZonesEditor
+        key={campaign.id}
+        campaignId={campaign.id}
+        zones={zones?.items ?? []}
+        editable={["draft", "rejected"].includes(campaign.status)}
+      />
     </div>
   );
 }

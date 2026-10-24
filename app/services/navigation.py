@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,11 +14,13 @@ from app.models.installation_evidence import InstallationEvidenceSubmission
 from app.models.payout import PayoutCorrectionOrder
 from app.models.trip_analytics import FraudFlag
 from app.models.vehicle import Vehicle
+from app.services.campaign_enquiries import staff_enquiries
 from app.services.contacts import list_manual_driver_contact_tasks
 
 # Same source IDs and area membership as the staff work queue. Counts are tasks,
 # not unique people/campaigns: one record can legitimately need several actions.
 SOURCE_AREAS = {
+    "enquiries": "support",
     "applications": "drivers",
     "cars": "drivers",
     "jobs": "campaigns",
@@ -35,7 +39,7 @@ SOURCE_AREAS = {
 }
 
 
-async def admin_badge_summary(session: AsyncSession) -> dict:
+async def admin_badge_summary(session: AsyncSession, *, actor_user_id: UUID) -> dict:
     def count(model, *filters):
         return select(func.count()).select_from(model).where(*filters).scalar_subquery()
 
@@ -83,6 +87,9 @@ async def admin_badge_summary(session: AsyncSession) -> dict:
         await session.execute(select(*(query.label(key) for key, query in queries.items())))
     ).one()
     counts = {key: int(value) for key, value in row._mapping.items()}
+    _, counts["enquiries"] = await staff_enquiries(
+        session, actor_user_id=actor_user_id, status="new", q=None, limit=1, offset=0
+    )
     # Reuse the current-consent/current-phone predicate, including completed_at.
     _, counts["contacts"] = await list_manual_driver_contact_tasks(
         session,
