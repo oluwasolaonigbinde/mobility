@@ -1,5 +1,8 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
@@ -33,7 +36,8 @@ export async function assignmentAction({
       });
     }
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the server." };
   }
   revalidatePath("/driver/assignments");

@@ -2,12 +2,15 @@ import ipaddress
 import json
 import logging
 import re
+from contextvars import ContextVar
 from datetime import UTC, datetime
+from uuid import UUID
 
 import sentry_sdk
+from httpx import URL
 
 from app.core.config import Settings
-from app.core.middleware import get_request_id
+from app.core.middleware import get_request_id, is_scan_request
 
 _REDACTED = "[REDACTED]"
 _APPLICATION_LINK = re.compile(r"https?://[^\s<>\"']*#application_access_token=[^\s<>\"']*")
@@ -592,6 +595,99 @@ def redact_log_message(message: str) -> str:
     return _redact_serialized_assignments(redacted)
 
 
+_SAFE_DIAGNOSTIC_FIELDS = frozenset(
+    {
+        "event",
+        "error_code",
+        "event_id",
+        "job_id",
+        "job_name",
+        "job_run_id",
+        "reason",
+        "count",
+        "counts",
+        "duration_seconds",
+        "attempt_number",
+    }
+)
+_SCAN_LOG_PATH = re.compile(r"/(?:q|api/v1/qr)/")
+_LOG_URL = re.compile(r"https?://[^\s<>\"']+")
+_job_id: ContextVar[str | None] = ContextVar("observability_job_id", default=None)
+
+
+async def begin_job_logging(ctx: dict) -> None:
+    _job_id.set(str(ctx["job_id"])[:128])
+
+
+async def end_job_logging(ctx: dict) -> None:
+    _job_id.set(None)
+
+
+def exception_diagnostic(exc: BaseException) -> dict:
+    """Never inspect values, source lines, local variables or exception messages."""
+    frames = []
+    current = exc.__traceback__
+    while current is not None:
+        frames.append(
+            {
+                "module": re.sub(
+                    r"[^a-zA-Z0-9_.]", "_", current.tb_frame.f_globals.get("__name__", "")
+                )[:120],
+                "function": re.sub(r"[^a-zA-Z0-9_<>]", "_", current.tb_frame.f_code.co_name)[:120],
+                "line": current.tb_lineno,
+            }
+        )
+        frames = frames[-16:]
+        current = current.tb_next
+    return {"type": re.sub(r"[^a-zA-Z0-9_]", "_", type(exc).__name__)[:120], "frames": frames}
+
+
+def _safe_log_value(value, depth=0):
+    if depth >= 12:
+        return _REDACTED
+    if isinstance(value, str):
+        return _LOG_URL.sub(_REDACTED, value)[:4096]
+    if value is None or isinstance(value, (int, float, bool)):
+        return value
+    if isinstance(value, UUID):
+        return str(value)
+    if isinstance(value, dict):
+        return {
+            key: _safe_log_value(item, depth + 1)
+            for key, item in list(value.items())[:64]
+            if isinstance(key, str)
+        }
+    if isinstance(value, (tuple, list)):
+        return tuple(_safe_log_value(item, depth + 1) for item in value[:64])
+    return _REDACTED
+
+
+def _has_scan_log_value(value) -> bool:
+    pending = [value]
+    visited = 0
+    while pending and visited < 256:
+        value = pending.pop()
+        visited += 1
+        if isinstance(value, str) and _SCAN_LOG_PATH.search(value):
+            return True
+        if isinstance(value, URL) and _SCAN_LOG_PATH.search(value.path):
+            return True
+        if isinstance(value, (tuple, list)):
+            pending.extend(value[:64])
+        elif isinstance(value, dict):
+            pending.extend(list(value.values())[:64])
+    return bool(pending)
+
+
+class SafeLogFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return not (
+            is_scan_request()
+            or (record.exc_info and getattr(record.exc_info[1], "_cardvert_scan_request", False))
+            or _has_scan_log_value((record.msg, record.args))
+        )
+
+
 class JsonLogFormatter(logging.Formatter):
     def __init__(self, *, service: str, release_revision: str) -> None:
         super().__init__()
@@ -599,44 +695,73 @@ class JsonLogFormatter(logging.Formatter):
         self.release_revision = release_revision
 
     def format(self, record: logging.LogRecord) -> str:
-        safe_message = scrub_observability_value(record.msg)
-        safe_arguments = scrub_observability_value(record.args)
+        # Logging integrations may interpolate str(exc) before reaching us.
+        # Exception diagnostics therefore never retain their message channel.
+        safe_message = (
+            "event=exception"
+            if record.exc_info
+            else _safe_log_value(scrub_observability_value(record.msg))
+        )
+        safe_arguments = (
+            () if record.exc_info else _safe_log_value(scrub_observability_value(record.args))
+        )
         try:
             message = str(safe_message) % safe_arguments if safe_arguments else str(safe_message)
         except (TypeError, ValueError):
             message = f"{redact_log_message(str(safe_message))} [REDACTED_ARGUMENTS]"
+        escaped = record.exc_info[1] if record.exc_info else None
         payload = {
             "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
             "level": record.levelname.lower(),
             "service": self.service,
             "release_revision": self.release_revision,
             "logger": record.name,
-            "request_id": get_request_id(),
+            "request_id": _safe_log_value(
+                scrub_observability_value(
+                    get_request_id()
+                    or getattr(record, "diagnostic_request_id", None)
+                    or getattr(escaped, "_cardvert_request_id", None)
+                )
+            ),
             "message": redact_log_message(message),
         }
-        if record.exc_info:
-            payload["exception"] = "[REDACTED_EXCEPTION]"
+        if _job_id.get() is not None:
+            payload["job_id"] = _safe_log_value(scrub_observability_value(_job_id.get()))
+        for name in _SAFE_DIAGNOSTIC_FIELDS:
+            if name in record.__dict__:
+                payload[name] = _safe_log_value(scrub_observability_value(record.__dict__[name]))
+        if record.exc_info and record.exc_info[1] is not None:
+            payload["exception"] = exception_diagnostic(record.exc_info[1])
         return json.dumps(payload, sort_keys=True, separators=(",", ":"))
 
 
+class SafeTextLogFormatter(JsonLogFormatter):
+    def format(self, record: logging.LogRecord) -> str:
+        payload = json.loads(super().format(record))
+        return " ".join(
+            f"{key}={json.dumps(value, separators=(',', ':'))}" for key, value in payload.items()
+        )
+
+
 def configure_logging(settings: Settings, *, service: str) -> None:
-    if settings.log_format != "json":
-        return
     root = logging.getLogger()
     root.setLevel(settings.log_level.upper())
-    for handler in root.handlers:
-        if getattr(handler, "_cardvert_json", False):
-            handler.setFormatter(
-                JsonLogFormatter(service=service, release_revision=settings.release_revision)
-            )
-            return
-    handler = logging.StreamHandler()
+    handler = next((item for item in root.handlers if getattr(item, "_cardvert_json", False)), None)
+    if handler is None:
+        handler = logging.StreamHandler()
     handler._cardvert_json = True  # type: ignore[attr-defined]
-    handler.setFormatter(
-        JsonLogFormatter(service=service, release_revision=settings.release_revision)
-    )
+    formatter = JsonLogFormatter if settings.log_format == "json" else SafeTextLogFormatter
+    handler.setFormatter(formatter(service=service, release_revision=settings.release_revision))
+    handler.filters.clear()
+    handler.addFilter(SafeLogFilter())
     root.handlers.clear()
     root.addHandler(handler)
+    # Uvicorn and arq otherwise retain their own raw traceback formatters.
+    for name in ("uvicorn", "uvicorn.error", "uvicorn.access", "arq", "arq.worker"):
+        logger = logging.getLogger(name)
+        logger.handlers.clear()
+        logger.propagate = True
+        logger.disabled = False
 
 
 def scrub_observability_value(  # noqa: C901
@@ -704,7 +829,71 @@ def scrub_observability_value(  # noqa: C901
     return root["value"]
 
 
+_CORRELATION_FIELDS = frozenset(
+    {"request_id", "release_revision", "job_id", "event_id", "job_run_id"}
+)
+
+
+def _safe_correlation(values):
+    if not isinstance(values, dict):
+        return {}
+    return {
+        key: _safe_log_value(scrub_observability_value(value))
+        for key, value in values.items()
+        if key in _CORRELATION_FIELDS and isinstance(value, (str, UUID))
+    }
+
+
+def _before_breadcrumb(breadcrumb, _hint):
+    if is_scan_request() or _has_scan_log_value(breadcrumb):
+        return None
+    # A logging integration can copy exception text into formatted breadcrumb
+    # messages/parameters before its handler reaches our safe formatter.
+    safe = {"message": "event=breadcrumb", "data": _safe_correlation(breadcrumb.get("data", {}))}
+    if breadcrumb.get("level") in {"debug", "info", "warning", "error", "fatal", "critical"}:
+        safe["level"] = breadcrumb["level"]
+    return safe
+
+
 def _before_send(event, _hint):
+    if is_scan_request() or (
+        _hint
+        and _hint.get("exc_info")
+        and getattr(_hint["exc_info"][1], "_cardvert_scan_request", False)
+    ):
+        return None
+    if _has_scan_log_value(event.get("request", {})):
+        return None
+    diagnostic_event = bool(event.get("exception") or event.get("logentry") or event.get("message"))
+    event.pop("logentry", None)
+    event.pop("message", None)
+    # Only the bounded exception frames below are retained as stack evidence.
+    event.pop("stacktrace", None)
+    event.pop("threads", None)
+    if diagnostic_event:
+        event["extra"] = _safe_correlation(event.get("extra", {}))
+        escaped = _hint["exc_info"][1] if _hint and _hint.get("exc_info") else None
+        request_id = get_request_id() or getattr(escaped, "_cardvert_request_id", None)
+        if request_id:
+            event["extra"].update(_safe_correlation({"request_id": request_id}))
+        if _job_id.get():
+            event["extra"].update(_safe_correlation({"job_id": _job_id.get()}))
+    if "breadcrumbs" in event:
+        event["breadcrumbs"]["values"] = [
+            safe
+            for item in event["breadcrumbs"].get("values", [])
+            if (safe := _before_breadcrumb(item, None)) is not None
+        ]
+    # SDK frames may contain source context even when locals are disabled.
+    for exception in event.get("exception", {}).get("values", []):
+        stack = exception.get("stacktrace", {})
+        frames = [
+            {key: frame[key] for key in ("module", "function", "lineno") if key in frame}
+            for frame in stack.get("frames", [])[-16:]
+        ]
+        exception_type = exception.get("type", "Exception")
+        exception.clear()
+        exception.update(type=exception_type, value=_REDACTED, stacktrace={"frames": frames})
     return scrub_observability_value(event)
 
 
@@ -721,8 +910,19 @@ def init_error_tracking(settings: Settings) -> None:
         include_local_variables=False,
         max_request_body_size="never",
         before_send=_before_send,
+        before_breadcrumb=_before_breadcrumb,
     )
 
 
-def capture_exception(exc: Exception) -> None:
-    sentry_sdk.capture_exception(exc)
+def capture_exception(exc: Exception, *, request_id: str | None = None) -> None:
+    if is_scan_request() or getattr(exc, "_cardvert_scan_request", False):
+        return
+    logging.getLogger(__name__).error(
+        "event=exception",
+        exc_info=(type(exc), exc, exc.__traceback__),
+        extra={"diagnostic_request_id": request_id},
+    )
+    try:
+        sentry_sdk.capture_exception(exc)
+    except Exception:
+        logging.getLogger(__name__).warning("event=error_tracking_unavailable")

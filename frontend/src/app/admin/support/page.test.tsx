@@ -6,7 +6,10 @@ import { ApiError } from "@/lib/api/errors";
 const { get } = vi.hoisted(() => ({ get: vi.fn() }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: get }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => ({ refresh: vi.fn() }),
+}));
 vi.mock("../hub-drawer", () => ({
   HubDrawer: ({ children, closeHref }: { children: ReactNode; closeHref: string }) => (
     <section aria-label="Drawer">

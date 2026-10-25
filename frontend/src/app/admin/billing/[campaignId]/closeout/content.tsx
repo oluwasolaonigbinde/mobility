@@ -1,3 +1,4 @@
+import { adminValueFailure } from "@/lib/api/admin-read";
 import Link from "next/link";
 import { batchApi } from "../../../payouts/batches/batch-api";
 import { PageHeader } from "@/components/ui/page-header";
@@ -22,7 +23,8 @@ export default async function MoneyCloseoutPage({
     position = await batchApi<components["schemas"]["CampaignMoneyPositionRead"]>(
       `/campaigns/${campaignId}/position?limit=25&offset=${page * 25}`,
     );
-  } catch {
+  } catch (error) {
+    adminValueFailure(error);
     return <QueueUnavailable />;
   }
   return (

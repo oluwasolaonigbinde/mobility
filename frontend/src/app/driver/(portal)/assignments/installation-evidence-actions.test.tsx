@@ -8,7 +8,10 @@ const mocks = vi.hoisted(() => ({
   refresh: vi.fn(),
 }));
 
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => ({ refresh: mocks.refresh }),
+}));
 vi.mock("@/lib/files/installation-evidence-upload", () => ({
   uploadInstallationImage: mocks.upload,
   postJson: mocks.postJson,

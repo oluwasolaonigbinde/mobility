@@ -1,7 +1,8 @@
 "use server";
 
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
@@ -82,7 +83,8 @@ export async function listAssignmentRecommendationsAction(
     if (error || !data) return { error: "Could not load ranked candidates." };
     return { candidates: data.items };
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the server." };
   }
 }
@@ -112,12 +114,13 @@ export async function createAssignmentAction(
     const api = createApiClient(await getSessionToken());
     await api.POST("/api/v1/admin/campaign-assignments", { body: parsed.data });
   } catch (error) {
+    unstable_rethrow(error);
     if (error instanceof ApiError && error.code === "DRIVER_SERVICE_AREA_REQUIRED")
       return {
         error: "Add the driver’s city before sending a job offer.",
         cityRequiredForDriver: parsed.data.driver_profile_id,
       };
-    if (error instanceof ApiError) return { error: error.message };
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the server." };
   }
   revalidatePath("/admin/campaigns");
@@ -140,7 +143,8 @@ export async function cancelAssignmentAction(
       body: { reason: parsed.data.reason },
     });
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the server." };
   }
   revalidatePath("/admin/campaigns");
@@ -157,7 +161,8 @@ export async function activateAssignmentAction(assignmentId: string): Promise<Ad
       body: {},
     });
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the server." };
   }
   revalidatePath("/admin/campaigns");

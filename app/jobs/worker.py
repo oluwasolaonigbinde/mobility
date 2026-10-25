@@ -2,13 +2,19 @@ from typing import Any
 
 from arq.connections import RedisSettings
 from arq.worker import func
-from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.adapters.disbursement.paystack import build_disbursement_adapter
 from app.adapters.storage import build_storage_provider
 from app.core.config import Settings, get_settings
-from app.core.observability import configure_logging, init_error_tracking
+from app.core.observability import (
+    begin_job_logging,
+    configure_logging,
+    end_job_logging,
+    init_error_tracking,
+)
 from app.db.outbox_session import OutboxSession
+from app.db.session import create_database_engine
 from app.jobs.assignment_activity import sweep_assignment_activity_flags
 from app.jobs.automatic_payouts import sweep_automatic_payouts
 from app.jobs.budget_enforcement import sweep_campaign_budget_enforcement
@@ -74,7 +80,7 @@ async def on_startup(ctx: dict[str, Any]) -> None:
     if not settings.database_url:
         raise RuntimeError("DATABASE_URL is not configured")
     # Created here (not at import) so the engine binds to the worker process's event loop.
-    engine = create_async_engine(settings.database_url, pool_pre_ping=True)
+    engine = create_database_engine(settings.database_url, worker=True)
     ctx["settings"] = settings
     ctx["engine"] = engine
     ctx["sessionmaker"] = async_sessionmaker(
@@ -98,6 +104,8 @@ async def on_shutdown(ctx: dict[str, Any]) -> None:
 
 
 class WorkerSettings:
+    max_jobs = 10
+    job_timeout = 300
     health_check_interval = 30
     # arq reads worker options from this class's raw __dict__ (arq.worker.get_kwargs), so
     # redis_settings cannot be a lazy property. It resolves at import when REDIS_URL is set
@@ -214,6 +222,8 @@ class WorkerSettings:
     # Worker-level too: finish_failed_job stores max-retries failures under the
     # deterministic job id using this value (func-level keep_result not consulted).
     keep_result = 0
+    on_job_start = begin_job_logging
+    on_job_end = end_job_logging
     on_startup = on_startup
     on_shutdown = on_shutdown
     redis_settings = _optional_redis_settings()

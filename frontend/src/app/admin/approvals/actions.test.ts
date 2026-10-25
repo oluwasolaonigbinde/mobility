@@ -67,7 +67,8 @@ describe("reviewCampaignAction", () => {
     mocks.post.mockRejectedValue(
       new ApiError(409, {
         code: "CAMPAIGN_REVIEW_STATE_CONFLICT",
-        message: "Campaign review state changed. Refresh and try again.",
+        message: "private campaign state and advertiser details",
+        details: { advertiser: "private@example.com" },
       }),
     );
 

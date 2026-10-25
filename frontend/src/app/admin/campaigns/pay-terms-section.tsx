@@ -1,3 +1,4 @@
+import { adminReadFailure } from "@/lib/api/admin-read";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { DailyRatePanel } from "../payouts/rules/daily-rate-panel";
@@ -14,7 +15,7 @@ export default async function PayTermsSection({ campaignId }: { campaignId: stri
         .GET("/api/v1/admin/campaigns/{campaign_id}/payout-rules/{rule_id}/revisions", {
           params: { path: { campaign_id: campaignId, rule_id: rule.id }, query: { limit: 50 } },
         })
-        .catch(() => ({ data: undefined }))
+        .catch(adminReadFailure)
     : undefined;
   if (rule && !revisions?.data) return <QueueUnavailable />;
   return (

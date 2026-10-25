@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 from uuid import UUID
 
@@ -6,9 +7,13 @@ from sqlalchemy import exists, select
 from app.core.errors import AppError
 from app.models.billing import PaymentGatewayEvent, PaymentGatewayProcessingAttempt
 from app.services.billing.gateway import (
+    PERMANENT_PAYMENT_ERROR_CODES,
+    payment_attempt_is_terminal,
     process_payment_gateway_event,
     record_payment_gateway_failure,
 )
+
+logger = logging.getLogger(__name__)
 
 
 async def process_payment_gateway_event_job(
@@ -23,13 +28,23 @@ async def process_payment_gateway_event_job(
             await session.rollback()
             error_code = exc.code if isinstance(exc, AppError) else type(exc).__name__
             async with ctx["sessionmaker"]() as failure_session:
-                await record_payment_gateway_failure(
+                attempt = await record_payment_gateway_failure(
                     failure_session,
                     event_id=parsed_event_id,
                     error_code=error_code,
                 )
                 await failure_session.commit()
-            raise
+            if (
+                attempt.outcome == "failed"
+                and attempt.error_code not in PERMANENT_PAYMENT_ERROR_CODES
+            ):
+                raise
+            if attempt.outcome == "failed":
+                logger.error(
+                    "event=payment_gateway_terminal event_id=%s reason=%s",
+                    parsed_event_id,
+                    attempt.error_code,
+                )
     return {
         "event_id": str(parsed_event_id),
         "outcome": attempt.outcome,
@@ -46,9 +61,7 @@ async def sweep_payment_gateway_events(ctx: dict[str, Any]) -> dict[str, int]:
                 .where(
                     ~exists().where(
                         PaymentGatewayProcessingAttempt.gateway_event_id == PaymentGatewayEvent.id,
-                        PaymentGatewayProcessingAttempt.outcome.in_(
-                            ("confirmed", "confirmed_unallocated", "ignored_failed")
-                        ),
+                        payment_attempt_is_terminal(),
                     )
                 )
                 .order_by(PaymentGatewayEvent.received_at, PaymentGatewayEvent.id)

@@ -1,4 +1,4 @@
-﻿import { render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api/errors";
 const mocks = vi.hoisted(() => ({ get: vi.fn() }));

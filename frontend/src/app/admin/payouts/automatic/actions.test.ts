@@ -36,7 +36,7 @@ describe("automatic payout actions", () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/money");
   });
 
-  it("refuses a short reason before calling the API and shows server errors", async () => {
+  it("refuses a short reason and maps known refusal codes without exposing backend text", async () => {
     expect(await switchAutomaticPayoutsAction({}, form({ intent: "pause", reason: "x" }))).toEqual({
       error: "Give a reason of at least 3 characters — it is kept in the audit trail",
     });
@@ -44,16 +44,28 @@ describe("automatic payout actions", () => {
     mocks.post.mockRejectedValueOnce(
       new ApiError(409, {
         code: "PAYOUT_AUTOMATIC_ALREADY_PAUSED",
-        message: "Automatic payouts are already paused",
+        message: "private bank account 0123456789",
+        details: { account: "0123456789" },
       }),
     );
     expect(
       await switchAutomaticPayoutsAction({}, form({ intent: "pause", reason: "Again" })),
     ).toEqual({ error: "Automatic payouts are already paused" });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    mocks.post.mockRejectedValueOnce(
+      new ApiError(409, {
+        code: "PAYOUT_AUTOMATIC_NOT_PAUSED",
+        message: "private bank account 0123456789",
+      }),
+    );
+    expect(
+      await switchAutomaticPayoutsAction({}, form({ intent: "resume", reason: "Again" })),
+    ).toEqual({ error: "Automatic payouts are not paused" });
     mocks.post.mockRejectedValueOnce(new Error("offline"));
     expect(await releaseUnsentAction({}, form({ reason: "Move them" }))).toEqual({
       error: "Could not reach the server. Try again.",
     });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
   it("reports how many unsent payments moved", async () => {
@@ -72,6 +84,17 @@ describe("automatic payout actions", () => {
     expect(await releaseUnsentAction({}, form({ reason: "" }))).toHaveProperty("error");
   });
 
+  it.each([undefined, {}, { released_count: -1 }, { released_count: 1.5 }])(
+    "does not report zero payments released when the acknowledgement is absent or invalid",
+    async (data) => {
+      mocks.post.mockResolvedValueOnce({ data });
+      expect(await releaseUnsentAction({}, form({ reason: "Month end" }))).toEqual({
+        error: "No result was confirmed. Reload before trying again.",
+      });
+      expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    },
+  );
+
   it("resolves an alert by id with a note", async () => {
     mocks.post.mockResolvedValueOnce({ data: {} });
     expect(
@@ -87,11 +110,13 @@ describe("automatic payout actions", () => {
     mocks.post.mockRejectedValueOnce(
       new ApiError(409, {
         code: "PAYOUT_AUTOMATIC_ALERT_RESOLVED",
-        message: "This alert is already followed up",
+        message: "private payout alert and bank account 0123456789",
       }),
     );
+    mocks.revalidatePath.mockClear();
     expect(await resolveAlertAction({}, form({ alert_id: ALERT_ID, note: "Again" }))).toEqual({
       error: "This alert is already followed up",
     });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 });

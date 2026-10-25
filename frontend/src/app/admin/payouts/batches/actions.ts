@@ -1,5 +1,7 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { batchApi, type PayoutBatch } from "./batch-api";
@@ -38,6 +40,7 @@ export async function previewSelectionAction(
       body: JSON.stringify({ currency, ledger_entry_ids: ledgerEntryIds }),
     });
   } catch (error) {
+    unstable_rethrow(error);
     return {
       error: publicActionError(
         error,
@@ -126,6 +129,7 @@ export async function createAndReserveBatchAction(
       batchId: draft.id,
     };
   } catch (error) {
+    unstable_rethrow(error);
     return {
       error: publicActionError(
         error,
@@ -175,6 +179,7 @@ export async function batchTransitionAction(
       ...(parsed.data.intent === "retry_failed" ? { batchId: result.id } : {}),
     };
   } catch (error) {
+    unstable_rethrow(error);
     return {
       error: publicActionError(
         error,
@@ -207,6 +212,7 @@ export async function pollLineAction(
     revalidatePath("/admin/money");
     return { done: "Verified provider result applied to this payment" };
   } catch (error) {
+    unstable_rethrow(error);
     return {
       error: publicActionError(
         error,
@@ -234,6 +240,7 @@ export async function maskedDestinationAction(
     if (!data) return { error: "Destination could not be verified." };
     return { mask: `Bank ${data.bank_code} · account ending ${data.account_number.slice(-4)}` };
   } catch (error) {
+    unstable_rethrow(error);
     return {
       error:
         error instanceof ApiError && error.status === 403
@@ -275,10 +282,11 @@ export async function negativeAdjustmentAction(
     revalidatePath("/admin/money");
     return { done: "Negative adjustment recorded. Other trips' pay is unchanged." };
   } catch (error) {
+    unstable_rethrow(error);
     return {
       error:
         error instanceof ApiError
-          ? error.message
+          ? publicActionError(error)
           : "No result was confirmed. Retry the same adjustment or check the ledger.",
     };
   }

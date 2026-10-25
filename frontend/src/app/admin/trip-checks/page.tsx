@@ -1,3 +1,4 @@
+import { adminValueFailure } from "@/lib/api/admin-read";
 export const metadata = { title: "Trip checks" };
 import Link from "next/link";
 import { createApiClient } from "@/lib/api/client";
@@ -84,25 +85,25 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
     tab === "suspicious"
       ? await flagRead(offset)
           .then(({ data }) => data)
-          .catch(() => undefined)
+          .catch(adminValueFailure)
       : undefined;
   const checkPage =
     tab === "in-person"
       ? await checkRead(offset)
           .then(({ data }) => data)
-          .catch(() => undefined)
+          .catch(adminValueFailure)
       : undefined;
   const checks = checkPage?.items;
   const [allFlags, selectedChecks] = await Promise.all([
     tab === "suspicious" && p.flag
       ? flagRead(0, 1, p.flag)
           .then(({ data }) => data?.items)
-          .catch(() => undefined)
+          .catch(adminValueFailure)
       : Promise.resolve(undefined),
     tab === "in-person" && p.check
       ? checkRead(0, 1, p.check)
           .then(({ data }) => data?.items)
-          .catch(() => undefined)
+          .catch(adminValueFailure)
       : Promise.resolve(undefined),
   ]);
   const scoped = (row: { driver_profile_id?: string | null; campaign_id?: string | null }) =>
@@ -124,7 +125,8 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
         driver_profile_id: p.driver_profile_id,
         campaign_id: p.campaign_id,
       });
-    } catch {
+    } catch (error) {
+      adminValueFailure(error);
       /* Only the opened section fails. */
     }
   }
@@ -150,7 +152,7 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
             },
           })
           .then(({ data }) => data)
-          .catch(() => undefined)
+          .catch(adminValueFailure)
       : undefined;
   const disputes = disputePage?.items.every(
     (item) =>
@@ -173,7 +175,7 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
               ? data
               : undefined,
           )
-          .catch(() => undefined)
+          .catch(adminValueFailure)
       : undefined;
   const route = routePage?.items;
   const held = (flag: NonNullable<typeof selectedFlag>) =>
@@ -252,7 +254,7 @@ export default async function TripChecks({ searchParams }: { searchParams: Promi
       ? await Promise.all(
           matchedTripIds(selectedFlag.evidence).map(async (id) => ({
             id,
-            context: await readTripContext(api, id).catch(() => undefined),
+            context: await readTripContext(api, id).catch(adminValueFailure),
           })),
         )
       : [];

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { adminValueFailure } from "@/lib/api/admin-read";
 import { z } from "zod";
 import { notFound, redirect } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
@@ -21,6 +22,7 @@ export default async function EnquiryPage({ params }: { params: Promise<{ enquir
   try {
     enquiry = (await readStaffEnquiry(createApiClient(await getSessionToken()), enquiryId)).data;
   } catch (error) {
+    adminValueFailure(error);
     if (error instanceof ApiError && error.status === 401) redirect("/login");
     if (error instanceof ApiError && [403, 404].includes(error.status)) notFound();
   }

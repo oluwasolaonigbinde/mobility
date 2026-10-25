@@ -1,5 +1,8 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
@@ -43,7 +46,8 @@ export async function reviewCampaignChangeAction(
     });
     waitingForFunding = parsed.data.intent === "approve" && data?.status === "pending_funding";
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the server." };
   }
   revalidatePath("/admin/campaigns");
@@ -86,7 +90,13 @@ export async function reviewCampaignAction(
       });
     }
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError)
+      return {
+        error: publicActionError(error, {
+          CAMPAIGN_REVIEW_STATE_CONFLICT: "Campaign review state changed. Refresh and try again.",
+        }),
+      };
     return { error: "Could not reach the server." };
   }
 
@@ -129,7 +139,8 @@ export async function reviewCreativeAction(
       });
     }
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the server." };
   }
 
@@ -183,7 +194,8 @@ export async function reviewInstallationEvidenceAction(
       });
     }
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the server." };
   }
   revalidatePath("/admin/campaigns");

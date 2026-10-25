@@ -1,3 +1,4 @@
+import { adminReadFailure, adminValueFailure } from "@/lib/api/admin-read";
 import Link from "next/link";
 import { readDriver, readApplication } from "../entity-reads";
 import { notFound } from "next/navigation";
@@ -75,6 +76,7 @@ export default async function DriverHub({
     }
     if (driverId) driver = (await readDriver(driverId)).data;
   } catch (error) {
+    adminValueFailure(error);
     if (error instanceof ApiError && [403, 404, 422].includes(error.status)) notFound();
     throw error;
   }
@@ -91,7 +93,7 @@ export default async function DriverHub({
         .GET("/api/v1/admin/driver-applications/{application_id}", {
           params: { path: { application_id: query.application } },
         })
-        .catch(() => ({ data: undefined }))
+        .catch(adminReadFailure)
     ).data;
     if (candidate && candidate.driver_profile_id === id && candidate.user_id === userId)
       application = candidate;
@@ -103,7 +105,7 @@ export default async function DriverHub({
         .GET("/api/v1/admin/driver-applications", {
           params: { query: { driver_profile_id: id, user_id: userId, history: true, limit: 1 } },
         })
-        .catch(() => ({ data: undefined }))
+        .catch(adminReadFailure)
     ).data;
     application = candidates?.items.find((a) => a.driver_profile_id === id && a.user_id === userId);
     applicationAvailable = Boolean(candidates && (candidates.total === 0 || application));
@@ -116,7 +118,7 @@ export default async function DriverHub({
               query: { driver_profile_id: id, limit: 25, offset: offset(query.cars_offset) },
             },
           })
-          .catch(() => ({ data: undefined }))
+          .catch(adminReadFailure)
       : Promise.resolve({ data: undefined }),
     id
       ? api
@@ -125,7 +127,7 @@ export default async function DriverHub({
               query: { driver_profile_id: id, limit: 25, offset: offset(query.jobs_offset) },
             },
           })
-          .catch(() => ({ data: undefined }))
+          .catch(adminReadFailure)
       : Promise.resolve({ data: undefined }),
     id
       ? api
@@ -134,7 +136,7 @@ export default async function DriverHub({
               query: { driver_profile_id: id, limit: 25, offset: offset(query.trips_offset) },
             },
           })
-          .catch(() => ({ data: undefined }))
+          .catch(adminReadFailure)
       : Promise.resolve({ data: undefined }),
     id
       ? api
@@ -143,7 +145,7 @@ export default async function DriverHub({
               query: { driver_profile_id: id, limit: 25, offset: offset(query.reviews_offset) },
             },
           })
-          .catch(() => ({ data: undefined }))
+          .catch(adminReadFailure)
       : Promise.resolve({ data: undefined }),
     id
       ? api
@@ -157,18 +159,18 @@ export default async function DriverHub({
               },
             },
           })
-          .catch(() => ({ data: undefined }))
+          .catch(adminReadFailure)
       : Promise.resolve({ data: undefined }),
     api
       .GET("/api/v1/admin/users", {
         params: { query: { q: person.email, role: "driver", limit: 100 } },
       })
-      .catch(() => ({ data: undefined })),
+      .catch(adminReadFailure),
     api
       .GET("/api/v1/admin/complaints", {
         params: { query: { user_id: userId, limit: 25, offset: offset(query.complaints_offset) } },
       })
-      .catch(() => ({ data: undefined })),
+      .catch(adminReadFailure),
     id
       ? api
           .GET("/api/v1/admin/manual-driver-contact-tasks", {
@@ -181,7 +183,7 @@ export default async function DriverHub({
               },
             },
           })
-          .catch(() => ({ data: undefined }))
+          .catch(adminReadFailure)
       : Promise.resolve({ data: undefined }),
   ]);
   const [documents, phoneWork] = await Promise.all([
@@ -190,14 +192,14 @@ export default async function DriverHub({
           .GET("/api/v1/admin/drivers/{driver_profile_id}/documents", {
             params: { path: { driver_profile_id: id } },
           })
-          .catch(() => ({ data: undefined }))
+          .catch(adminReadFailure)
       : Promise.resolve({ data: undefined }),
     id
       ? api
           .GET("/api/v1/admin/phone-verification-challenges", {
             params: { query: { driver_profile_id: id, limit: 1 } },
           })
-          .catch(() => ({ data: undefined }))
+          .catch(adminReadFailure)
       : Promise.resolve({ data: undefined }),
   ]);
   const account = accounts.data?.items.find((u) => u.id === userId);
@@ -231,7 +233,7 @@ export default async function DriverHub({
             .GET("/api/v1/admin/payout-batches/money-balances/{driver_profile_id}", {
               params: { path: { driver_profile_id: id }, query: { currency } },
             })
-            .catch(() => ({ data: undefined }))
+            .catch(adminReadFailure)
         ).data
       : undefined;
   const hrefFor = (key: keyof DriverHubQuery, value: number, anchor: string) =>

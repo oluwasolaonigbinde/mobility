@@ -3,7 +3,10 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { RerunReportForm } from "./report-actions";
 
 const refresh = vi.hoisted(() => vi.fn());
-vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  useRouter: () => ({ refresh }),
+}));
 const fetchMock = vi.fn();
 beforeEach(() => {
   vi.clearAllMocks();

@@ -34,6 +34,7 @@ def _blank_to_none(value: str | float | int | None) -> str | float | int | None:
 
 
 LOCAL_ENVIRONMENTS = {"local", "dev", "development", "test", "testing"}
+SUPPORTED_ENVIRONMENTS = LOCAL_ENVIRONMENTS | {"staging", "rehearsal", "production"}
 DEFAULT_JWT_SECRET = "change-me-local-development-secret-at-least-32-bytes"
 
 CorsOrigins = Annotated[list[str], BeforeValidator(_parse_cors_origins)]
@@ -139,7 +140,7 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "mobility-adtech-api"
-    environment: str = "local"
+    environment: str
     api_v1_prefix: str = "/api/v1"
     database_url: str | None = None
     redis_url: str | None = None
@@ -278,6 +279,28 @@ class Settings(BaseSettings):
     ping_retention_months: int = 12
     partition_premake_months: int = 4
 
+    @field_validator("environment", mode="before")
+    @classmethod
+    def validate_environment(cls, value: str) -> str:
+        if not isinstance(value, str):
+            raise ValueError("ENVIRONMENT must explicitly name a supported mode")
+        normalized = value.strip().lower()
+        if normalized not in SUPPORTED_ENVIRONMENTS:
+            raise ValueError(
+                "ENVIRONMENT must explicitly name a supported local, test or release mode"
+            )
+        return normalized
+
+    @model_validator(mode="after")
+    def validate_smtp_transport(self) -> "Settings":
+        if (
+            self.environment not in LOCAL_ENVIRONMENTS
+            and self.email_provider == "smtp"
+            and not self.email_smtp_starttls
+        ):
+            raise ValueError("SMTP requires verified TLS outside local/test")
+        return self
+
     @field_validator("api_v1_prefix")
     @classmethod
     def validate_api_prefix(cls, value: str) -> str:
@@ -288,7 +311,7 @@ class Settings(BaseSettings):
     @field_validator("backend_cors_origins")
     @classmethod
     def validate_cors_origins(cls, value: list[str], info) -> list[str]:
-        environment = str(info.data.get("environment", "local")).lower()
+        environment = str(info.data.get("environment", "")).lower()
         if environment not in LOCAL_ENVIRONMENTS and "*" in value:
             raise ValueError("Wildcard CORS origins are not allowed outside local/test")
         return value
@@ -319,7 +342,7 @@ class Settings(BaseSettings):
     @field_validator("jwt_secret_key")
     @classmethod
     def validate_jwt_secret_key(cls, value: str, info) -> str:
-        environment = str(info.data.get("environment", "local")).lower()
+        environment = str(info.data.get("environment", "")).lower()
         if environment not in LOCAL_ENVIRONMENTS and value == DEFAULT_JWT_SECRET:
             raise ValueError("JWT_SECRET_KEY must be changed outside local/test")
         if not value.strip() or len(value) < 32:
@@ -334,7 +357,7 @@ class Settings(BaseSettings):
         secret = value.get_secret_value()
         if not re.fullmatch(r"sk_(test|live)_\S+", secret):
             raise ValueError("PAYSTACK_SECRET_KEY must be a Paystack sk_test_ or sk_live_ key")
-        environment = str(info.data.get("environment", "local")).lower()
+        environment = str(info.data.get("environment", "")).lower()
         if environment != "production" and secret.startswith("sk_live_"):
             raise ValueError("PAYSTACK_SECRET_KEY live keys are refused outside production")
         if environment == "production" and secret.startswith("sk_test_"):

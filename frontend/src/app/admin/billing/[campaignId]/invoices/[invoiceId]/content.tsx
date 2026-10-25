@@ -1,3 +1,4 @@
+import { adminValueFailure } from "@/lib/api/admin-read";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ApiError } from "@/lib/api/errors";
@@ -20,6 +21,7 @@ export default async function AdminInvoicePage({
       readCampaignCommercial(campaignId),
     ]);
   } catch (error) {
+    adminValueFailure(error);
     if (error instanceof ApiError && error.status === 404) notFound();
     return <QueueUnavailable />;
   }

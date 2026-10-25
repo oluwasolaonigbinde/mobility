@@ -14,6 +14,33 @@ from app.db.outbox_session import OutboxSession
 _engine: AsyncEngine | None = None
 _sessionmaker: async_sessionmaker[AsyncSession] | None = None
 
+# Fixed pilot-workload bounds, not deployment configuration. Recalculate the
+# connection budget when API process count or worker replicas change.
+DATABASE_STATEMENT_TIMEOUT_MS = 120_000
+DATABASE_LOCK_TIMEOUT_MS = 10_000
+DATABASE_IDLE_TRANSACTION_TIMEOUT_MS = 60_000
+DATABASE_POOL_WAIT_SECONDS = 10
+DATABASE_POOL_SIZE = 5
+API_POOL_OVERFLOW = 5
+WORKER_POOL_OVERFLOW = 6
+
+
+def create_database_engine(database_url: str, *, worker: bool = False) -> AsyncEngine:
+    return create_async_engine(
+        database_url,
+        pool_pre_ping=True,
+        pool_size=DATABASE_POOL_SIZE,
+        max_overflow=WORKER_POOL_OVERFLOW if worker else API_POOL_OVERFLOW,
+        pool_timeout=DATABASE_POOL_WAIT_SECONDS,
+        connect_args={
+            "server_settings": {
+                "statement_timeout": str(DATABASE_STATEMENT_TIMEOUT_MS),
+                "lock_timeout": str(DATABASE_LOCK_TIMEOUT_MS),
+                "idle_in_transaction_session_timeout": str(DATABASE_IDLE_TRANSACTION_TIMEOUT_MS),
+            }
+        },
+    )
+
 
 def get_engine(settings: Settings | None = None) -> AsyncEngine:
     global _engine, _sessionmaker
@@ -21,7 +48,7 @@ def get_engine(settings: Settings | None = None) -> AsyncEngine:
     if not settings.database_url:
         raise RuntimeError("DATABASE_URL is not configured")
     if _engine is None:
-        _engine = create_async_engine(settings.database_url, pool_pre_ping=True)
+        _engine = create_database_engine(settings.database_url)
         _sessionmaker = async_sessionmaker(
             _engine,
             class_=OutboxSession,

@@ -1,3 +1,4 @@
+import { adminValueFailure } from "@/lib/api/admin-read";
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/current-user";
 import type { components } from "@/lib/api/schema";
@@ -22,7 +23,8 @@ export default async function PaymentHistory({
   let parent: PayoutBatch;
   try {
     parent = await batchApi<PayoutBatch>(`/${batchId}`);
-  } catch {
+  } catch (error) {
+    adminValueFailure(error);
     return <QueueUnavailable />;
   }
   if (parent.id !== batchId || !Array.isArray(parent.lines)) return <QueueUnavailable />;
@@ -34,7 +36,8 @@ export default async function PaymentHistory({
     history = await batchApi<components["schemas"]["PayoutLineHistoryRead"]>(
       `/lines/${lineId}/history?limit=25&offset=${page * 25}`,
     );
-  } catch {
+  } catch (error) {
+    adminValueFailure(error);
     return <QueueUnavailable />;
   }
   return (

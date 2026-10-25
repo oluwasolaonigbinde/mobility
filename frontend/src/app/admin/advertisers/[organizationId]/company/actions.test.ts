@@ -9,7 +9,10 @@ const mocks = vi.hoisted(() => ({
   }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
-vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  redirect: mocks.redirect,
+}));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "session" }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ PATCH: mocks.patch }) }));
 
@@ -52,15 +55,22 @@ it("keeps the campaign context and revalidates its billing page", async () => {
   expect(mocks.revalidatePath).toHaveBeenCalledWith("/admin/campaigns/campaign-1");
 });
 
-it("returns the API message on failure, with and without campaign context", async () => {
+it("keeps campaign context while replacing arbitrary validation text with safe copy", async () => {
   mocks.patch.mockRejectedValue(
-    new ApiError(422, { code: "INVALID", message: "Name is required" }),
+    new ApiError(422, {
+      code: "INVALID",
+      message: "private company validation private@example.com",
+      details: { billing_email: "private@example.com" },
+    }),
+  );
+  const safeError = encodeURIComponent(
+    "The request could not be completed. Check the details and try again.",
   );
   await expect(updateCompanyAction(ORG_ID, undefined, form())).rejects.toThrow(
-    `REDIRECT ${PATH}?error=Name%20is%20required`,
+    `REDIRECT ${PATH}?error=${safeError}`,
   );
   await expect(updateCompanyAction(ORG_ID, "campaign-1", form())).rejects.toThrow(
-    `REDIRECT ${PATH}?campaign=campaign-1&error=Name%20is%20required`,
+    `REDIRECT ${PATH}?campaign=campaign-1&error=${safeError}`,
   );
   mocks.patch.mockRejectedValue(new Error("network"));
   await expect(updateCompanyAction(ORG_ID, undefined, form())).rejects.toThrow(

@@ -157,7 +157,6 @@ async def _signing_check(settings: Settings) -> dict[str, str]:
                     "SELECT evidence_manifest_receipt_key_version FROM trip_sessions "
                     "WHERE evidence_manifest_receipt_key_version IS NOT NULL UNION "
                     "SELECT receipt_key_version FROM location_ping_batches "
-                    "WHERE receipt_key_version IS NOT NULL "
                     "WHERE receipt_key_version IS NOT NULL"
                 )
             )

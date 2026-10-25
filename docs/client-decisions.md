@@ -222,6 +222,9 @@ REQ-171). Payment confirmation still requires canonical verified evidence.
 An interrupted online checkout is reconciled using its saved reference under
 serialized audited recovery; one ambiguous not-found reply never permits a new
 reference (D85, REQ-173).
+Permanent payment terms or checkout-binding mismatches stop automatic retries
+and remain visible to operators; temporary failures still recover. This changes
+no payment amount or allocation authority (D133, REQ-241).
 
 **Still open:** [REQ-051](requests.md) Paystack activation and developer admin
 access, [REQ-025](requests.md) password and two-step verification,
@@ -229,6 +232,7 @@ access, [REQ-025](requests.md) password and two-step verification,
 
 **History:**
 - **2026-08-14** — Client confirmed payment timing and methods (Q2, Q3, D18).
+- **2026-10-25** — D133/REQ-241 stops repeated automatic attempts for proven permanent payment-binding failures, retaining operator evidence and transient recovery. Earlier sweeps repeatedly selected those failures. Verification and integration remain pending.
 - **2026-10-14** — Owner approved bounded public callback buffering (D84/REQ-171); earlier callbacks authenticated only after an unbounded body read. Local declared/chunked/exact-byte regressions pass; security review and full batch CI passed. Built in `2428011f`.
 - **2026-10-14** — D85/REQ-173 recovers saved uncertain checkouts; the earlier implementation refused all initialization retries even after a pre-dispatch interruption. Recovery reuses the exact reference and canonical verification, retaining uncertainty after ambiguous/duplicate responses. Fake-I/O and separate-session checks pass; money review and full batch CI passed. Built in `faa4bb19`.
 - **2026-09-24** — Client chose Paystack with OPay settlement (client answers item 7).
@@ -739,11 +743,19 @@ access (Q32). Hosting, database and file storage on **Hetzner**; maps from
 checking; domain **terraxmedia.com** (D44, client answers items 9–16). Bank and
 NIN encryption keys stay in Cardvert's own key ring, because Hetzner has no
 key-management service (D44).
+Every process explicitly selects its environment. Outside local/test operation,
+email transport verifies the server certificate and hostname; diagnostics remain
+useful without Sentry while excluding personal scan data (D133, REQ-239/240).
+Database work has fixed statement, lock and idle-transaction bounds and bounded
+API/worker pools (D134, REQ-242). Replica changes require recalculating the
+connection budget; the measured pilot fixtures do not qualify production load.
 
 **Still open:** [REQ-050](requests.md) Hetzner, Postmark and MapTiler accounts;
 [REQ-043](requests.md) domain connection; [REQ-033](requests.md) which address (for example app.terraxmedia.com); [REQ-032](requests.md) residency and legal prerequisites.
 
 **History:**
+- **2026-10-25** — Owner-approved recovery hardening (D133, REQ-239/240): every process must explicitly identify its environment, and nonlocal email transport verifies the server certificate and hostname. Useful bounded diagnostics remain available without an error-tracking account; scan personal data stays excluded. Earlier startup silently selected local mode, SMTP had no explicit verifying context, and local exception diagnostics were absent or unsafe. Implementation/verification is in progress; no external delivery or deployment is authorized.
+- **2026-10-25** — D134/REQ-242 records parent-confirmed fixed database budgets after the real PostgreSQL capacity/default and representative pilot-workload probe. Earlier processes inherited unbounded PostgreSQL timers and library pool settings. D117, existing worker execution limit and external gates remain unchanged; final verification is pending.
 - **2026-08-14** — Client confirmed ownership (Q32, D18).
 - **2026-09-24** — Client approved ClamAV, Postmark, Mapbox ("short run", Google Maps later) and terraxmedia.com, and left hosting, storage and region to the developer's recommendation (client answers items 9–16). The recommendation was Render with AWS storage and encryption.
 - **2026-09-29** — Deployment templates for Render, AWS and Mapbox written, with every secret blank and nothing applied (REQ-010). Built in `0b53eab`.

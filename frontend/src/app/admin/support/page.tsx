@@ -1,3 +1,4 @@
+import { adminReadFailure, adminValueFailure } from "@/lib/api/admin-read";
 export const metadata = { title: "Support" };
 import Link from "next/link";
 import { createApiClient } from "@/lib/api/client";
@@ -59,7 +60,7 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
             },
           })
           .then(({ data }) => data)
-          .catch(() => undefined)
+          .catch(adminValueFailure)
       : undefined;
   const contact =
     tab === "contact"
@@ -75,7 +76,7 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
             },
           })
           .then(({ data }) => data)
-          .catch(() => undefined)
+          .catch(adminValueFailure)
       : undefined;
   const phoneWork =
     tab === "contact"
@@ -84,7 +85,7 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
             params: { query: { driver_profile_id: p.driver_profile_id, limit: 25, offset } },
           })
           .then(({ data }) => data)
-          .catch(() => undefined)
+          .catch(adminValueFailure)
       : undefined;
   let selectedComplaint;
   let complaintMissing = false;
@@ -94,10 +95,10 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
         params: { path: { complaint_id: p.complaint } },
       })
       .then(({ data }) => ({ data, missing: false }))
-      .catch((error: unknown) => ({
-        data: undefined,
-        missing: error instanceof ApiError && error.status === 404,
-      }));
+      .catch((error: unknown) => {
+        adminValueFailure(error);
+        return { data: undefined, missing: error instanceof ApiError && error.status === 404 };
+      });
     selectedComplaint = selection.data;
     complaintMissing = selection.missing;
     if (
@@ -119,7 +120,7 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
             .GET("/api/v1/admin/campaigns/{campaign_id}", {
               params: { path: { campaign_id: selectedComplaint.reference_id } },
             })
-            .catch(() => ({ data: undefined }))
+            .catch(adminReadFailure)
         ).data
       : undefined;
   const cancellationCampaignMatches =
@@ -131,7 +132,7 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
         api.GET("/api/v1/admin/users", {
           params: { query: { role: "admin", status: "active", limit: 100, offset: next } },
         }),
-      ).catch(() => undefined)
+      ).catch(adminValueFailure)
     : undefined;
   let selectedTask: components["schemas"]["ManualContactTaskRead"] | undefined;
   let taskMissing = false;
@@ -147,7 +148,7 @@ export default async function SupportPage({ searchParams }: { searchParams: Prom
           },
         },
       }),
-    ).catch(() => undefined);
+    ).catch(adminValueFailure);
     selectedTask = all?.find((item) => item.id === p.task);
     taskMissing = !!all && !selectedTask;
     if (

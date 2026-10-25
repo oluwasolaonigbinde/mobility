@@ -1,4 +1,8 @@
 "use server";
+
+import { unstable_rethrow } from "next/navigation";
+
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
@@ -32,10 +36,11 @@ export async function resolveOperation(_state: { error?: string; done?: string }
     revalidatePath("/admin/support");
     return { done: "Contact outcome recorded. This does not confirm provider delivery." };
   } catch (error) {
+    unstable_rethrow(error);
     return {
       error:
         error instanceof ApiError
-          ? error.message
+          ? publicActionError(error)
           : "No result was confirmed. Reload or retry the same action and note.",
     };
   }

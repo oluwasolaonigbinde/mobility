@@ -1,4 +1,8 @@
 "use server";
+
+import { unstable_rethrow } from "next/navigation";
+
+import { publicActionError } from "@/lib/api/public-action-error";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
@@ -32,10 +36,11 @@ export async function recordPhoneVerificationAction(
       },
     );
   } catch (e) {
+    unstable_rethrow(e);
     return {
       error:
         e instanceof ApiError
-          ? e.message
+          ? publicActionError(e)
           : "Couldn't record verification. Check the phone status before trying again.",
     };
   }

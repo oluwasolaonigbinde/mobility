@@ -1,9 +1,9 @@
+import { adminValueFailure } from "@/lib/api/admin-read";
 import Link from "next/link";
 import { campaignDay } from "@/lib/campaigns/day-progress";
 import { readCampaign, readCampaignCommercial } from "../../entity-reads";
 import { readPayTerms } from "../pay-terms-read";
 import { notFound, redirect } from "next/navigation";
-import { isRedirectError } from "next/dist/client/components/redirect-error";
 import type { ReactNode } from "react";
 import { requireRole } from "@/lib/auth/current-user";
 import { z } from "zod";
@@ -63,15 +63,14 @@ type Query = {
   saved?: string;
 };
 function sectionFailure(error: unknown) {
-  if (isRedirectError(error)) throw error;
-  if (error instanceof ApiError && error.status === 401) redirect("/login");
+  adminValueFailure(error);
   return { data: undefined };
 }
 async function renderSection(render: () => Promise<ReactNode>, retryHref: string) {
   try {
     return await render();
   } catch (error) {
-    sectionFailure(error);
+    adminValueFailure(error);
     return (
       <div>
         <QueueUnavailable />
@@ -98,6 +97,7 @@ export default async function CampaignHub({
   try {
     campaign = (await readCampaign(campaignId)).data;
   } catch (error) {
+    adminValueFailure(error);
     if (error instanceof ApiError && error.status === 401) redirect("/login");
     if (error instanceof ApiError && [403, 404, 422].includes(error.status)) notFound();
     throw error;
@@ -698,7 +698,8 @@ export async function generateMetadata({ params }: { params: Promise<{ campaignI
   try {
     const { data } = await readCampaign((await params).campaignId);
     return { title: data?.name ?? "Campaign" };
-  } catch {
+  } catch (error) {
+    adminValueFailure(error);
     return { title: "Campaign" };
   }
 }

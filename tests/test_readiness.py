@@ -10,6 +10,26 @@ from app.core.config import Settings
 from app.operations import readiness
 
 
+def test_real_signing_readiness_queries_both_evidence_tables(postgis_db_sessionmaker, monkeypatch):
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    engine = postgis_db_sessionmaker.kw["bind"]
+    schema = engine.get_execution_options()["schema_translate_map"][None]
+    settings = _fully_configured_settings().model_copy(
+        update={"database_url": engine.url.render_as_string(hide_password=False)}
+    )
+    monkeypatch.setattr(
+        readiness,
+        "create_async_engine",
+        lambda url, **kwargs: create_async_engine(
+            url,
+            connect_args={"server_settings": {"search_path": f"{schema},public"}},
+            **kwargs,
+        ),
+    )
+    assert asyncio.run(readiness._signing_check(settings)) == {"status": "ok"}
+
+
 def test_readiness_single_flight_and_success_cache(monkeypatch) -> None:
     calls = 0
 
@@ -138,9 +158,7 @@ def _fully_configured_settings() -> Settings:
         ("_signing_check", "trip_evidence_signing"),
     ],
 )
-def test_readiness_component_failure_matrix(
-    monkeypatch, failed_probe: str, component: str
-) -> None:
+def test_readiness_component_failure_matrix(monkeypatch, failed_probe: str, component: str) -> None:
     async def passing(*_args, **_kwargs):
         return {"status": "ok"}
 
@@ -163,9 +181,7 @@ def test_readiness_component_failure_matrix(
 
     assert not result.ready
     assert result.components[component] == "unavailable"
-    assert all(
-        state == "ok" for name, state in result.components.items() if name != component
-    )
+    assert all(state == "ok" for name, state in result.components.items() if name != component)
 
 
 def test_readiness_component_and_overall_hung_deadlines(monkeypatch) -> None:
@@ -215,9 +231,7 @@ class _StorageCanaryFake:
 
 
 @pytest.mark.parametrize("failure", ["put", "read", "delete"])
-def test_storage_canary_attempts_cleanup_for_every_failure(
-    monkeypatch, failure: str
-) -> None:
+def test_storage_canary_attempts_cleanup_for_every_failure(monkeypatch, failure: str) -> None:
     storage = _StorageCanaryFake(failure)
     monkeypatch.setattr(readiness, "build_storage_provider", lambda _settings: storage)
 
@@ -227,9 +241,7 @@ def test_storage_canary_attempts_cleanup_for_every_failure(
     monkeypatch.setattr(readiness, "urlopen", private_denial)
     with pytest.raises(RuntimeError):
         asyncio.run(
-            readiness._storage_check(
-                write_canary=True, settings=_fully_configured_settings()
-            )
+            readiness._storage_check(write_canary=True, settings=_fully_configured_settings())
         )
     assert len(storage.deleted) == 1
 

@@ -1,13 +1,16 @@
+import { publicActionError } from "@/lib/api/public-action-error";
 import { ApiError } from "@/lib/api/errors";
+import { unstable_rethrow } from "next/navigation";
 
 export function reportIssuanceError(error: unknown): Response {
+  unstable_rethrow(error);
   if (error instanceof ApiError) {
     return Response.json(
       {
         error: {
           code: error.code,
-          message: error.message,
-          details: error.details ?? {},
+          message: publicActionError(error),
+          details: {},
           request_id: error.requestId,
         },
       },

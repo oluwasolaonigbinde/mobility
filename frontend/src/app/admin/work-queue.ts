@@ -1,3 +1,4 @@
+import { adminValueFailure } from "@/lib/api/admin-read";
 import { cache } from "react";
 import { headers } from "next/headers";
 import { createApiClient, type ApiClient } from "@/lib/api/client";
@@ -82,7 +83,8 @@ function source<T extends { id: string }>(
         )
           return undefined;
         return { items: data.items.map(project), total: data.total! };
-      } catch {
+      } catch (error) {
+        adminValueFailure(error);
         return undefined;
       }
     },

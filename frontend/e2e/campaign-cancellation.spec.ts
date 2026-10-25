@@ -1,8 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import {
-  cleanupIsolatedCampaign,
-  createIsolatedActiveCampaign,
-} from "./support/campaign-fixture";
+import { cleanupIsolatedCampaign, createIsolatedActiveCampaign } from "./support/campaign-fixture";
 
 const ADVERTISER = {
   email: "advertiser@demo.mobility.local",
@@ -23,7 +20,8 @@ test("advertiser confirms one permanent campaign cutoff", async ({ page }) => {
   try {
     await login(page);
     await page.goto("/advertiser/campaigns");
-    await page.getByRole("link", { name: campaignName }).click();
+    await page.getByRole("table").getByRole("link", { name: campaignName }).click();
+    await page.locator("#manage > summary").click();
 
     const cancellationHeading = page.getByRole("heading", { name: "Cancel campaign" });
     const panel = cancellationHeading.locator("..");

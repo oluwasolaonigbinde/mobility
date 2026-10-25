@@ -18,7 +18,10 @@ export async function setSessionCookie(token: string, expiresInSeconds: number):
 
 export async function clearSessionCookie(): Promise<void> {
   const store = await cookies();
-  store.delete(env().SESSION_COOKIE_NAME);
+  store.set(env().SESSION_COOKIE_NAME, "", {
+    ...sessionCookieOptions(0),
+    expires: new Date(0),
+  });
 }
 
 export async function getSessionToken(): Promise<string | undefined> {

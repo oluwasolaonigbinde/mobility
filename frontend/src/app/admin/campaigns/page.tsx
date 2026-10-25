@@ -1,3 +1,4 @@
+import { adminReadFailure } from "@/lib/api/admin-read";
 export const metadata = { title: "Campaigns" };
 import Link from "next/link";
 import { campaignDay } from "@/lib/campaigns/day-progress";
@@ -129,7 +130,7 @@ async function CampaignList(
   if (source.id === "artwork") {
     const { data } = await api
       .GET("/api/v1/admin/creatives/pending-review", { params: { query: { limit: 25, offset } } })
-      .catch(() => ({ data: undefined }));
+      .catch(adminReadFailure);
     total = data?.total;
     if (data) {
       const parents = await Promise.all(
@@ -138,7 +139,7 @@ async function CampaignList(
             .GET("/api/v1/admin/campaigns/{campaign_id}", {
               params: { path: { campaign_id: row.creative.campaign_id } },
             })
-            .catch(() => ({ data: undefined })),
+            .catch(adminReadFailure),
         ),
       );
       if (parents.every((parent) => parent.data))
@@ -152,7 +153,7 @@ async function CampaignList(
   } else if (source.id === "installation") {
     const { data } = await api
       .GET("/api/v1/admin/installation-evidence/pending")
-      .catch(() => ({ data: undefined }));
+      .catch(adminReadFailure);
     if (data) {
       total = data.items.length;
       const selected = data.items.slice(offset, offset + 25);
@@ -163,7 +164,7 @@ async function CampaignList(
               .GET("/api/v1/admin/campaign-assignments/{assignment_id}", {
                 params: { path: { assignment_id: evidence.assignment_id } },
               })
-              .catch(() => ({ data: undefined }))
+              .catch(adminReadFailure)
           ).data;
           if (!job || job.vehicle_id !== evidence.vehicle_id) return undefined;
           const campaign = (
@@ -171,7 +172,7 @@ async function CampaignList(
               .GET("/api/v1/admin/campaigns/{campaign_id}", {
                 params: { path: { campaign_id: job.campaign_id } },
               })
-              .catch(() => ({ data: undefined }))
+              .catch(adminReadFailure)
           ).data;
           return campaign
             ? {
@@ -189,7 +190,7 @@ async function CampaignList(
   } else if (source.id === "changes") {
     const { data } = await api
       .GET("/api/v1/admin/campaign-change-requests/pending")
-      .catch(() => ({ data: undefined }));
+      .catch(adminReadFailure);
     if (data) {
       total = data.items.length;
       const selected = data.items.slice(offset, offset + 25);
@@ -199,7 +200,7 @@ async function CampaignList(
             .GET("/api/v1/admin/campaigns/{campaign_id}", {
               params: { path: { campaign_id: row.campaign_id } },
             })
-            .catch(() => ({ data: undefined })),
+            .catch(adminReadFailure),
         ),
       );
       if (parents.every((parent) => parent.data))
@@ -216,7 +217,7 @@ async function CampaignList(
       q: p.q,
       limit: 25,
       offset,
-    }).catch(() => ({ data: undefined }));
+    }).catch(adminReadFailure);
     items = data?.items.map((campaign) => ({
       key: campaign.id,
       campaign,
@@ -243,14 +244,14 @@ async function CampaignList(
                   .GET("/api/v1/admin/campaign-assignments", {
                     params: { query: { campaign_id: campaign.id, limit: 1 } },
                   })
-                  .catch(() => ({ data: undefined }))
+                  .catch(adminReadFailure)
               ).data?.total,
           commercial: (
             await api
               .GET("/api/v1/admin/campaigns/{campaign_id}/commercial", {
                 params: { path: { campaign_id: campaign.id } },
               })
-              .catch(() => ({ data: undefined }))
+              .catch(adminReadFailure)
           ).data,
         })),
       )

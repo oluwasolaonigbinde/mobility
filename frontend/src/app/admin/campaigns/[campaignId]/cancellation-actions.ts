@@ -1,7 +1,8 @@
 "use server";
+
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { requireRole } from "@/lib/auth/current-user";
 import { getSessionToken } from "@/lib/auth/session";
 import { createApiClient } from "@/lib/api/client";
@@ -66,6 +67,7 @@ export async function cancelWholeCampaign(
       revalidatePath(path);
     return { done: "Campaign cancelled. Review billing for any settlement." };
   } catch (error) {
+    unstable_rethrow(error);
     if (error instanceof ApiError && error.status === 401) redirect("/login");
     if (error instanceof ApiError && [403, 404].includes(error.status))
       return { error: "This campaign or cancellation request isn’t available." };

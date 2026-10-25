@@ -4,7 +4,7 @@ from copy import deepcopy
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette import status
@@ -41,6 +41,23 @@ from app.services.billing.receipts import (
     record_payment_receipt,
 )
 from app.services.payout_rule_serialization import acquire_campaign_terms_lock, database_clock
+
+PERMANENT_PAYMENT_ERROR_CODES = frozenset(
+    {"PAYMENT_EVENT_TERMS_MISMATCH", "PAYMENT_CHECKOUT_BINDING_MISMATCH"}
+)
+
+
+def payment_attempt_is_terminal():
+    """One SQL predicate for processing, failure recording and catch-up selection."""
+    return or_(
+        PaymentGatewayProcessingAttempt.outcome.in_(
+            ("confirmed", "confirmed_unallocated", "ignored_failed")
+        ),
+        and_(
+            PaymentGatewayProcessingAttempt.outcome == "failed",
+            PaymentGatewayProcessingAttempt.error_code.in_(PERMANENT_PAYMENT_ERROR_CODES),
+        ),
+    )
 
 
 async def ingest_payment_gateway_webhook(
@@ -276,9 +293,7 @@ async def process_payment_gateway_event(
         select(PaymentGatewayProcessingAttempt)
         .where(
             PaymentGatewayProcessingAttempt.gateway_event_id == event.id,
-            PaymentGatewayProcessingAttempt.outcome.in_(
-                ("confirmed", "confirmed_unallocated", "ignored_failed")
-            ),
+            payment_attempt_is_terminal(),
         )
         .order_by(PaymentGatewayProcessingAttempt.attempt_number.desc())
         .limit(1)
@@ -417,9 +432,7 @@ async def record_payment_gateway_failure(
         select(PaymentGatewayProcessingAttempt)
         .where(
             PaymentGatewayProcessingAttempt.gateway_event_id == event.id,
-            PaymentGatewayProcessingAttempt.outcome.in_(
-                ("confirmed", "confirmed_unallocated", "ignored_failed")
-            ),
+            payment_attempt_is_terminal(),
         )
         .order_by(PaymentGatewayProcessingAttempt.attempt_number.desc())
         .limit(1)

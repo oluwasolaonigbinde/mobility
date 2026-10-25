@@ -1,7 +1,8 @@
 "use server";
+
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
 import { askTerraxToCancelCampaign } from "@/lib/api/audit-batch2";
 import { ApiError } from "@/lib/api/errors";
@@ -40,6 +41,7 @@ export async function requestCampaignCancellation(
     revalidatePath(`/advertiser/campaigns/${campaignId}`);
     return { threadId: data.id };
   } catch (error) {
+    unstable_rethrow(error);
     if (error instanceof ApiError && error.status === 401) redirect("/login");
     if (error instanceof ApiError && [403, 404].includes(error.status))
       return { error: "This campaign couldn’t be found or isn’t available to your account." };

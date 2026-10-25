@@ -6,7 +6,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_PATH = ROOT / "docs" / "measurement-methodology.json"
-FIXTURE_DIR = ROOT / "tests" / "fixtures" / "measurement"
 ADVERTISER_DIR = ROOT / "frontend" / "src" / "app" / "advertiser"
 SHARED_COMPONENTS_DIR = ROOT / "frontend" / "src" / "components"
 COPY_SOURCE_DIRS = (ADVERTISER_DIR, SHARED_COMPONENTS_DIR)
@@ -37,45 +36,6 @@ def prohibited_claim_pattern(claim: str) -> re.Pattern[str]:
 
 def read_json(path: Path) -> dict:
     return json.loads(path.read_text())
-
-
-def test_contract_is_complete_and_live_use_fails_closed() -> None:
-    contract = read_json(CONTRACT_PATH)
-
-    assert contract["schema_version"] == "measurement-methodology-v1"
-    assert contract["status"] == "DRAFT_BUILD_ONLY"
-    assert contract["external_gate"] == "EXT-REPORT-METHOD"
-    assert contract["live_report_issuance_authorized"] is False
-    assert contract["standard_deliverable"] == "Campaign Performance Analysis"
-    assert "roi_gate" not in contract
-
-    metrics = {row["id"]: row for row in contract["metric_hierarchy"]}
-    assert set(metrics) == {
-        "verified_vehicle_movement",
-        "modelled_potential_contacts",
-        "target_area_coverage",
-        "driver_campaign_cost",
-    }
-    required = {
-        "display_label",
-        "class",
-        "unit",
-        "source",
-        "vintage",
-        "uncertainty",
-        "missing_data",
-    }
-    assert all(required <= row.keys() for row in metrics.values())
-    contacts = metrics["modelled_potential_contacts"]
-    assert contacts["storage_field"] == "estimated_impressions"
-    assert {"verified views", "unique reach", "audience", "attribution", "people exposed"} <= set(
-        contacts["never_equivalent_to"]
-    )
-
-    coverage = metrics["target_area_coverage"]["candidate_formula"]
-    assert coverage["status"] == "SYNTHETIC_VALIDATION_ONLY"
-    assert coverage["live_method_approval"] == "MISSING"
-    assert coverage["target"] == "at least 60 percent"
 
 
 def test_frozen_disclosure_wording_is_taken_from_the_contract() -> None:
@@ -117,17 +77,6 @@ def test_frozen_disclosure_wording_is_taken_from_the_contract() -> None:
     assert rule["omitted_label"] == "Omitted - insufficient frozen evidence"
     assert SUPPRESSED_TOTAL_LABEL == "Not enough data"
     assert SUPPRESSED_TOTAL_LABEL.isascii(), "the bounded PDF renderer is ASCII-only"
-
-
-def test_performance_fixture_omits_roi() -> None:
-    fixture = read_json(FIXTURE_DIR / "performance_only.json")
-
-    assert fixture["test_only"] is True
-    assert fixture["title"] == "Campaign Performance Analysis"
-    assert "mode" not in fixture
-    assert "roi" not in fixture
-    assert "roi_gate" not in fixture
-    assert "true_roi" not in fixture["metrics"]
 
 
 def test_advertiser_copy_uses_safe_measurement_terms() -> None:

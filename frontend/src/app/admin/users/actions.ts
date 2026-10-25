@@ -1,7 +1,8 @@
 "use server";
 
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
@@ -54,7 +55,10 @@ export async function createUserAction(
     });
     if (!data) return { error: "Unexpected empty response creating the user." };
   } catch (error) {
-    return { error: error instanceof ApiError ? error.message : "Could not reach the server." };
+    unstable_rethrow(error);
+    return {
+      error: error instanceof ApiError ? publicActionError(error) : "Could not reach the server.",
+    };
   }
   const destination = user.role === "admin" ? "/admin/settings/staff" : "/admin/drivers";
   revalidatePath(destination);
@@ -83,7 +87,8 @@ export async function updateUserStatusAction(
       },
     });
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the server." };
   }
   revalidatePath("/admin/settings/staff");

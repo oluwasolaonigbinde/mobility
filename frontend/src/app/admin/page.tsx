@@ -1,3 +1,4 @@
+import { adminValueFailure } from "@/lib/api/admin-read";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireRole } from "@/lib/auth/current-user";
@@ -53,7 +54,8 @@ export default async function AdminWorkQueuePage({
             })),
           ),
         };
-      } catch {
+      } catch (error) {
+        adminValueFailure(error);
         return { department, rows: undefined, total: undefined };
       }
     }),

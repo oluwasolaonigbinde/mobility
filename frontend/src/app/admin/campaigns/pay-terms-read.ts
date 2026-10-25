@@ -1,3 +1,4 @@
+import { adminValueFailure } from "@/lib/api/admin-read";
 import { cache } from "react";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
@@ -33,7 +34,8 @@ export const readPayTerms = cache(async (campaignId: string) => {
       ? `${formatMoneyExact(current!.daily_rate_naira, current!.currency)} per day for ${current!.daily_target_miles} miles.`
       : "No pay terms are effective yet.";
     return { rule, current, summary, ready };
-  } catch {
+  } catch (error) {
+    adminValueFailure(error);
     return undefined;
   }
 });

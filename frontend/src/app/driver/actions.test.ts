@@ -275,11 +275,15 @@ describe("driver trip BFF actions", () => {
     });
 
     mocks.post.mockRejectedValueOnce(
-      new ApiError(409, { code: "TRIP_EVIDENCE_INCOMPLETE", message: "incomplete" }),
+      new ApiError(409, {
+        code: "TRIP_EVIDENCE_INCOMPLETE",
+        message: "private evidence receipt and location",
+        details: { latitude: 9.0765 },
+      }),
     );
-    await expect(reconcileTripEvidenceAction(TRIP_ID)).resolves.toMatchObject({
+    await expect(reconcileTripEvidenceAction(TRIP_ID)).resolves.toEqual({
       outcome: "unknown",
-      error: "incomplete",
+      error: "The request could not be completed. Check the details and try again.",
     });
   });
 

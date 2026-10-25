@@ -108,6 +108,11 @@ Copy-Item .env.example .env
 ```
 
 The example is safe for local Docker Compose development. Do not commit real secrets.
+`ENVIRONMENT` is required for API, worker, migrations, OpenAPI generation and
+seed commands. The example explicitly selects `local`; supported local aliases
+are `dev`, `development`, `test` and `testing`. Release modes are `staging`,
+`rehearsal` and `production`. Missing, blank or unknown values fail startup.
+Configured SMTP requires verified STARTTLS outside the local/test modes.
 
 ## Install
 

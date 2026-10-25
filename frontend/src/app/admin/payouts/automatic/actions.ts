@@ -1,5 +1,8 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
@@ -22,7 +25,14 @@ const releaseSchema = z.object({ reason });
 const resolveSchema = z.object({ alert_id: z.string().uuid(), note: reason });
 
 function failure(error: unknown): AutomaticActionState {
-  if (error instanceof ApiError) return { error: error.message };
+  if (error instanceof ApiError)
+    return {
+      error: publicActionError(error, {
+        PAYOUT_AUTOMATIC_ALREADY_PAUSED: "Automatic payouts are already paused",
+        PAYOUT_AUTOMATIC_NOT_PAUSED: "Automatic payouts are not paused",
+        PAYOUT_AUTOMATIC_ALERT_RESOLVED: "This alert is already followed up",
+      }),
+    };
   return { error: "Could not reach the server. Try again." };
 }
 
@@ -47,6 +57,7 @@ export async function switchAutomaticPayoutsAction(
       });
     }
   } catch (error) {
+    unstable_rethrow(error);
     return failure(error);
   }
   revalidatePath("/admin/money");
@@ -69,8 +80,11 @@ export async function releaseUnsentAction(
     const { data } = await api.POST("/api/v1/admin/payouts/automatic/release-unsent", {
       body: { reason: parsed.data.reason },
     });
+    const count = data?.released_count;
+    if (typeof count !== "number" || !Number.isSafeInteger(count) || count < 0) {
+      return { error: "No result was confirmed. Reload before trying again." };
+    }
     revalidatePath("/admin/money");
-    const count = data?.released_count ?? 0;
     return {
       done:
         count === 0
@@ -78,6 +92,7 @@ export async function releaseUnsentAction(
           : `${count} unsent payment${count === 1 ? "" : "s"} moved to manual review.`,
     };
   } catch (error) {
+    unstable_rethrow(error);
     return failure(error);
   }
 }
@@ -98,6 +113,7 @@ export async function resolveAlertAction(
       body: { note: parsed.data.note },
     });
   } catch (error) {
+    unstable_rethrow(error);
     return failure(error);
   }
   revalidatePath("/admin/money");

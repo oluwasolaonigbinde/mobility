@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.151 — 2026-10-24. Canonical source of truth: current state AND target state.**
+**Version 1.152 — 2026-10-25. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -166,6 +166,53 @@ the controller owns CI, commits and the independent rerun.
 
 All three §9 artifacts move with their API changes, followed by R14-B. No launch
 gate, external approval, provider call, payout rule or driver auto-sign-in changes.
+
+### 1.3 Integrated recovery safety (D133 / REQ-236–245) [TARGET, verification pending]
+
+The reviewed recovery contract and criterion evidence are consolidated in
+`docs/delivery-recovery-2026-10-25.md`. Existing D108–D132 decisions, package
+status and external gates are unchanged. Mechanical fixes enforce existing
+tracking/session/UI authority; the following new operational safety choices
+amend §§6, 10, 12, 14, 15 and 26:
+
+- `Settings.environment` is required and normalized once. Supported values are
+  local/dev/development/test/testing and staging/rehearsal/production. API,
+  worker/import-time, migrations, seeds and OpenAPI tooling share it. CI and
+  pytest explicitly select test; missing-mode subprocess tests control `.env`.
+  SMTP uses the system trust store, required peer verification and hostname
+  checking through `ssl.create_default_context`; nonlocal configured SMTP
+  refuses plaintext. Explicit local/test capture remains possible.
+- Both supported log formats and the API/worker/Uvicorn chain use a safe
+  formatter/filter. Exception diagnostics contain only type and at most16
+  module/function/line frames, with no exception text, source or locals.
+  Structured extras are allowlisted/redacted; request, release and worker job
+  correlation remains. Optional Sentry failure cannot remove local diagnostics.
+  Public `/q/*` and internal `/api/v1/qr/*` failures suppress scan access,
+  exception and telemetry records; the existing edge boundary remains required.
+- `billing.gateway.payment_attempt_is_terminal` is shared by processing,
+  failure recording and the oldest100 sweep. Confirmed/unallocated/ignored
+  outcomes and failed attempts with the explicit permanent terms/binding code
+  allowlist stop automatic work; transient failures still recover. Event-row
+  locking serializes attempt evidence; failed-persistence errors propagate for
+  retry. The existing `app.jobs.payment_gateway` operator log records only
+  terminal event UUID and allowlisted reason. No remediation API or new outcome
+  schema is added; terminal failures create no money records.
+- CI installs the hashed production Python lock before constrained separate
+  dev/static tooling and no-dependency editable metadata. It machine-checks all
+  locked installed versions plus `pip check` in static and every shard.
+  Coverage instrumentation, source eligibility and floors remain unchanged.
+
+- Fixed PostgreSQL bounds (D134) are statement120s, lock10s, idle-transaction60s,
+  with10s pool wait. Each API process has5+5 connections; each worker has5+6,
+  retaining explicit arq concurrency10 and execution300s. Two API processes plus
+  one worker can use31 of the measured97 nonreserved connections, leaving66
+  before migrations, short-lived operations engines, health and other clients.
+  Recalculate `API processes * 10 + worker replicas * 11` when either count
+  changes; these pilot-fixture bounds make no production load-capacity claim.
+  Scanner30s, SMTP15s, Paystack20s, report lease120s and D117 remain unchanged.
+
+Fresh runtime, specialist,
+minimal-change, D33 and full CI evidence remain required before merge.
 
 ### The conformance rule
 
@@ -755,8 +802,8 @@ Notes:
   <!-- verified by scripts/update_architecture_inventory.py from Alembic's ScriptDirectory -->
 - The baseline enables `pgcrypto` + `postgis`.
 - D83 authorizes the one-time development squash because there is no live data.
-  The single baseline is pinned by `tests/test_mvp_hardening.py` and
-  `tests/test_architecture_current_state.py`; current schema/protection tests
+  `tests/test_architecture_current_state.py` pins the single baseline and
+  requires one linear head; current schema/protection tests
   verify fresh bootstrap, immutable evidence and database parity. Subsequent
   schema changes receive new, unique migration numbers.
 - **[BUILT]** Revision-gated restore: `scripts/db_restore.sh` restores into a
@@ -3789,6 +3836,8 @@ within one hour. Simultaneous Redis/database failure can only emit the fixed
 failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
+
+- **v1.152 — 25 October 2026 (D133/D134 / REQ-236–247):** §1.3 records the reviewed integrated recovery boundaries: explicit environment, verified SMTP TLS, bounded privacy-safe API/worker/Uvicorn diagnostics, terminal automatic handling for the exact permanent payment-error allowlist, and exact-lock CI runtime parity. Implementation and criterion verification are in progress; no CI, merge, launch or external-action completion is claimed. D134 records parent-confirmed fixed PostgreSQL/pool/worker bounds after the actual pilot-workload/capacity packet; production load capacity is not claimed. The approved test-quality reconciliation retains baseline/linear-head and real runtime/inventory gates.
 
 - **v1.151 — 24 October 2026 (REQ-231–234 / D130–D132):** Repair migrated photo
   review, quotation revisions, configured invoice issuing, staff impact displays

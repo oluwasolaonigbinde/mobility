@@ -2,7 +2,10 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 const mocks = vi.hoisted(() => ({ post: vi.fn(), redirect: vi.fn(), requireRole: vi.fn() }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  redirect: mocks.redirect,
+}));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
 vi.mock("@/lib/auth/current-user", () => ({ requireRole: mocks.requireRole }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ POST: mocks.post }) }));

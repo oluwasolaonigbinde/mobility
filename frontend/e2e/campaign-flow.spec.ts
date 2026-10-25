@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 
 import { test, expect, type Page } from "@playwright/test";
+import type { components } from "../src/lib/api/schema";
 
 /**
  * Full advertiser journey against the real stack (Next.js BFF + FastAPI +
@@ -118,9 +119,15 @@ async function loginAsAdmin(page: Page) {
   await page.waitForURL("**/admin");
 }
 
+async function openCampaignSection(page: Page, id: "details" | "manage") {
+  if ((await page.locator(`#${id}`).getAttribute("open")) === null) {
+    await page.locator(`#${id} > summary`).click();
+  }
+}
+
 test("advertiser can sign in without exposing suppressed dashboard results", async ({ page }) => {
   await loginAsAdvertiser(page);
-  await expect(page.getByRole("heading", { name: /Marula Kitchens/ })).toBeVisible({
+  await expect(page.getByRole("heading", { name: /Marula Kitchens/, level: 1 })).toBeVisible({
     timeout: 20_000,
   });
   const session = (await page.context().cookies()).find(
@@ -133,8 +140,10 @@ test("advertiser can sign in without exposing suppressed dashboard results", asy
   });
   expect(summary.status()).toBe(409);
   expect((await summary.json()).error.code).toBe("DISCLOSURE_SUPPRESSED");
-  await expect(page.getByText("Results appear after more trips are recorded.")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Recent campaigns" })).toBeVisible();
+  await expect(
+    page.getByText("Not enough cars yet to show estimated views.").first(),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "On the road now", exact: true })).toBeVisible();
   await expect(page.getByText("Estimated ad exposure", { exact: true })).toHaveCount(0);
 });
 
@@ -177,26 +186,27 @@ test("campaign submission and admin approval preserve immutable review history",
     await page.getByLabel(/Total budget/).fill("1500000");
     await page.getByRole("button", { name: "Continue →" }).click();
 
-    // Step 2 — creatives are optional; managed-file coverage lives in its
-    // dedicated scan/upload journeys, so this review-lifecycle test stays focused.
-    await expect(page.getByText("✓ Basics")).toBeVisible();
+    // Saving Basics creates one recoverable draft before Areas (REQ-209).
+    await expect(page).toHaveURL(/\/new\?campaignId=[0-9a-f-]{36}$/);
+    const savedDraftId = new URL(page.url()).searchParams.get("campaignId");
+    campaignId = savedDraftId ?? undefined;
+    await expect(page.locator('[aria-current="step"]')).toHaveText("2 Areas");
+    // Area drawing has its own journey; the API target-area setup below remains explicit.
+    await page.getByRole("button", { name: "Continue →" }).click();
+    await expect(page.getByRole("button", { name: "+ Add advert design" })).toBeVisible();
     await page.getByRole("button", { name: "Continue →" }).click();
 
-    // Step 3 — review shows what we entered
+    // Step 4 — review shows the saved draft without creating another campaign.
     await expect(page.getByText(name)).toBeVisible();
-    await expect(page.getByText("none", { exact: true })).toBeVisible();
-    // The click triggers a server action + redirect; the button swaps to
-    // "Creating…" and detaches mid-handshake, which can trap Playwright's
-    // retry loop until the test budget dies. Bound the click and let the
-    // URL wait below be the authoritative assertion.
-    await page
-      .getByRole("button", { name: "Create campaign" })
-      .click({ timeout: 5_000 })
-      .catch(() => {});
+    await expect(page.getByRole("heading", { name: "Review your draft" })).toBeVisible();
+    await expect(page.getByText("Add later", { exact: true })).toBeVisible();
+    // Finish the saved draft; retain the bounded click and require its redirect.
+    await page.getByRole("button", { name: "Finish draft" }).click({ timeout: 5_000 });
 
     // Detail page for the new campaign
     await page.waitForURL(/\/advertiser\/campaigns\/[0-9a-f-]{36}$/);
     campaignId = page.url().split("/").at(-1);
+    expect(campaignId).toBe(savedDraftId);
     if (!campaignId || !/^[0-9a-f-]{36}$/.test(campaignId)) {
       throw new Error("Created campaign URL did not contain a valid campaign ID.");
     }
@@ -205,11 +215,13 @@ test("campaign submission and admin approval preserve immutable review history",
     await expect(
       page.getByRole("heading", { name }).locator("..").getByText("Draft", { exact: true }),
     ).toBeVisible();
-    await expect(page.getByRole("link", { name: "Add artwork" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Upload artwork", exact: true })).toBeVisible();
 
     // A draft can only enter the review lifecycle through its dedicated action.
+    await openCampaignSection(page, "manage");
     await expect(page.getByRole("button", { name: "Submit for review" })).toBeVisible();
     await expect(page.getByRole("button", { name: /launch|schedule|activate/i })).not.toBeVisible();
+    await openCampaignSection(page, "details");
     await expect(page.getByRole("button", { name: "Request custom quotation" })).toBeVisible();
 
     // Zone drawing is covered by the zones editor tests; add the target area through the API.
@@ -243,10 +255,36 @@ test("campaign submission and admin approval preserve immutable review history",
     expect(zone.ok(), "target area setup must succeed").toBe(true);
     await page.reload();
 
+    await openCampaignSection(page, "manage");
     await page.getByRole("button", { name: "Submit for review" }).click();
-    await expect(page.getByText(/With Terrax Media for review/)).toBeVisible();
+    await expect(
+      page.getByRole("region", { name: "Next step" }).getByText("Pending review", { exact: true }),
+    ).toBeVisible();
     // D38(c): the submission fingerprint is no longer shown to advertisers.
     await expect(page.getByText(/Submission reference/)).not.toBeVisible();
+    const readHistory = async () => {
+      const currentSession = (await page.context().cookies()).find(
+        (cookie) => cookie.name === (process.env.SESSION_COOKIE_NAME ?? "mobility_session"),
+      );
+      expect(
+        Boolean(currentSession),
+        "the history read requires the current advertiser session",
+      ).toBe(true);
+      const response = await page.request.get(
+        `${apiBase}/api/v1/advertiser/campaigns/${campaignId}/review-history`,
+        { headers: { Authorization: `Bearer ${currentSession!.value}` } },
+      );
+      expect(response.ok(), "the advertiser must read its own immutable review history").toBe(true);
+      return (
+        (await response.json()) as {
+          items: components["schemas"]["CampaignReviewEventRead"][];
+        }
+      ).items;
+    };
+    const submittedHistory = await readHistory();
+    const submission = submittedHistory.find((event) => event.new_status === "pending_review");
+    expect(submission).toMatchObject({ prior_status: "draft", new_status: "pending_review" });
+    expect(submission?.reviewed_snapshot_sha256).toMatch(/^[0-9a-f]{64}$/);
 
     await loginAsAdmin(page);
     await page.goto(`/admin/campaigns/${campaignId}`);
@@ -258,9 +296,21 @@ test("campaign submission and admin approval preserve immutable review history",
 
     await loginAsAdvertiser(page);
     await page.goto(`/advertiser/campaigns/${campaignId}`);
-    await expect(page.getByText("Approved", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("Draft → Pending review")).toBeVisible();
-    await expect(page.getByText("Pending review → Approved")).toBeVisible();
+    await expect(
+      page.getByRole("region", { name: "Next step" }).getByText("Approved", { exact: true }),
+    ).toBeVisible();
+    await openCampaignSection(page, "details");
+    const updates = page.getByRole("heading", { name: "Campaign updates" }).locator("..");
+    await expect(updates.getByText(/^Pending review ·/)).toBeVisible();
+    await expect(updates.getByText(/^Approved ·/)).toBeVisible();
+    const approvedHistory = await readHistory();
+    // Approval appends its decision and retains the exact prior submitted evidence.
+    expect(approvedHistory.find((event) => event.id === submission!.id)).toEqual(submission);
+    expect(approvedHistory.find((event) => event.new_status === "approved")).toMatchObject({
+      prior_status: "pending_review",
+      new_status: "approved",
+      submission_event_id: submission!.id,
+    });
     await expect(page.getByRole("button", { name: /launch|schedule|activate/i })).not.toBeVisible();
   } finally {
     cleanupE2ECampaign(campaignId, name);

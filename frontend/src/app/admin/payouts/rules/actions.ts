@@ -1,5 +1,8 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
@@ -43,8 +46,9 @@ export async function publishDailyRateAction(
       body,
     });
   } catch (error) {
+    unstable_rethrow(error);
     if (error instanceof ApiError) {
-      return { error: error.message, values: raw };
+      return { error: publicActionError(error), values: raw };
     }
     return { error: "Could not reach the server. Try again.", values: raw };
   }

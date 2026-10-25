@@ -1,3 +1,4 @@
+import { adminValueFailure } from "@/lib/api/admin-read";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -26,7 +27,8 @@ export async function generateMetadata({
   try {
     const { data } = await readAdvertiserCompany((await params).organizationId);
     return { title: data?.name ?? "Advertiser" };
-  } catch {
+  } catch (error) {
+    adminValueFailure(error);
     return { title: "Advertiser" };
   }
 }
@@ -60,6 +62,7 @@ export default async function CompanyHub({
   const company = await readAdvertiserCompany(organizationId)
     .then(({ data }) => data)
     .catch((error: unknown) => {
+      adminValueFailure(error);
       if (error instanceof ApiError && error.status === 404) notFound();
       return undefined;
     });
@@ -79,7 +82,7 @@ export default async function CompanyHub({
         },
       })
       .then(({ data }) => data)
-      .catch(() => undefined),
+      .catch(adminValueFailure),
     api
       .GET("/api/v1/admin/complaints", {
         params: {
@@ -87,7 +90,7 @@ export default async function CompanyHub({
         },
       })
       .then(({ data }) => data)
-      .catch(() => undefined),
+      .catch(adminValueFailure),
     api
       .GET("/api/v1/admin/audit-events", {
         params: {
@@ -95,9 +98,9 @@ export default async function CompanyHub({
         },
       })
       .then(({ data }) => data)
-      .catch(() => undefined),
+      .catch(adminValueFailure),
   ]);
-  const money = await readCompanyInvoices(api, organizationId).catch(() => undefined);
+  const money = await readCompanyInvoices(api, organizationId).catch(adminValueFailure);
   const href = (key: string, value: number, section: string) => {
     const query = new URLSearchParams();
     for (const field of ["people_offset", "complaint_offset", "activity_offset"] as const) {

@@ -12,7 +12,10 @@ async function loginAsAdvertiser(page: Page) {
 
 async function openSeededCampaign(page: Page) {
   await page.goto("/advertiser/campaigns");
-  await page.getByRole("link", { name: "Marula Kitchens — Abuja Lunch Routes" }).click();
+  await page
+    .getByRole("table")
+    .getByRole("link", { name: "Marula Kitchens — Abuja Lunch Routes" })
+    .click();
   await page.waitForURL(/\/advertiser\/campaigns\/[0-9a-f-]{36}$/);
 }
 
@@ -27,13 +30,13 @@ test("report keeps issued CSV and PDF downloads for the golden campaign", async 
   await expect(page.getByText(/integrity check/i)).not.toBeVisible();
   await expect(page.getByRole("link", { name: "Download CSV" }).first()).toBeVisible();
   await expect(page.getByRole("link", { name: "Download PDF" }).first()).toBeVisible();
-  await expect(page.getByText(/PDF includes charts and creative previews/)).toBeVisible();
+  await expect(page.getByText(/The PDF has charts and pictures of your advert/)).toBeVisible();
 });
 
 test("coverage map ranks the golden campaign's populated target zone", async ({ page }) => {
   await loginAsAdvertiser(page);
   await openSeededCampaign(page);
-  await page.getByRole("link", { name: /Coverage map/ }).click();
+  await page.getByRole("link", { name: "View coverage history" }).click();
   await page.waitForURL(/\/map$/);
 
   await expect(page.getByText("#1 Central Business District", { exact: true })).toBeVisible();
@@ -52,8 +55,12 @@ test("advertiser can request a chosen period for one or all campaigns", async ({
     new Date(Date.now() - 7 * 86400000),
   );
   await page.getByLabel("From", { exact: true }).fill(periodStart);
+  await expect(page.getByLabel("From", { exact: true })).toHaveValue(periodStart);
   for (const all of [false, true]) {
     await campaign.selectOption(all ? "all" : { label: "Marula Kitchens — Wuse Lunch Rush" });
+    // Keep the requested dates authoritative; diagnose any hydration/state reset here.
+    await expect(page.getByLabel("From", { exact: true })).toHaveValue(periodStart);
+    await expect(page.getByLabel("To", { exact: true })).toHaveValue(periodEnd);
     const selected = await campaign.inputValue();
     const responsePromise = page.waitForResponse(
       (response) =>

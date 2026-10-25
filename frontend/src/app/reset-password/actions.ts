@@ -1,5 +1,7 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
@@ -56,6 +58,7 @@ async function completePasswordAction(
       },
     );
   } catch (error) {
+    unstable_rethrow(error);
     return {
       ...(!invite && error instanceof ApiError && error.code === "PASSWORD_RESET_INVALID"
         ? { requestNewLink: true }

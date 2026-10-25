@@ -8,6 +8,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID, uuid4
 
+os.environ.setdefault("ENVIRONMENT", "test")
 os.environ.setdefault(
     "PAYOUT_CRYPTO_KEYRING_B64",
     '{"1":"AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="}',

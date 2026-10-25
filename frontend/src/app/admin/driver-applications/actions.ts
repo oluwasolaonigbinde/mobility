@@ -1,5 +1,8 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
@@ -92,7 +95,8 @@ export async function reviewPersonPayeeEvidenceAction(
     });
     return { done: "Document ready to view.", downloadUrl: data?.url };
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the protected evidence service." };
   }
 }
@@ -129,7 +133,8 @@ export async function verifyPersonPayeeAccountAction(
       },
     );
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the payout-authority service." };
   }
   revalidatePath("/admin/drivers");
@@ -248,7 +253,8 @@ export async function reviewPersonPayeeAction(
       });
     }
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the onboarding service." };
   }
   revalidatePath("/admin/drivers");
@@ -286,7 +292,8 @@ export async function reviewVehicleEvidenceAction(
     );
     return { done: "Car document ready to view.", downloadUrl: data?.url };
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the protected evidence service." };
   }
 }
@@ -446,7 +453,8 @@ async function decideVehicle(
       );
     }
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the vehicle approval service." };
   }
   revalidatePath("/admin/drivers");
@@ -478,7 +486,8 @@ export async function initiateDriverAccountSetupAction(
       },
     );
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the driver account setup service." };
   }
   revalidatePath(`/admin/drivers/applicant/${parsed.data.application_id}`);

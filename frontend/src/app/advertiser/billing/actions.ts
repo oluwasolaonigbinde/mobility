@@ -1,6 +1,6 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { publicActionError } from "@/lib/api/public-action-error";
@@ -28,6 +28,7 @@ export async function startInvoicePayment(formData: FormData): Promise<never> {
       error = "Paystack is still preparing this checkout. Please try again.";
     }
   } catch (caught) {
+    unstable_rethrow(caught);
     error = publicActionError(
       caught,
       {},

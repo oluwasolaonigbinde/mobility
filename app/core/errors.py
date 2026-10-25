@@ -6,7 +6,7 @@ from fastapi.responses import JSONResponse
 from starlette import status
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.core.middleware import get_request_id
+from app.core.middleware import get_request_id, is_scan_path
 from app.core.observability import capture_exception
 
 
@@ -45,6 +45,8 @@ def error_payload(
 
 
 async def app_error_handler(_: Request, exc: AppError) -> JSONResponse:
+    if exc.status_code >= 500:
+        capture_exception(exc)
     return JSONResponse(
         status_code=exc.status_code,
         content=error_payload(exc.code, exc.message, exc.details),
@@ -78,15 +80,21 @@ async def validation_exception_handler(_: Request, exc: RequestValidationError) 
 
 
 async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
-    capture_exception(exc)
+    if is_scan_path(request.url.path):
+        exc.__dict__["_cardvert_scan_request"] = True
     request_id_header = getattr(request.app.state, "request_id_header", "X-Request-ID")
+    request_id = getattr(request.state, "request_id", None) or request.headers.get(
+        request_id_header
+    )
+    exc.__dict__["_cardvert_request_id"] = request_id
+    capture_exception(exc, request_id=request_id)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content=error_payload(
             "INTERNAL_SERVER_ERROR",
             "An unexpected error occurred",
             {},
-            request_id=request.headers.get(request_id_header),
+            request_id=request_id,
         ),
     )
 

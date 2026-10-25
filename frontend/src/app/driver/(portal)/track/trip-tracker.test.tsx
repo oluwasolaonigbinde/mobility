@@ -438,6 +438,213 @@ describe("single-writer lock fail-closed (finding 6)", () => {
     expect(actions.startTripAction).toHaveBeenCalledTimes(1);
   });
 
+  it("reconciles a rejected Start transport before capture or another Start", async () => {
+    const queue = fakeQueue();
+    pingQueue.openPingQueue.mockResolvedValue(queue);
+    const runtime = installRuntime();
+    actions.startTripAction.mockRejectedValueOnce(new Error("response lost after trip creation"));
+    let confirm!: (value: { trip: typeof TRIP; outcome: string }) => void;
+    actions.getCurrentTripAction.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          confirm = resolve;
+        }),
+    );
+    render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
+
+    await userEvent.click(await screen.findByRole("button", { name: /Start trip/ }));
+    await waitFor(() => expect(actions.getCurrentTripAction).toHaveBeenCalledTimes(1));
+    expect(runtime.watchPosition).not.toHaveBeenCalled();
+    expect(queue.forgetTrip).not.toHaveBeenCalled();
+    await act(async () => confirm({ trip: TRIP, outcome: "started" }));
+    await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+    expect(actions.startTripAction).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["rejected", "unknown"])(
+    "keeps %s Start uncertain when reconciliation rejects",
+    async (failure) => {
+      const queue = fakeQueue();
+      pingQueue.openPingQueue.mockResolvedValue(queue);
+      const runtime = installRuntime();
+      if (failure === "rejected") actions.startTripAction.mockRejectedValueOnce(new Error("lost"));
+      else actions.startTripAction.mockResolvedValueOnce({ outcome: "unknown" });
+      actions.getCurrentTripAction.mockRejectedValueOnce(new Error("authority unavailable"));
+      render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
+
+      await userEvent.click(await screen.findByRole("button", { name: /Start trip/ }));
+      const check = await screen.findByRole("button", { name: /Check trip status/ });
+      await waitFor(() => expect(check).toBeEnabled());
+      expect(runtime.watchPosition).not.toHaveBeenCalled();
+      expect(runtime.release).toHaveBeenCalled();
+      expect(queue.forgetTrip).not.toHaveBeenCalled();
+      await userEvent.click(check);
+      await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+      expect(actions.startTripAction).toHaveBeenCalledTimes(1);
+      expect(actions.getCurrentTripAction).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("fences rapid clicks while the Start response is pending", async () => {
+    const runtime = installRuntime();
+    pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
+    let complete!: (value: { trip: typeof TRIP; outcome: string }) => void;
+    actions.startTripAction.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          complete = resolve;
+        }),
+    );
+    render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
+    const button = await screen.findByRole("button", { name: /Start trip/ });
+    act(() => {
+      fireEvent.click(button);
+      fireEvent.click(button);
+    });
+    await waitFor(() => expect(actions.startTripAction).toHaveBeenCalledTimes(1));
+    expect(runtime.watchPosition).not.toHaveBeenCalled();
+    await act(async () => complete({ trip: TRIP, outcome: "started" }));
+    await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+  });
+
+  it.each(["unmount", "logout"])(
+    "ignores late Start completion after %s and retains evidence",
+    async (change) => {
+      const runtime = installRuntime();
+      const queue = fakeQueue();
+      pingQueue.openPingQueue.mockResolvedValue(queue);
+      let complete!: (value: { trip: typeof TRIP; outcome: string }) => void;
+      actions.startTripAction.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            complete = resolve;
+          }),
+      );
+      const view = render(
+        <TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />,
+      );
+      await userEvent.click(await screen.findByRole("button", { name: /Start trip/ }));
+      await waitFor(() => expect(actions.startTripAction).toHaveBeenCalledTimes(1));
+      if (change === "unmount") view.unmount();
+      else act(() => window.dispatchEvent(new Event("cardvert-driver-logout")));
+      await act(async () => complete({ trip: TRIP, outcome: "started" }));
+      expect(runtime.watchPosition).not.toHaveBeenCalled();
+      expect(runtime.release).toHaveBeenCalled();
+      expect(queue.close).toHaveBeenCalled();
+      expect(queue.forgetTrip).not.toHaveBeenCalled();
+    },
+  );
+
+  it("releases a wake lock that arrives after unmount", async () => {
+    const runtime = installRuntime();
+    pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
+    let finishWake!: (value: typeof runtime.sentinel) => void;
+    Object.defineProperty(navigator, "wakeLock", {
+      configurable: true,
+      value: {
+        request: vi.fn(
+          () =>
+            new Promise((resolve) => {
+              finishWake = resolve;
+            }),
+        ),
+      },
+    });
+    const view = render(
+      <TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Start trip/ }));
+    await waitFor(() => expect(finishWake).toBeTypeOf("function"));
+    view.unmount();
+    await act(async () => finishWake(runtime.sentinel));
+    expect(runtime.release).toHaveBeenCalledTimes(1);
+    expect(actions.startTripAction).not.toHaveBeenCalled();
+    expect(runtime.watchPosition).not.toHaveBeenCalled();
+  });
+
+  it("releases preparation resources when reconciliation proves no trip exists", async () => {
+    const runtime = installRuntime();
+    pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
+    const released = vi.fn();
+    Object.defineProperty(navigator, "locks", {
+      configurable: true,
+      value: {
+        request: async (
+          _name: string,
+          _options: unknown,
+          callback: (lock: object) => Promise<void>,
+        ) => {
+          await callback({});
+          released();
+        },
+      },
+    });
+    actions.startTripAction.mockRejectedValueOnce(new Error("lost"));
+    actions.getCurrentTripAction.mockResolvedValueOnce({ outcome: "failed" });
+    render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
+    await userEvent.click(await screen.findByRole("button", { name: /Start trip/ }));
+    await waitFor(() => expect(released).toHaveBeenCalledTimes(1));
+    expect(runtime.release).toHaveBeenCalled();
+    expect(runtime.watchPosition).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /Start trip/ })).toBeEnabled();
+  });
+
+  it("does not resurrect a logged-out identity when a session check completes late", async () => {
+    const runtime = installRuntime();
+    pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
+    let complete!: (response: unknown) => void;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(
+        () =>
+          new Promise((resolve) => {
+            complete = resolve;
+          }),
+      ),
+    );
+    render(<TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Start trip/ }));
+    await waitFor(() => expect(complete).toBeTypeOf("function"));
+    act(() => window.dispatchEvent(new Event("cardvert-driver-logout")));
+    await act(async () =>
+      complete({
+        ok: true,
+        json: async () => ({ status: "valid", driverId: DRIVER_ID }),
+      }),
+    );
+    expect(actions.startTripAction).not.toHaveBeenCalled();
+    expect(runtime.watchPosition).not.toHaveBeenCalled();
+    expect(runtime.release).toHaveBeenCalled();
+    expect(screen.getByRole("alert")).toHaveTextContent("You signed out");
+  });
+
+  it("does not hold a writer lock granted after unmount", async () => {
+    installRuntime();
+    pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
+    let grant!: () => Promise<void>;
+    Object.defineProperty(navigator, "locks", {
+      configurable: true,
+      value: {
+        request: (_name: string, _options: unknown, callback: (lock: object) => Promise<void>) => {
+          return new Promise<void>((resolve) => {
+            grant = async () => {
+              await callback({});
+              resolve();
+            };
+          });
+        },
+      },
+    });
+    const view = render(
+      <TripTracker assignment={ASSIGNMENT} initialTrip={null} driverId={DRIVER_ID} />,
+    );
+    fireEvent.click(await screen.findByRole("button", { name: /Start trip/ }));
+    await waitFor(() => expect(grant).toBeTypeOf("function"));
+    view.unmount();
+    await act(async () => grant());
+    expect(actions.startTripAction).not.toHaveBeenCalled();
+  });
+
   it("retries only reconciliation after Start remains unknown", async () => {
     pingQueue.openPingQueue.mockResolvedValue(fakeQueue());
     installRuntime();
@@ -583,6 +790,99 @@ describe("live runtime truth", () => {
       "active",
     );
   });
+
+  it.each(["location", "wake lock"] as const)(
+    "retains the newer preparation's wake lock and capture after an older %s completion",
+    async (pendingResource) => {
+      const runtime = installRuntime();
+      const queue = fakeQueue();
+      pingQueue.openPingQueue.mockResolvedValue(queue);
+      let finishRelease: (() => void) | undefined;
+      runtime.release.mockImplementation(() => {
+        runtime.sentinel.released = true;
+        runtime.sentinel.dispatchEvent(new Event("release"));
+        return new Promise<void>((resolve) => {
+          finishRelease = resolve;
+        });
+      });
+      const releaseNewWake = vi.fn().mockResolvedValue(undefined);
+      const newWake = Object.assign(new EventTarget(), {
+        release: releaseNewWake,
+        released: false,
+      });
+      let finishLocation: PositionCallback | undefined;
+      let finishWake: ((sentinel: typeof runtime.sentinel) => void) | undefined;
+      const requestWake = vi.fn(async () => newWake);
+      Object.defineProperty(navigator, "wakeLock", {
+        configurable: true,
+        value: { request: requestWake },
+      });
+      if (pendingResource === "location") {
+        vi.mocked(navigator.geolocation.getCurrentPosition).mockImplementationOnce((success) => {
+          finishLocation = success;
+        });
+        requestWake.mockResolvedValueOnce(runtime.sentinel).mockResolvedValue(newWake);
+      } else {
+        requestWake
+          .mockImplementationOnce(
+            () =>
+              new Promise((resolve) => {
+                finishWake = resolve;
+              }),
+          )
+          .mockResolvedValue(newWake);
+      }
+      const view = render(
+        <TripTracker assignment={null} initialTrip={TRIP} driverId={DRIVER_ID} />,
+      );
+      await waitFor(() => expect(requestWake).toHaveBeenCalledTimes(1));
+      expect(runtime.watchPosition).not.toHaveBeenCalled();
+
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+      act(() => document.dispatchEvent(new Event("visibilitychange")));
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+      act(() => document.dispatchEvent(new Event("visibilitychange")));
+      await waitFor(() => expect(runtime.watchPosition).toHaveBeenCalledTimes(1));
+      expect(requestWake).toHaveBeenCalledTimes(2);
+      expect(screen.getByTestId("tracking-health")).toHaveAttribute(
+        "data-runtime-health",
+        "active",
+      );
+
+      await act(async () => {
+        if (pendingResource === "location") {
+          if (!finishLocation) throw new Error("The older location probe was not pending");
+          finishLocation({} as GeolocationPosition);
+        } else {
+          if (!finishWake) throw new Error("The older wake request was not pending");
+          finishWake(runtime.sentinel);
+        }
+      });
+      expect(runtime.release).toHaveBeenCalledTimes(1);
+      expect(releaseNewWake).not.toHaveBeenCalled();
+      await act(async () => {
+        if (!finishRelease) throw new Error("The older wake release was not pending");
+        finishRelease();
+      });
+      expect(releaseNewWake).not.toHaveBeenCalled();
+      expect(runtime.clearWatch).not.toHaveBeenCalled();
+      expect(screen.getByTestId("tracking-health")).toHaveAttribute(
+        "data-runtime-health",
+        "active",
+      );
+      const capture = runtime.watchPosition.mock.calls[0]?.[0] as PositionCallback | undefined;
+      if (!capture) throw new Error("The newer preparation did not start capture");
+      act(() =>
+        capture({
+          timestamp: Date.now(),
+          coords: { latitude: 6.4, longitude: 3.4, accuracy: 5, speed: 2, heading: 90 },
+        } as GeolocationPosition),
+      );
+      await waitFor(() => expect(queue.addPing).toHaveBeenCalledTimes(1));
+      view.unmount();
+      expect(releaseNewWake).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("stops capture when the held wake sentinel releases", async () => {
     const runtime = installRuntime();

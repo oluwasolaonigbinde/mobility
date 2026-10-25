@@ -1,11 +1,12 @@
 import asyncio
 import smtplib
+import ssl
 from dataclasses import dataclass
 from email.message import EmailMessage as SmtpMessage
 from email.utils import formataddr
 from typing import Protocol
 
-from app.core.config import Settings
+from app.core.config import LOCAL_ENVIRONMENTS, Settings
 
 
 class EmailSendError(RuntimeError):
@@ -52,6 +53,8 @@ class SmtpEmailAdapter:
             else None
         )
         self.use_starttls = settings.email_smtp_starttls
+        if settings.environment not in LOCAL_ENVIRONMENTS and not self.use_starttls:
+            raise ValueError("SMTP requires verified TLS outside local/test")
         self.sender_address = settings.email_sender_address
         self.sender_name = settings.email_sender_name
         self.message_id_domain = self.sender_address.rsplit("@", 1)[-1]
@@ -73,7 +76,7 @@ class SmtpEmailAdapter:
             try:
                 with smtplib.SMTP(self.host, self.port, timeout=15) as client:
                     if self.use_starttls:
-                        client.starttls()
+                        client.starttls(context=ssl.create_default_context())
                     if self.username:
                         client.login(self.username, self.password or "")
                     client.send_message(smtp_message)

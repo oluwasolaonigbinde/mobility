@@ -1,5 +1,7 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
 import { headers } from "next/headers";
 import { z } from "zod";
 import { createApiClient, createLoginApiClient } from "@/lib/api/client";
@@ -75,6 +77,7 @@ export async function submitDriverApplicationAction(
       return { error: "We couldn't send your application right now. Please try again later." };
     return { submitted: true };
   } catch (error) {
+    unstable_rethrow(error);
     return {
       error:
         error instanceof ApiError
@@ -105,7 +108,8 @@ export async function requestDriverOnboardingAccessAction(
     await createLoginApiClient(clientIp).POST("/api/v1/auth/driver-onboarding-access/request", {
       body: { email: parsed.data.email },
     });
-  } catch {
+  } catch (caught) {
+    unstable_rethrow(caught);
     return {
       error: "We couldn't send a new link right now. Try again in a few minutes.",
       email: parsed.data.email,

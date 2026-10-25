@@ -1,5 +1,8 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
@@ -65,7 +68,8 @@ export async function reviewFraudFlagAction(
       },
     });
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the server." };
   }
 
@@ -95,7 +99,8 @@ export async function replyFraudDisputeAction(
       body: { reply },
     });
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "Could not reach the server." };
   }
 
@@ -122,7 +127,8 @@ export async function recordSpotCheckAction(
       body: parsed.data,
     });
   } catch (error) {
-    if (error instanceof ApiError) return { error: error.message };
+    unstable_rethrow(error);
+    if (error instanceof ApiError) return { error: publicActionError(error) };
     return { error: "The result couldn't be confirmed. Retry with the same details." };
   }
   revalidatePath("/admin/trip-checks");

@@ -24,7 +24,7 @@ def production_settings(**overrides):
 
 
 def test_settings_defaults_load() -> None:
-    settings = Settings()
+    settings = Settings(environment="local")
 
     assert settings.app_name == "mobility-adtech-api"
     assert settings.environment == "local"

@@ -1,5 +1,8 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
@@ -40,7 +43,7 @@ export interface ZoneActionState {
 }
 
 function toState(error: unknown): ZoneActionState {
-  if (error instanceof ApiError && error.status < 500) return { error: error.message };
+  if (error instanceof ApiError && error.status < 500) return { error: publicActionError(error) };
   return {
     error:
       "The area change couldn't be confirmed. Reload to check your areas before making another change.",
@@ -83,6 +86,7 @@ export async function createZoneAction(
     revalidatePath("/advertiser/campaigns/new");
     return { zone: data };
   } catch (error) {
+    unstable_rethrow(error);
     return toState(error);
   }
 }
@@ -106,6 +110,7 @@ export async function updateZoneAction(
     revalidatePath("/advertiser/campaigns/new");
     return { zone: data };
   } catch (error) {
+    unstable_rethrow(error);
     return toState(error);
   }
 }
@@ -123,6 +128,7 @@ export async function deleteZoneAction(
       },
     });
   } catch (error) {
+    unstable_rethrow(error);
     return toState(error);
   }
   revalidatePath(`/advertiser/campaigns/${parsed.data.campaignId}/zones`);

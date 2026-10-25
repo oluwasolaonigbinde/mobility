@@ -6,7 +6,10 @@ const mocks = vi.hoisted(() => ({
   redirect: vi.fn(),
   revalidate: vi.fn(),
 }));
-vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  redirect: mocks.redirect,
+}));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidate }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({}) }));
 vi.mock("@/lib/api/audit-batch2", () => ({ createAdvertiserFromEnquiry: mocks.convert }));

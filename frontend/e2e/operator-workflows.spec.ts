@@ -112,8 +112,10 @@ test("evidence and contact queues show recorded work and useful empty searches",
   await loginAsAdmin(page);
   await page.goto("/admin/drivers");
   await expect(page.getByText("Nneka Umeh")).toBeVisible();
-  await page.goto("/admin/trip-checks?tab=late");
-  await expect(page.locator('main a[href*="late="]').first()).toBeVisible();
+  // D114 applies eligible late uploads automatically; staff review only pay-changing flags.
+  await page.goto("/admin/trip-checks");
+  await expect(page.locator('main a[href*="flag="]').first()).toBeVisible();
+  await expect(page.locator('main a[href*="late="]')).toHaveCount(0);
   await page.goto("/admin/support?tab=contact");
   await expect(page.locator('main a[href*="task="]').first()).toBeVisible();
   await page.goto("/admin/drivers?tab=active&q=NoSuchPerson");
@@ -132,15 +134,14 @@ test("approved driver account setup stays provider-neutral through its visible t
   await page.getByRole("button", { name: "Start account setup" }).click();
 
   const confirmation = page.getByRole("alertdialog", {
-    name: `Start account setup for ${applicant.applicantName}?`,
+    name: `Email ${applicant.applicantName} a link to set their password?`,
   });
   await expect(confirmation).toContainText("replaces any earlier unused setup link");
-  await confirmation.getByRole("button", { name: "Create one-use setup link" }).click();
+  await confirmation.getByRole("button", { name: "Send link" }).click();
 
   await expect(
     page.getByRole("status").filter({
-      hasText:
-        "A one-use setup link was created and queued for delivery to the applicant's stored email. Delivery is not confirmed.",
+      hasText: "Password setup email requested.",
     }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Start account setup" })).toHaveCount(0);
@@ -173,7 +174,7 @@ test("payout selection explains ineligible credits and closeout keeps paid facts
   const primaryDriver = closeout
     .getByRole("heading", { name: "Emeka Nwankwo · NGN" })
     .locator("..");
-  await expect(primaryDriver.getByText("Pay records marked paid: ₦38,496.63")).toBeVisible();
+  await expect(primaryDriver.getByText("Verified cash paid: ₦38,496.63")).toBeVisible();
   await expect(primaryDriver.getByText("Confirmed provider transfers: ₦38,496.63")).toBeVisible();
   await expect(closeout.getByRole("button", { name: /complete|close campaign/i })).toHaveCount(0);
   await expectNoHorizontalOverflow(page);

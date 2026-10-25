@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
@@ -70,6 +70,7 @@ export async function createCampaignAction(
       }
       campaignId = data.id;
     } catch (error) {
+      unstable_rethrow(error);
       // A definite permission refusal created nothing, so there is no request to recheck.
       if (error instanceof ApiError && error.code === "ADVERTISER_MEMBERSHIP_WRITE_FORBIDDEN") {
         return { error: WRITE_ACCESS_MESSAGE };
@@ -105,6 +106,7 @@ export async function createCampaignAction(
         },
       });
     } catch (error) {
+      unstable_rethrow(error);
       // Campaign exists; be honest about exactly what failed.
       const reason = publicActionError(
         error,

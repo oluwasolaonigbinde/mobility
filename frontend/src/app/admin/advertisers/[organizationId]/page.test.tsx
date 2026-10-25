@@ -7,7 +7,10 @@ const mocks = vi.hoisted(() => ({
     throw new Error("NOT_FOUND");
   }),
 }));
-vi.mock("next/navigation", () => ({ notFound: mocks.notFound }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  notFound: mocks.notFound,
+}));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: mocks.get }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
 vi.mock("./company/actions", () => ({ updateCompanyAction: vi.fn() }));

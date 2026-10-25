@@ -9,7 +9,10 @@ const { post, redirect, revalidatePath } = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ POST: post }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
-vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  redirect,
+}));
 vi.mock("next/cache", () => ({ revalidatePath }));
 
 import { recordFinancialAuthorityAction, recordRevisionAction } from "./actions";

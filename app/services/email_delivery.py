@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.adapters.messaging import EmailAdapter, EmailMessage, EmailSendError
-from app.core.config import Settings
+from app.core.config import LOCAL_ENVIRONMENTS, Settings
 from app.models.campaign_assignment import CampaignAssignment
 from app.models.contact import PasswordResetToken
 from app.models.driver_application import (
@@ -36,7 +36,7 @@ from app.services.email_templates import render_email_template
 
 def public_action_url(settings: Settings, path: str) -> str:
     origin = settings.public_origin.strip()
-    if not origin and settings.environment in {"local", "dev", "development", "test", "testing"}:
+    if not origin and settings.environment in LOCAL_ENVIRONMENTS:
         origin = "http://localhost:3000"
     parsed = urlsplit(origin)
     if (
@@ -296,7 +296,7 @@ async def process_email_notification(  # noqa: C901
                 runtime_payload["reset_action"] = (
                     f"{settings.password_reset_public_url}{separator}token={quote(reset_token)}"
                 )
-            elif settings.environment in {"local", "dev", "development", "test", "testing"}:
+            elif settings.environment in LOCAL_ENVIRONMENTS:
                 runtime_payload["reset_action"] = public_action_url(
                     settings, f"/reset-password?token={quote(reset_token)}"
                 )

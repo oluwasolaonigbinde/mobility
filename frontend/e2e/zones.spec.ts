@@ -21,7 +21,10 @@ test("zones page renders the seeded campaign's zones on a map", async ({ page })
 
   // Reach zones via the campaign detail link (proves the wiring, not just the URL)
   await page.goto("/advertiser/campaigns");
-  await page.getByRole("link", { name: "Marula Kitchens — Abuja Lunch Routes" }).click();
+  await page
+    .getByRole("table")
+    .getByRole("link", { name: "Marula Kitchens — Abuja Lunch Routes" })
+    .click();
   await page.waitForURL(/\/advertiser\/campaigns\/[0-9a-f-]{36}$/);
   await page.getByRole("link", { name: /^Zones(?: · \d+)?$/ }).click();
   await page.waitForURL(/\/zones$/);

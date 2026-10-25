@@ -1,5 +1,8 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
@@ -13,7 +16,7 @@ export interface DriverActionState {
 }
 
 function toState(error: unknown): DriverActionState {
-  if (error instanceof ApiError) return { error: error.message };
+  if (error instanceof ApiError) return { error: publicActionError(error) };
   return { error: "Could not reach the server. Please try again." };
 }
 
@@ -45,6 +48,7 @@ export async function assignmentAction(
       await api.POST("/api/v1/driver/campaign-assignments/{assignment_id}/deactivate", request);
     }
   } catch (error) {
+    unstable_rethrow(error);
     return toState(error);
   }
   revalidateDriver();
@@ -87,11 +91,12 @@ export async function startTripAction(assignmentId: string): Promise<StartTripRe
       outcome: data?.evidence_protocol_version === 2 ? "started" : "unknown",
     };
   } catch (error) {
+    unstable_rethrow(error);
     if (error instanceof ApiError && START_PHOTO_REFUSALS[error.code]) {
       return { error: START_PHOTO_REFUSALS[error.code], outcome: "failed" };
     }
     if (error instanceof ApiError && [400, 403, 404, 422].includes(error.status)) {
-      return { error: error.message, outcome: "failed" };
+      return { error: publicActionError(error), outcome: "failed" };
     }
     return { ...toState(error), outcome: "unknown" };
   }
@@ -114,6 +119,7 @@ export async function getCurrentTripAction(): Promise<StartTripResult> {
         data?.trip?.evidence_protocol_version === 2 ? "started" : data?.trip ? "unknown" : "failed",
     };
   } catch (error) {
+    unstable_rethrow(error);
     if (error instanceof ApiError && error.status === 404) return { outcome: "failed" };
     return { ...toState(error), outcome: "unknown" };
   }
@@ -130,6 +136,7 @@ export async function verifyDriverTripOwnershipAction(
     });
     return data?.id === tripId ? "owned" : "unavailable";
   } catch (error) {
+    unstable_rethrow(error);
     return error instanceof ApiError && error.status === 404 && error.code === "TRIP_NOT_FOUND"
       ? "not-owned"
       : "unavailable";
@@ -151,7 +158,8 @@ export async function getTripEvidenceAuthorityAction(
           status: data.status,
         }
       : undefined;
-  } catch {
+  } catch (caught) {
+    unstable_rethrow(caught);
     return undefined;
   }
 }
@@ -214,6 +222,7 @@ export async function endTripAction(
     revalidateDriver();
     return { outcome: "ended", status: returnedStatus };
   } catch (error) {
+    unstable_rethrow(error);
     const outcome =
       error instanceof ApiError && [400, 403, 404, 422].includes(error.status)
         ? "failed"
@@ -372,11 +381,12 @@ export async function sendPingBatchAction(
       },
     };
   } catch (error) {
+    unstable_rethrow(error);
     if (error instanceof ApiError) {
       const deferred = DEFERRABLE_REJECTION_CODES.has(error.code ?? "");
       const terminal = !deferred && [400, 409, 422].includes(error.status);
       return {
-        error: error.message,
+        error: publicActionError(error),
         acknowledged: false,
         retryable: !terminal,
         deferred,
@@ -406,6 +416,7 @@ export async function reconcileTripEvidenceAction(tripId: string): Promise<EndTr
     }
     return { error: "Trip evidence is not sealed.", outcome: "unknown" };
   } catch (error) {
+    unstable_rethrow(error);
     if (
       error instanceof ApiError &&
       error.status === 409 &&
@@ -457,6 +468,7 @@ export async function updateProfileAction(
     const api = createApiClient(await getSessionToken());
     await api.PATCH("/api/v1/driver/profile", { body: parsed.data });
   } catch (error) {
+    unstable_rethrow(error);
     return toState(error);
   }
   revalidatePath("/driver/profile");

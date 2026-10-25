@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
@@ -159,6 +159,7 @@ export async function updateCampaignDetailsAction(
       body: body as components["schemas"]["CampaignUpdate"],
     });
   } catch (error) {
+    unstable_rethrow(error);
     return {
       error: publicActionError(error, campaignEditErrors, "Could not save the changes. Try again."),
       values: submitted,
@@ -213,6 +214,7 @@ export async function previewCampaignChangeAction(
       },
     };
   } catch (error) {
+    unstable_rethrow(error);
     return { error: safeCampaignError(error, "Could not preview the change. Try again.") };
   }
 }
@@ -265,6 +267,7 @@ export async function confirmCampaignChangeAction(
       confirmedRequest: data,
     };
   } catch (error) {
+    unstable_rethrow(error);
     return { error: safeCampaignError(error, "Could not confirm the change. Try again.") };
   }
 }
@@ -286,6 +289,7 @@ export async function submitCampaignForReviewAction(
       params: { path: { campaign_id: parsed.data.campaignId } },
     });
   } catch (error) {
+    unstable_rethrow(error);
     return { error: safeCampaignError(error, "Could not submit the campaign. Try again.") };
   }
 
@@ -317,6 +321,7 @@ export async function submitCreativeForReviewAction(
       },
     });
   } catch (error) {
+    unstable_rethrow(error);
     return { error: safeCampaignError(error, "Could not submit the creative. Try again.") };
   }
 
@@ -356,6 +361,7 @@ export async function replaceCreativeAndSubmitAction(
       params: { path },
     });
   } catch (error) {
+    unstable_rethrow(error);
     return {
       error: safeCampaignError(
         error,

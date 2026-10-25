@@ -1,7 +1,8 @@
 "use server";
 
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
@@ -14,7 +15,7 @@ export interface AdminActionState {
 }
 
 function toState(error: unknown): AdminActionState {
-  if (error instanceof ApiError) return { error: error.message };
+  if (error instanceof ApiError) return { error: publicActionError(error) };
   return { error: "Could not reach the server." };
 }
 
@@ -55,6 +56,7 @@ export async function createDriverProfileAction(
       body: { ...profile, onboarding_status: "active" },
     });
   } catch (error) {
+    unstable_rethrow(error);
     return toState(error);
   }
   revalidatePath("/admin/drivers");
@@ -80,6 +82,7 @@ export async function updateDriverOnboardingAction(
       body: { onboarding_status: parsed.data.status },
     });
   } catch (error) {
+    unstable_rethrow(error);
     return toState(error);
   }
   revalidatePath("/admin/drivers");
@@ -122,6 +125,7 @@ export async function updateDriverDetailsAction(
       },
     );
   } catch (error) {
+    unstable_rethrow(error);
     return toState(error);
   }
   revalidatePath("/admin/drivers");
@@ -185,6 +189,7 @@ export async function createVehicleAction(
     });
     driverProfileId = data?.driver_profile_id;
   } catch (error) {
+    unstable_rethrow(error);
     return toState(error);
   }
   revalidatePath("/admin/drivers");
@@ -214,6 +219,7 @@ export async function updateVehicleStatusAction(
       body: { status: parsed.data.status },
     });
   } catch (error) {
+    unstable_rethrow(error);
     return toState(error);
   }
   revalidatePath("/admin/drivers");

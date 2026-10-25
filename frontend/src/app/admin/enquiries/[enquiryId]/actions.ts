@@ -1,6 +1,7 @@
 "use server";
+
 import { z } from "zod";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createApiClient } from "@/lib/api/client";
 import { createAdvertiserFromEnquiry } from "@/lib/api/audit-batch2";
@@ -28,6 +29,7 @@ export async function convertEnquiry(
       };
     organizationId = data.organization_id;
   } catch (error) {
+    unstable_rethrow(error);
     if (error instanceof ApiError && error.status === 401) redirect("/login");
     if (error instanceof ApiError && [403, 404].includes(error.status))
       return { error: "This enquiry isn’t available." };

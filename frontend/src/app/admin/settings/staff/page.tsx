@@ -1,3 +1,4 @@
+import { adminReadFailure } from "@/lib/api/admin-read";
 export const metadata = { title: "Staff logins" };
 import Link from "next/link";
 import { createApiClient } from "@/lib/api/client";
@@ -16,7 +17,7 @@ export default async function StaffPage({
   const offset = Number.isFinite(Number(p.offset)) ? Math.max(0, Math.floor(Number(p.offset))) : 0;
   const { data } = await createApiClient(await getSessionToken())
     .GET("/api/v1/admin/users", { params: { query: { role: "admin", q: p.q, limit: 25, offset } } })
-    .catch(() => ({ data: undefined }));
+    .catch(adminReadFailure);
   return (
     <div className="mx-auto max-w-5xl">
       <PageHeader

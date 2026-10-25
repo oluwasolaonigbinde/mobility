@@ -11,7 +11,8 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ GET: mocks.get }) }));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
-vi.mock("next/navigation", () => ({
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
   notFound: mocks.notFound,
   useRouter: () => ({ refresh: vi.fn() }),
 }));

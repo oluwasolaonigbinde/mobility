@@ -15,8 +15,10 @@ async function loginAsDriver(page: Page) {
 
 test("driver home shows earnings and the active campaign with app chrome", async ({ page }) => {
   await loginAsDriver(page);
-  await expect(page.getByRole("link", { name: "Cardvert. Driver", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Today", exact: true })).toBeVisible();
+  await expect(
+    page.locator("header").getByRole("link", { name: "Terrax Media Cardvert", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your earnings", exact: true })).toBeVisible();
   await expect(page.getByText(/^Paid .*₦10,000/)).toBeVisible();
   // Active-campaign card names the campaign; recent activity lists whichever
   // campaigns the enriched seed wrote most recently — so assert presence, not
@@ -51,7 +53,8 @@ test("jobs tab shows an offer alongside active and completed campaigns", async (
   const goldenJob = page
     .locator(".rounded-panel")
     .filter({ has: page.getByText("Marula Kitchens — Abuja Lunch Routes", { exact: true }) })
-    .filter({ has: page.getByRole("button", { name: "Stop this job", exact: true }) });
+    .filter({ has: page.locator("summary").filter({ hasText: "Job options" }) });
+  await goldenJob.locator("summary").filter({ hasText: "Job options" }).click();
   await goldenJob.getByRole("button", { name: "Stop this job", exact: true }).click();
   const confirmation = page.getByRole("alertdialog");
   await expect(confirmation).toContainText("Stop Marula Kitchens — Abuja Lunch Routes?");

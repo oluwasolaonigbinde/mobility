@@ -50,12 +50,15 @@ it("does not contact the backend after a denied staff session", async () => {
   expect(mocks.post).not.toHaveBeenCalled();
 });
 it.each([
-  new ApiError(409, { code: "BLOCKED", message: "Funding is still missing." }),
+  new ApiError(409, { code: "BLOCKED", message: "private campaign funding 0123456789" }),
   new Error("offline"),
 ])("reports refusal without claiming resume succeeded", async (error) => {
   mocks.post.mockRejectedValueOnce(error);
   expect(await resumeCampaign({}, form())).toEqual({
-    error: error instanceof ApiError ? "Funding is still missing." : "Could not reach the server.",
+    error:
+      error instanceof ApiError
+        ? "The request could not be completed. Check the details and try again."
+        : "Could not reach the server.",
   });
   expect(mocks.revalidatePath).not.toHaveBeenCalled();
 });

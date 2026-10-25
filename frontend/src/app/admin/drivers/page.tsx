@@ -1,3 +1,4 @@
+import { adminValueFailure } from "@/lib/api/admin-read";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { createApiClient } from "@/lib/api/client";
@@ -81,7 +82,8 @@ export default async function DriversPage({
       }));
       total = data?.total;
     }
-  } catch {
+  } catch (error) {
+    adminValueFailure(error);
     rows = undefined;
   }
   return (

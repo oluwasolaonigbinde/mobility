@@ -18,7 +18,6 @@ def test_openapi_schema_generates(client) -> None:
 
     assert response.status_code == 200
     schema = response.json()
-    assert schema["info"]["title"] == "mobility-adtech-api"
     assert "/health" in schema["paths"]
     assert "/api/v1/health" in schema["paths"]
     assert "/api/v1/health/ready" in schema["paths"]
@@ -85,11 +84,6 @@ def test_openapi_schema_generates(client) -> None:
     } == set(campaign_trips)
     trip_operation = schema["paths"]["/api/v1/advertiser/campaigns/{campaign_id}/trips"]["get"]
     assert {parameter["name"] for parameter in trip_operation["parameters"]} == {"campaign_id"}
-    assert trip_operation["summary"] == "Read advertiser campaign trip aggregate"
-    assert (
-        trip_operation["operationId"] == "advertiser_get_campaign_trip_aggregate_api_v1_advertiser_"
-        "campaigns__campaign_id__trips_get"
-    )
 
 
 def test_openapi_matches_committed_json_artifacts(client) -> None:

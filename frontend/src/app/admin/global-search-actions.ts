@@ -1,4 +1,6 @@
 "use server";
+
+import { adminValueFailure } from "@/lib/api/admin-read";
 import { requireRole } from "@/lib/auth/current-user";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
@@ -20,6 +22,9 @@ export async function searchAdmin(q: string): Promise<SearchGroup[]> {
     api.GET("/api/v1/admin/driver-applications", { params: { query } }),
   ]);
   const [drivers, cars, campaigns, companies, staff, applicants] = reads;
+  for (const read of reads) {
+    if (read.status === "rejected") adminValueFailure(read.reason);
+  }
   const unavailable = (read: PromiseSettledResult<{ data?: unknown }>) =>
     read.status === "rejected" || !read.value.data;
   const driverHits: SearchHit[] =

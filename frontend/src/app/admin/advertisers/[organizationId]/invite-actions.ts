@@ -1,5 +1,8 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
@@ -23,8 +26,12 @@ export async function sendLoginInviteAction(
       },
     );
   } catch (error) {
+    unstable_rethrow(error);
     return {
-      error: error instanceof ApiError ? error.message : "The invite couldn't be sent. Try again.",
+      error:
+        error instanceof ApiError
+          ? publicActionError(error)
+          : "The invite couldn't be sent. Try again.",
     };
   }
   revalidatePath(`/admin/advertisers/${organizationId}`);

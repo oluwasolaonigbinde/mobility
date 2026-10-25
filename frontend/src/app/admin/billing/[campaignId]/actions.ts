@@ -1,7 +1,8 @@
 "use server";
 
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
 import { getSessionToken } from "@/lib/auth/session";
@@ -11,7 +12,8 @@ function path(campaignId: string) {
 }
 
 function fail(campaignId: string, error: unknown): never {
-  const message = error instanceof ApiError ? error.message : "The billing action failed";
+  const message =
+    error instanceof ApiError ? publicActionError(error) : "The billing action failed";
   redirect(`${path(campaignId)}?error=${encodeURIComponent(message)}#money`);
 }
 
@@ -62,6 +64,7 @@ export async function recordRevisionAction(
       },
     });
   } catch (error) {
+    unstable_rethrow(error);
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
@@ -93,6 +96,7 @@ export async function recordManualTransferAction(
       },
     });
   } catch (error) {
+    unstable_rethrow(error);
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
@@ -104,6 +108,7 @@ export async function createInvoiceAction(campaignId: string, termsId: string) {
     const api = createApiClient(await getSessionToken());
     await api.POST("/api/v1/admin/invoices", { body: { commercial_terms_id: termsId } });
   } catch (error) {
+    unstable_rethrow(error);
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
@@ -117,6 +122,7 @@ export async function issueInvoiceAction(campaignId: string, invoiceId: string) 
       params: { path: { invoice_id: invoiceId } },
     });
   } catch (error) {
+    unstable_rethrow(error);
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
@@ -135,6 +141,7 @@ export async function reverseReceiptAction(
       body: { reason: String(formData.get("reason") ?? "").trim() },
     });
   } catch (error) {
+    unstable_rethrow(error);
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
@@ -160,6 +167,7 @@ export async function recordRefundAction(
       },
     });
   } catch (error) {
+    unstable_rethrow(error);
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
@@ -184,6 +192,7 @@ export async function recordInvoiceCorrectionAction(
       },
     });
   } catch (error) {
+    unstable_rethrow(error);
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));
@@ -214,6 +223,7 @@ export async function recordFinancialAuthorityAction(
       },
     });
   } catch (error) {
+    unstable_rethrow(error);
     if (error instanceof ApiError) {
       const messages: Record<string, string> = {
         FINANCIAL_AUTHORITY_REDUCTION_REQUIRES_GOVERNANCE:
@@ -240,6 +250,7 @@ export async function recordProductionStartAction(campaignId: string, waiverId: 
       body: { waiver_id: waiverId },
     });
   } catch (error) {
+    unstable_rethrow(error);
     fail(campaignId, error);
   }
   revalidatePath(path(campaignId));

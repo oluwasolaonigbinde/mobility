@@ -8,8 +8,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Pagination } from "@/components/ui/pagination";
 import { ViewTabs } from "@/components/ui/tabs";
 import { QueueSearch, QueueUnavailable } from "../queue-search";
-import { ApiError } from "@/lib/api/errors";
-import { redirect } from "next/navigation";
+import { adminValueFailure } from "@/lib/api/admin-read";
 
 export const metadata = { title: "New enquiries" };
 export default async function EnquiriesPage({
@@ -27,10 +26,9 @@ export default async function EnquiriesPage({
   const href = (next: { status?: string; offset?: number }) =>
     `/admin/enquiries?${new URLSearchParams({ status: next.status ?? status, q: q ?? "", offset: String(next.offset ?? 0) })}`;
   const api = createApiClient(await getSessionToken());
-  const result = await readStaffEnquiries(api, { status, q, limit: 25, offset }).catch((error) => {
-    if (error instanceof ApiError && error.status === 401) redirect("/login");
-    return undefined;
-  });
+  const result = await readStaffEnquiries(api, { status, q, limit: 25, offset }).catch(
+    adminValueFailure,
+  );
   const data = result?.data;
   return (
     <div className="mx-auto max-w-5xl">

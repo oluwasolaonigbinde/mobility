@@ -84,16 +84,20 @@ describe("resolveOperation", () => {
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
-  it("surfaces the API's public error message", async () => {
+  it("uses safe fallback copy without claiming completion for an unmapped refusal", async () => {
     mocks.POST.mockRejectedValue(
-      new ApiError(409, { code: "CONTACT_ALREADY_COMPLETED", message: "Already resolved." }),
+      new ApiError(409, {
+        code: "CONTACT_ALREADY_COMPLETED",
+        message: "private contact detail 0123456789",
+        details: { contact: "private@example.com" },
+      }),
     );
     expect(
       await resolveOperation(
         {},
         form({ kind: "contact", id: TASK, note: "Called", confirmed: "on" }),
       ),
-    ).toEqual({ error: "Already resolved." });
+    ).toEqual({ error: "The request could not be completed. Check the details and try again." });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 

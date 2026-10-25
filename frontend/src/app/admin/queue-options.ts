@@ -1,4 +1,6 @@
 "use server";
+
+import { unstable_rethrow } from "next/navigation";
 import { createApiClient } from "@/lib/api/client";
 import { getSessionToken } from "@/lib/auth/session";
 import { z } from "zod";
@@ -104,7 +106,8 @@ export async function searchOperatorOptions(input: {
             : "Approved, scan-clean artwork is required",
       })),
     };
-  } catch {
+  } catch (caught) {
+    unstable_rethrow(caught);
     return { items: [], total: 0, error: "Selection list is unavailable. Try again." };
   }
 }
@@ -122,7 +125,8 @@ export async function previewOperatorArtwork(
       },
     );
     return { url: data?.url };
-  } catch {
+  } catch (caught) {
+    unstable_rethrow(caught);
     return {
       error:
         "Artwork preview is unavailable. Approval and file safety are rechecked when offering.",

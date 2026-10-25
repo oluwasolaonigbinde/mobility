@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
@@ -110,6 +110,7 @@ async function raise(party: Party, formData: FormData): Promise<ComplaintActionS
     if (!data) return explain(undefined, "");
     complaintId = data.id;
   } catch (error) {
+    unstable_rethrow(error);
     return explain(
       error,
       "We couldn't find that record in your account. Choose another one or leave it out.",
@@ -136,6 +137,7 @@ async function followUp(party: Party, formData: FormData): Promise<ComplaintActi
       await api.POST("/api/v1/advertiser/complaints/{complaint_id}/messages", options);
     }
   } catch (error) {
+    unstable_rethrow(error);
     return explain(error, "This conversation couldn't be found.");
   }
   revalidatePath(`${BASE[party]}/${complaint_id}`);
@@ -189,6 +191,7 @@ export async function replyToComplaintAction(
       body,
     });
   } catch (error) {
+    unstable_rethrow(error);
     return explain(error, "This conversation couldn't be found.");
   }
   revalidatePath("/admin/support");
@@ -214,6 +217,7 @@ export async function updateComplaintAction(
       body,
     });
   } catch (error) {
+    unstable_rethrow(error);
     return explain(error, "This conversation couldn't be found.");
   }
   revalidatePath("/admin/support");

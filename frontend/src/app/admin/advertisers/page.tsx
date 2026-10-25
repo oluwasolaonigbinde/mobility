@@ -1,3 +1,4 @@
+import { adminReadFailure } from "@/lib/api/admin-read";
 export const metadata = { title: "Advertisers" };
 import Link from "next/link";
 import { createApiClient } from "@/lib/api/client";
@@ -18,7 +19,7 @@ export default async function AdvertisersPage({
   const offset = Math.max(0, Math.floor(Number(p.offset) || 0));
   const api = createApiClient(await getSessionToken());
   const { data } = await readAdminAdvertiserOrganizations(api, { q: p.q, limit: 25, offset }).catch(
-    () => ({ data: undefined }),
+    adminReadFailure,
   );
   // The list read already carries each company's outstanding invoice money (REQ-208).
   const failed = Boolean(

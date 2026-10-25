@@ -1,5 +1,7 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
 import { env } from "@/lib/env";
 import { clearSessionCookie, getSessionToken } from "./session";
 
@@ -24,7 +26,8 @@ export async function signOutAction(): Promise<SignOutResult> {
       } else if (response.status !== 401 && response.status !== 403) {
         revocationFailure = new Error("Unable to revoke all sessions");
       }
-    } catch {
+    } catch (caught) {
+      unstable_rethrow(caught);
       revocationFailure = new Error("Unable to revoke all sessions");
     }
   }

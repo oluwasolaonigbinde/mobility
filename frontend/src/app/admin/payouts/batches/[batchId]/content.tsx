@@ -1,3 +1,4 @@
+import { adminValueFailure } from "@/lib/api/admin-read";
 import Link from "next/link";
 
 import { requireRole } from "@/lib/auth/current-user";
@@ -31,7 +32,8 @@ export default async function BatchDetailPage({
   let detail: BatchDetail;
   try {
     detail = await batchApi<BatchDetail>(`/${batchId}/detail?limit=25&offset=${page * 25}`);
-  } catch {
+  } catch (error) {
+    adminValueFailure(error);
     return <QueueUnavailable />;
   }
   const batch = detail.summary;
@@ -41,7 +43,7 @@ export default async function BatchDetailPage({
     batch.status === "draft" && batch.created_by_user_id === me.user.id
       ? await batchApi<Page<EligiblePayment>>(
           `/eligible?limit=25&offset=${creditPage * 25}&currency=${batch.currency}`,
-        ).catch(() => null)
+        ).catch(adminValueFailure)
       : null;
   return (
     <div className="mx-auto max-w-5xl space-y-5 pb-16">

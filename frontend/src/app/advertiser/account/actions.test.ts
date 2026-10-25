@@ -9,7 +9,10 @@ const mocks = vi.hoisted(() => ({
   }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
-vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  redirect: mocks.redirect,
+}));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "session" }));
 vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ PATCH: mocks.patch }) }));
 
@@ -35,10 +38,15 @@ it("saves the advertiser's own company and returns to the page", async () => {
   expect(mocks.revalidatePath).toHaveBeenCalledWith("/advertiser/account");
 });
 
-it("returns the API message, or a generic one, on failure", async () => {
-  mocks.patch.mockRejectedValue(new ApiError(403, { code: "FORBIDDEN", message: "Not allowed" }));
+it("redirects with safe copy for an unmapped refusal or transport failure", async () => {
+  mocks.patch.mockRejectedValue(
+    new ApiError(403, {
+      code: "FORBIDDEN",
+      message: "private company contact private@example.com",
+    }),
+  );
   await expect(updateCompanyAction(form())).rejects.toThrow(
-    "REDIRECT /advertiser/account?error=Not%20allowed",
+    `REDIRECT /advertiser/account?error=${encodeURIComponent("The request could not be completed. Check the details and try again.")}`,
   );
   mocks.patch.mockRejectedValue(new Error("network"));
   await expect(updateCompanyAction(form())).rejects.toThrow(

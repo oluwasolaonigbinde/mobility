@@ -1,6 +1,7 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { publicActionError } from "@/lib/api/public-action-error";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
@@ -55,12 +56,13 @@ export async function changePasswordAction(
     await setSessionCookie(data.access_token, data.expires_in);
     redirect(roleHome(data.user.role));
   } catch (error) {
+    unstable_rethrow(error);
     if (error instanceof ApiError) {
       if (error.status === 429) return { error: "Too many attempts. Please try again shortly." };
       if (error.code === "CURRENT_PASSWORD_INCORRECT") {
         return { fieldErrors: { currentPassword: "Current password is incorrect" } };
       }
-      return { error: error.message };
+      return { error: publicActionError(error) };
     }
     throw error;
   }

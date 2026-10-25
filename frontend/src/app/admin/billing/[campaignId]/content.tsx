@@ -1,3 +1,4 @@
+import { adminValueFailure } from "@/lib/api/admin-read";
 import { randomUUID } from "node:crypto";
 import Link from "next/link";
 import { createApiClient } from "@/lib/api/client";
@@ -50,7 +51,8 @@ export default async function AdminCampaignBillingPage({
         params: { query: { organization_id: campaign.organization.id } },
       }));
     }
-  } catch {
+  } catch (error) {
+    adminValueFailure(error);
     return <QueueUnavailable />;
   }
   if (!campaign || !commercial || !history) return <QueueUnavailable />;

@@ -4,7 +4,10 @@ vi.mock("@/lib/api/client", () => ({ createApiClient: () => ({ PATCH: mocks.patc
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
 vi.mock("@/lib/auth/current-user", () => ({ requireRole: mocks.guard }));
 vi.mock("next/cache", () => ({ revalidatePath: mocks.revalidatePath }));
-vi.mock("next/navigation", () => ({ redirect: vi.fn() }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  redirect: vi.fn(),
+}));
 import { updateDriverDetailsAction } from "../fleet-actions";
 import { ApiError } from "@/lib/api/errors";
 const id = "00000000-0000-4000-8000-000000000001";
@@ -51,13 +54,16 @@ it("does not write if staff authorization is denied", async () => {
   await expect(updateDriverDetailsAction({}, form())).rejects.toThrow("denied");
   expect(mocks.patch).not.toHaveBeenCalled();
 });
-it.each([new ApiError(409, { code: "CONFLICT", message: "Please reload." }), new Error("offline")])(
-  "reports refused or failed writes without claiming success",
-  async (error) => {
-    mocks.patch.mockRejectedValueOnce(error);
-    expect(await updateDriverDetailsAction({}, form())).toEqual({
-      error: error instanceof ApiError ? "Please reload." : "Could not reach the server.",
-    });
-    expect(mocks.revalidatePath).not.toHaveBeenCalled();
-  },
-);
+it.each([
+  new ApiError(409, { code: "CONFLICT", message: "private driver licence detail" }),
+  new Error("offline"),
+])("reports refused or failed writes without claiming success", async (error) => {
+  mocks.patch.mockRejectedValueOnce(error);
+  expect(await updateDriverDetailsAction({}, form())).toEqual({
+    error:
+      error instanceof ApiError
+        ? "The request could not be completed. Check the details and try again."
+        : "Could not reach the server.",
+  });
+  expect(mocks.revalidatePath).not.toHaveBeenCalled();
+});

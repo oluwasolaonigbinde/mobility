@@ -7,7 +7,10 @@ const mocks = vi.hoisted(() => ({
   redirect: vi.fn(),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("next/navigation", () => ({ redirect: mocks.redirect }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  redirect: mocks.redirect,
+}));
 vi.mock("@/lib/auth/session", () => ({ getSessionToken: vi.fn(async () => "token") }));
 vi.mock("@/lib/api/client", () => ({
   createApiClient: () => ({ POST: mocks.post, PATCH: mocks.patch, GET: mocks.get }),

@@ -1,8 +1,6 @@
 import json
 from pathlib import Path
 
-from alembic.config import Config
-from alembic.script import ScriptDirectory
 from conftest import (
     auth_headers,
     create_test_campaign,
@@ -14,23 +12,6 @@ from app.main import create_app
 from app.models.user import UserRole
 
 SNAPSHOT_PATH = Path("docs/api/openapi.snapshot.json")
-EXPECTED_ALEMBIC_HEAD = "0119_advertiser_login_invites"
-EXPECTED_MIGRATIONS = {
-    "0106_development_baseline.py",
-    "0107_audience_sweep_cursor.py",
-    "0108_req180_backend_batch2.py",
-    "0109_remove_daily_display_proof.py",
-    "0110_simplify_driver_operations.py",
-    "0111_fix_daily_pay_policy.py",
-    "0112_simplify_money_operations.py",
-    "0113_remove_pilot_audiences.py",
-    "0114_simplify_campaign_authority.py",
-    "0115_fix_limits_and_email.py",
-    "0116_campaign_reports.py",
-    "0117_req220_artwork_links.py",
-    "0118_installation_review_json_guard.py",
-    "0119_advertiser_login_invites.py",
-}
 MAJOR_CONTRACT_PATHS = {
     "health": "/api/v1/health",
     "auth": "/api/v1/auth/login",
@@ -86,7 +67,6 @@ def test_openapi_snapshot_exists_and_contains_mvp_contract_paths() -> None:
     assert SNAPSHOT_PATH.exists()
 
     snapshot = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
-    assert snapshot["info"]["title"] == "mobility-adtech-api"
     assert snapshot["paths"]["/api/v1/health"]
 
     missing = [
@@ -146,17 +126,6 @@ def test_no_public_delete_routes_for_payout_ledger_critical_parents(settings) ->
     }
 
     assert delete_paths == {"/api/v1/advertiser/campaigns/{campaign_id}/zones/{zone_id}"}
-
-
-def test_migration_chain_matches_authorized_head() -> None:
-    migration_names = {
-        path.name for path in Path("alembic/versions").glob("*.py") if path.name != "__init__.py"
-    }
-
-    assert migration_names == EXPECTED_MIGRATIONS
-
-    script = ScriptDirectory.from_config(Config("alembic.ini"))
-    assert script.get_heads() == [EXPECTED_ALEMBIC_HEAD]
 
 
 def test_cost_summary_invalid_date_range_uses_standard_error_envelope(

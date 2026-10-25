@@ -1,5 +1,8 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
@@ -72,7 +75,8 @@ export async function processTripAction(
         : "Payment breakdown calculated",
     );
   } catch (error) {
-    const reason = error instanceof ApiError ? error.message : "server unreachable";
+    unstable_rethrow(error);
+    const reason = error instanceof ApiError ? publicActionError(error) : "server unreachable";
     return { error: `${reason}${steps.length ? ` (completed: ${steps.join(" · ")})` : ""}`, steps };
   }
 

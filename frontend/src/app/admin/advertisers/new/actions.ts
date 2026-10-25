@@ -1,7 +1,8 @@
 "use server";
 
+import { publicActionError } from "@/lib/api/public-action-error";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/errors";
@@ -43,10 +44,11 @@ export async function createCompanyAction(
       };
     id = data.organization.id;
   } catch (error) {
+    unstable_rethrow(error);
     return {
       error:
         error instanceof ApiError
-          ? error.message
+          ? publicActionError(error)
           : "The company could not be confirmed. Check the company list before trying again.",
     };
   }

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { adminValueFailure } from "@/lib/api/admin-read";
 import Link from "next/link";
 import { PageHeader } from "@/components/ui/page-header";
 import { Pagination } from "@/components/ui/pagination";
@@ -27,7 +28,8 @@ export const metadata: Metadata = { title: "Automatic payouts" };
 async function settle<T>(read: Promise<{ data?: T }>): Promise<T | null> {
   try {
     return (await read).data ?? null;
-  } catch {
+  } catch (error) {
+    adminValueFailure(error);
     return null;
   }
 }

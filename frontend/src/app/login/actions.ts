@@ -1,6 +1,6 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { createLoginApiClient } from "@/lib/api/client";
@@ -88,6 +88,7 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
       ? changePasswordPath(data.user.role)
       : roleHome(data.user.role);
   } catch (error) {
+    unstable_rethrow(error);
     if (error instanceof ApiError) {
       // Backend deliberately does not reveal whether the email exists.
       return {

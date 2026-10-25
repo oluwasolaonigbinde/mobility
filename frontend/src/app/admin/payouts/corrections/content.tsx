@@ -1,3 +1,4 @@
+import { adminReadFailure } from "@/lib/api/admin-read";
 import Link from "next/link";
 import { createApiClient } from "@/lib/api/client";
 import type { components } from "@/lib/api/schema";
@@ -25,7 +26,7 @@ export default async function Corrections({ query }: { query: MoneyQuery }) {
     .GET("/api/v1/admin/payouts/correction-orders", {
       params: { query: { limit: 25, offset, status } },
     })
-    .catch(() => ({ data: undefined }));
+    .catch(adminReadFailure);
   let selected: Order | undefined = data?.items.find((order) => order.id === query.correction),
     selectionFailed = false;
   if (query.correction && !selected) {
@@ -33,7 +34,7 @@ export default async function Corrections({ query }: { query: MoneyQuery }) {
       .GET("/api/v1/admin/payouts/correction-orders/{order_id}", {
         params: { path: { order_id: query.correction } },
       })
-      .catch(() => ({ data: undefined }));
+      .catch(adminReadFailure);
     if (detail?.id === query.correction) selected = detail;
     else selectionFailed = true;
   }
@@ -51,7 +52,7 @@ export default async function Corrections({ query }: { query: MoneyQuery }) {
           .GET("/api/v1/admin/campaigns/{campaign_id}", {
             params: { path: { campaign_id: campaignId } },
           })
-          .catch(() => ({ data: undefined }));
+          .catch(adminReadFailure);
         if (campaign?.id === campaignId) names.set(campaignId, campaign.name);
       }),
     );

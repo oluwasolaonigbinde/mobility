@@ -55,15 +55,24 @@ describe("publishDailyRateAction", () => {
     expect(mocks.post).not.toHaveBeenCalled();
   });
 
-  it("maps refusals and network failure", async () => {
+  it("hides arbitrary refusal text and preserves entered values without claiming publication", async () => {
     mocks.post.mockRejectedValueOnce(
-      new ApiError(400, { code: "INVALID_PAYOUT_RULE_REVISION", message: "must be later" }),
+      new ApiError(400, {
+        code: "INVALID_PAYOUT_RULE_REVISION",
+        message: "private rule validation and account detail",
+      }),
     );
-    expect(await publishDailyRateAction({}, form())).toMatchObject({ error: "must be later" });
+    const input = form();
+    expect(await publishDailyRateAction({}, input)).toEqual({
+      error: "The request could not be completed. Check the details and try again.",
+      values: Object.fromEntries(input.entries()),
+    });
 
     mocks.post.mockRejectedValueOnce(new Error("socket hang up"));
-    const failed = await publishDailyRateAction({}, form());
-    expect(failed.error).toBe("Could not reach the server. Try again.");
+    expect(await publishDailyRateAction({}, input)).toEqual({
+      error: "Could not reach the server. Try again.",
+      values: Object.fromEntries(input.entries()),
+    });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 });

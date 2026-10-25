@@ -7,7 +7,10 @@ vi.mock("@/lib/auth/session", () => ({ getSessionToken: async () => "token" }));
 vi.mock("@/lib/auth/current-user", () => ({
   requireRole: async () => ({ user: { id: "admin-1" } }),
 }));
-vi.mock("next/navigation", () => ({ notFound: vi.fn() }));
+vi.mock("next/navigation", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("next/navigation")>()),
+  notFound: vi.fn(),
+}));
 vi.mock("./actions", () => ({
   createInvoiceAction: vi.fn(),
   issueInvoiceAction: vi.fn(),

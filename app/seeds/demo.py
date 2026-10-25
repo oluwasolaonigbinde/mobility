@@ -14,7 +14,7 @@ from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from starlette import status
 
-from app.core.config import Settings, get_settings
+from app.core.config import LOCAL_ENVIRONMENTS, Settings, get_settings
 from app.core.errors import AppError
 from app.core.security import hash_password, verify_password
 from app.db.session import get_engine
@@ -90,7 +90,6 @@ DEMO_PASSWORDS = {
     "viewer@demo.mobility.local": "DemoViewer12345!",
     "driver@demo.mobility.local": "DemoDriver12345!",
 }
-LOCAL_ENVIRONMENTS = {"local", "dev", "development", "test", "testing"}
 DEMO_DRIVER_PHONE_NUMBERS = {
     "damilola.akinwale@demo.mobility.local": "+2340000000114",
     "driver@demo.mobility.local": "+2340000000100",

@@ -1,5 +1,7 @@
 "use server";
 
+import { unstable_rethrow } from "next/navigation";
+
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { createApiClient } from "@/lib/api/client";
@@ -37,6 +39,7 @@ export async function saveArtworkWebsite(
     if (!data || data.creative_id !== creativeId || !data.short_path)
       return { error: "The saved link couldn't be confirmed. Try again." };
   } catch (error) {
+    unstable_rethrow(error);
     if (error instanceof ApiError && error.status === 422)
       return { error: "Enter a public https website link without a sign-in or custom port." };
     if (error instanceof ApiError && [401, 403, 404].includes(error.status))
