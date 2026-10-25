@@ -1301,10 +1301,17 @@ def fetch_palmpay_market_snapshot(
                 select(Campaign).where(Campaign.name == "Beryl Lane Grocers — Market Routes")
             )
             assert campaign is not None
-            assignment = await session.scalar(
-                select(CampaignAssignment).where(CampaignAssignment.campaign_id == campaign.id)
-            )
-            assert assignment is not None
+            assignment = (
+                await session.scalars(
+                    select(CampaignAssignment)
+                    .join(DriverProfile, DriverProfile.id == CampaignAssignment.driver_profile_id)
+                    .join(User, User.id == DriverProfile.user_id)
+                    .where(
+                        CampaignAssignment.campaign_id == campaign.id,
+                        User.email == "driver@demo.mobility.local",
+                    )
+                )
+            ).one()
             trips = list(
                 (
                     await session.scalars(
@@ -1317,6 +1324,14 @@ def fetch_palmpay_market_snapshot(
             trip_ids = [trip.id for trip in trips]
             return {
                 "assignment_status": assignment.status,
+                "assignment_has_closed_activation_history": (
+                    assignment.accepted_at is not None
+                    and assignment.activated_at is not None
+                    and assignment.cancelled_at is not None
+                    and campaign.end_at is not None
+                    and assignment.accepted_at <= assignment.activated_at <= assignment.cancelled_at
+                    and assignment.cancelled_at < campaign.end_at
+                ),
                 "creatives": int(
                     await session.scalar(
                         select(func.count(CampaignCreative.id)).where(
@@ -2123,7 +2138,10 @@ def test_demo_seed_is_idempotent_with_postgis(
     assert first_legacy == second_legacy
     assert first_palmpay_market == second_palmpay_market
     assert first_evidence == second_evidence
-    assert second_palmpay_market["assignment_status"] == "active"
+    # REQ-217 retired the old completed state. This primary-driver story ended
+    # before its still-running campaign; it must not become a live assignment.
+    assert second_palmpay_market["assignment_status"] == "cancelled"
+    assert second_palmpay_market["assignment_has_closed_activation_history"] is True
     assert second_palmpay_market["creatives"] == 1
     assert second_palmpay_market["zones"] == 1
     assert second_palmpay_market["trips"] == 15

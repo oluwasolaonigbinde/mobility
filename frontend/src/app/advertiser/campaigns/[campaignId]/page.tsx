@@ -297,7 +297,7 @@ export default async function CampaignDetailPage({
       <div className="grid gap-4">
         <details
           id="details"
-          className="brand-disclosure"
+          className="brand-disclosure min-w-0"
           open={Boolean(query.details || query.commercial_error)}
         >
           <summary>

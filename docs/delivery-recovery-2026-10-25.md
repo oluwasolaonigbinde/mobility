@@ -647,3 +647,125 @@ Both owned runners were freshly confirmed stopped and the exact lock released
 13:14Z. No shared service, dependency, instrumentation or runtime limit changed.
 This batch is ready for the next authorized candidate commit/push, retaining
 the original final-CI, D33 and consolidated-review gates.
+
+### Corrected candidate: authoritative CI in progress
+
+Repair candidate `cedc58c978fc4894c010eac99551ef229eaf376c` was pushed normally
+to the existing authorized design branch and linked PR33. Authoritative PR run
+`40196905802` uses that exact head. Redundant same-head push run40196900030 was
+intentionally cancelled; its cancelled static/coverage and failed prerequisite
+aggregate are not new source failures or coverage measurements.
+
+Parent native-watcher evidence: authoritative backend static job121179596617
+SUCCESS, qualifying the unchanged full checker on the scoped AnyIO/arq repair.
+At that wake, frontend, six backend shards, ordinary E2E and R59 remained in
+progress. No final suite, browser, D33 or full-contract PASS is inferred. Source
+is frozen at this head; only this pending evidence record is updated locally.
+Parent retains the native PR watch; the controller runs no parallel poller.
+
+R59 job121179596934 subsequently failed: original release journey passed49.2s;
+the added case passed candidate worker readiness/control checks and actual Start
+commit/API-stop/initial uncertainty, then failed17.3s into the case at408 while
+waiting for the exact Check trip status button after a manual reconciliation.
+The captured DOM still shows owned Track and ordinary driver chrome, with a
+disabled Checking button. This is not proof of an error boundary, authentication
+loss, duplicate Start or premature capture. The remaining reconciliation/cache
+and HTTPS assertions were not qualified. Same writer is diagnosing the actual
+trace before any correction; no selector/assertion/limit change is inferred.
+
+Downloaded artifact12600067582, r59-real-stack6327629bytes, once to local tools
+`ci-40196905802-r59`; actual completed job API log is `ci-40196905802-r59.log`,
+SHA256 `B4E6BB9BA65AC90D6C0D7177CD6F0F2F2AC34D59E7DEA6AD1EE322CDEAE5D8D3`.
+The ordinary run-log command refuses while the overall run is in progress;
+the completed-job API and artifact download succeeded. No runtime source change
+or extra polling was performed. Other authoritative results await parent wakes.
+
+Same writer's actual trace diagnosis establishes a sequencing race: initial
+reconciliation response5016.450ms; first manual retry5015.514ms, with5011.632ms
+waiting for headers and3.882ms body. The enabled-button assertion expired about
+6ms before that real response completed. Product reconciliation retains unknown
+authority/no GPS and clears busy in finally; no five-second outcome guarantee
+exists. Accepted correction is test-only: arm a real non-Start Next-action POST
+response waiter before each click, require status200, then retain the exact
+enabled-button assertion with its unchanged5s and all one-trip/no-capture/no-new-
+Start/queue checks. No fake response, added retry, product change or case-limit
+increase. Same specialist recheck and exact-head execution remain pending;
+other actual CI failures will be batched before another authorized push.
+
+Further authoritative cedc58c9 results from the parent's watcher: frontend
+quality job121179596812 SUCCESS (lint, full types, all units, contracts, build,
+enforcing audit); backend static SUCCESS and shard3 SUCCESS. Ordinary E2E
+job121179596843 completed4FAIL/112PASS/20SKIP in12.8min, not a timeout. Failures
+are desktop billing receipt whitespace comparison, distinct mobile acceptance
+pointer interception, and both-project area fixture expectations. Same writer
+received actual artifact12600354307 (playwright-report45780334bytes) and raw log
+SHA256 `3680677FC304707F0A47EF33A1A123DCEDEEA07F91EF4BE408491F2125D695D1`,
+stored locally under tools/ci-40196905802-e2e. No forced checkbox click, DOM
+bypass, arbitrary area assertion deletion or retry/timeout change is permitted.
+
+Shard0 job121179596877 completed530PASS/1FAIL1020.34s: only the demo seed's
+market-story assignment expected active but is cancelled. Source provenance
+589cbc9d3/REQ-217 intentionally replaced the old completed assignment state:
+an ended driver story inside a still-running campaign is cancelled, while
+elapsed campaigns derive finished state. The test helper selected an arbitrary
+campaign assignment. Its bounded correction selects the exact primary demo
+driver uniquely and asserts cancelled with accepted/activated/cancelled history
+in order before campaign end. All graph/idempotence/evidence/ledger/count
+assertions remain. Real PostGIS idempotence case started under a fresh own
+guard13:51:22Z (host1881/guest1464MiB, Python1GiB+PG256MiB); Ruff/format PASS,
+execution result pending. Only our stopped Node container was removed after
+confirming the verified dependency image; shared resources remain untouched.
+
+The affected real PostGIS seed case passed1/40deselected in119.36s. Its wrapper
+finished13:53:46.884Z after starting13:51:40.393Z:126.508s elapsed with wall versus
+monotonic difference -0.01636s/status0, memory peak622215168bytes. Same MONEY
+source supplement PASS verifies explicit identity/history and retained metrics.
+This completed group was not interrupted by the later host clock gap: at
+18:51:55Z the watchdog detected CLOCK_GAP and successfully stopped both owned
+Python/PG containers, released its exact lease; fresh18:52Z inspection confirms
+both exited and no lock. No unrelated services were changed. Last host sample
+807MiB supplies no heavy-resume qualification; new work requires fresh budget.
+
+R59 response-completion sequencing source supplement is CLIENT-DEVICE and
+DEPLOYMENT-SOURCE PASS; actual next-head browser remains pending. Same writer
+is correcting the evidenced billing desktop whitespace/mobile grid overflow
+and exact current two-area fixture, preserving ordinary clicks, confirmation,
+money and read-only boundaries. Remaining full-run results come only through
+the parent's native watcher; no early push or parallel polling is active.
+
+Parent confirmed run40196905802 COMPLETED failure with no additional defects:
+backend static and full frontend quality SUCCESS; backend shards1/2/3/4/5 all
+SUCCESS (including money observer and C5 complete-shard corrections); shard0
+only the corrected seed assertion. Ordinary E2E has only the four billing/area
+reports above; R59 only the diagnosed response-sequencing assertion. Aggregate
+121184943965 failed prerequisites, coverage SKIPPED with no final measurement.
+
+Final source slice is stable. Mobile CI screenshot/trace shows412px viewport
+but706px content after opening Details and pointer interception at the normal
+acceptance checkbox. Only product delta adds min-w-0 to that existing grid item,
+containing its existing minimum-width quotation table inside its own scroller.
+The E2E checks document width before the same unforced acceptance.check. Desktop
+receipt comparison retains the full captured text using consistent innerText.
+Current seed areas are exactly Central Business District(target) and Three Arms
+Zone(exclusion); running map/read-only checks remain, and an isolated editable
+draft copies the exact geometry/type/name and retains its exact new identity set
+after Keep. Same MONEY and CLIENT-DEVICE/DEPLOYMENT-SOURCE source supplements
+PASS; all next-head rendered browser outcomes remain pending.
+
+Fresh18:54:16Z bootstrap found host697MiB/guest1633MiB, below the required host
+resume boundary. Both owned runners remain stopped/no lease. Final four-path
+Prettier/ESLint (and optional existing page unit) await a qualified Node slot or
+parent verification-location resolution; no host/container budget or shared
+resource was changed. Required profile is one reused Node22 runner capped1GiB,
+heap256, prior measured peak296MB, serial short checks. No new full local build,
+typecheck, browser run or repeated resource experiment is planned.
+
+Parent resolved verification location: no mandatory local Prettier gate exists.
+Only the two long area expressions were manually wrapped without semantics
+changes. Final local formatter/ESLint/page-unit checks were NOT RUN because the
+host resource boundary was unmet; no PASS is claimed. Unchanged exact-head CI
+quality supplies full ESLint/types/units/build, and existing browser jobs supply
+the required runtime checks. No new workflow/job/policy or limit was added.
+Scoped source reviews and the actual seed PostgreSQL pass above remain valid.
+Proceed with the coherent authorized repair push; full CI, strict whole-range
+D33 receipt review/fresh CI and final consolidated medium PASS remain binding.

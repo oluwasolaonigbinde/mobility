@@ -404,7 +404,29 @@ test("R59 uncertain Start preserves offline evidence across bounded cache releas
     expect(failedLossStage, "the real Start-loss proof must complete every phase").toBe("");
     expect(tripId).toMatch(/^[0-9a-f-]{36}$/);
     for (let retry = 0; retry < 2; retry += 1) {
-      await check.click();
+      // A real stopped-API lookup can take longer than the UI assertion's 5s.
+      // Await its response and complete body before checking the settled UI.
+      const [checked] = await Promise.all([
+        page.waitForResponse((response) => {
+          const request = response.request();
+          const action = request.headers()["next-action"];
+          const url = new URL(response.url());
+          return (
+            url.origin === new URL(page.url()).origin &&
+            url.pathname === "/driver/track" &&
+            request.method() === "POST" &&
+            Boolean(action) &&
+            action !== startAction
+          );
+        }),
+        check.click(),
+      ]);
+      expect(checked.status()).toBe(200);
+      const responseFinished = await checked.finished().then(
+        (error) => error === null,
+        () => false,
+      );
+      expect(responseFinished, "the real status response must finish").toBe(true);
       await expect(check).toBeEnabled();
       expect(startRequests).toBe(1);
       expect(r59DriverTripCount()).toBe(beforeTrips + 1);

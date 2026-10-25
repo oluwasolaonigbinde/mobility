@@ -39,9 +39,8 @@ test("campaign areas stay read-only when running and draft deletion requires con
 
   // Zone list from the backend
   await expect(page.getByText("Central Business District")).toBeVisible();
-  await expect(page.getByText("Ahmadu Bello Way offices")).toBeVisible();
   await expect(page.getByText("Three Arms Zone")).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Areas · 3", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Areas · 2", exact: true })).toBeVisible();
 
   // The running campaign's real map is visible, with no editing controls.
   await expect(page.getByTestId("zones-map").locator("canvas")).toBeVisible();
@@ -62,7 +61,20 @@ test("campaign areas stay read-only when running and draft deletion requires con
   );
   expect(source.status()).toBe(200);
   const sourceAreas = (await source.json()).items as components["schemas"]["CampaignZoneRead"][];
-  expect(sourceAreas).toHaveLength(3);
+  expect(sourceAreas).toHaveLength(2);
+  expect(
+    sourceAreas
+      .map(({ name, zone_type }) => ({ name, zone_type }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
+  ).toEqual([
+    { name: "Central Business District", zone_type: "target" },
+    { name: "Three Arms Zone", zone_type: "exclusion" },
+  ]);
+  for (const area of sourceAreas) {
+    expect(area.id).toMatch(/^[0-9a-f-]{36}$/);
+    expect(area.campaign_id).toBe(sourceId);
+  }
+  expect(new Set(sourceAreas.map((area) => area.id)).size).toBe(2);
   let draftId: string | undefined;
   try {
     const created = await page.request.post(`${apiBase}/api/v1/advertiser/campaigns`, {
@@ -82,6 +94,7 @@ test("campaign areas stay read-only when running and draft deletion requires con
     await page.getByRole("link", { name: "Choose your area", exact: true }).click();
     await page.waitForURL(new RegExp(`/campaigns/${draftId}/zones$`));
     await expect(page.getByRole("button", { name: "Draw area", exact: true })).toBeVisible();
+    const copiedAreas: components["schemas"]["CampaignZoneRead"][] = [];
     for (const area of sourceAreas) {
       const added = await page.request.post(
         `${apiBase}/api/v1/advertiser/campaigns/${draftId}/zones`,
@@ -91,10 +104,17 @@ test("campaign areas stay read-only when running and draft deletion requires con
         },
       );
       expect(added.status()).toBe(201);
-      expect((await added.json()).campaign_id).toBe(draftId);
+      const copied = (await added.json()) as components["schemas"]["CampaignZoneRead"];
+      expect(copied).toMatchObject({
+        campaign_id: draftId,
+        name: area.name,
+        zone_type: area.zone_type,
+        geometry: area.geometry,
+      });
+      copiedAreas.push(copied);
     }
     await page.reload();
-    await expect(page.getByRole("heading", { name: "Areas · 3", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Areas · 2", exact: true })).toBeVisible();
     await expect(page.getByTestId("zones-map").locator("canvas")).toBeVisible();
     await expect(page.getByRole("button", { name: "Draw area", exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Delete Central Business District" }).click();
@@ -109,8 +129,15 @@ test("campaign areas stay read-only when running and draft deletion requires con
     expect(retained.status()).toBe(200);
     const retainedAreas = (await retained.json())
       .items as components["schemas"]["CampaignZoneRead"][];
-    expect(retainedAreas.map((area) => area.name).sort()).toEqual(
-      sourceAreas.map((area) => area.name).sort(),
+    const identity = ({
+      id,
+      campaign_id,
+      name,
+      zone_type,
+      geometry,
+    }: components["schemas"]["CampaignZoneRead"]) => ({ id, campaign_id, name, zone_type, geometry });
+    expect(retainedAreas.map(identity).sort((a, b) => a.id.localeCompare(b.id))).toEqual(
+      copiedAreas.map(identity).sort((a, b) => a.id.localeCompare(b.id)),
     );
   } finally {
     if (draftId) cleanupIsolatedCampaign(draftId);

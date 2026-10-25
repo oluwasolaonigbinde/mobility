@@ -162,6 +162,13 @@ test("quotation acceptance and invoice facts survive role changes and reloads", 
   ).toBeVisible();
   await expect(quotation.getByText("₦7,500.00")).toBeVisible();
   await expect(quotation.getByText("₦107,500.00")).toBeVisible();
+  const quotationWidth = await page.evaluate(() => ({
+    document: document.documentElement.scrollWidth,
+    viewport: document.documentElement.clientWidth,
+  }));
+  expect(quotationWidth.document, "Quotation details must fit the viewport").toBeLessThanOrEqual(
+    quotationWidth.viewport,
+  );
   const acceptance = page.getByRole("checkbox", { name: /I reviewed the scope.*revision 1\./ });
   await expect(acceptance).toBeVisible();
   await acceptance.check();
@@ -172,7 +179,9 @@ test("quotation acceptance and invoice facts survive role changes and reloads", 
   const acceptedText = await acceptedReceipt.innerText();
   await page.reload();
   await openCampaignDetails(page);
-  await expect(page.getByLabel("Accepted quotation receipt")).toHaveText(acceptedText);
+  await expect(page.getByLabel("Accepted quotation receipt")).toHaveText(acceptedText, {
+    useInnerText: true,
+  });
 
   await page.context().clearCookies();
   await login(page, "admin@demo.mobility.local", "DemoAdmin12345!", "admin");
