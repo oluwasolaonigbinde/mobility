@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 
@@ -125,7 +125,206 @@ async function openCampaignSection(page: Page, id: "details" | "manage") {
   }
 }
 
-test("advertiser can sign in without exposing suppressed dashboard results", async ({ page }) => {
+// Only booleans reach assertion diagnostics: an invalid aggregate may contain
+// private values, including in unexpected keys or in place of scalar fields.
+function requireAggregate(condition: boolean, field: string) {
+  expect(condition, `Invalid aggregate projection: ${field}`).toBe(true);
+}
+
+function aggregateFields(value: unknown, keys: readonly string[], field: string) {
+  requireAggregate(typeof value === "object" && value !== null && !Array.isArray(value), field);
+  const record = value as Record<string, unknown>;
+  const actualKeys = Object.keys(record);
+  requireAggregate(
+    actualKeys.length === keys.length && keys.every((key) => Object.hasOwn(record, key)),
+    field,
+  );
+  return record;
+}
+
+const aggregateUuid = (value: unknown): value is string =>
+  typeof value === "string" && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(value);
+const aggregateCurrency = (value: unknown) => typeof value === "string" && /^[A-Z]{3}$/.test(value);
+const aggregateCount = (value: unknown) =>
+  typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
+const aggregateDecimal = (value: unknown) =>
+  typeof value === "string" &&
+  /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?$/.test(value) &&
+  Number.isFinite(Number(value));
+const aggregatePeriod = (value: unknown) =>
+  value === null ||
+  (typeof value === "string" &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
+    Number.isFinite(Date.parse(value)));
+
+function hasNoProhibitedAggregateFields(value: unknown): boolean {
+  if (Array.isArray(value)) return value.every(hasNoProhibitedAggregateFields);
+  if (typeof value !== "object" || value === null) return true;
+  return Object.entries(value).every(([key, child]) => {
+    const normalized = key.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase();
+    // Approved organization/campaign/area IDs and report periods are validated
+    // separately. This guard applies to aggregate responses, never live maps.
+    const prohibited =
+      /^(?:(?:driver|vehicle|user|profile|person|trip|assignment)_?ids?|drivers|vehicles|users|profiles|trips_by_driver|email|email_address|phone|phone_number|first_name|last_name|full_name|address|bank_account|account_number|password|token|access_token|refresh_token|authorization|cookie|cookies|gps|raw_gps|latitude|longitude|lat|lng|lon|coordinates|geometry|location|locations|position|positions|points|raw_points|fixes|samples|route|routes|trail|created_at|recorded_at|started_at|ended_at|timestamp|timestamps)$/;
+    return !prohibited.test(normalized) && hasNoProhibitedAggregateFields(child);
+  });
+}
+
+function validateDashboardAggregate(
+  value: unknown,
+): components["schemas"]["AdvertiserDashboardSummary"] {
+  requireAggregate(hasNoProhibitedAggregateFields(value), "summary prohibited fields");
+  const summary = aggregateFields(
+    value,
+    [
+      "organization_id",
+      "currency",
+      "start_at",
+      "end_at",
+      "campaigns",
+      "assignments",
+      "trips",
+      "impressions",
+      "costs",
+      "quality",
+    ],
+    "summary fields",
+  );
+  requireAggregate(aggregateUuid(summary.organization_id), "summary organization ID");
+  requireAggregate(aggregateCurrency(summary.currency), "summary currency");
+  requireAggregate(
+    aggregatePeriod(summary.start_at) && aggregatePeriod(summary.end_at),
+    "summary periods",
+  );
+  for (const [field, keys] of [
+    [
+      "campaigns",
+      [
+        "total",
+        "draft",
+        "pending_review",
+        "approved",
+        "rejected",
+        "active",
+        "paused",
+        "finished",
+        "cancelled",
+      ],
+    ],
+    ["assignments", ["total", "offered", "accepted", "active", "cancelled", "finished"]],
+    ["trips", ["total", "ended", "active"]],
+  ] as const) {
+    const counts = aggregateFields(summary[field], keys, `summary ${field}`);
+    requireAggregate(Object.values(counts).every(aggregateCount), `summary ${field} counts`);
+  }
+  const impressions = aggregateFields(
+    summary.impressions,
+    [
+      "estimated_impressions",
+      "estimated_trip_count",
+      "insufficient_data_trip_count",
+      "excluded_trip_count",
+      "average_confidence_score",
+    ],
+    "summary impressions",
+  );
+  for (const field of ["estimated_impressions", "average_confidence_score"]) {
+    requireAggregate(aggregateDecimal(impressions[field]), `summary ${field}`);
+  }
+  for (const field of [
+    "estimated_trip_count",
+    "insufficient_data_trip_count",
+    "excluded_trip_count",
+  ]) {
+    requireAggregate(aggregateCount(impressions[field]), `summary ${field}`);
+  }
+  const quality = aggregateFields(
+    summary.quality,
+    ["average_quality_score", "fraud_flags"],
+    "summary quality",
+  );
+  requireAggregate(
+    aggregateDecimal(quality.average_quality_score),
+    "summary average quality score",
+  );
+  const flags = aggregateFields(
+    quality.fraud_flags,
+    ["open", "confirmed", "dismissed", "low", "medium", "high"],
+    "summary fraud flags",
+  );
+  requireAggregate(Object.values(flags).every(aggregateCount), "summary fraud counts");
+  const costs = aggregateFields(summary.costs, ["totals_by_currency"], "summary costs");
+  requireAggregate(Array.isArray(costs.totals_by_currency), "summary cost array");
+  for (const value of costs.totals_by_currency as unknown[]) {
+    const cost = aggregateFields(
+      value,
+      ["currency", "final_payout_total", "gross_payout_total", "ledger_entry_count"],
+      "summary cost fields",
+    );
+    requireAggregate(aggregateCurrency(cost.currency), "summary cost currency");
+    requireAggregate(
+      aggregateDecimal(cost.final_payout_total) && aggregateDecimal(cost.gross_payout_total),
+      "summary payout totals",
+    );
+    requireAggregate(aggregateCount(cost.ledger_entry_count), "summary ledger count");
+  }
+  return value as components["schemas"]["AdvertiserDashboardSummary"];
+}
+
+function validateCampaignAggregate(
+  value: unknown,
+): components["schemas"]["CampaignPerformanceRead"] {
+  requireAggregate(hasNoProhibitedAggregateFields(value), "campaign report prohibited fields");
+  const report = aggregateFields(
+    value,
+    ["campaign_id", "start_at", "end_at", "totals", "areas", "completeness", "uncertainty"],
+    "campaign report fields",
+  );
+  requireAggregate(aggregateUuid(report.campaign_id), "campaign report ID");
+  requireAggregate(
+    aggregatePeriod(report.start_at) && aggregatePeriod(report.end_at),
+    "campaign report periods",
+  );
+  requireAggregate(
+    typeof report.completeness === "string" && typeof report.uncertainty === "string",
+    "campaign report metadata",
+  );
+  const totals = aggregateFields(
+    report.totals,
+    ["distance_m", "trip_count", "driving_days", "estimated_views"],
+    "campaign totals",
+  );
+  for (const field of ["distance_m", "estimated_views"]) {
+    requireAggregate(
+      totals[field] === null || aggregateDecimal(totals[field]),
+      `campaign ${field}`,
+    );
+  }
+  for (const field of ["trip_count", "driving_days"]) {
+    requireAggregate(totals[field] === null || aggregateCount(totals[field]), `campaign ${field}`);
+  }
+  requireAggregate(Array.isArray(report.areas), "campaign area array");
+  for (const value of report.areas as unknown[]) {
+    const area = aggregateFields(
+      value,
+      ["area_id", "name", "trip_count", "modelled_potential_contacts"],
+      "campaign area fields",
+    );
+    requireAggregate(aggregateUuid(area.area_id), "campaign area ID");
+    requireAggregate(typeof area.name === "string", "campaign area name");
+    requireAggregate(aggregateCount(area.trip_count), "campaign area trip count");
+    requireAggregate(
+      area.modelled_potential_contacts === null ||
+        aggregateDecimal(area.modelled_potential_contacts),
+      "campaign area contacts",
+    );
+  }
+  return value as components["schemas"]["CampaignPerformanceRead"];
+}
+
+test("advertiser sees only governed tenant aggregates and its campaign performance", async ({
+  page,
+}) => {
   await loginAsAdvertiser(page);
   await expect(page.getByRole("heading", { name: /Marula Kitchens/, level: 1 })).toBeVisible({
     timeout: 20_000,
@@ -135,14 +334,89 @@ test("advertiser can sign in without exposing suppressed dashboard results", asy
   );
   expect(session, "advertiser login must set the session cookie").toBeTruthy();
   const apiBase = process.env.E2E_API_BASE_URL ?? "http://localhost:8000";
+  const headers = { Authorization: `Bearer ${session!.value}` };
+  const meResponse = await page.request.get(`${apiBase}/api/v1/me`, { headers });
+  expect(meResponse.status()).toBe(200);
+  const me = (await meResponse.json()) as components["schemas"]["MeResponse"];
+  const organization = me.advertiser_organization;
+  if (!organization) throw new Error("The advertiser has no authenticated company");
+  requireAggregate(aggregateUuid(organization.id), "authenticated organization ID");
+  const fixture = spawnSync(
+    "docker",
+    [
+      "compose",
+      "exec",
+      "-T",
+      "api",
+      "python",
+      "frontend/e2e/support/read-advertiser-cohort.py",
+      organization.id,
+    ],
+    { cwd: resolve(process.cwd(), ".."), encoding: "utf8", env: process.env },
+  );
+  if (fixture.status !== 0) throw new Error("The isolated numeric cohort proof was unavailable");
+  let cohort: { trips: number; cars: number };
+  try {
+    cohort = JSON.parse(
+      fixture.stdout
+        .trim()
+        .split("\n")
+        .findLast((line) => line.startsWith("{")) ?? "{}",
+    );
+  } catch {
+    throw new Error("The isolated numeric cohort proof was invalid");
+  }
+  expect(Number.isSafeInteger(cohort.cars)).toBe(true);
+  expect(cohort.cars).toBeGreaterThanOrEqual(3);
+  expect(Number.isSafeInteger(cohort.trips)).toBe(true);
   const summary = await page.request.get(`${apiBase}/api/v1/advertiser/dashboard/summary`, {
-    headers: { Authorization: `Bearer ${session!.value}` },
+    headers,
   });
-  expect(summary.status()).toBe(409);
-  expect((await summary.json()).error.code).toBe("DISCLOSURE_SUPPRESSED");
-  await expect(
-    page.getByText("Not enough cars yet to show estimated views.").first(),
-  ).toBeVisible();
+  expect(summary.status()).toBe(200);
+  const aggregate = validateDashboardAggregate(await summary.json());
+  requireAggregate(
+    aggregate.organization_id === organization.id,
+    "authenticated summary organization",
+  );
+  requireAggregate(aggregate.currency === organization.currency, "authenticated summary currency");
+  requireAggregate(
+    aggregate.start_at === null && aggregate.end_at === null,
+    "unbounded summary periods",
+  );
+  requireAggregate(aggregate.trips.total === cohort.trips, "exact authenticated cohort trip count");
+  const name = "Marula Kitchens — Abuja Lunch Routes";
+  const card = page.locator(".portal-card").filter({
+    has: page.getByRole("heading", { name, exact: true }),
+  });
+  await expect(card).toHaveCount(1);
+  const link = await card.getByRole("link", { name, exact: true }).getAttribute("href");
+  const campaignId = link?.split("/").at(-1);
+  if (!aggregateUuid(campaignId))
+    throw new Error("The named Home campaign has no valid campaign link");
+  const reportResponse = await page.request.get(
+    `${apiBase}/api/v1/advertiser/campaigns/${campaignId}/report`,
+    { headers },
+  );
+  expect(reportResponse.status()).toBe(200);
+  const report = validateCampaignAggregate(await reportResponse.json());
+  requireAggregate(report.campaign_id === campaignId, "named Home campaign binding");
+  const performance = card.getByRole("region", { name: "Campaign performance", exact: true });
+  const views = performance
+    .getByText("Estimated views", { exact: true })
+    .locator("..")
+    .locator("dd");
+  const withheld = performance.getByText("Not enough cars yet to show estimated views.", {
+    exact: true,
+  });
+  if (report.totals.estimated_views === null) {
+    await expect(views).toHaveText("—");
+    await expect(withheld).toBeVisible();
+  } else {
+    await expect(views).toHaveText(
+      new Intl.NumberFormat("en-NG").format(Math.round(Number(report.totals.estimated_views))),
+    );
+    await expect(withheld).toHaveCount(0);
+  }
   await expect(page.getByRole("heading", { name: "On the road now", exact: true })).toBeVisible();
   await expect(page.getByText("Estimated ad exposure", { exact: true })).toHaveCount(0);
 });
@@ -197,7 +471,7 @@ test("campaign submission and admin approval preserve immutable review history",
     await page.getByRole("button", { name: "Continue →" }).click();
 
     // Step 4 — review shows the saved draft without creating another campaign.
-    await expect(page.getByText(name)).toBeVisible();
+    await expect(page.getByText(name, { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Review your draft" })).toBeVisible();
     await expect(page.getByText("Add later", { exact: true })).toBeVisible();
     // Finish the saved draft; retain the bounded click and require its redirect.

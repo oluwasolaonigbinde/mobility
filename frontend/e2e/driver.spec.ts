@@ -55,6 +55,10 @@ test("jobs tab shows an offer alongside active and completed campaigns", async (
     .filter({ has: page.getByText("Marula Kitchens — Abuja Lunch Routes", { exact: true }) })
     .filter({ has: page.locator("summary").filter({ hasText: "Job options" }) });
   await goldenJob.locator("summary").filter({ hasText: "Job options" }).click();
+  await goldenJob
+    .locator("summary")
+    .filter({ hasText: /^More$/ })
+    .click();
   await goldenJob.getByRole("button", { name: "Stop this job", exact: true }).click();
   const confirmation = page.getByRole("alertdialog");
   await expect(confirmation).toContainText("Stop Marula Kitchens — Abuja Lunch Routes?");

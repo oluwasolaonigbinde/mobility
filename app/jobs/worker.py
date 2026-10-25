@@ -1,4 +1,5 @@
-from typing import Any
+from collections.abc import Awaitable, Callable
+from typing import Any, ClassVar
 
 from arq.connections import RedisSettings
 from arq.worker import func
@@ -222,8 +223,8 @@ class WorkerSettings:
     # Worker-level too: finish_failed_job stores max-retries failures under the
     # deterministic job id using this value (func-level keep_result not consulted).
     keep_result = 0
-    on_job_start = begin_job_logging
-    on_job_end = end_job_logging
+    on_job_start: ClassVar[Callable[[dict], Awaitable[None]]] = begin_job_logging
+    on_job_end: ClassVar[Callable[[dict], Awaitable[None]]] = end_job_logging
     on_startup = on_startup
     on_shutdown = on_shutdown
     redis_settings = _optional_redis_settings()

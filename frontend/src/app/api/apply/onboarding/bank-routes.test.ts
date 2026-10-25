@@ -56,9 +56,14 @@ it.each(["resolved", "unavailable"])(
   },
 );
 
-it("preserves a denied account check without turning it into fallback", async () => {
+it("preserves a denied account check as an error while redacting private backend content", async () => {
   mocks.post.mockRejectedValue(
-    new ApiError(422, { code: "BANK_CHECK_INVALID", message: "Check your details again" }),
+    new ApiError(422, {
+      code: "BANK_CHECK_INVALID",
+      message: "private account 0123456789 and capability private-code",
+      details: { account_number: "0123456789", application_access_token: "private-code" },
+      request_id: "bank-denial-1",
+    }),
   );
   const response = await accountName(
     new Request("http://localhost/api/apply/onboarding/account-name", {
@@ -73,7 +78,19 @@ it("preserves a denied account check without turning it into fallback", async ()
   );
   expect(response.status).toBe(422);
   expect(response.headers.get("cache-control")).toBe("no-store");
-  expect(await response.json()).toEqual({
-    error: { code: "BANK_CHECK_INVALID", message: "Check your details again", details: {} },
+  const denied = await response.json();
+  expect(denied).toEqual({
+    error: {
+      code: "BANK_CHECK_INVALID",
+      message: "The request could not be completed. Check the details and try again.",
+      details: {},
+      request_id: "bank-denial-1",
+    },
   });
+  expect(denied).not.toHaveProperty("outcome");
+  expect(denied).not.toHaveProperty("bank_check_receipt");
+  expect(denied).not.toHaveProperty("account_name");
+  expect(JSON.stringify(denied)).not.toMatch(
+    /private|0123456789|account_number|application_access_token/,
+  );
 });

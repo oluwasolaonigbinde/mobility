@@ -1,4 +1,6 @@
 import asyncio
+import json
+import logging
 import os
 import subprocess
 import sys
@@ -9,13 +11,35 @@ import pytest
 import sentry_sdk
 import yaml
 from arq.connections import RedisSettings
+from arq.worker import get_kwargs
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from app.core.config import Settings
+from app.core.observability import JsonLogFormatter
 from app.jobs import worker
 from app.jobs.worker import WorkerSettings, build_redis_settings, sweep_cron_minutes
 from app.jobs.worker_entry import WorkerSettings as EntryWorkerSettings
+
+
+@pytest.mark.parametrize("configuration", [WorkerSettings, EntryWorkerSettings])
+def test_arq_registered_hooks_accept_context_and_clear_job_correlation(configuration):
+    hooks = get_kwargs(configuration)
+    formatter = JsonLogFormatter(service="worker", release_revision="test-release")
+
+    def record():
+        return json.loads(formatter.format(logging.makeLogRecord({"msg": "event=hook_test"})))
+
+    async def exercise():
+        context = {"job_id": "registered-job"}
+        await hooks["on_job_start"](context)
+        try:
+            assert record()["job_id"] == "registered-job"
+        finally:
+            await hooks["on_job_end"](context)
+        assert "job_id" not in record()
+
+    asyncio.run(exercise())
 
 
 def test_worker_settings_defaults() -> None:

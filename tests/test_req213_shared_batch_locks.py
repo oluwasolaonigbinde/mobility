@@ -129,9 +129,12 @@ def test_multi_driver_correction_waits_for_shared_batch_before_any_driver_lock(
         batch_held = asyncio.Event()
         release = asyncio.Event()
         correction_driver = asyncio.Event()
+        correction_before_chain = asyncio.Event()
+        allow_correction_chain = asyncio.Event()
         reconcile_task = None
         correction_task = None
         real = payout_balances.lock_driver_money_scope
+        real_chains = disbursements.lock_payout_chains
         pids = {}
 
         async def recon_scope(session, **kwargs):
@@ -146,8 +149,15 @@ def test_multi_driver_correction_waits_for_shared_batch_before_any_driver_lock(
                 correction_driver.set()
             return await real(session, **kwargs)
 
+        async def correction_chains(session, **kwargs):
+            if asyncio.current_task() is correction_task:
+                correction_before_chain.set()
+                await allow_correction_chain.wait()
+            return await real_chains(session, **kwargs)
+
         monkeypatch.setattr(disbursements, "lock_driver_money_scope", recon_scope)
         monkeypatch.setattr(payout_balances, "lock_driver_money_scope", correction_scope)
+        monkeypatch.setattr(disbursements, "lock_payout_chains", correction_chains)
 
         async def reconcile():
             fake.set_poll_result(
@@ -185,15 +195,30 @@ def test_multi_driver_correction_waits_for_shared_batch_before_any_driver_lock(
         await asyncio.wait_for(batch_held.wait(), 10)
         correction_task = asyncio.create_task(correct())
         try:
-            with pytest.raises(TimeoutError):
-                await asyncio.wait_for(asyncio.shield(correction_task), 0.1)
+            await asyncio.wait_for(correction_before_chain.wait(), 10)
             assert not correction_driver.is_set()
+            assert not correction_task.done()
             async with db() as observer:
-                assert await observer.scalar(
-                    text("SELECT :leader = ANY(pg_blocking_pids(:follower))"),
-                    {"leader": pids["reconcile"], "follower": pids["correction"]},
-                )
+                blocked = text("SELECT :leader = ANY(pg_blocking_pids(:follower))")
+                owners = {"leader": pids["reconcile"], "follower": pids["correction"]}
+                # An unfinished correction can still be before the database
+                # lock. Reproduce that window instead of assuming100ms suffices.
+                assert await observer.scalar(blocked, owners) is False
+                allow_correction_chain.set()
+
+                async def wait_for_batch_blocker():
+                    while True:
+                        assert not correction_driver.is_set()
+                        if correction_task.done():
+                            await correction_task  # surface any real domain/database error
+                            pytest.fail("Correction finished before waiting for the held batch")
+                        if await observer.scalar(blocked, owners):
+                            assert not correction_driver.is_set()
+                            return
+
+                await asyncio.wait_for(wait_for_batch_blocker(), 10)
         finally:
+            allow_correction_chain.set()
             release.set()
         outcomes = await asyncio.wait_for(asyncio.gather(reconcile_task, correction_task), 15)
         assert outcomes[1] is True and correction_driver.is_set()

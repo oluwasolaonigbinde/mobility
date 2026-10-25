@@ -1,3 +1,6 @@
+from collections.abc import Awaitable, Callable
+from typing import ClassVar
+
 from app.jobs.worker import WorkerSettings as ImportSafeWorkerSettings
 from app.jobs.worker import build_redis_settings
 
@@ -15,6 +18,8 @@ class WorkerSettings:
     health_check_interval = ImportSafeWorkerSettings.health_check_interval
     on_startup = ImportSafeWorkerSettings.on_startup
     on_shutdown = ImportSafeWorkerSettings.on_shutdown
-    on_job_start = ImportSafeWorkerSettings.on_job_start
-    on_job_end = ImportSafeWorkerSettings.on_job_end
+    on_job_start: ClassVar[Callable[[dict], Awaitable[None]]] = (
+        ImportSafeWorkerSettings.on_job_start
+    )
+    on_job_end: ClassVar[Callable[[dict], Awaitable[None]]] = ImportSafeWorkerSettings.on_job_end
     redis_settings = REDIS_SETTINGS

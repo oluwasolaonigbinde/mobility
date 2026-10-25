@@ -316,7 +316,43 @@ test("R59 uncertain Start preserves offline evidence across bounded cache releas
   await page.goto("/driver/track");
   const start = page.getByRole("button", { name: "Start trip", exact: true });
   await expect(start).toBeEnabled({ timeout: 30_000 });
+  await page.evaluate(async () => {
+    await navigator.serviceWorker.ready;
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        async () => (await navigator.serviceWorker.getRegistration("/driver"))?.active?.state,
+      ),
+    )
+    .toBe("activated");
+  const installedWorker = await page.evaluate(async () => {
+    const registration = await navigator.serviceWorker.getRegistration("/driver");
+    return {
+      secureContext: window.isSecureContext,
+      scope: registration?.scope,
+      scriptURL: registration?.active?.scriptURL,
+      controlledBeforeNavigation: Boolean(navigator.serviceWorker.controller),
+    };
+  });
+  // Public worker metadata only; no session, response headers or position data.
+  console.log(`R59_INSTALLED_WORKER=${JSON.stringify(installedWorker)}`);
+  expect(installedWorker.secureContext).toBe(true);
+  expect(installedWorker.scope).toBe(new URL("/driver", page.url()).href);
+  expect(installedWorker.scriptURL).toBe(
+    new URL(`/driver-sw.js?release=${process.env.R59_GIT_SHA}`, page.url()).href,
+  );
+  // The CI profile had an active worker but this first-login document was
+  // uncontrolled. Navigate with that active registration before testing fetches.
+  await page.reload();
+  await expect(start).toBeEnabled({ timeout: 30_000 });
   await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
+  expect(
+    await page.evaluate(() => ({
+      scriptURL: navigator.serviceWorker.controller?.scriptURL,
+      state: navigator.serviceWorker.controller?.state,
+    })),
+  ).toEqual({ scriptURL: installedWorker.scriptURL, state: "activated" });
   const beforeTrips = r59DriverTripCount();
   let startAction = "";
   let startRequests = 0;

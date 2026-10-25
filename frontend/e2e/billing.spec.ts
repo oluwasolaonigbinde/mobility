@@ -148,7 +148,7 @@ test("quotation acceptance and invoice facts survive role changes and reloads", 
 
   await page.context().clearCookies();
   await login(page, "advertiser@demo.mobility.local", "DemoAdvertiser12345!", "advertiser");
-  await page.goto("/advertiser/campaigns");
+  await page.goto("/advertiser/campaigns?group=setup");
   await page.getByRole("table").getByRole("link", { name: campaignName }).click();
   await openCampaignDetails(page);
   const quotation = page.getByLabel("Latest quotation for review");

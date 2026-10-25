@@ -113,21 +113,34 @@ def test_sentry_keeps_escaped_request_and_worker_correlation():
 
 @pytest.fixture
 def logging_state():
-    names = ("", "uvicorn", "uvicorn.error", "uvicorn.access", "arq", "arq.worker")
+    names = (
+        "",
+        "uvicorn",
+        "uvicorn.error",
+        "uvicorn.access",
+        "arq",
+        "arq.worker",
+        "app.core.observability",
+    )
     states = [
         (
             logging.getLogger(name),
             logging.getLogger(name).handlers[:],
             logging.getLogger(name).level,
             logging.getLogger(name).propagate,
+            logging.getLogger(name).disabled,
         )
         for name in names
     ]
+    # In-process Alembic fileConfig disables existing application loggers. Model
+    # a fresh API/worker process here and restore the inherited test state after.
+    logging.getLogger("app.core.observability").disabled = False
     yield
-    for logger, handlers, level, propagate in states:
+    for logger, handlers, level, propagate, disabled in states:
         logger.handlers[:] = handlers
         logger.setLevel(level)
         logger.propagate = propagate
+        logger.disabled = disabled
 
 
 @pytest.mark.parametrize("mode", ["json", "text"])

@@ -82,9 +82,8 @@ test("staff company invite requires one password setup before normal advertiser 
   await expect(
     page.getByRole("alert").filter({ hasText: /Invalid email or password/ }),
   ).toBeVisible();
-  await page.goto("/advertiser-invite");
   await page.evaluate((token: string) => {
-    window.location.hash = new URLSearchParams({ token }).toString();
+    window.location.assign(`/advertiser-invite#${new URLSearchParams({ token })}`);
   }, issued.token!);
   await page.getByLabel("New password", { exact: true }).fill(NEW_PASSWORD);
   await page.getByLabel("Confirm new password").fill(NEW_PASSWORD);

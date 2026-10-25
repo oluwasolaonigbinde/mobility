@@ -5,6 +5,7 @@ from uuid import UUID
 
 import anyio
 import jwt
+from anyio.to_thread import run_sync
 from argon2 import PasswordHasher
 from argon2.exceptions import Argon2Error
 from jwt import InvalidTokenError
@@ -45,7 +46,7 @@ async def run_password_work[T](work: Callable[[], T]) -> T:
     Cancellation waits for the thread, so a client disconnect never abandons a
     hash while its transaction carries on.
     """
-    return await anyio.to_thread.run_sync(work, limiter=_PASSWORD_WORK_LIMITER)
+    return await run_sync(work, limiter=_PASSWORD_WORK_LIMITER)
 
 
 async def hash_password_async(password: str) -> str:

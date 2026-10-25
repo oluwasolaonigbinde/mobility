@@ -487,3 +487,163 @@ master8e509f7f and slim9d6f663d were verified ancestors of starting design3389.
 The historical REQ209-only audit remains accounted by its identical adopted
 blob rather than a graph-only merge. Remote PR non-squash promotion preserves
 those commits and the separately untouched dirty local master checkout.
+### First candidate and scoped static correction
+
+Candidate2f723b0fad86a0233c7645116e376f919c38f1a0 was committed/pushed normally
+on the existing design branch. Draft PR33 is linked to controller and parent:
+https://github.com/oluwasolaonigbinde/mobility/pull/33 . Authoritative PR full CI
+is40190910514; the duplicate push40190801385 received a cancellation request.
+Parent owns native PR watching; controller has no polling/sleep watcher.
+No containing-commit SHA was embedded in its receipt.
+
+Completed same-head push static job121161197807 passed50-pin parity/pip check,
+progress, OpenAPI and Ruff, then found exactly3 basedpyright errors: implicit
+anyio.to_thread resolves through the pinned package's deprecated-alias
+__getattr__ typing, and two inferred worker-hook descriptor bindings at the CLI
+class. Pinned AnyIO4.14.2 provides explicit anyio.to_thread.run_sync; arq0.28.0
+get_kwargs reads class.__dict__ directly and invokes hooks with ctx. Repair uses
+that explicit public module API and typed class-level callable registrations,
+retaining raw callable runtime behavior, password limiter/cancellation policy
+and correlation. No checker suppression, baseline widening or dependency change.
+Relevant password/actual arq-hook regressions and fresh full CI are required.
+Parent is collecting remaining current-run results so valid fixes can be batched;
+any eligible source edit invalidates this candidate's measurement for final D33.
+Authoritative CI40190910514 at2f produced scoped evidence, not a full PASS:
+frontend lint/full tsc passed; units1868PASS/2FAIL, both stale raw-message/detail
+expectations in notification403 and bank-check422 BFF tests. Same writer retained
+status/code/request-ID/no-store/denial and added private content exclusion with
+exact approved fallback; actual focused notifications3+bank4PASS, lint/formatPASS.
+Production BFF behavior was unchanged. Current eligible backend static repair
+passed the existing password bounded-thread/real-verify case1 and actual arq
+registered-hook/default/importability cases4; full basedpyright remains nextCI.
+
+R59 job121161528329 ran original journey PASS51.5s with original receipt, but
+new case timed out180s before fault injection waiting for a controller. C2/C10
+and HTTPS follow-up were NOT executed/qualified. Artifact12597733038(4798687bytes)
+was downloaded once to local tools/ci-40190910514-r59 for same writer diagnosis.
+Actual saved profile/trace: correct secure loopback scope, serviceWorkers allow,
+ACTIVE registration/fetch handler/updateViaCacheNONE, candidate v4 script served
+HTTP200/javascript; first-login document remained uncontrolled. The new-case
+harness correction must await matching active registration/native ready, make
+one controlled real navigation and retain strict controller plus all downstream
+assertions. Original journey, product worker, limits/skips/retries stay unchanged.
+No artifact from this failed/now-source-stale candidate can qualify final D33.
+Additional authoritative shard4 job121161528440:431PASS/1FAIL1168.44s;
+sole failure is REQ213 shared-batch lock test's immediate blocker observation.
+After a100ms shielded wait, correction unfinished/no-driver does not establish
+that pre-lock authorization/projection work has reached the batch. Same MONEY
+reviewer confirmed production all-batches-before-driver ordering and normal
+PID continuity; the NullPool fixture bypasses new production budget settings.
+A test-only pre-chain gate will reproduce the premature observation window,
+then bounded state-driven observation must retain the exact PostgreSQL blocker
+PID, fail on early driver/completion/error, and retain successful final outcomes.
+No money code or lock policy change is authorized by that diagnosis. Real-PG
+red/green and same money-reviewer recheck remain required before this fix closes.
+First authoritative run completed failed: shards0/1/2/3 succeeded; shard4
+431PASS/1FAIL (premature blocker observation), shard5 552PASS/2FAIL (disabled
+application logger); aggregate failed prerequisites and coverage was skipped.
+Ordinary E2E hit the existing30-minute cap, with16 reports/retries/flaky across
+10 unique scenarios, no completed total/artifact upload. Same writer received
+all exact raw175317bytes and current-decision classification obligations;
+no skip/retry/limit inflation or blanket privacy-assertion change is authorized.
+
+Deterministic money proof now executed on own PG: gated real chain entry made
+old100ms/one-shot blocker assertion failFalse (RED1,11.56s). The corrected
+state-driven exact-PID predicate waits only until actual shared-batch blocking,
+fails on early driver/completion/error, retains final success and passesGREEN1
+12.01s. No production money/lock change. Same MONEY reviewer is rechecking it.
+
+C5 actual Alembic logging configuration reproduced both missing correlation
+assertions (RED2,2.88s): existing app logger disabled; a newly created httpx logger
+still emitted, so the regression is absent app diagnostics, not necessarily an
+entirely empty stream in this reduced reproduction. Fixture-local re-enable plus
+full disabled-state restoration passed the same contamination2 cases4.43s,
+full diagnostic12 cases3.57s and actual Uvicorn3 cases3.79s. All correlation,
+frames/redaction and Sentry-unavailable assertions remain. Production logging
+was not broadened; full corrected shard still requires exact-head CI. Source
+specialist recheck is pending. Own guard phase started12:32Z with fresh host2385/
+guest1551MiB and explicit own sample; Python peak208588800bytes, PG256MiB,
+no shared resources changed.
+Same specialist rechecks closed both scoped backend fixes: MONEY observer FIX
+PASS; C5 fixture PRIVACY/SECURITY PASS. Full corrected shards still require CI.
+Both owned backend runners stopped, exact token released and own disposable PG
+removed12:42:56Z; Python dependencies and verified Node22 image remain preserved.
+
+C11 privacy classification is not merely409→200. The summary still governs its
+fine-output cohort; current demo rich seed can supply≥3 vehicles, while Home
+uses separate campaign performance/daily/live sources. Same PRIVACY reviewer
+approved a bounded proposal: guarded read-only exact-org cohort count proves≥3
+and exact trips before200; exact aggregate/projection allowlists reject private
+identifiers/raw points; named campaign Home figure matches its actual response
+(public exact formatted value or null dash/withholding). A daily withheld chart
+cannot invalidate a public campaign total. Existing PostgreSQL insufficient
+cohort409/cross-org404/one-car-null-and-empty-areas tests remain unchanged.
+No golden mutation, threshold change, extra browser-negative fixture or blanket
+D124-coordinate prohibition. Resulting source and actual next-head execution
+must be reviewed before the privacy criterion passes.
+Resume pointer after backend correction proofs: HEAD remains pushed2f723b0f,
+PR33 draft/linked; first full run failed and is complete. Batched corrections
+remain uncommitted. Same frontend writer is actively implementing the10 current
+ordinary-E2E scenario corrections from the exact raw log, with the PRIVACY
+proposal approved but resulting code/actual execution still pending. It owns all
+frontend source/E2E and will send a stable-path/formatting handoff; controller
+must not overlap semantic edits. Next: receive that slice, perform only guarded
+feasible focused lint/tests/contracts, obtain relevant resulting privacy/source
+recheck, commit/push the coherent repair batch, send exact head/run IDs to parent
+and use parent native watcher (no independent polling). Old source artifacts
+are diagnostic only. Full new types/build/units/E2E/R59, D33 strict whole-range
+receipt/independent review/fresh CI and one final medium consolidated PASS remain
+mandatory before non-squash remote-master promotion and final green verification.
+Own backend proof phase is stopped, disposable PG removed, no lease held.
+Only stopped Python dependency container remains; verified Node22 image is kept
+locally for recreation with explicit sleep-only entrypoint and unchanged budgets.
+
+### Batched first-CI corrections: guarded source stabilization
+
+The ten ordinary-E2E scenarios have now been classified against the current
+decisions and repaired in their existing cases, without product changes,
+skips, retries or timeout inflation. Activity uses its actual combobox; coverage
+binds area rows to the authenticated report; invite navigation carries its real
+fragment at navigation; billing selects the same draft's setup group; staff
+confirmation follows an advertiser cancellation request; change decisions use
+persisted authority rather than streamed-response completion; wizard values and
+nested job disclosures use their actual scope; editable area confirmation uses
+an isolated draft while the golden running campaign remains read-only.
+
+Same MONEY specialist source supplement PASS retains zero cutoffs before staff
+confirmation, exactly one cutoff/reply afterward, and the original quotation,
+VAT, acceptance and receipt amounts. The privacy implementation recheck found
+one remaining proposal-fidelity FIX: all approved aggregate leaves require
+runtime scalar/null validation and recursive prohibited-field rejection, with
+no private response dumps. The same frontend writer is correcting only that
+case before the same reviewer's recheck. Cohort/policy assertions remain intact.
+
+Guarded phase started13:08:33Z, host2024/guest1569MiB, own Node22 and Python
+idle-only entrypoints confirmed before start, each capped1GiB. Fresh dual-floor
+watchdog sample preceded checks. Nine non-overlapping TS paths passed focused
+Prettier/ESLint (one existing navigation-style warning, no errors). New numeric
+cohort helper passed Ruff/format/AST; an initial harness-log permission error and
+a command quoting error ran no successful check and were corrected explicitly.
+Playwright collection found70 cases in9 specs; this is collection only and the
+privacy case must be recollected after its pending correction. No browser,
+full typecheck or build was attempted locally. Python was stopped afterward;
+Node remains guarded solely for the final focused source check.
+
+Current head is still2f723b0f and all corrections are uncommitted. PR33 remains
+the sole linked draft PR, with the parent's native watcher. Next: complete the
+privacy FIX/recheck and focused checks, stop owned runners/release the exact
+lease, then commit/push this coherent repair batch for fresh full CI. All runtime
+criterion verdicts, whole-range D33 measurement/receipt review, consolidated
+medium minimal-change PASS and green remote-master promotion remain pending.
+
+The same PRIVACY specialist now returns source PASS on the one FIX: every
+summary/report leaf is validated before typed use, decimal strings are checked
+before numeric conversion, and recursive prohibited-field checks remain scoped
+to aggregates with fixed value-free failures. All cohort, tenant, campaign and
+named Home performance assertions remain. Final tenth-path format/ESLint PASS;
+updated collection70 cases/9 specs PASS (no execution claim). Node phase peak
+295862272bytes; UTC/monotonic differences remained under2ms for those checks.
+Both owned runners were freshly confirmed stopped and the exact lock released
+13:14Z. No shared service, dependency, instrumentation or runtime limit changed.
+This batch is ready for the next authorized candidate commit/push, retaining
+the original final-CI, D33 and consolidated-review gates.
