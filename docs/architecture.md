@@ -1,6 +1,6 @@
 # Mobility AdTech Platform — System Architecture
 
-**Version 1.152 — 2026-10-25. Canonical source of truth: current state AND target state.**
+**Version 1.153 — 2026-10-25. Canonical source of truth: current state AND target state.**
 
 > **Read §35 before building anything.** An independent review (6 Aug 2026,
 > code-verified) produced a remediation register with gates. Seven rows
@@ -184,7 +184,10 @@ amend §§6, 10, 12, 14, 15 and 26:
   refuses plaintext. Explicit local/test capture remains possible.
 - Both supported log formats and the API/worker/Uvicorn chain use a safe
   formatter/filter. Exception diagnostics contain only type and at most16
-  module/function/line frames, with no exception text, source or locals.
+  module/function/line frames, with no exception text, source or locals. Bounded
+  SQLSTATE codes from supported PostgreSQL drivers and an exact boolean
+  connection-invalidation flag identify database failures without SQL or values;
+  frames preserve application callers as well as deepest driver locations.
   Structured extras are allowlisted/redacted; request, release and worker job
   correlation remains. Optional Sentry failure cannot remove local diagnostics.
   Public `/q/*` and internal `/api/v1/qr/*` failures suppress scan access,
@@ -210,6 +213,10 @@ amend §§6, 10, 12, 14, 15 and 26:
   Recalculate `API processes * 10 + worker replicas * 11` when either count
   changes; these pilot-fixture bounds make no production load-capacity claim.
   Scanner30s, SMTP15s, Paystack20s, report lease120s and D117 remain unchanged.
+  A trip-processing transaction aborted with trusted `40P01` or `40001` requests
+  redelivery of the same arq job only after rollback and session release. The
+  existing five-attempt ceiling and five-minute sweep fallback remain; other
+  database errors propagate, and cancellation retains its existing handling.
 
 Fresh runtime, specialist,
 minimal-change, D33 and full CI evidence remain required before merge.
@@ -976,8 +983,17 @@ D81 adds separately aggregated 85% branch floors for money and privacy to CI,
 using the exact source groups in `check_changed_coverage.py`. Missing required
 modules or executable LCOV fails closed; empty package files add no branches.
 D32/D36 frontend and backend ratchets remain. Any scope or policy change uses
-D33's independently reviewed receipt and two end-of-batch full CI runs under
-REQ-170; only final green verification permits the D41 non-squash merge.
+D33's independently reviewed receipt. D135/REQ-248 permits a receipt-only final
+commit plus necessary delivery/policy record docs to reuse completed CI
+from its exact measured source candidate when all noncoverage jobs pass. A sole
+stale-receipt inventory/policy guard failure requires strict same-artifact D33
+qualification and independent receipt review; retain the raw failed CI verdict.
+Reuse also requires independent proof of unchanged
+runtime/source/dependencies/tests/build/workflows/instrumentation/coverage
+policy/eligible inventory. Any change to those inputs requires fresh full CI.
+Strict whole-range D33 proof and exact nonregression, final consolidated medium
+PASS, non-squash merge and post-merge master green remain required. Automatically
+triggered receipt-only CI is informational only after equivalence is established.
 
 
 **[BUILT]** Three baselines exist and must move together on any contract change:
@@ -3836,6 +3852,8 @@ within one hour. Simultaneous Redis/database failure can only emit the fixed
 failure-signal-unavailable log, since neither shared substrate is writable.
 
 ## 34. Doc changelog
+
+- **v1.153 — 25 October 2026 (D135 / REQ-248, clarified 26 October):** Receipt-only final commits may reuse independently proven equivalent measured-source CI: all noncoverage jobs pass and a sole stale-receipt guard failure is separately qualified by strict same-artifact D33 checks. Retain the raw failed CI verdict. Strict artifacts, runtime/hash/inventory binding, floors/exact nonregression, receipt/deletion review, consolidated review, non-squash merge and post-merge master green remain. Source or verification-input changes require full CI; no workflow or coverage-policy computation changed.
 
 - **v1.152 — 25 October 2026 (D133/D134 / REQ-236–247):** §1.3 records the reviewed integrated recovery boundaries: explicit environment, verified SMTP TLS, bounded privacy-safe API/worker/Uvicorn diagnostics, terminal automatic handling for the exact permanent payment-error allowlist, and exact-lock CI runtime parity. Implementation and criterion verification are in progress; no CI, merge, launch or external-action completion is claimed. D134 records parent-confirmed fixed PostgreSQL/pool/worker bounds after the actual pilot-workload/capacity packet; production load capacity is not claimed. The approved test-quality reconciliation retains baseline/linear-head and real runtime/inventory gates.
 

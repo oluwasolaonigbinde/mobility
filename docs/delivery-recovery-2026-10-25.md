@@ -12,21 +12,602 @@ Commits, pushes to `https://github.com/oluwasolaonigbinde/mobility.git` and non-
 
 Every verdict starts PENDING; passing source inspection is never browser or execution evidence. This single record owns contract, evidence and handoff; workers create no parallel reports.
 
+Owner's 25 October D135/REQ-248 amendment supersedes earlier receipt-rerun
+instructions and historical resume pointers in this record. A strictly
+receipt-only final commit plus necessary delivery/policy record docs may reuse
+completed CI on the exact measured source candidate after independent
+equivalence proof. Owner clarification on 26 October covers all noncoverage jobs
+passing with only the stale-receipt inventory/policy guard failed, provided the
+strict same-artifact D33 refresh and independent receipt review pass. Record
+that raw CI failure honestly; this is no waiver of a coverage floor or source
+failure and requires no extra pre-merge full suite for the receipt alone.
+No runtime/source/dependency/test/build/workflow/
+instrumentation/coverage-policy/inventory change qualifies. Strict D33 proof,
+independent receipt/deletion review, final consolidated medium PASS, non-squash
+merge and post-merge master green remain. No workflow/skip-marker change or
+separate evidence-only push is authorized by this amendment.
+
+### Current resume point — 26 October
+
+**Current qualification:** strict whole-range D33 refresh and subsequent
+unchanged-checker admission both PASS on candidate72a0 and exact run40309956920
+artifacts. The spawning parent executed the prepared native Windows guard with
+CPython3.12.14 at12:42:35–12:44:06UTC; guard exit0,91.31s, clock difference0.0012s,
+no stop reason and exact lease released. Clean detached LF clone independently
+verified all702 eligible plus seven policy files against candidate Git blobs.
+Source hash `34201d894f4570ccc9ba27db06cd8463e7ab0693326ce0c9dd209da6f0a15839`;
+policy hash `10f0c5f902dbbcaaa4912ad38a05c6acc6c066fbe07cfec21700173075834fc9`.
+Canonical receipt `coverage/baseline.json` SHA256
+`4f2f33c3c637257963495816fb89895806493cbc51ea647106f1ff9a3e7225ae` is imported.
+Changed coverage5199/5693 lines91.3227%,2824/3451 branches81.8314%; money
+1604/1870 branches85.7754%, privacy650/752 branches86.4362%. Global36364/39299
+lines92.5316% exceeds exact trusted38668/41798; backend/frontend and global
+branch ratios also pass exact nonregression. No D41 tolerance was used to refresh.
+The sole raw CI coverage job remains recorded FAILED on the old receipt guard.
+All nine archives and extracted producer/shard/browser receipt hashes remain
+bound above/below. Measurement window CLOSED, scanner restored healthy, no own
+checker process/lease/container active. Next: same independent receipt/deletion/
+source-equivalence PASS, one final consolidated medium review, receipt-only
+commit/push under D135, non-squash merge, post-merge master full green. No source
+change or extra pre-merge full suite is pending.
+
+The same independent D33 reviewer now returns **PASS — receipt, 63-path
+accounting and staged source equivalence**. It verified actual strict refresh/
+admission,709 Git-blob checks, canonical receipt4f2f33c3…7225ae and staged blob
+9ab65d96…,105 added/63 removed paths, all coverage floors and all six exact
+global/backend/frontend comparisons. Exactly seven receipt/document paths are
+staged with no measured input change after72a0; D135 reuse conditions are met.
+The raw coverage job remains FAILED on the stale-receipt guard. The one final
+consolidated gpt-6.1-sol/medium/default review is active; no final PASS or master
+promotion is claimed yet.
+Its single persistent task is
+`node:delegated-task:command%3Amcp%3A952ed931-6530-40c0-8ebb-45b239b7ca28%3Adelegate-task%3Amobility-recovery-one-final-consolidated-medium-20261026-r1`,
+with the matching `thread:` identifier. Valid findings return to that same
+reviewer; no second consolidated reviewer or duplicate plan review is required.
+
+**Final consolidated review PASS:** that same gpt-6.1-sol/medium/default reviewer
+found no actionable correctness, scope, minimality or verification finding in
+the integrated ancestry/recovery delta, seven staged receipt/docs and C1–C13
+evidence. It independently checked saved CI/browser/archive/D33 results and
+receipt identity, confirmed no measured-input change, and accepted the explicit
+D135 exception while retaining the raw old-receipt CI failure. C12 is satisfied.
+Only C13 execution remains: authorized receipt commit/push, non-squash merge and
+post-merge master full green. This receipt does not claim those future actions
+or embed its own containing commit SHA. Requests stay IN PROGRESS until merged;
+their closure belongs in the next change touching the register, per its rule4.
+
+Source candidate `72a0f0847177b14e330a3e916cd7e38dfc1dbbb2` is pushed on the
+existing design branch and linked PR33. Authoritative full PR run40309956920
+completed with every noncoverage job successful, including all six backend
+shards, aggregate, static, full frontend quality, ordinary E2E and R59 with its
+actual HTTPS follow-up. The sole failed coverage job121541438326 reports
+`inventory or policy changed; controlled baseline refresh required` against the
+old receipt. No full-green claim is made for that raw run. Cancellation of redundant same-head push40309948530 was submitted
+only after the PR run was confirmed. This candidate
+adds only the reviewed private named-header API correction to the HTTPS case.
+The preceding a45 seven-file batch contains the qualified C5/C7 database diagnostic and
+two-code transactional retry correction, its real-PG/diagnostic/broker tests,
+and the committed-identity frontend test handoff correction described below.
+The preceding d4dc candidate adds the integrated four-file repair to52e: labelled synthetic
+location callbacks through the app-owned watch, removal of unnecessary native
+window-manager tooling, and only the retired schema's two stale type diagnostics.
+The earlier52e fixes remain: Ruff import grouping, actual command-line startup
+ordering and the R59 rendered-state/stream correction.
+Parent owns the native watcher. No local resource wait or duplicate poller is
+active. Six D135 delivery/policy documents remain uncommitted for the final
+receipt commit; runtime/test/workflow changes are committed separately.
+
+Completed run40275427941: shards0/2/3/4/5, full frontend quality and ordinary
+E2E passed. Shard1 had only the startup-command observation false positive:
+the loader precedes real startup, but the old substring check matched bash -n.
+The correction requires both anchored execution lines and preserves their
+ordering and the adjacent docker-run parameter. Aggregate failed prerequisites;
+coverage was skipped, so this run supplies no final measurement. No additional
+failure remains unaccounted for. New exact-head execution remains pending.
+
+That run's static121417059430 fails only Ruff I001 in
+test_measurement_runs.py; the exact blank line between pytest and conftest imports
+is removed locally, no suppression/behavior change. Later static steps have no
+PASS evidence. R59121417059516 reaches native WM/browser startup and original
+journey passes43.3s; added case reaches its180s limit without a specific failed
+expectation. Do not infer new-phase passes. Fresh artifact12630192178,
+6273459bytes, ZIP digest
+`c37852483a4a3d427e58628454be371c18bbfecb56b8e2263af5c0117faa7c41`, and log
+SHA256 `337AC84A1CDEE2B4A4A6A566B5288DDE7AE12EDEA1821F513A143F62FEB697AD`
+are under tools/ci-40275427941-r59. Final DOM retains owned Track, enabled Check
+trip status and truthful server-unavailable feedback. The fresh trace identifies
+the exact hang: first manual response/status200 completes at60223ms, then
+checked.finished() waits until context teardown at226671ms. No following state,
+database/capture/queue or native-window phase executed. The correction removes
+only that unnecessary full Next action stream barrier; it retains the pre-armed
+real response/status200, exact enabled retry UI with unchanged5s, adds visible
+public outage feedback and keeps all trip-count/no-GPS/no-new-Start/queue proofs.
+The separately buffered route.fetch().body() and committed-Start DB proof remain.
+Same writer completed the remaining-await audit; the same client-device,
+privacy and deployment-source specialist reinspected the actual trace and gave
+source PASS. No product, infrastructure or timeout change. Local optional
+formatter/test runs were not performed under the resolved resource restriction;
+git diff --check and staged diff --check passed before the three-file commit.
+
+Completed prior run40223646640 at6fd passed all six backend shards, aggregate,
+static, full frontend quality and ordinary E2E. Besides the corrected R59 fixture,
+coverage reported an executable source absent from LCOV. Full inventory diagnosis
+found exactly two such modules: unused `app/schemas/measurement.py` and
+`app/schemas/zone_insights.py`; ten other omitted Python package modules are
+empty/docstring-only and covered by the existing policy exception. Exhaustive
+import/symbol/API-baseline searches found no callers of either retired schema.
+Both are removed under D115/D118, with same SECURITY/PRIVACY/DEPLOYMENT-SOURCE
+source PASS. Historical reproduction, current report schemas and issued-artifact
+authorization/hashes remain independent. Current eligible inventory is702;
+old-baseline absent paths become63 (32 backend,31 frontend), comprising61 actual
+deletions plus2 eligible renames. Add these two schema retirements to the D118
+accounting below; all other mapped dispositions remain unchanged.
+
+Read-only prior LCOV diagnostics (not receipt qualification): whole-range changed
+lines90.8994%/branches81.2135%, money85.7754%/privacy86.4247% pass their floors;
+backend and frontend exact ratios exceed their trusted groups. Global lines
+92.4354% fall below exact trusted38668/41798 (92.5116%), approximately30 covered
+lines short. The source candidate adds meaningful regressions for uncovered
+historical v2 ledger authority, frozen hash/tamper rejection, real API session/
+pool readiness and SMTP selection/permanent recipient refusal. Same MONEY/
+database and SECURITY/PRIVACY source supplements PASS; their execution and any
+coverage improvement are unproven until exact-head CI. No imports-only coverage
+padding, floor/exclusion/checker change or stale-artifact refresh is used.
+
+The exact72a0f084 run's downloaded artifacts now passed strict whole-range D33
+on the independently accepted native Windows execution location described above.
+Next: independent receipt/equivalence review and one final medium consolidated
+minimal-change PASS, then authorized non-squash promotion and master full green.
+D135 applies the owner's explicit all-noncoverage-green/sole-stale-receipt
+exception above, with strict same-artifact qualification and source equivalence.
+
+All nine exact-run artifacts are downloaded under the existing local tools
+directory, `ci-40309956920-final`. Backend LCOV SHA256 is
+`da31cc9cab1cda0f594fc73dcac998edf15f1131d24eb144f02ef2b3b07daf82`;
+frontend LCOV SHA256 is
+`182584852cf746207f28900482c83aa559e199fa079478d154cc34a326ed1b54`.
+Backend provenance binds candidate72a0,3461 executed/assigned node IDs across
+six shards, Python3.12.14 and coverage7.16.0. The HTTPS receipt binds candidate72a0
+and image `sha256:c383fb1faa3b1d94b79687f8d484ac168eb305581267854b14fa0aa42a421d4d`:
+exact two R59 cases passed and exact one Chromium hardened-cookie case passed,
+zero skipped/retries, actual API-outage mode required. Receipt SHA256 and final
+strict measurement remain to be included below. No physical-device claim.
+
+Fresh qualification11:28:43Z: host1154MiB/guest1587MiB; the host is below the
+1600MiB start boundary. Both owned runners remain stopped/no lease. Parent owns
+the authorized resource choice; no shared resource was changed. Clean Git bundle
+for exact72a0 and full trusted ancestry is prepared outside the checkout. Same
+independent receipt reviewer is checking artifacts/source accounting in parallel;
+final receipt/equivalence and consolidated review remain pending actual strict
+qualification. Isolated cycle-time workers hold all future checker/workflow/type
+changes until this delivery's master is green, so measured source stays fixed.
+
+All nine downloaded ZIP archives were independently SHA256-checked against
+GitHub's artifact digests (local `archive-hashes.json`); the extracted six
+manifest/data/JUnit sets independently match producer provenance. Same MONEY/C7
+runtime checkpoint PASS confirms real Redis parameters0/1/6 and five-attempt
+exhaustion, real PG abort/rollback/cancellation/lock/report recovery. Historical
+a25 database causation remains unproven.
+
+Parent approved a D33-only256MiB/CPU1/no-extra-swap profile, with two start samples
+host>=1200MiB15s apart and guest>=768MiB; stop floors800/512 and existing probe,
+clock and43-minute guards stay fixed. Parent temporarily stopped only the local
+Mobility scanner. Own samples11:43:01 host1298/guest2516 and11:43:34
+host1376/guest2449 qualified. Owned idle Python started11:44:00 with exact lease
+and watchdog51276; fresh owned probe11:44:01 host1120/guest2454 was valid.
+Python3.12.14/coverage7.16.0 checked, but the image lacks `git`: clone failed
+before the strict checker ran. At11:44:22 the watchdog independently measured
+host406/guest2392 and stopped the runner; it retained the lease when its stop
+client timed out. Fresh inspection found exited137/OOMfalse. A successful explicit
+own stop and fresh stopped inspection permitted exact-token release. No receipt
+was written and no coverage PASS is claimed. The scanner was started again under
+the parent's delegated restore authority; configured healthy/PONG verification
+is pending below. No shared configuration, volume or other service changed.
+
+Root confirmed restoration11:51:09Z: scanner running/healthy with its configured
+clamd PONG check; all original services restored, no owned runner/lease. Both
+parents received WINDOW CLOSED. Host readings269-464MiB remain below800, so no
+further checker process/container starts. Existing bundled Windows CPython
+3.12.14 and PortableGit were located without installation. The same independent
+D33 reviewer returned technical location-equivalence SOURCE PASS for a verification-location-only amendment: clean detached
+LF clone, disabled system/global Git config, UTF-8, exact Git-blob byte identity
+for every eligible/policy input and unchanged Linux producer artifacts/runtime.
+The unchanged strict checker must still pass; no source, floor, instrumentation,
+producer provenance or runtime override is proposed. Native wrapper is prepared
+outside the checkout but has not run. Its preflight binds expected bundle,
+archive/catalog, LCOV, producer, shard data/JUnit/manifest and browser-receipt
+hashes. Assertions, UTF-8, clean LF checkout and all702 eligible plus seven policy
+Git-blob byte comparisons are required. Both unchanged strict refresh and later
+receipt admission must exit zero. Actual qualification remains blocked on a
+safe host budget; the location review itself is not execution or receipt PASS.
+
+Owner closed ChatGPT desktop; parent reported2073MiB at12:30UTC and authorized
+the native profile. Fresh own12:39:02 sample1684MiB qualified. The prepared
+owned-PID-tree native guard then sampled801MiB immediately before launch and
+refused to start Python at its1600MiB boundary. No checker process, lease,
+container or receipt was created. The native guard retains host800 stop,
+43-minute deadline, UTC/monotonic checks and exact owned process-birth/tree
+termination. Resource coordination is directed to the spawning session, not an
+end-user approval question. Owner's previous resource answer is accepted; no
+repeat question or extra review/implementation approval is needed.
+
+Exact run40309956920 artifact archives (each downloaded binary and hashed against
+the GitHub digest):
+
+| Name | Artifact ID | ZIP SHA256 |
+| --- | --- | --- |
+| r17-backend-lcov |12646241082|5e4cf4a4879eedb99428468b1a1ab8d1bb10c3ca174086e3846567678ed825cb|
+| r17-frontend-lcov |12644631547|900c1afdbba8b6544558c306c238b91962c124df59a20a0d45bbce8fa5c56be8|
+| r17-backend-shard-0 |12644914090|f8ad0f1f8c287678e211fd9495c02f2dd85937852ce7c830bb7b942d1a7faf34|
+| r17-backend-shard-1 |12645268360|2783b18682923abc2ea363a0dd92f31b23f368b4c311deecc7c4d5debb22309f|
+| r17-backend-shard-2 |12645426939|17ec23a06e9dba2d13a8f5cd7d4aff27be0e1da10f533cd7567f969ccc780b2f|
+| r17-backend-shard-3 |12645651683|ce7ded42a0b75feb9bff6f520a060048ee782c2503d9321726ce78445db96bf8|
+| r17-backend-shard-4 |12645656875|e4231908a8c2a12bd7078ce235947231bdcfd05e2f9b4e104a64231c31777796|
+| r17-backend-shard-5 |12645732137|c077b6bb9f8debd5deabd77b0c157789c01953815fc36e90c935e190c1e0822e|
+| r59-real-stack |12645510924|48d0e0e012ee913b7f6d809264ca041c81a5ef460ed0b8e80b458745aed05c52|
+
+Extracted receipt hashes: R59_REAL_STACK_RECEIPT.json
+`2dc02ca9c72cd09c5dc3c7219ecf2318d50801d814b17548c16a04318c960467`;
+HTTPS_LOGOUT_RECEIPT.json
+`33a42f37c4234113bb78ddc7db4213e156369799d49e1732721d1647d640502b`.
+The HTTPS receipt requires exactly two R59 passes and one Chromium cookie pass,
+zero skips/retries and real API outage. Backend producer provenance file SHA256
+`d464f6cf959e6472276dd9310aa02884db12b13cfa0a3d184070e5bbc9ba6e9f`;
+shard inventory file SHA256
+`a39940e4a3cd84dd98d1ef2a00584f1405ac3743d0809efa271ea0c328086301`.
+
+### D33 and consolidated-review preparation (historical; current qualification above)
+
+The preparation snapshot used run40223646640 and source candidate
+`6fd2b0c1eb9fcdc868b90ea828a51b077511bd2a`; parent retains its native watcher.
+Independent source-accounting reviewer is the existing security/privacy/device/
+deployment-source thread, rechecks `mobility-recovery-d33-61path-accounting-complete-prep-20261025`
+and `mobility-recovery-d33-readonly-git-binding-permitted-20261025`.
+Read-only Git proves trusted8e509f7f is the exact merge-base/ancestor. Baseline
+blob9f26a83702d091a9367abb874df4fe2d8b17ea07 is identical at base and candidate;
+its Git-byte SHA256 is
+`f83e0e1d17572fea2a83915fef577837d0abad4416be74ed7c3ad441dcaec0b4`.
+Use Git/LF bytes and clean Linux inputs, not Windows checkout newline hashes.
+
+Independent accounting covers61/61 absent old eligible paths:30 backend and31
+frontend, with no unexplained retirement or active product caller. Git detects
+59 deletions plus Company actions→Account actions(R056) and campaign invoice
+page→Billing invoice page(R100); other mappings are functional replacements,
+not asserted Git renames. Two additional detected test renames are ineligible.
+Whole-range eligible inventory is660→704:103 added,325 modified,59 deleted and
+2 renamed. Final receipt must account for105 paths absent from the old baseline,
+including both rename destinations, and measure all704 eligible current paths.
+
+The61-path disposition (paths relative to the indicated root):
+
+| Root / count / authority | Retired paths and retained replacement boundary |
+| --- | --- |
+| app/ /17 /D115 | adapters/ad_platforms/{__init__,provider}.py; api/v1/{audience_delivery,retargeting_source_links,retargeting_sources}.py; jobs/exposure_segments.py; models/{audience_delivery,audience_work,exposure_segment,retargeting_source,retargeting_source_link}.py; schemas/{audience_delivery,exposure_segments,retargeting_source_links,retargeting_sources}.py; services/{audience,audience_delivery}.py. Authorized audience/export/planning retirement; current reports retain tenant/disclosure controls. |
+| app/ /6 /D110 | api/v1/privacy_dsr.py; jobs/disclosure_retention.py; models/data_subject_request.py; schemas/data_subject_requests.py; services/{data_subject_inventory,data_subject_requests}.py. Manual request runbook and retained lifecycle/KYC deletion/reference/audit safeguards replace the removed workflow. |
+| app/ /1 /D108/D109 | jobs/evidence_verification.py. Weekly installation and manual passed/failed spot-check service/pay holds remain. |
+| app/ /3 /D113/D114 | adapters/budget/{__init__,provider}.py; services/payout_debt.py. Current billing/budget enforcement and original-trip reasoned negative adjustments replace these paths. |
+| app/ /3 /D118 | api/v1/measurement.py; services/{measurement,report_rendering}.py. Current campaign reports/rendering/scheduling, frozen historical reproduction and owned immutable artifact downloads remain. |
+| frontend/src/ /13 /D117/D118 | app/admin/measurement/{[runId]/content.tsx,actions.ts,issue-form.tsx,report-form.tsx}; app/admin/settings/reach/page.tsx; app/admin/traffic/{actions.ts,profile-form.tsx}; app/advertiser/campaigns/[campaignId]/report/{frozen-daily-metric-chart.tsx,frozen-report-projection.ts,measurement-authority.tsx,report-issuance-panel.tsx}; app/api/advertiser/measurement-runs/[runId]/report-issuances/route.ts; app/api/advertiser/report-issuances/[issuanceId]/route.ts. Current report pages/list/re-run/performance/download and nested historical artifact routes replace these. |
+| frontend/src/ /9 /D115 | app/admin/settings/audiences/page.tsx; app/advertiser/planning-sources/{actions.ts,labels.ts,link-form.tsx,operation-form.tsx,page.tsx,source-form.tsx}; app/api/advertiser/exposure-segments/[segmentId]/export/route.ts; components/analytics/high-exposure-zone-insights.tsx. Authorized feature retirement, not relocation outside eligibility. |
+| frontend/src/ /2 /D120–D129 | app/advertiser/company/{actions.ts,page.tsx}. Current Account/shared company editing replaces these; backend company API remains current. |
+| frontend/src/ /1 /D128 | app/advertiser/campaigns/[campaignId]/invoices/[invoiceId]/page.tsx. Relocated to advertiser/billing/[campaignId]/invoices/[invoiceId]/page.tsx with authority intact. |
+| frontend/src/ /1 /D118/D124/D129 | app/advertiser/campaigns/[campaignId]/map/heatmap-view.tsx. Owned geometry/AreaGraphic/governed PerformanceAreas replace it; delayed live positions remain separate. |
+| frontend/src/ /1 /D98/D120/D129 | app/advertiser/campaigns/[campaignId]/campaign-preparation-summary.tsx. Current campaign/shared preparation, quotation and management presentation replaces it. |
+| frontend/src/ /2 /D108 | app/api/driver/assignments/[assignmentId]/display-proof/{challenge/route.ts,route.ts}. Daily-proof retirement; weekly installation/signed trip evidence remain. |
+| frontend/src/ /2 /D98 | components/ui/theme-switcher.tsx; lib/themes.ts. Single approved palette/shared styling replaces selectable themes; negative removal tests remain. |
+
+Whole-range checker is not byte-identical: only the approved sensitive-scope
+map replaces retired payout debt with adjustments/balances and removes retired
+budget/DSR paths (79ce736f/c848e5c0); no surviving protected path is removed.
+Candidate checker blob eef51ec9967c9627eb71ddc9ef7b7fb5c526d5bb, Git-byte SHA256
+`d9342a1cc86c63584ad1f5354423cd4baf05323990cc57f93dc9a775c510f1e9`.
+Eligibility, strict refresh comparison and instrumentation validator functions
+are identical. Python coverage sections are identical; Vitest config blob
+28df571e508560116c6c3e18f41e3bb05732edbd is identical. Coverage7.16.0 and
+Vitest/coverage4.1.11 remain fixed; sensitive money/privacy85% and changed90/80
+floors remain. A dead authorization-test payload branch is not an active caller
+and is outside this bounded source correction.
+
+Required final artifact packet, all from one qualifying exact-head run:
+backend LCOV+producer provenance+six-shard receipt, frontend LCOV, artifact IDs/
+archive and file SHA256s, runtime Python3.12.14/coverage7.16.0, exact candidate
+SHA, old baseline/blob/hash, candidate policy/source/inventory identities, and
+all noncoverage job results plus exact2R59/1HTTPS no-skip/no-retry receipts.
+Run the existing checker outside CI in an isolated clean Linux clone against
+trusted8e509f7f with `--verify-baseline-provenance --sensitive-branches` and
+explicit LCOV/provenance inputs; refresh only after strict changed/sensitive
+floors and exact global/critical nonregression pass. No runtime reconciliation,
+lower floors, exclusions or changed instrumentation may substitute.
+
+The one final medium minimal-change reviewer receives the approved C1–C13/D135
+contract, historical unchanged3389 reviews, integrated whole-range accounting,
+new recovery diff, per-criterion actual local/CI/browser evidence, final receipt
+and independent equivalence review. It has not been spawned or counted PASS;
+same-reviewer valid FIX loop remains required. No final receipt, artifact
+measurement, completed-green or D135 equivalence verdict exists yet.
+
+Final-input preparation at52e8739c independently rechecks trusted ancestry,
+702 eligible files,63 absent old paths (32 backend/31 frontend), and105 added
+baseline paths. Trusted and candidate coverage baseline both remain blob
+9f26a83702d091a9367abb874df4fe2d8b17ea07; candidate checker remains blob
+eef51ec9967c9627eb71ddc9ef7b7fb5c526d5bb. These identities must be rebound to
+the eventual measured head after any source/test/config repair.
+
+The exact clean-Linux command is prepared, using only freshly downloaded
+artifacts from that eventual authoritative run:
+
+```sh
+python scripts/check_changed_coverage.py \
+  --base 8e509f7fbdbe8d905a2ed75a1bec2d68ceff24fb \
+  --backend-lcov /evidence/backend/backend.lcov \
+  --backend-provenance /evidence/backend/backend-provenance.json \
+  --frontend-lcov /evidence/frontend/lcov.info \
+  --baseline coverage/baseline.json \
+  --verify-baseline-provenance --sensitive-branches \
+  --refresh-baseline 'D33 integrated recovery: independently accounted retirements and exact nonregression against trusted pre-delivery master'
+```
+
+Use a clean detached Linux clone with full trusted history, exact measured HEAD,
+Python3.12.14 and coverage7.16.0; do not use the dirty Windows working tree or
+old6fd LCOV. Before writing, bind artifact run/head/IDs/archive and extracted-file
+hashes, producer runtime and all six shard receipts, all-current inventory and
+the whole trusted range. The independent receipt reviewer receives those facts,
+the63-path disposition and actual checker output. The final medium reviewer
+receives the same packet plus C1-C13 actual results, historical unchanged-code
+reviews, new recovery diff, D135 docs and final measured-source equivalence.
+No extra artifact/report or review stage is introduced by this preparation.
+
+Current52e static121447987814 passes progress/OpenAPI/Ruff/runtime50/pip check;
+basedpyright reports zero errors/warnings/notes but exit3 because two baselined
+errors disappeared. Both belong solely to deleted schemas/measurement.py;
+zone_insights has no baseline entry. The prepared correction removes only that
+key and its two records, retaining all other entries and original end-of-file
+format. Parsed HEAD/current comparison confirms no retained-record changes and
+no other baseline paths missing. No checker/config/suppression change. New-head
+static execution will qualify the shrink; current runtime jobs remain valuable.
+
+Actual52e R59 job121447987746 passes the original journey48.1s and the new case
+progresses through settled failed lookups, restored real trip authority and
+bounded same-release cache checks. Its32.2s failure is the native-window hidden
+gate: after minimize, the actual page remains visible with one active watch.
+Fresh artifact12633853450 (7828900bytes) has archive SHA256
+`10140d94d0d9e79dd55d8c66eef32304bf13434a3f2f9739cbfdf29f3a16aefd`;
+raw job log SHA256
+`3F8F2D5FF14DFD12D59D14CC76EEE0C0987A817FAB286C91082AC902AA98DD84`.
+Trace/context are under tools/ci-40285473643-r59. No offline-queue/cross-release
+or HTTPS PASS is inferred from this partial execution.
+
+Parent resolves proportionality: physical/native GPS and native window-manager
+behavior are harness choices, not C2/C10 acceptance requirements. Reuse the
+existing deterministic geolocation fixture honestly as synthetic location input
+while retaining actual network offline, application authority and encrypted IDB
+writes, installed worker cache/release boundaries and real backend sealing.
+No fake visibility/clock/database writes or bypass of the Start authority gate
+is allowed. The unnecessary Openbox/xprop installation and WM readiness/PID
+launcher are removed; the root R59 script returns exactly to its pre-WM form.
+Useful pre-start bash syntax validation remains. Same frontend writer and same
+client-device/privacy/deployment specialist own the coherent source correction
+and its review; actual browser execution remains required on the resulting head.
+The reused inline pattern is from P07 correction-offline-evidence and W401C,
+not W401D. Only location callbacks are simulated: exactly one app-owned active
+watch is required for emit, clearWatch removes its callback, positions use real
+Date.now and the unchanged500ms cadence. Each of four offline samples must reach
+actual app-written durable encrypted storage. No permission/lock/SW/backend
+fixture mock is imported. The original native R59 journey and read-only AES-GCM
+reader are unchanged; direct normalized source comparison also confirms the
+entire offline-fallback/worker-release/cache-boundary/cipher-preservation block
+is identical. These are source equivalence checks, not browser execution proof.
+The same specialist's integrated four-file CLIENT-DEVICE/PRIVACY/DEPLOYMENT-
+SOURCE verdict is PASS, including exact two-record baseline shrink, original
+journey/helper and retained downstream block, wrapper restoration and useful
+bash syntax validation. Four-file staged diff check passed before commitd4dc2c47;
+no local formatter/lint/browser execution or physical-device PASS is claimed.
+
+Actuald4dc R59 job121460208429: original journey PASS39.7s; new case reaches
+real offline four-sample capture, encrypted queue, next-release worker activation
+and successful static/auth/keepalive/API/cross-origin boundary reads, then fails
+in26.1s because unsupported static POST returns500 rather than the harness's
+assumed404/405. Final cache inventory/cipher equality, reload/flush/End/seal and
+HTTPS follow-up have no execution PASS from this aborted case. Artifact
+12636195268 (8395893bytes), archive SHA256
+`9191d6f83458934cb8739bc6286dfef47a305d0a212575777e454c4b8173e787`, is under
+tools/ci-40289262077-r59; job log SHA256
+`48544C5CB3E07B6A79E6CCACBCC1F5F9B80D0280E9D52F3B5D4CC7E98EBD4A4D`.
+The same frontend writer inspects actual response/trace and combined stack.log
+before a bounded correction. The criterion is real network-only non-GET plus
+cache exclusion, not a framework status-code promise. Any replacement must
+prove direct-network equivalence and absence from cache, not blindly allow500.
+No service-worker/product defect is established by that status alone; current
+runtime jobs remain intact and all actual outcomes will bind to the final head.
+The smallest correction now requires the actual controlled browser POST to have
+fromServiceWorker=false/basic response type and match direct APIRequestContext
+network status plus normalized media type; no body or arbitrary status allowlist
+is used. Actual cache keys must also exclude that exact URL, alongside retained
+one-entry/GET/same-origin/static restrictions and ciphertext equality.
+Shard2 job121460208841 independently exposed the old source guard matching the
+honest W401C provenance comment. It now forbids actual synthetic-backend mode
+flags and permits only the one static-asset direct POST, preserving original-
+journey restrictions, mock/skip bans, committed Start fetch/abort and one receipt.
+The same specialist's one-spec and guard rechecks both return SOURCE PASS.
+These two files alone form7c463123; staged diff check passed, with actual updated
+guard/browser/full-CI execution pending. Six policy/delivery docs remain held.
+
+Actual7c R59 job121478592337: original PASS43.0s; new case passes the direct-
+network POST status/media comparison, preceding boundary reads, current release
+name/old-cache removal and manifest navigation. In27.6s it fails an unfounded
+exact one-entry cache expectation: actual12. Cache bounds/eligibility and known
+real asset retention, rather than bundler chunk count, are the C10 contract.
+Fresh artifact12639180675 (7750696bytes), archive SHA256
+`72e13a888c5d2f85d51044bcc7c1fec0825407b9e90bbf01898fdb4fe1f983de`, is under
+tools/ci-40294937032-r59; job log SHA256
+`1B9923496858BDC5612ECA3E41312B6DB19A8AD3B120A5DC922C465BFA08A954`.
+The same writer inspects exact cached URLs before replacing that cardinality
+assumption with nonempty/at-most64, known-asset retention and complete entry
+eligibility, retaining release cleanup/unrelated cache/nonGET exclusion and
+exact encrypted queue equality. No arbitrary12 allowance or product fix is
+authorized by the failed count. Final tracker reload/End/seal and HTTPS remain
+unexecuted current-run phases, requiring coherent remaining-step inspection.
+The fresh trace/cache examination confirms those12 entries are the known
+candidate stylesheet plus11 production WOFF2 fonts; every observed key is an
+eligible same-origin static GET. The patch retains hard assertions but replaces
+the unsupported exact bundle count with hard nonempty/at-most64 and exact known
+asset retention. The earlier deliberate70-request same-release eviction still
+requires exactly64. Release-name/old-cache removal, all-entry eligibility,
+nonGET absence, unrelated-cache contents and exact queue ciphertext checks are
+unchanged. One-pass remaining-phase inspection found no further source-supported
+correction; real final End/seal/exactly-once and HTTPS proof still await execution.
+The same CLIENT-DEVICE/PRIVACY/DEPLOYMENT-SOURCE reviewer returns SOURCE PASS
+on this one-spec correction. Only that spec forms commita25ce01b; staged diff
+check passed and optional local formatter/lint/browser checks were not run under
+the resolved remote verification policy. No source FIX remains at this checkpoint.
+
+Actuala25 frontend quality job121491032795 passes lint/types, then reports
+one unit failure/1869 passes (253 passing files/one failing file), so later
+contract/build/audit steps have no PASS evidence. The failing vehicle-submission
+case in document-renewals.test.tsx observes two POSTs rather than one after a
+deferred upload/refresh handoff; its subsequent old-record-file exclusion has
+not executed. Same frontend writer inspects the component, upload fence and
+deferred test ordering before classifying a product race versus an uncommitted
+React-refresh fixture handoff. No relaxed POST count, arbitrary wait or retry
+is allowed. Full completed job log is tools/ci-40298712849-quality.log, SHA256
+`3B405FDEB3222056C5D19E0C279292A152470D8BD78689B1278283AB6F7A956F`.
+Other runtime jobs remain valuable; any correction is batched with actual
+findings, uses relevant same specialist rechecks and requires new-head CI.
+
+The unit correction is test-only: awaited React act includes the exact auxiliary
+refresh signal; hard old-form disconnection and different replacement-input
+identity precede releasing the old upload. All three identity cases still require
+one POST and exclusion of the old file. Same PRIVACY/CLIENT-DEVICE source PASS;
+updated unit execution remains assigned to exact-head frontend CI.
+
+Actuala25 R59 instead fails its unchanged original journey: sealed trip and
+drained queue, but all six downstream effects remain0 through the retained120s
+poll. The added case/HTTPS never ran. Artifact12639719008 (5438647bytes), archive
+SHA256 `aea8e249deeac57734021a3217cb73c119ef315572066835c85dd07b3d0d2d73`,
+is under tools/ci-40298712849-r59. Target job starts09:35:30.949 and rolls back
+with DBAPIError09:35:31.981 while sweep/release jobs also fail database work.
+The worker remains healthy and other jobs finish. Its original diagnostic lacks
+SQLSTATE/application caller; no raw PostgreSQL logs or protected values were
+dumped. Historical error classification remains UNPROVEN, not labelled deadlock.
+
+Same MONEY inspection finds no demonstrated normal-path lock inversion but
+confirms ordinary DB exceptions consume arq hints until a later five-minute
+sweep. Parent accepts a bounded C5/C7 correction: supported-driver-only five-
+character SQLSTATE plus exact invalidation boolean, retaining application and
+deep-driver frames within16; only trusted40P01/40001 request the same arq job
+again after rollback/session release. Existing five-attempt limit, cancellation,
+all other database errors, sweep schedule and fixed budgets remain unchanged.
+
+Mandatory local causal proof qualified fresh host2143 then2330MiB19s apart,
+guest1502MiB; atomic own lease/watchdog at10:00:26Z, Python1GiB/PostGIS256MiB,
+one file at a time, host800/guest512/5s probe/43min guards unchanged. Initial
+wrapper UID and missing test-URL setup errors occurred before test execution and
+were corrected only within owned containers. New formatted diagnostic cases
+first fail4 on missing SQLSTATE; preserved diagnostic-sqlstate-red.log. After
+the narrow correction, final diagnostic file17PASS2.92s and real Uvicorn3PASS3.51s.
+
+The controlled PG fixture completes real trip processing inside a transaction,
+observes the exact row blocker with pg_blocking_pids, then closes a fixture-only
+advisory/row cycle. PostgreSQL aborts the worker with40P01; all five domain tables
+and completion audit remain0 after rollback. Before the worker change the
+redelivery assertion fails (trip-worker-real-pg-abort-red.log,9.14s). Corrected
+state ordering prevents selecting the fixture owner as victim; this is not a
+claimed production lock-order defect. After the change the same real pipeline
+recovers with one committed domain/audit set across repeated invocation. Actual
+40001 snapshot conflict, nonretryable22012 and CancelledError cases also pass.
+Final complete database-budget file12PASS65.55s; six existing process_trip
+regressions PASS33.81s. Existing broker burst harness now covers0/1/6 actual
+serialization aborts, same job identity and five-attempt exhaustion; that broker
+execution remains PENDING on CI's existing dedicated Redis, with no new service,
+skip or dependency. It does not inherit a local broker PASS from manual retry.
+
+Ruff check and formatting PASS for all six touched Python files. Peak memory
+328138752bytes; the final four group UTC/monotonic discrepancies remain below0.005s.
+Both owned containers were successfully stopped, freshly inspected exited and
+the exact lease released after the focused groups; shared resources untouched.
+Same MONEY/timeout and SECURITY/PRIVACY source rechecks PASS; the historical
+R59 cause and fresh exact-head broker/R59/full-CI/D33 gates remain unresolved.
+
+Actuala45 R59 job121520575486 passes BOTH complete real-browser journeys:
+original49.8s and added lost-Start/offline-encrypted-queue/cache-upgrade/flush/
+End/seal/exactly-once31.5s. This is actual C2/C10 flow proof on that source head,
+with synthetic location input explicitly disclosed and no physical-device claim.
+The actual r59-playwright JSON has exactly the two approved r59-chromium titles,
+one passed result each, expected2/skipped0/unexpected0. Original receipt binds
+candidatea45d9671, sealed state and one of each downstream effect; its extracted
+file SHA256 is `5803B179139F5F2675CB6D3CA47A664A3A5DE612DD14508C33D4369F2FE670A3`.
+The HTTPS follow-up executes its one case and fails only when the harness reads
+the normal sign-out Set-Cookie through Playwright Response.headers(); subsequent
+cookie disappearance/protected rejection/old-JWT401/relogin assertions have not
+executed. The same writer inspects pinned API documentation and the actual cookie
+trace before changing both normal/outage named-header reads, retaining all cookie
+and revocation assertions without exposing headers or JWTs.
+Artifact12642449068 (4717591bytes), archive SHA256
+`a37de39bcd992398c01c9a0995f3192d8c68876edfc806d9b39f5a6565d979a0`, is under
+tools/ci-40307631510-r59 with cookie-playwright and both journey traces; job log
+SHA256 `D2467625BFA744BBDF9A169BDC3E1CEE91627CE61BB12C317BC8FD4BD0FF21BD`.
+Cookie artifact inspection finds only error-context.md, not a trace: R14 traces
+on-first-retry while this invocation correctly has zero retries. The failure
+location proves the preceding real outage UI, retained cookie and restored API
+JWT200 checks completed. Pinned Playwright Response documentation explicitly
+excludes cookie headers from headers(); headerValues reads all values of the
+single named header. Both the outage absence and successful deletion probes
+therefore need that API correction, with boolean/fixed-label assertions and
+projected cookie attributes preventing token dumps on failure. Product code,
+cookie attribute requirements and downstream revocation checks stay unchanged.
+Same SECURITY/PRIVACY/DEPLOYMENT-SOURCE source recheck PASS on that one-spec
+correction, with staged diff check PASS before commit72a0f084. No product,
+dependency, limit, skip or tracing change; optional local checks not run under
+the established remote verification choice. Corrected C3 execution remains
+pending on the new exact-head full run.
+No new target SQLSTATE failure appears in this passing worker artifact, so the
+historicala25 database classification remains unproven. Broker exhaustion and
+the other current jobs retain their own exact-run qualification obligations.
+
+Run40223646640 subsequent evidence: ordinary E2E121260362646 SUCCESS, full
+frontend quality121260362675 SUCCESS, backend static121260362600 SUCCESS and
+backend shards2/3/4 SUCCESS; shards0/1/5 remained running at the parent's wake.
+Mobile layout/receipt/current-area fixes therefore have actual ordinary-browser
+green. The completed R59 failure121260362413 retains original52.0s PASS and
+passes committed lost Start/two failed reconciles/no second Start/no GPS plus
+same-release64 cache/eviction/offline-hit checks, then fails first offline GPS
+sample. Artifact12610865314 (8024527bytes) and raw log SHA256
+`099409A07D56565E2EA67A422F9BACF94CD0F2820212D8A879FFE1FAC0C15074` are retained
+under local tools/ci-40223646640-r59. The page is owned Live trip but paused with
+Location unavailable, not a demonstrated storage/identity defect.
+
+Pinned Playwright1.61.1/Chromium149.0.7827.55 source explains the fixture boundary:
+changing a consumed CDP geolocation override while a native query waits may
+report position-unavailable. Playwright also forces visibility, and X11 native
+minimize requires a window manager. The coherent test-only correction observes
+and forwards native callbacks/errors, refreshes location only without a watch,
+uses actual owned-window minimize/restore and real hidden/clear/visible/native
+fix/durable offline queue gates. The same existing job installs Openbox/x11-utils;
+an isolated Xvfb display runs one owned WM child with bounded readiness and exact
+PID cleanup preserving exit status. No fake callbacks/visibility/clock, product
+change, new job/build, timeout/skip/retry increase or relaxed evidence assertion.
+Same CLIENT-DEVICE/PRIVACY/DEPLOYMENT-SOURCE source review PASS. Local syntax/
+lint/browser NOT RUN; Git Bash is absent and no WSL/runner/RAM wait was started.
+Existing job adds pre-build bash syntax verification; all runtime obligations
+require new-head CI. Only workflow/script/spec will enter the next source fix;
+D135 policy/evidence docs remain held for the final receipt commit. Old6fd
+artifacts cannot qualify the changed CI/test head or a final D135 reuse claim.
+
 | ID / request | Outcome, scope and required proof | Verdict / actual evidence |
 | --- | --- | --- |
-| C1 / 236 | Recover intended deliveries without losing ancestry, D108–D132 or unrelated files. Register current asks, preserve stopped 235, avoid governance rewrite or invented values. | PENDING. Clean HEAD/branch confirmed before edits; requests registered first. |
-| C2 / 237 | Browser/server-action thrown Start and returned unknown are uncertain; reconcile before another Start, including lost response after created trip and failed reconciliation. Preserve queued evidence. GPS requires confirmed trip authority. Fence rapid clicks and late unmount/identity completion; release wake/writer resources. Retain existing flush/end handling. Failing rejection regression before fix, normal/offline/unknown and lifecycle proof. | PENDING browser proof. Current70 tracker cases PASS on final Node22; lost Start/offline capture R59 case being added. |
-| C3 / 238 | Expire `__Host-cardvert_session` over HTTPS with Secure, Path=/ and host-only attributes. Keep backend revocation ordering/outage feedback. Serialized header plus actual HTTPS disappearance, protected-request rejection and relogin. | PENDING exact-head HTTPS normal/outage execution. Serialized cookie and action regressions PASS; one-case guarded CI wrapper prepared. |
-| C4 / 239 | One explicit normalized validated environment contract, supporting current local aliases and staging/rehearsal/production. No independent implicit-local fallback in API, worker/import-time, Alembic, OpenAPI, seeds, CI or tests. Nonlocal SMTP refuses plaintext; use `ssl.create_default_context` for peer/hostname verification. Explicit local/test Mailpit remains. Controlled subprocess `.env` negatives, invalid/missing startup, bad/untrusted/mismatch cert before AUTH/DATA, trusted local cert success. No external sends. | LOCAL proof PASS:32 controlled entrypoint/contract and4 actual TLS cases; source specialist PASS. Full CI pending. |
-| C5 / 240 | Useful diagnostics with DSN blank/unavailable across JSON/text API/worker/Uvicorn logger chain. Bounded exception type and module/function/line frames only: no exception text, source lines, locals or arbitrary objects. Allowlisted/redacted fields and request/release/job correlation. Actual `/q/` and `/api/v1/qr/` failure chains retain zero token/destination/IP/UA in access/error/telemetry. Test secrets, bank/NIN/GPS/URLs absent with frames present for handled/unhandled API and workers. | LOCAL proof PASS:12 diagnostic and3 actual Uvicorn chains; same specialist source PASS. Exact-head CI pending. |
-| C6 / 241 | Explicit proven-permanent terms/binding code allowlist shared by processing, failure recorder and sweep; prefer existing failed attempts+error code, no new DB outcome. Terminal has no receipt/allocation or new attempts on redelivery and is visible through existing sanitized operator log with event identity/reason. Transients recover; duplicate jobs remain idempotent. PostgreSQL race, rollback→failure commit, persistence failure, repeated deterministic jobs and poison oldest-100 fairness proof. No remediation UI/API or money change. | LOCAL10 payment cases PASS; isolated3389 terminal-redelivery RED. Money source PASS; provider process recovery/CI pending. |
-| C7 / 242 | Inspect actual arq 300s/max10 and SQLAlchemy 5+10/poolwait30 defaults before choosing explicit fixed PostgreSQL statement/lock/idle-transaction, API+worker pools and worker execution limits. D117 settings stay fixed; no deployment knobs or unmeasured staggering. Before source implementation send parent workload and budget proposal covering two API processes, worker overflow and DB capacity/headroom. Real PostgreSQL cancellation/lock rollback, reusable connections, exhaustion and worker cancellation/retry/catch-up across transaction/provider boundaries; legitimate reports/scans/maintenance retained. | LOCAL7 PG budget cases, workload3 and affected fault/recovery1 PASS; actual approved capacity packet/D134 and source specialist PASS. CI catch-up pending. |
-| C8 / 243 | CI installs exact production Python lock then constrained separate tooling, machine-checks installed runtime versions equal lock and runs pip check in static+shards; editable extras must not override runtime. Preserve provenance. Diagnose actual enforcing audits, fix supported patches only, keep narrow D59 exception/digest pins/floors. Deliberately align Node CI/image/types from supported current dependencies and prior upgrade policy (currently image22/nvmrc26.3/types20); no blanket exceptions, forced upgrades or unsupported major choice. | LOCAL exact50 Python runtime pins/pip check and enforcing audit PASS; final Node22 npm ci/ls/explain/enforcing audit PASS. Full types/build CI pending. |
-| C9 / 244 | Inspect all retained relevant action/read call sites and report accurate counts. Shared existing code-specific approved messages/plain fallback; never forward arbitrary backend 422/5xx text. Scoped admin read wrappers preserve redirect/notFound, distinguish unavailable from empty/zero, record redacted telemetry. Representative 401/403/404/422/500/transport and concurrent panels; no false success or zero balances. Avoid speculative abstraction/refactor. | LOCAL final-dependency67-file621-case union across runs plus latest32 BFF cases; concurrent helper/render mapping retained. CI and final review pending. |
-| C10 / 245 | Version and bound driver static cache within and across releases. Auth/API/navigation remain network-only, truthful offline and evidence queue/origin rules retained. No Docker HEALTHCHECK task. Retain existing webhook edge 1MiB and real PostGIS checks; verify Redis D45 outage/recovery without changing policy. | PENDING installed-worker browser case; bounded same/cross-release cache VM regressions passed on final dependencies. |
-| C11 / 245 | Diagnose each actual remaining E2E failure against D108–D132 on real backend: obsolete assertions vs product bug. No blanket assertion updates, skip/retry/limit inflation or source-only E2E claim. Touched tests, lint/types/build/contracts as applicable. Serial low-load local execution with recovered resource rules; unrelated processes/containers untouched. | PENDING actual exact-head full real-backend E2E; source repairs classified under current decisions, no weakened dates/money/skips/retries/limits. |
-| C12 / 236 | Supplied independent plan review accepted; fresh named money, security/privacy, client-device and deployment-source checkpoints as new diff requires. One consolidated gpt-6.1-sol/medium minimal-change-review on integrated diff+criterion proof, same reviewer FIX loop to PASS. No duplicate historical reviews. Any API change moves all 3 baselines and R14-B. | Plan review supplied/accepted; fresh named source specialists PASS. One final consolidated medium reviewer and runtime qualification pending. |
-| C13 / 236 | After local checks/reviews push existing combined branch. Exact-head full GitHub CI green before non-squash master merge. D33: trusted pre-delivery `8e509f7fbdbe8d905a2ed75a1bec2d68ceff24fb` (green 38571889225), verify whole integrated range, not last repair. After noncoverage jobs pass use exact hashed CI artifacts in isolated clean Linux non-worktree environment, bind candidate/runtime/old receipt/policy/inventory. 90% changed lines/80% branches, D81 money/privacy85%, exact nonregression for refresh (no D41 tolerance). Independently account for deleted/renamed61 paths and review receipt, commit once stable then full CI again; later eligible-source changes invalidate measurement. Verify remote master contains candidate and its full CI green; close records after merge without own-SHA receipt. | PENDING candidate push/full CI, whole-range D33 receipt qualification/review/fresh CI, non-squash master and remote green. |
+| C1 / 236 | Recover intended deliveries without losing ancestry, D108–D132 or unrelated files. Register current asks, preserve stopped 235, avoid governance rewrite or invented values. | PASS source/ancestry/registration preservation; final promotion is C13. |
+| C2 / 237 | Browser/server-action thrown Start and returned unknown are uncertain; reconcile before another Start, including lost response after created trip and failed reconciliation. Preserve queued evidence. GPS requires confirmed trip authority. Fence rapid clicks and late unmount/identity completion; release wake/writer resources. Retain existing flush/end handling. Failing rejection regression before fix, normal/offline/unknown and lifecycle proof. | PASS: exact72a0 R59 job121528896922 both full cases, plus70 tracker regressions. Real lost Start/no second Start/no capture before authority, offline encrypted queue/reload/flush/End/exactly-once. Synthetic geolocation disclosed; no physical-device claim. |
+| C3 / 238 | Expire `__Host-cardvert_session` over HTTPS with Secure, Path=/ and host-only attributes. Keep backend revocation ordering/outage feedback. Serialized header plus actual HTTPS disappearance, protected-request rejection and relogin. | PASS: exact72a0 HTTPS_LOGOUT_RECEIPT.json, one Chromium case/zero skips/retries/actual API outage. Hardened retained cookie during outage, successful deletion/header attributes, protected rejection, original JWT401 and relogin all executed. |
+| C4 / 239 | One explicit normalized validated environment contract, supporting current local aliases and staging/rehearsal/production. No independent implicit-local fallback in API, worker/import-time, Alembic, OpenAPI, seeds, CI or tests. Nonlocal SMTP refuses plaintext; use `ssl.create_default_context` for peer/hostname verification. Explicit local/test Mailpit remains. Controlled subprocess `.env` negatives, invalid/missing startup, bad/untrusted/mismatch cert before AUTH/DATA, trusted local cert success. No external sends. | PASS:32 controlled entrypoint and4 actual TLS local cases plus exact72a0 full backend static/shards. Same security source PASS; no external send. |
+| C5 / 240 | Useful diagnostics with DSN blank/unavailable across JSON/text API/worker/Uvicorn logger chain. Bounded exception type and module/function/line frames only: no exception text, source lines, locals or arbitrary objects. Allowlisted/redacted fields and request/release/job correlation. Actual `/q/` and `/api/v1/qr/` failure chains retain zero token/destination/IP/UA in access/error/telemetry. Test secrets, bank/NIN/GPS/URLs absent with frames present for handled/unhandled API and workers. | PASS:17 diagnostics/3 real Uvicorn local cases and exact72a0 complete affected shard. Safe SQLSTATE/type/frame metadata, request/job correlation, unavailable Sentry and QR privacy checks executed; same specialist PASS. |
+| C6 / 241 | Explicit proven-permanent terms/binding code allowlist shared by processing, failure recorder and sweep; prefer existing failed attempts+error code, no new DB outcome. Terminal has no receipt/allocation or new attempts on redelivery and is visible through existing sanitized operator log with event identity/reason. Transients recover; duplicate jobs remain idempotent. PostgreSQL race, rollback→failure commit, persistence failure, repeated deterministic jobs and poison oldest-100 fairness proof. No remediation UI/API or money change. | PASS:10 payment PostgreSQL regressions and exact72a0 full backend/R59 recovery. Explicit permanent-code allowlist, duplicate/fairness/failure-persistence/receipt invariants retained; MONEY source PASS. |
+| C7 / 242 | Inspect actual arq 300s/max10 and SQLAlchemy 5+10/poolwait30 defaults before choosing explicit fixed PostgreSQL statement/lock/idle-transaction, API+worker pools and worker execution limits. D117 settings stay fixed; no deployment knobs or unmeasured staggering. Before source implementation send parent workload and budget proposal covering two API processes, worker overflow and DB capacity/headroom. Real PostgreSQL cancellation/lock rollback, reusable connections, exhaustion and worker cancellation/retry/catch-up across transaction/provider boundaries; legitimate reports/scans/maintenance retained. | PASS: approved D134 capacity packet,12 real-PG budget/abort cases plus workload/storage recovery; exact72a0 Redis burst-worker parameters0/1/6 all executed without skips, proving same-job recovery and five-attempt exhaustion. Historical a25 SQLSTATE remains unproven; no production-load claim. |
+| C8 / 243 | CI installs exact production Python lock then constrained separate tooling, machine-checks installed runtime versions equal lock and runs pip check in static+shards; editable extras must not override runtime. Preserve provenance. Diagnose actual enforcing audits, fix supported patches only, keep narrow D59 exception/digest pins/floors. Deliberately align Node CI/image/types from supported current dependencies and prior upgrade policy (currently image22/nvmrc26.3/types20); no blanket exceptions, forced upgrades or unsupported major choice. | PASS: exact72a0 backend static/all shards verify50 runtime pins and pip check; full frontend quality121528897054 passes lint/types/units/contracts/build/enforcing audit. Final Node22.23.2 npm ci/ls/explain and unchanged measurement pins qualified. |
+| C9 / 244 | Inspect all retained relevant action/read call sites and report accurate counts. Shared existing code-specific approved messages/plain fallback; never forward arbitrary backend 422/5xx text. Scoped admin read wrappers preserve redirect/notFound, distinguish unavailable from empty/zero, record redacted telemetry. Representative 401/403/404/422/500/transport and concurrent panels; no false success or zero balances. Avoid speculative abstraction/refactor. | PASS: exact72a0 full frontend units and ordinary E2E, with status/transport/Next control-signal, concurrent healthy125.10 sibling/unavailable panel and no private text/false zero checks; same specialist source PASS. |
+| C10 / 245 | Version and bound driver static cache within and across releases. Auth/API/navigation remain network-only, truthful offline and evidence queue/origin rules retained. No Docker HEALTHCHECK task. Retain existing webhook edge 1MiB and real PostGIS checks; verify Redis D45 outage/recovery without changing policy. | PASS: exact72a0 added installed-worker case completes exact64 bound/eviction, cross-release cleanup, network/cache exclusions, unrelated cache and ciphertext preservation; actual backend Redis/PostGIS/webhook suites pass. No physical-device claim. |
+| C11 / 245 | Diagnose each actual remaining E2E failure against D108–D132 on real backend: obsolete assertions vs product bug. No blanket assertion updates, skip/retry/limit inflation or source-only E2E claim. Touched tests, lint/types/build/contracts as applicable. Serial low-load local execution with recovered resource rules; unrelated processes/containers untouched. | PASS: exact72a0 ordinary real-stack E2E121528896758 and full frontend quality; classified current-policy repairs preserve money/privacy/identity/date/confirmation outcomes, without new skips/retries/limits. |
+| C12 / 236 | Supplied independent plan review accepted; fresh named money, security/privacy, client-device and deployment-source checkpoints as new diff requires. One consolidated gpt-6.1-sol/medium minimal-change-review on integrated diff+criterion proof, same reviewer FIX loop to PASS. No duplicate historical reviews. Any API change moves all 3 baselines and R14-B. | PASS: final consolidated gpt-6.1-sol/medium/default minimal-change review found no actionable correctness, scope, minimality or verification issues. Supplied plan and named specialist gates also PASS; exact72a0 runtime evidence complete. All three API baselines unchanged. |
+| C13 / 236 / 248 | After local checks/reviews push existing combined branch. Exact measured-source full GitHub CI qualifies before non-squash master merge; D135 admits only all-noncoverage-green plus a sole stale-receipt guard failure after strict same-artifact qualification. D33: trusted pre-delivery `8e509f7fbdbe8d905a2ed75a1bec2d68ceff24fb` (green38571889225), verify whole integrated range. After noncoverage jobs pass use exact hashed artifacts in isolated clean Linux non-worktree environment; bind candidate/runtime/old receipt/policy/inventory. Changed lines90%/branches80%, D81 money/privacy85%, exact nonregression for refresh (no D41 tolerance). Independently account for63 deleted/renamed paths and review receipt. D135 permits the final receipt plus necessary delivery/policy docs to reuse completed CI only after independent proof of no runtime/source/dependency/test/build/workflow/instrumentation/coverage-policy/inventory change. Any such change invalidates reuse and requires fresh full CI. Record the raw stale-receipt CI failure honestly. Consolidated medium PASS, non-squash merge and remote-master full green remain required. | Strict whole-range D33 refresh/admission and independent receipt/deletion/source-equivalence PASS. Final consolidated medium PASS. PENDING authorized receipt push/non-squash merge and remote-master green. Exact72a0 all noncoverage jobs pass; raw coverage job121541438326 failed only the stale-receipt guard. |
 
 ## Execution ownership and checkpoints
 

@@ -749,12 +749,17 @@ useful without Sentry while excluding personal scan data (D133, REQ-239/240).
 Database work has fixed statement, lock and idle-transaction bounds and bounded
 API/worker pools (D134, REQ-242). Replica changes require recalculating the
 connection budget; the measured pilot fixtures do not qualify production load.
+Existing worker recovery redelivers only proven transient transaction aborts
+(`40P01`/`40001`) after rollback and session release, under the existing attempt
+ceiling; sanitized driver error codes keep failure diagnosis private.
 
 **Still open:** [REQ-050](requests.md) Hetzner, Postmark and MapTiler accounts;
 [REQ-043](requests.md) domain connection; [REQ-033](requests.md) which address (for example app.terraxmedia.com); [REQ-032](requests.md) residency and legal prerequisites.
 
 **History:**
 - **2026-10-25** — Owner-approved recovery hardening (D133, REQ-239/240): every process must explicitly identify its environment, and nonlocal email transport verifies the server certificate and hostname. Useful bounded diagnostics remain available without an error-tracking account; scan personal data stays excluded. Earlier startup silently selected local mode, SMTP had no explicit verifying context, and local exception diagnostics were absent or unsafe. Implementation/verification is in progress; no external delivery or deployment is authorized.
+- **2026-10-26** — Recovery source Built in `72a0f084` (including the preceding integrated commits); exact-head run40309956920 passes all runtime/static/browser/audit jobs, including real HTTPS revocation outage and bounded database recovery. Strict same-artifact D33 refresh/admission passes under D135; independent receipt/final review and master promotion are separate pending gates in the recovery record. No deployment, external delivery or production-load qualification is claimed.
+- **2026-10-26** — Within the accepted D133/D134 recovery scope, real PostgreSQL abort/rollback proof qualifies only trusted deadlock/serialization error codes for bounded same-job redelivery. Existing attempt limits, sweep schedule and financial authority are unchanged. Diagnostic codes and bounded caller frames replace unreadable database-wrapper-only failures without exposing SQL, values or messages; historical R59 error classification remains unproven until instrumented execution.
 - **2026-10-25** — D134/REQ-242 records parent-confirmed fixed database budgets after the real PostgreSQL capacity/default and representative pilot-workload probe. Earlier processes inherited unbounded PostgreSQL timers and library pool settings. D117, existing worker execution limit and external gates remain unchanged; final verification is pending.
 - **2026-08-14** — Client confirmed ownership (Q32, D18).
 - **2026-09-24** — Client approved ClamAV, Postmark, Mapbox ("short run", Google Maps later) and terraxmedia.com, and left hosting, storage and region to the developer's recommendation (client answers items 9–16). The recommendation was Render with AWS storage and encryption.
@@ -830,14 +835,27 @@ aggregate runtime provenance and all coverage gates remain unchanged.
 
 **Current rule:** D81 adds separate 85% branch-coverage floors for the money
 and privacy modules. Existing changed-code and backend/frontend/global gates
-remain. D33 refreshes require independent review; this batch uses an approved
-measurement run, receipt commit and final green verification run before merge
-(REQ-163/170). The shared bank picker remains one implementation under D78.
+remain. D33 refreshes require independent review and strict whole-delivery
+measurement with artifact hashes, runtime, candidate, inventory and exact
+nonregression proof. D135/REQ-248 permits a final coverage-receipt-only commit
+plus necessary delivery/policy record docs to reuse completed CI from
+the exact measured source candidate: every noncoverage job passes, and any sole
+stale-receipt inventory/policy guard failure is separately replaced by strict
+same-artifact D33 qualification and independent receipt review. The raw CI
+coverage failure remains recorded as failed, not relabelled green. Reuse also
+requires independent proof that runtime,
+source, dependencies, tests, build, workflows, instrumentation, coverage policy
+and eligible inventory are unchanged. Any such change requires fresh full CI.
+Final consolidated review PASS, non-squash merge and post-merge master green
+remain mandatory. Receipt-only automatic CI is informational after equivalence
+is proved. The shared bank picker remains one implementation under D78.
 
 **History:**
 - **2026-10-13, completed 14 October** - Owner approved Waves 3/4 and the two-run D33/D41 sequence. The earlier policy had no separate 85% money/privacy floor. Built in `115fc505`, with independently reviewed receipt `40e39f4c` and full green verification [38539599622](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38539599622). Whole-range qualification includes REQ-158/159; shared bank picker retained. Non-squash merge `4bbb689d`. Structural refinement Built in `30eadf27`; progress archive/process trim and hosting-scope verification Built in `0b0be762`.
 
 - **2026-10-14** — Final in-house behavior verification Built in `4f41e895` (REQ-171–177), with independently reviewed D33 receipt Built in `8e509f7f` and full green verification [38571889225](https://github.com/oluwasolaonigbinde/mobility/actions/runs/38571889225). All implementing commits reached GitHub master without squashing at `8e509f7f`. Historical request tidy-up Built in `e2655df1` (REQ-178). R3 PASS (gpt-6.1-sol high, review thread mcp:9ccfc0c9), no findings; the owner supplied the verdict covering `4f41e895` and `8e509f7f`. Closure remains on local master only; the owner prohibits further pushes until more work is ready.
+
+- **2026-10-25** — Owner explicitly removed the mandatory second pre-merge full run for independently proven receipt-only final commits (D135/REQ-248). Previously the current rule required measurement, receipt and a second full green verification run. The exception retains all coverage proof, source-change CI, independent/final review and post-merge master verification; it changes no product or external gate. Implementation is pending with the final recovery receipt.
 
 ### Demo and staging external-input placeholders
 
