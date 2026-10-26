@@ -233,13 +233,19 @@ test("production login and sign-out set and expire the host-only hardened sessio
     (value) => value.name === "__Host-cardvert_session",
   );
 
-  expect(cookie).toMatchObject({
+  expect({
+    domain: cookie?.domain,
+    path: cookie?.path,
+    httpOnly: cookie?.httpOnly,
+    secure: cookie?.secure,
+    sameSite: cookie?.sameSite,
+  }).toEqual({
+    domain: "localhost",
     httpOnly: true,
     secure: true,
     sameSite: "Lax",
     path: "/",
   });
-  expect(cookie?.domain).toBe("localhost");
   const protectedPath = new URL(page.url()).pathname;
   if (protectedPath.startsWith("/driver")) await page.goto("/driver/profile");
   if (process.env.R59_COOKIE_REVOCATION_OUTAGE === "1") {
@@ -263,8 +269,10 @@ test("production login and sign-out set and expire the host-only hardened sessio
       const failedSignOut = await failedSignOutResponse;
       expect(failedSignOut.status()).toBe(200);
       // Compare booleans so assertion output cannot print a retained JWT.
+      const failedCookies = await failedSignOut.headerValues("set-cookie");
       expect(
-        (failedSignOut.headers()["set-cookie"] ?? "").includes("__Host-cardvert_session="),
+        failedCookies.some((value) => value.startsWith("__Host-cardvert_session=")),
+        "failed revocation does not replace or delete the session cookie",
       ).toBe(false);
       await expect(
         page.getByRole("alert").filter({
@@ -276,7 +284,9 @@ test("production login and sign-out set and expire the host-only hardened sessio
       const retained = (await page.context().cookies()).find(
         (value) => value.name === "__Host-cardvert_session",
       );
-      expect(retained?.value === cookie?.value).toBe(true);
+      expect(retained?.value === cookie?.value, "the same opaque session is retained").toBe(
+        true,
+      );
       expect({
         domain: retained?.domain,
         path: retained?.path,
@@ -307,12 +317,28 @@ test("production login and sign-out set and expire the host-only hardened sessio
       Boolean(response.request().headers()["next-action"]),
   );
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
-  const header = (await signOutResponse).headers()["set-cookie"] ?? "";
-  expect(header).toContain("__Host-cardvert_session=;");
-  expect(header).toMatch(/(?:^|;)\s*Secure(?:;|$)/i);
-  expect(header).toContain("Path=/");
-  expect(header).toContain("Max-Age=0");
-  expect(header).not.toMatch(/Domain=/i);
+  const deletionCookies = await (await signOutResponse).headerValues("set-cookie");
+  const header = deletionCookies.find((value) =>
+    value.startsWith("__Host-cardvert_session="),
+  );
+  expect(Boolean(header), "the session deletion header exists").toBe(true);
+  expect(
+    /^__Host-cardvert_session=;/.test(header ?? ""),
+    "the deleted session has an empty value",
+  ).toBe(true);
+  expect(
+    /(?:^|;)\s*Secure(?:;|$)/i.test(header ?? ""),
+    "the deletion is Secure",
+  ).toBe(true);
+  expect(
+    /(?:^|;)\s*Path=\/(?:;|$)/i.test(header ?? ""),
+    "the deletion uses Path=/",
+  ).toBe(true);
+  expect(
+    /(?:^|;)\s*Max-Age=0(?:;|$)/i.test(header ?? ""),
+    "the deletion expires immediately",
+  ).toBe(true);
+  expect(/(?:^|;)\s*Domain=/i.test(header ?? ""), "the deletion is host-only").toBe(false);
   await page.waitForURL("**/login");
   expect(
     (await page.context().cookies()).some((value) => value.name === "__Host-cardvert_session"),
