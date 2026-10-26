@@ -5,10 +5,11 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy.exc import IntegrityError
+from arq import Retry
+from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from app.core.observability import capture_exception
-from app.db.integrity import integrity_constraint_name
+from app.db.integrity import database_sqlstate, integrity_constraint_name
 from app.services.trip_processing import (
     find_unprocessed_trip_page,
     process_ended_trip,
@@ -75,33 +76,40 @@ async def process_trip(ctx: dict[str, Any], trip_id: str) -> dict[str, Any]:
     settings = ctx["settings"]
     sessionmaker = ctx["sessionmaker"]
     started = time.monotonic()
-    async with sessionmaker() as session:
-        try:
-            result = await process_ended_trip(
-                session,
-                trip_id=parsed_trip_id,
-                settings=settings,
-            )
-            await session.commit()
-        except IntegrityError as exc:
-            await session.rollback()
-            logger.exception(
-                "job=process_trip trip_id=%s outcome=error error_class=%s constraint=%s",
-                parsed_trip_id,
-                type(exc).__name__,
-                integrity_constraint_name(exc) or "unknown",
-            )
-            capture_exception(exc)
-            raise
-        except Exception as exc:
-            await session.rollback()
-            logger.exception(
-                "job=process_trip trip_id=%s outcome=error error_class=%s",
-                parsed_trip_id,
-                type(exc).__name__,
-            )
-            capture_exception(exc)
-            raise
+    try:
+        async with sessionmaker() as session:
+            try:
+                result = await process_ended_trip(
+                    session,
+                    trip_id=parsed_trip_id,
+                    settings=settings,
+                )
+                await session.commit()
+            except IntegrityError as exc:
+                await session.rollback()
+                logger.exception(
+                    "job=process_trip trip_id=%s outcome=error error_class=%s constraint=%s",
+                    parsed_trip_id,
+                    type(exc).__name__,
+                    integrity_constraint_name(exc) or "unknown",
+                )
+                capture_exception(exc)
+                raise
+            except Exception as exc:
+                await session.rollback()
+                logger.exception(
+                    "job=process_trip trip_id=%s outcome=error error_class=%s",
+                    parsed_trip_id,
+                    type(exc).__name__,
+                )
+                capture_exception(exc)
+                raise
+    except DBAPIError as exc:
+        # Return the transaction and connection before redelivering the same job.
+        # arq's existing attempt ceiling and the periodic sweep still apply.
+        if database_sqlstate(exc) in {"40P01", "40001"}:
+            raise Retry() from None
+        raise
     duration_ms = int((time.monotonic() - started) * 1000)
     stages = {stage.stage: stage.outcome for stage in result.stages}
     logger.info(

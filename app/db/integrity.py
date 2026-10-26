@@ -1,7 +1,9 @@
 import re
 from collections.abc import Iterator
 
-from sqlalchemy.exc import IntegrityError
+from asyncpg import PostgresError
+from sqlalchemy.dialects.postgresql.asyncpg import AsyncAdapt_asyncpg_dbapi
+from sqlalchemy.exc import DBAPIError, IntegrityError
 
 EXPECTED_UNIQUE_CONSTRAINTS = frozenset(
     {
@@ -30,6 +32,15 @@ EXPECTED_UNIQUE_CONSTRAINTS = frozenset(
 )
 
 _QUOTED_CONSTRAINT_RE = re.compile(r'(?:constraint|index) ["\']([^"\']+)["\']', re.I)
+
+
+def database_sqlstate(exc: BaseException) -> str | None:
+    """Read only the bounded machine code from the supported PostgreSQL drivers."""
+    original = exc.orig if isinstance(exc, DBAPIError) else exc
+    if not isinstance(original, (PostgresError, AsyncAdapt_asyncpg_dbapi.Error)):
+        return None
+    code = getattr(original, "sqlstate", None)
+    return code if type(code) is str and re.fullmatch(r"[0-9A-Z]{5}", code) else None
 
 
 def _exception_chain(exc: BaseException) -> Iterator[BaseException]:

@@ -13,6 +13,64 @@ from app.main import create_app
 SECRET = "synthetic-sensitive-value-never-log"
 
 
+@pytest.mark.parametrize("mode", ["json", "text"])
+@pytest.mark.parametrize("service", ["api", "worker"])
+def test_database_failure_records_trusted_code_without_sql_or_values(mode, service, logging_state):
+    import asyncio
+
+    from asyncpg.exceptions import DeadlockDetectedError
+    from sqlalchemy.exc import DBAPIError
+
+    from app.core.observability import begin_job_logging, end_job_logging
+
+    configure_logging(Settings(environment="test", log_format=mode), service=service)
+    stream = io.StringIO()
+    logging.getLogger().handlers[0].setStream(stream)
+
+    async def emit():
+        await begin_job_logging({"job_id": "job-database-safe"})
+        try:
+            try:
+                raise DBAPIError(
+                    f"SELECT '{SECRET}'",
+                    {"bank_account": SECRET},
+                    DeadlockDetectedError(SECRET),
+                    connection_invalidated=True,
+                )
+            except DBAPIError as exc:
+                exc.__dict__["_cardvert_request_id"] = "request-database-safe"
+                logging.getLogger("arq.worker").exception("database failure %s", SECRET)
+        finally:
+            await end_job_logging({})
+
+    asyncio.run(emit())
+    output = stream.getvalue()
+    assert '"sqlstate":"40P01"' in output
+    assert '"connection_invalidated":true' in output
+    assert "job-database-safe" in output
+    assert "request-database-safe" in output
+    assert '"function":"emit"' in output
+    assert SECRET not in output
+    assert "SELECT" not in output
+    assert "bank_account" not in output
+
+
+def test_database_diagnostic_rejects_untrusted_or_malformed_code():
+    from asyncpg.exceptions import DeadlockDetectedError
+    from sqlalchemy.exc import DBAPIError
+
+    from app.core.observability import exception_diagnostic
+
+    untrusted = RuntimeError(SECRET)
+    untrusted.sqlstate = "40P01"
+    malformed = DeadlockDetectedError(SECRET)
+    malformed.sqlstate = SECRET
+    for original in (untrusted, malformed):
+        diagnostic = exception_diagnostic(DBAPIError(SECRET, {"secret": SECRET}, original))
+        assert "sqlstate" not in diagnostic
+        assert SECRET not in json.dumps(diagnostic)
+
+
 def test_sentry_suppresses_scan_breadcrumbs_and_queued_scan_errors():
     from app.core.observability import _before_breadcrumb, _before_send
 

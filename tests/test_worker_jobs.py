@@ -10,9 +10,9 @@ import pytest
 import sentry_sdk
 from arq.connections import RedisSettings, create_pool
 from arq.cron import CronJob
-from arq.worker import Function, Worker
+from arq.worker import FailedJobs, Function, Worker
 from conftest import create_test_campaign_zone
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from test_trip_processing import (
     BASE_TIME,
@@ -894,14 +894,17 @@ def test_sweep_cursor_resumes_next_occurrence_and_reaches_healthy_tail(
     assert jobs.SWEEP_CURSOR_KEY not in redis.values
 
 
-def test_burst_worker_runs_enqueued_trip_end_to_end(postgis_db_sessionmaker, settings) -> None:
+@pytest.mark.parametrize("abort_count", [0, 1, 6])
+def test_burst_worker_runs_enqueued_trip_end_to_end(
+    postgis_db_sessionmaker, settings, monkeypatch, abort_count
+) -> None:
     redis_url = os.environ.get("ARQ_TEST_REDIS_URL")
     if not redis_url:
         if os.environ.get("CI"):
             pytest.fail("ARQ_TEST_REDIS_URL missing in CI")
         pytest.skip("ARQ test Redis URL is not configured")
 
-    graph = build_graph(postgis_db_sessionmaker, "burst")
+    graph = build_graph(postgis_db_sessionmaker, f"burst-{abort_count}")
     # Freeze a target area before the terms binding: outside miles never pay.
     target_zone = create_test_campaign_zone(
         postgis_db_sessionmaker,
@@ -915,8 +918,36 @@ def test_burst_worker_runs_enqueued_trip_end_to_end(postgis_db_sessionmaker, set
         zone_ids=[target_zone.id],
     )
     add_pings(postgis_db_sessionmaker, trip_id=graph.trip.id, points=moving_points())
+    original = jobs.process_ended_trip
+    attempts = 0
+
+    async def transaction_with_concurrent_update(session, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        abort = attempts <= abort_count
+        if abort:
+            await session.execute(text("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE"))
+            await session.execute(text("SELECT value FROM broker_abort_guard WHERE id=1"))
+            async with postgis_db_sessionmaker() as updater:
+                await updater.execute(
+                    text("UPDATE broker_abort_guard SET value=value+1 WHERE id=1")
+                )
+                await updater.commit()
+        result = await original(session, **kwargs)
+        if abort:
+            # PostgreSQL, not a fabricated exception, rejects this stale snapshot.
+            await session.execute(text("UPDATE broker_abort_guard SET value=value+1 WHERE id=1"))
+        return result
+
+    monkeypatch.setattr(jobs, "process_ended_trip", transaction_with_concurrent_update)
 
     async def exercise() -> None:
+        async with postgis_db_sessionmaker() as setup:
+            await setup.execute(
+                text("CREATE TABLE broker_abort_guard (id int PRIMARY KEY, value int)")
+            )
+            await setup.execute(text("INSERT INTO broker_abort_guard VALUES (1, 0)"))
+            await setup.commit()
         pool = await create_pool(RedisSettings.from_dsn(redis_url))
         await pool.flushdb()
 
@@ -928,25 +959,43 @@ def test_burst_worker_runs_enqueued_trip_end_to_end(postgis_db_sessionmaker, set
             ctx["settings"] = settings
             ctx["sessionmaker"] = postgis_db_sessionmaker
 
+        job_ids = []
+
+        async def started(ctx: dict) -> None:
+            job_ids.append(ctx["job_id"])
+
         worker = Worker(
             functions=WorkerSettings.functions,
             redis_settings=RedisSettings.from_dsn(redis_url),
             burst=True,
             poll_delay=0,
             on_startup=startup,
+            on_job_start=started,
         )
-        assert await worker.run_check() == 1
-        await worker.close()
-
-        await pool.flushdb()
-        if enqueuer._pool is not None:
-            await enqueuer._pool.aclose()
-        await pool.aclose()
+        try:
+            assert worker.max_tries == 5
+            if abort_count >= worker.max_tries:
+                with pytest.raises(FailedJobs):
+                    await worker.run_check()
+                assert worker.jobs_failed == 1
+                assert attempts == 5
+            else:
+                assert await worker.run_check() == 1
+                assert attempts == abort_count + 1
+            assert job_ids == [f"trip-process:{graph.trip.id}"] * attempts
+            assert await pool.zcard("arq:queue") == 0
+        finally:
+            await worker.close()
+            await pool.flushdb()
+            if enqueuer._pool is not None:
+                await enqueuer._pool.aclose()
+            await pool.aclose()
 
     asyncio.run(exercise())
 
     counts = table_counts(postgis_db_sessionmaker)
-    assert counts["analytics"] == 1
-    assert counts["estimates"] == 1
-    assert counts["calculations"] == 1
-    assert counts["ledger"] == 1
+    expected = 0 if abort_count >= 5 else 1
+    assert counts["analytics"] == expected
+    assert counts["estimates"] == expected
+    assert counts["calculations"] == expected
+    assert counts["ledger"] == expected

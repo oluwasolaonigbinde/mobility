@@ -8,9 +8,11 @@ from uuid import UUID
 
 import sentry_sdk
 from httpx import URL
+from sqlalchemy.exc import DBAPIError
 
 from app.core.config import Settings
 from app.core.middleware import get_request_id, is_scan_request
+from app.db.integrity import database_sqlstate
 
 _REDACTED = "[REDACTED]"
 _APPLICATION_LINK = re.compile(r"https?://[^\s<>\"']*#application_access_token=[^\s<>\"']*")
@@ -637,9 +639,21 @@ def exception_diagnostic(exc: BaseException) -> dict:
                 "line": current.tb_lineno,
             }
         )
-        frames = frames[-16:]
+        if len(frames) > 16:
+            # Retain the application caller as well as the deepest driver frames.
+            frames.pop(8)
         current = current.tb_next
-    return {"type": re.sub(r"[^a-zA-Z0-9_]", "_", type(exc).__name__)[:120], "frames": frames}
+    diagnostic: dict = {
+        "type": re.sub(r"[^a-zA-Z0-9_]", "_", type(exc).__name__)[:120],
+        "frames": frames,
+    }
+    if isinstance(exc, DBAPIError):
+        if type(exc.connection_invalidated) is bool:
+            diagnostic["connection_invalidated"] = exc.connection_invalidated
+    code = database_sqlstate(exc)
+    if code is not None:
+        diagnostic["sqlstate"] = code
+    return diagnostic
 
 
 def _safe_log_value(value, depth=0):
