@@ -7,8 +7,63 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from app.adapters.messaging.email import EmailMessage, SmtpEmailAdapter
+from app.adapters.messaging.email import (
+    EmailMessage,
+    EmailSendError,
+    SmtpEmailAdapter,
+    build_email_adapter,
+)
 from app.core.config import Settings
+
+
+def test_email_factory_preserves_unconfigured_retry_and_selects_configured_smtp():
+    settings = Settings(_env_file=None, environment="test", email_provider="")
+    message = EmailMessage("recipient@cardvert.invalid", "Test", "Test", "Test", "synthetic")
+    with pytest.raises(EmailSendError) as refused:
+        asyncio.run(build_email_adapter(settings).send(message))
+    assert refused.value.code == "email_provider_unconfigured"
+    assert refused.value.retryable is True
+    configured = Settings(
+        _env_file=None,
+        environment="test",
+        email_provider="smtp",
+        email_smtp_host="localhost",
+        email_sender_address="sender@cardvert.invalid",
+    )
+    assert isinstance(build_email_adapter(configured), SmtpEmailAdapter)
+    with pytest.raises(ValueError, match="host and sender"):
+        SmtpEmailAdapter(configured.model_copy(update={"email_smtp_host": ""}))
+
+
+def test_smtp_recipient_refusal_is_terminal_and_does_not_expose_provider_text(monkeypatch):
+    import smtplib
+
+    class RefusingSMTP:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def send_message(self, message):
+            raise smtplib.SMTPRecipientsRefused({message["To"]: (550, b"private provider detail")})
+
+    monkeypatch.setattr("app.adapters.messaging.email.smtplib.SMTP", RefusingSMTP)
+    settings = Settings(
+        _env_file=None,
+        environment="test",
+        email_smtp_host="localhost",
+        email_sender_address="sender@cardvert.invalid",
+        email_smtp_starttls=False,
+    )
+    message = EmailMessage("recipient@cardvert.invalid", "Test", "Test", "Test", "synthetic")
+    with pytest.raises(EmailSendError) as refused:
+        asyncio.run(SmtpEmailAdapter(settings).send(message))
+    assert refused.value.retryable is False
+    assert str(refused.value) == "email_recipient_rejected"
 
 
 @pytest.mark.parametrize("environment", [None, "", "prod", "invalid"])

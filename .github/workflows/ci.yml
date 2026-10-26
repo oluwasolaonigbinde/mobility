@@ -516,6 +516,8 @@ jobs:
         working-directory: frontend
       - name: Run the isolated real-stack release journey
         run: |
+          bash -n ./scripts/run_r59_real_stack.sh
+          sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends openbox x11-utils
           ./scripts/ci_load_minio_images.sh
           ./scripts/run_r59_real_stack.sh
       - uses: actions/upload-artifact@v4

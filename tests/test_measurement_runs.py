@@ -4,10 +4,15 @@ Keep historical math and ledger-cohort coverage.
 """
 
 import asyncio
+import hashlib
 import json
-from datetime import timedelta
+from copy import deepcopy
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
+from uuid import UUID
+
+import pytest
 
 from conftest import (
     create_test_payout_rule,
@@ -23,6 +28,7 @@ from app.models.trip import TripSession
 from app.models.trip_analytics import TripAnalytics
 from app.services.historical_measurement import (
     calculate_measurement_result,
+    canonical_sha256,
     measurement_run_reproducible,
 )
 from app.services.report_cohorts import select_report_cohort
@@ -45,6 +51,103 @@ def test_measurement_result_manifest_is_canonical_json() -> None:
         },
     }
     json.dumps(calculate_measurement_result(manifest), sort_keys=True)
+
+
+def test_frozen_manifest_hash_normalizes_dates_identifiers_and_decimal_amounts() -> None:
+    value = {
+        "at": datetime(2026, 1, 1),
+        "id": UUID("00000000-0000-4000-8000-000000000001"),
+        "amount": Decimal("12.50"),
+    }
+    expected = (
+        b'{"amount":"12.50","at":"2026-01-01T00:00:00+00:00",'
+        b'"id":"00000000-0000-4000-8000-000000000001"}'
+    )
+    assert canonical_sha256(value) == hashlib.sha256(expected).hexdigest()
+    assert canonical_sha256({**value, "at": value["at"].replace(tzinfo=UTC)}) == (
+        hashlib.sha256(expected).hexdigest()
+    )
+
+
+def test_historical_v2_cost_uses_frozen_ledger_not_repriced_calculation() -> None:
+    manifest = _disclosure_manifest(cohort_statuses=("sealed", "started"))
+    manifest["formula_version"] = "measurement-result-v2"
+    payout = manifest["sources"]["payout_calculations"][0]
+    payout.update(id="frozen-payout", final_payout="999999.00")
+    base = {
+        "trip_session_id": manifest["cohort"][0]["trip_session_id"],
+        "payout_calculation_id": "frozen-payout",
+        "currency": "NGN",
+    }
+    manifest["sources"]["earnings_ledger_entries"] = [
+        {**base, "entry_type": "trip_payout", "status": "available", "amount": "800.00"},
+        {**base, "entry_type": "reversal", "status": "available", "amount": "100.00"},
+        {**base, "entry_type": "adjustment", "status": "voided", "amount": "500.00"},
+        {
+            **base,
+            "trip_session_id": manifest["cohort"][1]["trip_session_id"],
+            "entry_type": "trip_payout",
+            "status": "available",
+            "amount": "900000.00",
+        },
+    ]
+    original = deepcopy(manifest)
+    cost = next(
+        metric
+        for metric in calculate_measurement_result(manifest)["metrics"]
+        if metric["id"] == "driver_campaign_cost"
+    )
+    assert cost["totals_by_currency"] == [{"currency": "NGN", "value": "700.00"}]
+    assert cost["completeness"]["covered_trip_count"] == 1
+    assert manifest == original
+
+
+def test_historical_v2_refuses_calculated_cost_without_frozen_ledger_authority() -> None:
+    manifest = _disclosure_manifest()
+    manifest["formula_version"] = "measurement-result-v2"
+    manifest["sources"]["payout_calculations"][0]["id"] = "missing-ledger"
+    manifest["sources"]["earnings_ledger_entries"] = []
+    with pytest.raises(ValueError, match="lacks frozen ledger authority"):
+        calculate_measurement_result(manifest)
+
+
+def test_historical_result_refuses_unknown_formula() -> None:
+    with pytest.raises(ValueError, match="Unsupported measurement formula"):
+        calculate_measurement_result({"formula_version": "unrecognized"})
+
+
+@pytest.mark.parametrize("tampered", ["input", "proof", "snapshot", "authority", "result", "hash"])
+def test_historical_reproduction_rejects_tampered_frozen_authority(tampered) -> None:
+    manifest = _disclosure_manifest()
+    snapshot = {"period": "frozen"}
+    snapshot_hash = canonical_sha256(snapshot)
+    manifest["disclosure_authority"] = {"report_snapshot_sha256": snapshot_hash}
+    result = calculate_measurement_result(manifest)
+    run = MeasurementRun(
+        input_manifest=manifest,
+        input_manifest_sha256=canonical_sha256(manifest),
+        proof_manifest={},
+        proof_manifest_sha256=canonical_sha256({}),
+        report_snapshot=snapshot,
+        report_snapshot_sha256=snapshot_hash,
+        result_manifest=result,
+        result_manifest_sha256=canonical_sha256(result),
+    )
+    assert measurement_run_reproducible(run) is True
+    if tampered == "input":
+        run.input_manifest["tampered"] = True
+    elif tampered == "proof":
+        run.proof_manifest["tampered"] = True
+    elif tampered == "snapshot":
+        run.report_snapshot["period"] = "changed"
+    elif tampered == "authority":
+        run.input_manifest["disclosure_authority"]["report_snapshot_sha256"] = "0" * 64
+        run.input_manifest_sha256 = canonical_sha256(run.input_manifest)
+    elif tampered == "result":
+        run.result_manifest["title"] = "Changed after issue"
+    else:
+        run.result_manifest_sha256 = "0" * 64
+    assert measurement_run_reproducible(run) is False
 
 
 def test_postgres_cohort_orders_trips_and_selects_one_replacement_payout(

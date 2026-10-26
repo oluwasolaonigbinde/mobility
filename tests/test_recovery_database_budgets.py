@@ -9,6 +9,7 @@ from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError, TimeoutError
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from app.core.config import Settings
 from app.db import session as database
 from app.jobs.worker import WorkerSettings
 
@@ -17,6 +18,41 @@ def _engine(maker, *, worker=False):
     return database.create_database_engine(
         maker.kw["bind"].url.render_as_string(hide_password=False), worker=worker
     )
+
+
+def test_api_session_readiness_and_cleanup_use_the_configured_real_pool(
+    postgis_db_sessionmaker, monkeypatch
+):
+    configured = Settings(
+        environment="test",
+        database_url=postgis_db_sessionmaker.kw["bind"].url.render_as_string(hide_password=False),
+    )
+    monkeypatch.setattr(database, "_engine", None)
+    monkeypatch.setattr(database, "_sessionmaker", None)
+    monkeypatch.setattr(database, "get_settings", lambda: configured)
+
+    async def scenario():
+        engine = None
+        try:
+            yielded = 0
+            async for session in database.get_session():
+                engine = database.get_engine(configured)
+                assert await session.scalar(text("SELECT 1")) == 1
+                yielded += 1
+            assert yielded == 1
+            engine = database.get_engine(configured)
+            assert engine.pool.checkedout() == 0
+            assert await database.check_database(configured) is True
+            assert engine.pool.checkedout() == 0
+            assert await database.check_database(
+                Settings(environment="test", database_url=None)
+            ) is False
+            assert engine.pool.checkedout() == 0
+        finally:
+            if engine is not None:
+                await engine.dispose()
+
+    asyncio.run(scenario())
 
 
 @pytest.mark.parametrize("worker,capacity", [(False, 10), (True, 11)])

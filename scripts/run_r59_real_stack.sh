@@ -4,6 +4,13 @@ set -Eeuo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
+for executable in xvfb-run openbox xprop; do
+  if ! command -v "$executable" >/dev/null 2>&1; then
+    echo "R59 native visibility requires $executable" >&2
+    exit 2
+  fi
+done
+
 export R59_PROJECT="${R59_PROJECT:-cardvert-r59-${GITHUB_RUN_ID:-local}-$(date +%s)-$$}"
 if [[ ! "$R59_PROJECT" =~ ^cardvert-r59-[a-z0-9-]+$ ]]; then
   echo "R59 project must match ^cardvert-r59-[a-z0-9-]+$" >&2
@@ -148,11 +155,33 @@ export PLAYWRIGHT_BASE_URL="http://127.0.0.1:${R59_FRONTEND_PORT}"
 wait_for_url "$PLAYWRIGHT_BASE_URL/login" frontend
 cd frontend
 export PLAYWRIGHT_JSON_OUTPUT_FILE="$R59_ARTIFACT_DIR/r59-playwright.json"
-if command -v xvfb-run >/dev/null 2>&1; then
-  xvfb-run -a npx playwright test e2e/r59-real-stack.spec.ts --project=r59-chromium --workers=1 --retries=0 --reporter=list,json
-else
+# Use a new X display and its own window manager: native minimize/restore must
+# reach X11 rather than an emulated visibility property or a shared desktop.
+xvfb-run -a bash -c '
+  set -Eeuo pipefail
+  openbox --sm-disable >"$R59_ARTIFACT_DIR/window-manager.log" 2>&1 &
+  wm_pid=$!
+  trap '\''status=$?; trap - EXIT INT TERM; kill "$wm_pid" 2>/dev/null || true; wait "$wm_pid" 2>/dev/null || true; exit "$status"'\'' EXIT
+  trap '\''exit 130'\'' INT
+  trap '\''exit 143'\'' TERM
+  wm_ready=0
+  for attempt in $(seq 1 50); do
+    if ! kill -0 "$wm_pid" 2>/dev/null; then
+      echo "R59 window manager exited before readiness" >&2
+      exit 1
+    fi
+    if xprop -root _NET_SUPPORTING_WM_CHECK | grep -Eq "window id # 0x[1-9a-f][0-9a-f]*"; then
+      wm_ready=1
+      break
+    fi
+    sleep 0.1
+  done
+  if (( wm_ready != 1 )); then
+    echo "R59 native window manager did not become ready" >&2
+    exit 1
+  fi
   npx playwright test e2e/r59-real-stack.spec.ts --project=r59-chromium --workers=1 --retries=0 --reporter=list,json
-fi
+'
 
 # Reuse this exact candidate's production image for the real HTTPS logout
 # boundary, including an actual API outage. No additional CI job or build.
