@@ -112,7 +112,7 @@ def render_campaign_csv(snapshot: dict) -> bytes:
                 "Estimates",
                 "Estimated views in area",
                 area.get("estimated_views"),
-                "estimated contacts",
+                "estimated views",
                 area=area["name"],
             )
         for creative in campaign["creatives"]:

@@ -56,6 +56,7 @@ export async function requestQuoteAction(
     unstable_rethrow(error);
     return { error: safeCommercialError(error, "Could not request a quotation. Try again.") };
   }
+  refresh();
   return { done: "Quotation requested. Terrax Media will post it here for review." };
 }
 
@@ -80,7 +81,7 @@ export async function acceptQuoteAction(
     if (!data) return { error: "The accepted terms receipt is unavailable. Try again." };
     refresh();
     return {
-      done: "Quotation accepted. Your immutable receipt is shown below.",
+      done: "Quotation accepted. Your accepted quotation is shown below.",
       acceptedTerms: data,
     };
   } catch (error) {
@@ -111,5 +112,5 @@ export async function acceptExpeditedWaiverAction(
     unstable_rethrow(error);
     return { error: safeCommercialError(error, "Could not record the waiver. Try again.") };
   }
-  return { done: "Expedited production waiver recorded." };
+  return { done: "Earlier production start agreed." };
 }

@@ -279,7 +279,7 @@ export function CommercialPanel({
               <p className="mt-1 text-sm">
                 {commercial.production_start
                   ? `Started ${formatDate(commercial.production_start.started_at)}`
-                  : "Not authorised to start"}
+                  : "Not started yet"}
               </p>
             </div>
             <div>

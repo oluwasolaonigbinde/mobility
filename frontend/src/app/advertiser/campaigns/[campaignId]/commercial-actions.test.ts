@@ -51,7 +51,7 @@ describe("commercial advertiser feedback", () => {
     const acceptedTerms = { id: "accepted-terms", quotation_revision_id: REVISION_ID };
     mocks.post.mockResolvedValueOnce({ data: acceptedTerms });
     await expect(acceptQuoteAction({}, quotationForm({ confirmed: true }))).resolves.toMatchObject({
-      done: "Quotation accepted. Your immutable receipt is shown below.",
+      done: "Quotation accepted. Your accepted quotation is shown below.",
       acceptedTerms,
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
@@ -72,10 +72,11 @@ describe("commercial advertiser feedback", () => {
     expect(JSON.stringify(result)).not.toContain("private backend detail");
   });
 
-  it("says who posts the quotation after a request (D38a)", async () => {
+  it("says who posts the quotation after a request (D38a) and refreshes its status", async () => {
     await expect(requestQuoteAction({}, campaignForm())).resolves.toEqual({
       done: "Quotation requested. Terrax Media will post it here for review.",
     });
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
   });
 
   it("maps known failures and never returns raw backend text", async () => {
@@ -96,6 +97,7 @@ describe("commercial advertiser feedback", () => {
     );
     const unknown = await requestQuoteAction({}, campaignForm());
     expect(unknown).toEqual({ error: "Could not request a quotation. Try again." });
+    expect(mocks.refresh).not.toHaveBeenCalled();
     expect(JSON.stringify(unknown)).not.toContain("database detail");
   });
 });
