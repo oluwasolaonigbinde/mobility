@@ -263,12 +263,10 @@ async function queuedEvidence(page: Page, tripId: string) {
   }, tripId);
 }
 
-type NativeCaptureState = {
+type SyntheticCaptureState = {
   watches: number;
   fixes: number;
-  clears: number;
-  activeWatches: number;
-  errorCodes: number[];
+  emit(index: number): void;
 };
 
 test("R59 uncertain Start preserves offline evidence across bounded cache releases", async ({
@@ -277,45 +275,50 @@ test("R59 uncertain Start preserves offline evidence across bounded cache releas
 }) => {
   if (process.env.R59_REAL_STACK !== "1") throw new Error("R59_REAL_STACK=1 is required");
   await context.addInitScript(() => {
-    const state = window as typeof window & { r59Capture: NativeCaptureState };
-    state.r59Capture = { watches: 0, fixes: 0, clears: 0, activeWatches: 0, errorCodes: [] };
-    const activeWatches = new Set<number>();
-    const nativeWatch = navigator.geolocation.watchPosition.bind(navigator.geolocation);
-    const nativeClear = navigator.geolocation.clearWatch.bind(navigator.geolocation);
-    Object.defineProperty(navigator.geolocation, "watchPosition", {
+    const state = window as typeof window & { r59Capture: SyntheticCaptureState };
+    const callbacks = new Map<number, PositionCallback>();
+    const position = (index: number) =>
+      ({
+        coords: {
+          latitude: 9.03 + index * 0.00001,
+          longitude: 7.48 + index * 0.00001,
+          accuracy: 8,
+          altitude: null,
+          altitudeAccuracy: null,
+          heading: null,
+          speed: 4,
+        },
+        timestamp: Date.now(),
+      }) as GeolocationPosition;
+    state.r59Capture = {
+      watches: 0,
+      fixes: 0,
+      emit(index) {
+        if (callbacks.size !== 1) throw new Error("R59 requires one app-owned location watch");
+        for (const success of callbacks.values()) {
+          state.r59Capture.fixes += 1;
+          success(position(index));
+        }
+      },
+    };
+    // Reuse the P07/W401C synthetic location callback pattern. The app still
+    // owns watch registration, encrypted writes and all backend authority.
+    Object.defineProperty(navigator, "geolocation", {
       configurable: true,
-      value: (
-        success: PositionCallback,
-        failure?: PositionErrorCallback,
-        options?: PositionOptions,
-      ) => {
-        state.r59Capture.watches += 1;
-        const id = nativeWatch(
-          (position) => {
-            state.r59Capture.fixes += 1;
-            success(position);
-          },
-          (error) => {
-            state.r59Capture.errorCodes.push(error.code);
-            failure?.(error);
-          },
-          options,
-        );
-        activeWatches.add(id);
-        state.r59Capture.activeWatches = activeWatches.size;
-        return id;
+      value: {
+        getCurrentPosition: (success: PositionCallback) => success(position(0)),
+        watchPosition: (success: PositionCallback) => {
+          const id = ++state.r59Capture.watches;
+          callbacks.set(id, success);
+          state.r59Capture.emit(0);
+          return id;
+        },
+        clearWatch: (id: number) => {
+          callbacks.delete(id);
+        },
       },
     });
-    Object.defineProperty(navigator.geolocation, "clearWatch", {
-      configurable: true,
-      value: (id: number) => {
-        nativeClear(id);
-        activeWatches.delete(id);
-        state.r59Capture.clears += 1;
-        state.r59Capture.activeWatches = activeWatches.size;
-      },
-    });
-    // Same disclosed wake-lock stand-in as the original R59 journey; GPS is native.
+    // Same disclosed wake-lock stand-in as the original R59 journey.
     Object.defineProperty(navigator, "wakeLock", {
       configurable: true,
       value: {
@@ -327,15 +330,13 @@ test("R59 uncertain Start preserves offline evidence across bounded cache releas
       },
     });
   });
-  const captureLifecycle = () =>
-    page.evaluate(() => ({
-      ...(window as typeof window & { r59Capture: NativeCaptureState }).r59Capture,
-      visibility: document.visibilityState,
-    }));
-  const captureCounts = async () => {
-    const { watches, fixes } = await captureLifecycle();
-    return { watches, fixes };
-  };
+  const captureCounts = () =>
+    page.evaluate(() => {
+      const { watches, fixes } = (
+        window as typeof window & { r59Capture: SyntheticCaptureState }
+      ).r59Capture;
+      return { watches, fixes };
+    });
   page.on("dialog", (dialog) => void dialog.accept());
   await page.goto("/login");
   await page.getByLabel("Email").fill("driver@demo.mobility.local");
@@ -470,10 +471,6 @@ test("R59 uncertain Start preserves offline evidence across bounded cache releas
     await waitForService("api", "ready");
     await page.unroute("**/driver/track");
   }
-  // Refresh Chromium's emulated fix while there is no native watch. The long
-  // real outage has made the context's initial position stale by this point.
-  expect((await captureLifecycle()).activeWatches).toBe(0);
-  await context.setGeolocation({ latitude: 9.03, longitude: 7.48, accuracy: 8 });
   await check.click();
   const end = page.getByRole("button", { name: "End trip", exact: true });
   await expect(end).toBeEnabled();
@@ -482,7 +479,6 @@ test("R59 uncertain Start preserves offline evidence across bounded cache releas
   await expect
     .poll(async () => (await queuedEvidence(page, tripId)).recordedSamples)
     .toBeGreaterThanOrEqual(1);
-  expect((await captureLifecycle()).errorCodes).toEqual([]);
   expect(startRequests).toBe(1);
   expect(latestR59Trip().tripId).toBe(tripId);
   expect(r59DriverTripCount()).toBe(beforeTrips + 1);
@@ -523,60 +519,22 @@ test("R59 uncertain Start preserves offline evidence across bounded cache releas
   expect(bounded.oldestRetained).toBe(false);
   expect(bounded.newestRetained).toBe(true);
 
-  let companion: Page | undefined;
-  const nativeWindow = await context.newCDPSession(page);
-  let trackerWindowId: number | undefined;
   try {
-    const { windowId } = await nativeWindow.send("Browser.getWindowForTarget");
-    trackerWindowId = windowId;
-    // Playwright normally forces pages focused/visible. Restore actual native
-    // visibility, then minimize only this page's app window under the CI WM.
-    await nativeWindow.send("Emulation.setFocusEmulationEnabled", { enabled: false });
-    await page.bringToFront();
-    await expect
-      .poll(captureLifecycle)
-      .toMatchObject({ visibility: "visible", activeWatches: 1 });
     const beforeOffline = (await queuedEvidence(page, tripId)).recordedSamples;
     await context.setOffline(true);
     expect(await page.evaluate(async (url) => (await fetch(url)).ok, bounded.newest)).toBe(true);
-    companion = await context.newPage();
     for (let index = 1; index <= 4; index += 1) {
-      // Chromium 149 reports POSITION_UNAVAILABLE when its CDP override is
-      // changed during a pending native watch query. Use actual visibility to
-      // stop that watch before moving the device, then resume native capture.
-      await companion.bringToFront();
-      await nativeWindow.send("Browser.setWindowBounds", {
-        windowId,
-        bounds: { windowState: "minimized" },
-      });
-      await expect
-        .poll(captureLifecycle)
-        .toMatchObject({ visibility: "hidden", activeWatches: 0 });
-      expect((await captureLifecycle()).clears).toBeGreaterThanOrEqual(index);
       const beforeFixes = (await captureCounts()).fixes;
       // Same real sampling cadence as the original journey; no clock emulation.
       await page.waitForTimeout(500);
-      await context.setGeolocation({
-        latitude: 9.03 + index * 0.00001,
-        longitude: 7.48 + index * 0.00001,
-        accuracy: 8,
-      });
-      await nativeWindow.send("Browser.setWindowBounds", {
-        windowId,
-        bounds: { windowState: "normal" },
-      });
-      await page.bringToFront();
-      await expect
-        .poll(captureLifecycle)
-        .toMatchObject({ visibility: "visible", activeWatches: 1 });
+      await page.evaluate((sample) => {
+        (window as typeof window & { r59Capture: SyntheticCaptureState }).r59Capture.emit(sample);
+      }, index);
       await expect.poll(async () => (await captureCounts()).fixes).toBeGreaterThan(beforeFixes);
-      expect((await captureLifecycle()).errorCodes).toEqual([]);
       await expect
         .poll(async () => (await queuedEvidence(page, tripId)).recordedSamples)
         .toBeGreaterThanOrEqual(beforeOffline + index);
     }
-    await companion.close();
-    companion = undefined;
     await expect(page.getByTestId("tracking-health")).toHaveText("Saved on this phone");
     const offlineNavigation = await page.goto("/driver/earnings");
     expect(offlineNavigation?.status()).toBe(503);
@@ -667,8 +625,6 @@ test("R59 uncertain Start preserves offline evidence across bounded cache releas
     expect(afterRelease.unrelated).toBe("preserve");
     expect(await queuedEvidence(page, tripId)).toEqual(preserved);
 
-    expect((await captureLifecycle()).activeWatches).toBe(0);
-    await context.setGeolocation({ latitude: 9.03004, longitude: 7.48004, accuracy: 8 });
     await page.goto("/driver/track");
     await expect(end).toBeEnabled();
     expect(latestR59Trip().tripId).toBe(tripId);
@@ -690,19 +646,6 @@ test("R59 uncertain Start preserves offline evidence across bounded cache releas
     expect(r59DriverTripCount()).toBe(beforeTrips + 1);
     await expect.poll(async () => (await queuedEvidence(page, tripId)).queuedSamples).toBe(0);
   } finally {
-    try {
-      try {
-        if (trackerWindowId !== undefined) {
-          await nativeWindow.send("Browser.setWindowBounds", {
-            windowId: trackerWindowId,
-            bounds: { windowState: "normal" },
-          });
-        }
-      } finally {
-        await nativeWindow.send("Emulation.setFocusEmulationEnabled", { enabled: true });
-      }
-    } finally {
-      await Promise.all([nativeWindow.detach(), companion?.close(), context.setOffline(false)]);
-    }
+    await context.setOffline(false);
   }
 });

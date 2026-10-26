@@ -950,24 +950,6 @@
                 }
             }
         ],
-        "./app/schemas/measurement.py": [
-            {
-                "code": "reportAttributeAccessIssue",
-                "range": {
-                    "startColumn": 31,
-                    "endColumn": 74,
-                    "lineCount": 1
-                }
-            },
-            {
-                "code": "reportAttributeAccessIssue",
-                "range": {
-                    "startColumn": 29,
-                    "endColumn": 70,
-                    "lineCount": 1
-                }
-            }
-        ],
         "./app/schemas/trips.py": [
             {
                 "code": "reportReturnType",
