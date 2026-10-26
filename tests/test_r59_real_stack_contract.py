@@ -88,13 +88,16 @@ def test_r59_journeys_keep_real_backend_authority_and_original_receipt() -> None
         "test.fixme",
         "context.route",
         "route.fulfill",
-        "request.post",
-        "W401C",
-        "W401D",
-        "W403B",
+        "W401C_SYNTHETIC",
+        "W401D_SYNTHETIC",
+        "W403B_SYNTHETIC",
         "mock-api",
     ):
         assert forbidden not in spec
+    # The recovery case probes a real static POST without the service worker;
+    # it must not create trip outcomes through direct backend mutations.
+    assert 'const nonGetUrl = new URL(bounded.asset)' in spec
+    assert spec.count("request.post(") == spec.count("page.request.post(nonGetUrl.href)") == 1
 
 
 def test_r59_compose_is_local_isolated_and_uses_production_commands() -> None:

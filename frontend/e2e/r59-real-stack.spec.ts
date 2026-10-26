@@ -560,27 +560,33 @@ test("R59 uncertain Start preserves offline evidence across bounded cache releas
     const otherOrigin = new URL(bounded.asset);
     otherOrigin.hostname = otherOrigin.hostname === "127.0.0.1" ? "localhost" : "127.0.0.1";
     expect((await page.request.get(otherOrigin.href)).status()).toBe(200);
-    const boundary = await page.evaluate(
-      async ({ asset, other }) => {
-        const staticRead = await fetch(asset);
-        const auth = await fetch("/login", { credentials: "omit" });
-        const keepalive = await fetch("/driver/keepalive");
-        const api = await fetch("/api/notifications");
-        const crossOrigin = await fetch(other, { mode: "no-cors" });
-        const post = new URL(asset);
-        post.searchParams.set("r59-non-get", "1");
-        const nonGet = await fetch(post, { method: "POST" });
-        return {
-          static: staticRead.status,
-          auth: auth.status,
-          keepalive: keepalive.status,
-          api: api.status,
-          other: crossOrigin.type,
-          nonGet: nonGet.status,
-        };
-      },
-      { asset: bounded.asset, other: otherOrigin.href },
-    );
+    const nonGetUrl = new URL(bounded.asset);
+    nonGetUrl.searchParams.set("r59-non-get", "1");
+    const [browserPost, boundary] = await Promise.all([
+      page.waitForResponse(
+        (response) => response.request().method() === "POST" && response.url() === nonGetUrl.href,
+      ),
+      page.evaluate(
+        async ({ asset, other, post }) => {
+          const staticRead = await fetch(asset);
+          const auth = await fetch("/login", { credentials: "omit" });
+          const keepalive = await fetch("/driver/keepalive");
+          const api = await fetch("/api/notifications");
+          const crossOrigin = await fetch(other, { mode: "no-cors" });
+          const nonGet = await fetch(post, { method: "POST" });
+          return {
+            static: staticRead.status,
+            auth: auth.status,
+            keepalive: keepalive.status,
+            api: api.status,
+            other: crossOrigin.type,
+            nonGet: nonGet.status,
+            nonGetType: nonGet.type,
+          };
+        },
+        { asset: bounded.asset, other: otherOrigin.href, post: nonGetUrl.href },
+      ),
+    ]);
     expect(boundary).toMatchObject({
       static: 200,
       auth: 200,
@@ -588,14 +594,24 @@ test("R59 uncertain Start preserves offline evidence across bounded cache releas
       api: 200,
       other: "opaque",
     });
-    expect([404, 405]).toContain(boundary.nonGet);
+    // Unsupported static methods are answered by Next, never the worker.
+    // Compare direct network metadata, without exposing an unstable error body.
+    expect(browserPost.fromServiceWorker()).toBe(false);
+    expect(boundary.nonGetType).toBe("basic");
+    const directPost = await page.request.post(nonGetUrl.href);
+    expect(browserPost.status()).toBe(directPost.status());
+    expect(boundary.nonGet).toBe(directPost.status());
+    const mediaType = (value: string | undefined) => value?.split(";")[0]?.trim().toLowerCase();
+    const contentType = mediaType(browserPost.headers()["content-type"]);
+    expect(Boolean(contentType), "the network response must identify its media type").toBe(true);
+    expect(contentType).toBe(mediaType(directPost.headers()["content-type"]));
     const navigation = await context.newPage();
     try {
       expect((await navigation.goto("/driver/manifest.webmanifest"))?.status()).toBe(200);
     } finally {
       await navigation.close();
     }
-    const afterRelease = await page.evaluate(async () => {
+    const afterRelease = await page.evaluate(async (post) => {
       const names = await caches.keys();
       const driverNames = names.filter((name) => name.startsWith("cardvert-driver-"));
       const requests = (
@@ -613,15 +629,17 @@ test("R59 uncertain Start preserves offline evidence across bounded cache releas
           );
         }),
         entries: requests.length,
+        nonGetCached: requests.some((request) => request.url === post),
         unrelated: await (
           await (await caches.open("r59-unrelated")).match("/r59-unrelated-marker")
         )?.text(),
       };
-    });
+    }, nonGetUrl.href);
     expect(afterRelease.driverNames).toEqual([`cardvert-driver-static-v4-${nextRelease}`]);
     expect(afterRelease.driverNames).not.toContain(bounded.name);
     expect(afterRelease.entries).toBe(1);
     expect(afterRelease.onlySameOriginStatic).toBe(true);
+    expect(afterRelease.nonGetCached).toBe(false);
     expect(afterRelease.unrelated).toBe("preserve");
     expect(await queuedEvidence(page, tripId)).toEqual(preserved);
 
